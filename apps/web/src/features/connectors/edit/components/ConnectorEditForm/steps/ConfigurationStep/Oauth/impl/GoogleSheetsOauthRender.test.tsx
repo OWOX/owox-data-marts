@@ -96,4 +96,19 @@ describe('GoogleSheetsOauthRender', () => {
       'Google Picker configuration is incomplete'
     );
   });
+
+  it('shows the Picker-selected spreadsheet as a read-only link', () => {
+    const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/sheet-1/edit';
+
+    renderGoogleSheetsOAuth({
+      configuration: { SpreadsheetId: spreadsheetUrl },
+    });
+
+    expect(screen.getByRole('button', { name: 'Change spreadsheet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: spreadsheetUrl })).toHaveAttribute(
+      'href',
+      spreadsheetUrl
+    );
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
 });

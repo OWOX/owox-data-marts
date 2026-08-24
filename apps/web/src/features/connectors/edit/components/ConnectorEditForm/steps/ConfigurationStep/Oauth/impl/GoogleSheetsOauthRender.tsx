@@ -5,6 +5,7 @@ import {
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth/hooks/useGoogleDrivePicker';
 import { Button } from '@owox/ui/components/button';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { FileSpreadsheet } from 'lucide-react';
 import { useState } from 'react';
 
@@ -27,8 +28,9 @@ export function GoogleSheetsOauthRender({
   const clientId = settings?.vars.ClientId as string | undefined;
   const pickerApiKey = settings?.vars.PickerApiKey as string | undefined;
   const projectNumber = settings?.vars.ProjectNumber as string | undefined;
-  const spreadsheetSelected =
-    typeof configuration.SpreadsheetId === 'string' && configuration.SpreadsheetId.trim() !== '';
+  const spreadsheetUrl =
+    typeof configuration.SpreadsheetId === 'string' ? configuration.SpreadsheetId.trim() : '';
+  const spreadsheetSelected = spreadsheetUrl !== '';
   const connectedEmail = status?.user?.email ?? status?.user?.name;
 
   const handlePickSpreadsheet = () => {
@@ -74,20 +76,27 @@ export function GoogleSheetsOauthRender({
         )}
       </GoogleSheetsLoginButton>
       {status?.valid && (
-        <Button
-          type='button'
-          variant='outline'
-          onClick={handlePickSpreadsheet}
-          disabled={isLoading || isPickingSpreadsheet}
-          className='w-full'
-        >
-          <FileSpreadsheet className='h-4 w-4' />
-          {isPickingSpreadsheet
-            ? 'Opening Google Picker...'
-            : spreadsheetSelected
-              ? 'Change spreadsheet'
-              : 'Choose spreadsheet'}
-        </Button>
+        <div className='space-y-2'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={handlePickSpreadsheet}
+            disabled={isLoading || isPickingSpreadsheet}
+            className='w-full'
+          >
+            <FileSpreadsheet className='h-4 w-4' />
+            {isPickingSpreadsheet
+              ? 'Opening Google Picker...'
+              : spreadsheetSelected
+                ? 'Change spreadsheet'
+                : 'Choose spreadsheet'}
+          </Button>
+          {spreadsheetSelected && (
+            <ExternalAnchor href={spreadsheetUrl} variant='field'>
+              {spreadsheetUrl}
+            </ExternalAnchor>
+          )}
+        </div>
       )}
       {pickerError && (
         <div role='alert' className='text-destructive text-sm'>

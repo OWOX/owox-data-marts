@@ -27,6 +27,7 @@ interface OauthRenderFactoryProps {
   onValueChange: (name: string, value: unknown) => void;
   connectorName: string;
   isEditingExisting?: boolean;
+  onManagedModeChange?: (isManaged: boolean) => void;
 }
 
 export interface OauthRenderComponentProps {
@@ -48,6 +49,7 @@ export function OauthRenderFactory({
   onValueChange,
   connectorName,
   isEditingExisting = false,
+  onManagedModeChange,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
@@ -236,6 +238,10 @@ export function OauthRenderFactory({
   }, [connectorName, fieldPath, getSettings]);
 
   const isOAuthEnabled = Boolean(settings?.isEnabled);
+
+  useEffect(() => {
+    onManagedModeChange?.(!isManualMode && isOAuthEnabled);
+  }, [isManualMode, isOAuthEnabled, onManagedModeChange]);
 
   if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (
