@@ -156,7 +156,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         },
         {
           label: 'Plugins',
-          items: ['docs/plugins', 'docs/plugins/project-setup', 'docs/plugins/authoring-guide'],
+          items: [
+            'docs/plugins',
+            'docs/plugins/project-setup',
+            'docs/plugins/authoring-guide',
+            'docs/plugins/trusted-plugins',
+          ],
         },
         {
           label: 'Contributing',
