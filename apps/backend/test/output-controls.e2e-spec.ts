@@ -754,7 +754,13 @@ describe('Output controls API (e2e)', () => {
     // run, Looker fetch and HTTP-Data stream has to work: `ctr` is an outer-SELECT alias, and
     // seeding the builder's referenced columns from the sort put it in the main raw CTE's
     // projection, failing at the warehouse with `Unrecognized name: ctr`.
-    it('PUT report accepts a sort on the metric, and the SQL orders by its alias', async () => {
+    // The sort orders by the metric's CAST EXPRESSION rather than its bare alias: a sort is a
+    // comparison, so the declared type reaches it the same way it reaches a filter, and ordering
+    // the alias sorted a FLOAT-declared formula's text — under a LIMIT a different ROW SET, not a
+    // different order. The alias cannot simply be wrapped, because Redshift resolves an output
+    // name only as a bare ORDER BY term. What this test is really about is unchanged and asserted
+    // below: the metric's NAME must stay out of the main raw CTE.
+    it('PUT report accepts a sort on the metric, and the SQL orders by its cast expression', async () => {
       const putRes = await agent
         .put(`/api/reports/${blendReportId}`)
         .set(AUTH_HEADER)
@@ -775,7 +781,10 @@ describe('Output controls API (e2e)', () => {
       const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
       expect(mainCte).not.toBeNull();
       expect(mainCte![1]).not.toContain('ctr');
-      expect(sql).toContain('ORDER BY\n  `ctr` DESC');
+      expect(sql).toContain(
+        'ORDER BY\n  CAST((SUM(main.clicks) / NULLIF(SUM(main.impressions), 0)) AS FLOAT64) DESC'
+      );
+      expect(sql).not.toContain('ORDER BY\n  `ctr` DESC');
     });
 
     // The flat path this Data Mart's reports took before still works: same mart, same metric,
