@@ -97,6 +97,13 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
     const formulaEditor = formulaPopover(page).locator('.monaco-editor').first();
     await expect(formulaEditor).toBeVisible({ timeout: 15000 });
     await formulaEditor.click();
+    // Monaco attaches its input asynchronously, so its node is on screen and clickable before it
+    // can receive a keystroke. Characters typed into that gap are dropped, and nothing retriggers
+    // the suggest widget once they are — the wait below then times out on a symptom two steps from
+    // its cause. Waiting on the editor's own textarea makes the failure say what actually broke.
+    await expect(formulaPopover(page).locator('textarea.inputarea')).toBeFocused({
+      timeout: 15000,
+    });
     await page.keyboard.type('users');
 
     const suggestWidget = page.locator(SUGGEST_WIDGET);

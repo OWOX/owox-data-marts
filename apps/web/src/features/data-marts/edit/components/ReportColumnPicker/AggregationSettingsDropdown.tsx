@@ -155,7 +155,7 @@ function AggregationSection({
   }
 
   return (
-    <div>
+    <div data-slot='aggregation-settings-panel'>
       <SectionHeader title='Aggregations' info={SECTION_INFO.aggregate} />
       <div className='space-y-1'>
         {aggregations.map((rule, index) => {

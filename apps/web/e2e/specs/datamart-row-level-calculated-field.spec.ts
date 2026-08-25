@@ -346,11 +346,9 @@ test.describe('Data Setup - row-level calculated field', () => {
     await card.click();
     await expect(sheet).toBeVisible();
     await sheet.getByRole('button', { name: 'Aggregations', exact: true }).click();
-    // The panel is drawn inline under the toolbar, not in a portal; the note only it renders is
-    // what tells its box apart from the field list around it.
-    const panel = sheet
-      .locator('div.rounded-md.border')
-      .filter({ hasText: 'A Row Count column is included automatically' });
+    // The panel is drawn inline under the toolbar, not in a portal, so it needs a handle of its
+    // own to be told apart from the field list around it.
+    const panel = sheet.locator('[data-slot="aggregation-settings-panel"]');
     await expect(panel.getByTitle(SESSION_KEY)).toBeVisible();
     await expect(panel.getByText('aggregated by')).toBeVisible();
     await expect(panel.getByLabel('Column not found in schema')).toHaveCount(0);
