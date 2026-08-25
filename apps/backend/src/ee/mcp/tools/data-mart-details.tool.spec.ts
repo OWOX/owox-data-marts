@@ -288,14 +288,16 @@ describe('GetDataMartDetailsTool', () => {
       '"metric" — the formula is ALREADY aggregated: select it by name and it is recomputed ' +
       'correctly at whatever grain your query asks for, including in a query that reads a joined ' +
       'Data Mart; it cannot be aggregated again (its allowedAggregations is empty), used as a ' +
-      'group-by dimension, given a date_bucket, or filtered on. This is also the meaning when the ' +
+      'group-by dimension, or given a date_bucket. This is also the meaning when the ' +
       'property is absent. "column" — the formula is row-level, so the field IS an ordinary ' +
       'dimension: select it by name and group by it exactly like a real column, including in a ' +
       'query that reads a joined Data Mart; it also accepts any aggregation listed in its own ' +
       'allowedAggregations (e.g. COUNT_DISTINCT), and applying one makes it a metric of that ' +
       'query rather than one of its grouping keys; when its declared type is DATE or TIMESTAMP it ' +
-      'also takes a date_bucket, on the same rule a real date column follows. Filtering on a ' +
-      'Calculated Field is refused at either level.';
+      'also takes a date_bucket, on the same rule a real date column follows. Filtering works at ' +
+      'BOTH levels: a row-level field filters on its computed value like an ordinary column, and ' +
+      'a metric filters on its aggregated value — but a metric filter needs the query to name ' +
+      'its fields explicitly rather than relying on the default all-columns projection.';
 
     const publishedCalculatedSchema = () => {
       const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
@@ -345,6 +347,12 @@ describe('GetDataMartDetailsTool', () => {
       );
       expect(rowLevelHalf).not.toContain('cannot yet be aggregated');
       expect(rowLevelHalf).not.toContain('allowedAggregations is empty');
+      // This PR ships filtering at BOTH levels — WHERE for a row-level field, HAVING for a
+      // metric — and the validator's own spec accepts the metric case. A contract still saying
+      // "refused at either level" makes an agent decline a query that works, or pull unfiltered
+      // pages and filter them itself.
+      expect(publishedLevelSchema().description).not.toContain('refused at either level');
+      expect(aggregateHalf).not.toContain('or filtered on');
       // Slice 3b lifted the bucket for a row-level field. While the sentence still refused one,
       // an agent either declined a request it could serve or bucketed some other field and
       // answered at the wrong grain without saying so.
@@ -359,7 +367,7 @@ describe('GetDataMartDetailsTool', () => {
       expect(rowLevelHalf).not.toContain('yet');
       // An aggregate-level field is refused a bucket permanently — it is never a grouping key —
       // so the lift must not have leaked across the split.
-      expect(aggregateHalf).toContain('given a date_bucket, or filtered on');
+      expect(aggregateHalf).toContain('or given a date_bucket');
       expect(aggregateHalf).not.toContain('DATE or TIMESTAMP');
       // A calculated metric works on a joined report as of this branch, and only the row-level
       // half said so; silence on this half reads to an agent as "not supported here".

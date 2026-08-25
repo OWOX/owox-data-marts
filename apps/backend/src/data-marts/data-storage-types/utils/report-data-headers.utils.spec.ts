@@ -571,10 +571,10 @@ describe('resolveReportDataHeaders', () => {
       expect(headers[0].aggregateFunction).toBeUndefined();
     });
 
-    // The header used to hard-code `isCalculatedMetric: true`, which the Looker mapper reads as
-    // "METRIC whatever the declared type says" — so a row-level `CONCAT(session_id, user_id)`
-    // reached the destination as a metric Looker refuses to group by (spec §4.5). The level must
-    // travel, not the fact of being calculated.
+    // The header used to mark every calculated field as an aggregate, which the Looker mapper
+    // reads as "METRIC whatever the declared type says" — so a row-level `CONCAT(session_id,
+    // user_id)` reached the destination as a metric Looker refuses to group by (spec §4.5). The
+    // level must travel, not the fact of being calculated.
     it('carries the ROW-LEVEL level onto the header, unchanged from the plan', () => {
       const headers = resolveReportDataHeaders(
         [],
@@ -590,13 +590,13 @@ describe('resolveReportDataHeaders', () => {
       expect(headers[0].aggregateFunction).toBeUndefined();
     });
 
-    // The OTHER direction of the rolling-deploy window the Looker mapper's compat read covers.
-    // These headers are persisted verbatim in `report_data_cache.dataDescription`, and a pod still
-    // running the pre-#6732 code knows only `isCalculatedMetric`: handed a row a NEW pod wrote, it
-    // finds neither key it understands and answers `isReaggregatable`, so Looker re-sums a ratio —
-    // exactly the defect the compat read exists to prevent, arriving from the other side. Both
-    // keys therefore travel for one release.
-    it('also writes the legacy isCalculatedMetric key for an aggregating field', () => {
+    // `calculatedFieldLevel` is the ONE key that travels. A second, boolean spelling was written
+    // beside it for a release, on the premise that a pod running older code reads that name — but
+    // no released build has ever read or written either: both were introduced together, on this
+    // branch. Writing a key nobody reads bought nothing and had to be maintained, so it is gone.
+    // The real exposure it claimed to cover is unchanged and unclosable by any key: during a
+    // rolling window an old pod serving Looker from a new pod's cache row finds no marker at all.
+    it('writes the level and nothing beside it', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
@@ -604,26 +604,8 @@ describe('resolveReportDataHeaders', () => {
         },
         BQ
       );
-      expect(headers[0]).toEqual(
-        expect.objectContaining({ calculatedFieldLevel: 'metric', isCalculatedMetric: true })
-      );
-    });
-
-    // The legacy key is a boolean with one meaning — "already an aggregate" — so there is nothing
-    // truthful to write for a dimension. An old pod reads its absence as an ordinary column, which
-    // is how it treated a row-level formula before the level existed at all.
-    it('leaves the legacy key off a row-level field, which a boolean cannot describe', () => {
-      const headers = resolveReportDataHeaders(
-        [],
-        {
-          calculatedMetrics: [
-            { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
-          ],
-        },
-        BQ
-      );
-      expect(headers[0].calculatedFieldLevel).toBe('column');
-      expect(headers[0].isCalculatedMetric).toBeUndefined();
+      expect(headers[0].calculatedFieldLevel).toBe('metric');
+      expect(headers[0]).not.toHaveProperty('isCalculatedMetric');
     });
 
     it('appends the calculated metric header last, after Unique Count', () => {

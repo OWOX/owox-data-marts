@@ -179,12 +179,6 @@ export function resolveReportDataHeaders(
   // aliased "CTR, %" as the one column in its own report still labelled `ctr`, while every field
   // beside it showed its alias.
   for (const metric of options?.calculatedMetrics ?? []) {
-    // The pre-#6732 spelling of the same fact, written for the rolling-deploy window: these headers
-    // are persisted verbatim in `report_data_cache.dataDescription`, and a pod still running the old
-    // code reads only this key — finding neither, it tells Looker Studio to re-sum a ratio. Only an
-    // aggregating field has anything for a boolean to say. Droppable in 0.33.0, one release after
-    // the 0.32.0 that ships #6732.
-    const legacyIsCalculatedMetric = isAggregateLevel(metric.level) || undefined;
     const fns =
       isCalculatedGroupingKey(metric) || isAggregateLevel(metric.level)
         ? []
@@ -198,8 +192,7 @@ export function resolveReportDataHeaders(
           metric.description,
           metric.type as StorageFieldType,
           undefined,
-          metric.level,
-          legacyIsCalculatedMetric
+          metric.level
         ),
       ];
       continue;
@@ -216,8 +209,7 @@ export function resolveReportDataHeaders(
             // COUNT_DISTINCT over it is an integer count whatever the formula was declared.
             computeEffectiveType(metric.type as StorageFieldType, fn, storageType),
             fn,
-            metric.level,
-            legacyIsCalculatedMetric
+            metric.level
           )
       ),
     ];

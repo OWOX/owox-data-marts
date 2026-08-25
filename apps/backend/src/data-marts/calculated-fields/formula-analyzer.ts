@@ -360,11 +360,18 @@ function hasUnguardedDivision(
   const code = tokens.filter(t => t.kind !== 'comment');
   return code.some((token, i) => {
     if (!(token.kind === 'punct' && token.value === '/')) return false;
-    const next = code[i + 1];
-    if (!next) return false;
-    if (next.kind === 'number') return false;
+    // Past any parens the analyst wrapped the denominator in, so `a / (NULLIF(b, 0))` reads the
+    // same as `a / NULLIF(b, 0)`.
+    let j = i + 1;
+    while (code[j]?.kind === 'punct' && code[j].value === '(') j++;
+    const denominator = code[j];
+    if (!denominator) return false;
+    if (denominator.kind === 'number') return false;
+    // The denominator must BE the guard call. Asking only that it fall somewhere INSIDE one also
+    // accepts a guard wrapped around the whole quotient — the case the policy above says still
+    // warns, because a guard on the result does nothing about dividing by zero.
     const guarded = calls.some(
-      c => GUARDS.has(c.name.toUpperCase()) && c.nameStart <= next.start && next.end <= c.argEnd
+      c => GUARDS.has(c.name.toUpperCase()) && c.nameStart === denominator.start
     );
     return !guarded;
   });

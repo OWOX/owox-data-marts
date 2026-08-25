@@ -683,7 +683,11 @@ describe('ValidateFormulaService', () => {
     );
   });
 
-  it('refuses a Data Mart the caller cannot see, without validating anything', async () => {
+  // EDIT, not SEE: this endpoint answers "would the save I am about to make be accepted", so the
+  // people who may ask are the people who may make that save — the same action
+  // `UpdateDataMartSchemaService` checks, and the level the route guard already required. The
+  // three layers used to state two different contracts, with the published one the weakest.
+  it('refuses a Data Mart the caller cannot edit, without validating anything', async () => {
     const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
     const { service, accessDecisionService } = buildService({ validate, canAccess: false });
 
@@ -694,7 +698,7 @@ describe('ValidateFormulaService', () => {
       ['editor'],
       expect.anything(),
       'target-1',
-      'SEE',
+      'EDIT',
       'project-1'
     );
     expect(validate).not.toHaveBeenCalled();

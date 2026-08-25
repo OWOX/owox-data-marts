@@ -317,6 +317,7 @@ export class MetricSleeveBuilder {
               isIdentity,
               valueSql,
               alias: plan.pullAlias,
+              metricOutputName: plan.metricOutputName,
             },
             context,
             outputAliasToRoot,
@@ -647,12 +648,17 @@ export class MetricSleeveBuilder {
       // USER DATA — a formula saved before the owner-mixing gate existed, or one a re-homed field
       // silently turned into a mixed-owner call. Refusing is the only safe answer: the alternative
       // is a number multiplied by the fan-out with nothing to show it went wrong.
+      // Named for the analyst, not for the builder: `group.alias` is the synthetic pull name
+      // `_fx_<metric>_<i>`, which exists nowhere in their schema. The payload carries
+      // `calculatedField` for the same reason every sibling refusal does — it is the key the MCP
+      // and web error paths read to point at a field.
+      const named = group.metricOutputName ?? group.alias;
       throw new BusinessViolationException(
-        `The calculated field '${group.alias}' aggregates over joined source ` +
+        `The calculated field '${named}' aggregates over joined source ` +
           `'${group.ownerCteName}' but its expression also reads ` +
           `[${foreignQualifiers.join(', ')}]. One aggregate call must read a single source, or ` +
           `its result is multiplied by the join's fan-out. Split it into one call per source`,
-        { foreignQualifiers }
+        { calculatedField: named, foreignQualifiers }
       );
     }
     if (group.distinct && fn !== 'COUNT') {

@@ -1,3 +1,8 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartSchemaService } from './update-data-mart-schema.service';
@@ -317,6 +322,49 @@ describe('UpdateDataMartSchemaService', () => {
       );
       // Silence is the bug this rules against: a warehouse that is never actually checked must
       // still surface a warning, not just fall back to parser-only with no signal at all.
+      expect(result.warnings).toEqual([
+        expect.objectContaining({ code: 'FORMULA_WAREHOUSE_CHECK_SKIPPED' }),
+      ]);
+      const saved = dataMartService.save.mock.calls[0][0] as { schema: typeof parsedSchema };
+      expect(saved.schema.fields[0].calculated.warehouseValidation).toBe('skipped');
+    });
+
+    // The third way the check can fail to happen, and the one that used to 500 instead of
+    // degrading: the storage IS configured, so neither guard around it applies, but resolving its
+    // credential throws — no linked credential, or a revoked BigQuery OAuth grant. Every save
+    // carrying a formula died there, including the save that removes the formula and would have
+    // gotten the Data Mart out of that state.
+    it('degrades to a skipped stamp, not a 500, when credentials cannot be resolved', async () => {
+      const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+      const resolveCredentials = jest
+        .fn()
+        .mockRejectedValue(new Error('No credentials linked to this storage'));
+      const dataMart = {
+        id: 'target-1',
+        projectId: 'project-1',
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY, config: { projectId: 'p' } },
+        schema: null,
+      };
+      const parsedSchema = JSON.parse(JSON.stringify(calculatedFieldSchema));
+      const { service, dataMartService } = buildService({
+        validate,
+        parsedSchema,
+        dataMart,
+        resolveCredentials,
+      });
+
+      const result = await service.run(
+        new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never)
+      );
+
+      expect(resolveCredentials).toHaveBeenCalled();
+      // No context, so the validator runs parser-only — exactly the unreachable-warehouse path.
+      expect(validate).toHaveBeenCalledWith(
+        parsedSchema,
+        DataStorageType.GOOGLE_BIGQUERY,
+        undefined,
+        anonymousJoinTree
+      );
       expect(result.warnings).toEqual([
         expect.objectContaining({ code: 'FORMULA_WAREHOUSE_CHECK_SKIPPED' }),
       ]);

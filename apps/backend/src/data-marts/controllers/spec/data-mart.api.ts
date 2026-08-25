@@ -221,7 +221,8 @@ export function ValidateFormulaSpec() {
       description:
         'Checks a single formula against the Data Mart it belongs to and returns every violation ' +
         'and advisory the schema save would raise for it — minus the warehouse dry run, which ' +
-        'this endpoint never performs. Read access to the Data Mart is required.',
+        'this endpoint never performs. Edit access to the Data Mart is required: this answers ' +
+        'whether a save would be accepted, so it is available to whoever can make that save.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: ValidateFormulaApiDto }),

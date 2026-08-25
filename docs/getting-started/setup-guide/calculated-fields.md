@@ -14,7 +14,7 @@ A **calculated field** is a formula you add to a Data Mart's output schema — p
 - Get **autocomplete** for the Data Mart's fields (its own, its calculated ones, and joined), the dialect's aggregate functions, a curated list of its scalar functions, and a ready-made guarded-division snippet.
 - See problems **while you type**, underlined on the token at fault and spelled out beneath the editor.
 - **Select** a calculated field as a report column and **sort** by it — on any report, whether or not it joins another Data Mart. A metric also appears in a report's **Totals**, recomputed over the whole filtered dataset; a dimension groups the report instead.
-- **Filter** by it, selected or not — a dimension row by row, a metric by each group's recomputed value. The comparison is made on the type you declared, so declare the type your formula actually returns: on two storages a wrong declaration filters wrongly rather than raising an error.
+- **Filter** by it, selected or not — a dimension row by row, a metric by each group's recomputed value. Filtering by a metric makes the report a grouped one, so the report has to say which columns it returns: on a report that picks no columns at all and groups by nothing, the filter is refused with a message telling you to choose them. The comparison is made on the type you declared, so declare the type your formula actually returns: on two storages a wrong declaration filters wrongly rather than raising an error.
 - Apply a report **aggregation** to a dimension — `Count Unique` over `CONCAT(session_id, user_id)`, say. The field then stops being a grouping key and becomes a metric of that report, exactly as an aggregation on an ordinary column does.
 - **Bucket a calculated date** — a row-level field declared `DATE` or `TIMESTAMP` can be grouped by day, week, month, quarter or year, and the report's metrics are computed at that bucket's grain.
 
@@ -28,11 +28,11 @@ You type plain warehouse SQL, and you name a field by writing its name — there
 
 Whether the field is a **metric** or a **dimension** follows from what you wrote, and nothing else:
 
-| Your formula | The field is | In a report |
-| ----------------------------------------- | ------------ | ---------------------------------------------------- |
-| contains at least one aggregation | a metric | already aggregated; never grouped by |
-| contains no aggregation at all | a dimension | grouped by, exactly like an ordinary column — unless the report aggregates it, and then it is a metric of that report |
-| mixes the two (`SUM(clicks) + impressions`) | — | refused on save |
+| Your formula                                | The field is | In a report                                                                                                           |
+| ------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| contains at least one aggregation           | a metric     | already aggregated; never grouped by                                                                                  |
+| contains no aggregation at all              | a dimension  | grouped by, exactly like an ordinary column — unless the report aggregates it, and then it is a metric of that report |
+| mixes the two (`SUM(clicks) + impressions`) | —            | refused on save                                                                                                       |
 
 A reference to another calculated field counts for this reading, and counts as whatever **it** is: `revenue / NULLIF(cost, 0)` holds no aggregation of its own and is still a metric, because `revenue` and `cost` are. See [Referencing Another Calculated Field](#referencing-another-calculated-field).
 
@@ -61,11 +61,11 @@ When the report also pulls fields from a **joined** Data Mart, each aggregate ca
 
 On the Data Mart's **Data Setup** tab, open **Output Schema** and press **Add Calculated Field**. A row is appended straight away, marked with the calculated-field icon in the status column. Fill in three things:
 
-| Column | What to put there |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| **Name** | The output column name reports and API consumers will select. |
-| **Type** | The field's output type, from the types your storage accepts. This is your declaration — OWOX does not infer it from the formula. |
-| **Formula** | Click the cell to open the formula editor. |
+| Column      | What to put there                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Name**    | The output column name reports and API consumers will select.                                                                     |
+| **Type**    | The field's output type, from the types your storage accepts. This is your declaration — OWOX does not infer it from the formula. |
+| **Formula** | Click the cell to open the formula editor.                                                                                        |
 
 Then save the schema. The save is what validates every formula.
 
@@ -106,13 +106,13 @@ These are the names OWOX recognises **as aggregates** when it reads your formula
 
 and, on top of it, its own dialect's:
 
-| Storage | Also recognised |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| BigQuery | `APPROX_COUNT_DISTINCT`, `APPROX_QUANTILES`, `APPROX_TOP_COUNT`, `ARRAY_AGG`, `STRING_AGG`, `COUNTIF`, `LOGICAL_AND`, `LOGICAL_OR`, `CORR`, `COVAR_POP` |
-| Athena | `APPROX_DISTINCT`, `APPROX_PERCENTILE`, `ARBITRARY`, `ARRAY_AGG`, `BOOL_AND`, `BOOL_OR`, `COUNT_IF`, `GEOMETRIC_MEAN`, `MAX_BY`, `MIN_BY`, `CORR` |
-| Snowflake | `APPROX_COUNT_DISTINCT`, `APPROX_PERCENTILE`, `ARRAY_AGG`, `LISTAGG`, `MEDIAN`, `PERCENTILE_CONT`, `PERCENTILE_DISC`, `MODE`, `CORR`, `COVAR_POP`, `HLL`, `BOOLAND_AGG`, `BOOLOR_AGG` |
-| Redshift | `LISTAGG`, `MEDIAN`, `PERCENTILE_CONT`, `PERCENTILE_DISC`, `BOOL_AND`, `BOOL_OR` |
-| Databricks | `APPROX_COUNT_DISTINCT`, `APPROX_PERCENTILE`, `PERCENTILE`, `PERCENTILE_APPROX`, `COLLECT_LIST`, `COLLECT_SET`, `FIRST`, `LAST`, `CORR`, `COUNT_IF`, `BOOL_AND`, `BOOL_OR` |
+| Storage    | Also recognised                                                                                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BigQuery   | `APPROX_COUNT_DISTINCT`, `APPROX_QUANTILES`, `APPROX_TOP_COUNT`, `ARRAY_AGG`, `STRING_AGG`, `COUNTIF`, `LOGICAL_AND`, `LOGICAL_OR`, `CORR`, `COVAR_POP`                               |
+| Athena     | `APPROX_DISTINCT`, `APPROX_PERCENTILE`, `ARBITRARY`, `ARRAY_AGG`, `BOOL_AND`, `BOOL_OR`, `COUNT_IF`, `GEOMETRIC_MEAN`, `MAX_BY`, `MIN_BY`, `CORR`                                     |
+| Snowflake  | `APPROX_COUNT_DISTINCT`, `APPROX_PERCENTILE`, `ARRAY_AGG`, `LISTAGG`, `MEDIAN`, `PERCENTILE_CONT`, `PERCENTILE_DISC`, `MODE`, `CORR`, `COVAR_POP`, `HLL`, `BOOLAND_AGG`, `BOOLOR_AGG` |
+| Redshift   | `LISTAGG`, `MEDIAN`, `PERCENTILE_CONT`, `PERCENTILE_DISC`, `BOOL_AND`, `BOOL_OR`                                                                                                      |
+| Databricks | `APPROX_COUNT_DISTINCT`, `APPROX_PERCENTILE`, `PERCENTILE`, `PERCENTILE_APPROX`, `COLLECT_LIST`, `COLLECT_SET`, `FIRST`, `LAST`, `CORR`, `COUNT_IF`, `BOOL_AND`, `BOOL_OR`            |
 
 > ⚠️ This list is about **recognition**, not about what your warehouse can do. A call OWOX does not recognise as an aggregate is treated as a scalar function, so the fields inside it read as bare row-level columns and the save refuses the formula with a level-mixing message. If you need an aggregate that is not listed here, wrap the row-level part in one that is, or model the field in the Data Mart's SQL instead.
 
@@ -142,17 +142,17 @@ A metric built from two other metrics, and a row-level formula built from anothe
 
 ### What is refused
 
-| What is refused | Example |
-| ------------------------------------------------------------- | ------------------------------------------------- |
-| Wrapping an aggregated calculated field in an aggregation | `SUM(revenue)`, where `revenue` is `SUM(amount)` — the message names the field that already aggregates |
-| A loop between formulas | `a` reads `b` and `b` reads `a` — the message draws the loop, `a` → `b` → `a`, so you can see which reference to remove |
-| A formula that references itself | `roas = roas / 2`, reported as itself rather than as a loop of one |
-| A joined Data Mart's calculated field | `orders.roas` — see [below](#referencing-a-joined-data-marts-field) |
-| Referencing a calculated field that itself reads a **joined** Data Mart | `roas` over a `revenue` written as `SUM(orders.amount)` — the refusal names `revenue` and `orders.amount` |
+| What is refused                                                         | Example                                                                                                                 |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Wrapping an aggregated calculated field in an aggregation               | `SUM(revenue)`, where `revenue` is `SUM(amount)` — the message names the field that already aggregates                  |
+| A loop between formulas                                                 | `a` reads `b` and `b` reads `a` — the message draws the loop, `a` → `b` → `a`, so you can see which reference to remove |
+| A formula that references itself                                        | `roas = roas / 2`, reported as itself rather than as a loop of one                                                      |
+| A joined Data Mart's calculated field                                   | `orders.roas` — see [below](#referencing-a-joined-data-marts-field)                                                     |
+| Referencing a calculated field that itself reads a **joined** Data Mart | `roas` over a `revenue` written as `SUM(orders.amount)` — the refusal names `revenue` and `orders.amount`               |
 
 Two formulas reading the same third one is not a loop and is perfectly fine.
 
-The last two are one rule met twice, and it is the rule the section below is about: which Data Marts a report joins, and whether the person running it may read them, are decided from the text of the formula that was selected — so a joined Data Mart reached only *through* a reference would be joined with nobody's access to it checked. The difference between them is only where each is caught. `orders.roas` is refused by reading your formula, with no warehouse involved; a reference to a field that reads a joined Data Mart is caught by the save's warehouse test run, so on a Data Mart whose storage is not configured it surfaces the first time a report asks for the field instead.
+The last two are one rule met twice, and it is the rule the section below is about: which Data Marts a report joins, and whether the person running it may read them, are decided from the text of the formula that was selected — so a joined Data Mart reached only _through_ a reference would be joined with nobody's access to it checked. The difference between them is only where each is caught. `orders.roas` is refused by reading your formula, with no warehouse involved; a reference to a field that reads a joined Data Mart is caught by the save's warehouse test run, so on a Data Mart whose storage is not configured it surfaces the first time a report asks for the field instead.
 
 ### A referenced field is not a report column
 
@@ -173,7 +173,7 @@ Two rules govern how such a formula is computed:
 
 Three asymmetries against your own Data Mart's fields are deliberate: a joined field **hidden for reporting** in its own Data Mart cannot be referenced (your own hidden fields can), a joined Data Mart **you do not have access to** cannot be referenced at all, and a joined Data Mart's **calculated field** cannot be referenced where one of your own now can.
 
-That last one is not a feature waiting its turn. Which Data Marts a report joins, and whether the person running it may read them, are both decided from the text of the formula in front of you — so a joined Data Mart reachable only *through* a calculated field you referenced would be joined without that access check ever running. `orders.roas` is therefore refused by name, told to you as a calculated field of a joined Data Mart and not as a missing one, and autocomplete does not offer it.
+That last one is not a feature waiting its turn. Which Data Marts a report joins, and whether the person running it may read them, are both decided from the text of the formula in front of you — so a joined Data Mart reachable only _through_ a calculated field you referenced would be joined without that access check ever running. `orders.roas` is therefore refused by name, told to you as a calculated field of a joined Data Mart and not as a missing one, and autocomplete does not offer it.
 
 The same boundary holds on a **report**, and not only inside a formula. A joined Data Mart's calculated field cannot be selected as a report column, filtered, sorted, aggregated or date-bucketed: a report that joins another Data Mart reads that Data Mart's **real columns** only. The refusal names the field and the Data Mart it belongs to, rather than reporting a column your warehouse has never heard of. Where you meet it depends on what the report does with the field — filtering, sorting, aggregating or bucketing it is refused when the report is **saved**, while a report that merely selects it is refused when it **runs**, so on a scheduled run or a destination push rather than in the editor. A report that already carried such a field was reading whatever column of the joined Data Mart happened to share the formula's name and serving that value as the formula's; it now says so instead.
 
@@ -181,7 +181,7 @@ The same boundary holds on a **report**, and not only inside a formula. A joined
 
 A moment after you stop typing, the editor asks the backend what is wrong with the formula. It is the **same rule set the save applies**, run without touching the warehouse, so the two cannot disagree. The answer appears in two places at once: underlined on the column or function at fault, and written out beneath the editor — both, because several problems name no particular token.
 
-Two things this channel deliberately does *not* do:
+Two things this channel deliberately does _not_ do:
 
 - It never blocks **Apply**. Its answer is asynchronous, so gating on it would let a stale verdict stand between you and a formula you have already fixed. The save remains the authority.
 - It never invents a problem. If the check cannot be reached — offline, a server error, a view-only session — it stays silent rather than blaming the formula.
@@ -198,30 +198,30 @@ Two gates, in order.
 - a name it could not resolve to any field on offer — reported as itself ("`clickz` is not a field of this Data Mart"), rather than as a confusing complaint about the aggregation around it;
 - a reference whose name contains a double quote.
 
-When the joined Data Marts have not loaded, a dotted name is refused with *"could not be checked against the joined Data Marts"* and what to do about it — never with an assertion that the field does not exist.
+When the joined Data Marts have not loaded, a dotted name is refused with _"could not be checked against the joined Data Marts"_ and what to do about it — never with an assertion that the field does not exist.
 
 **The schema save** validates every calculated field in one pass and reports every problem across every field at once, each naming the field it belongs to. It refuses:
 
-| What is refused | Example |
-| ------------------------------------------------------------- | ------------------------------------------------- |
-| A row-level column beside an aggregation in the same formula | `SUM(clicks) + impressions` |
-| A joined Data Mart's field read outside an aggregation | `CONCAT(session_id, orders.status)` |
-| An aggregation nested inside another | `SUM(COUNT(clicks))` |
-| An aggregate call with no field in it | `COUNT(1)` |
-| One aggregate call reading two Data Marts | `SUM(cost * orders.amount)` |
-| An unclosed parenthesis | `SUM(clicks` |
-| A subquery (`SELECT`), a window function (`OVER`), or a `;` | `SUM(clicks) OVER ()` |
-| A `#` or `//` comment — they mean different things on different warehouses, so use `--` | `SUM(clicks) # daily` |
-| A backslash inside a quoted value — some warehouses read it as an escape and others do not, so write a quote as `''` | `CONCAT(a, 'it\'s')` |
-| A reference to a field that no longer exists | a renamed or deleted column |
-| A reference to a **joined** Data Mart's calculated field — one on your own Data Mart is allowed | `orders.roas` |
-| An aggregated calculated field wrapped in another aggregation | `SUM(revenue)` where `revenue` is `SUM(amount)` |
-| A loop between calculated fields, or a formula that references itself | `a` reads `b` and `b` reads `a` |
-| A joined alias that is not joined, or a field that source does not offer | `orders.amount` after the join was removed |
-| A joined field hidden for reporting, or a joined Data Mart you cannot access | — |
-| A reference to a Unique Count measure, own or joined | `unique_count` |
-| A field reference that ends up inside a text value | a field pill enclosed in `'…'` quotes |
-| Anything the **warehouse itself** rejects on the test run | an unknown function, a bad cast |
+| What is refused                                                                                                      | Example                                         |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| A row-level column beside an aggregation in the same formula                                                         | `SUM(clicks) + impressions`                     |
+| A joined Data Mart's field read outside an aggregation                                                               | `CONCAT(session_id, orders.status)`             |
+| An aggregation nested inside another                                                                                 | `SUM(COUNT(clicks))`                            |
+| An aggregate call with no field in it                                                                                | `COUNT(1)`                                      |
+| One aggregate call reading two Data Marts                                                                            | `SUM(cost * orders.amount)`                     |
+| An unclosed parenthesis                                                                                              | `SUM(clicks`                                    |
+| A subquery (`SELECT`), a window function (`OVER`), or a `;`                                                          | `SUM(clicks) OVER ()`                           |
+| A `#` or `//` comment — they mean different things on different warehouses, so use `--`                              | `SUM(clicks) # daily`                           |
+| A backslash inside a quoted value — some warehouses read it as an escape and others do not, so write a quote as `''` | `CONCAT(a, 'it\'s')`                            |
+| A reference to a field that no longer exists                                                                         | a renamed or deleted column                     |
+| A reference to a **joined** Data Mart's calculated field — one on your own Data Mart is allowed                      | `orders.roas`                                   |
+| An aggregated calculated field wrapped in another aggregation                                                        | `SUM(revenue)` where `revenue` is `SUM(amount)` |
+| A loop between calculated fields, or a formula that references itself                                                | `a` reads `b` and `b` reads `a`                 |
+| A joined alias that is not joined, or a field that source does not offer                                             | `orders.amount` after the join was removed      |
+| A joined field hidden for reporting, or a joined Data Mart you cannot access                                         | —                                               |
+| A reference to a Unique Count measure, own or joined                                                                 | `unique_count`                                  |
+| A field reference that ends up inside a text value                                                                   | a field pill enclosed in `'…'` quotes           |
+| Anything the **warehouse itself** rejects on the test run                                                            | an unknown function, a bad cast                 |
 
 Two outcomes are **warnings** and do not block the save:
 
@@ -261,14 +261,14 @@ One shape is refused rather than answered: a **metric whose formula aggregates a
 
 Open the field's **Σ** control in the report's column picker and tick a function — `Count Unique` on a `session_key` field holding `CONCAT(session_id, user_id)`, for example. From that point the field is a **metric of that report**:
 
-- it is **no longer a grouping key**, so the report returns one row per combination of its *remaining* dimensions, and the count is taken over each of those groups as a whole;
+- it is **no longer a grouping key**, so the report returns one row per combination of its _remaining_ dimensions, and the count is taken over each of those groups as a whole;
 - the result arrives under the usual aggregated column name, `session_key | COUNTUNIQUE` — the field no longer appears under its own bare name. Tick more than one function and each gets its own column, exactly as for an ordinary column;
 - the functions on offer come from the field's **declared type** and from the allowed-aggregations set on its schema row, on the same rules as any warehouse column;
 - it works the same way on a plain report, on one that **joins** another Data Mart, and on a blended one, on every supported storage.
 
-> ⚠️ A dimension the report aggregates shows **no Totals value** — the Totals block carries nothing for that column, and the cell beside it stays empty. This is deliberate, not a defect. OWOX never invents a Totals aggregation for a formula: a metric appears in Totals as *itself*, its own formula recomputed over the whole filtered dataset and never summed or averaged, while a dimension has no such value of its own to recompute. The aggregation you applied belongs to that report, not to the field, so it does not create one either.
+> ⚠️ A dimension the report aggregates shows **no Totals value** — the Totals block carries nothing for that column, and the cell beside it stays empty. This is deliberate, not a defect. OWOX never invents a Totals aggregation for a formula: a metric appears in Totals as _itself_, its own formula recomputed over the whole filtered dataset and never summed or averaged, while a dimension has no such value of its own to recompute. The aggregation you applied belongs to that report, not to the field, so it does not create one either.
 
-Two things a **metric** is refused, permanently rather than for now, each with a message naming which rather than being silently ignored. A **report aggregation** on top of it: it already *is* an aggregate, so there is nothing left to apply, and only a dimension can be aggregated. And a **date bucket**: an aggregate-level field is never a grouping key, so there is no dimension to bucket. A **row-level** field can be bucketed — see [Bucketing a calculated date](#bucketing-a-calculated-date).
+Two things a **metric** is refused, permanently rather than for now, each with a message naming which rather than being silently ignored. A **report aggregation** on top of it: it already _is_ an aggregate, so there is nothing left to apply, and only a dimension can be aggregated. And a **date bucket**: an aggregate-level field is never a grouping key, so there is no dimension to bucket. A **row-level** field can be bucketed — see [Bucketing a calculated date](#bucketing-a-calculated-date).
 
 To a destination that separates the two — Looker Studio, for instance — a metric arrives as a metric and a dimension arrives as a dimension. A dimension the report has aggregated arrives as a metric, under exactly the rules an ordinary column carrying that same function gets: `Count Unique`, for one, arrives as a metric Looker is told not to roll up further.
 

@@ -1625,9 +1625,25 @@ describe('MetricSleeveBuilder', () => {
         } catch (err) {
           expect(err).toBeInstanceOf(BusinessViolationException);
           expect((err as BusinessViolationException).errorDetails).toEqual({
+            // The key every sibling refusal carries, so the MCP and web error paths that point at
+            // a field have something to point at here too.
+            calculatedField: 'Weighted Amount',
             foreignQualifiers: ['main', 'users_raw'],
           });
         }
+      });
+
+      // Through `buildAll` — the only path a real report takes — `alias` is the synthetic pull name
+      // `_fx_<metric>_<i>`, an identifier that appears nowhere in the analyst's schema. The refusal
+      // has to name the field they wrote.
+      it('names the calculated field rather than the synthetic pull alias', () => {
+        const group = weightedAmount({
+          valueSql: '(orders_raw.amount * main.fx_rate)',
+          alias: '_fx_roas_0',
+          metricOutputName: 'roas',
+        });
+        expect(() => build(group)).toThrow(/'roas'/);
+        expect(() => build(group)).not.toThrow(/_fx_roas_0/);
       });
 
       it.each([

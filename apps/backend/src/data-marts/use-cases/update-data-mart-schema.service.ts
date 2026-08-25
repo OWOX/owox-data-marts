@@ -1,5 +1,7 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataMart } from '../entities/data-mart.entity';
 import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
 import {
   CalculatedFieldValidatorService,
@@ -72,15 +74,30 @@ export class UpdateDataMartSchemaService {
     // Resolving credentials can mean a real round trip (e.g. a BigQuery OAuth token exchange), so
     // it only runs when the schema actually carries a formula to dry-run — most saves (renames,
     // hidden-field toggles, no calculated fields at all) never touch it.
-    const ctx: DryRunContext | undefined =
-      storageConfig && calculatedFields.length > 0
-        ? {
-            dataMart,
-            storageType: dataMart.storage.type,
-            credentials: await this.credentialsResolver.resolve(dataMart.storage),
-            config: storageConfig,
-          }
-        : undefined;
+    //
+    // And it can fail on its own terms: a storage configured without a linked credential throws,
+    // and the BigQuery OAuth branch throws on a revoked grant. Unhandled, that failure sat BETWEEN
+    // the two guards that already degrade — unconfigured storage, unreachable warehouse — and
+    // turned every save carrying a formula into a 500, including the save that REMOVES the
+    // formula. It gets the same answer as those two: the check did not happen, so say so and save.
+    let ctx: DryRunContext | undefined;
+    let credentialsUnavailable = false;
+    if (storageConfig && calculatedFields.length > 0) {
+      try {
+        ctx = {
+          dataMart,
+          storageType: dataMart.storage.type,
+          credentials: await this.credentialsResolver.resolve(dataMart.storage),
+          config: storageConfig,
+        };
+      } catch (e) {
+        this.logger.warn(
+          `Credentials unavailable for data mart ${command.id}; ` +
+            `saving with the warehouse check skipped: ${e instanceof Error ? e.message : String(e)}`
+        );
+        credentialsUnavailable = true;
+      }
+    }
 
     const { errors, warnings, warehouseValidation } = await this.calculatedFieldValidator.validate(
       parsed,
@@ -100,15 +117,16 @@ export class UpdateDataMartSchemaService {
       throw new BusinessViolationException('Calculated field validation failed', { errors });
     }
 
-    // Storage not being configured yet is treated exactly like the warehouse being unreachable:
-    // the save still succeeds, but silently — no warning, no stamp — would hide that the formula
-    // was never actually checked. `ctx` is guaranteed undefined here (no storageConfig), so
-    // `warehouseValidation` from the validator is always undefined too; this is the only source
-    // of the 'skipped' outcome for this case.
-    if (storageNotConfigured) {
+    // Storage not being configured yet, and credentials that cannot be resolved, are both treated
+    // exactly like the warehouse being unreachable: the save still succeeds, but silently — no
+    // warning, no stamp — would hide that the formula was never actually checked. `ctx` is
+    // guaranteed undefined in both cases, so `warehouseValidation` from the validator is always
+    // undefined too; this is the only source of the 'skipped' outcome for them.
+    const warehouseCheckSkipped = storageNotConfigured || credentialsUnavailable;
+    if (warehouseCheckSkipped) {
       warnings.push(FormulaViolations.warehouseCheckSkipped(calculatedFields.map(f => f.name)));
     }
-    const effectiveWarehouseValidation = storageNotConfigured ? 'skipped' : warehouseValidation;
+    const effectiveWarehouseValidation = warehouseCheckSkipped ? 'skipped' : warehouseValidation;
 
     // Design decision 9: a `skipped` metric must be re-checked on the next save, and a `passed`
     // one carries proof it was. Both need the stamp to actually reach the persisted field —
@@ -119,13 +137,7 @@ export class UpdateDataMartSchemaService {
       }
     }
 
-    await this.dataMartService.save(dataMart);
-    // A cached Looker Studio reader is keyed on the report and an expiry alone — nothing in the key
-    // fingerprints the schema — so without this an edited formula keeps serving the OLD formula's
-    // numbers under the OLD headers until `cacheLifetime` (min 60s, no upper bound) runs out. Same
-    // call, same placement, as the sibling mutators that already invalidate on a schema-shaping
-    // change (UpdateBlendedFieldsConfigService, Update/DeleteDataMartRelationshipService).
-    await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
+    await this.saveAndInvalidate(dataMart);
     await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
       dataMart.id,
       command.projectId
@@ -133,5 +145,28 @@ export class UpdateDataMartSchemaService {
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
     return { ...this.mapper.toDomainDto(dataMart), warnings };
+  }
+
+  /**
+   * The persistence pair, committed or rolled back together.
+   *
+   * A cached Looker Studio reader is keyed on the report and an expiry alone — nothing in the key
+   * fingerprints the schema — so without the invalidation an edited formula keeps serving the OLD
+   * formula's numbers under the OLD headers until `cacheLifetime` (min 60s, no upper bound) runs
+   * out. Same call as the sibling mutators that already invalidate on a schema-shaping change
+   * (UpdateBlendedFieldsConfigService, Update/DeleteDataMartRelationshipService), and transactional
+   * for the same reason they are: if the save autocommits and the invalidation then fails, the new
+   * formula is durably stored, the request 500s — so the editor reports a failed save and keeps
+   * the analyst's edits marked unsaved — and the stale cache serves the old formula's numbers for
+   * up to the cache lifetime. That is precisely the window this call exists to close.
+   *
+   * Scoped to these two statements rather than declared on `run`, because `run` awaits a warehouse
+   * dry run, and holding a database transaction open across that round trip would trade one
+   * problem for a slower one.
+   */
+  @Transactional()
+  private async saveAndInvalidate(dataMart: DataMart): Promise<void> {
+    await this.dataMartService.save(dataMart);
+    await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
   }
 }

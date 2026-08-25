@@ -307,44 +307,27 @@ describe('LookerStudioTypeMapperService', () => {
     });
   });
 
-  // `ReportDataHeader[]` is persisted verbatim inside `report_data_cache.dataDescription`, and
-  // #6732 renamed `isCalculatedMetric` to `calculatedFieldLevel` in that shape. Nothing invalidates
-  // the cache on a schema save, so for one cache lifetime after the deploy `getSchema` reads rows
-  // that carry only the old key.
-  describe('buildSchemaField — pre-rename cache rows', () => {
-    const legacyHeader = (isCalculatedMetric: boolean, level?: 'metric' | 'column') =>
-      Object.assign(
-        new ReportDataHeader('ctr', 'CTR, %', undefined, BigQueryFieldType.FLOAT, undefined, level),
-        { isCalculatedMetric }
+  // `ReportDataHeader[]` is persisted verbatim inside `report_data_cache.dataDescription` and
+  // nothing invalidates that cache on a deploy, so during a rolling window an OLD pod can answer
+  // getSchema from a row a NEW pod wrote. `calculatedFieldLevel` is the concept's only spelling —
+  // this branch introduced it, and no released build reads any marker — so what that old pod does
+  // with such a row is exactly this, and no key written beside the level could change it. Pinned
+  // so the accepted window stays a decision on record rather than a surprise.
+  describe('buildSchemaField — a header with no level, as an older pod sees one', () => {
+    it('maps an unmarked FLOAT to a re-summable native metric', () => {
+      const header = new ReportDataHeader(
+        'ctr',
+        'CTR, %',
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        undefined
       );
-
-    it('reads the old `isCalculatedMetric` as an aggregate level', () => {
-      const field = service.buildSchemaField(legacyHeader(true), DataStorageType.GOOGLE_BIGQUERY);
-
-      expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
-      expect(field.semantics?.isReaggregatable).toBe(false);
-      expect(field.defaultAggregationType).toBeUndefined();
-    });
-
-    // Only a TRUE legacy flag is a calculated field: a row that carried `false` is an ordinary
-    // column and must keep the native, summable answer.
-    it('leaves a native column alone when the old key says false', () => {
-      const field = service.buildSchemaField(legacyHeader(false), DataStorageType.GOOGLE_BIGQUERY);
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
 
       expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
       expect(field.semantics?.isReaggregatable).toBe(true);
       expect(field.defaultAggregationType).toBe(AggregationType.SUM);
-    });
-
-    // The compat read is a FALLBACK. A header carrying both keys is answered by the new one, or
-    // removing the old key later would silently change what a row-level field means.
-    it('lets the new key win when a row somehow carries both', () => {
-      const field = service.buildSchemaField(
-        legacyHeader(true, 'column'),
-        DataStorageType.GOOGLE_BIGQUERY
-      );
-
-      expect(field.semantics?.conceptType).toBe(FieldConceptType.DIMENSION);
     });
   });
 

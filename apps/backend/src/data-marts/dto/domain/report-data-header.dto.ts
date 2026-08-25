@@ -55,20 +55,6 @@ export class ReportDataHeader {
      * named `<field> | <TOKEN>` and holds that `aggregateFunction`, because the query aggregated it
      * and it is no longer a grouping key — while this level still says no warehouse column backs it.
      */
-    public readonly calculatedFieldLevel?: CalculatedFieldLevel,
-
-    /**
-     * @deprecated The pre-#6732 spelling of `calculatedFieldLevel === 'metric'`, written ALONGSIDE
-     * it for one release and read by nobody here.
-     *
-     * Headers are persisted verbatim in `report_data_cache.dataDescription`, so a rolling deploy
-     * has pods of both versions serving Looker Studio from the same MySQL rows. The mapper's compat
-     * read covers old row → new pod; this key covers new row → old pod, which knows only this name
-     * and would otherwise find no marker at all and re-sum a computed ratio.
-     *
-     * Droppable in 0.33.0 — one release after the 0.32.0 that ships #6732, by which point no pod
-     * reads this name.
-     */
-    public readonly isCalculatedMetric?: boolean
+    public readonly calculatedFieldLevel?: CalculatedFieldLevel
   ) {}
 }

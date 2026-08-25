@@ -15,6 +15,27 @@ const containedIn =
     tokens.some(t => t.kind === kind && t.start <= r.start && r.end <= t.end);
 
 /**
+ * Containment's counterpart, for the one case where a tag lies inside a quoted run with no single
+ * token containing it: a tag carries `"` characters of its own (`{{ref field="x"}}`), so splicing
+ * one into a double-quoted run leaves `"{{ref field="x"}}"`, which the scanner reads as
+ * quotedIdentifier + word + quotedIdentifier. The tag is in quotes by every reading a warehouse
+ * gives it, and by none that containment can see.
+ *
+ * Plain overlap would be useless: the `"x"` inside EVERY tag is itself a quotedIdentifier token,
+ * so every reference overlaps one. What marks the corrupted case is a token that overlaps the tag
+ * while reaching outside it — a quote the analyst opened, rather than one the serializer wrote.
+ */
+const enclosingRun =
+  (kind: SqlToken['kind']) => (tokens: readonly SqlToken[], r: FormulaReference) =>
+    tokens.some(
+      t =>
+        t.kind === kind &&
+        t.start < r.end &&
+        r.start < t.end &&
+        !(r.start <= t.start && t.end <= r.end)
+    );
+
+/**
  * A tag inside a string literal: text to the warehouse, a reference to Handlebars.
  *
  * A DOUBLE-quoted run counts too, and that is not a formality: `"` opens a STRING on BigQuery and
@@ -24,9 +45,16 @@ const containedIn =
  * the field publishes its own name where a number belongs, silently. Counting it as a string
  * instead makes the same formula refuse at save (FORMULA_TAG_IN_STRING_LITERAL), which is the loud
  * direction and correct on all five: a reference has no meaning inside a quoted identifier either.
+ *
+ * Judged by OVERLAP rather than containment, because the double-quoted case is precisely the one
+ * containment cannot see — the tag's own quotes split the run into three tokens, none of which
+ * holds the whole tag. This is not hypothetical: it is what the editor writes today for
+ * `MAX("clicks")`, and it is the only spelling it ever writes, since a tag is always serialized
+ * with double quotes. The single-quoted spelling the specs pinned was the one shape the system
+ * never produces.
  */
 const inStringLike = (tokens: readonly SqlToken[], r: FormulaReference): boolean =>
-  containedIn('string')(tokens, r) || containedIn('quotedIdentifier')(tokens, r);
+  enclosingRun('string')(tokens, r) || enclosingRun('quotedIdentifier')(tokens, r);
 
 export const isReferenceInString = inStringLike;
 

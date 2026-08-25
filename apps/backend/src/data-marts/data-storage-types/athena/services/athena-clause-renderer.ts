@@ -4,18 +4,28 @@ import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 import { AthenaFieldType } from '../enums/athena-field-type.enum';
+import { scanSql } from '../../../calculated-fields/sql-token-scanner';
 
 /**
- * Counts positional `?` placeholders, ignoring any `?` inside a double-quoted
- * identifier or single-quoted string literal (Athena never treats those as
- * parameter markers, e.g. a column literally named `"a?b"` or the `''` in an
- * is_empty check). Used to enforce the placeholder/param-count invariant.
+ * Counts positional `?` placeholders, ignoring any `?` that is not one: inside a double-quoted
+ * identifier, a single-quoted string literal, or a COMMENT (Athena treats none of those as a
+ * parameter marker — a column literally named `"a?b"`, the `''` in an is_empty check, or a
+ * calculated field's own `-- why not CTR?`). Used to enforce the placeholder/param-count
+ * invariant.
+ *
+ * Lexed rather than regex-stripped. A saved formula may legally carry SQL comments —
+ * `FormulaViolations` recommends the `--` form by name — and a fragment built around such a
+ * formula reaches this counter on every filtered run. Quote-stripping alone counted the `?` in
+ * that comment and threw on a formula the validator had endorsed, since the save-time dry run
+ * binds no parameters and so never reached the mismatch.
  */
 export function countPositionalPlaceholders(sql: string): number {
-  const withoutQuoted = sql.replace(/"[^"]*"|'[^']*'/g, '');
   let count = 0;
-  for (const ch of withoutQuoted) {
-    if (ch === '?') count++;
+  for (const token of scanSql(sql)) {
+    if (token.kind !== 'punct') continue;
+    for (const ch of token.value) {
+      if (ch === '?') count++;
+    }
   }
   return count;
 }

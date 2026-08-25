@@ -74,15 +74,20 @@ export class ValidateFormulaService {
 
     // The answer describes the Data Mart's fields and its joined sources, so this endpoint must
     // not become a way to probe a Data Mart the caller cannot see.
-    const canSee = await this.accessDecisionService.canAccess(
+    //
+    // EDIT, matching the route guard and `UpdateDataMartSchemaService` — this endpoint exists to
+    // answer "would the save I am about to make be accepted", so whoever can ask it is whoever can
+    // make that save. A weaker check here would leave the guard as the only real gate, with the
+    // published contract describing a third, weaker one again.
+    const canEdit = await this.accessDecisionService.canAccess(
       command.userId,
       command.roles,
       EntityType.DATA_MART,
       command.dataMartId,
-      Action.SEE,
+      Action.EDIT,
       command.projectId
     );
-    if (!canSee) {
+    if (!canEdit) {
       throw new ForbiddenException('You do not have access to this DataMart');
     }
 

@@ -48,14 +48,14 @@ export class LookerStudioTypeMapperService {
       this.aggregationMapper.mapAggregateFunctionToLookerType(
         header.aggregateFunction,
         dataType,
-        // Deploy-window compat read, removable once no cache row predates this deploy (default
-        // lifetime 3600s, `report-data-cache.service.ts`). Headers are persisted verbatim inside
-        // `report_data_cache.dataDescription`, #6732 renamed this key from `isCalculatedMetric`,
-        // and nothing invalidates that cache on a schema save — so a row written just before the
-        // deploy would otherwise read as "not a calculated field" and tell Looker an aggregate
-        // ratio is a re-summable SUM. The other half of the window is `resolveReportDataHeaders`,
-        // which keeps WRITING the legacy key for a pod that only knows that name.
-        header.calculatedFieldLevel ?? (header.isCalculatedMetric ? 'metric' : undefined)
+        // Headers are persisted verbatim inside `report_data_cache.dataDescription` (default
+        // lifetime 3600s) and nothing invalidates that cache on a deploy, so during a rolling
+        // window an OLD pod can serve Looker's getSchema from a row a NEW pod wrote. It knows no
+        // calculated-field marker at all — this branch introduced the concept — and maps an
+        // aggregate ratio to a re-summable SUM for the rest of that row's lifetime. A second key
+        // cannot close that: an old pod does not read one. Accepted as a bounded window rather
+        // than paid for with cache-row versioning.
+        header.calculatedFieldLevel
       );
 
     const field: SchemaField = {

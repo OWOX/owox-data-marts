@@ -23,8 +23,12 @@ function escapeRegExp(value: string): string {
  * Half-open [start, end) spans of every string literal and comment in `text`, via the same
  * lexer the backend validates with (`sql-token-scanner.ts`). A quoted IDENTIFIER (`"…"` on
  * Athena/Snowflake/Redshift/Databricks, `` `…` `` on BigQuery) is deliberately excluded from this
- * list — it names a real column, so a field inside one must still resolve, not be treated as
- * quoted-away text. Routing through the real lexer (rather than a delimiter-matching regex) is
+ * list, and NOT because a reference works inside one — the backend refuses that, since `"…"` is a
+ * string on two of the five warehouses. It is excluded because the alternative is worse: leaving
+ * `MAX("clicks")` unresolved stores it verbatim, and BigQuery then computes the maximum of the
+ * text `clicks` and publishes it as a number, with nothing anywhere to say so. Resolving it turns
+ * that silent wrong answer into FORMULA_TAG_IN_STRING_LITERAL at save time.
+ * Routing through the real lexer (rather than a delimiter-matching regex) is
  * also what keeps an apostrophe inside a `--` comment (`don't`) from ever being misread as the
  * opening quote of a string literal later on the same line.
  */

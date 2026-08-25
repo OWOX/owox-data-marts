@@ -78,6 +78,15 @@ export interface FormulaSleeveGroup {
   valueSql: string;
   /** Output alias of the single pull this sleeve feeds. */
   alias: string;
+  /**
+   * The calculated field this sleeve serves, for refusals the ANALYST reads.
+   *
+   * `alias` is a synthetic pull name (`_fx_<metric>_<i>`) that appears nowhere in their schema, so
+   * a message naming it sends them looking for a field that does not exist. Optional because a
+   * caller assembling a group by hand — the builder's own specs — has no metric to name; the
+   * refusal then falls back to `alias`, which is at least a string the caller recognises.
+   */
+  metricOutputName?: string;
 }
 
 // One output column a sleeve CTE feeds: the outer query emits `ANY_VALUE(<cte>.<alias>) AS <alias>`

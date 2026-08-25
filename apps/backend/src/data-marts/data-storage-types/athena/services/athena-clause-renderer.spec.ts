@@ -395,6 +395,15 @@ describe('AthenaClauseRenderer', () => {
         expect(countPositionalPlaceholders('("c" IS NULL OR "c" = \'\') AND "d" = ?')).toBe(1);
         expect(countPositionalPlaceholders('"c" = \'why?\'')).toBe(0);
       });
+      // A calculated field's formula travels into the fragment verbatim, comments included, and
+      // `FormulaViolations` recommends the `--` form by name. A `?` in one is prose, not a marker:
+      // counting it threw on every filtered run of a formula that had saved green, because the
+      // save-time dry run binds no parameters and never reaches this invariant.
+      it('ignores ? inside SQL comments carried in from a formula', () => {
+        expect(countPositionalPlaceholders('(revenue / clicks -- why not CTR?\n) = ?')).toBe(1);
+        expect(countPositionalPlaceholders('(revenue /* is this CTR? */ / clicks) = ?')).toBe(1);
+        expect(countPositionalPlaceholders('(revenue / clicks -- why not CTR?\n) IS NULL')).toBe(0);
+      });
     });
 
     it('every real operator renders a self-consistent fragment (no throw)', () => {

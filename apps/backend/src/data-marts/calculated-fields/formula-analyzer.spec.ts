@@ -217,8 +217,27 @@ describe('analyzeFormula', () => {
   // `"` opens a STRING on BigQuery and Databricks, so a tag inside one is text there — judged
   // live it would be substituted and published as a constant. Refused instead, which is correct
   // on all five: a reference has no meaning inside a quoted identifier either.
-  it('refuses a reference tag inside double quotes', () => {
+  //
+  // A tag is ALWAYS serialized with double quotes, so this is the only spelling the editor can
+  // produce for `MAX("clicks")` — and the tag's own quotes split the run into three tokens, so no
+  // single token contains the tag. The single-quoted spelling below is unreachable in practice and
+  // was for a while the only one pinned, which is how the double-quoted case passed as clean.
+  it('refuses a reference tag inside double quotes, in the spelling the editor writes', () => {
+    expect(analyze('MAX("{{ref field="x"}}")').errors.map(e => e.code)).toContain(
+      'FORMULA_TAG_IN_STRING_LITERAL'
+    );
+  });
+
+  it('refuses a reference tag inside double quotes, single-quoted tag spelling', () => {
     expect(analyze('SUM("{{ref field=\'x\'}}")').errors.map(e => e.code)).toContain(
+      'FORMULA_TAG_IN_STRING_LITERAL'
+    );
+  });
+
+  // A backtick run is a quoted identifier on BigQuery, and carries no quote of its own for the tag
+  // to collide with — so this one IS contained, and must keep refusing for the same reason.
+  it('refuses a reference tag inside backticks', () => {
+    expect(analyze('MAX(`{{ref field="x"}}`)').errors.map(e => e.code)).toContain(
       'FORMULA_TAG_IN_STRING_LITERAL'
     );
   });
@@ -253,6 +272,20 @@ describe('analyzeFormula', () => {
     expect(analyze('SUM({{ref field="a"}}) / NULLIF(SUM({{ref field="b"}}), 0)').warnings).toEqual(
       []
     );
+  });
+
+  // The example the policy comment above `hasUnguardedDivision` names in full: a guard around the
+  // QUOTIENT is not a guard on the denominator, and the analyst still divides by zero. Pinned
+  // because a containment test passes every other case here while silently accepting this one.
+  it('still warns when the guard wraps the quotient rather than the denominator', () => {
+    const a = analyze('COALESCE(SUM({{ref field="a"}}) / SUM({{ref field="b"}}), 0)');
+    expect(a.warnings.map(w => w.code)).toEqual(['FORMULA_UNGUARDED_DIVISION']);
+  });
+
+  it('does not warn when a guarded denominator is wrapped in parens', () => {
+    expect(
+      analyze('SUM({{ref field="a"}}) / (NULLIF(SUM({{ref field="b"}}), 0))').warnings
+    ).toEqual([]);
   });
 
   it('does not warn when the denominator is a numeric literal', () => {
