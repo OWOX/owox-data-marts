@@ -398,8 +398,19 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
 
   // Handle actualize
   const handleActualize = useCallback(() => {
-    runGuarded?.(() => runSchemaActualization?.(), { intent: 'refresh' });
-  }, [runGuarded, runSchemaActualization]);
+    runGuarded?.(
+      async () => {
+        await runSchemaActualization?.();
+        // Actualization PERSISTS a new schema — a column the warehouse no longer has is gone from it
+        // — so it can break a formula exactly as a save can. Both save paths already invalidate; this
+        // one did not, and the cached blendable schema kept answering from before the refresh: a
+        // calculated field whose column had just disappeared went on showing its green
+        // "formula resolves" marker until something else happened to refetch.
+        invalidateBlendableSchema();
+      },
+      { intent: 'refresh' }
+    );
+  }, [runGuarded, runSchemaActualization, invalidateBlendableSchema]);
 
   // Handle discard
   const handleDiscard = useCallback(() => {
