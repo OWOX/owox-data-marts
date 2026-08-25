@@ -9,6 +9,7 @@ import {
   DataDestinationBuilder,
   ScheduledTriggerBuilder,
   AUTH_HEADER,
+  EMAIL_REPORT_DESTINATION_CONFIG,
 } from '@owox/test-utils';
 import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
 import { ScheduledTriggerType } from '../src/data-marts/scheduled-trigger-types/enums/scheduled-trigger-type.enum';
@@ -115,7 +116,10 @@ describe('Report Operate Access (e2e)', () => {
         ),
       ]);
 
-    const prereqs = await setupReportPrerequisites(agent);
+    // EMAIL rather than the default Data Studio: this suite proves who may run a report and
+    // manage its triggers, and a pull-based destination has no server-side run at all — every
+    // "allowed" case would be refused for a reason that has nothing to do with access.
+    const prereqs = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;
 
@@ -127,6 +131,7 @@ describe('Report Operate Access (e2e)', () => {
           .withTitle('Admin-owned Report')
           .withDataMartId(dataMartId)
           .withDataDestinationId(dataDestinationId)
+          .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
           .build()
       );
     expect(adminReportRes.status).toBe(201);
@@ -221,7 +226,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // B8: Report owner who lost USE on the destination — 403 destination-unusable (per-user isEffective)
     it('B8: report owner (viewer) loses destination USE → 403 destination-unusable', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
       const isolatedDmId = isolated.dataMartId;
 
       const viewerDestRes = await agent
@@ -230,8 +235,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for B8')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(viewerDestRes.status).toBe(201);
@@ -245,6 +250,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for B8')
             .withDataMartId(isolatedDmId)
             .withDataDestinationId(viewerDestId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -421,7 +427,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // Cross-DM attack: trigger on dm-X with reportId belonging to a report on dm-Y — non-2xx (400)
     it('cross-DM attack: REPORT_RUN trigger on dm-X with reportId from dm-Y → non-2xx', async () => {
-      const otherSetup = await setupReportPrerequisites(agent);
+      const otherSetup = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
       const otherDmId = otherSetup.dataMartId;
 
       const reportOnOtherDmRes = await agent
@@ -432,6 +438,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report on other DM')
             .withDataMartId(otherDmId)
             .withDataDestinationId(otherSetup.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportOnOtherDmRes.status).toBe(201);
@@ -528,14 +535,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ businessOwnerIds: ['2'], technicalOwnerIds: ['0'] });
 
-      const res = await agent
-        .put(`/api/reports/${adminReportId}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'BO Should Not Edit',
-          dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${adminReportId}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'BO Should Not Edit',
+        dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(403);
     });
@@ -566,7 +570,7 @@ describe('Report Operate Access (e2e)', () => {
     let archetypeDestId: string;
 
     beforeAll(async () => {
-      const setup = await setupReportPrerequisites(agent);
+      const setup = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
       archetypeDmId = setup.dataMartId;
       archetypeDestId = setup.dataDestinationId;
 
@@ -578,6 +582,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned archetype report')
             .withDataMartId(archetypeDmId)
             .withDataDestinationId(archetypeDestId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -789,7 +794,7 @@ describe('Report Operate Access (e2e)', () => {
     let isolatedDestId: string;
 
     beforeAll(async () => {
-      const setup = await setupReportPrerequisites(agent);
+      const setup = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
       isolatedDmId = setup.dataMartId;
       isolatedDestId = setup.dataDestinationId;
     }, 60_000);
@@ -803,6 +808,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Capability-flag check')
             .withDataMartId(isolatedDmId)
             .withDataDestinationId(isolatedDestId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
 
@@ -821,14 +827,11 @@ describe('Report Operate Access (e2e)', () => {
       const targetReportId = getRes.body[0]?.id;
       expect(targetReportId).toBeDefined();
 
-      const res = await agent
-        .put(`/api/reports/${targetReportId}`)
-        .set(AUTH_HEADER)
-        .send({
-          title: 'Updated for cap check',
-          dataDestinationId: isolatedDestId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${targetReportId}`).set(AUTH_HEADER).send({
+        title: 'Updated for cap check',
+        dataDestinationId: isolatedDestId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('canRun');
@@ -962,7 +965,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // A7: Report Owner with effective Destination runs own report → 200 (golden path)
     it('A7: report owner with effective destination runs own report → 201', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -970,8 +973,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for A7')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -985,6 +988,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for A7')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(ownerReportRes.status).toBe(201);
@@ -1058,7 +1062,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // B2: Report Owner creates / updates / deletes their own REPORT_RUN trigger
     it('B2: report owner creates/updates/deletes own REPORT_RUN trigger → 201/200/200', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -1066,8 +1070,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for B2')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -1080,6 +1084,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for B2')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestRes.body.id)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(ownerReportRes.status).toBe(201);
@@ -1237,7 +1242,7 @@ describe('Report Operate Access (e2e)', () => {
     // Simulates "Destination access revoked between report-create and trigger-create" by creating
     // a fresh DM with two BOs and a destination that only the first BO can USE.
     it('B7: BO whose destination is not USE-able fails trigger create → 403 destination-unusable', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       // Make admin Tech Owner only; viewer is BO; editor is also BO (both can SEE the DM via BO).
       await agent
@@ -1263,6 +1268,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report for B7')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(isolated.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -1293,7 +1299,7 @@ describe('Report Operate Access (e2e)', () => {
       expect(createRes.status).toBe(201);
       const triggerId = createRes.body.id;
 
-      const otherSetup = await setupReportPrerequisites(agent);
+      const otherSetup = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
       const otherReportRes = await agent
         .post('/api/reports')
         .set(AUTH_HEADER)
@@ -1302,6 +1308,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report on other DM (B8)')
             .withDataMartId(otherSetup.dataMartId)
             .withDataDestinationId(otherSetup.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(otherReportRes.status).toBe(201);
@@ -1359,14 +1366,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: true, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${adminReportId}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'Viewer non-owner cannot edit',
-          dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${adminReportId}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'Viewer non-owner cannot edit',
+        dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(403);
     });
@@ -1398,14 +1402,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: true, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${adminReportId}`)
-        .set(EDITOR_AUTH_HEADER)
-        .send({
-          title: 'Editor non-owner reporting only cannot edit',
-          dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${adminReportId}`).set(EDITOR_AUTH_HEADER).send({
+        title: 'Editor non-owner reporting only cannot edit',
+        dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(403);
     });
@@ -1421,14 +1422,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: true, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${adminReportId}`)
-        .set(EDITOR_AUTH_HEADER)
-        .send({
-          title: 'Editor with DM maintenance edits',
-          dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${adminReportId}`).set(EDITOR_AUTH_HEADER).send({
+        title: 'Editor with DM maintenance edits',
+        dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(200);
       expect(res.body.title).toBe('Editor with DM maintenance edits');
@@ -1445,14 +1443,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: true, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${adminReportId}`)
-        .set(EDITOR_AUTH_HEADER)
-        .send({
-          title: 'DM Tech Owner edits',
-          dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${adminReportId}`).set(EDITOR_AUTH_HEADER).send({
+        title: 'DM Tech Owner edits',
+        dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(200);
       expect(res.body.title).toBe('DM Tech Owner edits');
@@ -1460,7 +1455,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C6: Report Owner with effective Destination tries PUT (changing title) → 200 (golden path)
     it('C6: report owner with effective destination tries PUT → 200', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -1468,8 +1463,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for C6')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -1482,19 +1477,17 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for C6')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestRes.body.id)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
       const reportIdForC6 = reportRes.body.id;
 
-      const res = await agent
-        .put(`/api/reports/${reportIdForC6}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'Owner edits title',
-          dataDestinationId: ownerDestRes.body.id,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 7200 },
-        });
+      const res = await agent.put(`/api/reports/${reportIdForC6}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'Owner edits title',
+        dataDestinationId: ownerDestRes.body.id,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(200);
       expect(res.body.title).toBe('Owner edits title');
@@ -1502,7 +1495,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C7: Report Owner with effective Destination tries DELETE → 200 (golden path)
     it('C7: report owner with effective destination tries DELETE → 200', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -1510,8 +1503,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for C7')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -1524,6 +1517,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for C7')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestRes.body.id)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -1539,7 +1533,7 @@ describe('Report Operate Access (e2e)', () => {
     // report owner via admin-create with ownerIds=['2']. Then admin flips availableForUse=false.
     // Viewer is non-owner on the destination (admin owns it), so loses USE.
     it('C8: report owner who lost destination USE tries PUT → 403 ineffective', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const reportRes = await agent
         .post('/api/reports')
@@ -1549,20 +1543,18 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report for C8')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(isolated.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build(),
           ownerIds: ['2'],
         });
       expect(reportRes.status).toBe(201);
       const reportIdForC8 = reportRes.body.id;
 
-      const okPut = await agent
-        .put(`/api/reports/${reportIdForC8}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'Owner edits while effective',
-          dataDestinationId: isolated.dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const okPut = await agent.put(`/api/reports/${reportIdForC8}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'Owner edits while effective',
+        dataDestinationId: isolated.dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
       expect(okPut.status).toBe(200);
 
       await agent
@@ -1570,14 +1562,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: false, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${reportIdForC8}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'Owner edits while ineffective',
-          dataDestinationId: isolated.dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${reportIdForC8}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'Owner edits while ineffective',
+        dataDestinationId: isolated.dataDestinationId,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBe(403);
       expect(String(res.body.message ?? '')).toMatch(/destination/i);
@@ -1585,7 +1574,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C9: Report Owner who lost Destination USE tries DELETE → 403 ineffective.
     it('C9: report owner who lost destination USE tries DELETE → 403 ineffective', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const reportRes = await agent
         .post('/api/reports')
@@ -1595,6 +1584,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report for C9')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(isolated.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build(),
           ownerIds: ['2'],
         });
@@ -1614,7 +1604,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C10: Owner tries PUT with new dataDestinationId pointing to a Destination they can't USE → 4xx.
     it('C10: owner tries PUT with non-USE-able dataDestinationId → 4xx', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -1622,8 +1612,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for C10')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -1636,6 +1626,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for C10')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestRes.body.id)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -1648,8 +1639,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Admin-only dest for C10')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(adminOnlyDestRes.status).toBe(201);
@@ -1658,14 +1649,11 @@ describe('Report Operate Access (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ availableForUse: false, availableForMaintenance: false });
 
-      const res = await agent
-        .put(`/api/reports/${reportIdForC10}`)
-        .set(VIEWER_AUTH_HEADER)
-        .send({
-          title: 'Owner switches to non-USE dest',
-          dataDestinationId: adminOnlyDestRes.body.id,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const res = await agent.put(`/api/reports/${reportIdForC10}`).set(VIEWER_AUTH_HEADER).send({
+        title: 'Owner switches to non-USE dest',
+        dataDestinationId: adminOnlyDestRes.body.id,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
 
       expect(res.status).toBeGreaterThanOrEqual(400);
       expect(res.status).toBeLessThan(500);
@@ -1673,7 +1661,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C11: Owner tries PUT adding a new ownerIds member who lacks DM SEE or Destination USE → 4xx
     it('C11: owner tries PUT adding ownerIds member without DM SEE → 4xx (canBeOwner)', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       // Admin owns dest and report; only admin BO + admin TU on the DM.
       // Viewer (id=2) has no path to DM (NOT_SHARED + not BO + not TO).
@@ -1685,6 +1673,7 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Report for C11')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(isolated.dataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
@@ -1701,7 +1690,7 @@ describe('Report Operate Access (e2e)', () => {
         .send({
           title: 'Adding invalid owner',
           dataDestinationId: isolated.dataDestinationId,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
           ownerIds: ['0', '2'],
         });
 
@@ -1711,7 +1700,7 @@ describe('Report Operate Access (e2e)', () => {
 
     // C12: Project Admin tries PUT and DELETE an admin-not-owned report → 200, 200 (admin bypass)
     it('C12: admin tries PUT and DELETE viewer-owned report → 200/200', async () => {
-      const isolated = await setupReportPrerequisites(agent);
+      const isolated = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
 
       const ownerDestRes = await agent
         .post('/api/data-destinations')
@@ -1719,8 +1708,8 @@ describe('Report Operate Access (e2e)', () => {
         .send(
           new DataDestinationBuilder()
             .withTitle('Viewer-owned dest for C12')
-            .withType(DataDestinationType.LOOKER_STUDIO)
-            .withCredentials({ type: 'looker-studio-credentials' })
+            .withType(DataDestinationType.EMAIL)
+            .withCredentials({ type: 'email-credentials', to: ['reports@example.com'] })
             .build()
         );
       expect(ownerDestRes.status).toBe(201);
@@ -1733,20 +1722,18 @@ describe('Report Operate Access (e2e)', () => {
             .withTitle('Viewer-owned report for C12')
             .withDataMartId(isolated.dataMartId)
             .withDataDestinationId(ownerDestRes.body.id)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
             .build()
         );
       expect(reportRes.status).toBe(201);
       const reportIdForC12 = reportRes.body.id;
       expect(reportRes.body.ownerUsers.map((u: { userId: string }) => u.userId)).not.toContain('0');
 
-      const putRes = await agent
-        .put(`/api/reports/${reportIdForC12}`)
-        .set(AUTH_HEADER)
-        .send({
-          title: 'Admin edits viewer-owned report',
-          dataDestinationId: ownerDestRes.body.id,
-          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        });
+      const putRes = await agent.put(`/api/reports/${reportIdForC12}`).set(AUTH_HEADER).send({
+        title: 'Admin edits viewer-owned report',
+        dataDestinationId: ownerDestRes.body.id,
+        destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+      });
       expect(putRes.status).toBe(200);
       expect(putRes.body.title).toBe('Admin edits viewer-owned report');
 
@@ -1807,8 +1794,9 @@ describe('Report Operate Access (e2e)', () => {
     });
 
     // D2b: insight-template list endpoint as viewer with no DM access.
-    // The endpoint filters by destinationConfig email/insight-template; existing test data uses
-    // LOOKER_STUDIO so the result is always [] regardless of DM visibility — confirm that semantics.
+    // The endpoint filters by destinationConfig email/insight-template; existing test data uses a
+    // CUSTOM_MESSAGE email config, which names no insight template, so the result is always []
+    // regardless of DM visibility — confirm that semantics.
     it('D2b: GET insight-template list as viewer without DM access returns 200 empty array', async () => {
       await agent
         .put(`/api/data-marts/${dataMartId}/availability`)
