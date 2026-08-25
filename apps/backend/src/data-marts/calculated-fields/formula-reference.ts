@@ -221,13 +221,58 @@ export class FormulaCycleError extends Error {
  * refusal has to name the loop, and because popping on the way out is what keeps a DIAMOND — two
  * formulas reading the same third one — legal.
  */
+/**
+ * Total rendered text one top-level expansion may produce, summed over every intermediate
+ * substitution it performs.
+ *
+ * Generous on purpose: a legitimate chain of a few formulas over a schema's worth of columns lands
+ * orders of magnitude below it. What it stops is the shape below, where the number is not large but
+ * exponential.
+ */
+export const FORMULA_EXPANSION_MAX_LENGTH = 200_000;
+
+export class FormulaExpansionTooLargeError extends Error {
+  constructor(
+    readonly field: string,
+    readonly budget: number
+  ) {
+    super(`Formula expansion exceeded ${budget} characters at '${field}'`);
+    this.name = 'FormulaExpansionTooLargeError';
+  }
+}
+
 export class FormulaExpansionGuard {
   private readonly expanding: string[] = [];
+  private spent = 0;
+
+  constructor(private readonly budget: number = FORMULA_EXPANSION_MAX_LENGTH) {}
 
   /** The loop that would close if `field` were expanded now, or `undefined` when it is free. */
   cycleFor(field: string): string[] | undefined {
     const at = this.expanding.indexOf(field);
     return at === -1 ? undefined : [...this.expanding.slice(at), field];
+  }
+
+  /**
+   * Charges rendered text against the whole expansion's budget, and refuses once it is spent.
+   *
+   * The cycle guard above pops on the way out, deliberately, so a DIAMOND stays legal — and that is
+   * exactly what makes the size unbounded: a formula referencing another one twice expands it
+   * twice, so `a2 = a1 + a1`, `a3 = a2 + a2`, … doubles the OUTPUT at every level. Six such
+   * formulas, each comfortably inside `CALCULATED_FORMULA_MAX_LENGTH`, reach past V8's string
+   * limit; the event loop blocks and the pod dies with a `RangeError` or an OOM kill, taking every
+   * co-tenant with it. It re-fires on every report run, Looker refresh, MCP query and HTTP Data
+   * stream, not only at save.
+   *
+   * Memoising a dependency's rendered text would cut the WORK but not the SIZE — the parent's own
+   * text still contains its child's twice — so a budget is the load-bearing part, not an
+   * optimisation. It is charged cumulatively, over intermediate renderings as well as the final
+   * one, so the refusal arrives before the huge string is built rather than after.
+   */
+  charge(field: string, rendered: string): string {
+    this.spent += rendered.length;
+    if (this.spent > this.budget) throw new FormulaExpansionTooLargeError(field, this.budget);
+    return rendered;
   }
 
   expand<T>(field: string, render: () => T): T {

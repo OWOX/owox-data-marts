@@ -30,6 +30,7 @@ import {
 import { naryTextConcat, renderPrimaryKeyCountRef } from './primary-key-identity.utils';
 import {
   FormulaCycleError,
+  FormulaExpansionTooLargeError,
   FormulaExpansionGuard,
   FormulaReference,
   FormulaReferenceSyntaxError,
@@ -1091,6 +1092,18 @@ export abstract class SqlClauseRenderer {
       // A loop only reaches a report from a schema written by a path that skips save-time
       // validation (D14). Converted here for the same reason the parse failure below is: unguarded
       // the substitution recurses for ever, which is a stack overflow — a 500 naming no field at all.
+      // Unbounded expansion, refused before the string that would kill the pod is built. Reported
+      // as a 400 naming the selected field, like the loop below: the analyst can see which field
+      // they put on the report, and nothing else in the chain.
+      if (e instanceof FormulaExpansionTooLargeError) {
+        throw new BusinessViolationException(
+          `The calculated field '${metric.outputName}' cannot be computed: expanding its formula ` +
+            `and the formulas it references produces more than ${e.budget} characters of SQL. ` +
+            `Simplify the chain — a formula that references another one twice doubles the result ` +
+            `each time`,
+          { calculatedField: metric.outputName, expansionBudget: e.budget }
+        );
+      }
       if (e instanceof FormulaCycleError) {
         throw new BusinessViolationException(
           `The calculated field '${metric.outputName}' cannot be computed: ` +
@@ -1177,20 +1190,23 @@ export abstract class SqlClauseRenderer {
     };
 
     return this.closingAnyLineComment(
-      guard.expand(metric.outputName, () =>
-        renderFormulaWithReplacements(
-          metric.formula,
-          ref => {
-            const dependency = dependencyFor(ref);
-            return dependency
-              ? // PARENTHESISED: a formula body is arbitrary user SQL, so its top-level operator
-                // would otherwise re-bind against whatever the outer formula writes around it.
-                // `selected ?? metric` keeps the SELECTED field named however many hops down this
-                // goes — an intermediate dependency is no more visible to the analyst than a leaf.
-                `(${this.expandCalculatedFormula(dependency, opts, closure, guard, selected ?? metric)})`
-              : resolveReference(ref);
-          },
-          replacements
+      guard.charge(
+        metric.outputName,
+        guard.expand(metric.outputName, () =>
+          renderFormulaWithReplacements(
+            metric.formula,
+            ref => {
+              const dependency = dependencyFor(ref);
+              return dependency
+                ? // PARENTHESISED: a formula body is arbitrary user SQL, so its top-level operator
+                  // would otherwise re-bind against whatever the outer formula writes around it.
+                  // `selected ?? metric` keeps the SELECTED field named however many hops down this
+                  // goes — an intermediate dependency is no more visible to the analyst than a leaf.
+                  `(${this.expandCalculatedFormula(dependency, opts, closure, guard, selected ?? metric)})`
+                : resolveReference(ref);
+            },
+            replacements
+          )
         )
       )
     );

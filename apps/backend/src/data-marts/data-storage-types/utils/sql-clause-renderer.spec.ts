@@ -1407,6 +1407,56 @@ describe('SqlClauseRenderer', () => {
       ).toThrow(/a → a/);
     });
 
+    // The cycle guard pops on the way out so a DIAMOND stays legal — and that is exactly what
+    // makes the OUTPUT unbounded: a formula referencing another one twice expands it twice, so
+    // each level doubles. Twenty of them, every formula tiny and every one of them legal on its
+    // own, reach past V8's string limit; the pod dies with a RangeError or an OOM kill, and it
+    // re-fires on every report run, Looker refresh, MCP query and HTTP Data stream, not just at
+    // save. No cycle is involved, so the guard above never sees it.
+    it('refuses an expansion that doubles at every level instead of building it', () => {
+      const chain: CalculatedMetricPlan[] = [
+        { outputName: 'a0', type: 'FLOAT', formula: `'${'x'.repeat(200)}'`, level: 'metric' },
+      ];
+      for (let i = 1; i <= 20; i++) {
+        chain.push({
+          outputName: `a${i}`,
+          type: 'FLOAT',
+          formula: `{{ref field="a${i - 1}"}} + {{ref field="a${i - 1}"}}`,
+          level: 'metric',
+        });
+      }
+      const top = chain[chain.length - 1];
+
+      expect(() =>
+        r.renderAggregatedSelect([], [], undefined, {
+          calculatedMetrics: [{ ...top, dependencies: chain.slice(0, -1) }],
+        })
+      ).toThrow(/cannot be computed: expanding its formula/);
+    });
+
+    // The budget must not fire on an ordinary chain. Twenty formulas deep, each referencing the
+    // previous ONCE, is linear and stays far below it.
+    it('expands a long linear chain without tripping the budget', () => {
+      const chain: CalculatedMetricPlan[] = [
+        { outputName: 'b0', type: 'FLOAT', formula: `'${'x'.repeat(200)}'`, level: 'metric' },
+      ];
+      for (let i = 1; i <= 20; i++) {
+        chain.push({
+          outputName: `b${i}`,
+          type: 'FLOAT',
+          formula: `{{ref field="b${i - 1}"}} + 1`,
+          level: 'metric',
+        });
+      }
+      const top = chain[chain.length - 1];
+
+      expect(() =>
+        r.renderAggregatedSelect([], [], undefined, {
+          calculatedMetrics: [{ ...top, dependencies: chain.slice(0, -1) }],
+        })
+      ).not.toThrow();
+    });
+
     // ACCESS CONTROL, not merely correctness (design §1). Routing and the source access check are
     // decided from the SELECTED metric's own text, so a joined source reachable only THROUGH a
     // dependency would be joined without ever being access-checked. The caller's joined resolver
