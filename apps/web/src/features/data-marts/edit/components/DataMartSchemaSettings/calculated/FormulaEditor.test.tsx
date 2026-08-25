@@ -76,6 +76,8 @@ const mockState = vi.hoisted(() => ({
   /** Every `set` on the chip decorations collection, newest last. */
   chipDecorationSets: [] as DecorationLike[][],
   chipRanges: [] as RangeLike[],
+  /** How many times the editor took focus on mount — see the keyboard-entry test below. */
+  focusCalls: 0,
   keyListeners: [] as ((event: unknown) => void)[],
   /** What the mock model currently holds — the hover provider reads the text off it. */
   modelText: '',
@@ -132,6 +134,11 @@ vi.mock('@monaco-editor/react', () => {
   };
   mockState.model = modelMock;
   const editorMock = {
+    // The real editor focuses itself on mount, because the popover's own autofocus ran long before
+    // Monaco finished loading and would otherwise leave the caret on Cancel.
+    focus: () => {
+      mockState.focusCalls += 1;
+    },
     onDidDispose: (cb: () => void) => {
       mockState.disposeCallbacks.push(cb);
       return { dispose: () => {} };
@@ -260,6 +267,15 @@ describe('FormulaEditor', () => {
     mockState.keyListeners = [];
     mockState.caretColumn = 1;
     mockState.edits = [];
+  });
+
+  // The editor loads asynchronously, so the popover's own autofocus has already run and landed on
+  // the first candidate — Cancel — by the time Monaco exists. `EditableText`'s focus effect cannot
+  // rescue it either: it targets the built-in textarea this editor replaces. Without the editor
+  // taking focus itself, a keyboard user types into a button and Enter discards the field.
+  it('takes focus when it mounts', () => {
+    render(<FormulaEditor value='' references={[]} index={index} onChange={vi.fn()} />);
+    expect(mockState.focusCalls).toBeGreaterThan(0);
   });
 
   it('turns a completed field name into a resolved reference', async () => {

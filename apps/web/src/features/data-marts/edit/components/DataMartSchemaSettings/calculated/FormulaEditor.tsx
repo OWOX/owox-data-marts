@@ -212,6 +212,12 @@ export function FormulaEditor({
     editorRef.current = editor;
     monacoRef.current = monacoInstance as unknown as typeof monacoEditor;
     setIsEditorReady(true);
+    // Monaco loads asynchronously, so by the time it exists the popover has long since placed
+    // focus — on Cancel, the first focusable candidate. `EditableText`'s own focus effect cannot
+    // help: it targets the built-in textarea, which this editor replaces, so on this path it is a
+    // no-op. Without this a keyboard user opens the editor, types nothing (the keystrokes go to a
+    // button), and presses Enter — which activates Cancel and discards the field.
+    editor.focus();
   };
 
   // Ranges are re-derived from the text ON SCREEN every time, never remembered from the response:

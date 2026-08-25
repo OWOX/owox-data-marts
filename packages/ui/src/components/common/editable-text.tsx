@@ -233,6 +233,12 @@ export function EditableText({
         // The dialog's accessible name. Only when there IS a title — pointing at an absent element
         // would leave it worse named than the default.
         aria-labelledby={editorTitle ? titleId : undefined}
+        // A CUSTOM editor focuses itself, and it may not exist yet: a code editor loads
+        // asynchronously, so Radix's open-autofocus reaches the first candidate — Cancel — long
+        // before the editor is there to take it. Left alone, the analyst types into a button and
+        // Enter discards their work. The built-in textarea path keeps the default: it is rendered
+        // synchronously and the focus effect above already puts the caret in it.
+        onOpenAutoFocus={renderEditor ? event => event.preventDefault() : undefined}
       >
         {editorTitle && (
           <h4

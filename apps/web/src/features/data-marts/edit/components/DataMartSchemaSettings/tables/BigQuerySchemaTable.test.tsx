@@ -29,6 +29,9 @@ vi.mock('@monaco-editor/react', () => ({
     useEffect(() => {
       props.onMount?.(
         {
+          // The real editor focuses itself on mount: the popover's autofocus ran before Monaco
+          // finished loading and would otherwise leave the caret on Cancel.
+          focus: () => undefined,
           onDidDispose: () => undefined,
           getModel: () => ({}),
           // Chip-blind: nothing here is about chips, and their own specs cover both halves.
