@@ -78,6 +78,31 @@ describe('scanSql', () => {
     expect(sql.slice(tokens[0].start, tokens[0].end)).toBe(sql);
   });
 
+  // The token running to the end of input is the safe half; the analyzer still has to know that it
+  // did, because that one token is what hides a `;`, a top-level comma or a subquery from every
+  // structural guard at once.
+  it('flags a run that reached the end of input without its closing mark', () => {
+    expect(scanSql(`'never closed`)[0].unterminated).toBe(true);
+    expect(scanSql(`"never closed`)[0].unterminated).toBe(true);
+    expect(scanSql('`never closed')[0].unterminated).toBe(true);
+    expect(scanSql('/* never closed')[0].unterminated).toBe(true);
+  });
+
+  it('leaves a properly closed run unflagged', () => {
+    for (const sql of [`'it''s'`, `"a"`, '`a`', '/* c */', '-- c', 'SUM(a)']) {
+      expect(scanSql(sql).some(t => t.unterminated)).toBe(false);
+    }
+  });
+
+  // A quoting spelling this scanner does not know — Snowflake `$$…$$`, BigQuery `'''…'''` — leaves
+  // an odd quote behind, and the run that opens on it never closes.
+  it('flags the dialect quoting spellings that leave an odd quote behind', () => {
+    expect(scanSql(`'''don't''' , other_col`).some(t => t.unterminated)).toBe(true);
+    expect(scanSql(`LENGTH($$it's$$) , other_col`).some(t => t.unterminated)).toBe(true);
+    // `$$abc$$` holds no quote, so nothing opens and nothing is blinded.
+    expect(scanSql('CONCAT($$abc$$, x)').some(t => t.unterminated)).toBe(false);
+  });
+
   it('reads a quoted identifier that contains a paren as a single token', () => {
     const sql = `SUM("weird(name")`;
     const tokens = scanSql(sql);

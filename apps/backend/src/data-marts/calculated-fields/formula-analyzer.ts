@@ -7,7 +7,11 @@ import { scanSql, SqlToken } from './sql-token-scanner';
 import { findFunctionCalls, SqlFunctionCall } from './sql-function-calls';
 import { FormulaFunctionDialect } from './formula-function-dialect';
 import { FormulaViolation, FormulaViolations } from './formula-violations';
-import { isLiveReference, isReferenceInString } from './formula-live-reference';
+import {
+  isLiveReference,
+  isReferenceInString,
+  referenceContextTokens,
+} from './formula-live-reference';
 import { CalculatedFieldLevel } from './formula-level';
 
 export interface AggregateCall {
@@ -86,16 +90,33 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
 
   const tokens = scanSql(formula);
 
+  // Every liveness question below is asked per reference over this subset instead of the whole
+  // token list — the same answer, over a list that is empty for a formula holding no quotes.
+  const contextTokens = referenceContextTokens(tokens);
+
   // A tag inside a string literal is text to the warehouse but a reference to Handlebars —
   // the two readings disagree, so refuse instead of picking one.
-  if (references.some(r => isReferenceInString(tokens, r)))
+  if (references.some(r => isReferenceInString(contextTokens, r)))
     errors.push(FormulaViolations.tagInStringLiteral(fieldName));
 
   // Only live references participate in containment, owner resolution, level mixing and the
   // knownField lookup — a non-live one already has its own, more specific outcome: one
   // FORMULA_TAG_IN_STRING_LITERAL for the whole formula for a string-embedded tag, and nothing at
   // all for a commented-out one, since being commented out is not itself a violation.
-  const isLive = (r: FormulaReference) => isLiveReference(tokens, r);
+  //
+  // Memoised per reference because the aggregate loop below asks again for every CALL, and one
+  // answer costs three token scans: A x R x 3T on a formula allowed to be 10 000 characters long.
+  // Measured without the map and without `contextTokens`: 2.4 s for a single max-length formula, on
+  // a synchronous path that analyses up to 100 drafts per request with no `await` to yield the
+  // event loop.
+  const liveByRef = new Map<FormulaReference, boolean>();
+  const isLive = (r: FormulaReference): boolean => {
+    const known = liveByRef.get(r);
+    if (known !== undefined) return known;
+    const live = isLiveReference(contextTokens, r);
+    liveByRef.set(r, live);
+    return live;
+  };
 
   if (hasWord(tokens, 'SELECT')) errors.push(FormulaViolations.subquery(fieldName));
   if (hasWord(tokens, 'OVER')) errors.push(FormulaViolations.window(fieldName));
@@ -144,6 +165,14 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
     errors.push(FormulaViolations.dialectAmbiguousEscape(fieldName));
   }
 
+  // The same family once more, and the one that needs no ambiguous character: a quoting spelling
+  // the scanner does not know (`$$`, `'''`) leaves an unclosed run, and its single token covers the
+  // rest of the formula — so every guard above reads an empty formula. Keyed on the scanner's own
+  // state rather than on any dialect's quoting rules, which is what makes one check enough.
+  if (tokens.some(t => t.unterminated)) {
+    errors.push(FormulaViolations.unterminatedQuotedText(fieldName));
+  }
+
   const calls = findFunctionCalls(tokens);
   const aggregates = calls.filter(c => dialect.isAggregateFunction(c.name));
   const aggregateCalls: AggregateCall[] = [];
@@ -171,8 +200,10 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
       continue;
     }
 
+    // Offsets first: two integer comparisons discard most references before the memoised liveness
+    // answer is needed at all.
     const inside = references.filter(
-      r => isLive(r) && call.argStart <= r.start && r.end <= call.argEnd
+      r => call.argStart <= r.start && r.end <= call.argEnd && isLive(r)
     );
     if (inside.length === 0) {
       errors.push(FormulaViolations.aggregateWithoutField(fieldName, call.name));

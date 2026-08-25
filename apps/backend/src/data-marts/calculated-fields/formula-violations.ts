@@ -155,6 +155,21 @@ export const FormulaViolations = {
       'would end in different places depending on the Data Mart. Write a quote as two quotes ' +
       "('') instead.",
   }),
+  // The same family as the two above, reached without any ambiguous character at all: a quoting
+  // spelling this scanner does not know (`$$…$$` on Snowflake, `'''…'''` on BigQuery) leaves an odd
+  // quote behind, the run never closes, and ONE token covers the rest of the formula. Verified:
+  // `'''don't''' , other_col` and `LENGTH($$it's$$) , other_col` both pass every guard today, and
+  // the warehouse — which closes the text elsewhere — reads a second select item, so the report
+  // gains a column and, on the grouping path, a GROUP BY key.
+  unterminatedQuotedText: (field: string): FormulaViolation => ({
+    code: 'FORMULA_UNTERMINATED_QUOTED_TEXT_NOT_ALLOWED',
+    field,
+    message:
+      'A formula cannot leave a quoted value or a comment unclosed. Everything after the opening ' +
+      'mark is read as text here, while the warehouse ends the text somewhere else, so the rest ' +
+      'of the formula would run as SQL nothing has checked. Close it — a quote inside text is ' +
+      "written as two quotes ('').",
+  }),
   unknownReference: (field: string, ref: string, state: string): FormulaViolation => ({
     code: 'FORMULA_UNKNOWN_REFERENCE',
     field,

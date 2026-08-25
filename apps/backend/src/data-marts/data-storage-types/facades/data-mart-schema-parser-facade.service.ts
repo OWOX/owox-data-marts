@@ -8,6 +8,7 @@ import { DataMartSchema } from '../data-mart-schema.type';
 import {
   collectCollidingCalculatedFieldNames,
   collectNestedCalculatedFieldNames,
+  collectPrimaryKeyCalculatedFieldNames,
   collectUnrenderableCalculatedFieldNames,
 } from '../../calculated-fields/calculated-field.utils';
 
@@ -39,6 +40,16 @@ export class DataMartSchemaParserFacade {
     if (unrenderableNames.length > 0) {
       throw new BusinessViolationException(
         `Calculated field "${unrenderableNames[0]}" cannot be named that: a calculated field's name becomes a column alias in the generated SQL, so it may not contain a dot, a quote character (" or \`), a backslash or a line break.`
+      );
+    }
+
+    // The Primary Key is emitted as physical column references, never as a substituted formula, so
+    // a calculated field in it asks the warehouse for a column it does not have — on every Unique
+    // Count, every join advertisement and every blended fan-out dedup that reads the same list.
+    const primaryKeyCalculatedNames = collectPrimaryKeyCalculatedFieldNames(result.fields);
+    if (primaryKeyCalculatedNames.length > 0) {
+      throw new BusinessViolationException(
+        `Calculated field "${primaryKeyCalculatedNames[0]}" cannot be part of the Primary Key: the key is written into the query as column names, and a calculated field has no column behind it — the query would ask the warehouse for a column that does not exist.`
       );
     }
 

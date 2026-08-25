@@ -228,6 +228,30 @@ export function collectNestedCalculatedFieldNames(
 }
 
 /**
+ * Calculated fields marked as part of the output Primary Key — which no calculated field can be,
+ * because the PK is emitted as PHYSICAL COLUMN REFERENCES: `renderCountDistinctPrimaryKey` puts
+ * each name through a plain `ColumnRefResolver`, so the formula is never substituted and the
+ * warehouse is asked for a column that does not exist.
+ *
+ * The web hides the checkbox for a calculated row, so this arrives only over the API — where
+ * nothing else refuses it. Reads the field's own flag rather than the reachable-PK helpers, which
+ * answer a different question and would hide the case behind their own pruning.
+ */
+export function collectPrimaryKeyCalculatedFieldNames(
+  fields: readonly DataMartSchemaField[]
+): string[] {
+  const names: string[] = [];
+  const walk = (nodes: readonly DataMartSchemaField[]) => {
+    for (const field of nodes) {
+      if (isCalculatedField(field) && field.isPrimaryKey) names.push(field.name);
+      if ('fields' in field && field.fields?.length) walk(field.fields as DataMartSchemaField[]);
+    }
+  };
+  walk(fields);
+  return names;
+}
+
+/**
  * Characters a calculated field's name may not hold, because the name is emitted as an output
  * identifier and quoted by the storage's escaper: `.` splits into qualifiers, a backtick and `"`
  * are quote characters the escaper doubles, `\` is a BigQuery escape sequence so `a\b` would name a

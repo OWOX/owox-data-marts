@@ -366,8 +366,8 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
         size: 36,
         cell: ({ row }) => {
           // True at BOTH levels, and not about aggregation: no calculated field owns a warehouse
-          // column, so none can be part of the output Primary Key — offering the checkbox would
-          // let the analyst set something the save silently drops.
+          // column, so none can be part of the output Primary Key. The save refuses it too
+          // (`DataMartSchemaParserFacade`); hiding it here keeps the analyst off a dead end.
           if (row.original.calculated) return null;
           if (primaryKeyColumnCell) {
             return primaryKeyColumnCell({ row, updateField });

@@ -22,6 +22,7 @@ const built: Record<string, FormulaViolation> = {
   expressionSeparator: FormulaViolations.expressionSeparator('ctr'),
   dialectAmbiguousMarker: FormulaViolations.dialectAmbiguousMarker('ctr', '#'),
   dialectAmbiguousEscape: FormulaViolations.dialectAmbiguousEscape('ctr'),
+  unterminatedQuotedText: FormulaViolations.unterminatedQuotedText('ctr'),
   unknownReference: FormulaViolations.unknownReference('ctr', REF, 'missing'),
   calculatedReference: FormulaViolations.calculatedReference('ctr', REF),
   selfReference: FormulaViolations.selfReference('ctr'),

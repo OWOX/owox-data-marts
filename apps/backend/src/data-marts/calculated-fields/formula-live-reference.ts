@@ -63,6 +63,21 @@ export function isLiveReference(tokens: readonly SqlToken[], r: FormulaReference
 }
 
 /**
+ * The predicates above read these three kinds and no others, so asking them over this subset is the
+ * same answer over a list that is usually EMPTY — every other token can only fail `t.kind === kind`.
+ *
+ * It lives here, beside the predicates, so a fourth kind cannot be added to one without the other.
+ * A caller asking per reference over a long formula is otherwise O(references x tokens): measured
+ * at 2.4 s for a single 10 000-character formula, on a path that runs synchronously over as many as
+ * 100 of them per request.
+ */
+export function referenceContextTokens(tokens: readonly SqlToken[]): SqlToken[] {
+  return tokens.filter(
+    t => t.kind === 'string' || t.kind === 'quotedIdentifier' || t.kind === 'comment'
+  );
+}
+
+/**
  * Every reference of a stored formula that the warehouse actually evaluates — the scan-then-filter
  * pairing above, in one place, for the callers that want the references rather than the tokens.
  * Throws `FormulaReferenceSyntaxError` for an unparseable formula, exactly as

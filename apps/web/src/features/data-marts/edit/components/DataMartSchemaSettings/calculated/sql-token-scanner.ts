@@ -13,6 +13,12 @@ export interface SqlToken {
   value: string;
   start: number;
   end: number;
+  /**
+   * The run reached the end of input without its closing mark, so it spans everything after the
+   * opening one. Read by the analyzer, which refuses the formula: this scanner ends the text where
+   * no warehouse does, and every structural guard reads token kinds.
+   */
+  unterminated?: true;
 }
 
 const WORD_START = /[A-Za-z_]/;
@@ -45,7 +51,13 @@ export function scanSql(sql: string): SqlToken[] {
     if (c === '/' && sql[i + 1] === '*') {
       const closed = sql.indexOf('*/', i + 2);
       const end = closed === -1 ? sql.length : closed + 2;
-      tokens.push({ kind: 'comment', value: sql.slice(i, end), start: i, end });
+      tokens.push({
+        kind: 'comment',
+        value: sql.slice(i, end),
+        start: i,
+        end,
+        ...(closed === -1 ? { unterminated: true as const } : {}),
+      });
       i = end;
       continue;
     }
@@ -98,7 +110,10 @@ export function scanSql(sql: string): SqlToken[] {
 // analyzer refuses a backslash inside a literal outright, for the same reason it refuses `#`.
 //
 // An unterminated literal (no closing delimiter before end of input) still yields one token that
-// runs to the end of the string, so the scanner always terminates instead of looping forever.
+// runs to the end of the string, so the scanner always terminates instead of looping forever. It
+// is flagged `unterminated` because that token blinds every structural guard the same way the
+// backslash reading above did: `'''don't''' , x` lexes as string / word / string-to-end here,
+// while BigQuery reads a closed triple-quoted string and a SECOND select item.
 function readQuoted(
   sql: string,
   start: number,
@@ -107,6 +122,7 @@ function readQuoted(
   out: SqlToken[]
 ): number {
   let j = start + 1;
+  let terminated = false;
   while (j < sql.length) {
     if (sql[j] === '\\') {
       j += 2;
@@ -118,11 +134,18 @@ function readQuoted(
         continue;
       }
       j++;
+      terminated = true;
       break;
     }
     j++;
   }
-  out.push({ kind, value: sql.slice(start, j), start, end: j });
+  out.push({
+    kind,
+    value: sql.slice(start, j),
+    start,
+    end: j,
+    ...(terminated ? {} : { unterminated: true as const }),
+  });
   return j;
 }
 

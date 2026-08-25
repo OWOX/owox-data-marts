@@ -209,6 +209,39 @@ describe('analyzeFormula', () => {
     );
   });
 
+  // THE SAME BYPASS WITHOUT AN AMBIGUOUS CHARACTER. A quoting spelling this scanner does not know
+  // — Snowflake `$$…$$`, BigQuery `'''…'''` — leaves an odd `'` behind, the run it opens never
+  // closes, and one token covers the rest of the formula. The warehouse ends the text elsewhere and
+  // reads a SECOND select item: an extra projected column, and an extra GROUP BY key on the
+  // grouping path. Nothing else refuses it — the escape guard above needs a backslash, and the
+  // comma guard cannot see a comma that is not a `punct` token.
+  it.each([
+    ['BigQuery triple quotes', `'''don't''' , other_col`],
+    ['Snowflake dollar quoting', `LENGTH($$it's$$) , other_col`],
+    ['nothing but an unclosed quote', `'never closed`],
+    ['an unclosed block comment', `SUM({{ref field="x"}}) /* never closed`],
+  ])('refuses a second select item smuggled past every guard by %s', (_case, formula) => {
+    expect(analyze(formula).errors.map(e => e.code)).toContain(
+      'FORMULA_UNTERMINATED_QUOTED_TEXT_NOT_ALLOWED'
+    );
+  });
+
+  // The guard keys on the scanner state, not on `$`, so a dollar-quoted run holding no quote opens
+  // nothing and stays legal — the false positive that would make the refusal useless.
+  it('accepts a dollar-quoted run that leaves no quote open', () => {
+    expect(analyze('CONCAT($$abc$$, {{ref field="x"}})').errors.map(e => e.code)).not.toContain(
+      'FORMULA_UNTERMINATED_QUOTED_TEXT_NOT_ALLOWED'
+    );
+  });
+
+  // And the guards must still see the comma when the quoting IS closed: written the portable way,
+  // the same formula is refused for the reason it deserves.
+  it('sees the top-level comma once the quoting closes', () => {
+    expect(analyze(`'''don''t''' , other_col`).errors.map(e => e.code)).toEqual(
+      expect.arrayContaining(['FORMULA_EXPRESSION_SEPARATOR_NOT_ALLOWED'])
+    );
+  });
+
   // A doubled quote is the escape all five agree about, so it stays legal text.
   it('accepts a quote written as two quotes', () => {
     expect(analyze(`SUM({{ref field="x"}}) + LENGTH('it''s')`).errors).toEqual([]);
@@ -579,5 +612,26 @@ describe('analyzeFormula', () => {
     const a = analyze('{{date}}', () => 'calculated-metric');
     expect(a.level).toBe('column');
     expect(a.errors[0].code).toBe('FORMULA_SYNTAX');
+  });
+
+  // A COMPLEXITY guard, not a benchmark. Liveness used to be re-derived per aggregate call over the
+  // whole token list — three scans each — so the cost grew as calls x references x tokens: measured
+  // at 2.4 s for one formula of the maximum allowed length, on a synchronous path that analyses up
+  // to 100 drafts per request with no `await` in between. One authenticated request could hold the
+  // event loop for minutes, and in the managed deployment that pod is shared.
+  //
+  // The bound is deliberately ~100x the measured 10 ms rather than tight: what must fail here is a
+  // return to the quadratic class, which overshoots it by two orders of magnitude, not a slow CI
+  // runner.
+  it('analyses a maximum-length formula without quadratic blow-up', () => {
+    const formula = 'SUM({{ref field="a"}})+'.repeat(434).slice(0, -1);
+    expect(formula.length).toBeLessThanOrEqual(10_000);
+
+    const startedAt = performance.now();
+    const a = analyze(formula);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(a.errors).toEqual([]);
+    expect(elapsedMs).toBeLessThan(1000);
   });
 });

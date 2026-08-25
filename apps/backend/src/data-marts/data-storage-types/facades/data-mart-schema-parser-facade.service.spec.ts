@@ -273,3 +273,87 @@ describe('DataMartSchemaParserFacade — a calculated field’s name must be ren
     await expect(save()).resolves.toEqual(parsed);
   });
 });
+
+/**
+ * The output Primary Key is written into the query as COLUMN NAMES — `renderCountDistinctPrimaryKey`
+ * puts each one through a plain `ColumnRefResolver`, never through the calculated-field expansion —
+ * so a calculated field in it asks the warehouse for a column that does not exist.
+ *
+ * The web hides the checkbox on a calculated row, which left this reachable only over the API, where
+ * nothing refused it: the schema DTO carries no nested validation and `isPrimaryKey` is a plain
+ * boolean on the field schema, so the flag was persisted rather than dropped. It then reaches Unique
+ * Count, the join advertisement and the blended fan-out dedup alike, and the report saves clean and
+ * fails on every run.
+ */
+describe('DataMartSchemaParserFacade — a calculated field cannot be part of the Primary Key', () => {
+  let facade: DataMartSchemaParserFacade;
+
+  const schema = (fields: Record<string, unknown>[]): DataMartSchema =>
+    ({ type: BigQueryDataMartSchemaType, fields }) as unknown as DataMartSchema;
+
+  async function setupWith(parsedSchema: DataMartSchema): Promise<void> {
+    const parser: jest.Mocked<DataMartSchemaParser> = {
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      validateAndParse: jest.fn().mockResolvedValue(parsedSchema),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        DataMartSchemaParserFacade,
+        {
+          provide: DATA_MART_SCHEMA_PARSER_RESOLVER,
+          useValue: { resolve: jest.fn().mockResolvedValue(parser) },
+        },
+      ],
+    }).compile();
+    facade = module.get(DataMartSchemaParserFacade);
+  }
+
+  const save = () => facade.validateAndParse({}, DataStorageType.GOOGLE_BIGQUERY);
+
+  const calculated = (over: Record<string, unknown> = {}) => ({
+    name: 'session_key',
+    type: BigQueryFieldType.STRING,
+    mode: BigQueryFieldMode.NULLABLE,
+    status: DataMartSchemaFieldStatus.CONNECTED,
+    calculated: {
+      formula: 'CONCAT({{ref field="part_a"}}, {{ref field="part_b"}})',
+      level: 'column',
+    },
+    ...over,
+  });
+
+  it('refuses it, naming the field', async () => {
+    await setupWith(schema([calculated({ isPrimaryKey: true })]));
+    await expect(save()).rejects.toThrow(BusinessViolationException);
+    await expect(save()).rejects.toThrow(/session_key.*Primary Key/);
+  });
+
+  // The aggregate level is no different: neither level owns a warehouse column.
+  it('refuses an aggregate-level formula in the key too', async () => {
+    await setupWith(
+      schema([
+        calculated({
+          isPrimaryKey: true,
+          calculated: { formula: 'COUNT({{ref field="clicks"}})', level: 'metric' },
+        }),
+      ])
+    );
+    await expect(save()).rejects.toThrow(/session_key.*Primary Key/);
+  });
+
+  it('leaves a physical column in the key alone', async () => {
+    const parsed = schema([
+      {
+        name: 'order_id',
+        type: BigQueryFieldType.STRING,
+        mode: BigQueryFieldMode.NULLABLE,
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        isPrimaryKey: true,
+      },
+      calculated(),
+    ]);
+    await setupWith(parsed);
+
+    await expect(save()).resolves.toEqual(parsed);
+  });
+});
