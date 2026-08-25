@@ -231,6 +231,226 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });
 
+  // #6732. A Calculated Metric carries neither `aggregationRole` nor `allowedAggregations` — the
+  // dialog that creates one deliberately sets neither — so governance falls back to the TYPE
+  // defaults and a FLOAT metric was published as SUM/AVG/MIN/MAX-able under a description reading
+  // "Use only these". The agent did the advertised thing and got a 400
+  // AGGREGATION_ON_CALCULATED_METRIC. The web picker has always forced the empty set; this is the
+  // same rule on the MCP surface (spec §8).
+  it('publishes a calculated metric as non-aggregatable, and never ships its formula', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_1',
+        name: 'Ads',
+        description: '',
+        fields: [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            displayName: 'CTR, %',
+            description: 'Clicks per impression.',
+            // What the facade forwards after `prepareSchema`: the marker survives, the stored
+            // formula does not.
+            calculated: { level: 'metric' },
+          },
+        ],
+        joinedFields: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+    const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+    // A plain FLOAT beside it still gets its type defaults — the empty set is the metric's alone.
+    expect(sc.fields[0]).toMatchObject({
+      name: 'clicks',
+      allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'],
+    });
+    expect(sc.fields[1]).toMatchObject({
+      name: 'ctr',
+      category: 'number',
+      allowedAggregations: [],
+      displayName: 'CTR, %',
+      description: 'Clicks per impression.',
+    });
+    expect(JSON.stringify(sc.fields[1])).not.toContain('{{ref');
+    expect(sc.fields[1].calculated).not.toHaveProperty('formula');
+  });
+
+  // #6732 slice 1. This prose is the ONLY thing that tells an agent what a Calculated Field is,
+  // and a stale sentence in it fails no other test while silently degrading every agent that
+  // reads it. Both level texts are pinned verbatim so that editing either one is a visible
+  // change in this file rather than a quiet change in a model's context.
+  describe('the calculated-field prose an agent reads (#6732)', () => {
+    const AGGREGATE_AND_ROW_LEVEL_DESCRIPTION =
+      '"metric" — the formula is ALREADY aggregated: select it by name and it is recomputed ' +
+      'correctly at whatever grain your query asks for, including in a query that reads a joined ' +
+      'Data Mart; it cannot be aggregated again (its allowedAggregations is empty), used as a ' +
+      'group-by dimension, given a date_bucket, or filtered on. This is also the meaning when the ' +
+      'property is absent. "column" — the formula is row-level, so the field IS an ordinary ' +
+      'dimension: select it by name and group by it exactly like a real column, including in a ' +
+      'query that reads a joined Data Mart; it also accepts any aggregation listed in its own ' +
+      'allowedAggregations (e.g. COUNT_DISTINCT), and applying one makes it a metric of that ' +
+      'query rather than one of its grouping keys; when its declared type is DATE or TIMESTAMP it ' +
+      'also takes a date_bucket, on the same rule a real date column follows. Filtering on a ' +
+      'Calculated Field is refused at either level.';
+
+    const publishedCalculatedSchema = () => {
+      const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
+      const fields = tool.outputSchema.fields as unknown as {
+        element: { shape: Record<string, { description?: string; unwrap(): unknown }> };
+      };
+      return fields.element.shape.calculated;
+    };
+
+    const publishedLevelSchema = () => {
+      const calculated = publishedCalculatedSchema().unwrap() as {
+        shape: Record<string, { description?: string }>;
+      };
+      return calculated.shape.level;
+    };
+
+    it('describes the marker itself without claiming a level', () => {
+      expect(publishedCalculatedSchema().description).toBe(
+        'Present when this field is a Calculated Field: a value the Data Mart computes from a ' +
+          'formula instead of reading it from a warehouse column. Its "level" says whether it ' +
+          'behaves as a metric or as a dimension — read that before using the field. When ' +
+          '"level" is absent the field is a metric; nothing backfills it, so every field defined ' +
+          'before levels existed arrives without one.'
+      );
+    });
+
+    it('publishes both level texts, verbatim', () => {
+      expect(publishedLevelSchema().description).toBe(AGGREGATE_AND_ROW_LEVEL_DESCRIPTION);
+    });
+
+    // The two halves must disagree, and slice 3 widens the gap rather than closing it: the
+    // row-level half now says the field can be aggregated, while the aggregate half still says
+    // it cannot. A sentence claiming a row-level aggregation is unsupported would fail no other
+    // test and would send every agent that reads it away from a query that works.
+    it('tells an agent a row-level field CAN be grouped by AND aggregated, and an aggregate one neither', () => {
+      const [aggregateHalf, rowLevelHalf] = (publishedLevelSchema().description ?? '').split(
+        '"column" —'
+      );
+
+      expect(rowLevelHalf).toBeDefined();
+      expect(aggregateHalf).toContain('used as a group-by dimension');
+      expect(aggregateHalf).toContain('cannot be aggregated again');
+      expect(rowLevelHalf).toContain('group by it');
+      expect(rowLevelHalf).not.toContain('used as a group-by dimension');
+      expect(rowLevelHalf).toContain(
+        'accepts any aggregation listed in its own allowedAggregations'
+      );
+      expect(rowLevelHalf).not.toContain('cannot yet be aggregated');
+      expect(rowLevelHalf).not.toContain('allowedAggregations is empty');
+      // Slice 3b lifted the bucket for a row-level field. While the sentence still refused one,
+      // an agent either declined a request it could serve or bucketed some other field and
+      // answered at the wrong grain without saying so.
+      expect(rowLevelHalf).not.toContain('cannot yet be bucketed by date');
+      expect(rowLevelHalf).toContain('takes a date_bucket');
+      // ...but only on a DATE/TIMESTAMP declaration, exactly as a real column. Advertising the
+      // bucket unconditionally is the same defect pointed the other way.
+      expect(rowLevelHalf).toContain('DATE or TIMESTAMP');
+      // Nothing else was lifted with it: filtering is still refused, and at BOTH levels, so no
+      // clause here may read as temporary.
+      expect(rowLevelHalf).toContain('Filtering');
+      expect(rowLevelHalf).not.toContain('yet');
+      // An aggregate-level field is refused a bucket permanently — it is never a grouping key —
+      // so the lift must not have leaked across the split.
+      expect(aggregateHalf).toContain('given a date_bucket, or filtered on');
+      expect(aggregateHalf).not.toContain('DATE or TIMESTAMP');
+      // A calculated metric works on a joined report as of this branch, and only the row-level
+      // half said so; silence on this half reads to an agent as "not supported here".
+      expect(aggregateHalf).toContain('including in a query that reads a joined Data Mart');
+    });
+
+    // Slice 3 reverses decision D2 for the row-level level ONLY: the mechanism that renders
+    // COUNT_DISTINCT over a formula now exists, so the field is advertised with the governance
+    // menu the validator will actually enforce — resolved from its DECLARED type, since a
+    // calculated field carries no aggregationRole and no override of its own.
+    it('publishes the governance menu for a row-level field', async () => {
+      const facade = {
+        getDataMartDetails: jest.fn().mockResolvedValue({
+          id: 'dm_1',
+          name: 'Sessions',
+          description: '',
+          fields: [
+            { name: 'session_id', type: 'STRING' },
+            { name: 'session_key', type: 'STRING', calculated: { level: 'column' } },
+          ],
+          joinedFields: [],
+        }),
+      } as unknown as jest.Mocked<McpDataMartsFacade>;
+      const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+      const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+      const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+      // STRING's defaults, minus the two the MCP function set does not expose (STRING_AGG,
+      // ANY_VALUE) — i.e. byte-identical to what a plain STRING column beside it advertises.
+      expect(sc.fields[1]).toMatchObject({
+        name: 'session_key',
+        allowedAggregations: ['COUNT', 'COUNT_DISTINCT'],
+        calculated: { level: 'column' },
+      });
+      expect(sc.fields[1].allowedAggregations).toEqual(sc.fields[0].allowedAggregations);
+    });
+
+    // The falsifying contrast, and the regression a level-blind lift would be: the empty set is
+    // the AGGREGATE level's, and it is not derived from the marker alone. An absent level is that
+    // level too — nothing backfills it, and aggregating is what every such field always did.
+    it('keeps the empty set for an aggregate-level field, and for one carrying no level', async () => {
+      const facade = {
+        getDataMartDetails: jest.fn().mockResolvedValue({
+          id: 'dm_1',
+          name: 'Ads',
+          description: '',
+          fields: [
+            { name: 'ctr', type: 'FLOAT', calculated: { level: 'metric' } },
+            { name: 'legacy_ratio', type: 'FLOAT', calculated: {} },
+          ],
+          joinedFields: [],
+        }),
+      } as unknown as jest.Mocked<McpDataMartsFacade>;
+      const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+      const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+      const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+      expect(sc.fields[0]).toMatchObject({ name: 'ctr', allowedAggregations: [] });
+      expect(sc.fields[1]).toMatchObject({ name: 'legacy_ratio', allowedAggregations: [] });
+    });
+
+    // A row-level field's own override still narrows the published set — it goes through the same
+    // governance call an ordinary column does, so it cannot advertise what the validator refuses.
+    it('narrows a row-level field to its own allowedAggregations override', async () => {
+      const facade = {
+        getDataMartDetails: jest.fn().mockResolvedValue({
+          id: 'dm_1',
+          name: 'Sessions',
+          description: '',
+          fields: [
+            {
+              name: 'session_key',
+              type: 'STRING',
+              allowedAggregations: ['COUNT_DISTINCT'],
+              calculated: { level: 'column' },
+            },
+          ],
+          joinedFields: [],
+        }),
+      } as unknown as jest.Mocked<McpDataMartsFacade>;
+      const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+      const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+      const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+      expect(sc.fields[0]).toMatchObject({ allowedAggregations: ['COUNT_DISTINCT'] });
+    });
+  });
+
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {
     const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 

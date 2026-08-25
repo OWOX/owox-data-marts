@@ -27,6 +27,7 @@ import { BaseSchemaTable } from './BaseSchemaTable';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
 import type { SchemaAiHelper } from '../types/ai-helper';
 import type { SchemaToolbar } from '../types/schema-toolbar';
+import type { SchemaField } from '../calculated/formula-reference-index';
 
 /**
  * Props for the BigQuerySchemaTable component
@@ -84,6 +85,33 @@ export function BigQuerySchemaTable({
     };
   }, []);
 
+  // BaseSchemaTable's own naive save (splice/append against its `fields` prop) is wrong here:
+  // that prop is `flattenedFields` below, a derived, duplicated-on-expand view, not the true
+  // schema tree. `updateField` already knows how to translate a flattened row index into the
+  // right (always top-level, for a calculated field) position in the real `fields` array — reuse
+  // it instead of re-deriving that translation.
+  const saveCalculatedField = useCallback(
+    (index: number | undefined, next: SchemaField) => {
+      if (!onFieldsChange) return;
+      // `next` is built from the row BaseSchemaTable renders — which here is a FLATTENED entry
+      // (`flattenedFields` below), not a true schema field. `useRecordExpansion` tacks
+      // `path`/`level` onto every flattened row for indentation/expand-state bookkeeping; those
+      // are not part of the true schema shape. Left in place, `updateField`'s merge would put
+      // `path`/`level` onto a genuine BigQuerySchemaField and into the PUT /:id/schema body.
+      // Strip them here, at the seam that owns the flattened representation — the formula cell
+      // stays ignorant of how any one table represents its rows.
+      const flattened = next as SchemaField & { path?: string; level?: number };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- discarded on purpose
+      const { path: _path, level: _level, ...clean } = flattened;
+      if (index === undefined) {
+        onFieldsChange([...fields, { ...createNewField(), ...clean } as BigQuerySchemaField]);
+      } else {
+        updateField(index, clean as Partial<BigQuerySchemaField>);
+      }
+    },
+    [fields, onFieldsChange, createNewField, updateField]
+  );
+
   // Function to render the type cell
   const renderTypeCell = useCallback(
     ({
@@ -117,14 +145,20 @@ export function BigQuerySchemaTable({
           </Tooltip>
         ),
         size: 80,
-        cell: ({ row }: { row: Row<BigQuerySchemaField> }) => (
-          <SchemaFieldModeSelect
-            mode={row.getValue('mode')}
-            onModeChange={value => {
-              updateField(row.index, { mode: value });
-            }}
-          />
-        ),
+        cell: ({ row }: { row: Row<BigQuerySchemaField> }) => {
+          // A calculated field has no warehouse column, so NULLABLE/REQUIRED/REPEATED describes
+          // nothing real for it — offering the control would let the analyst set a value the save
+          // silently ignores.
+          if (row.original.calculated) return null;
+          return (
+            <SchemaFieldModeSelect
+              mode={row.getValue('mode')}
+              onModeChange={value => {
+                updateField(row.index, { mode: value });
+              }}
+            />
+          );
+        },
         columnIndex: 4,
       },
     ],
@@ -365,6 +399,9 @@ export function BigQuerySchemaTable({
         actionsColumnCell={actionsColumnCell}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.GOOGLE_BIGQUERY}
+        schemaFields={fields}
+        onSaveCalculatedField={saveCalculatedField}
         dragContext={SortableContext}
         dragContextProps={{
           items: flattenedFields.map(f => f.path ?? String(flattenedFields.indexOf(f))),

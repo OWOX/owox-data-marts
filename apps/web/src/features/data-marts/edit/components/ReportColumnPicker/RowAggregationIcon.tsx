@@ -20,6 +20,10 @@ interface RowAggregationIconProps {
   activeBucket: DateTruncUnit | null;
   /** Date-trunc time zone currently assigned to this column's bucket (date fields only). */
   activeTimeZone?: string | null;
+  /** Passed straight to the editor: false hides the bucket on an otherwise date-typed column. */
+  allowDateBucket?: boolean;
+  /** Passed straight to the editor: false hides the bucket's time zone (a calculated field). */
+  allowBucketTimeZone?: boolean;
   /**
    * Keep the icon visible even when inactive. Set for standalone triggers that live
    * outside a `group/row` list (e.g. the Aggregations dropdown "add" entry), where the
@@ -42,6 +46,8 @@ export function RowAggregationIcon({
   activeFunctions,
   activeBucket,
   activeTimeZone,
+  allowDateBucket,
+  allowBucketTimeZone,
   alwaysVisible = false,
   autoOpen = false,
   onClose,
@@ -83,6 +89,8 @@ export function RowAggregationIcon({
       displayLabel={displayLabel}
       dataMartName={dataMartName}
       allowedAggregations={allowedAggregations}
+      allowDateBucket={allowDateBucket}
+      allowBucketTimeZone={allowBucketTimeZone}
       initialFunctions={activeFunctions}
       initialBucket={activeBucket}
       initialTimeZone={activeTimeZone}

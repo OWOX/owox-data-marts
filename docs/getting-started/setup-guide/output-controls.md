@@ -30,7 +30,7 @@ Each section — Filters, Slices, Sort, and Limit — expands independently.
 
 ## Filters
 
-A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report.
+A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report — except when the filter names an **aggregated** column or a **calculated metric**, which is compared after the grouping and therefore drops **groups** rather than rows. See [Filtering by a calculated field](calculated-fields.md#filtering-by-a-calculated-field).
 
 ### Supported operators by column type
 
@@ -94,7 +94,7 @@ To also drop source rows with no match, add a **filter** on the same column (`is
 
 Use slices to limit what you pull from a joined Data Mart. Example: fetch only records where `status = Active` from a CRM Data Mart. The source rows stay intact regardless.
 
-Use filters to drop rows from the final result — any column, regardless of join order.
+Use filters to drop rows from the final result, regardless of join order — almost any column, the exception being an aggregated value computed from a joined Data Mart, which is refused by name.
 
 ### Add a slice
 

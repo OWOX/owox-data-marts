@@ -958,6 +958,136 @@ describe('StreamHttpDataService', () => {
     expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300}\n']);
   });
 
+  // #6732. A selected calculated metric IS an aggregate even with no `aggregation=` param, so the
+  // ad-hoc path has to treat it like one: compose the SQL, forward the plans to the reader, strip
+  // the metric's name out of `columnFilter`, and project rows by the RESOLVED header names. The
+  // whole feature had zero coverage in this file.
+  describe('calculated metrics (#6732)', () => {
+    const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+    const ctrPlan = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      formula: CTR_FORMULA,
+      alias: 'CTR, %',
+      description: 'Clicks per impression.',
+    };
+
+    // `?column=ctr&column=country`: the request order, deliberately NOT the composed order.
+    // `compose` puts dimensions first and appends every metric last, so the two differ — which is
+    // what makes the `outputColumns` gate observable at all.
+    const requestCtrThenCountry = (
+      decision: object = { needsBlending: false, columnFilter: ['ctr', 'country'] }
+    ) => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        fakeDataMart({
+          schema: {
+            type: 'snowflake-data-mart-schema',
+            fields: [
+              { name: 'country', type: 'TEXT', status: 'CONNECTED' },
+              {
+                name: 'ctr',
+                type: 'FLOAT',
+                status: 'CONNECTED',
+                calculated: { formula: CTR_FORMULA, level: 'metric' },
+              },
+            ],
+          },
+        } as never)
+      );
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'explicit', explicit: ['ctr', 'country'] },
+        filter: undefined,
+        sort: undefined,
+        aggregation: undefined,
+        dateTrunc: undefined,
+        limit: undefined,
+      } as never);
+      blended.resolveBlendingDecision.mockResolvedValueOnce(decision as never);
+      sqlComposer.compose.mockResolvedValueOnce({
+        sql: 'SELECT `country`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr` FROM t',
+        calculatedMetrics: [ctrPlan],
+      } as never);
+      reader.prepareReportData.mockResolvedValueOnce(
+        new ReportDataDescription([
+          new ReportDataHeader('country'),
+          new ReportDataHeader('ctr', 'CTR, %', 'Clicks per impression.'),
+        ])
+      );
+      reader.readReportDataBatch.mockResolvedValueOnce(new ReportDataBatch([['PL', 0.25]], null));
+      return fakeCommand({ rawQuery: { column: ['ctr', 'country'] } });
+    };
+
+    // Pins the `outputColumns` gate in stream-http-data.service.ts: without the
+    // `calculatedMetrics` term, `aggregationConfig` alone is empty here and rows are projected by
+    // the RAW request order instead of the resolved headers — the same mismatch that, on any
+    // request where the two lists differ by more than order, streams a column as a silent `null`.
+    it('projects rows by the RESOLVED header names, not the raw request order', async () => {
+      const command = requestCtrThenCountry();
+      const res = mockResponse();
+
+      await service.stream(command, res);
+
+      expect(res._writes).toEqual(['{"country":"PL","ctr":0.25}\n']);
+    });
+
+    it('composes the SQL, forwards calculatedMetrics, and strips the metric from columnFilter', async () => {
+      const command = requestCtrThenCountry();
+      const res = mockResponse();
+
+      await service.stream(command, res);
+
+      expect(sqlComposer.compose).toHaveBeenCalledTimes(1);
+      const options = reader.prepareReportData.mock.calls[0][1];
+      expect(options?.calculatedMetrics).toEqual([ctrPlan]);
+      // 'ctr' renders through its own formula channel, never as a plain projected column.
+      expect(options?.columnFilter).toEqual(['country']);
+    });
+
+    // The blended twin of the test above: `compose` never runs on that branch, so the decision is
+    // the metric's ONLY plan source. Without forwarding it the NDJSON stream emits `ctr` from the
+    // SQL with no header naming it, and every row carries a silent null.
+    it("forwards the decision's calculatedMetrics on the blended branch", async () => {
+      const command = requestCtrThenCountry({
+        needsBlending: true,
+        blendedSql: 'WITH main AS (...) SELECT main.country, SUM(main.clicks) AS `ctr`',
+        columnFilter: ['country'],
+        calculatedMetrics: [ctrPlan],
+      });
+      const res = mockResponse();
+
+      await service.stream(command, res);
+
+      expect(sqlComposer.compose).not.toHaveBeenCalled();
+      const options = reader.prepareReportData.mock.calls[0][1];
+      expect(options?.calculatedMetrics).toEqual([ctrPlan]);
+      expect(options?.columnFilter).toEqual(['country']);
+    });
+
+    // The metric's alias is the only label it has, and this endpoint publishes it as `title`.
+    it("reports the metric's analyst label as the column title in the run metadata", async () => {
+      const command = requestCtrThenCountry();
+      const res = mockResponse();
+
+      await service.stream(command, res);
+
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            dataDescription: {
+              dataHeaders: expect.arrayContaining([
+                expect.objectContaining({
+                  name: 'ctr',
+                  title: 'CTR, %',
+                  description: 'Clicks per impression.',
+                }),
+              ]),
+            },
+          }),
+        })
+      );
+    });
+  });
+
   it('rejects via the read/abort race when the client disconnects during a pending first batch read', async () => {
     reader.readReportDataBatch.mockImplementationOnce(() => new Promise<never>(() => {}));
     const res = mockResponse();
@@ -1047,7 +1177,12 @@ describe('StreamHttpDataService', () => {
 
     expect(columnResolver.resolve).toHaveBeenCalledWith(
       { mode: 'allBlendable' },
-      { native: ['date'], blended: ['orders__cost'] }
+      {
+        native: ['date'],
+        implicitAllNative: ['date'],
+        blended: ['orders__cost'],
+        implicitAllBlended: ['orders__cost'],
+      }
     );
     expect(blended.resolveBlendingDecision).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),

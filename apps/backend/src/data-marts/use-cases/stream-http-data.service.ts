@@ -20,7 +20,11 @@ import {
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
-import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import {
+  CalculatedMetricPlan,
+  SqlParameter,
+} from '../data-storage-types/utils/sql-clause-renderer';
+import { columnFilterWithoutCalculatedMetrics } from '../calculated-fields/calculated-field.utils';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
@@ -44,6 +48,8 @@ import { HttpDataColumnResolver } from '../services/http-data/http-data-column-r
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
   nativeColumnNames,
+  implicitAllNativeColumnNames,
+  implicitAllBlendedColumnNames,
   visibleBlendedColumnNames,
   ReportingColumns,
 } from '../services/http-data/http-data-column-sets.util';
@@ -179,7 +185,9 @@ export class StreamHttpDataService {
         );
         const reportingColumns: ReportingColumns = {
           native: nativeColumnNames(blendableSchema),
+          implicitAllNative: implicitAllNativeColumnNames(blendableSchema),
           blended: visibleBlendedColumnNames(blendableSchema),
+          implicitAllBlended: implicitAllBlendedColumnNames(blendableSchema),
         };
         const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
         this.columnValidator.validate(
@@ -343,11 +351,17 @@ export class StreamHttpDataService {
 
       let sqlOverride: string | undefined = decision.blendedSql;
       let sqlOverrideParams = decision.params;
+      let calculatedMetrics: CalculatedMetricPlan[] | undefined = decision.calculatedMetrics;
       if (!decision.needsBlending && hasOutputControls(readPlan)) {
         const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
+        calculatedMetrics = composed.calculatedMetrics;
       }
+      const columnFilter = columnFilterWithoutCalculatedMetrics(
+        decision.columnFilter,
+        calculatedMetrics
+      );
 
       const executionSqlQuery = captureExecutionSql
         ? this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams)
@@ -361,12 +375,13 @@ export class StreamHttpDataService {
       const description = await reader.prepareReportData(readPlan, {
         sqlOverride,
         sqlOverrideParams,
-        columnFilter: decision.columnFilter,
+        columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregationConfig: decision.aggregations ?? readPlan.aggregationConfig ?? undefined,
         uniqueCount: hasMainUniqueCount(readPlan.uniqueCountConfig),
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
+        calculatedMetrics,
       });
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
@@ -401,7 +416,16 @@ export class StreamHttpDataService {
       // Aggregated reports rename headers to "<column> | <FN>", so project by
       // the resolved header names. A report always projects by resolved headers — correct for both
       // an explicit columnConfig and a null (all-columns) config.
-      const aggregated = (readPlan.aggregationConfig?.length ?? 0) > 0;
+      //
+      // A selected calculated metric is the same class of case: it IS an aggregate (spec §2.3)
+      // even when `aggregationConfig` itself is empty, so `aggregated` alone is a separate axis
+      // from `hasOutputControls`'s own calculated-metric flip above (Task 8) — that one governs
+      // header SYNTHESIS, this one governs which column NAMES `streamRows` looks each row value
+      // up by. Missing it does not error: `buildFieldIndexMap` looks a name up in `dataHeaders`
+      // by NAME, so a name absent from `dataHeaders` resolves to index -1 and streams as a
+      // silent `null` — the metric's own name and any header this composition renamed alike.
+      const aggregated =
+        (readPlan.aggregationConfig?.length ?? 0) > 0 || (calculatedMetrics?.length ?? 0) > 0;
       const outputColumns =
         projectsByResolvedHeaders || aggregated
           ? description.dataHeaders.map(header => header.name)

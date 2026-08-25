@@ -380,10 +380,21 @@ export class DataMartService {
     // Get the new schema from the provider
     const newSchema = await this.dataMartSchemaProviderFacade.getActualDataMartSchema(dataMart);
 
-    // Merge the existing schema with the actual one
+    // Merge the actual schema onto the schema as it stands NOW, not onto the copy the caller
+    // loaded: actualization is a refresh, not a redefinition, and the provider call above is a
+    // warehouse round trip that a Looker Studio getSchema reaches only after running the report
+    // query. An analyst saving a formula during that gap would otherwise be merged against a
+    // schema that predates it and written back out of existence. Same reasoning as
+    // updateDataLastUpdated below; the read-to-save window is now two statements rather than the
+    // whole request, but it is still a window.
+    const persisted = await this.dataMartRepository.findOne({
+      where: { id: dataMart.id },
+      select: { id: true, schema: true },
+    });
+
     dataMart.schema = await this.dataMartSchemaMergerFacade.mergeSchemas(
       dataMart.storage.type,
-      dataMart.schema,
+      persisted?.schema ?? dataMart.schema,
       newSchema
     );
     dataMart.schemaActualizedAt = new Date();
@@ -401,6 +412,48 @@ export class DataMartService {
 
   async save(dataMart: DataMart): Promise<DataMart> {
     return this.dataMartRepository.save(dataMart);
+  }
+
+  /**
+   * Applies a path-shaped rewrite — an alias rename cascading into stored definitions — to a Data
+   * Mart's `schema` and `blendedFieldsConfig`. A targeted two-column update, not a full entity
+   * save: the rename edits paths inside SQL an analyst authored, and must never clobber the rest
+   * of a Data Mart the caller happens to have loaded.
+   *
+   * The row is re-read here rather than reused from earlier in the request, and on MySQL that read
+   * takes a write lock so it returns the latest committed row instead of the transaction's
+   * REPEATABLE READ snapshot — without it the rewrite base is the schema as it looked when the
+   * request began, and every formula saved since is written back out of existence. SQLite
+   * serializes transactions already (see sqlite-transaction-serializer), so it needs no lock.
+   *
+   * Read-compare-write in the same shape as {@link updateDataLastUpdated}: `rewrite` returning
+   * false means nothing changed and no statement is issued. This narrows the lost-update window to
+   * the width of the caller's transaction, it does not close it — a writer committing after this
+   * read still loses. Closing it properly needs a version column, and that is a migration.
+   *
+   * @returns true when the rewrite was persisted; false when it changed nothing or the row is gone.
+   */
+  async rewriteSchemaPaths(id: string, rewrite: (dataMart: DataMart) => boolean): Promise<boolean> {
+    const query = this.dataMartRepository
+      .createQueryBuilder('dm')
+      .select(['dm.id', 'dm.schema', 'dm.blendedFieldsConfig'])
+      .where('dm.id = :id', { id });
+    if (
+      ['mysql', 'mariadb'].includes(String(this.dataMartRepository.manager.connection.options.type))
+    ) {
+      query.setLock('pessimistic_write');
+    }
+
+    const current = await query.getOne();
+    if (!current || !rewrite(current)) {
+      return false;
+    }
+
+    await this.dataMartRepository.update(
+      { id },
+      { schema: current.schema, blendedFieldsConfig: current.blendedFieldsConfig }
+    );
+    return true;
   }
 
   async saveActualizedSchema(dataMart: DataMart): Promise<DataMart> {

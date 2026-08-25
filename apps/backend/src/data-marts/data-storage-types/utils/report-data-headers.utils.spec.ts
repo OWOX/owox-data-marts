@@ -10,6 +10,7 @@ import {
 import { buildJoinedUniqueCountColumnName } from '../../services/blended-field-name';
 import type { JoinedUniqueCountHeaderSource } from '../interfaces/blended-query-builder.interface';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
+import type { CalculatedMetricPlan } from './sql-clause-renderer';
 
 const BQ = DataStorageType.GOOGLE_BIGQUERY;
 
@@ -536,6 +537,366 @@ describe('resolveReportDataHeaders', () => {
         BQ
       );
       expect(headers.map(h => h.name)).toEqual(['channel']);
+    });
+  });
+
+  describe('calculated metric headers', () => {
+    it('synthesizes a header for a selected calculated metric with its declared type', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+      expect(headers).toContainEqual(
+        expect.objectContaining({ name: 'ctr', storageFieldType: 'FLOAT' })
+      );
+    });
+
+    // No report aggregate function describes a formula, so the header cannot carry one — and a
+    // BARE `undefined` there is how an ordinary native column looks. Consumers that read the
+    // absence (Looker Studio's schema builder does) would then treat a ratio as a plain numeric
+    // column they may roll up. The LEVEL is what keeps the two apart; see spec §8.
+    it('carries the aggregating level onto the header, with no report aggregate function', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+      expect(headers).toHaveLength(1);
+      expect(headers[0].calculatedFieldLevel).toBe('metric');
+      expect(headers[0].aggregateFunction).toBeUndefined();
+    });
+
+    // The header used to hard-code `isCalculatedMetric: true`, which the Looker mapper reads as
+    // "METRIC whatever the declared type says" — so a row-level `CONCAT(session_id, user_id)`
+    // reached the destination as a metric Looker refuses to group by (spec §4.5). The level must
+    // travel, not the fact of being calculated.
+    it('carries the ROW-LEVEL level onto the header, unchanged from the plan', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [
+            { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
+          ],
+        },
+        BQ
+      );
+      expect(headers).toHaveLength(1);
+      expect(headers[0].calculatedFieldLevel).toBe('column');
+      expect(headers[0].aggregateFunction).toBeUndefined();
+    });
+
+    // The OTHER direction of the rolling-deploy window the Looker mapper's compat read covers.
+    // These headers are persisted verbatim in `report_data_cache.dataDescription`, and a pod still
+    // running the pre-#6732 code knows only `isCalculatedMetric`: handed a row a NEW pod wrote, it
+    // finds neither key it understands and answers `isReaggregatable`, so Looker re-sums a ratio —
+    // exactly the defect the compat read exists to prevent, arriving from the other side. Both
+    // keys therefore travel for one release.
+    it('also writes the legacy isCalculatedMetric key for an aggregating field', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+      expect(headers[0]).toEqual(
+        expect.objectContaining({ calculatedFieldLevel: 'metric', isCalculatedMetric: true })
+      );
+    });
+
+    // The legacy key is a boolean with one meaning — "already an aggregate" — so there is nothing
+    // truthful to write for a dimension. An old pod reads its absence as an ordinary column, which
+    // is how it treated a row-level formula before the level existed at all.
+    it('leaves the legacy key off a row-level field, which a boolean cannot describe', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [
+            { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
+          ],
+        },
+        BQ
+      );
+      expect(headers[0].calculatedFieldLevel).toBe('column');
+      expect(headers[0].isCalculatedMetric).toBeUndefined();
+    });
+
+    it('appends the calculated metric header last, after Unique Count', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          columnFilter: ['country'],
+          uniqueCount: true,
+          primaryKeyColumns: ['id'],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+      expect(headers.map(h => h.name)).toEqual(['country', UNIQUE_COUNT_LABEL, 'ctr']);
+    });
+
+    // This list is the metric's ONLY header source (no native column, no aggregation rule), so
+    // dropping the analyst's own label here left a metric aliased "CTR, %" as the single column in
+    // its own report still labelled `ctr` — in the Google Sheet, in Looker Studio's field label
+    // (`alias || name`), in MCP's `displayName`, and as an HTTP Data `title: undefined`.
+    it("carries the analyst's alias and description onto the calculated metric header", () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [
+            {
+              outputName: 'ctr',
+              type: 'FLOAT',
+              formula: '…',
+              level: 'metric',
+              alias: 'CTR, %',
+              description: 'Clicks per impression.',
+            },
+          ],
+        },
+        BQ
+      );
+      expect(headers[0].alias).toBe('CTR, %');
+      expect(headers[0].description).toBe('Clicks per impression.');
+    });
+
+    it('leaves alias/description undefined for a metric that declares neither', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+      expect(headers[0].alias).toBeUndefined();
+      expect(headers[0].description).toBeUndefined();
+    });
+
+    it('emits one header per calculated metric, in list order', () => {
+      const headers = resolveReportDataHeaders(
+        [],
+        {
+          calculatedMetrics: [
+            { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
+            { outputName: 'roas', type: 'FLOAT', formula: '…', level: 'metric' },
+          ],
+        },
+        BQ
+      );
+      expect(headers.map(h => h.name)).toEqual(['ctr', 'roas']);
+    });
+
+    it('no calculatedMetrics option → no calculated-metric headers (legacy shape untouched)', () => {
+      const native = [
+        new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
+      ];
+      const headers = resolveReportDataHeaders(native, { columnFilter: ['channel'] }, BQ);
+      expect(headers.map(h => h.name)).toEqual(['channel']);
+    });
+
+    // A report selecting ONLY a calculated metric has its metric's name already excluded from
+    // `columnFilter` by the caller (the metric renders through its own channel, not the plain
+    // projection) — so `columnFilter` alone cannot signal "this is a metrics-only query" the way
+    // it does for a dimension. Without `calculatedMetrics` in `metricsOnly`, an empty/absent
+    // filter here falls back to EVERY native header (the "SELECT *" default) even though the SQL
+    // projects exactly the metric — a silent null on BigQuery/Snowflake/Databricks, a hard
+    // `Column ... not found in query results` on Athena/Redshift. Same failure class already
+    // fixed for Unique Count above ('uniqueCount-only with no/empty columnFilter').
+    it('calculatedMetrics-only with no/empty columnFilter → ONLY the metric header (no phantom native headers)', () => {
+      const native = [
+        new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader('revenue', undefined, undefined, BigQueryFieldType.INTEGER),
+      ];
+      const calculatedMetrics: CalculatedMetricPlan[] = [
+        { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
+      ];
+
+      const undefinedFilter = resolveReportDataHeaders(native, { calculatedMetrics }, BQ);
+      expect(undefinedFilter.map(h => h.name)).toEqual(['ctr']);
+
+      const emptyFilter = resolveReportDataHeaders(
+        native,
+        { columnFilter: [], calculatedMetrics },
+        BQ
+      );
+      expect(emptyFilter.map(h => h.name)).toEqual(['ctr']);
+    });
+
+    // The "projects only the synthetic columns" test above, for a ROW-LEVEL field — and the answer
+    // is the same, because the SQL is the same shape. `composePlainSelectBody` DROPS the wildcard
+    // once a calculated item is present, so `columns: []` plus a row-level field emits
+    // `SELECT <expr> AS session_key FROM t` and nothing else (pinned by "projects a row-level
+    // calculated field alone, without a wildcard" in each dialect's builder spec). Narrowing this
+    // branch to aggregating fields — which spec §4.5 asks for, written before that wildcard
+    // decision — would answer with every native header for a SELECT that projects one column: a
+    // null-filled row on BigQuery/Snowflake/Databricks, `Column ... not found` on Athena/Redshift.
+    it('row-level-only with no/empty columnFilter → ONLY that field (the SELECT drops the wildcard)', () => {
+      const native = [
+        new ReportDataHeader('session_id', undefined, undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader('user_id', undefined, undefined, BigQueryFieldType.STRING),
+      ];
+      const calculatedMetrics: CalculatedMetricPlan[] = [
+        { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
+      ];
+
+      const undefinedFilter = resolveReportDataHeaders(native, { calculatedMetrics }, BQ);
+      expect(undefinedFilter.map(h => h.name)).toEqual(['session_key']);
+
+      const emptyFilter = resolveReportDataHeaders(
+        native,
+        { columnFilter: [], calculatedMetrics },
+        BQ
+      );
+      expect(emptyFilter.map(h => h.name)).toEqual(['session_key']);
+    });
+
+    // Slice 3 (spec §2.1): a report may apply an aggregation to a ROW-LEVEL calculated field, and
+    // the SQL then emits one `<expr>` aggregate per rule under `aggregatedColumnLabel` instead of
+    // the bare name. Readers bind rows to headers BY NAME, so a header still called `session_key`
+    // matches no output column at all — a null column on BigQuery/Snowflake/Databricks and a hard
+    // `Column ... not found in query results` on Athena/Redshift. The SAME expansion an ordinary
+    // aggregated column already gets above, through the SAME label helper, because the alias the
+    // renderer emits comes from that helper too.
+    describe('once the REPORT aggregates a row-level calculated metric', () => {
+      const COUNT_UNIQUE = aggregatedColumnLabel('session_key', 'COUNT_DISTINCT');
+      const COUNT = aggregatedColumnLabel('session_key', 'COUNT');
+      const aggregated: CalculatedMetricPlan = {
+        outputName: 'session_key',
+        type: BigQueryFieldType.STRING,
+        formula: '…',
+        level: 'column',
+        isAggregatedByReport: true,
+      };
+
+      it('names the header by the SQL alias — one per function, in rule order', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [aggregated],
+            aggregationConfig: [
+              { column: 'session_key', function: 'COUNT_DISTINCT' },
+              { column: 'session_key', function: 'COUNT' },
+            ],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers.map(h => h.name)).toEqual([COUNT_UNIQUE, COUNT]);
+        expect(headers.map(h => h.aggregateFunction)).toEqual(['COUNT_DISTINCT', 'COUNT']);
+      });
+
+      // The level still travels: the column has no warehouse column behind it, which consumers
+      // that resolve one by name still need to see. What changes is that it now arrives WITH a
+      // function, and Looker reads the pair as a metric rather than a grouping key.
+      it('keeps the row-level level on every expanded header', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [aggregated],
+            aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers).toHaveLength(1);
+        expect(headers[0].calculatedFieldLevel).toBe('column');
+      });
+
+      // The declared type describes the FORMULA's value, not the aggregate's: a COUNT_DISTINCT over
+      // a STRING-declared formula is an integer count, and typing it STRING sends Looker a number
+      // it files under Dimensions and a sheet writer a count formatted as text.
+      it('widens the declared type per function, as an aggregated column does', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [aggregated],
+            aggregationConfig: [
+              { column: 'session_key', function: 'COUNT_DISTINCT' },
+              { column: 'session_key', function: 'ANY_VALUE' },
+            ],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers[0].storageFieldType).toBe(BigQueryFieldType.INTEGER);
+        // ANY_VALUE returns one of the values themselves, so it keeps the declared type.
+        expect(headers[1].storageFieldType).toBe(BigQueryFieldType.STRING);
+      });
+
+      // Without the suffix the sheet writer's `alias || name` renders a bare `Session Key` twice,
+      // dropping `| <FUNC>` and colliding when one field carries several functions — the same
+      // reason the aggregated-column path suffixes its alias.
+      it("suffixes the analyst's alias per function and keeps the description", () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [
+              { ...aggregated, alias: 'Session Key', description: 'Session identity.' },
+            ],
+            aggregationConfig: [
+              { column: 'session_key', function: 'COUNT_DISTINCT' },
+              { column: 'session_key', function: 'COUNT' },
+            ],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers.map(h => h.alias)).toEqual([
+          aggregatedColumnAlias('Session Key', 'COUNT_DISTINCT'),
+          aggregatedColumnAlias('Session Key', 'COUNT'),
+        ]);
+        expect(headers.every(h => h.description === 'Session identity.')).toBe(true);
+      });
+
+      // The verdict is read off the PLAN, never re-derived from the rules in hand. Here the two
+      // disagree: an UNSTAMPED plan is still a grouping key, so the renderer projects it under its
+      // bare name whatever a rule says — and a header expanded from the rule alone would name a
+      // column the SELECT never emitted.
+      it('reads the plan, not the rules: an unstamped plan stays one bare header', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [{ ...aggregated, isAggregatedByReport: undefined }],
+            aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers.map(h => h.name)).toEqual(['session_key']);
+        expect(headers[0].aggregateFunction).toBeUndefined();
+        expect(headers[0].storageFieldType).toBe(BigQueryFieldType.STRING);
+      });
+
+      // An AGGREGATE-level field already IS an aggregate: the renderer projects it under its own
+      // name whatever the rules say, so a rule that illegally names one must not expand its header
+      // either — the two lists would then disagree on the one thing readers bind by.
+      it('never expands an aggregate-level metric, whatever the rules say', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedMetrics: [
+              { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
+            ],
+            aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
+            rowCount: false,
+          },
+          BQ
+        );
+
+        expect(headers.map(h => h.name)).toEqual(['ctr']);
+        expect(headers[0].aggregateFunction).toBeUndefined();
+        expect(headers[0].calculatedFieldLevel).toBe('metric');
+      });
     });
   });
 });

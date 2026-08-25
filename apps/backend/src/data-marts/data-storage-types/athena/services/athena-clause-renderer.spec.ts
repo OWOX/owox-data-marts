@@ -1,5 +1,9 @@
 import { AthenaClauseRenderer, countPositionalPlaceholders } from './athena-clause-renderer';
-import { ColumnRefResolver, RenderedClause } from '../../utils/sql-clause-renderer';
+import {
+  CalculatedMetricPlan,
+  ColumnRefResolver,
+  RenderedClause,
+} from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 describe('AthenaClauseRenderer', () => {
@@ -436,6 +440,176 @@ describe('AthenaClauseRenderer', () => {
       expect(() => broken.renderWhere([{ column: 'a', operator: 'eq', value: 1 }])).toThrow(
         /placeholder\/param mismatch/
       );
+    });
+  });
+
+  // AthenaFieldType is the Glue/DDL vocabulary; a query is Trino, which has no FLOAT and no STRING
+  // (#6732, D19). DECIMAL carries its scale explicitly for the same reason Redshift's textCastType
+  // carries a length: a bare DECIMAL is (38,0) here, and that truncates every fraction.
+  describe('castTypeForDeclaredType (declared Athena type → Trino cast target)', () => {
+    // DOUBLE for the whole float family, including the 32-bit declarations. Trino's answer to a
+    // declared FLOAT is REAL, but a formula like `revenue / clicks` already returns a double today,
+    // and REAL would silently round it to ~7 significant digits. DOUBLE is also the spelling the
+    // probe measured 12.75 through, and the one `getFloatType` gives Athena everywhere else.
+    it('maps every numeric declared type, the float family to DOUBLE', () => {
+      expect(r.castTypeForDeclaredType('TINYINT')).toBe('TINYINT');
+      expect(r.castTypeForDeclaredType('SMALLINT')).toBe('SMALLINT');
+      expect(r.castTypeForDeclaredType('INTEGER')).toBe('INTEGER');
+      expect(r.castTypeForDeclaredType('BIGINT')).toBe('BIGINT');
+      expect(r.castTypeForDeclaredType('FLOAT')).toBe('DOUBLE');
+      expect(r.castTypeForDeclaredType('REAL')).toBe('DOUBLE');
+      expect(r.castTypeForDeclaredType('DOUBLE')).toBe('DOUBLE');
+      expect(r.castTypeForDeclaredType('DECIMAL')).toBe('DECIMAL(38,18)');
+    });
+
+    it('reads a declared type case-insensitively and ignores padding', () => {
+      expect(r.castTypeForDeclaredType(' double ')).toBe('DOUBLE');
+    });
+
+    it('answers undefined for a type no aggregation casts to, rather than guessing a spelling', () => {
+      expect(r.castTypeForDeclaredType('STRING')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('VARCHAR')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('DATE')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('ROW')).toBeUndefined();
+    });
+  });
+
+  // #6732 D23/D25. The second dialect where the VALUE's JS type decides the outcome: an
+  // ExecutionParameter is typed from the value it carries, so `= 10` raised `Cannot apply
+  // operator: varchar = integer` while `= '10'` returned the right row, over the SAME field. The
+  // placeholder now carries the declaration and one predicate serves both.
+  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+    const NUM_EXPR = 'CONCAT("n_prefix", "n_suffix")';
+    const numericText: CalculatedMetricPlan = {
+      outputName: 'probe',
+      formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
+      level: 'column',
+      type: 'FLOAT',
+    };
+    const whereFor = (declaredType: string, rule: FilterRule): RenderedClause =>
+      r.renderWhere(
+        [rule],
+        undefined,
+        'p',
+        () => declaredType,
+        r.buildCalculatedPredicateExpressions([{ ...numericText, type: declaredType }])
+      );
+
+    // The declared name is the Glue/DDL vocabulary and Trino has no FLOAT at all, so both sides
+    // are spelled DOUBLE — the same mapping the aggregation path already uses.
+    it('casts BOTH sides of `> 5` to the Trino name of the declared type', () => {
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'gt', value: 5 }).sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS DOUBLE) > CAST(? AS DOUBLE)`
+      );
+    });
+
+    it('emits ONE predicate whether the value arrives as 10 or as "10"', () => {
+      const asNumber = whereFor('FLOAT', { column: 'probe', operator: 'eq', value: 10 });
+      const asString = whereFor('FLOAT', { column: 'probe', operator: 'eq', value: '10' });
+
+      expect(asNumber.sql).toBe(`\nWHERE CAST((${NUM_EXPR}) AS DOUBLE) = CAST(? AS DOUBLE)`);
+      expect(asString.sql).toBe(asNumber.sql);
+      expect(asNumber.params).toEqual([{ name: 'p0', value: 10 }]);
+      expect(asString.params).toEqual([{ name: 'p0', value: '10' }]);
+    });
+
+    // Positional binding is why this matters more here than anywhere: `validateFragment` counts
+    // the `?` against the params, so a cast that swallowed or duplicated one would throw rather
+    // than shift every later value — and a range or a list is where that would happen.
+    it('reaches the BETWEEN bounds and every IN list member, one `?` per param', () => {
+      expect(
+        whereFor('FLOAT', { column: 'probe', operator: 'between', value: { from: 1, to: 5 } }).sql
+      ).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS DOUBLE) BETWEEN CAST(? AS DOUBLE) AND CAST(? AS DOUBLE)`
+      );
+      const inList = whereFor('FLOAT', { column: 'probe', operator: 'in', value: [9, 10] });
+      expect(inList.sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS DOUBLE) IN (CAST(? AS DOUBLE), CAST(? AS DOUBLE))`
+      );
+      expect(countPositionalPlaceholders(inList.sql)).toBe(inList.params.length);
+    });
+
+    // A bare DECIMAL is (38,0) in Trino, so an unqualified target would truncate every fraction —
+    // the same defect the cast exists to remove, now on the value as well as the expression.
+    it('spells the scale on a DECIMAL declaration, on the value as well as the expression', () => {
+      expect(whereFor('DECIMAL', { column: 'probe', operator: 'gte', value: 1.5 }).sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS DECIMAL(38,18)) >= CAST(? AS DECIMAL(38,18))`
+      );
+    });
+
+    // D19b: casting an integer declaration introduces a per-row conversion the warehouse was not
+    // making, and Trino rounds where Spark truncates.
+    it('never casts the integer family, though the mapping states targets for it', () => {
+      expect(r.castTypeForDeclaredType('BIGINT')).toBe('BIGINT');
+      for (const declared of ['TINYINT', 'SMALLINT', 'INTEGER', 'BIGINT']) {
+        expect(whereFor(declared, { column: 'probe', operator: 'gt', value: 5 }).sql).toBe(
+          `\nWHERE (${NUM_EXPR}) > ?`
+        );
+      }
+    });
+
+    // The no-op half: a declaration this dialect states no target for emits exactly the SQL it
+    // emits today — including, deliberately, the one that raises.
+    it('emits no cast for a declared type this dialect states no target for', () => {
+      expect(whereFor('VARCHAR', { column: 'probe', operator: 'gt', value: '5' }).sql).toBe(
+        `\nWHERE (${NUM_EXPR}) > ?`
+      );
+    });
+
+    // `relative_date` is NOT in the comparison set: its bounds are `current_date` arithmetic this
+    // renderer inlines, so there is no bound value to impose a type on. Unlike BigQuery this
+    // dialect's preset rendering reads no type at all, so the declaration reaching the resolver
+    // cannot move it — pinned because nothing else renders this operator over a formula.
+    it('renders relative_date over the formula, uncast and unchanged by the declaration', () => {
+      for (const declared of ['DATE', 'TIMESTAMP', 'DOUBLE']) {
+        expect(
+          whereFor(declared, {
+            column: 'probe',
+            operator: 'relative_date',
+            value: { kind: 'today' },
+          }).sql
+        ).toBe(
+          `\nWHERE (${NUM_EXPR}) >= current_date AND (${NUM_EXPR}) < date_add('day', 1, current_date)`
+        );
+      }
+    });
+
+    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
+    // mode, on a predicate that never reads a value — and a numeric target inside strpos buys
+    // nothing at all.
+    it('leaves IS NULL, IS NOT NULL and the text matchers uncast', () => {
+      const uncast = (rule: FilterRule): string => whereFor('FLOAT', rule).sql;
+
+      expect(uncast({ column: 'probe', operator: 'is_null' })).toBe(
+        `\nWHERE (${NUM_EXPR}) IS NULL`
+      );
+      expect(uncast({ column: 'probe', operator: 'is_not_null' })).toBe(
+        `\nWHERE (${NUM_EXPR}) IS NOT NULL`
+      );
+      expect(uncast({ column: 'probe', operator: 'contains', value: 'x' })).toBe(
+        `\nWHERE strpos((${NUM_EXPR}), ?) > 0`
+      );
+      expect(uncast({ column: 'probe', operator: 'starts_with', value: 'x' })).toBe(
+        `\nWHERE strpos((${NUM_EXPR}), ?) = 1`
+      );
+      expect(uncast({ column: 'probe', operator: 'is_empty' })).toBe(
+        `\nWHERE ((${NUM_EXPR}) IS NULL OR (${NUM_EXPR}) = '')`
+      );
+    });
+
+    // The imposition is scoped to a rule whose left-hand side IS a formula. An ordinary column
+    // keeps the SQL it ships today, whatever its own type resolves to.
+    it('leaves an ordinary column of the same declared type untouched on both sides', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'amount', operator: 'gt', value: 5 }],
+          undefined,
+          'p',
+          () => 'FLOAT',
+          r.buildCalculatedPredicateExpressions([numericText])
+        ).sql
+      ).toBe('\nWHERE "amount" > ?');
     });
   });
 });

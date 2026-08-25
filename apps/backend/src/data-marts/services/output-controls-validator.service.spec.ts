@@ -537,7 +537,11 @@ describe('OutputControlsValidatorService', () => {
         })
       ).rejects.toThrow(BadRequestException);
 
-      expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+      // A non-empty columnConfig now checks capability up front too — deciding whether it MIGHT
+      // carry a calculated metric needs the same gate `compose()` applies before rendering one
+      // (see `mayCarryCalculatedMetric`). The storage is unsupported, so that stays `false` and
+      // the schema is still never fetched for a plain projection.
+      expect(capabilitySvc.isSupported).toHaveBeenCalledWith(unsupportedStorageType);
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
     });
 
@@ -1265,6 +1269,67 @@ describe('OutputControlsValidatorService', () => {
       expect(
         response.details.errors.some(e => e.code === 'AGGREGATION_REQUIRES_COLUMN_CONFIG')
       ).toBe(true);
+    });
+
+    // A filter on an aggregate-level Calculated Field flips the query to the aggregated shape by
+    // itself, and there only LISTED columns are projected — so a report that asked for the whole
+    // native projection came out with an empty SELECT list: a syntax error on every dialect, and
+    // the projection the analyst asked for silently discarded. AGGREGATION_REQUIRES_COLUMN_CONFIG
+    // cannot see it, because this shape carries neither an aggregation nor a date trunc.
+    it('throws CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG when a calculated-metric filter has no projection', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      // `ctr` has to be in the reporting schema too, or the disconnected-column check answers
+      // first and this shape is never reached.
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'clicks', type: 'INTEGER' },
+        { name: 'impressions', type: 'INTEGER' },
+        { name: 'ctr', type: 'FLOAT' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dataMartSchemaFields: [
+            { name: 'clicks', type: 'INTEGER' },
+            { name: 'impressions', type: 'INTEGER' },
+            {
+              name: 'ctr',
+              type: 'FLOAT',
+              calculated: {
+                formula: 'SUM({{ref field="clicks"}}) / SUM({{ref field="impressions"}})',
+                level: 'metric',
+              },
+            },
+          ] as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        } as never);
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column?: string }[] };
+      };
+      const error = response.details.errors.find(
+        e => e.code === 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG'
+      );
+      expect(error).toBeDefined();
+      // Naming the field is the whole point: without it the analyst meets this as a warehouse
+      // syntax error that mentions no field at all.
+      expect(error?.column).toBe('ctr');
     });
 
     it('does NOT require a column projection for a uniqueCount-only report', async () => {
@@ -2950,6 +3015,55 @@ describe('OutputControlsValidatorService', () => {
         selectedColumns,
         resolveType,
         new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    // #6732 §6.1. Measured on Snowflake 2026-08-24: a TIMESTAMP-declared row-level formula over
+    // the string '05/08/2026', bucketed by MONTH in America/New_York, returned
+    // `2026-05-01T04:00:00Z` — the 8th of May where the formula means the 5th of August. One row,
+    // no error, no NULL. `CONVERT_TIMEZONE` is the coercion that parses the string, and it parses
+    // it MDY; without a zone Snowflake refuses the same shape outright. Refused on all five
+    // storages rather than per dialect.
+    it('rejects a time zone on a bucketed calculated field → DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH', timeZone: 'America/New_York' }],
+        selectedColumns,
+        resolveType,
+        new Set(),
+        new Set(['ts'])
+      );
+      expect(errors).toEqual([
+        {
+          code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD',
+          column: 'ts',
+          timeZone: 'America/New_York',
+        },
+      ]);
+    });
+
+    // The scope of the refusal, from the inside: only the time-zone leg goes. A bucket on the same
+    // calculated field is the feature this branch shipped and must survive the new arm.
+    it('accepts a bucket with no time zone on the same calculated field', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set(),
+        new Set(['ts'])
+      );
+      expect(errors).toEqual([]);
+    });
+
+    // The other half of the scope: the calculated SET is what the refusal keys on, not the presence
+    // of a time zone. An ordinary warehouse column keeps the zone it has always had.
+    it('accepts the same time zone on an ordinary TIMESTAMP column beside a calculated one', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH', timeZone: 'America/New_York' }],
+        selectedColumns,
+        resolveType,
+        new Set(),
+        new Set(['other_formula'])
       );
       expect(errors).toEqual([]);
     });
@@ -4946,6 +5060,1460 @@ describe('OutputControlsValidatorService', () => {
           new Map()
         );
         expect(errors).toEqual([]);
+      });
+    });
+  });
+
+  describe('validateForReport — calculated metrics', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+    const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+
+    const makeCapabilityService = (supported: boolean) => ({
+      isSupported: jest.fn().mockReturnValue(supported),
+    });
+
+    // Reproduces the production shape: `BlendableSchemaService.computeBlendableSchema` builds
+    // `nativeFields` by FILTERING OUT `isHiddenForReporting`. A mock that echoes the raw list
+    // back hides every bug that depends on the difference — the metric guards resolve formula
+    // references, and a hidden field is legal inside a formula (spec §7).
+    const makeBlendableSchemaService = (
+      nativeFields: Record<string, unknown>[],
+      extras: {
+        blendedFields?: Record<string, unknown>[];
+        availableSources?: { aliasPath: string; isIncluded?: boolean }[];
+      } = {}
+    ) => ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields: nativeFields.filter(f => f.isHiddenForReporting !== true),
+        blendedFields: extras.blendedFields ?? [],
+        availableSources: extras.availableSources ?? [],
+        mainUniqueCountKeyFields: [],
+      }),
+    });
+
+    // clicks, impressions, country, and a calculated `ctr` whose references both resolve.
+    const dataMartWithCtr = [
+      { name: 'clicks', type: 'INTEGER' },
+      { name: 'impressions', type: 'INTEGER' },
+      { name: 'country', type: 'STRING' },
+      { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+    ];
+
+    // Same `ctr` formula, but `impressions` is gone from the schema — a broken reference.
+    const dataMartWithBrokenCtr = [
+      { name: 'clicks', type: 'INTEGER' },
+      { name: 'country', type: 'STRING' },
+      { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+    ];
+
+    type CalculatedMetricOverrides = {
+      columnConfig?: string[] | null;
+      filterConfig?:
+        | {
+            column: string;
+            operator: string;
+            value?: unknown;
+            function?: string;
+            placement?: string;
+          }[]
+        | null;
+      sortConfig?: { column: string; direction: string }[] | null;
+      aggregationConfig?: { column: string; function: string }[] | null;
+      dateTruncConfig?: { column: string; unit: string; timeZone?: string }[] | null;
+      uniqueCountConfig?: string[] | null;
+      blendedFields?: {
+        name: string;
+        type: string;
+        aliasPath?: string;
+        originalFieldName?: string;
+        isHidden?: boolean;
+        isCalculated?: boolean;
+        sourceDataMartTitle?: string;
+      }[];
+      availableSources?: { aliasPath: string; isIncluded?: boolean }[];
+    };
+
+    // Most problems are ACCUMULATED into a BadRequestException's `details.errors`, but a structural
+    // refusal (disconnected columns, a row-level field on a report that spans a join) throws a
+    // BusinessViolationException instead — which has no `getResponse`. Both readings share one
+    // construction site so they cannot drift into testing different wirings.
+    async function validateCatching(
+      nativeFields: Record<string, unknown>[],
+      overrides: CalculatedMetricOverrides
+    ): Promise<unknown> {
+      const validator = new OutputControlsValidatorService(
+        makeCapabilityService(true) as never,
+        makeBlendableSchemaService(nativeFields, {
+          blendedFields: overrides.blendedFields,
+          availableSources: overrides.availableSources,
+        }) as never
+      );
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-ctr',
+          projectId: 'proj-ctr',
+          columnConfig: overrides.columnConfig ?? null,
+          filterConfig: overrides.filterConfig ?? null,
+          sortConfig: overrides.sortConfig ?? null,
+          limitConfig: null,
+          aggregationConfig: overrides.aggregationConfig ?? null,
+          dateTruncConfig: overrides.dateTruncConfig ?? null,
+          uniqueCountConfig: overrides.uniqueCountConfig ?? null,
+          // The RAW schema, exactly as a caller holds it — hidden fields included.
+          dataMartSchemaFields: nativeFields as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        return e;
+      }
+      return undefined;
+    }
+
+    async function validate(
+      nativeFields: Record<string, unknown>[],
+      overrides: CalculatedMetricOverrides
+    ): Promise<{ code: string; message?: string; column?: string; level?: string }[]> {
+      const caught = (await validateCatching(nativeFields, overrides)) as
+        | BadRequestException
+        | undefined;
+      if (!caught) return [];
+      const response = caught.getResponse() as { details: { errors: { code: string }[] } };
+      return response.details.errors as { code: string; message?: string }[];
+    }
+
+    it('rejects an aggregation applied to a calculated metric', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['ctr'],
+        aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
+      });
+
+      expect(errors[0]).toMatchObject({
+        code: 'AGGREGATION_ON_CALCULATED_METRIC',
+        message: expect.stringContaining('ctr'),
+      });
+    });
+
+    // A calculated metric is NEVER a group-by key by omission: `excludeCalculatedMetricNames`
+    // keeps it out of the plain `columns` list `compose()` hands to the query builder, regardless
+    // of what else in the report is aggregated (spec §2.3) — so it must validate cleanly here,
+    // with or without a genuine dimension alongside it.
+    it('accepts a calculated metric selected alongside a real aggregation on another column, with no other dimension', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['ctr', 'clicks'],
+        aggregationConfig: [{ column: 'clicks', function: 'SUM' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts a calculated metric selected alongside a real aggregation AND a genuine dimension (spec §5.2 breakdown-with-a-ratio shape)', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'clicks', 'ctr'],
+        aggregationConfig: [{ column: 'clicks', function: 'SUM' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a dateTrunc rule naming a calculated metric — the one shape that explicitly asks to group BY it', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['clicks'],
+        dateTruncConfig: [{ column: 'ctr', unit: 'MONTH' }],
+      });
+
+      expect(errors[0]).toMatchObject({
+        code: 'CALCULATED_METRIC_AS_DIMENSION',
+        message: expect.stringContaining('ctr'),
+      });
+    });
+
+    it('still validates a plain columnConfig-only report when it carries a calculated metric', async () => {
+      // Today this shape takes the validator's early-return branch and is checked for nothing at
+      // all — no filter/sort/aggregation/dateTrunc/uniqueCount is set, so a bare projection used
+      // to skip schema-aware validation entirely.
+      const errors = await validate(dataMartWithBrokenCtr, {
+        columnConfig: ['clicks', 'ctr'],
+      });
+
+      expect(errors[0].code).toBe('CALCULATED_METRIC_BROKEN_REFERENCES');
+    });
+
+    // #6732: a joined reference that no longer resolves is worse than an own one — nothing routes
+    // it to a sleeve, so the joined mart's column name is qualified against `main` instead: an
+    // unrecognised name at best, a plausible wrong number when main owns a column of that name.
+    describe('a joined reference inside a formula', () => {
+      const JOINED_METRIC = [
+        { name: 'cost', type: 'FLOAT' },
+        {
+          name: 'roi',
+          type: 'FLOAT',
+          calculated: {
+            formula: 'SUM({{ref path="orders" field="amount"}})',
+            level: 'metric',
+          },
+        },
+      ];
+      const ordersTree = {
+        blendedFields: [
+          {
+            name: 'orders__amount',
+            type: 'FLOAT',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            isHidden: false,
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      };
+
+      it('accepts a metric whose joined reference resolves', async () => {
+        const errors = await validate(JOINED_METRIC, { columnConfig: ['roi'], ...ordersTree });
+
+        expect(errors).toEqual([]);
+      });
+
+      it('rejects a metric whose joined source is gone from the tree', async () => {
+        const errors = await validate(JOINED_METRIC, { columnConfig: ['roi'] });
+
+        expect(errors[0]).toMatchObject({
+          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          column: 'roi',
+          message: expect.stringContaining('orders.amount'),
+        });
+      });
+
+      it('rejects a metric whose joined field has been hidden from reporting', async () => {
+        const errors = await validate(JOINED_METRIC, {
+          columnConfig: ['roi'],
+          ...ordersTree,
+          blendedFields: [{ ...ordersTree.blendedFields[0], isHidden: true }],
+        });
+
+        expect(errors[0]).toMatchObject({
+          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          message: expect.stringContaining('orders.amount'),
+        });
+      });
+
+      // An unrelated broken metric elsewhere in the schema is not this report's problem — the same
+      // `usedNames` gate the own-reference half has.
+      it('ignores a broken joined reference on a metric this report does not use', async () => {
+        const errors = await validate(JOINED_METRIC, { columnConfig: ['cost'] });
+
+        expect(errors).toEqual([]);
+      });
+
+      // D22. The aggregate is lifted into a metric sleeve — recomputed at the report's grain from
+      // the raw pre-dedup path — while a HAVING would re-derive it from the dedup CTE, i.e. a
+      // different, wrong value than the SELECT prints. Its ordinary-metric twin
+      // (HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED) already ships that refusal, and this must
+      // read as the same rule rather than as a second one.
+      describe('a filter on it (D22)', () => {
+        it('refuses a filter on an aggregate-level formula that reads a joined source', async () => {
+          const errors = await validate(JOINED_METRIC, {
+            columnConfig: ['cost', 'roi'],
+            filterConfig: [{ column: 'roi', operator: 'gt', value: 1 }],
+            ...ordersTree,
+          });
+
+          expect(errors).toEqual([
+            expect.objectContaining({
+              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+              column: 'roi',
+              message: expect.stringContaining('roi'),
+            }),
+          ]);
+        });
+
+        // Its twin's own words, so an analyst who meets both meets one explanation. Asserted as
+        // the shared tail rather than as the whole sentence: the subject differs (a calculated
+        // field, not a joined COUNT DISTINCT / SUM / AVG), the reason does not.
+        it('gives the reason its ordinary-metric twin gives, verbatim', async () => {
+          const errors = await validate(JOINED_METRIC, {
+            columnConfig: ['cost', 'roi'],
+            filterConfig: [{ column: 'roi', operator: 'gt', value: 1 }],
+            ...ordersTree,
+          });
+
+          expect(errors[0].message).toContain(
+            'the post-join filter cannot be routed through the same dedup-safe computation used ' +
+              'for the SELECT value, so it would filter on a different, incorrect value'
+          );
+        });
+
+        // The gap found while fixing the HAVING cast defect: every calculated-field guard sits
+        // inside `if (hasActualizedSchema)`, so a Data Mart whose schema has not been actualized
+        // skips all of them. This refusal must not inherit that placement — it reads the mart's
+        // OWN schema fields and needs no blendable schema at all.
+        it('refuses it on a Data Mart whose schema is not actualized', async () => {
+          const errors = await validate(
+            JOINED_METRIC.map(f => ({ ...f, isHiddenForReporting: true })),
+            {
+              columnConfig: ['cost', 'roi'],
+              filterConfig: [{ column: 'roi', operator: 'gt', value: 1 }],
+            }
+          );
+
+          expect(errors).toEqual([
+            expect.objectContaining({
+              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+              column: 'roi',
+            }),
+          ]);
+        });
+
+        // The scope: only the joined-aggregate shape goes. Selecting and sorting by the same
+        // field are untouched, and so is a filter on a formula that reads main alone.
+        it('leaves selecting and sorting by it alone', async () => {
+          const errors = await validate(JOINED_METRIC, {
+            columnConfig: ['cost', 'roi'],
+            sortConfig: [{ column: 'roi', direction: 'desc' }],
+            ...ordersTree,
+          });
+
+          expect(errors).toEqual([]);
+        });
+      });
+    });
+
+    // #6732 Task 5b. Every refusal above keys off the MAIN Data Mart's own fields, so a JOINED
+    // Data Mart's calculated field — a formula whose text never crosses the blendable-schema wire
+    // (D12) — reached none of them and was validated as an ordinary joined column. The blended
+    // path then projects its `originalFieldName` from the joined mart's physical table: an
+    // unrecognised name, or a silently wrong number where that table still has such a column.
+    describe('a joined Data Mart calculated field', () => {
+      const MAIN_FIELDS = [
+        { name: 'clicks', type: 'INTEGER' },
+        { name: 'country', type: 'STRING' },
+      ];
+
+      // Explicitly typed, and it has to stay that way: the fixture is SPREAD into each overrides
+      // object, which turns excess-property checking off — so a typo'd `isCalculated` would leave
+      // every negative leak-guard below green for the wrong reason (the flag never set at all)
+      // rather than because the refusal held.
+      const ordersTree: Pick<CalculatedMetricOverrides, 'blendedFields' | 'availableSources'> = {
+        blendedFields: [
+          {
+            name: 'orders__ctr',
+            type: 'FLOAT',
+            aliasPath: 'orders',
+            originalFieldName: 'ctr',
+            isHidden: false,
+            isCalculated: true,
+            sourceDataMartTitle: 'Orders',
+          },
+          {
+            name: 'orders__first_seen',
+            type: 'DATE',
+            aliasPath: 'orders',
+            originalFieldName: 'first_seen',
+            isHidden: false,
+            isCalculated: true,
+            sourceDataMartTitle: 'Orders',
+          },
+          {
+            name: 'orders__amount',
+            type: 'FLOAT',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            isHidden: false,
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      };
+
+      // At base the rule type-checked cleanly against the field's declared type and passed.
+      it('refuses a filter on one, naming it and the Data Mart it belongs to', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country'],
+          filterConfig: [{ column: 'orders__ctr', operator: 'gt', value: 0.5 }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED',
+            column: 'orders__ctr',
+            message: expect.stringContaining('Orders'),
+          }),
+        ]);
+      });
+
+      // The projection is checked here only because this report already carries an output control
+      // — the validator resolves a blendable schema for nothing else. A projection-only report is
+      // refused by `BlendedReportDataService` instead, which always holds the schema.
+      it('refuses selecting one', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__ctr'],
+          sortConfig: [{ column: 'country', direction: 'asc' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED',
+            column: 'orders__ctr',
+          }),
+        ]);
+      });
+
+      // A DATE declaration is exactly what carries a field past `validateDateTruncs`, so this is
+      // the shape that produced SQL rather than a verdict at base.
+      it('refuses a date bucket on a DATE-declared one', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__first_seen'],
+          dateTruncConfig: [{ column: 'orders__first_seen', unit: 'MONTH' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED',
+            column: 'orders__first_seen',
+          }),
+        ]);
+      });
+
+      it('refuses an aggregation on one', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__ctr'],
+          aggregationConfig: [{ column: 'orders__ctr', function: 'SUM' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED',
+            column: 'orders__ctr',
+          }),
+        ]);
+      });
+
+      // One honest verdict per field. The rules are dropped from the ordinary per-rule checks the
+      // way a Unique Count column's are: a second complaint about the operator or the governance
+      // menu would send the caller after a repair that fixes nothing. Both rules here are ones
+      // those checks WOULD reject — `contains` is invalid for FLOAT and COUNT_DISTINCT is outside
+      // the numeric menu — so this fails if either rule is left in its list.
+      it('reports one refusal per field, not one per surface', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__ctr'],
+          filterConfig: [{ column: 'orders__ctr', operator: 'contains', value: 'x' }],
+          sortConfig: [{ column: 'orders__ctr', direction: 'asc' }],
+          aggregationConfig: [{ column: 'orders__ctr', function: 'COUNT_DISTINCT' }],
+          ...ordersTree,
+        });
+
+        expect(errors.map(e => e.code)).toEqual(['JOINED_CALCULATED_FIELD_UNSUPPORTED']);
+      });
+
+      // The same, for the bucket list: a FLOAT-declared one would otherwise also collect
+      // DATE_TRUNC_REQUIRES_DATE_COLUMN, which reads as a fixable type problem.
+      it('reports only the refusal for a bucket on a non-DATE one', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__ctr'],
+          dateTruncConfig: [{ column: 'orders__ctr', unit: 'MONTH' }],
+          ...ordersTree,
+        });
+
+        expect(errors.map(e => e.code)).toEqual(['JOINED_CALCULATED_FIELD_UNSUPPORTED']);
+      });
+
+      // A sort rule alone names the field with the real reason instead of the stale
+      // SORT_COLUMN_NOT_SELECTED it would otherwise collect.
+      it('refuses sorting by one that is not even selected', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country'],
+          sortConfig: [{ column: 'orders__ctr', direction: 'asc' }],
+          ...ordersTree,
+        });
+
+        expect(errors.map(e => e.code)).toEqual(['JOINED_CALCULATED_FIELD_UNSUPPORTED']);
+      });
+
+      it('leaves an ordinary joined column alone on every surface', async () => {
+        const errors = await validate(MAIN_FIELDS, {
+          columnConfig: ['country', 'orders__amount'],
+          filterConfig: [{ column: 'orders__amount', operator: 'gt', value: 1 }],
+          sortConfig: [{ column: 'orders__amount', direction: 'asc' }],
+          aggregationConfig: [{ column: 'orders__amount', function: 'SUM' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The refusal must not leak onto the own-mart path: a ROW-LEVEL formula of the MAIN Data
+      // Mart is still a dimension it may bucket (slice 3b), joined tree or no joined tree.
+      it("leaves the main Data Mart's own row-level formula bucketable", async () => {
+        const errors = await validate(
+          [
+            { name: 'visit_ts', type: 'TIMESTAMP' },
+            { name: 'country', type: 'STRING' },
+            {
+              name: 'visit_day',
+              type: 'DATE',
+              calculated: { formula: 'DATE({{ref field="visit_ts"}})', level: 'column' },
+            },
+          ],
+          {
+            columnConfig: ['country', 'visit_day'],
+            dateTruncConfig: [{ column: 'visit_day', unit: 'MONTH' }],
+            ...ordersTree,
+          }
+        );
+
+        expect(errors).toEqual([]);
+      });
+
+      // A native column may own the name a unified blended name folds to. The report reads the
+      // native column there, so refusing it would take a column the report is entitled to.
+      it('does not refuse a MAIN column that happens to share a blended name', async () => {
+        const errors = await validate([...MAIN_FIELDS, { name: 'orders__ctr', type: 'FLOAT' }], {
+          columnConfig: ['country', 'orders__ctr'],
+          sortConfig: [{ column: 'orders__ctr', direction: 'asc' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+    });
+
+    it('rejects selecting, filtering, or sorting by a broken metric', async () => {
+      const configs: Parameters<typeof validate>[1][] = [
+        { columnConfig: ['ctr'] },
+        {
+          columnConfig: ['clicks'],
+          filterConfig: [{ column: 'ctr', operator: 'gt', value: 1 }],
+        },
+        { columnConfig: ['clicks'], sortConfig: [{ column: 'ctr', direction: 'asc' }] },
+      ];
+
+      for (const config of configs) {
+        const errors = await validate(dataMartWithBrokenCtr, config);
+        expect(errors[0]).toMatchObject({
+          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          // Not "gone from the Data Mart" since #6732: `brokenReferencesOf` is transitive, so what
+          // it names can be a calculated field that is right there in the schema and merely
+          // uncomputable — and telling an analyst to restore a field they can see is a wrong repair.
+          message: expect.stringContaining('missing from the Data Mart, or broken'),
+        });
+      }
+    });
+
+    // spec §7: `isHiddenForReporting` takes a column off the reporting MENU; it does not remove it
+    // from the source, and computing is not projecting. `brokenReferencesOf` resolves through a
+    // traversal that deliberately keeps hidden fields — but it only ever saw the blendable
+    // schema's `nativeFields`, which production builds by filtering exactly those out. A metric
+    // over a hidden column therefore saved fine and then failed EVERY report save, run, HTTP Data
+    // call and MCP query with "…is gone from the Data Mart" — about a column that is right there.
+    it('does not call a metric broken when it references a HIDDEN field', async () => {
+      const errors = await validate(
+        [
+          { name: 'clicks', type: 'INTEGER', isHiddenForReporting: true },
+          { name: 'impressions', type: 'INTEGER', isHiddenForReporting: true },
+          { name: 'country', type: 'STRING' },
+          { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+        ],
+        { columnConfig: ['country', 'ctr'] }
+      );
+
+      expect(errors).toEqual([]);
+    });
+
+    // #6732 spec §1.1. The refusal's published reason — the formula becomes an output alias no
+    // warehouse resolves — described an ALIAS, and a predicate's left-hand side here is already an
+    // opaque SQL string: `renderHaving` emits `SUM("amount")` precisely because several dialects
+    // forbid the alias. The probe measured `HAVING (<expr>) > <value>` compiling and returning the
+    // correct group on all five storages, identically, so the obstacle was plumbing only.
+    it('accepts a filter on an aggregate-level calculated field', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    // The field need not be projected to be filtered on — an analyst narrowing by a ratio they do
+    // not want a column for. The predicate channel is what carries the plan for it (#6732 §2).
+    it('accepts a filter on a calculated field the report does not select', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country'],
+        filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    // The trap Task 1's review named: swapping `validateHavingFilters`' skip for the clause seat
+    // and stopping there drops this rule through to `aggregatedPairs.has('ctr␟undefined')`, which
+    // answers "add the matching aggregation" — the very aggregation
+    // AGGREGATION_ON_CALCULATED_METRIC forbids. The level has to be read BEFORE that check.
+    it('does not ask for an aggregation an aggregate-level field can never carry', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+      });
+
+      expect(errors.map(e => e.code)).not.toContain('HAVING_FILTER_NOT_AGGREGATED');
+    });
+
+    // A function-carrying rule on an aggregate-level field asks to aggregate an aggregate, so it
+    // gets that verdict rather than HAVING_FILTER_NOT_AGGREGATED's "re-add the aggregation" —
+    // which is the one repair this field forbids.
+    it('rejects a function-carrying filter on an aggregate-level field as a second aggregation', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5, function: 'SUM' }],
+      });
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          column: 'ctr',
+          level: 'metric',
+        }),
+      ]);
+    });
+
+    // Now that the rule reaches the type check, the DECLARED type is what answers (D3) — a
+    // FLOAT-declared formula is refused a string operator in the same words a FLOAT column is.
+    // `validateHavingFilters` skipping the rule turns this guard dark along with two others.
+    it('type-checks an aggregate-level filter against the declared type', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'ctr', operator: 'contains', value: 'x' }],
+      });
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'ctr',
+          type: 'FLOAT',
+          operator: 'contains',
+        }),
+      ]);
+    });
+
+    // The second dark guard, and the sharpest: a pre-join placement left unvalidated reaches
+    // `partitionBlendedFilters`, which throws a raw `Error` — a 500 where the analyst is owed a
+    // 400 naming the rule.
+    it('refuses a pre-join placement on an aggregate-level field with a 400, not a 500', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5, placement: 'pre-join' }],
+      });
+
+      expect(errors).toEqual([
+        expect.objectContaining({ code: 'HAVING_FILTER_INVALID_PLACEMENT', column: 'ctr' }),
+      ]);
+    });
+
+    it('leaves a filter on an ordinary column alone', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        filterConfig: [{ column: 'country', operator: 'eq', value: 'PL' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    // Sorting BY a metric is supported — but only where the metric is actually PROJECTED. A null
+    // `columnConfig` means `SELECT *` over the home mart's native columns, and decision 10 keeps a
+    // calculated field out of that: it has no warehouse column, so it is composed only when asked
+    // for by name. `connectedNativeNames` is built from `collectSchemaFieldPathTypes`, whose
+    // `isConnected` answers TRUE for a calculated field — so the metric counted as selected, the
+    // report saved silently, and every run emitted `SELECT * … ORDER BY src.ctr` for a name the
+    // warehouse has never had. Aggregations and filters each close this hole with a refusal of
+    // their own; sort had neither.
+    describe('a sort on a calculated metric under an implicit-all projection', () => {
+      it('refuses it — the metric is not projected by SELECT *', async () => {
+        const errors = await validate(dataMartWithCtr, {
+          columnConfig: null,
+          sortConfig: [{ column: 'ctr', direction: 'desc' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({ code: 'SORT_COLUMN_NOT_SELECTED', column: 'ctr' }),
+        ]);
+      });
+
+      it('still accepts the sort once the metric is named explicitly', async () => {
+        const errors = await validate(dataMartWithCtr, {
+          columnConfig: ['country', 'ctr'],
+          sortConfig: [{ column: 'ctr', direction: 'desc' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      it('leaves an implicit-all sort on an ordinary column alone', async () => {
+        const errors = await validate(dataMartWithCtr, {
+          columnConfig: null,
+          sortConfig: [{ column: 'country', direction: 'asc' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+    });
+
+    // #6732 Slice 3. A row-level formula is a DIMENSION, and a report may now AGGREGATE one:
+    // `COUNT_DISTINCT(session_key)` validates, and the field stops being a grouping key. The other
+    // two refusals stay, each for its own reason — date-bucketing is slice 3b's (decision D10) and
+    // filtering is true at BOTH levels (spec §5.4) — and an aggregate-level field keeps every
+    // refusal it had, with its wording unchanged: it already IS an aggregate.
+    describe('a row-level calculated field the report aggregates', () => {
+      const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+      const dataMartWithSessionKey = [
+        { name: 'session_id', type: 'STRING' },
+        { name: 'user_id', type: 'STRING' },
+        { name: 'country', type: 'STRING' },
+        {
+          name: 'session_key',
+          type: 'STRING',
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        },
+        {
+          name: 'visit_key',
+          type: 'STRING',
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        },
+      ];
+
+      it('accepts a COUNT_DISTINCT on it', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The claim the diff cannot show, because it arrives by NOTHING happening: lifting the arm
+      // adds no governance path for a calculated field, it stops shadowing the one that was always
+      // there. The field IS a schema field, so `homeFieldTypes` holds its declared type and
+      // `buildAggregationGovernance` resolves an entry from it — a STRING-declared formula
+      // therefore gets exactly STRING's default menu, for free.
+      it('gets the STRING default menu for free', async () => {
+        for (const fn of ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'] as const) {
+          const errors = await validate(dataMartWithSessionKey, {
+            columnConfig: ['country', 'session_key'],
+            aggregationConfig: [{ column: 'session_key', function: fn }],
+          });
+
+          expect(errors).toEqual([]);
+        }
+      });
+
+      // …and nothing beyond it. MIN is in STRING's SUPPORTED set but not its DEFAULT one, so only
+      // a governance entry can refuse it: this fails if a calculated field is skipped by
+      // `buildAggregationGovernance` (whose map would then return `undefined` and allow anything).
+      it('is refused a function outside its governance menu, exactly like a real column', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          aggregationConfig: [{ column: 'session_key', function: 'MIN' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
+            column: 'session_key',
+            function: 'MIN',
+          }),
+        ]);
+      });
+
+      // The other half of "for free": the type floor reads the DECLARED type, which for a formula
+      // is the analyst's own free choice (D3) and is never checked against the formula body.
+      it('is refused SUM on its declared type, not on its level', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          aggregationConfig: [{ column: 'session_key', function: 'SUM' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+            column: 'session_key',
+            function: 'SUM',
+            type: 'STRING',
+          }),
+        ]);
+      });
+
+      // The ordinary rule reaches it too: an aggregated field must be selected. Before this slice
+      // the calculated arm answered first and this shape never got here.
+      it('must still be selected to be aggregated', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'AGGREGATION_COLUMN_NOT_SELECTED',
+            column: 'session_key',
+          }),
+        ]);
+      });
+
+      // Slice 3 pinned this shape reporting BOTH codes, the calculated one first, and predicted
+      // slice 3b would come back and delete half of it. That is what happened (D16): the row-level
+      // arm is gone, so the only verdict left is the generic type check — which is the RIGHT one,
+      // because `visit_key` is declared STRING and a STRING column is refused a bucket in exactly
+      // these words. `errors[0]` is what every caller reads, so the count is asserted, not just
+      // membership. Slice 3's own claim survives unchanged: the aggregation on the OTHER field is
+      // still accepted, so neither arm has taken its neighbour with it.
+      it('leaves only the generic type check on the field it did not lift', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key', 'visit_key'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+          dateTruncConfig: [{ column: 'visit_key', unit: 'MONTH' }],
+        });
+
+        expect(errors.map(e => e.code)).toEqual(['DATE_TRUNC_REQUIRES_DATE_COLUMN']);
+        expect(errors[0]).toMatchObject({ column: 'visit_key' });
+        expect(errors.some(e => e.column === 'session_key')).toBe(false);
+      });
+
+      // The falsifying contrast, and the regression a fork catching BOTH levels would be: an
+      // aggregate-level field is still refused, with its wording untouched.
+      it('keeps the "already aggregated" refusal for an aggregate-level field', async () => {
+        const errors = await validate(dataMartWithCtr, {
+          columnConfig: ['ctr'],
+          aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
+        });
+
+        expect(errors[0]).toMatchObject({
+          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          level: 'metric',
+          message: '`ctr` is a calculated field and is already aggregated.',
+        });
+      });
+
+      // Slice 3b, D16. The refusal is no longer about the field being calculated — it is about the
+      // declared type, and a STRING-declared formula is refused a bucket in the SAME words a STRING
+      // column is. Asserted as byte-equality against the column's own verdict modulo the name, so a
+      // future fork that gives the calculated one its own wording is a visible change.
+      it('refuses a STRING-declared bucket in the generic words a STRING column gets', async () => {
+        const calculated = await validate(dataMartWithSessionKey, {
+          columnConfig: ['session_key'],
+          dateTruncConfig: [{ column: 'session_key', unit: 'MONTH' }],
+        });
+        const column = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country'],
+          dateTruncConfig: [{ column: 'country', unit: 'MONTH' }],
+        });
+
+        expect(calculated).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN',
+            column: 'session_key',
+            type: 'STRING',
+          }),
+        ]);
+        expect(calculated.map(e => ({ ...e, column: 'FIELD' }))).toEqual(
+          column.map(e => ({ ...e, column: 'FIELD' }))
+        );
+      });
+
+      it('keeps the "cannot be used as a dimension" reason for an aggregate-level field', async () => {
+        const errors = await validate(dataMartWithCtr, {
+          columnConfig: ['clicks'],
+          dateTruncConfig: [{ column: 'ctr', unit: 'MONTH' }],
+        });
+
+        expect(errors[0]).toMatchObject({
+          code: 'CALCULATED_METRIC_AS_DIMENSION',
+          level: 'metric',
+          message: '`ctr` is a calculated field and cannot be used as a dimension.',
+        });
+      });
+
+      // #6732 spec §2: BOTH levels filter, and each in its own clause — a row-level formula is a
+      // dimension, so its predicate is a WHERE; an aggregate-level one is already an aggregate, so
+      // its predicate is a HAVING. Neither is refused any more, and the two must stay symmetrical:
+      // a guard that read the level and refused one of them would leave this pair uneven.
+      it('accepts a filter at both levels', async () => {
+        const rowLevel = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          filterConfig: [{ column: 'session_key', operator: 'eq', value: 'x' }],
+        });
+        const aggregate = await validate(dataMartWithCtr, {
+          columnConfig: ['country', 'ctr'],
+          filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+        });
+
+        expect(rowLevel).toEqual([]);
+        expect(aggregate).toEqual([]);
+      });
+
+      // The row-level half of the type check: routed to WHERE, the rule is checked against the
+      // DECLARED type by `validateFilters` — the seat an aggregate-level rule must NOT reach, and
+      // the reason the two skips had to be converted together.
+      it('type-checks a row-level filter against the declared type', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          filterConfig: [{ column: 'session_key', operator: 'gt', value: 3 }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'INVALID_OPERATOR_FOR_TYPE',
+            column: 'session_key',
+            type: 'STRING',
+            operator: 'gt',
+          }),
+        ]);
+      });
+
+      // Spec §2's third row: a row-level field the REPORT aggregates keeps the ordinary HAVING
+      // contract — its rule carries a function, so the matching aggregation must exist.
+      it('keeps the missing-aggregation verdict for a function-carrying rule on a row-level field', async () => {
+        const withRule = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT' }],
+          filterConfig: [{ column: 'session_key', operator: 'gt', value: 3, function: 'COUNT' }],
+        });
+        const withoutRule = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          filterConfig: [{ column: 'session_key', operator: 'gt', value: 3, function: 'COUNT' }],
+        });
+
+        expect(withRule).toEqual([]);
+        expect(withoutRule).toEqual([
+          expect.objectContaining({
+            code: 'HAVING_FILTER_NOT_AGGREGATED',
+            column: 'session_key',
+            function: 'COUNT',
+          }),
+        ]);
+      });
+
+      it('leaves a row-level field selected with no controls at all alone', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The case the previous test's old name claimed but did not exercise: an aggregation on
+      // ANOTHER column must not drag the row-level field into a refusal. This is the shape a real
+      // report takes — a grouping key, a calculated dimension, and a metric beside them.
+      it('leaves a row-level field alone when a real aggregation sits beside it', async () => {
+        const errors = await validate(dataMartWithSessionKey, {
+          columnConfig: ['country', 'session_key'],
+          aggregationConfig: [{ column: 'country', function: 'COUNT_DISTINCT' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+    });
+
+    // #6732 Slice 3b, decision D16. A row-level formula IS a dimension, and a DATE/TIMESTAMP-declared
+    // one may now be bucketed exactly as a warehouse column of that type is — the declaration is the
+    // contract and the warehouse is the authority (D3). Nothing here is level-blind: an
+    // aggregate-level field is not a dimension at all, permanently, whatever type it declares.
+    describe('date-bucketing a row-level calculated field', () => {
+      const VISIT_DAY_FORMULA = 'DATE({{ref field="visit_ts"}})';
+      const dataMartWithVisitDay = [
+        { name: 'visit_ts', type: 'TIMESTAMP' },
+        { name: 'visit_date', type: 'DATE' },
+        { name: 'country', type: 'STRING' },
+        {
+          name: 'visit_day',
+          type: 'DATE',
+          calculated: { formula: VISIT_DAY_FORMULA, level: 'column' },
+        },
+        {
+          name: 'visit_moment',
+          type: 'TIMESTAMP',
+          calculated: { formula: '{{ref field="visit_ts"}}', level: 'column' },
+        },
+        {
+          name: 'visit_label',
+          type: 'STRING',
+          calculated: { formula: 'CAST({{ref field="visit_ts"}} AS STRING)', level: 'column' },
+        },
+        {
+          name: 'last_visit',
+          type: 'DATE',
+          calculated: { formula: 'MAX({{ref field="visit_ts"}})', level: 'metric' },
+        },
+      ];
+
+      it('accepts a MONTH bucket on a DATE-declared row-level field', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_day'],
+          dateTruncConfig: [{ column: 'visit_day', unit: 'MONTH' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The falsifying contrast for the arm that STAYS. A DATE declaration is what would carry an
+      // aggregate-level field past the generic type check, so this is the shape that proves the
+      // refusal is still there rather than merely unreached.
+      it('still refuses an aggregate-level field a bucket, DATE-declared or not', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'last_visit'],
+          dateTruncConfig: [{ column: 'last_visit', unit: 'MONTH' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'CALCULATED_METRIC_AS_DIMENSION',
+            column: 'last_visit',
+            level: 'metric',
+            message: '`last_visit` is a calculated field and cannot be used as a dimension.',
+          }),
+        ]);
+      });
+
+      // Every ordinary rule in `validateDateTruncs` now reaches a calculated field, which is the
+      // point of letting it through `dateTruncsToValidate` rather than answering separately. A
+      // fork that special-cased the calculated case would have to re-implement each of these, and
+      // would get one of them wrong.
+      it('requires the bucketed field to be selected, as for a column', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country'],
+          dateTruncConfig: [{ column: 'visit_day', unit: 'MONTH' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_COLUMN_NOT_SELECTED',
+            column: 'visit_day',
+          }),
+        ]);
+      });
+
+      it('refuses a field that is both bucketed and aggregated', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_day'],
+          aggregationConfig: [{ column: 'visit_day', function: 'MAX' }],
+          dateTruncConfig: [{ column: 'visit_day', unit: 'MONTH' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED',
+            column: 'visit_day',
+          }),
+        ]);
+      });
+
+      // §6.1, measured on Snowflake 2026-08-24: the TIMESTAMP declaration is exactly what carried
+      // this shape onto a warehouse, where `CONVERT_TIMEZONE` coerced '05/08/2026' MDY and bucketed
+      // the report into May. The zone is the door — without it Snowflake refuses — so the zone is
+      // what goes, on all five storages.
+      it('refuses a time zone on a bucketed calculated field, TIMESTAMP-declared or DATE-declared', async () => {
+        const timestamp = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_moment'],
+          dateTruncConfig: [{ column: 'visit_moment', unit: 'DAY', timeZone: 'America/New_York' }],
+        });
+        const date = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_day'],
+          dateTruncConfig: [{ column: 'visit_day', unit: 'DAY', timeZone: 'America/New_York' }],
+        });
+
+        expect(timestamp).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD',
+            column: 'visit_moment',
+            timeZone: 'America/New_York',
+          }),
+        ]);
+        // The SAME code for a DATE declaration, ahead of DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP:
+        // that one's remedy is "declare a TIMESTAMP", which on a calculated field is now advice to
+        // reach exactly the shape §6.1 refuses.
+        expect(date).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD',
+            column: 'visit_day',
+            timeZone: 'America/New_York',
+          }),
+        ]);
+      });
+
+      // The pre-existing tz codes are not deleted with the leg — they still answer for an ordinary
+      // column, which is the contrast that shows the new arm keys on the field and not on the zone.
+      it('still refuses a time zone on an ordinary DATE column for its own reason', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_date'],
+          dateTruncConfig: [{ column: 'visit_date', unit: 'DAY', timeZone: 'America/New_York' }],
+        });
+
+        expect(errors).toEqual([
+          expect.objectContaining({
+            code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
+            column: 'visit_date',
+            type: 'DATE',
+          }),
+        ]);
+      });
+
+      // The scope, from the report surface. Removing the time-zone leg must not remove the bucket
+      // this branch shipped, nor the zone an ordinary warehouse column has always carried.
+      it('keeps the bucket itself, and keeps a time zone on an ordinary TIMESTAMP column', async () => {
+        const bucketOnly = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_moment'],
+          dateTruncConfig: [{ column: 'visit_moment', unit: 'DAY' }],
+        });
+        const ordinaryColumn = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_ts'],
+          dateTruncConfig: [{ column: 'visit_ts', unit: 'DAY', timeZone: 'America/New_York' }],
+        });
+
+        expect(bucketOnly).toEqual([]);
+        expect(ordinaryColumn).toEqual([]);
+      });
+
+      // D24: date filtering is NOT disabled. A range on a DATE-declared formula ships on every
+      // storage and the residual risk is accepted deliberately — refusing it would take date
+      // ranges from every honest formula to protect the dishonest ones.
+      it('filters the same field by date, bucket and all', async () => {
+        const errors = await validate(dataMartWithVisitDay, {
+          columnConfig: ['country', 'visit_day'],
+          dateTruncConfig: [{ column: 'visit_day', unit: 'MONTH' }],
+          filterConfig: [{ column: 'visit_day', operator: 'gte', value: '2026-08-01' }],
+        });
+
+        expect(errors).toEqual([]);
+      });
+    });
+
+    // #6732 Slice 2. A row-level field on a report that spans a join used to be refused at save,
+    // mirroring the compose-time refusal so the report could not persist clean and then 400 on
+    // every subsequent run. Both are gone: the field is a dimension the sleeve grain now carries,
+    // so every one of these shapes saves. Kept — rather than deleted with the refusal — because a
+    // re-introduced refusal would break them, which is the whole point.
+    describe('a row-level calculated field saves on a report that spans a join', () => {
+      const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+      const ROI_FORMULA = 'SUM({{ref path="orders" field="amount"}})';
+      const martWithBothLevels = [
+        { name: 'session_id', type: 'STRING' },
+        { name: 'user_id', type: 'STRING' },
+        { name: 'country', type: 'STRING' },
+        { name: 'clicks', type: 'INTEGER' },
+        { name: 'impressions', type: 'INTEGER' },
+        {
+          name: 'session_key',
+          type: 'STRING',
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        },
+        {
+          name: 'visit_key',
+          type: 'STRING',
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        },
+        { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+        { name: 'roi', type: 'FLOAT', calculated: { formula: ROI_FORMULA, level: 'metric' } },
+      ];
+      const ordersTree = {
+        blendedFields: [
+          {
+            name: 'orders__amount',
+            type: 'INTEGER',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            isHidden: false,
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      };
+
+      // The straightforward shape: the report projects a joined column beside the row-level field.
+      // The refusal was a THROW rather than a collected error, and `validate` unwraps a
+      // `BadRequestException` — so a `BusinessViolationException` would break it outright rather
+      // than come back as one more entry. Every `toEqual([])` below therefore says "nothing threw".
+      it('saves a row-level field selected beside a joined column', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key', 'orders__amount'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      it('saves several row-level fields on one joined report', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['session_key', 'visit_key', 'orders__amount'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The capability the previous slice shipped, and the regression a level-blind check would
+      // be: the SAME joined report saves when the formula aggregates.
+      it('still saves an AGGREGATE-level calculated field on that same joined report', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'ctr', 'orders__amount'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      it('saves a flat report when the mart merely HAS a joined field available', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // The three joins that reach no column list. Each used to be a separate refusal, so each is
+      // kept as its own case: they are the shapes a re-introduced predicate would catch first.
+      it('saves when the only join is a joined Unique Count', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key'],
+          uniqueCountConfig: ['orders'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      it('saves when the only join is a pre-join slice', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key'],
+          filterConfig: [
+            { column: 'orders__amount', operator: 'gt', value: 1, placement: 'pre-join' },
+          ],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // A row-level formula can hold no joined reference of its own, so this join arrives only
+      // through the aggregate-level field selected beside it — the two levels on one joined
+      // report, which is what made the sleeve grain matter.
+      it('saves when the only join is an aggregate-level sibling’s joined reference', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key', 'roi'],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // Slice 3 lifts the arm BELOW it too, and on this path as well: the blended builder keeps an
+      // aggregated row-level field out of the sleeve grain and out of the kept-groups CTE, so the
+      // joined report composes at the same grain the flat one does.
+      it('accepts an AGGREGATION on the row-level field, joined report or not', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'session_key', 'orders__amount'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+          ...ordersTree,
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      // …and the level fork survives the join: the aggregate-level sibling is still refused here.
+      it('still refuses an AGGREGATION on an aggregate-level field on that same report', async () => {
+        const errors = await validate(martWithBothLevels, {
+          columnConfig: ['country', 'ctr', 'orders__amount'],
+          aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
+          ...ordersTree,
+        });
+
+        expect(errors[0]).toMatchObject({
+          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          column: 'ctr',
+          level: 'metric',
+          message: '`ctr` is a calculated field and is already aggregated.',
+        });
+      });
+    });
+
+    // The blended builder renders a main-owner metric through its own formula-substitution
+    // channel, at the same grain and the same site as the joined aggregates beside it — so this
+    // combination saves like any other (#6732).
+    it('accepts a calculated metric selected alongside a joined field', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr', 'orders__amount'],
+        blendedFields: [{ name: 'orders__amount', type: 'INTEGER' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts a calculated metric on a report carrying a joined Unique Count', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        uniqueCountConfig: ['orders'],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    // The mart HAS joined fields available; the report just doesn't touch them. That report runs
+    // on the flat path, where the metric renders correctly — refusing it would be a false alarm.
+    it('accepts a calculated metric when no joined field is actually referenced', async () => {
+      const errors = await validate(dataMartWithCtr, {
+        columnConfig: ['country', 'ctr'],
+        blendedFields: [{ name: 'orders__amount', type: 'INTEGER' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    it('does not check a calculated metric on a storage that does not support output controls', async () => {
+      // A plain columnConfig-only report on an unsupported storage must keep taking the fast,
+      // schema-free early-return path — `compose()` itself would reject a selected metric there
+      // with OUTPUT_CONTROLS_NOT_SUPPORTED, so this validator does not need to look at the schema
+      // to reach the same outcome, and a genuinely plain (non-metric) selection must not start
+      // failing here either.
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService(dataMartWithBrokenCtr);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: DataStorageType.AWS_ATHENA,
+          dataMartId: 'dm-ctr',
+          projectId: 'proj-ctr',
+          columnConfig: ['clicks', 'ctr'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dataMartSchemaFields: dataMartWithBrokenCtr as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    // "It projects something, so it MIGHT carry a metric" is true of every report with a column
+    // list, on every supported storage — which is all six. That reading pulled a blendable-schema
+    // resolution (a mart fetch + every relationship for the storage + a recursive joined-mart
+    // walk) onto reports whose Data Mart has no formula anywhere in it: 0→1 on each save, 1→2 per
+    // composition on the run path. The Data Mart's own schema fields answer the question for free.
+    describe('the metric guard is selection-driven, not projection-driven', () => {
+      const buildValidator = (nativeFields: Record<string, unknown>[]) => {
+        const schemaSvc = makeBlendableSchemaService(nativeFields);
+        return {
+          schemaSvc,
+          validator: new OutputControlsValidatorService(
+            makeCapabilityService(true) as never,
+            schemaSvc as never
+          ),
+        };
+      };
+
+      const plainProjection = (
+        fields: Record<string, unknown>[] | undefined,
+        columnConfig: string[] = ['clicks', 'country']
+      ) => ({
+        storageType: supportedStorageType,
+        dataMartId: 'dm-ctr',
+        projectId: 'proj-ctr',
+        columnConfig,
+        filterConfig: null,
+        sortConfig: null,
+        limitConfig: null,
+        aggregationConfig: null,
+        dataMartSchemaFields: fields as never,
+        accessor: { userId: 'user-1', roles: ['admin'] },
+      });
+
+      it('does not resolve the blendable schema for a projection-only report on a mart with no calculated field', async () => {
+        const noMetrics = [
+          { name: 'clicks', type: 'INTEGER' },
+          { name: 'country', type: 'STRING' },
+        ];
+        const { validator, schemaSvc } = buildValidator(noMetrics);
+
+        await expect(
+          validator.validateForReport(plainProjection(noMetrics))
+        ).resolves.toBeUndefined();
+
+        expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+      });
+
+      // Per-SELECTION, not per-mart. Every guard the heavy path adds for a bare projection keys
+      // off a SELECTED metric; the ones keyed off a filter/sort/aggregation/date bucket already
+      // force the heavy path on their own. Mart-wide, one formula anywhere cost a blendable-schema
+      // resolution to every projecting report on that Data Mart, forever.
+      it('does not resolve it when the mart carries a metric the report does not select', async () => {
+        const { validator, schemaSvc } = buildValidator(dataMartWithCtr);
+
+        await expect(
+          validator.validateForReport(plainProjection(dataMartWithCtr))
+        ).resolves.toBeUndefined();
+
+        expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+      });
+
+      it('DOES resolve it once the report actually selects the metric', async () => {
+        const { validator, schemaSvc } = buildValidator(dataMartWithCtr);
+
+        await expect(
+          validator.validateForReport(plainProjection(dataMartWithCtr, ['country', 'ctr']))
+        ).resolves.toBeUndefined();
+
+        expect(schemaSvc.computeBlendableSchema).toHaveBeenCalled();
+      });
+
+      // `dataMartSchemaFields` is a REQUIRED property whose value may be undefined, so undefined
+      // means one thing only: this Data Mart has no schema yet. A mart with no schema owns no
+      // calculated field, so the cheap path is the right answer rather than a conservative guess —
+      // and the required property is what stops a caller dropping the argument and silently
+      // flipping the metric guards over to the reporting-filtered `nativeFields`.
+      it('takes the cheap path for a Data Mart that has no schema at all', async () => {
+        const { validator, schemaSvc } = buildValidator(dataMartWithCtr);
+
+        await expect(
+          validator.validateForReport(plainProjection(undefined))
+        ).resolves.toBeUndefined();
+
+        expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+      });
+
+      // Output-name uniqueness needs no schema at all, and the projection-only early return has
+      // always enforced it. Leaving that path (here: because the mart carries a metric) must not
+      // drop the check — it used to, whenever the Data Mart's schema was not actualized yet, so
+      // `['Revenue', 'revenue']` saved on this branch and was rejected on the other.
+      it('still rejects a case-only output-name collision when the schema is not actualized', async () => {
+        const schemaSvc = {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [],
+            blendedFields: [],
+            availableSources: [],
+            mainUniqueCountKeyFields: [],
+          }),
+        };
+        const validator = new OutputControlsValidatorService(
+          makeCapabilityService(true) as never,
+          schemaSvc as never
+        );
+
+        await expect(
+          validator.validateForReport({
+            storageType: supportedStorageType,
+            dataMartId: 'dm-ctr',
+            projectId: 'proj-ctr',
+            columnConfig: ['Revenue', 'revenue'],
+            filterConfig: null,
+            sortConfig: null,
+            limitConfig: null,
+            aggregationConfig: null,
+            dataMartSchemaFields: dataMartWithCtr as never,
+            accessor: { userId: 'user-1', roles: ['admin'] },
+          })
+        ).rejects.toThrow(BadRequestException);
       });
     });
   });

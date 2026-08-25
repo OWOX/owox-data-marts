@@ -165,6 +165,15 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
 
     // Mutation errors: keep existing dataMart visible, don't set error
     // (toast is shown by apiClient interceptor)
+    //
+    // UPDATE_DATA_MART_SCHEMA_ERROR belongs here deliberately, not with the two cases above: this
+    // shared `error` is also read by DataMartDetails, which renders <NoAccess/> the moment
+    // `error?.statusCode === 403` — BEFORE its own `!dataMart` guard, so it would swap out a
+    // fully loaded, already-rendered page (unmounting DataMartSchemaSettings, and the analyst's
+    // unsaved edits with it). A view-only session gets exactly a 403 on every mutating request
+    // (idp.guard.ts), and nothing disables Save for one. DataMartSchemaSettings tells a failed
+    // schema save from a successful one WITHOUT this shared channel — see
+    // useOperationState.failSaveOperation, called directly from the rejection it already holds.
     case 'UPDATE_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_TITLE_ERROR':
     case 'UPDATE_DATA_MART_DESCRIPTION_ERROR':

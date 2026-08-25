@@ -12,6 +12,7 @@ describe('GenerateDataMartMetadataOrchestratorService', () => {
       name: string;
       status: DataMartSchemaFieldStatus;
       isHiddenForReporting?: boolean;
+      calculated?: { formula: string; level: 'metric' };
     }>
   ) => ({
     type: 'bigquery-data-mart-schema',
@@ -20,6 +21,7 @@ describe('GenerateDataMartMetadataOrchestratorService', () => {
       type: 'STRING',
       status: f.status,
       isHiddenForReporting: f.isHiddenForReporting ?? false,
+      ...(f.calculated ? { calculated: f.calculated } : {}),
     })),
   });
 
@@ -112,6 +114,29 @@ describe('GenerateDataMartMetadataOrchestratorService', () => {
     const schema = buildSchema([
       { name: 'campaign', status: DataMartSchemaFieldStatus.CONNECTED },
       { name: 'clicks', status: DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH },
+    ]);
+    const { service, dataMartSampleDataService } = createService(schema);
+
+    await service.run(request);
+
+    expect(dataMartSampleDataService.sampleColumns).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1',
+      ['campaign', 'clicks'],
+      undefined,
+      METADATA_SAMPLE_ROW_LIMIT
+    );
+  });
+
+  it('excludes a calculated field from the sample query — it has no physical column', async () => {
+    const schema = buildSchema([
+      { name: 'campaign', status: DataMartSchemaFieldStatus.CONNECTED },
+      { name: 'clicks', status: DataMartSchemaFieldStatus.CONNECTED },
+      {
+        name: 'ctr',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+      },
     ]);
     const { service, dataMartSampleDataService } = createService(schema);
 

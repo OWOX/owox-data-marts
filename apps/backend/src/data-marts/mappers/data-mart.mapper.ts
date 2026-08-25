@@ -35,6 +35,7 @@ import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
 import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
+import { ValidateFormulaCommand } from '../dto/domain/validate-formula.command';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusItemApiDto } from '../dto/presentation/batch-data-mart-health-status-item-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
@@ -56,7 +57,16 @@ import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-respons
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  ValidateFormulaApiDto,
+  ValidateFormulaResponseApiDto,
+} from '../dto/presentation/validate-formula.api.dto';
+import { ValidateFormulaResult } from '../use-cases/validate-formula.service';
+import {
+  UpdateDataMartSchemaApiDto,
+  UpdateDataMartSchemaResponseApiDto,
+} from '../dto/presentation/update-data-mart-schema-api.dto';
+import { UpdateDataMartSchemaResult } from '../dto/domain/update-data-mart-schema-result.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -538,6 +548,38 @@ export class DataMartMapper {
       context.userId,
       context.roles ?? []
     );
+  }
+
+  toValidateFormulaCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: ValidateFormulaApiDto
+  ): ValidateFormulaCommand {
+    return new ValidateFormulaCommand(
+      id,
+      context.projectId,
+      dto.name,
+      dto.type,
+      dto.formula,
+      context.userId,
+      context.roles ?? [],
+      dto.calculatedFields
+    );
+  }
+
+  toValidateFormulaResponse(result: ValidateFormulaResult): ValidateFormulaResponseApiDto {
+    return {
+      errors: result.errors,
+      warnings: result.warnings,
+      otherFieldErrors: result.otherFieldErrors,
+    };
+  }
+
+  async toUpdateSchemaResponse(
+    result: UpdateDataMartSchemaResult
+  ): Promise<UpdateDataMartSchemaResponseApiDto> {
+    const base = await this.toResponse(result);
+    return { ...base, warnings: result.warnings };
   }
 
   toSqlDryRunCommand(

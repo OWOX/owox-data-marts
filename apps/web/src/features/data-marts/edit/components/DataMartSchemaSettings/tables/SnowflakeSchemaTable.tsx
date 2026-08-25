@@ -94,6 +94,7 @@ export function SnowflakeSchemaTable({
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.SNOWFLAKE}
       />
     </DndContext>
   );

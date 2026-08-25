@@ -35,6 +35,7 @@ import {
 } from '../facades/mcp-data-marts.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
+import { columnFilterWithoutCalculatedMetrics } from '../calculated-fields/calculated-field.utils';
 
 export class QueryDataMartCommand {
   constructor(public readonly request: McpQueryDataMartRequest) {}
@@ -298,7 +299,10 @@ export class QueryDataMartService {
           const description = await reader.prepareReportData(readPlan, {
             sqlOverride: composed.sql,
             sqlOverrideParams: composed.params,
-            columnFilter: r.fields,
+            columnFilter: columnFilterWithoutCalculatedMetrics(
+              r.fields,
+              composed.calculatedMetrics
+            ),
             // A joined column is absent from the native schema, so only these carry its type.
             blendedDataHeaders: composed.blendedDataHeaders,
             aggregationConfig: composed.aggregations ?? readPlan.aggregationConfig ?? undefined,
@@ -307,6 +311,7 @@ export class QueryDataMartService {
             uniqueCount: hasMainUniqueCount(readPlan.uniqueCountConfig),
             primaryKeyColumns: composed.primaryKeyColumns,
             uniqueCountSources: composed.uniqueCountSources,
+            calculatedMetrics: composed.calculatedMetrics,
             queryTimeoutMs,
             signal: workController.signal,
           });

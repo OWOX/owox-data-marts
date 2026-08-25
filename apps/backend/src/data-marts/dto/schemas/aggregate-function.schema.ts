@@ -89,6 +89,72 @@ export const VALUE_SLEEVE_FUNCTIONS: ReadonlySet<ReportAggregateFunction> = new 
   SLEEVE_ROUTING_ENTRIES.filter(([, shape]) => shape === 'value').map(([fn]) => fn)
 );
 
+/**
+ * Whether the aggregation does ARITHMETIC on its argument — which is what decides whether a
+ * Calculated Field's substituted expression is cast to the analyst's DECLARED type before the
+ * function is applied (#6732, D18). A declared type is never validated against the formula (D3),
+ * so a formula returning text on a field declared FLOAT is legal and reaches the warehouse: on
+ * Redshift `SUM` over it coerces the varchar to `Decimal` with SCALE 0 and truncates every row,
+ * measured returning `12` where `12.75` is correct.
+ *
+ * Every `false` here changes an ANSWER, not an amount of effort:
+ * - `COUNT` — the argument's type cannot affect a count.
+ * - `COUNT_DISTINCT` — a cast changes WHICH VALUES ARE EQUAL. `'01'` and `'1'` are two distinct
+ *   strings and one number; the analyst asked how many distinct values the formula produces.
+ * - `MIN` / `MAX` — a cast changes ORDERING: `'10' < '9'` as text, `10 > 9` as numbers.
+ * - `STRING_AGG`, `ANY_VALUE` — neither reads the value as a number.
+ *
+ * An exhaustive record rather than a bare set, exactly as `SLEEVE_ROUTING` above and for a sharper
+ * reason: a set makes a thirteenth function silently uncast, and uncast on Redshift is a wrong
+ * number rather than an error. `Record<ReportAggregateFunction, boolean>` is the guard that makes
+ * the omission impossible — keep it; the accessor below is a second floor, not a replacement.
+ */
+const DOES_ARITHMETIC_ON_ARGUMENT: Record<ReportAggregateFunction, boolean> = {
+  SUM: true,
+  AVG: true,
+  P25: true,
+  P50: true,
+  P75: true,
+  P95: true,
+  COUNT: false,
+  COUNT_DISTINCT: false,
+  MIN: false,
+  MAX: false,
+  STRING_AGG: false,
+  ANY_VALUE: false,
+};
+
+/**
+ * Throws rather than defaulting — the SECOND floor under the `Record` type above, not a substitute
+ * for it.
+ *
+ * `tsc` does gate this on a PR: `e2e-api.yml` triggers on `apps/backend/**` and runs
+ * `npm run build --workspaces --if-present`, which is this workspace's `nest build`, and a missing
+ * key fails it with `TS2741: Property 'COUNT' is missing` (verified by deleting that entry).
+ *
+ * What the throw adds is independence from WHICH job runs. ts-jest compiles with
+ * `diagnostics: false`, so under jest alone a missing entry is invisible: it reads `undefined`, is
+ * treated as "does not do arithmetic", emits no cast, and every suite stays green while Redshift
+ * goes back to truncating. That is what a developer sees running the suite locally. Failing at
+ * module load makes the omission loud in that run too.
+ */
+export function doesArithmeticOnArgument(fn: ReportAggregateFunction): boolean {
+  const answer = DOES_ARITHMETIC_ON_ARGUMENT[fn];
+  if (answer === undefined) {
+    throw new Error(
+      `DOES_ARITHMETIC_ON_ARGUMENT has no entry for '${fn}' — state whether it reads its argument ` +
+        `as a number, because defaulting to "no" is a silent wrong number on Redshift`
+    );
+  }
+  return answer;
+}
+
+// Derived from the FUNCTION LIST, not from the table's own keys: iterating the table can only
+// report what it already contains, and the missing entry is the case that matters.
+export const NUMERIC_ARGUMENT_FUNCTIONS: ReadonlySet<ReportAggregateFunction> = new Set(
+  REPORT_AGGREGATE_FUNCTIONS.filter(fn => doesArithmeticOnArgument(fn))
+);
+
 const PERCENTILE_FUNCTION_SET: ReadonlySet<string> = new Set(PERCENTILE_FUNCTIONS);
 
 export function isPercentileFunction(

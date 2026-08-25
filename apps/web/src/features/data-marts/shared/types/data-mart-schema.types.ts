@@ -222,6 +222,26 @@ export enum DatabricksFieldType {
 }
 
 /**
+ * A calculated field's level, as the backend DERIVES it from the formula: 'metric' when the
+ * formula aggregates, 'column' when it is row-level. Never chosen here.
+ */
+export type CalculatedFieldLevel = 'metric' | 'column';
+
+/**
+ * Configuration for a field computed from a warehouse-SQL formula rather than sourced directly.
+ */
+export interface CalculatedFieldConfig {
+  formula: string;
+  /**
+   * Optional because this client does not send one: the save derives the level from the formula
+   * and overwrites whatever arrives, so a value written here would be a guess the very next
+   * response contradicts. Always present on a field read back from the API.
+   */
+  level?: CalculatedFieldLevel;
+  warehouseValidation?: 'passed' | 'skipped';
+}
+
+/**
  * Base schema field interface
  */
 export interface BaseSchemaField {
@@ -234,6 +254,7 @@ export interface BaseSchemaField {
   status: DataMartSchemaFieldStatus;
   aggregationRole?: 'dimension' | 'metric';
   allowedAggregations?: import('./relationship.types').ReportAggregateFunction[];
+  calculated?: CalculatedFieldConfig;
 }
 
 /**

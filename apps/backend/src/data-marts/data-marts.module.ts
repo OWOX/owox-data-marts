@@ -164,6 +164,8 @@ import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.servi
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
+import { ValidateFormulaService } from './use-cases/validate-formula.service';
+import { CalculatedFieldValidatorService } from './calculated-fields/calculated-field-validator.service';
 import { GenerateDataMartMetadataService } from './use-cases/generate-data-mart-metadata.service';
 import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
@@ -732,6 +734,8 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     CreateViewService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
+    ValidateFormulaService,
+    CalculatedFieldValidatorService,
     GenerateDataMartMetadataService,
     ScheduledTriggersHandlerService,
     SqlDryRunTriggerService,

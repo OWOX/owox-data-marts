@@ -68,6 +68,17 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
   }, []);
 
   /**
+   * Whether the NEXT `initialSchema` the context publishes should leave the live schema alone.
+   * Raised while a save is in flight and something is applied on top of it: what comes back
+   * describes the snapshot that was SENT, not what is on screen. Nothing about that edit is
+   * persisted, so unlike `markSchemaSaved` this changes neither the schema nor `isDirty` — and it
+   * is lowered again on a failed save, where no new schema ever arrives to be kept from.
+   */
+  const keepUnsavedEdits = useCallback((keep: boolean) => {
+    skipNextInitialSchemaResetRef.current = keep;
+  }, []);
+
+  /**
    * Updates the schema with new fields.
    * Ensures type safety by checking the schema and field types.
    * If schema is null or undefined, creates a new schema based on field types.
@@ -169,6 +180,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
     updateSchema,
     resetSchema,
     markSchemaSaved,
+    keepUnsavedEdits,
     setIsDirty,
   };
 }

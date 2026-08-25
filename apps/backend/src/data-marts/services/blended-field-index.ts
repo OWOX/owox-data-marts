@@ -24,7 +24,9 @@ export function buildBlendedFieldIndex(
     // two distinct (aliasPath, originalFieldName) pairs can fold to the same
     // unified name. Last-write-wins would silently resolve a slice to the wrong
     // column/CTE — surface it as a user-fixable error instead, mirroring
-    // assertNoChainCollisions.
+    // assertNoChainCollisions. `collectAmbiguousBlendedFieldNames` answers the same
+    // question at SAVE time, from the pair rather than from `name` (which is that
+    // very derivation), so a formula is refused before it can reach this throw.
     const existing = index.get(field.name);
     if (existing) {
       throw new BusinessViolationException(

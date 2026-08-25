@@ -144,4 +144,28 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
     expect(cfg?.sortConfig[0].column).toBe('orders.product_id');
     expect(cfg?.sortConfig[0].column).not.toBe('Product ID');
   });
+
+  // A JOINED Data Mart's calculated field is refused on every report surface. FiltersSection has
+  // always excluded it; SortSection filtered nothing, so the same column was offered one panel
+  // over and the rule it produced could never be saved.
+  it('does not offer a joined calculated field in the Add sort by picker', () => {
+    const joinedCalculated: OutputSettingsDropdownColumn = {
+      name: 'orders.margin',
+      type: 'FLOAT',
+      label: 'Margin',
+      isJoinedCalculated: true,
+    };
+    render(
+      <OutputSettingsDropdown
+        value={EMPTY}
+        onChange={vi.fn()}
+        allColumns={[]}
+        sortColumns={[productId, joinedCalculated]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Add sort by: Product ID')).toBeInTheDocument();
+    expect(screen.queryByText('Add sort by: Margin')).not.toBeInTheDocument();
+  });
 });

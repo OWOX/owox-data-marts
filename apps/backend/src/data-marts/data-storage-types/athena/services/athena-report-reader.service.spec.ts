@@ -104,4 +104,78 @@ describe('AthenaReportReader', () => {
       overrideParams
     );
   });
+
+  describe('maxDataRows means DATA rows, not Athena result rows', () => {
+    const VALUES = ['paid', 'organic', 'direct'];
+
+    /**
+     * Athena's own accounting: the first page of a SELECT carries the column names as row 0, and
+     * `MaxResults` caps the page INCLUDING that row. Modelling the truncation here is what makes
+     * these assertions measure returned rows rather than the argument the reader happened to pass.
+     */
+    const athenaPage = (batchId: string | undefined, maxResults: number) => {
+      const rows = [
+        ...(batchId ? [] : [{ Data: [{ VarCharValue: 'channel' }] }]),
+        ...VALUES.map(value => ({ Data: [{ VarCharValue: value }] })),
+      ].slice(0, maxResults);
+      return {
+        ResultSet: { Rows: rows, ResultSetMetadata: { ColumnInfo: [{ Name: 'channel' }] } },
+        NextToken: 'next-page',
+      };
+    };
+
+    const buildReader = (): { reader: AthenaReportReader; getQueryResults: jest.Mock } => {
+      const getQueryResults = jest
+        .fn()
+        .mockImplementation(async (_id: string, batchId: string | undefined, maxResults: number) =>
+          athenaPage(batchId, maxResults)
+        );
+      const athenaAdapter = {
+        executeQuery: jest.fn().mockResolvedValue({ queryExecutionId: 'q1' }),
+        waitForQueryToComplete: jest.fn().mockResolvedValue(undefined),
+        getQueryResults,
+      };
+      const reader = new AthenaReportReader(
+        { createFromStorage: jest.fn().mockResolvedValue(athenaAdapter) } as never,
+        {
+          createFromStorage: jest
+            .fn()
+            .mockResolvedValue({ cleanupOutputFiles: jest.fn().mockResolvedValue(undefined) }),
+        } as never,
+        { buildQuery: jest.fn().mockReturnValue('SELECT channel FROM db.schema.table') } as never,
+        { generateHeaders: jest.fn().mockReturnValue([new ReportDataHeader('channel')]) } as never
+      );
+      return { reader, getQueryResults };
+    };
+
+    // `ReportTotalsService` reads the single totals row with exactly this budget: one short and the
+    // whole Totals block silently becomes null, on EVERY Athena report.
+    it('returns one data row for maxDataRows = 1', async () => {
+      const { reader } = buildReader();
+
+      await reader.prepareReportData(createReport());
+      const batch = await reader.readReportDataBatch(undefined, 1);
+
+      expect(batch.dataRows).toEqual([['paid']]);
+    });
+
+    it('returns exactly maxDataRows data rows on the first page — no more, no fewer', async () => {
+      const { reader } = buildReader();
+
+      await reader.prepareReportData(createReport());
+      const batch = await reader.readReportDataBatch(undefined, 2);
+
+      expect(batch.dataRows).toEqual([['paid'], ['organic']]);
+    });
+
+    it('leaves the budget alone on a continuation page, which carries no header row', async () => {
+      const { reader, getQueryResults } = buildReader();
+
+      await reader.prepareReportData(createReport());
+      const batch = await reader.readReportDataBatch('token-2', 2);
+
+      expect(getQueryResults).toHaveBeenCalledWith('q1', 'token-2', 2);
+      expect(batch.dataRows).toEqual([['paid'], ['organic']]);
+    });
+  });
 });

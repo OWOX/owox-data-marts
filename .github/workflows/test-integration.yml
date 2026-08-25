@@ -36,6 +36,8 @@ jobs:
             pattern: http-data-real
           - name: Report read (Athena)
             pattern: report-run-real
+          - name: Row-level Calculated Field (Athena + BigQuery + Redshift + Databricks + Snowflake)
+            pattern: row-level-calculated-field-real
           # google-sheets.integration.ts is intentionally skipped (not CI-ready);
           # only the working column-preservation suite runs here.
           - name: Google Sheets (column preservation)

@@ -4,6 +4,7 @@
  */
 
 export * from './SchemaFieldActionsButton';
+export * from './SchemaFieldCalculatedIcon';
 export * from './SchemaFieldModeSelect';
 export * from './SchemaFieldPrimaryKeyCheckbox';
 export * from './SchemaFieldStatusIcon';

@@ -230,6 +230,110 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     expect(opts.primaryKeyColumns).toEqual(['id']);
     expect(opts.uniqueCountSources).toEqual(uniqueCountSources);
   });
+
+  // #6732. Looker Studio reads this cached description and nothing else, so the two lines that
+  // wire a calculated metric through here decide whether the connector sees the metric at all —
+  // and both could be deleted without a single test noticing.
+  describe('calculated metrics (#6732)', () => {
+    const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+    const ctrPlan = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      formula: CTR_FORMULA,
+      alias: 'CTR, %',
+      description: 'Clicks per impression.',
+    };
+    // Selecting a metric is itself an output control (`hasOutputControls`), so this report
+    // composes even though it carries no filter, sort, limit or aggregation.
+    const reportSelectingCtr = () =>
+      buildReport({
+        columnConfig: ['country', 'ctr'],
+        dataMart: {
+          id: 'dm-1',
+          projectId: 'proj-1',
+          storage: { type: 'AWS_ATHENA' },
+          schema: {
+            fields: [
+              { name: 'country', type: 'STRING' },
+              { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+            ],
+          },
+        },
+      } as never);
+
+    it('forwards the composed calculatedMetrics to the reader, with the analyst label', async () => {
+      const { service, reader, reportSqlComposerService } = setup(
+        { needsBlending: false, columnFilter: ['country', 'ctr'] },
+        { sql: 'SELECT …', calculatedMetrics: [ctrPlan] } as never
+      );
+
+      await service.getOrCreateCachedReader(reportSelectingCtr(), {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never);
+
+      expect(reportSqlComposerService.compose).toHaveBeenCalledTimes(1);
+      expect(optionsPassedToReader(reader).calculatedMetrics).toEqual([ctrPlan]);
+    });
+
+    // The metric renders through its own formula channel; leaving its name in `columnFilter` too
+    // makes the header resolver emit it twice — once correctly, once as a bare reference to a
+    // column the warehouse does not have.
+    it('strips the metric name out of the columnFilter it hands the reader', async () => {
+      const { service, reader } = setup(
+        { needsBlending: false, columnFilter: ['country', 'ctr'] },
+        { sql: 'SELECT …', calculatedMetrics: [ctrPlan] } as never
+      );
+
+      await service.getOrCreateCachedReader(reportSelectingCtr(), {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never);
+
+      expect(optionsPassedToReader(reader).columnFilter).toEqual(['country']);
+    });
+
+    // The blended twin of the two tests above: `compose` never runs on that branch, so the
+    // decision is the metric's ONLY plan source. Without forwarding it, the blended SQL emits
+    // `ctr` while no header names it — Looker Studio reads a silent null for every row.
+    it("forwards the decision's calculatedMetrics on the blended branch", async () => {
+      const { service, reader, reportSqlComposerService } = setup({
+        needsBlending: true,
+        blendedSql: 'WITH main AS (...) SELECT SUM(main.clicks) AS `ctr`, main.country',
+        columnFilter: ['country'],
+        calculatedMetrics: [ctrPlan],
+      } as BlendingDecision);
+
+      await service.getOrCreateCachedReader(reportSelectingCtr(), {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never);
+
+      expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
+      const opts = optionsPassedToReader(reader);
+      expect(opts.calculatedMetrics).toEqual([ctrPlan]);
+      expect(opts.columnFilter).toEqual(['country']);
+    });
+
+    it('leaves calculatedMetrics undefined for a report that selects none', async () => {
+      const { service, reader } = setup(
+        { needsBlending: false, columnFilter: ['a'] },
+        { sql: 'SELECT a FROM t WHERE a = ?' }
+      );
+      const report = buildReport({
+        filterConfig: [{ column: 'a', operator: 'eq', value: 'x' }],
+      } as never);
+
+      await service.getOrCreateCachedReader(report, {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never);
+
+      const opts = optionsPassedToReader(reader);
+      expect(opts.calculatedMetrics).toBeUndefined();
+      expect(opts.columnFilter).toEqual(['a']);
+    });
+  });
 });
 
 /**

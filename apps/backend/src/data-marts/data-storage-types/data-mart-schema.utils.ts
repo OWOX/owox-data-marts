@@ -7,6 +7,8 @@ import { DataStorageType } from './enums/data-storage-type.enum';
 import { Injectable } from '@nestjs/common';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
+import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
 
 /**
  * A field is "connected" when it still exists in the data source — i.e. its status is not
@@ -15,6 +17,9 @@ import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-r
  * the source" only needs handling here.
  */
 export function isConnected(field: DataMartSchemaField): boolean {
+  // A calculated field is never returned by the warehouse, so warehouse-derived status says
+  // nothing about it. It is always available.
+  if (isCalculatedField(field)) return true;
   return field.status !== DataMartSchemaFieldStatus.DISCONNECTED;
 }
 
@@ -51,6 +56,31 @@ export function collectSchemaFieldPathDescriptors(
     result.push({ name: fullName, type: String(field.type), field });
     if ('fields' in field && field.fields?.length) {
       result.push(...collectSchemaFieldPathDescriptors(field.fields, fullName));
+    }
+  }
+  return result;
+}
+
+// A calculated-field formula may legally reference a HIDDEN field: isHiddenForReporting takes a
+// column off the reporting menu, it does not remove it from the source, and computing is not
+// projecting (spec §7 — the same line already drawn for counting by a hidden primary key, see
+// getMainUniqueCountKeyFields). Deliberately NOT built on collectSchemaFieldPathDescriptors, whose
+// callers (reporting/blending) depend on it pruning hidden fields — this is a different governance
+// question with a different answer. DISCONNECTED still prunes: a disconnected field really is gone
+// from the source, unlike a hidden one.
+export function collectFormulaReferenceableFields(
+  fields: readonly DataMartSchemaField[],
+  prefix = ''
+): { name: string; field: DataMartSchemaField }[] {
+  const result: { name: string; field: DataMartSchemaField }[] = [];
+  for (const field of fields) {
+    if (!isConnected(field)) continue;
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    result.push({ name: fullName, field });
+    if ('fields' in field && field.fields?.length) {
+      result.push(
+        ...collectFormulaReferenceableFields(field.fields as DataMartSchemaField[], fullName)
+      );
     }
   }
   return result;
@@ -197,6 +227,13 @@ export function hasUsablePrimaryKey(fields: readonly DataMartSchemaField[]): boo
   return false;
 }
 
+/**
+ * How long a stored formula may be. Lives here, next to the schema it bounds, because the live
+ * validation endpoint bounds its own request body by the same number — a request the save would
+ * refuse must not be accepted by the editor's live channel, or the two disagree.
+ */
+export const CALCULATED_FORMULA_MAX_LENGTH = 10_000;
+
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {
   const typedSchema = z
     .object({
@@ -222,6 +259,30 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .describe(
           'Aggregation functions a report may apply to this field; absent = derive defaults by type'
         ),
+      calculated: z
+        .object({
+          // Stored form: dialect SQL with {{ref}} tags. Bounded because it lives in a JSON column
+          // and renders into generated SQL.
+          formula: z.string().min(1).max(CALCULATED_FORMULA_MAX_LENGTH),
+          // Derived by CalculatedFieldValidatorService from the formula, never chosen: 'metric'
+          // when the formula aggregates, 'column' when it is row-level. Accepted on the wire only
+          // so a round-trip of an unchanged field validates, and optional because the web no
+          // longer sends one at all. Every path that can INTRODUCE or EDIT a formula runs that
+          // validator and refuses the save on any error, so no client-supplied level survives; the
+          // two paths that touch a stored schema without it (the joined-alias rename cascade,
+          // schema actualization) only carry an already-derived level through.
+          //
+          // Optional is load-bearing on READ, not just on the wire: `createZodTransformer.from`
+          // parses this schema every time a Data Mart is loaded, so a required `level` would turn
+          // one legacy row into a 500 for the whole Data Mart rather than a refused save. Read it
+          // defensively for the same reason — `=== 'column'` is the row-level test, so an absent
+          // value reads as 'metric', the pre-existing behaviour.
+          level: z.enum(CALCULATED_FIELD_LEVELS).optional(),
+          // 'skipped' = saved while the warehouse was unreachable; re-checked on the next save.
+          warehouseValidation: z.enum(['passed', 'skipped']).optional(),
+        })
+        .optional()
+        .describe('Formula definition; present only on calculated fields'),
       status: z
         .nativeEnum(DataMartSchemaFieldStatus)
         .describe('Field status relatively to the actual data mart schema'),

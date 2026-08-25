@@ -1,7 +1,10 @@
 import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
+import { StorageFieldType } from '../../dto/domain/storage-field-type';
 import { PrepareReportDataOptions } from '../interfaces/data-storage-report-reader.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { computeEffectiveType, integerTypeFor } from '../field-aggregation';
+import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
+import { isAggregateLevel } from '../../calculated-fields/formula-level';
 import {
   UNIQUE_COUNT_LABEL,
   aggregatedColumnAlias,
@@ -36,6 +39,10 @@ import {
  *   aliased, and its display alias is the free-form `displayLabel` (`Orders Unique Count`) — the
  *   same name/alias split every blended column header already uses. It is the SAME list the blended
  *   builder rendered its sleeves from, so a source dropped there has no header here either.
+ * - `calculatedMetrics` appends one header per selected calculated metric, last. There is no
+ *   warehouse column to derive its type from, so it carries the analyst's declared `type` — the
+ *   same synthesis Unique Count and the aggregation aliases already use. One that the REPORT
+ *   aggregates expands per function instead, exactly as an aggregated column does (#6732).
  */
 export function resolveReportDataHeaders(
   nativeHeaders: ReportDataHeader[],
@@ -45,16 +52,31 @@ export function resolveReportDataHeaders(
   const filter = options?.columnFilter;
   const aggregations = options?.aggregationConfig ?? [];
   const uniqueCountSources = options?.uniqueCountSources ?? [];
+  const calculatedMetrics = options?.calculatedMetrics ?? [];
   // The SAME predicate the SQL builder uses to emit `COUNT(DISTINCT pk)`: a primary key removed
   // after the report was saved drops the column, so it must drop the header too (F4).
   const mainUniqueCount =
     options?.uniqueCount === true && (options?.primaryKeyColumns?.length ?? 0) > 0;
   // A metrics-only query has no projected dimensions: the SELECT emits only the
-  // synthetic metric / Unique Count columns. This is the totals query and the
-  // uniqueCount-only report. It reads the GATED `mainUniqueCount`, not the raw flag: with the
-  // key gone the SQL emits no metric and falls back to a plain SELECT, so a metrics-only header
-  // list here would leave the report with no columns at all for a result full of them.
-  const metricsOnly = aggregations.length > 0 || mainUniqueCount || uniqueCountSources.length > 0;
+  // synthetic metric / Unique Count / calculated-metric columns. This is the totals query, the
+  // uniqueCount-only report, and a report selecting ONLY a calculated metric (its name was
+  // already excluded from `columnFilter` by the caller, so `filter` alone cannot see it).
+  // Without `calculatedMetrics` here, an empty `columnFilter` falls through to "every native
+  // header" below — a header list the SELECT (which projects exactly the metric) does not match:
+  // a silent null on BigQuery/Snowflake/Databricks, a hard `Column ... not found` on
+  // Athena/Redshift. It reads the GATED `mainUniqueCount`, not the raw flag: with the key gone
+  // the SQL emits no metric and falls back to a plain SELECT, so a metrics-only header list here
+  // would leave the report with no columns at all for a result full of them.
+  //
+  // The calculated clause stays LEVEL-BLIND (#6732): `composePlainSelectBody` drops the wildcard
+  // once any calculated item is present, so a ROW-LEVEL-only selection also projects that one
+  // field and nothing else. Counting aggregating fields only would answer with every native
+  // header for it.
+  const metricsOnly =
+    aggregations.length > 0 ||
+    mainUniqueCount ||
+    uniqueCountSources.length > 0 ||
+    calculatedMetrics.length > 0;
 
   let headers: ReportDataHeader[];
   if (filter && filter.length > 0) {
@@ -127,6 +149,76 @@ export function resolveReportDataHeaders(
         undefined,
         integerTypeFor(storageType),
         'COUNT_DISTINCT'
+      ),
+    ];
+  }
+
+  // A calculated metric has no warehouse column to derive a type from, so it is typed by the
+  // analyst's own declaration instead — the same synthesis Unique Count and the aggregation
+  // aliases already use above.
+  //
+  // `aggregateFunction` stays undefined because no single report function describes a formula, so
+  // the header carries the field's LEVEL instead: a bare `undefined` there means "an ordinary
+  // native column" to consumers, and Looker Studio reads that as METRIC + defaultAggregation SUM
+  // + isReaggregatable — i.e. it would re-sum a ratio, the exact non-additive failure this
+  // feature exists to remove (spec §8). The level travels rather than the mere fact of being
+  // calculated because the destination's answer differs by it: a row-level formula is a DIMENSION
+  // and must take the ordinary path (spec §4.5), and the mapper deliberately refuses to re-derive
+  // that from the declared type.
+  //
+  // UNLESS the REPORT aggregates it (#6732 spec §2.1). A row-level field carrying an aggregation
+  // rule is no longer a grouping key, and `renderAggregatedSelect` emits one aggregate per rule
+  // under `aggregatedColumnLabel` instead of the bare name — so the headers expand the same way an
+  // ordinary aggregated column does above, through the same label helper the alias came from.
+  // Named `outputName` regardless, the reader binds to a column the SELECT never emitted. The
+  // grain verdict is read off the PLAN (`isCalculatedGroupingKey`) and never re-derived from the
+  // rules; the rules only say WHICH functions, exactly as they do for the renderer.
+  //
+  // The analyst's `alias`/`description` travel on the plan and are re-attached here, for the same
+  // reason the type is: this list is the metric's ONLY header source. Skipping them left a metric
+  // aliased "CTR, %" as the one column in its own report still labelled `ctr`, while every field
+  // beside it showed its alias.
+  for (const metric of options?.calculatedMetrics ?? []) {
+    // The pre-#6732 spelling of the same fact, written for the rolling-deploy window: these headers
+    // are persisted verbatim in `report_data_cache.dataDescription`, and a pod still running the old
+    // code reads only this key — finding neither, it tells Looker Studio to re-sum a ratio. Only an
+    // aggregating field has anything for a boolean to say. Droppable in 0.33.0, one release after
+    // the 0.32.0 that ships #6732.
+    const legacyIsCalculatedMetric = isAggregateLevel(metric.level) || undefined;
+    const fns =
+      isCalculatedGroupingKey(metric) || isAggregateLevel(metric.level)
+        ? []
+        : aggregationFunctionsForColumn(aggregations, metric.outputName);
+    if (fns.length === 0) {
+      headers = [
+        ...headers,
+        new ReportDataHeader(
+          metric.outputName,
+          metric.alias,
+          metric.description,
+          metric.type as StorageFieldType,
+          undefined,
+          metric.level,
+          legacyIsCalculatedMetric
+        ),
+      ];
+      continue;
+    }
+    headers = [
+      ...headers,
+      ...fns.map(
+        fn =>
+          new ReportDataHeader(
+            aggregatedColumnLabel(metric.outputName, fn),
+            metric.alias ? aggregatedColumnAlias(metric.alias, fn) : undefined,
+            metric.description,
+            // The declared type describes the FORMULA's value, not the aggregate's: a
+            // COUNT_DISTINCT over it is an integer count whatever the formula was declared.
+            computeEffectiveType(metric.type as StorageFieldType, fn, storageType),
+            fn,
+            metric.level,
+            legacyIsCalculatedMetric
+          )
       ),
     ];
   }

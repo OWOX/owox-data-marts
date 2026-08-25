@@ -1,5 +1,6 @@
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
-import { ColumnRefResolver } from '../../utils/sql-clause-renderer';
+import { CalculatedMetricPlan, ColumnRefResolver } from '../../utils/sql-clause-renderer';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 describe('BigQueryClauseRenderer', () => {
   const r = new BigQueryClauseRenderer();
@@ -533,6 +534,181 @@ describe('BigQueryClauseRenderer', () => {
 
     it('returns empty SQL when no rule carries a function', () => {
       expect(r.renderHaving([{ column: 'a', operator: 'eq', value: 1 }]).sql).toBe('');
+    });
+  });
+
+  // BigQueryFieldType is the API vocabulary, not GoogleSQL: the live probe substituted a declared
+  // FLOAT into a CAST and BigQuery answered `Type not found: FLOAT at [2:51]` (#6732, D19).
+  describe('castTypeForDeclaredType (declared BigQuery type → GoogleSQL cast target)', () => {
+    it('maps every numeric declared type to the GoogleSQL name, FLOAT to FLOAT64', () => {
+      expect(r.castTypeForDeclaredType('INTEGER')).toBe('INT64');
+      expect(r.castTypeForDeclaredType('FLOAT')).toBe('FLOAT64');
+      expect(r.castTypeForDeclaredType('NUMERIC')).toBe('NUMERIC');
+      expect(r.castTypeForDeclaredType('BIGNUMERIC')).toBe('BIGNUMERIC');
+    });
+
+    it('reads a declared type case-insensitively and ignores padding', () => {
+      expect(r.castTypeForDeclaredType(' float ')).toBe('FLOAT64');
+    });
+
+    it('answers undefined for a type no aggregation casts to, rather than guessing a spelling', () => {
+      expect(r.castTypeForDeclaredType('STRING')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('DATE')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('TIMESTAMP')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('RECORD')).toBeUndefined();
+    });
+  });
+
+  // #6732 D23/D25. This is one of the two dialects where the VALUE's JS type decides the outcome
+  // today: the SDK infers a param's type from it, so `= 10` and `= '10'` over the SAME field flip
+  // between `No matching signature for operator =` and the right answer. The placeholder now
+  // carries the declaration, so one predicate is emitted for both and the driver infers nothing.
+  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+    const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
+    const numericText: CalculatedMetricPlan = {
+      outputName: 'probe',
+      formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
+      level: 'column',
+      type: 'FLOAT',
+    };
+    const whereFor = (
+      declaredType: string,
+      rule: FilterRule
+    ): { sql: string; params: { name: string; value: unknown }[] } =>
+      r.renderWhere(
+        [rule],
+        undefined,
+        'p',
+        () => declaredType,
+        r.buildCalculatedPredicateExpressions([{ ...numericText, type: declaredType }])
+      );
+
+    // The declared FLOAT is the API vocabulary; GoogleSQL answers `Type not found: FLOAT`, so
+    // both sides must be spelled FLOAT64 — the same mapping the aggregation path already uses.
+    it('casts BOTH sides of `> 5` to the GoogleSQL name of the declared type', () => {
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'gt', value: 5 }).sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS FLOAT64) > CAST(@p0 AS FLOAT64)`
+      );
+    });
+
+    // D25, measured: shapes 5a and 5b differ only in whether the rule's value is `10` or `'10'`,
+    // and that alone flipped this dialect between BQ-E3 and the one correct row. One SQL text now
+    // serves both, and the bound value travels as the analyst supplied it.
+    it('emits ONE predicate whether the value arrives as 10 or as "10"', () => {
+      const asNumber = whereFor('FLOAT', { column: 'probe', operator: 'eq', value: 10 });
+      const asString = whereFor('FLOAT', { column: 'probe', operator: 'eq', value: '10' });
+
+      expect(asNumber.sql).toBe(`\nWHERE CAST((${NUM_EXPR}) AS FLOAT64) = CAST(@p0 AS FLOAT64)`);
+      expect(asString.sql).toBe(asNumber.sql);
+      expect(asNumber.params).toEqual([{ name: 'p0', value: 10 }]);
+      expect(asString.params).toEqual([{ name: 'p0', value: '10' }]);
+    });
+
+    // Every value slot, not just the scalar ones — `between` and the IN list build their own
+    // placeholders and would each be a separate way to lose the declaration.
+    it('reaches the BETWEEN bounds and every IN list member', () => {
+      expect(
+        whereFor('FLOAT', { column: 'probe', operator: 'between', value: { from: 1, to: 5 } }).sql
+      ).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS FLOAT64) BETWEEN CAST(@p0 AS FLOAT64) AND ` +
+          `CAST(@p1 AS FLOAT64)`
+      );
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'in', value: [9, 10] }).sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS FLOAT64) IN (CAST(@p0 AS FLOAT64), CAST(@p1 AS FLOAT64))`
+      );
+    });
+
+    // BigQuery is the dialect whose exact types must stay BARE — it rejects every parameterized
+    // type in a CAST, so a `(38,18)` harmonised with the other four would be a hard query error.
+    it('keeps NUMERIC unparameterized on both sides, which this dialect requires in a CAST', () => {
+      expect(whereFor('NUMERIC', { column: 'probe', operator: 'gt', value: 5 }).sql).toBe(
+        `\nWHERE CAST((${NUM_EXPR}) AS NUMERIC) > CAST(@p0 AS NUMERIC)`
+      );
+    });
+
+    // D19b: `CAST(1.5 AS INT64)` rounds here and Spark's equivalent truncates, so casting an
+    // integer declaration would make one report answer differently per warehouse.
+    it('never casts an INTEGER declaration, though the mapping states INT64 for it', () => {
+      expect(r.castTypeForDeclaredType('INTEGER')).toBe('INT64');
+      expect(whereFor('INTEGER', { column: 'probe', operator: 'gt', value: 5 }).sql).toBe(
+        `\nWHERE (${NUM_EXPR}) > @p0`
+      );
+    });
+
+    // The no-op half: a declaration this dialect states no target for emits exactly the SQL it
+    // emits today — including, deliberately, the one that raises.
+    it('emits no cast for a declared type this dialect states no target for', () => {
+      expect(whereFor('STRING', { column: 'probe', operator: 'gt', value: '5' }).sql).toBe(
+        `\nWHERE (${NUM_EXPR}) > @p0`
+      );
+    });
+
+    // A DATE declaration takes this dialect's DATE-placeholder cast — the one an ordinary DATE
+    // column has always had and which a calculated field NEVER REACHED before, because the type
+    // resolver answered `undefined` for it (#6732, D25). It gains no NUMERIC target: D24 ships date
+    // ranges as measured, and this dialect's answer to a mis-declared one is the loud BQ-E4.
+    it('takes the DATE placeholder cast a calculated field never reached before', () => {
+      expect(whereFor('DATE', { column: 'probe', operator: 'gte', value: '2026-07-01' }).sql).toBe(
+        `\nWHERE (${NUM_EXPR}) >= CAST(@p0 AS DATE)`
+      );
+    });
+
+    // `relative_date` is NOT in the comparison set: its bounds are `CURRENT_DATE()` arithmetic this
+    // renderer inlines, so there is no bound value to impose a type on.
+    //
+    // It IS type-aware on this dialect alone, and the declaration reaching it is a FIX rather than
+    // a side effect: BigQuery raises on `TIMESTAMP >= DATE`, which is why an ordinary sub-day
+    // column is wrapped in `DATE(...)`. A TIMESTAMP-declared calculated field rendered BARE before
+    // this slice and could only raise — and nothing anywhere pinned either shape.
+    it('renders relative_date over the formula, wrapping only a sub-day declaration', () => {
+      const relative = (declaredType: string, kind: 'today'): string =>
+        whereFor(declaredType, {
+          column: 'probe',
+          operator: 'relative_date',
+          value: { kind },
+        }).sql;
+
+      expect(relative('DATE', 'today')).toBe(`\nWHERE (${NUM_EXPR}) = CURRENT_DATE()`);
+      expect(relative('TIMESTAMP', 'today')).toBe(`\nWHERE DATE((${NUM_EXPR})) = CURRENT_DATE()`);
+      expect(relative('DATETIME', 'today')).toBe(`\nWHERE DATE((${NUM_EXPR})) = CURRENT_DATE()`);
+    });
+
+    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
+    // mode, on a predicate that never reads a value — and a numeric target inside STRPOS buys
+    // nothing at all.
+    it('leaves IS NULL, IS NOT NULL and the text matchers uncast', () => {
+      const uncast = (rule: FilterRule): string => whereFor('FLOAT', rule).sql;
+
+      expect(uncast({ column: 'probe', operator: 'is_null' })).toBe(
+        `\nWHERE (${NUM_EXPR}) IS NULL`
+      );
+      expect(uncast({ column: 'probe', operator: 'is_not_null' })).toBe(
+        `\nWHERE (${NUM_EXPR}) IS NOT NULL`
+      );
+      expect(uncast({ column: 'probe', operator: 'contains', value: 'x' })).toBe(
+        `\nWHERE STRPOS((${NUM_EXPR}), @p0) > 0`
+      );
+      expect(uncast({ column: 'probe', operator: 'starts_with', value: 'x' })).toBe(
+        `\nWHERE STARTS_WITH((${NUM_EXPR}), @p0)`
+      );
+      expect(uncast({ column: 'probe', operator: 'is_empty' })).toBe(
+        `\nWHERE ((${NUM_EXPR}) IS NULL OR (${NUM_EXPR}) = '')`
+      );
+    });
+
+    // The imposition is scoped to a rule whose left-hand side IS a formula. An ordinary column
+    // keeps the SQL it ships today, whatever its own type resolves to.
+    it('leaves an ordinary column of the same declared type untouched on both sides', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'amount', operator: 'gt', value: 5 }],
+          undefined,
+          'p',
+          () => 'FLOAT',
+          r.buildCalculatedPredicateExpressions([numericText])
+        ).sql
+      ).toBe('\nWHERE `amount` > @p0');
     });
   });
 });

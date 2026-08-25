@@ -1,10 +1,17 @@
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import type {
+  FormulaAggregateCall,
+  FormulaOwnerPlan,
+} from '../../calculated-fields/formula-owner-plan';
+import { scanSql, type SqlToken } from '../../calculated-fields/sql-token-scanner';
 import {
   SLEEVE_ROUTED_FUNCTIONS,
   VALUE_SLEEVE_FUNCTIONS,
 } from '../../dto/schemas/aggregate-function.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { aggregationFunctionsForColumn } from '../../dto/schemas/aggregation-labels';
+import { tryAliasPathToCteName } from '../../dto/schemas/filter-config.schema';
+import { isWhereFilterRule } from '../../dto/domain/filter-clause';
 import {
   BlendedFieldEntry,
   BlendedQueryContext,
@@ -24,12 +31,15 @@ import {
 } from '../utils/identifier-limits.utils';
 
 /**
- * Metric-sleeve PLANNING: which report metrics need a sleeve, which chain owns each,
- * how they group into shared dedup passes, and what every resulting CTE is named.
+ * Metric-sleeve PLANNING: which report metrics — and which joined aggregate calls of a calculated
+ * metric's formula — need a sleeve, which chain owns each, how they group into shared dedup passes,
+ * and what every resulting CTE is named.
  *
  * Deliberately free of SQL and of any dialect dependency — nothing here quotes an identifier
  * or renders an expression, so it is decided identically for all five warehouses and testable
  * without a builder. The SQL those decisions turn into lives in `metric-sleeve.builder.ts`.
+ * (A formula's LEXICAL structure is read — where one argument ends and the next begins, which is
+ * ANSI — but never any function's signature or semantics.)
  */
 
 export function collectSleeveMetrics(
@@ -51,16 +61,33 @@ export function collectSleeveMetrics(
  * `<alias>_raw` CTEs carry it and every other stays lean. Gated by `isIdentityPreJoinField`, the
  * same check `buildValueSleeveGroupCte` branches on: a non-identity owner keys off its dedup CTE's
  * own group key and needs neither the declared key nor the surrogate window.
+ *
+ * Formula sleeves are keyed by an aggregate CALL rather than by an `AggregationRule`, so the
+ * aggregations pass above cannot see them; without this a formula sleeve would reference a
+ * surrogate its own `<alias>_raw` FROM never projected, and no guard downstream can detect that.
+ * Pass only the ones the caller classified as reading RAW — a formula sleeve reading a pre-join
+ * roll-up keys off the owner dedup CTE's group key like any other non-identity sleeve, and
+ * projecting `__owox_rid` for it puts a full `ROW_NUMBER() OVER (PARTITION BY …)` over the joined
+ * mart in that raw CTE for a column nothing reads.
  */
 export function collectValueSleeveOwners(
   aggregations: AggregationRule[],
   outputAliasToRoot: ReadonlyMap<string, string>,
-  context: BlendedQueryContext
+  context: BlendedQueryContext,
+  formulaSleeves: ReadonlyArray<FormulaSleevePlan> = []
 ): ReadonlyMap<string, ValueSleeveIdentity> {
   const owners = new Map<string, ValueSleeveIdentity>();
+  const chainByCte = new Map(context.chains.map(c => [c.cteName, c]));
+  // Ahead of the field-index guard below: a formula sleeve's owner is named by the CHAIN, not by a
+  // metric column, so it is resolvable with no field index at all — and returning early without it
+  // would emit a sleeve reading a surrogate its own `<alias>_raw` never projected.
+  for (const plan of formulaSleeves) {
+    const chain = chainByCte.get(plan.ownerCteName);
+    if (!chain) continue; // buildFormulaSleeveCte reports this mismatch, naming the calculation
+    owners.set(plan.ownerCteName, valueSleeveIdentityFor(chain));
+  }
   const fieldIndex = context.fieldIndex;
   if (!fieldIndex) return owners;
-  const chainByCte = new Map(context.chains.map(c => [c.cteName, c]));
   for (const r of aggregations) {
     if (!VALUE_SLEEVE_FUNCTIONS.has(r.function)) continue;
     if (!outputAliasToRoot.has(r.column)) continue; // main (non-blended) column
@@ -117,11 +144,28 @@ export function identityScopingJoinKeyColumns(
   return joinKeyColumns.filter(col => !declared.has(col));
 }
 
+/**
+ * The report's grouping keys as a sleeve sees them: every selected column carrying no aggregation
+ * of its own, then every calculated field that is a GROUPING KEY (#6732).
+ *
+ * The calculated names arrive on a list of their own because `columns` cannot carry them — the
+ * composer strips every calculated name out of it before the builder is reached — and they are
+ * APPENDED so the grain lands in the same order `renderAggregatedSelect` emits its own
+ * `groupByParts`: column keys first, then the calculated keys in plan order.
+ *
+ * The caller filters the names with `isCalculatedGroupingKey`; the plain columns are filtered here
+ * by the same rule a plan's own verdict was decided from, so a field the report aggregates leaves
+ * this grain whichever kind it is.
+ */
 export function collectReportDimensions(
   columns: string[],
-  aggregations: AggregationRule[]
+  aggregations: AggregationRule[],
+  calculatedDimensionNames: readonly string[] = []
 ): string[] {
-  return columns.filter(c => aggregationFunctionsForColumn(aggregations, c).length === 0);
+  return [
+    ...columns.filter(c => aggregationFunctionsForColumn(aggregations, c).length === 0),
+    ...calculatedDimensionNames,
+  ];
 }
 
 // Sanitize a column path into a legal single identifier (nested-path dots and any other
@@ -143,6 +187,233 @@ export function sleeveCteNameForColumn(column: string): string {
  */
 export function uniqueCountSleeveCteName(source: JoinedUniqueCountSleeve): string {
   return `sleeve_uc_${sanitizeSleeveNamePart(source.aliasPath)}`;
+}
+
+/**
+ * One aggregate call of a calculated metric's formula that reads a JOINED Data Mart, and therefore
+ * needs its own sleeve: the blended query aggregates each joined source by its join key BEFORE
+ * joining it in, so the outer SELECT cannot recompute `SUM(orders.amount)` from that collapsed CTE
+ * without over- or under-counting on a fanning join.
+ *
+ * v1 is one sleeve per CALL with no merging — which is also why this sidesteps
+ * `groupValueSleeveMetrics`' multi-column hazard entirely: the key is the call, not a column.
+ */
+export interface FormulaSleevePlan {
+  /** Output name of the calculated metric whose formula this call belongs to. */
+  metricOutputName: string;
+  /** Index of the call in that metric's own `FormulaOwnerPlan.calls` — own-owner calls included. */
+  callIndex: number;
+  /** The call itself: `fn`, its `[start, end)` span in the STORED formula, and its refs. */
+  call: FormulaAggregateCall;
+  /** The joined source's alias path as authored (`orders`, `users.address`). */
+  aliasPath: string;
+  /** That source's chain CTE name — the sleeve reads `<ownerCteName>_raw`. */
+  ownerCteName: string;
+  /** Intended CTE name, BEFORE `disambiguateSleeveCteNames` resolves it against the full set. */
+  baseCteName: string;
+  /** Output alias of the single pull this sleeve feeds. */
+  pullAlias: string;
+  /**
+   * True when the argument opens with the ANSI `DISTINCT` quantifier (`COUNT(DISTINCT x)`). It is a
+   * keyword of the CALL, not part of its argument: left in the sleeve's inner slot it emits
+   * `DISTINCT <expr> AS _val`, which no warehouse parses. It belongs on the OUTER aggregate.
+   */
+  distinct: boolean;
+  /**
+   * Where the call's VALUE expression starts in the stored formula — `call.argStart`, past any
+   * leading set quantifier. Paired with `call.argEnd` it is the text the sleeve's slot renders.
+   */
+  valueStart: number;
+}
+
+/**
+ * The set quantifier a call's argument opens with, and where the value expression begins after it.
+ * Read off the same token scan `buildFormulaOwnerPlan` uses, so a `DISTINCT` written inside a
+ * comment or a string is not one. A bare leading word can only be the quantifier here: every field
+ * reference in a formula is a `{{ref}}` tag, never a bare identifier.
+ */
+function readArgumentQuantifier(
+  tokens: readonly SqlToken[],
+  call: FormulaAggregateCall
+): { distinct: boolean; valueStart: number } {
+  const first = tokens.find(
+    t => t.kind !== 'comment' && t.start >= call.argStart && t.end <= call.argEnd
+  );
+  const word = first?.kind === 'word' ? first.value.toUpperCase() : '';
+  // `ALL` is the default and means nothing to the sleeve, but left in the slot it is the same
+  // syntax error `DISTINCT` would be.
+  if (word === 'DISTINCT' || word === 'ALL') {
+    return { distinct: word === 'DISTINCT', valueStart: first!.end };
+  }
+  return { distinct: false, valueStart: call.argStart };
+}
+
+/**
+ * The ONE joined call shape `planFormulaSleeves` deliberately leaves in the outer SELECT: a
+ * non-DISTINCT `COUNT`, computed off the dedup CTE exactly where the report metric
+ * `COUNT(<joined column>)` is computed (see the planner's own comment for the row-set argument).
+ *
+ * Exported because the emitter's routing guard must accept THAT shape and nothing else. "A joined
+ * reference sitting inside some aggregate" also accepts a joined `SUM` whose sleeve went missing
+ * between planning and emission, which then renders `SUM(<dedup>.<col>)` — the fan-out-inflated
+ * number the sleeve exists to prevent, with nothing on screen to say so.
+ */
+export function isJoinedCallLeftInPlace(
+  tokens: readonly SqlToken[],
+  call: FormulaAggregateCall
+): boolean {
+  return (
+    call.owner.kind === 'joined' &&
+    call.fn === 'COUNT' &&
+    !readArgumentQuantifier(tokens, call).distinct
+  );
+}
+
+/**
+ * Keeps the call index — the ONLY thing telling two calls of one metric apart — on the safe side of
+ * the byte cut, by shortening the name part instead of the whole identifier. Redshift TRUNCATES
+ * rather than rejects, so without this two calls of a long-named metric come back as one name and
+ * the disambiguator has to invent a suffix that says nothing about which call it is.
+ */
+function withCallIndex(base: string, callIndex: number): string {
+  const suffix = `_${callIndex}`;
+  return (
+    truncateIdentifierToByteLimit(base, MAX_IDENTIFIER_BYTES - identifierByteLength(suffix)) +
+    suffix
+  );
+}
+
+/**
+ * The CTE base name for a formula sleeve. Derived from the metric and the call index rather than
+ * from a column, because this sleeve has no column — it aggregates a rendered expression. Still
+ * goes through `disambiguateSleeveCteNames` with every other sleeve: they share one WITH clause,
+ * and a joined column literally named `fx_<metric>_<i>` would otherwise want the same name.
+ */
+export function formulaSleeveCteName(metricOutputName: string, callIndex: number): string {
+  return withCallIndex(`sleeve_fx_${sanitizeSleeveNamePart(metricOutputName)}`, callIndex);
+}
+
+/**
+ * The sleeve's single output column. Only ever read qualified by the sleeve's own (disambiguated)
+ * CTE name, so it need not be unique across sleeves — it is anyway, so that a caller which routed
+ * a formula pull through the ordinary sleeve SELECT emits a wrong-but-named column instead of two
+ * items sharing one alias. The `_fx_` prefix keeps it clear of the wrapper's `_owox_dim_<i>`.
+ */
+export function formulaSleevePullAlias(metricOutputName: string, callIndex: number): string {
+  return withCallIndex(`_fx_${sanitizeSleeveNamePart(metricOutputName)}`, callIndex);
+}
+
+/**
+ * Whether a call was written with MORE THAN ONE argument — a top-level comma inside its own
+ * parentheses. Read off the same token scan `buildFormulaOwnerPlan` uses, so a comma inside a string
+ * literal (`LISTAGG(x, '|')`), a comment, or a nested call (`SUM(GREATEST(a, b))`) is not one.
+ *
+ * Argument SEPARATION is ANSI and identical on every warehouse, so counting it here keeps this
+ * module dialect-free — it recognises no function's signature, only that a second argument exists.
+ */
+function hasSeveralArguments(tokens: readonly SqlToken[], call: FormulaAggregateCall): boolean {
+  let depth = 0;
+  for (const token of tokens) {
+    if (token.kind !== 'punct') continue;
+    if (token.start < call.start || token.end > call.end) continue;
+    if (token.value === '(') depth++;
+    else if (token.value === ')') depth--;
+    // Depth 1 is this call's own argument list; anything deeper belongs to a nested call.
+    else if (token.value === ',' && depth === 1) return true;
+  }
+  return false;
+}
+
+/**
+ * Which formula sleeves exist, in WITH-clause order: every joined aggregate call of every metric,
+ * metrics in the order given and calls in formula order. An own-owner call renders in place in the
+ * outer SELECT and gets no sleeve; a call `buildFormulaOwnerPlan` refused (mixed owners) comes back
+ * as own-owner too, so it is skipped here rather than given an invented grain.
+ *
+ * Deliberately context-free — a path naming no chain is left to `buildFormulaSleeveCte`, whose
+ * error names the calculation. Only a path that is not a legal alias path at all is refused here:
+ * `aliasPathToCteName` would throw a bare `Error` whose 500 carries no body, telling the user
+ * nothing about which metric to fix.
+ *
+ * A joined call carrying SEVERAL arguments is refused too. `FormulaSleeveGroup.valueSql` is
+ * singular — one rendered expression, one dedup slot — so the extra arguments are simply dropped,
+ * and that is not always loud: `LISTAGG(x, '|')` becomes `LISTAGG(_val)`, which Snowflake and
+ * Redshift ACCEPT with an empty default delimiter and return a silently wrong string. Refused here
+ * rather than at save because this is the last layer before the SQL is emitted, and it covers every
+ * emission path (report run, Totals, dry run, MCP) instead of the save endpoint alone. Only a JOINED
+ * call is restricted: an own-Data-Mart call renders in place with its arguments intact.
+ *
+ * A leading `DISTINCT` is lifted onto the sleeve's outer aggregate for COUNT and refused for every
+ * other function — see `readArgumentQuantifier` and the throw below. A joined COUNT with no
+ * DISTINCT gets no sleeve at all: it is computed in the outer SELECT off the dedup CTE, the same
+ * row set a report metric `COUNT(<joined column>)` counts.
+ */
+export function planFormulaSleeves(
+  metrics: ReadonlyArray<{ outputName: string; formula: string; ownerPlan: FormulaOwnerPlan }>
+): FormulaSleevePlan[] {
+  const plans: FormulaSleevePlan[] = [];
+  for (const { outputName, formula, ownerPlan } of metrics) {
+    // Derived from the calls the loop below actually reads, not from `hasJoinedCall`: a guard must
+    // not be skipped because a summary flag and the calls it summarises disagree.
+    const needsArgumentScan = ownerPlan.calls.some(c => c.owner.kind === 'joined');
+    const tokens = needsArgumentScan ? scanSql(formula) : [];
+    ownerPlan.calls.forEach((call, callIndex) => {
+      if (call.owner.kind !== 'joined') return;
+      const { aliasPath } = call.owner;
+      const ownerCteName = tryAliasPathToCteName(aliasPath);
+      if (!ownerCteName) {
+        throw new BusinessViolationException(
+          `Calculated field '${outputName}' aggregates ${call.fn}(...) over the joined source ` +
+            `'${aliasPath}', which is not a valid source path. Edit the formula to reference an ` +
+            `existing joined Data Mart`,
+          { calculatedField: outputName, aliasPath }
+        );
+      }
+      if (hasSeveralArguments(tokens, call)) {
+        throw new BusinessViolationException(
+          `Calculated field '${outputName}': ${call.fn}(...) reads the joined source ` +
+            `'${aliasPath}' and was given more than one argument. An aggregate over a joined ` +
+            `Data Mart currently takes exactly one argument — remove the extra argument(s), or ` +
+            `compute this part on the calculated field's own Data Mart`,
+          { calculatedField: outputName, aliasPath, function: call.fn }
+        );
+      }
+      const quantifier = readArgumentQuantifier(tokens, call);
+      // Only COUNT's DISTINCT has somewhere to go: the sleeve's outer wrapper spells it through the
+      // dialect's own `COUNT(DISTINCT …)`. Every other aggregate would have to carry the quantifier
+      // into the deduped inner slot, where it is a syntax error the analyst would meet at report
+      // time — so it is refused here, before any SQL is emitted, on every emission path.
+      if (quantifier.distinct && call.fn !== 'COUNT') {
+        throw new BusinessViolationException(
+          `Calculated field '${outputName}': ${call.fn}(DISTINCT ...) reads the joined source ` +
+            `'${aliasPath}'. Only COUNT(DISTINCT ...) can be de-duplicated over a joined Data ` +
+            `Mart — drop the DISTINCT, or compute this part on the calculated field's own Data Mart`,
+          { calculatedField: outputName, aliasPath, function: call.fn }
+        );
+      }
+      // A joined COUNT counts ROWS, and the two candidate row sets are 5× apart on a fanning join:
+      // a sleeve counts the owner's deduped RAW rows, while the report metric `COUNT(<joined
+      // column>)` counts the MAIN rows that survived the join, off the dedup CTE. The product rule
+      // is "computed at the last join, after dedup", which is what the report path does — so a
+      // formula COUNT gets no sleeve and renders in place over the dedup CTE, matching
+      // `SLEEVE_ROUTING`'s own `COUNT: null`. `COUNT(DISTINCT …)` is a different question and keeps
+      // its sleeve. An analyst who wants to count the joined rows has `COUNT(DISTINCT <key>)` and
+      // the joined source's Unique Count.
+      if (isJoinedCallLeftInPlace(tokens, call)) return;
+      plans.push({
+        metricOutputName: outputName,
+        callIndex,
+        call,
+        aliasPath,
+        ownerCteName,
+        baseCteName: formulaSleeveCteName(outputName, callIndex),
+        pullAlias: formulaSleevePullAlias(outputName, callIndex),
+        distinct: quantifier.distinct,
+        valueStart: quantifier.valueStart,
+      });
+    });
+  }
+  return plans;
 }
 
 /**
@@ -215,11 +486,12 @@ export function splitValueSleeveGroupsByIdentity(
   return result;
 }
 
-// the non-HAVING post-join filter columns (WHERE rules only — HAVING rules carry a
-// `function` and are never applied inside a sleeve) whose owning DEDUP CTE the sleeve must
-// join so `qualifyColumn` can resolve a blended filter column.
+// the WHERE post-join filter columns (a HAVING rule is never applied inside a sleeve) whose
+// owning DEDUP CTE the sleeve must join so `qualifyColumn` can resolve a blended filter column.
+// The clause comes off the rule (D21) — a `function` test would pull in the column of an
+// aggregate-level Calculated Field's filter, which carries none.
 export function sleeveFilterColumns(filterOpts: SleeveFilterOptions): string[] {
-  return filterOpts.filters.filter(r => !r.function).map(r => r.column);
+  return filterOpts.filters.filter(isWhereFilterRule).map(r => r.column);
 }
 
 /**
@@ -229,6 +501,10 @@ export function sleeveFilterColumns(filterOpts: SleeveFilterOptions): string[] {
  * That is the post-join filter columns AND the dimensions of the kept-groups restriction: the
  * restriction's join line qualifies each of its dimensions the same way the outer query does, and
  * a Totals sleeve has no dimensions of its own to pull those CTEs in.
+ *
+ * A ROW-LEVEL calculated field is in that list under its own NAME and matches no dedup CTE, so it
+ * adds no join — correct, not a miss: its formula reads only its own Data Mart, which the sleeve's
+ * FROM already starts at (#6732).
  */
 export function sleeveJoinColumns(filterOpts: SleeveFilterOptions): string[] {
   return [...sleeveFilterColumns(filterOpts), ...(filterOpts.keptGroups?.dimensions ?? [])];

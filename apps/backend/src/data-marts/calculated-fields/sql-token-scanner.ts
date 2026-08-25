@@ -1,0 +1,146 @@
+export type SqlTokenKind = 'word' | 'string' | 'comment' | 'quotedIdentifier' | 'number' | 'punct';
+
+export interface SqlToken {
+  kind: SqlTokenKind;
+  value: string;
+  start: number;
+  end: number;
+}
+
+const WORD_START = /[A-Za-z_]/;
+const WORD_BODY = /[A-Za-z0-9_$]/;
+
+/**
+ * Lexical structure only. It knows string literals, comments, quoted identifiers, numbers, words
+ * and punctuation — no precedence, no syntax validation, no dialect reimplementation. Validating
+ * that the SQL is actually well-formed is the warehouse dry run's job (spec §6 pass 2).
+ */
+export function scanSql(sql: string): SqlToken[] {
+  const tokens: SqlToken[] = [];
+  let i = 0;
+
+  while (i < sql.length) {
+    const c = sql[i];
+
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') {
+      i++;
+      continue;
+    }
+
+    if (c === '-' && sql[i + 1] === '-') {
+      const end = indexOfLineTerminator(sql, i);
+      tokens.push({ kind: 'comment', value: sql.slice(i, end), start: i, end });
+      i = end;
+      continue;
+    }
+
+    if (c === '/' && sql[i + 1] === '*') {
+      const closed = sql.indexOf('*/', i + 2);
+      const end = closed === -1 ? sql.length : closed + 2;
+      tokens.push({ kind: 'comment', value: sql.slice(i, end), start: i, end });
+      i = end;
+      continue;
+    }
+
+    if (c === `'`) {
+      i = readQuoted(sql, i, `'`, 'string', tokens);
+      continue;
+    }
+    if (c === '"') {
+      i = readQuoted(sql, i, '"', 'quotedIdentifier', tokens);
+      continue;
+    }
+    if (c === '`') {
+      i = readQuoted(sql, i, '`', 'quotedIdentifier', tokens);
+      continue;
+    }
+
+    if (c >= '0' && c <= '9') {
+      const j = readNumber(sql, i);
+      tokens.push({ kind: 'number', value: sql.slice(i, j), start: i, end: j });
+      i = j;
+      continue;
+    }
+
+    if (WORD_START.test(c)) {
+      let j = i + 1;
+      while (j < sql.length && WORD_BODY.test(sql[j])) j++;
+      tokens.push({ kind: 'word', value: sql.slice(i, j), start: i, end: j });
+      i = j;
+      continue;
+    }
+
+    tokens.push({ kind: 'punct', value: c, start: i, end: i + 1 });
+    i++;
+  }
+
+  return tokens;
+}
+
+// A doubled delimiter escapes itself in every dialect we support; a backslash does not. An
+// unterminated literal (no closing delimiter before end of input) still yields one token that
+// runs to the end of the string, so the scanner always terminates instead of looping forever.
+function readQuoted(
+  sql: string,
+  start: number,
+  delim: string,
+  kind: SqlTokenKind,
+  out: SqlToken[]
+): number {
+  let j = start + 1;
+  while (j < sql.length) {
+    if (sql[j] === delim) {
+      if (sql[j + 1] === delim) {
+        j += 2;
+        continue;
+      }
+      j++;
+      break;
+    }
+    j++;
+  }
+  out.push({ kind, value: sql.slice(start, j), start, end: j });
+  return j;
+}
+
+// A line comment ends at ANY line terminator, not at `\n` alone. Measured on all five warehouses:
+// `SELECT 1 -- z<CR>+10 AS v` returns 11 everywhere, so every one of them ends the comment at a
+// lone CR. Ending it at `\n` here — while CR was already skipped as whitespace above — hid a
+// second select item, and a `;`, inside a single `comment` token, where neither single-expression
+// guard could see it: both read `punct` tokens only.
+function indexOfLineTerminator(text: string, from: number): number {
+  for (let at = from; at < text.length; at++) {
+    const ch = text[at];
+    if (ch === '\n' || ch === '\r') return at;
+  }
+  return text.length;
+}
+
+function isDigit(ch: string | undefined): boolean {
+  return ch !== undefined && ch >= '0' && ch <= '9';
+}
+
+// A numeric literal is a run of digits, then at most one fractional part (a dot followed by at
+// least one digit), then at most one exponent — and an exponent only counts when its `e`/`E` is
+// followed by an optional sign and at least one digit. Anything else touching the digits, most
+// importantly a bare `+` or `-` with no digit behind it, is left for the caller to tokenize as
+// its own punctuation rather than being folded into the number.
+function readNumber(sql: string, start: number): number {
+  let j = start;
+  while (isDigit(sql[j])) j++;
+
+  if (sql[j] === '.' && isDigit(sql[j + 1])) {
+    j++;
+    while (isDigit(sql[j])) j++;
+  }
+
+  if (sql[j] === 'e' || sql[j] === 'E') {
+    let k = j + 1;
+    if (sql[k] === '+' || sql[k] === '-') k++;
+    const digitsStart = k;
+    while (isDigit(sql[k])) k++;
+    if (k > digitsStart) j = k;
+  }
+
+  return j;
+}

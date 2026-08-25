@@ -73,7 +73,7 @@ export function buildProjectDataMartContextValue(
     runDataMart: noopRunDataMart,
     cancelDataMartRun: noopPromise,
     actualizeDataMartSchema: noopPromise,
-    updateDataMartSchema: noopPromise,
+    updateDataMartSchema: () => Promise.resolve({ warnings: [] }),
     getDataMartRuns: () => Promise.resolve([]),
     loadMoreDataMartRuns: () => Promise.resolve([]),
     updateDataMartOwners: noopPromise,

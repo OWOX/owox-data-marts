@@ -4,3 +4,63 @@
 .monaco-editor .suggest-widget .message {
   font-size: 11px;
 }
+
+/*
+  The formula editor's suggest list only — its overflow widgets are hosted in
+  `formula-editor-overflow-widgets`, which also carries `monaco-editor`, and the doubled class is
+  what outweighs Monaco's own seven-class rule for this element.
+
+  A row too long even for the widened widget (monaco-suggest-width.util.ts) gives up the Data Mart
+  on the right rather than the field name: Monaco shrinks the two sides in proportion, which cuts
+  a deep joined path by a character or two while the Data Mart beside it still has room.
+*/
+.monaco-editor.formula-editor-overflow-widgets
+  .suggest-widget
+  .monaco-list
+  .monaco-list-row
+  > .contents
+  > .main
+  > .right {
+  flex-shrink: 1000;
+}
+
+/*
+  A resolved field reference, drawn as a pill. ONE definition, two call sites: Monaco's inline
+  decoration inside the formula editor (formula-chip-decorations.ts) and the static renderer for the
+  table row (FormulaChips.tsx), so a field reads the same whether or not the popover is open.
+
+  Unscoped, unlike the suggest-widget rule above, and safe to be: this class is written by those two
+  call sites and nothing else, so there is no third editor for it to leak into. Scoping it to the
+  editor was what stopped the row from sharing it.
+
+  The pill's breathing room is two box-shadows, not padding. Monaco positions the caret from the
+  measured geometry of these very spans, so padding on one moves every character after it away from
+  where the editor believes the caret is; a shadow paints outside the box and changes no metrics.
+  For the same reason there is no font-weight or letter-spacing here.
+
+  Sideways only — offsets, never a SPREAD. A spread also paints above and below the box, and the
+  row's `truncate` leaves the pill just 1px of room there (measured), so the halo came out clipped
+  in the row and whole in the editor: the same pill drawn two different ways, which is the one thing
+  sharing the definition was for.
+
+  Dark is keyed on the app's `.dark` (which the row sits under) and, for the editor, on Monaco's own
+  `vs-dark`. The two agree today because FormulaEditor derives Monaco's theme from `resolvedTheme`.
+  Note what this does NOT do: `.dark` is an ancestor of the editor too, so an editor left on `vs`
+  under a dark app would still get the dark pill — there is no `:not(.vs-dark)` guard, and adding
+  one would be guarding against a state the component cannot produce.
+*/
+.formula-field-chip {
+  background-color: rgb(37 99 235 / 12%);
+  border-radius: 3px;
+  box-shadow:
+    2px 0 0 0 rgb(37 99 235 / 12%),
+    -2px 0 0 0 rgb(37 99 235 / 12%);
+}
+
+.dark .formula-field-chip,
+.monaco-editor.vs-dark .formula-field-chip {
+  background-color: rgb(96 165 250 / 22%);
+  box-shadow:
+    2px 0 0 0 rgb(96 165 250 / 22%),
+    -2px 0 0 0 rgb(96 165 250 / 22%);
+}

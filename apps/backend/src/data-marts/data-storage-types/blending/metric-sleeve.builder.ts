@@ -1,5 +1,8 @@
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { isCountingFormulaFunction } from '../../calculated-fields/formula-function-dialect';
+import { SqlToken, scanSql } from '../../calculated-fields/sql-token-scanner';
 import {
+  ReportAggregateFunction,
   VALUE_SLEEVE_FUNCTIONS,
   sleeveShapeFor,
 } from '../../dto/schemas/aggregate-function.schema';
@@ -11,7 +14,12 @@ import {
   JoinedUniqueCountSleeve,
   ResolvedRelationshipChain,
 } from '../interfaces/blended-query-builder.interface';
-import { ColumnRefResolver, ColumnTypeResolver, SqlParameter } from '../utils/sql-clause-renderer';
+import {
+  CalculatedPredicateOperand,
+  ColumnRefResolver,
+  ColumnTypeResolver,
+  SqlParameter,
+} from '../utils/sql-clause-renderer';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../dto/schemas/date-trunc-config.schema';
 import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
@@ -23,8 +31,10 @@ import {
 } from '../utils/primary-key-identity.utils';
 import { BlendedSqlDialect, createColumnQualifier, renderLeftJoinOn } from './blended-sql-dialect';
 import {
+  FormulaSleeveGroup,
   NO_SLEEVE_FILTERS,
   ROW_SURROGATE_ALIAS,
+  SleeveCalculatedDimensions,
   SleeveFilterOptions,
   SleevePull,
   SleeveResult,
@@ -33,6 +43,7 @@ import {
 import {
   collectReportDimensions,
   disambiguateSleeveCteNames,
+  type FormulaSleevePlan,
   groupCountDistinctMetrics,
   groupValueSleeveMetrics,
   identityScopingJoinKeyColumns,
@@ -45,6 +56,47 @@ import {
   uniqueCountSleeveCteName,
   valueSleeveIdentityFor,
 } from './metric-sleeve.planner';
+import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
+
+/**
+ * Every table qualifier `sql` reads a COLUMN through, lower-cased and de-duplicated: the leading
+ * segment of each dotted chain that is not a function call.
+ *
+ * Lexical, over `scanSql`, so string literals and comments contribute nothing — a formula's
+ * `WHEN status = 'a.b'` is not a reference. Two shapes are deliberately NOT qualifiers: a middle
+ * segment of a chain (`orders_raw.address.city` names one table, not two), and a namespace before
+ * a call (`SAFE.DIVIDE(a, b)` — the guarded-division form this feature's own autocomplete
+ * suggests), told apart by the `(` that follows.
+ *
+ * Bare unqualified names are out of reach by construction: nothing distinguishes a column `amount`
+ * from the keyword `END` or a function name without parsing the dialect's grammar. That is the
+ * stated limit of this check, not an oversight — see `buildFormulaSleeveCte`.
+ */
+function columnQualifiersIn(sql: string): string[] {
+  const tokens = scanSql(sql).filter(t => t.kind !== 'comment');
+  const isName = (t?: SqlToken): boolean => t?.kind === 'word' || t?.kind === 'quotedIdentifier';
+  const qualifiers: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!isName(tokens[i]) || tokens[i + 1]?.value !== '.') continue;
+    let last = i;
+    while (tokens[last + 1]?.value === '.' && isName(tokens[last + 2])) last += 2;
+    if (tokens[last + 1]?.value !== '(') qualifiers.push(unquoteIdentifier(tokens[i].value));
+    // Skip the chain's own middle segments; only its FIRST segment can name a table.
+    i = last;
+  }
+  return Array.from(new Set(qualifiers.map(q => q.toLowerCase())));
+}
+
+/** A doubled delimiter escapes itself, as `scanSql` reads it; an unterminated literal has no closer. */
+function unquoteIdentifier(value: string): string {
+  const delim = value[0];
+  if (delim !== '"' && delim !== '`') return value;
+  const closed = value.length > 1 && value.endsWith(delim);
+  return value
+    .slice(1, closed ? -1 : undefined)
+    .split(delim + delim)
+    .join(delim);
+}
 
 /**
  * Emits the SQL for one metric sleeve: a CTE that re-joins `main` with the RAW
@@ -82,13 +134,53 @@ export class MetricSleeveBuilder {
       filters: FilterRule[];
       resolveColumnType?: ColumnTypeResolver;
       keptGroups?: { join: string; dimensions: string[] };
+      /**
+       * One entry per JOINED aggregate call of a calculated metric's formula, planned by
+       * `planFormulaSleeves`. `valueSql` is that call's argument already rendered against the owner
+       * — the caller owns ref resolution and the classification `isIdentity` records, because only
+       * it can see which fields the expression reads.
+       */
+      formulaSleeves?: ReadonlyArray<{
+        plan: FormulaSleevePlan;
+        valueSql: string;
+        isIdentity: boolean;
+      }>;
+      /**
+       * The calculated fields that are GROUPING KEYS of the report (#6732) — dimensions like any
+       * other, except that they have no column name to qualify, so the expression travels beside
+       * the grain instead of in it. See `SleeveCalculatedDimensions`.
+       */
+      calculatedDimensions?: SleeveCalculatedDimensions;
+      /**
+       * The left-hand side of a predicate on any Calculated Field a filter may name, selected or
+       * not — see `SleeveFilterOptions.calculatedExpressions`. Separate from
+       * `calculatedDimensions.plans`, which holds SELECTED grouping keys only: a field that is
+       * FILTERED but not selected has no plan there and would otherwise reach no sleeve at all.
+       */
+      calculatedExpressions?: ReadonlyMap<string, CalculatedPredicateOperand>;
     }
   ): SleeveResult[] {
-    const { outputAliasToRoot, filters, resolveColumnType, keptGroups } = opts;
+    const { outputAliasToRoot, filters, resolveColumnType, keptGroups, calculatedDimensions } =
+      opts;
+    // The grain below is built from these plans alone, so one that is NOT a grouping key widens
+    // every sleeve past the outer GROUP BY and its join-back matches nothing (#6732 spec §2.3).
+    // Asserted here, ahead of the caller's own count and membership checks, because those only run
+    // once a sleeve exists — a blended report with no sleeve reaches neither.
+    for (const [name, plan] of calculatedDimensions?.plans ?? []) {
+      if (!isCalculatedGroupingKey(plan)) {
+        throw new Error(
+          `buildAll: calculated dimension '${name}' (level '${plan.level}') is not a grouping key ` +
+            `of the report — filter the plans through isCalculatedGroupingKey before handing them ` +
+            `to the sleeves, or their grain is finer than the outer query's`
+        );
+      }
+    }
     // --- Sleeve metrics: a joined COUNT_DISTINCT is computed in a separate CTE that
     // re-joins the raw (pre-dedup) path and counts distinct at the report dimension
     // grain — NOT via the normal dedup-then-SUM re-aggregation, which over-counts.
-    const dimensions = collectReportDimensions(context.columns, context.aggregations ?? []);
+    const dimensions = collectReportDimensions(context.columns, context.aggregations ?? [], [
+      ...(calculatedDimensions?.plans.keys() ?? []),
+    ]);
     // COUNT_DISTINCT sleeves stay ONE-CTE-PER-METRIC — their single-level
     // `COUNT(DISTINCT col)` dedup shape differs from a value sleeve's nested
     // DISTINCT-then-aggregate form, so they never merge with a value sleeve.
@@ -149,7 +241,8 @@ export class MetricSleeveBuilder {
             outputAliasToRoot,
             finalName,
             filterOpts,
-            group.metrics
+            group.metrics,
+            calculatedDimensions
           );
           return {
             cteName: built.cteName,
@@ -173,7 +266,9 @@ export class MetricSleeveBuilder {
               context,
               outputAliasToRoot,
               finalName,
-              filterOpts
+              filterOpts,
+              undefined,
+              calculatedDimensions
             );
             return {
               cteName: built.cteName,
@@ -188,7 +283,8 @@ export class MetricSleeveBuilder {
             context,
             outputAliasToRoot,
             finalName,
-            filterOpts
+            filterOpts,
+            calculatedDimensions
           );
         },
       })),
@@ -203,8 +299,33 @@ export class MetricSleeveBuilder {
             context,
             outputAliasToRoot,
             finalName,
-            filterOpts
+            filterOpts,
+            calculatedDimensions
           ),
+      })),
+      // Formula sleeves come after even those, for the same reason: selecting a calculated metric
+      // must not rename another sleeve's CTE or shift its bound-parameter prefix.
+      ...(opts.formulaSleeves ?? []).map(({ plan, valueSql, isIdentity }) => ({
+        baseName: plan.baseCteName,
+        build: (finalName: string, filterOpts: SleeveFilterOptions): SleeveResult => ({
+          ...this.buildFormulaSleeveCte(
+            {
+              ownerCteName: plan.ownerCteName,
+              dimensions,
+              fn: plan.call.fn,
+              distinct: plan.distinct,
+              isIdentity,
+              valueSql,
+              alias: plan.pullAlias,
+            },
+            context,
+            outputAliasToRoot,
+            finalName,
+            filterOpts,
+            calculatedDimensions
+          ),
+          formulaCall: { metricOutputName: plan.metricOutputName, callIndex: plan.callIndex },
+        }),
       })),
     ];
     const finalSleeveNames = disambiguateSleeveCteNames(
@@ -220,6 +341,7 @@ export class MetricSleeveBuilder {
         resolveColumnType,
         whereParamPrefix: `slv${i}p`,
         keptGroups,
+        calculatedExpressions: opts.calculatedExpressions,
       })
     );
   }
@@ -337,7 +459,11 @@ export class MetricSleeveBuilder {
   // renders the report's post-join WHERE INSIDE a sleeve subquery, over the SAME
   // `qualify` resolver the outer query uses (main-native → `main.<col>`, blended → the dedup
   // CTE `<root>.<col>` joined via `buildSleeveDedupRootJoins`). Returns `{ sql: '', params: [] }`
-  // when there is nothing to apply. `renderWhere` already skips HAVING (function) rules.
+  // when there is nothing to apply. `renderWhere` already skips every rule whose carried clause
+  // is HAVING (D21) — no sleeve template emits a HAVING at all.
+  //
+  // `calculatedExpressions` is the LAST argument for the same reason it is on the outer call: a
+  // rule naming a Calculated Field compares that field's formula, not a column (#6732).
   renderSleeveWhere(
     filterOpts: SleeveFilterOptions,
     qualify: ColumnRefResolver
@@ -348,7 +474,8 @@ export class MetricSleeveBuilder {
       filterOpts.filters,
       qualify,
       filterOpts.whereParamPrefix,
-      filterOpts.resolveColumnType
+      filterOpts.resolveColumnType,
+      filterOpts.calculatedExpressions
     );
   }
 
@@ -376,22 +503,16 @@ export class MetricSleeveBuilder {
     context: BlendedQueryContext,
     outputAliasToRoot: ReadonlyMap<string, string>,
     cteName: string,
-    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS
+    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS,
+    calculatedDimensions?: SleeveCalculatedDimensions
   ): SleeveResult {
+    const computes = group.metrics.map(m => `${m.function}(${m.column})`).join(', ');
     const fieldIndex = context.fieldIndex;
     if (!fieldIndex) {
       throw new Error(
         `buildValueSleeveGroupCte: context.fieldIndex is required to resolve value-sleeve ` +
-          `metric(s) [${group.metrics.map(m => `${m.function}(${m.column})`).join(', ')}] ` +
+          `metric(s) [${computes}] ` +
           `for owner cteName='${group.ownerCteName}'`
-      );
-    }
-    const ownerChain = context.chains.find(c => c.cteName === group.ownerCteName);
-    if (!ownerChain) {
-      throw new Error(
-        `buildValueSleeveGroupCte: no chain found for owner cteName='${group.ownerCteName}' ` +
-          `of metric(s) [${group.metrics.map(m => `${m.function}(${m.column})`).join(', ')}] ` +
-          `(fieldIndex and context.chains are out of sync)`
       );
     }
     const identityFlags = new Set(
@@ -401,7 +522,7 @@ export class MetricSleeveBuilder {
       throw new Error(
         `buildValueSleeveGroupCte: owner cteName='${group.ownerCteName}' mixes an identity ` +
           `(ANY_VALUE) pre-join field with a non-identity one in the SAME group ` +
-          `[${group.metrics.map(m => `${m.function}(${m.column})`).join(', ')}] — ` +
+          `[${computes}] — ` +
           `splitValueSleeveGroupsByIdentity must separate them before calling this method`
       );
     }
@@ -417,7 +538,205 @@ export class MetricSleeveBuilder {
     }
     const isIdentity = identityFlags.has(true);
 
-    const dimensions = group.dimensions;
+    // One dedup slot per DISTINCT value column in the group — metrics sharing a column (SUM +
+    // AVG of the same field) read the SAME slot, so it's deduped exactly once regardless of
+    // how many outer aggregates consume it. Identity reads the RAW column; non-identity reads
+    // the owner dedup CTE's OWN already-aggregated column (`<ownerCteName>.<outputAlias>` —
+    // e.g. `hits.hits__hitId`, the `COUNT(DISTINCT hitId)` per session), NOT the raw column
+    // ( — the defect this method exists to fix: summing raw ids instead of summing the
+    // per-group pre-join aggregate).
+    const distinctColumns = Array.from(new Set(group.metrics.map(m => m.column)));
+    const valueSlotByColumn = new Map(
+      distinctColumns.map((col, i) => [col, distinctColumns.length === 1 ? '_val' : `_val_${i}`])
+    );
+    const slots = distinctColumns.map(col => ({
+      alias: valueSlotByColumn.get(col)!,
+      sql: isIdentity
+        ? this.sleeveRawRef(col, fieldIndex, outputAliasToRoot).ref
+        : `${this.dialect.quoteIdentifier(group.ownerCteName)}.${this.dialect.quoteIdentifier(col)}`,
+    }));
+
+    const pulls: SleevePull[] = [];
+    const outerAggItems = group.metrics.map(m => {
+      // `ValueSleeveGroup.metrics` is typed as the broader `AggregationRule[]`.
+      if (!VALUE_SLEEVE_FUNCTIONS.has(m.function)) {
+        throw new Error(
+          `buildValueSleeveGroupCte: value-sleeve group metric column='${m.column}' has ` +
+            `function='${m.function}', which SLEEVE_ROUTING does not give the 'value' shape ` +
+            `(only dedup-then-aggregate functions belong in a value-sleeve group)`
+        );
+      }
+      const slot = valueSlotByColumn.get(m.column)!;
+      const alias = aggregatedColumnLabel(m.column, m.function);
+      pulls.push({ metric: m, alias, coalesceEmptyToZero: false });
+      return `${this.dialect.buildAggregation(m.function, this.dialect.quoteIdentifier(slot))} AS ${this.dialect.quoteIdentifier(alias)}`;
+    });
+
+    return this.buildDedupValueSleeveCte({
+      caller: 'buildValueSleeveGroupCte',
+      computes,
+      ownerCteName: group.ownerCteName,
+      dimensions: group.dimensions,
+      cteName,
+      isIdentity,
+      slots,
+      outer: { items: outerAggItems, pulls },
+      context,
+      outputAliasToRoot,
+      filterOpts,
+      calculatedDimensions,
+    });
+  }
+
+  /**
+   * One aggregate call of a calculated metric's formula, computed by its OWN sleeve:
+   * `fn(<valueSql>)` recomputed at the report's dimension grain over the owner's RAW rows. Same
+   * dedup-then-aggregate shape as a value sleeve — the ONE thing that differs is that the inner
+   * slot holds a rendered EXPRESSION (`amount * rate`) instead of a single column reference,
+   * which is what a formula's argument is.
+   *
+   * `group.isIdentity` picks the same two branches the value sleeve has, and for the same reason: a
+   * joined field's declared pre-join `aggregateFunction` is what that field MEANS once blended, so a
+   * formula naming it must read the value a report metric on it would. A single reference to a
+   * funnel-shaped field (`COUNT(DISTINCT hitId)` per session) therefore reads the rolled-up column
+   * off `<owner>`, exactly as `buildValueSleeveGroupCte` does. Raw is right — and is the default —
+   * for a row-level expression over several of the owner's columns (`amount * rate`), which no
+   * single collapsed slot can represent. The caller classifies, because only it can see which
+   * FIELDS the rendered expression reads.
+   *
+   * That the expression reads ONLY the owner is ENFORCED, not assumed. `buildSleeveAncestorJoins`
+   * puts `main` and the whole ancestor closure in scope, while the inner DISTINCT keys on the
+   * OWNER's identity alone — so a call mixing `orders_raw.amount` with a main or ancestor column
+   * would keep N rows apart per owner row and multiply the aggregate by N, silently. The save-time
+   * `FORMULA_AGGREGATE_MIXES_OWNERS` gate cannot protect a formula saved before it landed or one
+   * whose field a later schema change re-homed, so the invariant is asserted where the SQL is
+   * built. The check reaches QUALIFIED references only (see `columnQualifiersIn`); a rendered
+   * reference is always qualified, so an unqualified name in `valueSql` means the renderer is
+   * broken rather than the formula.
+   *
+   * v1 builds one sleeve per call and never merges two, so the caller owns the CTE name and the
+   * output alias (`FormulaSleeveGroup.alias`), and the result carries exactly one pull.
+   */
+  buildFormulaSleeveCte(
+    group: FormulaSleeveGroup,
+    context: BlendedQueryContext,
+    outputAliasToRoot: ReadonlyMap<string, string>,
+    cteName: string,
+    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS,
+    calculatedDimensions?: SleeveCalculatedDimensions
+  ): SleeveResult {
+    // `buildAggregation`'s dialect-specific branches match on the exact spelling, so an
+    // un-normalised name would silently fall through to the generic `<fn>(<slot>)` form.
+    const fn = group.fn.trim().toUpperCase();
+    if (fn.length === 0 || group.valueSql.trim().length === 0 || group.alias.trim().length === 0) {
+      throw new Error(
+        `buildFormulaSleeveCte: formula sleeve '${cteName}' on owner ` +
+          `cteName='${group.ownerCteName}' has an empty fn='${group.fn}', ` +
+          `valueSql='${group.valueSql}' or alias='${group.alias}' — each one renders straight ` +
+          `into the CTE, so an empty piece emits SQL the warehouse rejects`
+      );
+    }
+    const isIdentity = group.isIdentity ?? true;
+    // The one alias the expression may read: the owner's raw rows, or — when the value is a
+    // pre-join roll-up — the owner's own dedup CTE, which is where that roll-up lives.
+    const ownerAlias = isIdentity ? `${group.ownerCteName}_raw` : group.ownerCteName;
+    const foreignQualifiers = columnQualifiersIn(group.valueSql).filter(
+      q => q !== ownerAlias.toLowerCase()
+    );
+    if (foreignQualifiers.length > 0) {
+      // USER DATA — a formula saved before the owner-mixing gate existed, or one a re-homed field
+      // silently turned into a mixed-owner call. Refusing is the only safe answer: the alternative
+      // is a number multiplied by the fan-out with nothing to show it went wrong.
+      throw new BusinessViolationException(
+        `The calculated field '${group.alias}' aggregates over joined source ` +
+          `'${group.ownerCteName}' but its expression also reads ` +
+          `[${foreignQualifiers.join(', ')}]. One aggregate call must read a single source, or ` +
+          `its result is multiplied by the join's fan-out. Split it into one call per source`,
+        { foreignQualifiers }
+      );
+    }
+    if (group.distinct && fn !== 'COUNT') {
+      throw new Error(
+        `buildFormulaSleeveCte: formula sleeve '${cteName}' carries a DISTINCT quantifier on ` +
+          `'${fn}', but only COUNT has an outer spelling for it — planFormulaSleeves refuses the ` +
+          `rest, so reaching here means a caller built the group itself`
+      );
+    }
+    const slotAlias = '_val';
+    const slotRef = this.dialect.quoteIdentifier(slotAlias);
+    // `COUNT_DISTINCT` is the report picklist's spelling of the same thing, and every dialect
+    // already spells it — reusing it keeps one definition of `COUNT(DISTINCT …)` per warehouse.
+    const outerFn = group.distinct ? 'COUNT_DISTINCT' : fn;
+    return this.buildDedupValueSleeveCte({
+      caller: 'buildFormulaSleeveCte',
+      computes: `${fn}(${group.distinct ? 'DISTINCT ' : ''}${group.valueSql})`,
+      ownerCteName: group.ownerCteName,
+      dimensions: group.dimensions,
+      cteName,
+      isIdentity,
+      slots: [{ alias: slotAlias, sql: group.valueSql }],
+      outer: {
+        // A formula may spell any aggregate ITS warehouse offers (`FormulaFunctionDialect`), not
+        // the report builder's closed picklist; `buildAggregation` spells the ones it knows per
+        // dialect and renders the rest verbatim.
+        items: [
+          `${this.dialect.buildAggregation(outerFn as ReportAggregateFunction, slotRef)} AS ${this.dialect.quoteIdentifier(group.alias)}`,
+        ],
+        pulls: [{ alias: group.alias, coalesceEmptyToZero: isCountingFormulaFunction(fn) }],
+      },
+      context,
+      outputAliasToRoot,
+      filterOpts,
+      calculatedDimensions,
+    });
+  }
+
+  /**
+   * The dedup-then-aggregate CTE that every value-shaped sleeve IS: an inner
+   * `SELECT DISTINCT (dims, owner identity, value slot(s))` over the raw (pre-dedup) path,
+   * wrapped by an outer aggregate per slot.
+   *
+   * What its two callers decide is only WHAT the slots hold and HOW they are aggregated — one
+   * column reference per metric for `buildValueSleeveGroupCte`, one rendered expression for
+   * `buildFormulaSleeveCte`. Everything else (the two join sets, the dimension expressions, the
+   * owner-identity leg, the reserved-alias guard, the reproduced WHERE and the kept-groups
+   * semi-join) is identical and must stay so: a sleeve that resolved any of them differently
+   * would aggregate over a different row set than the query it feeds.
+   */
+  private buildDedupValueSleeveCte(spec: {
+    /** The public method that asked for this CTE, quoted back in the guards' messages. */
+    caller: string;
+    /** What this sleeve computes (`SUM(col), AVG(col)`), for those guards and the CTE's comment. */
+    computes: string;
+    ownerCteName: string;
+    dimensions: string[];
+    cteName: string;
+    /**
+     * Whether the value is read off the owner's RAW rows — its raw ancestor closure is then the
+     * fan-out identity source — or off the owner's own dedup CTE. See the two branches below.
+     */
+    isIdentity: boolean;
+    /** The inner `SELECT DISTINCT`'s value slots, in emission order. */
+    slots: { alias: string; sql: string }[];
+    /** The outer aggregates over those slots, and the output columns they feed. */
+    outer: { items: string[]; pulls: SleevePull[] };
+    context: BlendedQueryContext;
+    outputAliasToRoot: ReadonlyMap<string, string>;
+    filterOpts: SleeveFilterOptions;
+    /** The row-level plans behind any calculated name in `dimensions` (#6732). */
+    calculatedDimensions?: SleeveCalculatedDimensions;
+  }): SleeveResult {
+    const { caller, computes, ownerCteName, dimensions, cteName, isIdentity } = spec;
+    const { context, outputAliasToRoot, filterOpts } = spec;
+    const ownerChain = context.chains.find(c => c.cteName === ownerCteName);
+    if (!ownerChain) {
+      throw new Error(
+        `${caller}: no chain found for owner cteName='${ownerCteName}' ` +
+          `of metric(s) [${computes}] ` +
+          `(fieldIndex and context.chains are out of sync)`
+      );
+    }
+
     const qualify = createColumnQualifier(this.dialect, outputAliasToRoot);
 
     let rawJoins: string[];
@@ -426,7 +745,7 @@ export class MetricSleeveBuilder {
       // Identity (raw ANY_VALUE passthrough) — UNCHANGED from R1: the metric OWNER's raw
       // ancestor closure is the sole fan-out identity source, feeding `__owox_rid` + the raw value.
       // The dedup-CTE joins cover dimensions + post-join filter columns only.
-      rawJoins = this.buildSleeveAncestorJoins([group.ownerCteName], context);
+      rawJoins = this.buildSleeveAncestorJoins([ownerCteName], context);
       dedupJoins = this.buildSleeveDedupRootJoins(
         [...dimensions, ...sleeveJoinColumns(filterOpts)],
         outputAliasToRoot,
@@ -441,7 +760,7 @@ export class MetricSleeveBuilder {
       // folded into the SAME combined set as the dimension/filter dedup joins so a chain that
       // is BOTH the value owner AND a dimension/filter root is only joined once.
       rawJoins = this.buildSleeveAncestorJoins([ownerChain.parentAlias], context);
-      const dedupRootCteNames = new Set<string>([group.ownerCteName]);
+      const dedupRootCteNames = new Set<string>([ownerCteName]);
       for (const col of [...dimensions, ...sleeveJoinColumns(filterOpts)]) {
         const root = outputAliasToRoot.get(col);
         if (root) dedupRootCteNames.add(root);
@@ -463,7 +782,10 @@ export class MetricSleeveBuilder {
     const dimRefs: { column: string; outer: string; sleeve: string }[] = [];
     const selectDims: string[] = [];
     dimensions.forEach((d, i) => {
-      const outerExpr = this.renderDimensionExpr(qualify(d), d, context);
+      const outerExpr = this.renderDimensionExpr(d, context, {
+        qualify,
+        calculatedDimensions: spec.calculatedDimensions,
+      });
       const dimAlias = this.dialect.quoteIdentifier(sleeveDimensionAlias(i));
       selectDims.push(`${outerExpr} AS ${dimAlias}`);
       dimRefs.push({
@@ -488,12 +810,12 @@ export class MetricSleeveBuilder {
     // names the relationship and the repair.
     if (ownerChain.relationship.joinConditions.length === 0) {
       throw new BusinessViolationException(
-        `Joined source '${group.ownerCteName}' has no join conditions, so ` +
-          `[${group.metrics.map(m => `${m.function}(${m.column})`).join(', ')}] cannot be ` +
+        `Joined source '${ownerCteName}' has no join conditions, so ` +
+          `[${computes}] cannot be ` +
           `de-duplicated and would be undercounted. Edit the relationship to add a join condition`
       );
     }
-    const rawOwnerAlias = this.dialect.quoteIdentifier(`${group.ownerCteName}_raw`);
+    const rawOwnerAlias = this.dialect.quoteIdentifier(`${ownerCteName}_raw`);
     // Same resolver the raw-CTE builder used to decide what to project.
     const ownerIdentity = valueSleeveIdentityFor(ownerChain);
     if (isIdentity && ownerIdentity.kind === 'primary-key') {
@@ -544,7 +866,7 @@ export class MetricSleeveBuilder {
     } else {
       const keyRefs = ownerChain.relationship.joinConditions.map(
         jc =>
-          `${this.dialect.quoteIdentifier(group.ownerCteName)}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
+          `${this.dialect.quoteIdentifier(ownerCteName)}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
       );
       oidAliasNames = keyRefs.length === 1 ? ['_oid'] : keyRefs.map((_, i) => `_oid_${i}`);
       oidItems =
@@ -552,18 +874,6 @@ export class MetricSleeveBuilder {
           ? [`${keyRefs[0]} AS ${this.dialect.quoteIdentifier('_oid')}`]
           : keyRefs.map((ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(`_oid_${i}`)}`);
     }
-
-    // One dedup slot per DISTINCT value column in the group — metrics sharing a column (SUM +
-    // AVG of the same field) read the SAME slot, so it's deduped exactly once regardless of
-    // how many outer aggregates consume it. Identity reads the RAW column; non-identity reads
-    // the owner dedup CTE's OWN already-aggregated column (`<ownerCteName>.<outputAlias>` —
-    // e.g. `hits.hits__hitId`, the `COUNT(DISTINCT hitId)` per session), NOT the raw column
-    // ( — the defect this method exists to fix: summing raw ids instead of summing the
-    // per-group pre-join aggregate).
-    const distinctColumns = Array.from(new Set(group.metrics.map(m => m.column)));
-    const valueSlotByColumn = new Map(
-      distinctColumns.map((col, i) => [col, distinctColumns.length === 1 ? '_val' : `_val_${i}`])
-    );
 
     // Mediums: a report dimension literally named one of the synthetic aliases
     // this method assigns to the owner-identity leg (`_oid`, `_oid_<i>`, `_oid_k<i>`,
@@ -575,7 +885,7 @@ export class MetricSleeveBuilder {
     // class of guard `buildRawCte` applies to `__owox_rid`.
     const reservedInnerSleeveNames = new Set<string>([
       ...oidAliasNames,
-      ...valueSlotByColumn.values(),
+      ...spec.slots.map(s => s.alias),
       '_dedup',
     ]);
     // A BACKSTOP since dimensions became positionally aliased (`_owox_dim_<i>`): they no longer
@@ -599,10 +909,10 @@ export class MetricSleeveBuilder {
     );
     if (dimensionReservedNameCollisions.length > 0) {
       throw new BusinessViolationException(
-        `buildValueSleeveGroupCte: dimension column(s) ` +
+        `${caller}: dimension column(s) ` +
           `[${dimensionReservedNameCollisions.join(', ')}] collide with a reserved internal ` +
           `alias ('${Array.from(reservedInnerSleeveNames).join("', '")}') of the sleeve ` +
-          `'${cteName}' computing [${group.metrics.map(m => `${m.function}(${m.column})`).join(', ')}] ` +
+          `'${cteName}' computing [${computes}] ` +
           `— rename the field/output alias`,
         // Structured so callers that must not forward a raw message can still name the column.
         // The MCP tool builds its guidance from this alone; without it the message is dropped
@@ -611,12 +921,9 @@ export class MetricSleeveBuilder {
       );
     }
 
-    const innerValueItems = distinctColumns.map(col => {
-      const ref = isIdentity
-        ? this.sleeveRawRef(col, fieldIndex, outputAliasToRoot).ref
-        : `${this.dialect.quoteIdentifier(group.ownerCteName)}.${this.dialect.quoteIdentifier(col)}`;
-      return `${ref} AS ${this.dialect.quoteIdentifier(valueSlotByColumn.get(col)!)}`;
-    });
+    const innerValueItems = spec.slots.map(
+      s => `${s.sql} AS ${this.dialect.quoteIdentifier(s.alias)}`
+    );
     const innerSelectItems = [...selectDims, ...oidItems, ...innerValueItems];
 
     // The outer wrapper groups by the DIMENSION'S OWN ALIAS as already projected by the inner
@@ -624,21 +931,6 @@ export class MetricSleeveBuilder {
     const outerDimCols = dimensions.map((_, i) =>
       this.dialect.quoteIdentifier(sleeveDimensionAlias(i))
     );
-    const pulls: SleevePull[] = [];
-    const outerAggItems = group.metrics.map(m => {
-      // `ValueSleeveGroup.metrics` is typed as the broader `AggregationRule[]`.
-      if (!VALUE_SLEEVE_FUNCTIONS.has(m.function)) {
-        throw new Error(
-          `buildValueSleeveGroupCte: value-sleeve group metric column='${m.column}' has ` +
-            `function='${m.function}', which SLEEVE_ROUTING does not give the 'value' shape ` +
-            `(only dedup-then-aggregate functions belong in a value-sleeve group)`
-        );
-      }
-      const slot = valueSlotByColumn.get(m.column)!;
-      const alias = aggregatedColumnLabel(m.column, m.function);
-      pulls.push({ metric: m, alias, coalesceEmptyToZero: false });
-      return `${this.dialect.buildAggregation(m.function, this.dialect.quoteIdentifier(slot))} AS ${this.dialect.quoteIdentifier(alias)}`;
-    });
 
     // No report dimensions (a lone grand-total group): the outer wrapper collapses to one
     // global row, so it must NOT emit a trailing `GROUP BY` with no keys.
@@ -654,16 +946,15 @@ export class MetricSleeveBuilder {
     // A SQL comment ABOVE the CTE saying what this calculation is and why it exists, so a human
     // reading the GENERATED SQL (not this source file) understands the extra CTE without
     // archaeology. Two lines: the claim, then the reason it has to be computed this way.
-    const metricsLabel = group.metrics.map(m => `${m.function}(${m.column})`).join(', ');
     const sleeveLabel = sanitizeSqlComment(
-      `calculation: ${metricsLabel} de-duplicated before aggregating,`
+      `calculation: ${computes} de-duplicated before aggregating,`
     );
     const sleeveReason = sanitizeSqlComment(`so the join's fan-out cannot distort it`);
 
     const sql =
       `  -- ${sleeveLabel}\n  -- ${sleeveReason}\n` +
       `  ${this.dialect.quoteIdentifier(cteName)} AS (\n` +
-      `    SELECT\n      ${[...outerDimCols, ...outerAggItems].join(',\n      ')}\n` +
+      `    SELECT\n      ${[...outerDimCols, ...spec.outer.items].join(',\n      ')}\n` +
       `    FROM (\n` +
       `      SELECT DISTINCT\n        ${innerSelectItems.join(',\n        ')}\n` +
       `      FROM ${this.dialect.quoteIdentifier('main')}\n` +
@@ -673,7 +964,7 @@ export class MetricSleeveBuilder {
       outerGroupByLine +
       `  )`;
 
-    return { cteName, pulls, dimRefs, sql, params: where.params };
+    return { cteName, pulls: spec.outer.pulls, dimRefs, sql, params: where.params };
   }
 
   /**
@@ -723,7 +1014,9 @@ export class MetricSleeveBuilder {
     filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS,
     // the full set of COUNT DISTINCT metrics this one CTE serves, when the
     // caller merged several that share an owner chain and dimensions. Omitted → just `metric`.
-    mergedMetrics?: AggregationRule[]
+    mergedMetrics?: AggregationRule[],
+    // The row-level plans behind any calculated name in `dimensions` (#6732).
+    calculatedDimensions?: SleeveCalculatedDimensions
   ): {
     cteName: string;
     alias: string;
@@ -775,7 +1068,8 @@ export class MetricSleeveBuilder {
         context,
         outputAliasToRoot,
         sleeveCteName,
-        filterOpts
+        filterOpts,
+        calculatedDimensions
       );
       return {
         cteName: merged.cteName,
@@ -848,6 +1142,7 @@ export class MetricSleeveBuilder {
       context,
       outputAliasToRoot,
       filterOpts,
+      calculatedDimensions,
     });
 
     return {
@@ -885,7 +1180,8 @@ export class MetricSleeveBuilder {
     context: BlendedQueryContext,
     outputAliasToRoot: ReadonlyMap<string, string>,
     cteName: string,
-    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS
+    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS,
+    calculatedDimensions?: SleeveCalculatedDimensions
   ): SleeveResult {
     // USER DATA, like the join-conditions guard above: the key is read from the joined Data Mart's
     // schema, which can lose it after the report was saved. A bare Error is a 500 with an empty
@@ -932,6 +1228,7 @@ export class MetricSleeveBuilder {
       context,
       outputAliasToRoot,
       filterOpts,
+      calculatedDimensions,
     });
 
     return {
@@ -959,7 +1256,7 @@ export class MetricSleeveBuilder {
       // a report and running it, so this is reachable from user data — not a 500 with no message.
       throw new BusinessViolationException(
         `Joined source '${ownerCteName}' of ${ownerDescription} is not among this report's ` +
-          `resolved joins, so the metric has no rows to read. Check that the Data Mart is still ` +
+          `resolved joins, so it has no rows to read. Check that the Data Mart is still ` +
           `joined to this one and allowed for reporting`
       );
     }
@@ -999,6 +1296,8 @@ export class MetricSleeveBuilder {
     context: BlendedQueryContext;
     outputAliasToRoot: ReadonlyMap<string, string>;
     filterOpts: SleeveFilterOptions;
+    /** The row-level plans behind any calculated name in `dimensions` (#6732). */
+    calculatedDimensions?: SleeveCalculatedDimensions;
   }): {
     dimRefs: { column: string; outer: string; sleeve: string }[];
     sql: string;
@@ -1032,7 +1331,10 @@ export class MetricSleeveBuilder {
     const groupByParts: string[] = [];
     const selectDims: string[] = [];
     dimensions.forEach((d, i) => {
-      const outerExpr = this.renderDimensionExpr(qualify(d), d, context);
+      const outerExpr = this.renderDimensionExpr(d, context, {
+        qualify,
+        calculatedDimensions: opts.calculatedDimensions,
+      });
       const dimAlias = this.dialect.quoteIdentifier(sleeveDimensionAlias(i));
       groupByParts.push(outerExpr);
       selectDims.push(`${outerExpr} AS ${dimAlias}`);
@@ -1096,13 +1398,60 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * Renders a dimension reference so a sleeve CTE's SELECT/GROUP BY stays identical
-   * to the outer aggregated SELECT's rendering for the same column (extracted from the
-   * date-trunc branch `renderAggregatedSelect` uses, so both paths can't drift apart).
+   * Renders ONE element of a sleeve's grain so its SELECT/GROUP BY stays identical to the outer
+   * aggregated SELECT's rendering for the same key — the three shapes `renderAggregatedSelect`
+   * itself emits: a plain qualified column, a date-trunc bucket, and a row-level calculated
+   * field's formula (#6732). All three go through the SAME functions the outer SELECT uses, so
+   * neither path can drift from the other.
+   *
+   * Takes the grain ELEMENT rather than an already-qualified ref, because a calculated field has
+   * no column to qualify: it is a NAME in the grain and an expression on `opts.calculatedDimensions`.
+   *
+   * The calculated branch is checked FIRST because the two lookups answer different questions and
+   * only the first one can qualify: a calculated name is not a column, so `qualify(dimension)`
+   * below would resolve it against `main` and emit a column no CTE projects. But it must not
+   * RETURN before the bucket is applied — since slice 3b a row-level calculated field may be
+   * bucketed by date (#6732 D16/D17), and the outer SELECT then groups by
+   * `renderDateTruncExpression(renderRowLevelDimensionExpression(...), unit, tz, plan.type)`. Both
+   * steps, in that order, or this sleeve joins back on the raw formula against a truncated outer
+   * key — the drift `abstract-blended-query-builder.ts` records as having already cost this feature
+   * a metric that read NULL on every row, and would today read as a COALESCEd zero.
+   *
+   * The type argument is the PLAN's declared type, not `columnTypes.postJoin`: the plan objects
+   * here are the SAME ones the outer SELECT renders from, so byte-identity holds by object identity
+   * rather than by two lookups happening to agree. Nothing is cast on the way (D16).
    */
-  renderDimensionExpr(ref: string, column: string, context: BlendedQueryContext): string {
+  renderDimensionExpr(
+    dimension: string,
+    context: BlendedQueryContext,
+    opts: {
+      /** How a real column becomes a ref — the SAME qualifier the outer query resolves through. */
+      qualify: ColumnRefResolver;
+      calculatedDimensions?: SleeveCalculatedDimensions;
+    }
+  ): string {
+    const plan = opts.calculatedDimensions?.plans.get(dimension);
+    if (plan) {
+      const renderer = this.dialect.clauseRenderer();
+      if (!renderer) {
+        throw new Error(
+          `renderDimensionExpr: dimension '${dimension}' is a row-level calculated field but ` +
+            `this storage has no clause renderer, so its formula cannot be rendered inside the sleeve`
+        );
+      }
+      const expression = renderer.renderRowLevelDimensionExpression(
+        plan,
+        opts.calculatedDimensions!.renderOptions
+      );
+      const { units, zones } = this.dateTruncMapsFor(context);
+      const unit = units?.get(dimension);
+      return unit
+        ? renderer.renderDateTruncExpression(expression, unit, zones?.get(dimension), plan.type)
+        : expression;
+    }
+    const ref = opts.qualify(dimension);
     const { units, zones } = this.dateTruncMapsFor(context);
-    const unit = units?.get(column);
+    const unit = units?.get(dimension);
     if (!unit) return ref;
     const renderer = this.dialect.clauseRenderer();
     if (!renderer) {
@@ -1111,12 +1460,12 @@ export class MetricSleeveBuilder {
       // matches nothing. Unreachable from `buildBlendedQuery` (its capability guard rejects a
       // rendererless dialect long before), but this method is public.
       throw new Error(
-        `renderDimensionExpr: dimension '${column}' carries a date-trunc unit but this storage ` +
+        `renderDimensionExpr: dimension '${dimension}' carries a date-trunc unit but this storage ` +
           `has no clause renderer, so the truncation cannot be reproduced inside the sleeve`
       );
     }
-    const type = context.columnTypes?.postJoin?.get(column);
-    return renderer.renderDateTruncExpression(ref, unit, zones?.get(column), type);
+    const type = context.columnTypes?.postJoin?.get(dimension);
+    return renderer.renderDateTruncExpression(ref, unit, zones?.get(dimension), type);
   }
 
   /**

@@ -94,6 +94,7 @@ export function RedshiftSchemaTable({
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.AWS_REDSHIFT}
       />
     </DndContext>
   );

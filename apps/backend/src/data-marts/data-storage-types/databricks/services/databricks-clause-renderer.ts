@@ -3,6 +3,7 @@ import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-render
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeDatabricksIdentifier } from '../utils/databricks-identifier.utils';
+import { DatabricksFieldType } from '../enums/databricks-field-type.enum';
 
 /**
  * Formats a value as a Databricks (Spark SQL) literal. The renderer inlines every value
@@ -43,6 +44,27 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     return 'STRING';
   }
 
+  // Spark SQL answers to its own vocabulary, so the integer entries are identities. Two are not:
+  // a bare DECIMAL is (10,0) here and would truncate every fraction, and Spark's FLOAT is 32-bit —
+  // `12.75` was measured through DOUBLE, and a formula returning a double today would silently
+  // round to ~7 significant digits under a FLOAT target. A cast may widen a declared float; it must
+  // never narrow one (#6732).
+  private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
+    [DatabricksFieldType.TINYINT, 'TINYINT'],
+    [DatabricksFieldType.SMALLINT, 'SMALLINT'],
+    [DatabricksFieldType.INT, 'INT'],
+    [DatabricksFieldType.BIGINT, 'BIGINT'],
+    [DatabricksFieldType.FLOAT, 'DOUBLE'],
+    [DatabricksFieldType.DOUBLE, 'DOUBLE'],
+    [DatabricksFieldType.DECIMAL, 'DECIMAL(38,18)'],
+  ]);
+
+  public override castTypeForDeclaredType(declaredType: string): string | undefined {
+    return DatabricksClauseRenderer.CAST_TYPE_BY_DECLARED_TYPE.get(
+      declaredType.trim().toUpperCase()
+    );
+  }
+
   protected validateFragment(clause: RenderedClause): void {
     if (clause.params.length !== 0) {
       throw new Error(
@@ -52,11 +74,20 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  private litCast(value: string | number | boolean | null, columnType?: string): string {
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes (#6732, D25) —
+  // disjoint from the date set above, since it is only ever a numeric target.
+  private litCast(
+    value: string | number | boolean | null,
+    columnType?: string,
+    valueCastType?: string
+  ): string {
     const l = formatDatabricksLiteral(value);
-    return columnType && DatabricksClauseRenderer.DATE_CAST_TYPES.has(columnType)
-      ? `CAST(${l} AS ${columnType})`
-      : l;
+    const castType =
+      valueCastType ??
+      (columnType && DatabricksClauseRenderer.DATE_CAST_TYPES.has(columnType)
+        ? columnType
+        : undefined);
+    return castType ? `CAST(${l} AS ${castType})` : l;
   }
 
   protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
@@ -83,9 +114,11 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     rule: FilterRule,
     _paramName: string,
     col: string,
-    columnType?: string
+    columnType?: string,
+    valueCastType?: string
   ): RenderedClause {
-    const lit = (v: string | number | boolean | null): string => this.litCast(v, columnType);
+    const lit = (v: string | number | boolean | null): string =>
+      this.litCast(v, columnType, valueCastType);
     // Text operators are validator-restricted to string columns: always a string literal.
     const text = (v: string | number | boolean | null): string =>
       formatDatabricksLiteral(String(v));

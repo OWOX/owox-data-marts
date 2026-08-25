@@ -139,6 +139,7 @@ export class UpdateReportService {
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: nextUniqueCountConfig,
       accessor: { userId: command.userId, roles: command.roles },
+      dataMartSchemaFields: report.dataMart.schema?.fields,
       // Only a CHANGED selection is a fresh assertion by the caller. Re-sending the stored one —
       // what MCP update_report and every GET→PUT client do — must not turn a source going stale
       // into a permanent 400 on renaming the report.

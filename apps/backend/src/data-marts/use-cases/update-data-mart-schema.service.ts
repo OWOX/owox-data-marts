@@ -1,9 +1,18 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import {
+  CalculatedFieldValidatorService,
+  DryRunContext,
+} from '../calculated-fields/calculated-field-validator.service';
+import { FormulaViolations } from '../calculated-fields/formula-violations';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { DataMartSchemaParserFacade } from '../data-storage-types/facades/data-mart-schema-parser-facade.service';
-import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
+import { UpdateDataMartSchemaResult } from '../dto/domain/update-data-mart-schema-result.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
+import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
 
@@ -13,13 +22,16 @@ export class UpdateDataMartSchemaService {
 
   constructor(
     private readonly dataMartService: DataMartService,
+    private readonly reportDataCacheService: ReportDataCacheService,
     private readonly schemaParserFacade: DataMartSchemaParserFacade,
+    private readonly calculatedFieldValidator: CalculatedFieldValidatorService,
     private readonly mapper: DataMartMapper,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
     private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
-  async run(command: UpdateDataMartSchemaCommand): Promise<DataMartDto> {
+  async run(command: UpdateDataMartSchemaCommand): Promise<UpdateDataMartSchemaResult> {
     this.logger.debug(`Updating data mart ${command.id} schema ${command.schema}`);
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
@@ -37,17 +49,89 @@ export class UpdateDataMartSchemaService {
       }
     }
 
-    dataMart.schema = await this.schemaParserFacade.validateAndParse(
+    const parsed = await this.schemaParserFacade.validateAndParse(
       command.schema,
       dataMart.storage.type
     );
+
+    // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
+    // reads `ctx.dataMart.schema` to find each metric's formula, so the context below must carry
+    // the schema BEING SAVED, never the stale one still in the database — otherwise a brand-new
+    // metric is dry-run as an unknown column, and an edited formula's OLD text is what actually
+    // gets validated while the new one is persisted as `warehouseValidation: 'passed'`. Safe to
+    // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
+    // failure afterwards just leaves the in-memory mutation unpersisted.
+    dataMart.schema = parsed;
+
+    const calculatedFields = calculatedFieldsOf(parsed.fields);
+    const storageConfig = dataMart.storage.config;
+    // Storage can exist without being fully configured yet (created, then wired to a warehouse in
+    // a later step) — a reachable state, not a corner case.
+    const storageNotConfigured = calculatedFields.length > 0 && !storageConfig;
+
+    // Resolving credentials can mean a real round trip (e.g. a BigQuery OAuth token exchange), so
+    // it only runs when the schema actually carries a formula to dry-run — most saves (renames,
+    // hidden-field toggles, no calculated fields at all) never touch it.
+    const ctx: DryRunContext | undefined =
+      storageConfig && calculatedFields.length > 0
+        ? {
+            dataMart,
+            storageType: dataMart.storage.type,
+            credentials: await this.credentialsResolver.resolve(dataMart.storage),
+            config: storageConfig,
+          }
+        : undefined;
+
+    const { errors, warnings, warehouseValidation } = await this.calculatedFieldValidator.validate(
+      parsed,
+      dataMart.storage.type,
+      ctx,
+      // Passed whether or not the storage is configured: a joined reference resolves against the
+      // Data Mart's relationships, which exist independently of the warehouse.
+      {
+        dataMartId: dataMart.id,
+        projectId: command.projectId,
+        accessor: { userId: command.userId, roles: command.roles },
+      }
+    );
+    if (errors.length > 0) {
+      // All violations in one round trip: the editor shows every offending field at once, instead
+      // of making the analyst rediscover them one save at a time (spec §6.2).
+      throw new BusinessViolationException('Calculated field validation failed', { errors });
+    }
+
+    // Storage not being configured yet is treated exactly like the warehouse being unreachable:
+    // the save still succeeds, but silently — no warning, no stamp — would hide that the formula
+    // was never actually checked. `ctx` is guaranteed undefined here (no storageConfig), so
+    // `warehouseValidation` from the validator is always undefined too; this is the only source
+    // of the 'skipped' outcome for this case.
+    if (storageNotConfigured) {
+      warnings.push(FormulaViolations.warehouseCheckSkipped(calculatedFields.map(f => f.name)));
+    }
+    const effectiveWarehouseValidation = storageNotConfigured ? 'skipped' : warehouseValidation;
+
+    // Design decision 9: a `skipped` metric must be re-checked on the next save, and a `passed`
+    // one carries proof it was. Both need the stamp to actually reach the persisted field —
+    // computing it and never writing it down defeats the point.
+    if (effectiveWarehouseValidation) {
+      for (const field of calculatedFields) {
+        field.calculated.warehouseValidation = effectiveWarehouseValidation;
+      }
+    }
+
     await this.dataMartService.save(dataMart);
+    // A cached Looker Studio reader is keyed on the report and an expiry alone — nothing in the key
+    // fingerprints the schema — so without this an edited formula keeps serving the OLD formula's
+    // numbers under the OLD headers until `cacheLifetime` (min 60s, no upper bound) runs out. Same
+    // call, same placement, as the sibling mutators that already invalidate on a schema-shaping
+    // change (UpdateBlendedFieldsConfigService, Update/DeleteDataMartRelationshipService).
+    await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
     await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
       dataMart.id,
       command.projectId
     );
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
-    return this.mapper.toDomainDto(dataMart);
+    return { ...this.mapper.toDomainDto(dataMart), warnings };
   }
 }

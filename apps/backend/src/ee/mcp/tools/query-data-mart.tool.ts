@@ -87,7 +87,7 @@ When building the query:
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
 - aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
 - For “how many” questions, use COUNT or COUNT_DISTINCT (when the business meaning is unique entities) instead of returning raw rows and counting them yourself. Keep only dimensions the user asked to break the count by.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE).
+- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE), and never to a Calculated Field, whose bucket must be requested without one.
 
 Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
 ${buildFieldTypeMatrixSection()}
@@ -483,6 +483,24 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         'permission_denied',
         'This query references one or more data marts you do not have reporting access to. Remove the joined/blended field(s) you cannot access, or ask an admin to grant access.'
       );
+    }
+
+    // A calculated-field refusal raised OUTSIDE the output-controls validator (#6732): the
+    // row-level-on-a-joined-report guard in `blended-report-data.service.ts`, and
+    // `composeMetricsOnly`'s joined-reference guard. Both hand-write their reason and name only
+    // fields of the caller's own Data Mart, so the message is forwarded rather than reworded —
+    // there is no second seat for a reason that will change again in slice 2. Without this
+    // branch they fall to the generic `query_failed` below, which names no field and tells the
+    // agent to check field names that are correct. Kept BELOW the denial branch so that an
+    // exception ever carrying both keys is answered by the one that leaks nothing.
+    if (err instanceof BusinessViolationException) {
+      const calculatedFields = err.errorDetails?.['calculatedFields'] as string[] | undefined;
+      if (calculatedFields?.length) {
+        return toStructuredToolError(
+          'calculated_field_not_supported',
+          `${err.message}. Drop ${calculatedFields.join(', ')} from "fields" and retry to get the rest of the answer — the field name(s) are correct, so do not re-fetch the schema. Changing the formula itself takes a person editing the Data Mart in OWOX.`
+        );
+      }
     }
 
     if (err instanceof BadRequestException) {

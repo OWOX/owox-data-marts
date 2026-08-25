@@ -70,6 +70,11 @@ describe('AiAssistantSqlContextPrefetchService', () => {
         fields: [
           { name: 'connected_field', status: DataMartSchemaFieldStatus.CONNECTED },
           { name: 'disconnected_field', status: DataMartSchemaFieldStatus.DISCONNECTED },
+          {
+            name: 'ctr',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+          },
         ],
       },
     });
@@ -79,6 +84,8 @@ describe('AiAssistantSqlContextPrefetchService', () => {
 
     expect(result.result.fullyQualifiedTableName).toBe('project.dataset.table_name');
     expect(result.result.metadata.storageType).toBe('bigquery');
+    // Neither the DISCONNECTED field nor the calculated one (no physical column, however
+    // "connected" its status reads) may reach the AI SQL-builder's authoritative schema.
     expect(result.result.metadata.schema.fields).toEqual([
       { name: 'connected_field', status: DataMartSchemaFieldStatus.CONNECTED },
     ]);
