@@ -1660,6 +1660,32 @@ describe('CalculatedFieldValidatorService', () => {
         expect(result.warehouseValidation).toBeUndefined();
       });
 
+      // One level past the veto: the analyst plants the transport wording as a VALUE, so the
+      // warehouse echoes it back in a message that carries no rejection marker at all.
+      // `CAST('timed out' AS INT64)` is refused by BigQuery with `Bad int64 value: timed out`.
+      // Read whole, that matches `timed? ?out` and the save is stamped 'skipped' — switching the
+      // warehouse check off for every OTHER calculated field in the same save. The heuristic now
+      // reads only what the warehouse said on its own account.
+      it('still blocks a rejection whose transport wording came from the formula itself', async () => {
+        const { validator: v, dryRun } = buildValidator();
+        dryRun.execute.mockResolvedValue(SqlDryRunResult.failed('Bad int64 value: timed out'));
+        const schema = schemaWith([
+          { name: 'x', type: 'INTEGER' },
+          {
+            name: 'a',
+            type: 'INTEGER',
+            calculated: { formula: `CAST('timed out' AS INT64)`, level: 'metric' },
+          },
+        ]);
+
+        const result = await v.validate(schema, DataStorageType.GOOGLE_BIGQUERY, buildCtx());
+
+        expect(result.errors).toEqual([
+          expect.objectContaining({ field: 'a', code: 'FORMULA_WAREHOUSE_REJECTED' }),
+        ]);
+        expect(result.warehouseValidation).toBeUndefined();
+      });
+
       // The veto must not swallow a real outage: these carry no SQL-rejection marker at all.
       it.each([
         ['a reset connection', 'ECONNRESET while contacting the endpoint'],

@@ -25,6 +25,7 @@ import {
 } from './formula-function-dialect';
 import { FormulaViolation, FormulaViolations } from './formula-violations';
 import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
+import { scanSql } from './sql-token-scanner';
 import {
   FormulaReference,
   FormulaReferenceSyntaxError,
@@ -119,11 +120,51 @@ const TRANSIENT_FAILURE_PATTERN =
 const SQL_REJECTION_PATTERN =
   /unrecognized name|syntax error|type not found|column_not_found|table_not_found|function_not_found|does not exist|cannot be resolved|sql compilation error|unresolved_column|analysisexception|invalid identifier|semantic analysis|line \d+:\d+/i;
 
-function isTransientFailure(result: SqlDryRunResult): boolean {
+/**
+ * The warehouse's error with everything the ANALYST authored blanked out, so the transient patterns
+ * above are matched only against the warehouse's OWN words.
+ *
+ * The veto closed the case where a rejection quotes the offending SQL back. It does not close the
+ * case where the analyst plants the transport wording as a VALUE: `CAST('timed out' AS INT64)` is
+ * refused by BigQuery with `Bad int64 value: timed out`, which carries no rejection marker and
+ * matches `timed? ?out`. One such formula turns its whole save into `warehouseValidation:
+ * 'skipped'` — the warehouse check switched off for every other calculated field in the same save.
+ *
+ * So the text a formula could have put there is removed first: the contents of its quoted literals,
+ * and the field's own name. What survives is what the warehouse said on its own account, and that
+ * is what the heuristic is entitled to read.
+ */
+function withoutAnalystText(error: string, fields: readonly CalculatedSchemaField[]): string {
+  // Nothing shorter than this is masked. A field legitimately named `a` would otherwise blank every
+  // `a` in the message and take unrelated words with it — `status 401` became `st tus 401` and
+  // stopped reading as a status. Below three characters the text is too short to carry a transport
+  // phrase anyway, so the floor costs nothing.
+  const MIN_MASKABLE = 3;
+  const mask = (masked: string, text: string): string =>
+    text.length >= MIN_MASKABLE ? masked.split(text).join(' ') : masked;
+
+  let masked = error;
+  for (const field of fields) {
+    for (const token of scanSql(field.calculated.formula)) {
+      if (token.kind !== 'string' && token.kind !== 'quotedIdentifier') continue;
+      // Drop the delimiters; what a warehouse echoes back is the VALUE, not the quoted form.
+      masked = mask(masked, token.value.slice(1, -1));
+    }
+    masked = mask(masked, field.name);
+  }
+  return masked;
+}
+
+function isTransientFailure(
+  result: SqlDryRunResult,
+  fields: readonly CalculatedSchemaField[]
+): boolean {
   if (result.isValid) return false;
   const error = result.error ?? '';
+  // The veto reads the RAW text on purpose: a rejection marker is the warehouse's own vocabulary,
+  // and masking could only ever remove one, which would make this LESS strict.
   if (SQL_REJECTION_PATTERN.test(error)) return false;
-  return TRANSIENT_FAILURE_PATTERN.test(error);
+  return TRANSIENT_FAILURE_PATTERN.test(withoutAnalystText(error, fields));
 }
 
 /**
@@ -669,7 +710,7 @@ export class CalculatedFieldValidatorService {
       // A resolved `isValid: false` whose error text LOOKS like a transport/availability failure
       // (see `TRANSIENT_FAILURE_PATTERN`) is not a verdict on the SQL either — every executor
       // converts its own network exceptions into exactly this shape instead of throwing.
-      return isTransientFailure(result) ? 'unreachable' : result;
+      return isTransientFailure(result, fields) ? 'unreachable' : result;
     } catch {
       // A thrown exception — e.g. a genuinely unhandled failure below the executor layer — gets
       // the same treatment: not a verdict on the SQL, so it must not block the save either.
