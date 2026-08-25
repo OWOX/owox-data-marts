@@ -178,7 +178,7 @@ export interface NativeField {
   allowedAggregations?: ReportAggregateFunction[];
   /**
    * Present only on a calculated field — a field computed from a formula rather than sourced
-   * from the warehouse (spec §2.1). The picker never reads `formula` itself; its mere presence is
+   * from the warehouse. The picker never reads `formula` itself; its mere presence is
    * what rules 1 and 3 (no aggregation control, no blended-report selection) key off.
    */
   calculated?: CalculatedFieldConfig;
@@ -233,7 +233,7 @@ export interface BlendableSchema {
   availableSources: AvailableSource[];
   /**
    * Every calculated field of the main Data Mart whose formula references a field the schema no
-   * longer has (spec §7) — resolved backend-side against the Data Mart's RAW schema, never
+   * longer has — resolved backend-side against the Data Mart's RAW schema, never
    * derivable client-side from `nativeFields` (already stripped of reporting-hidden fields, which
    * a formula may still legally reference). A metric with no issue is simply absent here. Optional
    * on the wire for the same reason as the other derived fields above: a response cached before it

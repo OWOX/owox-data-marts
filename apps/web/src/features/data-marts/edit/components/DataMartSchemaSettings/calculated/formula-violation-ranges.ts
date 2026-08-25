@@ -19,22 +19,18 @@ export interface PlaceableViolation {
 
 /**
  * The wire says WHAT a violation is about (`subject`) but not WHERE: there are no offsets, and the
- * string the backend judged is not even the one on screen (it carries `{{ref}}` tags). So the
- * range is always re-derived here, from the subject and the text the analyst is looking at.
+ * string the backend judged is not the one on screen (it carries `{{ref}}` tags). So the range is
+ * re-derived here, from the subject and the text the analyst is looking at.
  *
- * `subject` is absent by design when the violation is about the formula as a whole — a subquery,
- * an unguarded division. It is absent for the stray `;` too, which the prose fallback below still
- * places usefully, and that is the only reason that fallback survives: it is a fallback, never the
- * source. Reading a token out of an English sentence couples marker placement to wording.
+ * `subject` is absent by design when the violation is about the formula as a whole. The prose
+ * fallback below is a fallback, never the source: reading a token out of an English sentence
+ * couples marker placement to wording.
  *
- * Every rule below prefers reporting NO range to guessing one: a squiggle under the wrong token is
- * worse than a message with no squiggle, and the message is rendered beneath the editor either way.
+ * Every rule below prefers reporting NO range to guessing one — a squiggle under the wrong token is
+ * worse than none, and the message renders beneath the editor either way.
  */
-// Deliberately NOT anchored to the start, though the backend's own violation spec pins a LEADING
-// backticked token. That invariant covers violations carrying a structured `subject`, which take the
-// branch above and never reach here. The fallback's one reachable case is the opposite shape:
-// FORMULA_STATEMENT_SEPARATOR_NOT_ALLOWED reads "A formula is a single expression and cannot contain
-// `;`." — mid-sentence. Anchoring here removes the only case this pattern still serves.
+// Deliberately NOT anchored to the start: the fallback's one reachable case is
+// FORMULA_STATEMENT_SEPARATOR_NOT_ALLOWED, whose backticked `;` sits mid-sentence.
 const SUBJECT_PATTERN = /`([^`]+)`/;
 
 /** Identifier characters plus `.`, so `SUM` never matches inside `SUMX` nor `clicks` inside

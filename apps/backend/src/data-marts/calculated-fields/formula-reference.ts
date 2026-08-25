@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 export interface FormulaReference {
   /** aliasPath relative to the metric's OWN Data Mart; '' means that Data Mart itself. */
   path: string;
-  /** The field's original, possibly dotted, name — never a folded unified id (spec §3.2). */
+  /** The field's original, possibly dotted, name — never a folded unified id. */
   field: string;
   start: number;
   end: number;
@@ -31,15 +31,12 @@ export function serializeFormulaReference(ref: { path: string; field: string }):
 /**
  * What a `{{ref}}` hash value may hold, decided by what the PARSER above can read back.
  *
- * Handlebars unescapes `\"` inside a string literal and leaves every other backslash literal —
- * `\\` comes back as two backslashes, not one — so there is no escape a trailing backslash could
- * use: it runs into the closing quote and the lexer reads on through the rest of the formula,
- * making `{{ref path="orders\" field="amount"}}` unparseable. Refusing here is the only honest
- * answer, and it must happen HERE rather than at either caller: canonicalization and the
- * alias-rename cascade both re-serialize and PERSIST the result with nothing in between to reject
- * it, so a value this function accepts is a value written into the schema.
+ * Handlebars unescapes `\"` and leaves every other backslash literal, so a TRAILING one has no
+ * escape available: it runs into the closing quote and the lexer reads on through the rest of the
+ * formula. Refused here rather than at either caller, because canonicalization and the alias-rename
+ * cascade both re-serialize and PERSIST the result with nothing in between to reject it.
  *
- * Only the last character is ambiguous — an interior backslash round-trips — so `a\b` stays legal.
+ * Only the last character is ambiguous — an interior backslash round-trips, so `a\b` stays legal.
  */
 function assertRepresentable(kind: 'path' | 'field', value: string): void {
   if (value.includes('"')) {
@@ -215,19 +212,15 @@ export class FormulaCycleError extends Error {
 /**
  * The calculated fields currently being expanded, carried ACROSS re-entries of the renderer.
  *
- * A depth counter inside `renderFormulaWithReplacements` cannot see this recursion at all: it runs
- * as `resolve → render(B) → resolve → …`, where `resolve` is a caller-supplied closure, so every
- * re-entry is a fresh call starting at zero. Held as a stack rather than a plain set because the
- * refusal has to name the loop, and because popping on the way out is what keeps a DIAMOND — two
- * formulas reading the same third one — legal.
+ * A depth counter inside `renderFormulaWithReplacements` cannot see this recursion: it runs as
+ * `resolve → render(B) → resolve → …`, and every re-entry is a fresh call starting at zero. A stack
+ * rather than a set, because the refusal has to name the loop and popping on the way out is what
+ * keeps a DIAMOND legal.
  */
 /**
  * Total rendered text one top-level expansion may produce, summed over every intermediate
- * substitution it performs.
- *
- * Generous on purpose: a legitimate chain of a few formulas over a schema's worth of columns lands
- * orders of magnitude below it. What it stops is the shape below, where the number is not large but
- * exponential.
+ * substitution. Generous: a legitimate chain lands orders of magnitude below it. What it stops is
+ * the shape below, where the number is not large but exponential.
  */
 export const FORMULA_EXPANSION_MAX_LENGTH = 200_000;
 
@@ -256,18 +249,15 @@ export class FormulaExpansionGuard {
   /**
    * Charges rendered text against the whole expansion's budget, and refuses once it is spent.
    *
-   * The cycle guard above pops on the way out, deliberately, so a DIAMOND stays legal — and that is
-   * exactly what makes the size unbounded: a formula referencing another one twice expands it
-   * twice, so `a2 = a1 + a1`, `a3 = a2 + a2`, … doubles the OUTPUT at every level. Six such
-   * formulas, each comfortably inside `CALCULATED_FORMULA_MAX_LENGTH`, reach past V8's string
-   * limit; the event loop blocks and the pod dies with a `RangeError` or an OOM kill, taking every
-   * co-tenant with it. It re-fires on every report run, Looker refresh, MCP query and HTTP Data
-   * stream, not only at save.
+   * The cycle guard pops on the way out so a DIAMOND stays legal, and that is what makes the size
+   * unbounded: `a2 = a1 + a1`, `a3 = a2 + a2`, … doubles the OUTPUT at every level. Six such
+   * formulas, each comfortably inside `CALCULATED_FORMULA_MAX_LENGTH`, reach past V8's string limit
+   * — the event loop blocks and the pod dies, taking every co-tenant with it, on every report run
+   * rather than only at save.
    *
-   * Memoising a dependency's rendered text would cut the WORK but not the SIZE — the parent's own
-   * text still contains its child's twice — so a budget is the load-bearing part, not an
-   * optimisation. It is charged cumulatively, over intermediate renderings as well as the final
-   * one, so the refusal arrives before the huge string is built rather than after.
+   * Memoising a dependency's rendered text cuts the WORK but not the SIZE, since the parent's own
+   * text still contains its child's twice. Charged cumulatively, so the refusal arrives before the
+   * huge string is built rather than after.
    */
   charge(field: string, rendered: string): string {
     this.spent += rendered.length;

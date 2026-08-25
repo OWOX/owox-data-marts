@@ -149,7 +149,7 @@ describe('CalculatedFieldValidatorService', () => {
   });
 
   describe('hidden fields', () => {
-    it('resolves a formula referencing a hidden field — hidden takes it off the reporting menu, not out of the source (spec §7)', async () => {
+    it('resolves a formula referencing a hidden field — hidden takes it off the reporting menu, not out of the source', async () => {
       const result = await validator.validate(
         schemaWith([
           { name: 'internal_id', type: 'STRING', isHiddenForReporting: true },
@@ -277,7 +277,7 @@ describe('CalculatedFieldValidatorService', () => {
         DataStorageType.GOOGLE_BIGQUERY
       );
       // Read as the MEASURE this would be FORMULA_MAIN_UNIQUE_COUNT_REFERENCE_NOT_SUPPORTED; read as
-      // the real column it is an ordinary row-level formula, which #6732 made legal.
+      // the real column it is an ordinary row-level formula, which is legal.
       expect(result.errors).toEqual([]);
     });
   });
@@ -809,7 +809,7 @@ describe('CalculatedFieldValidatorService', () => {
       ]);
     });
 
-    // Task 11: the dry run has to compose a joined formula the way a REPORT will, which means the
+    // The dry run has to compose a joined formula the way a REPORT will, which means the
     // composer needs the saving user's own identity. A fabricated `{ userId: '' }` is not merely
     // useless there — `computeBlendableSchema` -> `canAccess` -> `getRoleScope('')` UPSERTS a
     // default role scope, i.e. it WRITES rows for a user that does not exist.
@@ -850,8 +850,8 @@ describe('CalculatedFieldValidatorService', () => {
     });
   });
 
-  // #6732: a formula may reference another Calculated Field of the SAME Data Mart. The level is
-  // what this has to get right — design §2's failure is a formula classified 'column' that then
+  // A formula may reference another Calculated Field of the SAME Data Mart. The level is
+  // what this has to get right — the failure is a formula classified 'column' that then
   // becomes a GROUP BY key and collapses the report to one silently wrong row.
   describe('a formula referencing another calculated field', () => {
     const levelOf = (schema: DataMartSchema, name: string) =>
@@ -1035,7 +1035,7 @@ describe('CalculatedFieldValidatorService', () => {
   // knows it reads `b`. Other violations still fire alongside the cycle — a self-reference is also
   // an aggregate wrapped in an aggregate — so each test asks about the cycle verdict alone.
   // (FORMULA_CALCULATED_REFERENCE is no longer among them: these are own-Data-Mart formulas, and
-  // #6732 lifted that refusal for them.)
+  // that refusal is lifted for them.)
   describe('cycles between formulas', () => {
     const cycleErrors = (errors: readonly FormulaViolation[]) =>
       errors.filter(e => e.code === 'FORMULA_CIRCULAR_REFERENCE');
@@ -1165,7 +1165,7 @@ describe('CalculatedFieldValidatorService', () => {
     });
 
     // A joined Data Mart's field of the same name is a DIFFERENT field, and reading one is refused
-    // on its own terms (D12) — calling it a cycle would name the wrong problem.
+    // on its own terms — calling it a cycle would name the wrong problem.
     it('does not call a joined reference to a same-named field a cycle', async () => {
       const result = await validator.validate(
         schemaWith([
@@ -1217,7 +1217,7 @@ describe('CalculatedFieldValidatorService', () => {
     ]);
   });
 
-  describe('warehouse dry run at save (Task 10)', () => {
+  describe('warehouse dry run at save', () => {
     const buildValidator = () => {
       const composer = { composeMetricsOnly: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) };
       const dryRun = { execute: jest.fn() };
@@ -1493,7 +1493,7 @@ describe('CalculatedFieldValidatorService', () => {
     });
 
     it('still dry-runs when every calculated formula is byte-identical to the last save — no unchanged-formula skip in this slice', async () => {
-      // A persisted per-field `calculated.warehouseValidation` marker DOES exist (Task 1's schema
+      // A persisted per-field `calculated.warehouseValidation` marker DOES exist (a schema
       // field, populated by UpdateDataMartSchemaService after this validator returns) — so an
       // unchanged-formula skip is no longer blocked on "there's nothing to key it off". It is
       // still deliberately NOT built here: one dry run per save is an accepted cost, and adding
@@ -2025,7 +2025,7 @@ describe('CalculatedFieldValidatorService', () => {
   // green dry run would stamp `warehouseValidation: 'passed'` — a claim that the warehouse
   // accepted THIS query when it accepted a different one, and the stamp that decides whether the
   // next save re-checks at all.
-  describe('the save-time dry run of a joined formula (Task 11)', () => {
+  describe('the save-time dry run of a joined formula', () => {
     const JOINED_FORMULA =
       'SUM({{ref field="clicks"}}) * SUM({{ref path="orders" field="amount"}})';
 
@@ -2143,7 +2143,7 @@ describe('CalculatedFieldValidatorService', () => {
   // sibling carrying a joined reference sent the whole batch down the blended path — where the
   // then-current guard refused the row-level field that was only ever along for the ride. That
   // guard is gone, so the split now buys a smaller query rather than a save that works at all;
-  // its own justification survives either way (spec §3.2), so it is left as it is.
+  // its own justification survives either way, so it is left as it is.
   describe('a row-level formula saved beside an aggregate one that reads a joined Data Mart', () => {
     const JOINED_AGGREGATE =
       'SUM({{ref path="orders" field="amount"}}) * AVG({{ref field="cost"}})';
@@ -2282,7 +2282,7 @@ describe('CalculatedFieldValidatorService', () => {
     // The split is not a per-level rule but a per-BUILDER one: a mixed schema reading only its own
     // Data Mart composes both levels into one valid flat query (the row-level expression joins the
     // GROUP BY), so charging it a second warehouse submission would tax the common case for a
-    // problem it does not have (spec §6.1).
+    // problem it does not have.
     it('still issues ONE dry run for a mixed-level schema that reads no joined Data Mart', async () => {
       const { validator: v, dryRun, resolveBlendingDecision } = buildValidator();
       const schema = localMixedSchema();

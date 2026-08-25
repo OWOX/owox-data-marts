@@ -17,7 +17,7 @@ export class BlendedQueryBuilderFacade {
 
   /**
    * `RoutedBlendedQueryContext`, not `BlendedQueryContext`: the only way production code reaches a
-   * blended builder, so the clause verdict is required here (#6732, D21).
+   * blended builder, so the clause verdict is required here.
    */
   async buildBlendedQuery(
     storageType: DataStorageType,

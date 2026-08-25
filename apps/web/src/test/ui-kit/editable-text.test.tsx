@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
  * Space. Radix's `PopoverTrigger asChild` contributes `onClick` and `aria-*` and nothing else, so a
  * bare `<div>` under it left every one of those cells unreachable without a mouse.
  */
-describe('EditableText: the trigger is a keyboard-operable control (#6732)', () => {
+describe('EditableText: the trigger is a keyboard-operable control', () => {
   it('exposes the trigger as a button, so it is reachable by Tab', () => {
     render(<EditableText value='ctr' onValueChange={vi.fn()} />);
 

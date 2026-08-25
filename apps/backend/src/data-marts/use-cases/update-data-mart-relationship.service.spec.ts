@@ -166,7 +166,7 @@ describe('UpdateDataMartRelationshipService', () => {
   });
 
   // A formula's `path` is the same structural alias a blended-fields config carries, so the rename
-  // has to reach both or a working metric silently becomes a broken one (#6732).
+  // has to reach both or a working metric silently becomes a broken one.
   describe('cascadeAliasRename — stored formulas', () => {
     const renameCommand = () =>
       new UpdateRelationshipCommand(

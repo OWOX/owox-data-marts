@@ -27,7 +27,7 @@ import { DataMartService } from 'src/data-marts/services/data-mart.service';
 import { TypeResolver } from 'src/common/resolver/type-resolver';
 
 /**
- * Row-level Calculated Fields (#6732, Slices 1, 2 and 3) — LIVE warehouse proof on all five
+ * Row-level Calculated Fields — LIVE warehouse proof on all five
  * storages.
  *
  * Every guarantee these slices make was pinned as an emitted SQL STRING per dialect and executed
@@ -37,45 +37,41 @@ import { TypeResolver } from 'src/common/resolver/type-resolver';
  * plus the storage's real report reader and `ReportTotalsService` through the real Nest DI
  * container, exactly as `RunReportService` does.
  *
- * What is proven for a report on ONE Data Mart
- * (spec `2026-08-18-6732-row-level-calculated-fields-design.md`):
- *   1. §4.2 — a row-level field alone does NOT make the query aggregated: every source row comes
+ * What is proven for a report on ONE Data Mart:
+ *   1. A row-level field alone does NOT make the query aggregated: every source row comes
  *      back, no implicit DISTINCT.
- *   2. §2.2 — grouped beside a report aggregation, the grain is one row per distinct FORMULA VALUE,
+ *   2. Grouped beside a report aggregation, the grain is one row per distinct FORMULA VALUE,
  *      not one per combination of the columns the formula mentions.
- *   3. §3.2 — Totals excludes it and stays a grand total over the whole filtered dataset.
- *   4. §4.3 — a metric (HAVING) filter keeps the same row set for the report and for Totals.
+ *   3. Totals excludes it and stays a grand total over the whole filtered dataset.
+ *   4. A metric (HAVING) filter keeps the same row set for the report and for Totals.
  *   5. A row-level and an aggregate-level formula compose together.
  *
- * And, on a report that LEFT JOINs a second Data Mart
- * (spec `2026-08-20-6732-row-level-calculated-fields-slice-2-design.md`):
- *   6. §1.2 — grouped by one main column PLUS the formula, a joined aggregate is computed at that
+ * And, on a report that LEFT JOINs a second Data Mart:
+ *   6. Grouped by one main column PLUS the formula, a joined aggregate is computed at that
  *      full grain. This is the one shape whose naive implementation returns a plausible WRONG
  *      NUMBER instead of an error: a metric sleeve that stopped at `channel` joins back through
  *      `ANY_VALUE` and hands every row its channel's entire revenue.
- *   7. §4 — the ungrouped joined report projects the formula per row (before Task 4 the column was
+ *   7. The ungrouped joined report projects the formula per row (before this work the column was
  *      absent from the SQL: blank on three warehouses, an exception on two).
- *   8. §4.3 — a metric filter restricts joined Totals at the report's own grain.
- *   9. §5 — a grain finer than the join key leaves the joined column ABOVE the joined mart's true
+ *   8. A metric filter restricts joined Totals at the report's own grain.
+ *   9. A grain finer than the join key leaves the joined column ABOVE the joined mart's true
  *      total while Totals stays at it. Correct behaviour, pinned so a "fix" fails loudly.
  *
  * And, once the REPORT applies an aggregation to the row-level field — `COUNT_DISTINCT(session_key)`
- * — so that it stops being a grouping key and becomes a metric of that query
- * (spec `2026-08-20-6732-row-level-calculated-fields-slice-3-design.md`):
- *  10. §2.1 — on a plain report grouped by ONE ordinary column, the field leaves the GROUP BY. The
- *      failure this catches is the SQL §2.1 spells out: the aggregate emitted while the expression
+ * — so that it stops being a grouping key and becomes a metric of that query:
+ *  10. On a plain report grouped by ONE ordinary column, the field leaves the GROUP BY. The
+ *      failure this catches is the wrong SQL: the aggregate emitted while the expression
  *      stays a grouping key, which returns **1 on every row** with no error on any warehouse.
- *  11. §2.3 — the same on a JOINED report, where the field must leave the metric sleeve's grain as
+ *  11. The same on a JOINED report, where the field must leave the metric sleeve's grain as
  *      well as the outer GROUP BY, or the sleeve joins back at a finer grain than the outer query.
- *  12. §2.3 — the same on a BLENDED report with NO sleeve, the one composition where neither of the
+ *  12. The same on a BLENDED report with NO sleeve, the one composition where neither of the
  *      builder's count/membership assertions runs: `MetricSleeveBuilder.buildAll`'s grain guard is
  *      all that stands between it and a silent wrong number.
- *  13. D11 — an aggregated row-level field is still never a Totals metric, asserted as a NUMBER
+ *  13. An aggregated row-level field is still never a Totals metric, asserted as a NUMBER
  *      (the count it would publish appears nowhere in the block) rather than as a missing key.
  *
- * And, once a formula may reference ANOTHER formula of the same Data Mart
- * (design `2026-08-21-6732-formula-referencing-formula-design.md`):
- *  14. §2 — `roas = revenue / cost` over two aggregate-level formulas, on a report grouped by one
+ * And, once a formula may reference ANOTHER formula of the same Data Mart:
+ *  14. `roas = revenue / cost` over two aggregate-level formulas, on a report grouped by one
  *      ordinary column. This is the feature's headline formula AND its signature failure: A's own
  *      token stream holds no aggregate call, so the non-transitive level derivation classifies it
  *      a row-level dimension and the report collapses to ONE row of valid SQL with no error and no
@@ -83,34 +79,33 @@ import { TypeResolver } from 'src/common/resolver/type-resolver';
  *      what make that visible.
  *  15. A row-level formula reading another row-level formula stays a GROUPING KEY: three groups,
  *      not the four its columns give, not the five rows and not one.
- *  16. D15 — a dependency is never a column. Asserted on the SQL as well as on the returned keys,
+ *  16. A dependency is never a column. Asserted on the SQL as well as on the returned keys,
  *      because an absent column cannot be read off returned rows.
- *  17. §2 on a BLENDED report: the same numbers beside a joined metric, which is the one shape
+ *  17. The same on a BLENDED report: the same numbers beside a joined metric, which is the one shape
  *      where the dependency's COLUMNS must reach the main CTE or every dialect answers
  *      `Unrecognized name`.
  *
  * And, once a row-level formula may be BUCKETED BY DATE and an arithmetic aggregation imposes the
- * analyst's DECLARED type on the warehouse (design
- * `2026-08-21-6732-date-bucketing-and-declared-type-coercion-design.md`):
- *  18. D16 — a DATE-declared row-level formula grouped by MONTH. The seat lifted here is a save-
+ * analyst's DECLARED type on the warehouse:
+ *  18. A DATE-declared row-level formula grouped by MONTH. The seat lifted here is a save-
  *      time refusal, so the validator is asked as well as the warehouse, and the unbucketed twin
  *      of the same report is executed beside it: nine rows against three.
- *  19. D17 — the same bucket on a BLENDED report whose metric is a joined `COUNT_DISTINCT`. That
+ *  19. The same bucket on a BLENDED report whose metric is a joined `COUNT_DISTINCT`. That
  *      is the one shape where a sleeve that dropped the truncation reads as a confident **0**
  *      rather than a NULL, and the only one that exercises `buildCountingSleeveCte`.
- *  20. D18/D19 — `SUM` over a FLOAT-declared formula returning numeric STRINGS. Redshift coerced
+ *  20. `SUM` over a FLOAT-declared formula returning numeric STRINGS. Redshift coerced
  *      every row to `Decimal` at scale 0 and published `12` for `12.75`; the cast is what states
  *      the scale. Measured for the dialect's exact-decimal spellings too.
- *  21. D19b — an INTEGER declaration is NOT cast. Asserted on a float-returning formula, whose
+ *  21. An INTEGER declaration is NOT cast. Asserted on a float-returning formula, whose
  *      total keeps its fractional part, and on the named cost: over TEXT it still raises on
  *      BigQuery and Athena where the same field declared FLOAT now returns a number.
- *  22. D12 / slice 3b Task 5b — a JOINED Data Mart's calculated field is refused even in the quiet
+ *  22. A JOINED Data Mart's calculated field is refused even in the quiet
  *      shape, where the joined table still carries a real column of the formula's name and the SQL
  *      would be valid.
- *  23. §6.1 — the day-ambiguous `05/08/2026` under a time zone, now REFUSED before any SQL is
+ *  23. The day-ambiguous `05/08/2026` under a time zone, now REFUSED before any SQL is
  *      composed. Snowflake read it as May on 2026-08-24; `CONVERT_TIMEZONE` is the only string
  *      shape it ever returned a value for, so the zone was the door and the zone is what went.
- *  24. §3.1 — the exact-decimal trade, stated as a loud error: a value beyond `DECIMAL(38,18)` and
+ *  24. The exact-decimal trade, stated as a loud error: a value beyond `DECIMAL(38,18)` and
  *      `NUMERIC(38,9)` alike raises, while the same value under a FLOAT declaration still sums.
  *
  * THE FIXTURE IS THE PROOF. Rows 1 and 2 carry DIFFERENT `part_a`/`part_b` values that produce the
@@ -120,7 +115,7 @@ import { TypeResolver } from 'src/common/resolver/type-resolver';
  * differ by a visible margin in both directions. Without those three properties every assertion
  * here would pass under a reading the slice rejects.
  *
- * Slice 3 seeds a THIRD table for the same reason, and cannot borrow the one above: five rows
+ * The aggregated half seeds a THIRD table for the same reason, and cannot borrow the one above: five rows
  * cannot hold two groups that each carry a distinct count differing from BOTH 1 and their own row
  * count, and without that property `COUNT_DISTINCT` returns 1 whether the field was aggregated or
  * left in the grouping keys — the right answer and the signature wrong answer coincide. See
@@ -157,11 +152,11 @@ interface SeedRow {
  * `('xy','z')` are DIFFERENT inputs producing the SAME 'xyz'. Rows 3 and 4 are the control — same
  * inputs, so both groupings agree there and only the first pair discriminates.
  *
- * `channel` and `customer_id` serve Slice 2 (the JOINED report) and are invisible to the five
- * Slice 1 tests, which select neither. `channel` is the COARSE dimension the sleeve's grain must
+ * `channel` and `customer_id` serve the JOINED report and are invisible to the five
+ * flat tests, which select neither. `channel` is the COARSE dimension the sleeve's grain must
  * not stop at; `customer_id` is the join key. The two are deliberately NOT nested: `session_key`
  * splits 'paid' into two groups (finer than `channel`), and customer `c3` spans two different
- * `channel` values (finer than the join key) — the first is spec §1.2, the second is spec §5.
+ * `channel` values (finer than the join key).
  */
 const SEED_ROWS: readonly SeedRow[] = [
   { channel: 'paid', customer_id: 'c1', part_a: 'x', part_b: 'yz', amount: 10, bonus: 1 },
@@ -176,7 +171,7 @@ const SOURCE_ROW_COUNT = 5;
 /** Every row's `session_key`, so the plain projection can be compared as a MULTISET. */
 const SESSION_KEYS_OF_EVERY_ROW = ['xyz', 'xyz', 'pq', 'pq', 'mn'];
 
-/** GROUP BY CONCAT(part_a, part_b) — what §2.2 rules. */
+/** GROUP BY CONCAT(part_a, part_b) — the correct grain. */
 const DISTINCT_SESSION_KEYS = 3;
 
 /** GROUP BY part_a, part_b — the rejected alternative. Differs from the above; that is the point. */
@@ -188,7 +183,7 @@ const ROW_COUNT_BY_SESSION_KEY: Record<string, number> = { xyz: 2, pq: 2, mn: 1 
 
 /**
  * SUM(amount) per (part_a, part_b) — the four numbers the REJECTED grouping would publish. 10 and
- * 20 appear in no correct result, so seeing either is the falsification of §2.2.
+ * 20 appear in no correct result, so seeing either falsifies that grain.
  */
 const SUM_BY_INPUT_COMBINATION_ONLY = [10, 20];
 
@@ -219,18 +214,18 @@ const ROW_COUNT = 'Row Count';
 const CHANNEL = 'channel';
 
 // ---------------------------------------------------------------------------
-// Slice 2 — the JOINED fixture, and every number this half asserts, computed by hand.
+// The JOINED fixture, and every number this half asserts, computed by hand.
 //
 // A second Data Mart (`orders`) is LEFT JOINed on `customer_id`. Report grain is
 // (channel, session_key) — one plain main column plus the ROW-LEVEL FORMULA — with a JOINED
-// aggregate metric beside it. That is the shape of spec §1.2.
+// aggregate metric beside it. That is the shape this measures.
 // ---------------------------------------------------------------------------
 
 interface OrderRow {
   customer_id: string;
   revenue: number;
   /**
-   * Slice 3b only, and never selected by the nine tests below: a real column of the joined TABLE
+   * The dates/types half only, and never selected by the nine tests below: a real column of the joined TABLE
    * whose name a SECOND Data Mart over that same table gives to a formula. See `ORDER_CTR_BY_CUSTOMER`.
    */
   ctr: number;
@@ -268,7 +263,7 @@ interface JoinedGroup {
  * the group's main rows reach:
  *   paid|xyz    rows 1,2 → c1,c2 → 100+11
  *   paid|pq     row 3    → c3    → 30
- *   organic|pq  row 4    → c3    → 30   (c3 again — it spans two channels: the §5 fan-out)
+ *   organic|pq  row 4    → c3    → 30   (c3 again — it spans two channels: the fan-out)
  *   organic|mn  row 5    → c4    → 7
  */
 const JOINED_GROUPS: Record<string, JoinedGroup> = {
@@ -293,7 +288,7 @@ const JOINED_GROUPS_BY_INPUT_COLUMNS = 5;
 const JOINED_REVENUE_BY_INPUT_COLUMNS_ONLY = [100, 11];
 
 /**
- * Spec §5, the semantics nothing had measured. Grouping by a row-level expression finer than the
+ * The semantics nothing had measured. Grouping by a row-level expression finer than the
  * join key makes c3's single order survive once per (channel, session_key) tuple it touches, so
  * the visible revenue column sums to 178 while Totals — a separate dimensionless query — stays at
  * the joined mart's true 148. The 30 between them IS c3's order, counted in both of its groups.
@@ -303,7 +298,7 @@ const JOINED_REVENUE_COLUMN_SUM = 178;
 /** The same sum for the MAIN column, which cannot fan out: 30+30+40+5 = the grand total. */
 const AMOUNT_COLUMN_SUM = 105;
 
-/** The ungrouped joined report (spec §4 / Task 4): one row per main row, formula projected. */
+/** The ungrouped joined report: one row per main row, formula projected. */
 const UNGROUPED_JOINED_ROWS: readonly { channel: string; session_key: string; revenue: number }[] =
   [
     { channel: 'paid', session_key: 'xyz', revenue: 100 },
@@ -326,12 +321,12 @@ const JOINED_KEPT_AMOUNT_TOTAL = 100;
 const JOINED_KEPT_REVENUE_TOTAL = 141;
 
 // ---------------------------------------------------------------------------
-// Slice 3 — the AGGREGATED fixture: a report applies COUNT_DISTINCT to the row-level formula, so
+// The AGGREGATED fixture: a report applies COUNT_DISTINCT to the row-level formula, so
 // the field stops being a grouping key and becomes a metric of that query. Every number below is
 // computed by hand from the eight rows in `AGG_SEED_ROWS`.
 //
-// A table of its own, because the Slice 1/2 fixture CANNOT express what this half measures. The
-// signature failure here (spec §2.1) is the aggregate emitted while the expression stays in the
+// A table of its own, because the flat/joined fixture CANNOT express what this half measures. The
+// signature failure here is the aggregate emitted while the expression stays in the
 // GROUP BY, which returns 1 for every row — so a group holding one row per distinct formula value
 // returns the same 1 whether the code is right or wrong. Both groups below therefore hold four
 // rows and a distinct count that is neither 1 nor their row count, and the two groups' counts
@@ -349,10 +344,10 @@ interface AggSeedRow {
 }
 
 /**
- * `session_key` = part_a ++ part_b, the same formula the Slice 1/2 table carries.
+ * `session_key` = part_a ++ part_b, the same formula the flat/joined table carries.
  *
  * Four load-bearing properties, all of them measured:
- *   - every group holds 4 rows and 2 or 3 distinct session_keys — neither 1 (the §2.1 wrong
+ *   - every group holds 4 rows and 2 or 3 distinct session_keys — neither 1 (the wrong
  *     answer) nor 4 (a COUNT that lost its DISTINCT);
  *   - rows 1/2 and rows 5/6 pair DIFFERENT inputs onto the SAME key, so "distinct expression
  *     values" (2, 3) and "distinct (part_a, part_b) combinations" (3, 4) disagree in both groups;
@@ -360,7 +355,7 @@ interface AggSeedRow {
  *     live rather than inert — without it US reads 241 instead of 141;
  *   - 'pq' appears in both countries, so the report-wide distinct count (4) is neither the sum of
  *     the per-group counts (5) nor either of them. Distinct counts do not add up, which is the
- *     number D11 keeps out of the Totals block.
+ *     number Totals deliberately keeps out.
  */
 const AGG_SEED_ROWS: readonly AggSeedRow[] = [
   { country: 'US', customer_id: 'c1', part_a: 'x', part_b: 'yz', amount: 10 },
@@ -410,7 +405,7 @@ const AGG_GROUPS: Record<string, AggGroup> = {
 };
 
 /**
- * What spec §2.1's wrong SQL publishes — `GROUP BY country, CONCAT(part_a, part_b)`. Five rows
+ * What the wrong SQL publishes — `GROUP BY country, CONCAT(part_a, part_b)`. Five rows
  * instead of two, and the metric is the CONSTANT 1 on every one of them: a group defined by a
  * distinct value holds exactly one. No NULL, no warehouse error, on any of the five storages.
  */
@@ -423,13 +418,13 @@ const AGG_WRONG_GRAIN_REVENUES = [111, 130, 30, 7, 11];
 
 /**
  * The joined revenue a sleeve that did NOT de-duplicate would report: c1's order added twice in
- * US, c3's twice in UK. Slice 2's live gate seeded one order per customer AND no repeated customer
+ * US, c3's twice in UK. The joined live gate seeded one order per customer AND no repeated customer
  * within a group, so its dedup was inert and this contrast could not be drawn there.
  */
 const AGG_REVENUE_WITHOUT_DEDUP: Record<string, number> = { US: 241, UK: 78 };
 
 // Grand totals over all eight rows: 136, 136/8, min, max. Deliberately none of them is 2, 3, 4 or
-// 5 — the four counts the D11 test sweeps the Totals block for.
+// 5 — the four counts the Totals test sweeps the block for.
 const AGG_GRAND_TOTAL_AMOUNT = 136;
 const AGG_GRAND_TOTAL_AVG = 17;
 const AGG_GRAND_TOTAL_MIN = 6;
@@ -437,7 +432,7 @@ const AGG_GRAND_TOTAL_MAX = 40;
 
 /**
  * COUNT_DISTINCT(session_key) over the whole dataset — {xyz, pq, mno, rs}. This is the number a
- * Totals block would carry if D11 were lifted, which is why the test looks for the VALUE rather
+ * Totals block would carry if the exclusion were lifted, which is why the test looks for the VALUE rather
  * than for the key: a block that gained the metric under any other name still fails.
  */
 const AGG_REPORT_WIDE_DISTINCT_SESSION_KEYS = 4;
@@ -455,14 +450,13 @@ const ORDERS_CUSTOMER_ID = `${ORDERS_ALIAS}__customer_id`;
 const ORDERS_CUSTOMER_ID_COUNT = `${ORDERS_CUSTOMER_ID} | COUNT`;
 
 // ---------------------------------------------------------------------------
-// A formula referencing another formula (#6732, design
-// `2026-08-21-6732-formula-referencing-formula-design.md`) — every number below computed by hand
+// A formula referencing another formula — every number below computed by hand
 // from the FIVE-ROW main table above, which already carries the two numeric columns and the coarse
 // dimension this half needs. Reusing it costs no extra warehouse table and, being read through a
 // SEPARATE Data Mart, cannot move a number the thirteen tests above assert.
 //
 // `roas = revenue / cost` over two aggregate-level formulas is the feature's headline use case and
-// design §2's silent wrong number: A's OWN token stream holds no aggregate call — both live in the
+// The silent wrong number: A's OWN token stream holds no aggregate call — both live in the
 // strings it references — so the non-transitive level derivation reads it as a row-level dimension.
 // ---------------------------------------------------------------------------
 
@@ -485,7 +479,7 @@ const SESSION_UPPER_FORMULA = `UPPER({{ref field="${SESSION_KEY}"}})`;
 /**
  * SUM(amount) / SUM(bonus) per channel: paid rows 1-3 → 60/6, organic rows 4-5 → 45/11. The two
  * ratios differ from each other by a factor of two and NEITHER equals the collapsed one below —
- * which is what makes the wrong answer visible. One group would prove nothing: design §2's failure
+ * which is what makes the wrong answer visible. One group would prove nothing: the failure
  * is the whole report collapsing to a single row, and a single correct row would look the same.
  */
 const ROAS_BY_CHANNEL: Record<string, number> = { paid: 60 / 6, organic: 45 / 11 };
@@ -501,7 +495,7 @@ const SUM_BY_SESSION_UPPER: Record<string, number> = { XYZ: 30, PQ: 70, MN: 5 };
 const ROW_COUNT_BY_SESSION_UPPER: Record<string, number> = { XYZ: 2, PQ: 2, MN: 1 };
 
 // ---------------------------------------------------------------------------
-// Slice 3b — date bucketing (D16/D17) and the declared-type cast (D18/D19b), on a NINTH-row table
+// Date bucketing and the declared-type cast, on a NINTH-row table
 // of its own. Every number below is computed by hand from `BUCKET_SEED_ROWS` BEFORE the assertion
 // that reads it, and each wrong reading this slice can produce is written down beside the right
 // one — the failure this feature keeps producing is a plausible number, never an error.
@@ -509,7 +503,7 @@ const ROW_COUNT_BY_SESSION_UPPER: Record<string, number> = { XYZ: 2, PQ: 2, MN: 
 // The table cannot be borrowed from the three above. It needs dates spanning three months, a
 // nullable date so the formula's value differs from any single column's, numeric-looking STRINGS
 // whose true sum has a fractional part, and a day-ambiguous `05/08/2026` — none of which the
-// Slice 1/2/3 fixtures carry. It joins the SAME `orders` mart, so it costs one table, not two.
+// earlier fixtures carry. It joins the SAME `orders` mart, so it costs one table, not two.
 // ---------------------------------------------------------------------------
 
 interface BucketSeedRow {
@@ -618,12 +612,12 @@ const BUCKET_SEED_ROWS: readonly BucketSeedRow[] = [
   },
 ];
 
-/** Constant on every row: `05/08/2026` reads as 5 August (DMY) AND as 8 May (MDY). Spec §6.1. */
+/** Constant on every row: `05/08/2026` reads as 5 August (DMY) AND as 8 May (MDY). */
 const AMBIGUOUS_PREFIX = '05/';
 const AMBIGUOUS_SUFFIX = '08/2026';
 /**
  * The probe's zone, and the one that made Snowflake return a value where it otherwise refused —
- * `2026-05` for a formula meaning `2026-08`. The whole leg is refused now (§6.1), so the wrong
+ * `2026-05` for a formula meaning `2026-08`. The whole leg is refused now, so the wrong
  * month is a comment on the test rather than a constant an assertion still compares against.
  */
 const AMBIGUOUS_TIME_ZONE = 'America/New_York';
@@ -679,13 +673,13 @@ const SLEEVE_MISS_DISTINCT_COUNT = 0;
 const NUMERIC_STRING_TRUE_SUM = 20.25;
 /**
  * The same nine, each coerced to `Decimal` at SCALE 0 before summing — what Redshift published
- * for this shape until D19's cast stated the scale, and what BigQuery and Athena refused outright.
+ * for this shape until the cast stated the scale, and what BigQuery and Athena refused outright.
  */
 const NUMERIC_STRING_TRUNCATED_SUM = 17;
 
 /**
  * Ten significant digits, and exactly representable in a 64-bit float — so a cast target that is
- * 32 bits wide changes this number and nothing else can. D19a's exception exists for exactly that:
+ * 32 bits wide changes this number and nothing else can. The 32-bit exception exists for exactly that:
  * `REAL` on Athena and Redshift and `FLOAT` on Databricks are each the FAITHFUL name for a declared
  * float and each would round an expression that already computes in 64 bits to about seven digits.
  * The three dialects that have such a spelling declare it here; the other two have none to declare.
@@ -698,7 +692,7 @@ const WIDE_FLOAT_TRUE_SUM = 5802469106.5;
 const HALF_TRUE_SUM = 23.5;
 /** Cast to an integer PER ROW first, the way the four rounding dialects would. */
 const HALF_SUM_IF_ROUNDED_PER_ROW = 26;
-/** And the way Spark would — the disagreement D19b is about. */
+/** And the way Spark would — the disagreement the integer rule is about. */
 const HALF_SUM_IF_TRUNCATED_PER_ROW = 21;
 
 const EVENT_MONTH = 'event_month';
@@ -716,7 +710,7 @@ const exactFieldName = (index: number): string => `num_exact_${index}`;
 const ORDERS_CUSTOMER_ID_COUNT_DISTINCT = `${ORDERS_CUSTOMER_ID} | COUNTUNIQUE`;
 
 /**
- * The QUIET shape of D12. `ctr` is a real DOUBLE column of the `orders` TABLE, and a SECOND Data
+ * The QUIET shape of the joined-calculated refusal. `ctr` is a real DOUBLE column of the `orders` TABLE, and a SECOND Data
  * Mart over that same table declares a calculated field of the same name — the "formula named
  * after a column since added" configuration. A report joining that mart and selecting the field
  * composes VALID SQL that serves these numbers in place of the formula's, which is why the refusal
@@ -733,8 +727,7 @@ const ORDERS_CTR_FORMULA_BY_CUSTOMER: Record<string, number> = Object.fromEntrie
 );
 
 // ---------------------------------------------------------------------------
-// FILTERS on a Calculated Field (#6732, item 15 — design
-// `2026-08-24-6732-filters-on-calculated-fields-design.md`), on an EIGHT-row table of its own.
+// FILTERS on a Calculated Field, on an EIGHT-row table of its own.
 //
 // Every number below is computed by hand from `FILTER_SEED_ROWS` before the assertion that reads
 // it, and each WRONG reading this slice can produce is written down beside the right one — the
@@ -759,13 +752,13 @@ interface FilterSeedRow {
   amount: number;
   /** The aggregate-level formula's input, deliberately ranked OPPOSITE to `amount` per group. */
   bonus: number;
-  /** `num_text` = n_prefix ++ n_suffix — the probe's headline values (D23). */
+  /** `num_text` = n_prefix ++ n_suffix — the probe's headline values. */
   n_prefix: string;
   n_suffix: string;
-  /** `spelled_num` = sp_prefix ++ sp_suffix — the NON-canonical spelling spec §7 never tested. */
+  /** `spelled_num` = sp_prefix ++ sp_suffix — the NON-canonical spelling nothing had tested. */
   sp_prefix: string;
   sp_suffix: string;
-  /** `bad_num` — one NULL row (for `IS NULL`) and one unparseable row (for the D23 cast). */
+  /** `bad_num` — one NULL row (for `IS NULL`) and one unparseable row (for the declared-type cast). */
   bad_prefix: string | null;
   bad_suffix: string;
   /** `iso_date` = iso_prefix ++ iso_suffix — a STRING formula declared DATE. */
@@ -1006,7 +999,7 @@ const FILTER_GROUPS_FILTERED: Record<string, FilterGroup> = {
 
 /**
  * The SAME report with no filter — executed rather than asserted from a constant, because it is
- * the exact number a sleeve that never received the predicate publishes (design §4, #6766's C1).
+ * the exact number a sleeve that never received the predicate publishes.
  *   g1  rows 1-4  c1,c2,c1,c3 → 3 distinct, 100+11+30 = 141
  *   g2  rows 5-8  c4,c4,c2,c3 → 3 distinct, 7+11+30   = 48
  */
@@ -1039,7 +1032,7 @@ const FILTER_HAVING_KEPT_BONUS = 140;
 const FILTER_GRAND_TOTAL_BONUS = 150;
 
 /**
- * D23's payoff. `num_text` returns `'9'`, `'10'`, `'100'`, `'2.5'`, `'3.5'`, `'0.5'`, `'1.75'`,
+ * The payoff of comparing by declared type. `num_text` returns `'9'`, `'10'`, `'100'`, `'2.5'`, `'3.5'`, `'0.5'`, `'1.75'`,
  * `'4.25'`; `> 5` is THREE rows read as numbers and EXACTLY ONE read as text, because `'9' > '5'`
  * is the only true lexicographic comparison in the set. Redshift published that one row — a
  * plausible report missing its two largest values, no error and no NULL.
@@ -1051,11 +1044,11 @@ const FILTER_NUM_LEXICOGRAPHIC_ANSWER = ['9'];
 /** SUM(amount) over the three rows `> 5` keeps: 10 + 20 + 30. */
 const FILTER_NUM_ABOVE_AMOUNT = 60;
 
-/** D25: `= 10` and `= '10'` over the same field must now BOTH return this one row. */
+/** `= 10` and `= '10'` over the same field must now BOTH return this one row. */
 const FILTER_NUM_EQUALITY_VALUE = '10';
 const FILTER_NUM_EQUALITY_AMOUNT = 20;
 
-/** Spec §7's cheapest unmeasured cell: `'9.0' = 9` is TRUE numerically and FALSE as text. */
+/** The cheapest unmeasured cell: `'9.0' = 9` is TRUE numerically and FALSE as text. */
 const FILTER_SPELLED_MATCH = '9.0';
 const FILTER_SPELLED_MATCH_AMOUNT = 10;
 
@@ -1066,7 +1059,7 @@ const FILTER_BAD_NOT_NULL_ROWS = 7;
 const FILTER_BAD_ABOVE_THRESHOLD_ROWS = 2;
 
 /**
- * D24's load-bearing claim, on a formula that genuinely returns a DATE.
+ * The load-bearing claim, on a formula that genuinely returns a DATE.
  * `honest_date = COALESCE(date_a, date_b)`: 07-20, 08-20, 09-27, 07-02, 06-11, 09-15, 03-08, 08-01.
  * `BETWEEN '2026-07-01' AND '2026-08-31'` keeps rows 1, 2, 4, 8.
  */
@@ -1224,13 +1217,13 @@ interface StorageCase {
   storageCredentials: () => Record<string, unknown>;
   /** The mart's TABLE definition, in this storage's own fully-qualified spelling. */
   fullyQualifiedName: () => string;
-  /** Same, for the joined `orders` mart (Slice 2). */
+  /** Same, for the joined `orders` mart. */
   ordersFullyQualifiedName: () => string;
-  /** Same, for the eight-row table Slice 3's aggregated report reads. */
+  /** Same, for the eight-row table the aggregated report reads. */
   aggFullyQualifiedName: () => string;
-  /** Same, for the nine-row table slice 3b's dates and numeric strings live in. */
+  /** Same, for the nine-row table the dates and numeric strings live in. */
   bucketFullyQualifiedName: () => string;
-  /** Same, for the eight-row table item 15's FILTERS run against. */
+  /** Same, for the eight-row table the FILTERS run against. */
   filterFullyQualifiedName: () => string;
   /**
    * The ROW-LEVEL formula, in this dialect's own spelling. Redshift's CONCAT takes exactly two
@@ -1238,16 +1231,16 @@ interface StorageCase {
    * to execute — which is the storage axis this suite exists to cover.
    */
   rowLevelFormula: string;
-  /** The same difference, applied to slice 3b's four string-pair formulas. */
+  /** The same difference, applied to the four string-pair formulas. */
   concat: (left: string, right: string) => string;
   /**
-   * This dialect's own spellings for the three declared-type families §3 separates. The cast
+   * This dialect's own spellings for the three declared-type families. The cast
    * targets they resolve to differ per dialect (`FLOAT64`, `DOUBLE`, `NUMERIC(38,18)`, …) and are
    * pinned per dialect in unit tests; what is executed here is the NUMBER each one produces.
    */
   floatType: string;
   /**
-   * The dialect's 32-BIT float spelling, which D19a deliberately does NOT cast to — `REAL` on
+   * The dialect's 32-BIT float spelling, which is deliberately NOT a cast target — `REAL` on
    * Athena and Redshift, `FLOAT` on Databricks. BigQuery and Snowflake have none, so they declare
    * their ordinary float and the same assertion measures a ten-digit value surviving there too.
    */
@@ -1256,15 +1249,15 @@ interface StorageCase {
   exactTypes: readonly string[];
   integerType: string;
   /**
-   * `SUM` over an INTEGER-declared formula returning numeric TEXT — status quo, because D19b
+   * `SUM` over an INTEGER-declared formula returning numeric TEXT — status quo, because the integer rule
    * excludes the integer family from the cast. `'error'` on the two dialects that refuse text to
    * `SUM` outright; `NUMERIC_STRING_TRUNCATED_SUM` on Redshift, which coerces at scale 0; the true
-   * total on the two that coerce faithfully. This is D19's one named COST, measured.
+   * total on the two that coerce faithfully. This is the one named COST, measured.
    */
   integerOverTextSum: number | 'error';
   /**
-   * A DATE-declared formula returning an ISO STRING, filtered by a range (#6732, D24 and Task 4's
-   * I1). `'error'` on the two dialects that refuse `varchar >= date` outright — which is a CHANGE:
+   * A DATE-declared formula returning an ISO STRING, filtered by a range.
+   * `'error'` on the two dialects that refuse `varchar >= date` outright — which is a CHANGE:
    * before the declaration reached the filter's type resolver they emitted no cast, compared two
    * strings and returned the right rows for the wrong reason. `'rows'` where the comparison runs:
    * Redshift emits no cast at all and is lexicographic (right, on ISO values, by coincidence),
@@ -1272,8 +1265,8 @@ interface StorageCase {
    */
   misdeclaredIsoDateRange: 'error' | 'rows';
   /**
-   * `MIN(<DATE-declared string formula>) >= <threshold>` — the function-carrying HAVING (Task 4's
-   * M1), measured against the day-ambiguous `05/08/2026` at TWO thresholds so the three readings
+   * `MIN(<DATE-declared string formula>) >= <threshold>` — the function-carrying HAVING,
+   * measured against the day-ambiguous `05/08/2026` at TWO thresholds so the three readings
    * separate: `'error'` (BigQuery/Athena refuse the operand pair, Databricks refuses the value at
    * cast time), `'lexicographic'` (Redshift: `'0' < '2'`, so NO group clears either threshold), and
    * `'date-mdy'` (Snowflake: a real DATE comparison that reads the string as 8 May, so every group
@@ -1282,9 +1275,9 @@ interface StorageCase {
    */
   functionDateHaving: 'error' | 'lexicographic' | 'date-mdy';
   /**
-   * A comparison on a FLOAT-declared formula whose data holds ONE unparseable row (Task 4's I3,
-   * explicitly unmeasured — the probe's fixture was all numeric-looking). `'error'` is the
-   * PREDICTION for all five, and it is the whole cost of D23: a report that used to come back
+   * A comparison on a FLOAT-declared formula whose data holds ONE unparseable row — explicitly
+   * unmeasured, since the probe's fixture was all numeric-looking. `'error'` is the
+   * PREDICTION for all five, and it is the whole cost of comparing by declared type: a report that used to come back
    * wrong now does not come back at all. `'rows'` would mean the dialect answered NULL for the bad
    * row and kept the other two, which is one ANSI setting away on Databricks and is why this is a
    * per-dialect fact rather than a shared assertion.
@@ -1292,7 +1285,7 @@ interface StorageCase {
   unparseableComparison: 'error' | 'rows';
   /**
    * BigQuery alone reads the declared type in `renderRelativeDate` and wraps a sub-day left-hand
-   * side in `DATE(...)` (Task 4's I2). The other four compare the raw TIMESTAMP against
+   * side in `DATE(...)`. The other four compare the raw TIMESTAMP against
    * `CURRENT_DATE` arithmetic, which is why the fixture seeds a MIDNIGHT value.
    */
   relativeDateWrapsDate: boolean;
@@ -1545,7 +1538,7 @@ const athenaCase: StorageCase = {
   filterFullyQualifiedName: () => `${ATHENA_DATABASE}.${FILTER_TABLE_SUFFIX}`,
   rowLevelFormula: CONCAT_FORMULA,
   concat: concatOf,
-  // DOUBLE, not REAL: Trino's REAL is 32-bit, and D19a keeps a declared float on the dialect's
+  // DOUBLE, not REAL: Trino's REAL is 32-bit, and the 32-bit rule keeps a declared float on the dialect's
   // 64-bit target so the cast cannot move a number that is already right.
   floatType: 'DOUBLE',
   narrowFloatType: 'REAL',
@@ -1722,11 +1715,11 @@ const redshiftCase: StorageCase = {
   filterFullyQualifiedName: () => `${REDSHIFT_DATABASE}.public.${FILTER_TABLE_SUFFIX}`,
   // Redshift binds `=` TIGHTER than `||`, so this formula is also what proves the Totals
   // kept-groups join parenthesises the grouping expression it interpolates into `<left> = <right>`
-  // — unparenthesised it parses as `"part_a" || ("part_b" = …)`. See the §4.3 test.
+  // — unparenthesised it parses as `"part_a" || ("part_b" = …)`. See the metric-filter test.
   rowLevelFormula: PIPES_FORMULA,
   concat: pipesOf,
   // Redshift is the dialect this half of the slice exists for: uncast, it coerced the varchar to
-  // `Decimal` at scale 0 and published a truncated total. REAL would be float4 here, so D19a sends
+  // `Decimal` at scale 0 and published a truncated total. REAL would be float4 here, so the rule sends
   // a declared float to DOUBLE PRECISION; this fixture declares that directly.
   floatType: 'DOUBLE PRECISION',
   narrowFloatType: 'REAL',
@@ -1736,7 +1729,7 @@ const redshiftCase: StorageCase = {
   integerType: 'INTEGER',
   integerOverTextSum: NUMERIC_STRING_TRUNCATED_SUM,
   // The one dialect that emits NO cast on either side of a date comparison — `_columnType` is
-  // still unread here, deliberately (D24 leaves dates as measured). The comparison is therefore
+  // still unread here, deliberately (dates are left as measured). The comparison is therefore
   // text against text, and ISO strings sort chronologically, so the RIGHT rows come back for the
   // WRONG reason. A non-ISO date string would return an empty report instead, silently.
   misdeclaredIsoDateRange: 'rows',
@@ -2015,7 +2008,7 @@ const databricksCase: StorageCase = {
     `${DATABRICKS_CATALOG}.${DATABRICKS_SCHEMA}.${FILTER_TABLE_SUFFIX}`,
   rowLevelFormula: CONCAT_FORMULA,
   concat: concatOf,
-  // Spark's FLOAT is 32-bit, so D19a sends a declared float to DOUBLE; this fixture declares the
+  // Spark's FLOAT is 32-bit, so a declared float goes to DOUBLE; this fixture declares the
   // 64-bit type the analyst's column already has.
   floatType: 'DOUBLE',
   narrowFloatType: 'FLOAT',
@@ -2184,7 +2177,7 @@ async function composeReportSql(report: ReportLikeReadPlan): Promise<string> {
  * every storage. Athena's `MaxResults` counts the header row it returns on the first page, so its
  * reader has to ask the API for one more than the caller's data-row budget; when it did not, every
  * Athena report's Totals block was silently `null`. Reading at exactly 1 here keeps that guarantee
- * executed on all five storages, and the §3.2 test cross-checks the production service on top.
+ * executed on all five storages, and the Totals test cross-checks the production service on top.
  */
 async function readTotals(
   storageType: DataStorageType,
@@ -2334,13 +2327,13 @@ function registerSuite(storage: StorageCase): void {
 
       // The joined mart and the relationship are provisioned BEFORE the calculated fields are
       // saved, so the formula below is saved on a Data Mart that already joins another — the
-      // configuration Slice 1 refused outright.
+      // configuration the flat path refused outright.
       const orders = await provisionMart(
         storageId,
         'row-level-calculated-field-orders-mart',
         storage.ordersFullyQualifiedName()
       );
-      // `ctr` is slice 3b's quiet-shape payload and nothing else reads it: a real column of this
+      // `ctr` is the quiet-shape payload and nothing else reads it: a real column of this
       // TABLE whose name a SECOND Data Mart over the same table gives to a formula.
       expect(orders.schema.fields.map(f => f.name).sort()).toEqual([
         'ctr',
@@ -2360,7 +2353,7 @@ function registerSuite(storage: StorageCase): void {
 
       // Both calculated fields declare the type of an EXISTING actualized field rather than a
       // hard-coded literal — the per-storage field-type vocabularies differ, and the declared type
-      // is the analyst's free choice anyway (decision D3).
+      // is the analyst's free choice anyway.
       const partA = actualized.fields.find(f => f.name === 'part_a')!;
       const amount = actualized.fields.find(f => f.name === 'amount')!;
       expect(partA).toBeDefined();
@@ -2374,7 +2367,7 @@ function registerSuite(storage: StorageCase): void {
             ...actualized,
             fields: [
               ...actualized.fields,
-              // No `level` on the wire: the backend DERIVES it from the formula (§4.1), and the
+              // No `level` on the wire: the backend DERIVES it from the formula, and the
               // assertion below is what proves it did rather than echoing a client's claim.
               { ...partA, name: SESSION_KEY, calculated: { formula: storage.rowLevelFormula } },
               { ...amount, name: BONUS_RATE, calculated: { formula: BONUS_RATE_FORMULA } },
@@ -2398,7 +2391,7 @@ function registerSuite(storage: StorageCase): void {
         'passed'
       );
 
-      // ── Slice 3's own mart: the eight-row table, joined to the SAME `orders` mart ──────────
+      // ── The aggregated mart: the eight-row table, joined to the SAME `orders` mart ──────────
       const agg = await provisionMart(
         storageId,
         'aggregated-calculated-field-mart',
@@ -2510,7 +2503,7 @@ function registerSuite(storage: StorageCase): void {
       expect(levelOf(REVENUE)).toBe('metric');
       expect(levelOf(COST)).toBe('metric');
       // TRANSITIVE, both ways, and derived on the wire rather than claimed by the client: `roas`
-      // holds no aggregate call of its own (design §2.1) and `session_upper` holds no column of
+      // holds no aggregate call of its own and `session_upper` holds no column of
       // its own. Each is what its chain says it is.
       expect(levelOf(ROAS)).toBe('metric');
       expect(levelOf(SESSION_UPPER)).toBe('column');
@@ -2523,7 +2516,7 @@ function registerSuite(storage: StorageCase): void {
         referenceSaved.find(f => f.name === SESSION_UPPER)!.calculated!.warehouseValidation
       ).toBe('passed');
 
-      // ── Slice 3b: the dates and the declared types, on a nine-row table of its own ──────────
+      // ── The dates and the declared types, on a nine-row table of its own ──────────
       const bucketMart = await provisionMart(
         storageId,
         'date-bucket-and-declared-type-mart',
@@ -2549,7 +2542,7 @@ function registerSuite(storage: StorageCase): void {
       const numericStringFormula = storage.concat(REF('num_prefix'), REF('num_suffix'));
       const bigStringFormula = storage.concat(REF('big_prefix'), REF('big_suffix'));
       const ambiguousFormula = storage.concat(REF('amb_prefix'), REF('amb_suffix'));
-      // The declared type is the analyst's free choice (D3) and never checked against the formula,
+      // The declared type is the analyst's free choice and never checked against the formula,
       // so these are stated outright rather than copied off an actualized field: what the four
       // arithmetic tests measure is exactly what each declaration makes the warehouse do.
       const declaring = (name: string, type: string, formula: string) => ({
@@ -2703,7 +2696,7 @@ function registerSuite(storage: StorageCase): void {
 
       const filterSaved = filterSchemaRes.body.schema.fields as DataMartSchemaField[];
       const filterField = (name: string) => filterSaved.find(f => f.name === name)!;
-      // The LEVEL is what decides WHERE against HAVING (D21), and it is derived from the formula
+      // The LEVEL is what decides WHERE against HAVING, and it is derived from the formula
       // rather than claimed on the wire — so this is the assertion the whole clause split rests on.
       for (const name of [
         FILTER_KEY,
@@ -2720,7 +2713,7 @@ function registerSuite(storage: StorageCase): void {
       expect(`${FILTER_BONUS_TOTAL}: ${filterField(FILTER_BONUS_TOTAL).calculated!.level}`).toBe(
         `${FILTER_BONUS_TOTAL}: metric`
       );
-      // The declaration really is the analyst's free choice (D3), read back off the save: nothing
+      // The declaration really is the analyst's free choice, read back off the save: nothing
       // checked `iso_date`'s DATE against a formula that concatenates two strings, and nothing
       // checked `num_text`'s float either. That is the premise every cell below measures.
       expect(filterField(FILTER_NUM).type).toBe(storage.floatType);
@@ -2729,7 +2722,7 @@ function registerSuite(storage: StorageCase): void {
       expect(filterField(FILTER_KEY).calculated!.warehouseValidation).toBe('passed');
       expect(filterField(FILTER_BONUS_TOTAL).calculated!.warehouseValidation).toBe('passed');
 
-      // ── The quiet shape of D12: a joined mart whose FORMULA is named after a real column ────
+      // ── The quiet shape of the refusal: a joined mart whose FORMULA is named after a real column ────
       // A second Data Mart over the `orders` TABLE, so the mart the seventeen tests above join is
       // left exactly as it was.
       const ordersWithFormula = await provisionMart(
@@ -2795,7 +2788,7 @@ function registerSuite(storage: StorageCase): void {
       return { dataMart, ...overrides };
     }
 
-    /** The same, on Slice 3's eight-row mart. */
+    /** The same, on the eight-row aggregated mart. */
     async function buildAggReport(
       overrides: Partial<Omit<ReportLikeReadPlan, 'dataMart'>>
     ): Promise<ReportLikeReadPlan> {
@@ -2817,7 +2810,7 @@ function registerSuite(storage: StorageCase): void {
       return { dataMart, ...overrides };
     }
 
-    /** The same, on slice 3b's nine-row mart of dates and declared types. */
+    /** The same, on the nine-row mart of dates and declared types. */
     async function buildBucketReport(
       overrides: Partial<Omit<ReportLikeReadPlan, 'dataMart'>>
     ): Promise<ReportLikeReadPlan> {
@@ -2828,7 +2821,7 @@ function registerSuite(storage: StorageCase): void {
       return { dataMart, ...overrides };
     }
 
-    /** The same, on item 15's eight-row mart of filters. */
+    /** The same, on the eight-row mart of filters. */
     async function buildFilterReport(
       overrides: Partial<Omit<ReportLikeReadPlan, 'dataMart'>>
     ): Promise<ReportLikeReadPlan> {
@@ -2866,7 +2859,7 @@ function registerSuite(storage: StorageCase): void {
       return Number(rows[0][`${field} | SUM`]);
     }
 
-    it('projects the formula per row and keeps every source row (spec §4.2)', async () => {
+    it('projects the formula per row and keeps every source row', async () => {
       const report = await buildReport({ columnConfig: [SESSION_KEY] });
 
       const rows = await readReportRows(storage.storageType, report);
@@ -2888,7 +2881,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 180000);
 
-    it('groups by the whole expression, not by the columns it mentions (spec §2.2)', async () => {
+    it('groups by the whole expression, not by the columns it mentions', async () => {
       const report = await buildReport({
         columnConfig: [SESSION_KEY, 'amount'],
         aggregationConfig: [{ column: 'amount', function: 'SUM' }],
@@ -2916,7 +2909,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 180000);
 
-    it('totals the whole dataset and carries no entry for the row-level field (spec §3.2)', async () => {
+    it('totals the whole dataset and carries no entry for the row-level field', async () => {
       const report = await buildReport({
         columnConfig: [SESSION_KEY, 'amount'],
         aggregationConfig: [{ column: 'amount', function: 'SUM' }],
@@ -2989,7 +2982,7 @@ function registerSuite(storage: StorageCase): void {
       expect(Number(totals![AMOUNT_SUM])).toBeCloseTo(visibleSum, 6);
     }
 
-    it('keeps the same groups for the report and for Totals under a metric filter (spec §4.3)', async () => {
+    it('keeps the same groups for the report and for Totals under a metric filter', async () => {
       await assertKeptRows();
       // Redshift runs this over `part_a || part_b`, so the Totals half also measures that the join
       // predicate parenthesises the grouping expression it interpolates: an operator binding looser
@@ -3015,7 +3008,7 @@ function registerSuite(storage: StorageCase): void {
         expect(expectedRate).not.toBeCloseTo(GRAND_TOTAL_BONUS_RATE, 6);
       }
 
-      // The exclusion in §3.2 is keyed on LEVEL, not on "calculated fields are never totalled":
+      // The Totals exclusion is keyed on LEVEL, not on "calculated fields are never totalled":
       // the aggregate-level formula IS totalled here, at the grand-total grain, in the same block
       // the row-level one stays out of.
       const totals = await readTotals(storage.storageType, report);
@@ -3025,10 +3018,10 @@ function registerSuite(storage: StorageCase): void {
       expect(Object.keys(totals!)).not.toContain(SESSION_KEY);
     }, 180000);
 
-    // ── Slice 2: the same field on a report that LEFT JOINs another Data Mart ──────────────
+    // ── The same field on a report that LEFT JOINs another Data Mart ──────────────
 
     /**
-     * Spec §1.2: one plain main column plus the row-level FORMULA as grain, with a JOINED
+     * One plain main column plus the row-level FORMULA as grain, with a JOINED
      * aggregate beside it. The metric sleeve must group by the formula's expression as well as by
      * `channel`; a sleeve that stops at `channel` joins back through `ANY_VALUE` and hands every
      * row its channel's whole revenue.
@@ -3043,7 +3036,7 @@ function registerSuite(storage: StorageCase): void {
       });
     }
 
-    it('gives the joined metric the formula grain, not a coarser sleeve grain (spec §1.2)', async () => {
+    it('gives the joined metric the formula grain, not a coarser sleeve grain', async () => {
       const rows = await readReportRows(storage.storageType, await joinedGroupedReport());
 
       // The rejected reading — GROUP BY channel, part_a, part_b — returns five rows, splitting
@@ -3076,14 +3069,14 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('projects the formula on an ungrouped joined report, per row (spec §4)', async () => {
+    it('projects the formula on an ungrouped joined report, per row', async () => {
       const report = await buildReport({
         columnConfig: [CHANNEL, SESSION_KEY, ORDERS_REVENUE],
       });
 
       const rows = await readReportRows(storage.storageType, report);
 
-      // Before Task 4 the field was absent from the SELECT entirely: a blank column on
+      // Before this work the field was absent from the SELECT entirely: a blank column on
       // BigQuery/Snowflake/Databricks and a throw on Athena/Redshift. Asserting the VALUES per row
       // is what separates "present" from "present and correct".
       expect(rows).toHaveLength(SOURCE_ROW_COUNT);
@@ -3105,7 +3098,7 @@ function registerSuite(storage: StorageCase): void {
       expect(actual).toEqual(UNGROUPED_JOINED_ROWS.map(asStrings).sort());
     }, 180000);
 
-    it('restricts joined Totals to the groups the report shows (spec §4.3, blended)', async () => {
+    it('restricts joined Totals to the groups the report shows (blended)', async () => {
       const report = await buildReport({
         columnConfig: [CHANNEL, SESSION_KEY, ORDERS_REVENUE, 'amount'],
         aggregationConfig: [
@@ -3137,7 +3130,7 @@ function registerSuite(storage: StorageCase): void {
       expect(visibleAmount).toBeCloseTo(JOINED_KEPT_AMOUNT_TOTAL, 6);
     }, 300000);
 
-    it('keeps the joined column above its true total when the grain is finer than the join key (spec §5)', async () => {
+    it('keeps the joined column above its true total when the grain is finer than the join key', async () => {
       const report = await joinedGroupedReport();
       const rows = await readReportRows(storage.storageType, report);
       const totals = await readTotals(storage.storageType, report);
@@ -3162,7 +3155,7 @@ function registerSuite(storage: StorageCase): void {
       expect(Number(totals![AMOUNT_SUM])).toBeCloseTo(AMOUNT_COLUMN_SUM, 6);
     }, 300000);
 
-    // ── Slice 3: the REPORT aggregates the row-level field ────────────────────────────────
+    // ── The REPORT aggregates the row-level field ────────────────────────────────
 
     /** Every group's numbers, keyed by the one ordinary column the report groups by. */
     function assertAggGroups(rows: Row[], expectRevenue: boolean): void {
@@ -3184,7 +3177,7 @@ function registerSuite(storage: StorageCase): void {
         expect(distinct).toBe(expected.distinctSessionKeys);
         // The three readings the right answer has to be distinguished from, spelled out per group
         // because a fixture where any of them coincided would make this test decorative:
-        //   1 — the field still in the GROUP BY (spec §2.1), the whole point of this slice;
+        //   1 — the field still in the GROUP BY, the whole point of this slice;
         expect(distinct).not.toBe(AGG_WRONG_GRAIN_DISTINCT);
         //   the row count — a COUNT that lost its DISTINCT;
         expect(distinct).not.toBe(expected.rowCount);
@@ -3211,7 +3204,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }
 
-    it('aggregates the row-level field instead of grouping by it (spec §2.1)', async () => {
+    it('aggregates the row-level field instead of grouping by it', async () => {
       const report = await buildAggReport({
         columnConfig: [COUNTRY, SESSION_KEY, 'amount'],
         aggregationConfig: [
@@ -3231,7 +3224,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('keeps the aggregated field out of the sleeve grain on a joined report (spec §2.3)', async () => {
+    it('keeps the aggregated field out of the sleeve grain on a joined report', async () => {
       const report = await buildAggReport({
         columnConfig: [COUNTRY, SESSION_KEY, ORDERS_REVENUE, 'amount'],
         aggregationConfig: [
@@ -3242,14 +3235,14 @@ function registerSuite(storage: StorageCase): void {
       });
 
       // `SUM` over a joined column is sleeve-routed, so this report really does carry one — the
-      // half of §2.3 the builder's count assertion guards, and the half a no-sleeve report cannot
+      // half the builder's count assertion guards, and the half a no-sleeve report cannot
       // exercise at all.
       expect(await composeReportSql(report)).toMatch(/\bsleeve_/);
 
       assertAggGroups(await readReportRows(storage.storageType, report), true);
     }, 300000);
 
-    it('aggregates it on a BLENDED report carrying no sleeve at all (spec §2.3)', async () => {
+    it('aggregates it on a BLENDED report carrying no sleeve at all', async () => {
       const report = await buildAggReport({
         columnConfig: [COUNTRY, SESSION_KEY, ORDERS_CUSTOMER_ID, 'amount'],
         aggregationConfig: [
@@ -3279,7 +3272,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('publishes no Totals value for the aggregated field (D11)', async () => {
+    it('publishes no Totals value for the aggregated field', async () => {
       const report = await buildAggReport({
         columnConfig: [COUNTRY, SESSION_KEY, 'amount'],
         aggregationConfig: [
@@ -3301,7 +3294,7 @@ function registerSuite(storage: StorageCase): void {
         expect(Number(totals![AMOUNT_SUM])).not.toBeCloseTo(group.amount, 6);
       }
 
-      // D11 as a NUMBER, not as a missing key: the four counts a Totals block could plausibly
+      // The exclusion as a NUMBER, not as a missing key: the four counts a Totals block could plausibly
       // carry for this field appear nowhere in it, under any name. A key check alone passes if the
       // count arrives labelled something else, and `deriveTotalsAggregations` is one deleted skip
       // away from publishing exactly these.
@@ -3322,12 +3315,12 @@ function registerSuite(storage: StorageCase): void {
 
     // ── A formula referencing another formula ─────────────────────────────────────────────
 
-    it('computes a formula over two aggregate-level formulas PER GROUP (design §2)', async () => {
+    it('computes a formula over two aggregate-level formulas PER GROUP', async () => {
       const report = await buildReferenceReport({ columnConfig: [CHANNEL, ROAS] });
 
       const rows = await readReportRows(storage.storageType, report);
 
-      // TWO rows, not one. Design §2's failure is the whole report collapsing to a grand total —
+      // TWO rows, not one. The failure is the whole report collapsing to a grand total —
       // valid SQL, no error, no log line — so the row count is the first thing that shows it, and
       // a fixture with one group could not tell the two apart at all.
       expect(rows).toHaveLength(Object.keys(ROAS_BY_CHANNEL).length);
@@ -3341,7 +3334,7 @@ function registerSuite(storage: StorageCase): void {
         // single row carrying 105/17 fails on the number as well as on the count.
         expect(expectedRoas).not.toBeCloseTo(ROAS_COLLAPSED, 6);
         expect(Number(row[ROAS])).not.toBeCloseTo(ROAS_COLLAPSED, 6);
-        // D15: `revenue` and `cost` are SUBSTITUTED into the expression, never projected beside
+        // `revenue` and `cost` are SUBSTITUTED into the expression, never projected beside
         // it. A dependency is not a column, in the Google Sheet or anywhere else.
         expect(Object.keys(row).sort()).toEqual([CHANNEL, ROAS].sort());
       }
@@ -3376,7 +3369,7 @@ function registerSuite(storage: StorageCase): void {
         const row = grouped.get(key)!;
         expect(Number(row[AMOUNT_SUM])).toBeCloseTo(expectedSum, 6);
         expect(Number(row[ROW_COUNT])).toBe(ROW_COUNT_BY_SESSION_UPPER[key]);
-        // The field it reads is not a column of this report (D15).
+        // The field it reads is not a column of this report.
         expect(Object.keys(row).sort()).toEqual([SESSION_UPPER, AMOUNT_SUM, ROW_COUNT].sort());
       }
       const sums = rows.map(row => Number(row[AMOUNT_SUM]));
@@ -3399,7 +3392,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('never projects a formula the selected one merely reads (D15)', async () => {
+    it('never projects a formula the selected one merely reads', async () => {
       const sql = await composeReportSql(
         await buildReferenceReport({ columnConfig: [CHANNEL, ROAS] })
       );
@@ -3425,7 +3418,7 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it('computes it beside a joined metric on a BLENDED report (design §2)', async () => {
+    it('computes it beside a joined metric on a BLENDED report', async () => {
       const report = await buildReferenceReport({
         columnConfig: [CHANNEL, ROAS, ORDERS_REVENUE],
         aggregationConfig: [{ column: ORDERS_REVENUE, function: 'SUM' }],
@@ -3449,7 +3442,7 @@ function registerSuite(storage: StorageCase): void {
         expect(Number(row[ROAS])).toBeCloseTo(expectedRoas, 6);
         expect(Number(row[ROAS])).not.toBeCloseTo(ROAS_COLLAPSED, 6);
         // The report's grain IS `channel` here, so the joined metric's channel-grain revenue —
-        // the WRONG number in the §1.2 test above, where the grain was finer — is the right one.
+        // the WRONG number in the joined-grain test above, where the grain was finer — is the right one.
         expect(Number(row[ORDERS_REVENUE_SUM])).toBeCloseTo(
           JOINED_REVENUE_AT_CHANNEL_GRAIN[channel],
           6
@@ -3461,7 +3454,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    // ── Slice 3b: the date bucket, and the declared type reaching the warehouse ────────────
+    // ── The date bucket, and the declared type reaching the warehouse ────────────
 
     /** The save-time seat, on this storage's own actualized Data Mart. */
     async function validateReport(report: ReportLikeReadPlan): Promise<void> {
@@ -3493,7 +3486,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }
 
-    it('buckets a DATE-declared row-level formula by MONTH (D16)', async () => {
+    it('buckets a DATE-declared row-level formula by MONTH', async () => {
       const bucketed = await buildBucketReport({
         columnConfig: [EVENT_MONTH, 'amount'],
         aggregationConfig: [{ column: 'amount', function: 'SUM' }],
@@ -3501,7 +3494,7 @@ function registerSuite(storage: StorageCase): void {
       });
 
       // The seat this slice lifted is a SAVE-time refusal, and no returned row can show that it is
-      // gone: until D16 this exact configuration was rejected with CALCULATED_METRIC_AS_DIMENSION
+      // gone: this exact configuration used to be rejected with CALCULATED_METRIC_AS_DIMENSION
       // and the report could not be created at all.
       expect(await validationCodesOf(bucketed)).toEqual([]);
 
@@ -3548,7 +3541,7 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it('reproduces the bucket inside the metric sleeve on a blended report (D17)', async () => {
+    it('reproduces the bucket inside the metric sleeve on a blended report', async () => {
       const report = await buildBucketReport({
         columnConfig: [EVENT_MONTH, ORDERS_CUSTOMER_ID, 'amount'],
         aggregationConfig: [
@@ -3593,7 +3586,7 @@ function registerSuite(storage: StorageCase): void {
       expect(BUCKET_SUM_OF_GROUP_DISTINCTS).not.toBe(BUCKET_REPORT_WIDE_DISTINCT_CUSTOMERS);
     }, 300000);
 
-    it('sums a numeric-string formula at the DECLARED precision (§3, D19)', async () => {
+    it('sums a numeric-string formula at the DECLARED precision', async () => {
       const asFloat = await sumOfCalculatedField(NUM_FLOAT);
       expect(asFloat).toBeCloseTo(NUMERIC_STRING_TRUE_SUM, 6);
       // Redshift coerced the varchar to `Decimal` at scale 0 and published the truncated total for
@@ -3607,7 +3600,7 @@ function registerSuite(storage: StorageCase): void {
         expect(`${declaredType}: ${asExact}`).toBe(`${declaredType}: ${NUMERIC_STRING_TRUE_SUM}`);
       }
 
-      // D19a, executed: a declared float never casts to a 32-bit target. Ten significant digits
+      // Executed: a declared float never casts to a 32-bit target. Ten significant digits
       // survive the round trip, which is the only thing that tells `REAL` from `DOUBLE` apart —
       // every other number in this fixture is exact in both widths.
       expect(`${storage.narrowFloatType}: ${await sumOfCalculatedField(WIDE_FLOAT)}`).toBe(
@@ -3615,18 +3608,18 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it('leaves an INTEGER declaration uncast, over a float and over text alike (D19b)', async () => {
+    it('leaves an INTEGER declaration uncast, over a float and over text alike', async () => {
       const asFloat = await sumOfCalculatedField(HALF_FLOAT);
       const asInteger = await sumOfCalculatedField(HALF_INT);
 
       expect(asFloat).toBeCloseTo(HALF_TRUE_SUM, 6);
-      // The same number under both declarations, which is the whole of D19b: the integer branch
+      // The same number under both declarations, which is the whole of the integer rule: the integer branch
       // emits no cast, so the per-row conversion the dialects disagree about never happens.
       expect(asInteger).toBeCloseTo(HALF_TRUE_SUM, 6);
       expect(asInteger).not.toBeCloseTo(HALF_SUM_IF_ROUNDED_PER_ROW, 6);
       expect(asInteger).not.toBeCloseTo(HALF_SUM_IF_TRUNCATED_PER_ROW, 6);
 
-      // D19's one named COST, measured rather than argued: the same declaration over TEXT keeps
+      // The one named COST, measured rather than argued: the same declaration over TEXT keeps
       // doing exactly what it did before the slice — raising on the two strict dialects, and
       // truncating on Redshift, where a FLOAT declaration now returns the true total instead.
       if (storage.integerOverTextSum === 'error') {
@@ -3636,7 +3629,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('raises rather than rounds where an exact declaration cannot hold the value (§3.1)', async () => {
+    it('raises rather than rounds where an exact declaration cannot hold the value', async () => {
       // The same value under a FLOAT declaration still sums, so what follows is the exact-decimal
       // trade and not a broken fixture. Compared as a ratio: an absolute tolerance around 9e30
       // would accept answers that are wrong by more than the whole fixture.
@@ -3646,7 +3639,7 @@ function registerSuite(storage: StorageCase): void {
       await expect(sumOfCalculatedField(BIG_EXACT)).rejects.toThrow();
     }, 300000);
 
-    it('refuses a joined Data Mart calculated field named after a real column of that table (D12)', async () => {
+    it('refuses a joined Data Mart calculated field named after a real column of that table', async () => {
       // The QUIET shape: the joined TABLE really carries a `ctr` column, so the SQL a missing
       // refusal composes is valid and returns 0.11 / 0.22 / 0.33 / 0.44 where the formula means
       // 200 / 22 / 60 / 14. No warehouse error stands between the analyst and that.
@@ -3679,10 +3672,10 @@ function registerSuite(storage: StorageCase): void {
     // formula means the 5th of August. No error, no NULL, one plausible month. `CONVERT_TIMEZONE`
     // is the only string shape Snowflake returns a value for at all, so the zone is the door, and
     // MDY is a session default rather than anything in the data — two Snowflake accounts would
-    // disagree about the same report. The product owner ruled the leg refused on all five storages
-    // (§6.1), so the shape can no longer reach a warehouse and there is nothing left to measure.
+    // disagree about the same report. The product owner ruled the leg refused on all five storages,
+    // so the shape can no longer reach a warehouse and there is nothing left to measure.
     // The value stays written down here because the rule exists for it, not out of caution.
-    it('refuses the day-ambiguous time-zone shape before it reaches the warehouse (§6.1)', async () => {
+    it('refuses the day-ambiguous time-zone shape before it reaches the warehouse', async () => {
       const report = await buildBucketReport({
         columnConfig: [AMBIGUOUS_TS, 'amount'],
         aggregationConfig: [{ column: 'amount', function: 'SUM' }],
@@ -3711,8 +3704,7 @@ function registerSuite(storage: StorageCase): void {
 
     // ── Item 15: FILTERS on a Calculated Field, executed ──────────────────────────────────
     //
-    // Design `2026-08-24-6732-filters-on-calculated-fields-design.md`. Every claim this slice
-    // makes was pinned as an emitted SQL STRING per dialect and executed against nothing; the
+    // Every claim this half makes was pinned as an emitted SQL STRING per dialect and executed against nothing; the
     // twelve tests below execute them. Each is a DIFFERENT kind of claim and none subsumes
     // another: the clause (WHERE against HAVING), the reach (outer query against metric sleeve),
     // the channel (selected against filtered-only), and the TYPE the comparison runs under.
@@ -3777,7 +3769,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }
 
-    it('filters a PLAIN report by a row-level calculated field (design §2, outer WHERE)', async () => {
+    it('filters a PLAIN report by a row-level calculated field (outer WHERE)', async () => {
       // The control: the formula's own values per row, so a concat that lost a half fails HERE
       // rather than turning every filtered answer below into a mystery.
       const unfiltered = await readReportRows(
@@ -3814,7 +3806,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('filters a BLENDED joined COUNT_DISTINCT by a SELECTED calculated field (design §4)', async () => {
+    it('filters a BLENDED joined COUNT_DISTINCT by a SELECTED calculated field', async () => {
       const columns = [FILTER_GRP, FILTER_KEY, ORDERS_CUSTOMER_ID, ORDERS_REVENUE, 'amount'];
       const report = await blendedFilterReport(columns, true);
 
@@ -3849,14 +3841,14 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('applies the same predicate when the calculated field is NOT selected (design §4)', async () => {
+    it('applies the same predicate when the calculated field is NOT selected', async () => {
       const columns = [FILTER_GRP, ORDERS_CUSTOMER_ID, ORDERS_REVENUE, 'amount'];
       const report = await blendedFilterReport(columns, true);
 
       // `SleeveCalculatedDimensions.plans` holds grouping-key plans only and
       // `collectReportDimensions` sees selected columns only, so a field that is FILTERED but not
       // SELECTED has no plan at the sleeve and its formula's columns are not projected into the
-      // main raw CTE. Two of Task 2's own defects were this shape.
+      // main raw CTE. Two real defects were this shape.
       //
       // This is the ONLY one of the two blended shapes whose answer the sleeve's own predicate
       // decides. Falsified live on BigQuery and Redshift: emptying `renderSleeveWhere` makes g1
@@ -3891,7 +3883,7 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it('filters GROUPS by an aggregate-level calculated field and restricts Totals (§2, §3)', async () => {
+    it('filters GROUPS by an aggregate-level calculated field and restricts Totals', async () => {
       const bonusRule = {
         column: FILTER_BONUS_TOTAL,
         operator: 'gt' as const,
@@ -3917,7 +3909,7 @@ function registerSuite(storage: StorageCase): void {
         FILTER_BONUS_THRESHOLD
       );
 
-      // §3's silent one: `GroupRestriction.having` used to be DEFINED as "the rules carrying a
+      // The silent one: `GroupRestriction.having` used to be DEFINED as "the rules carrying a
       // function", and an aggregate-level Calculated Field's rule carries none — so a report whose
       // only metric filter is this one built NO restriction and Totals covered the rows the report
       // hides, with no error.
@@ -3946,7 +3938,7 @@ function registerSuite(storage: StorageCase): void {
       expect(Object.keys(unselected[0])).not.toContain(FILTER_BONUS_TOTAL);
     }, 300000);
 
-    it('compares a FLOAT-declared TEXT formula as a NUMBER (D23 — the measured wrong subset)', async () => {
+    it('compares a FLOAT-declared TEXT formula as a NUMBER (the measured wrong subset)', async () => {
       const all = await readReportRows(
         storage.storageType,
         await buildFilterReport({ columnConfig: [FILTER_NUM] })
@@ -3964,7 +3956,7 @@ function registerSuite(storage: StorageCase): void {
       // THE headline of this gate. `'9'`, `'10'`, `'100'` filtered `> 5`: three rows read as
       // numbers, exactly ONE read as text — `'9' > '5'` is the only true lexicographic comparison
       // in the set. Redshift returned that single row, with no error and no NULL, and the two
-      // largest values missing. The cast rule (D23) exists to remove exactly this subset.
+      // largest values missing. The cast rule exists to remove exactly this subset.
       expect(rows.map(row => String(row[FILTER_NUM])).sort()).toEqual([
         ...FILTER_NUM_ABOVE_THRESHOLD,
       ]);
@@ -3977,7 +3969,7 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it("answers `= 10` and `= '10'` alike over one FLOAT-declared field (D25)", async () => {
+    it("answers `= 10` and `= '10'` alike over one FLOAT-declared field", async () => {
       const readEquality = async (value: number | string): Promise<Row[]> =>
         readReportRows(
           storage.storageType,
@@ -4005,7 +3997,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it("matches a NON-canonical spelling under equality (spec §7 — `'9.0' = 9`)", async () => {
+    it("matches a NON-canonical spelling under equality (`'9.0' = 9`)", async () => {
       // The cheapest unmeasured cell the design named: `'9.0' = 9` is TRUE numerically and FALSE
       // lexicographically, so the fixture's canonical spellings could not tell the two apart.
       const rows = await readReportRows(
@@ -4021,8 +4013,8 @@ function registerSuite(storage: StorageCase): void {
       expect(Number(rows[0].amount)).toBeCloseTo(FILTER_SPELLED_MATCH_AMOUNT, 6);
     }, 180000);
 
-    it('filters an HONEST DATE-declared formula by a range, on every storage (D24)', async () => {
-      // D24's and the docs' load-bearing claim — "a formula that genuinely returns a date filters
+    it('filters an HONEST DATE-declared formula by a range, on every storage', async () => {
+      // The docs' load-bearing claim — "a formula that genuinely returns a date filters
       // correctly on all five storages" — asserted since the ruling and never executed. On
       // BigQuery and Athena it could NOT have worked before this slice: a DATE expression against
       // a STRING-bound parameter is BQ-E4 / ATH-E4.
@@ -4048,7 +4040,7 @@ function registerSuite(storage: StorageCase): void {
       expect(FILTER_HONEST_DATE_AMOUNTS).not.toEqual(FILTER_HONEST_DATE_B_ONLY_AMOUNTS);
     }, 300000);
 
-    it('imposes the DATE declaration on a MIS-declared ISO-string formula (D24)', async () => {
+    it('imposes the DATE declaration on a MIS-declared ISO-string formula', async () => {
       const report = await buildFilterReport({
         columnConfig: [FILTER_ISO_DATE, 'amount'],
         filterConfig: [
@@ -4074,7 +4066,7 @@ function registerSuite(storage: StorageCase): void {
       );
     }, 300000);
 
-    it('leaves IS NULL uncast where a comparison raises on an unparseable row (D23)', async () => {
+    it('leaves IS NULL uncast where a comparison raises on an unparseable row', async () => {
       // `is_null` is deliberately outside `COMPARISON_OPERATORS`: it looks at no value, and casting
       // its left-hand side would make ONE unparseable row fail a whole query that used to return
       // rows. This is that scope, measured.
@@ -4112,7 +4104,7 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('carries the DATE declaration into a function-carrying HAVING (D24)', async () => {
+    it('carries the DATE declaration into a function-carrying HAVING', async () => {
       // `MIN(<DATE-declared string formula>) >= …` over the day-ambiguous `05/08/2026`, at TWO
       // thresholds, because one cannot separate the three readings: 2026-01-01 tells a real date
       // comparison from a lexicographic one (`'0' < '2'`), and 2026-06-01 then tells MDY (8 May,
@@ -4156,7 +4148,7 @@ function registerSuite(storage: StorageCase): void {
       expect(narrow).toHaveLength(0);
     }, 300000);
 
-    it('resolves relative_date against a TIMESTAMP-declared formula (D24)', async () => {
+    it('resolves relative_date against a TIMESTAMP-declared formula', async () => {
       const report = await buildFilterReport({
         columnConfig: [FILTER_RECENT_TS, 'amount'],
         filterConfig: [

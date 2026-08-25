@@ -15,8 +15,8 @@ export interface SqlFunctionCall {
   /**
    * False when the scan ran out of tokens before this call's `(` was matched by a `)`. The
    * argument span is then just wherever the scan stopped, not a real boundary — callers must not
-   * read an unclosed call's empty-looking span as "no arguments given" (spec §6 pass 2 owns
-   * deciding that this is an error; this module only reports the fact).
+   * read an unclosed call's empty-looking span as "no arguments given" — whether that is an error is decided elsewhere; this
+   * module only reports the fact.
    */
   closed: boolean;
 }

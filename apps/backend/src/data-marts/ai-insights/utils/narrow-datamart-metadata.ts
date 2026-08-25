@@ -66,9 +66,6 @@ function filterConnectedFieldsRec<F extends FieldWithStatusAndNested<F>>(fields:
   const result: F[] = [];
 
   for (const field of fields) {
-    // A calculated field has no warehouse column at all — the AI SQL-builder agent is told this
-    // schema is authoritative and writes warehouse SQL against it, so it must never reach here,
-    // regardless of the (meaningless, for it) CONNECTED status it carries.
     if (isCalculatedField(field)) continue;
     if (field.status !== undefined && field.status !== DataMartSchemaFieldStatus.CONNECTED) {
       continue;

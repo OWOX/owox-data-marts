@@ -2,20 +2,14 @@
  * The fields a calculated-field formula on THIS Data Mart may reference, and the lookup from a
  * typed name back to one of them.
  *
- * Mirrors the backend's `collectFormulaReferenceableFields` in
- * apps/backend/src/data-marts/data-storage-types/data-mart-schema.utils.ts, calculated fields
- * included: since #6732 a formula may read another calculated field of the same Data Mart, so the
- * two traversals now answer the same question with the same list. What this index adds is the
- * referenced field's LEVEL, which decides how it may be written — an aggregate-level one is legal
- * bare and refused inside an aggregation, a row-level one is the reverse.
+ * Mirrors the backend's `collectFormulaReferenceableFields`, calculated fields included. What this
+ * index adds is the referenced field's LEVEL, which decides how it may be written: an
+ * aggregate-level one is legal bare and refused inside an aggregation, a row-level one the reverse.
  *
- * A formula may also reference a JOINED Data Mart's field. Those entries come from the blendable
- * schema rather than from this Data Mart's own schema, and `buildJoinedReferenceIndex` below
- * mirrors the backend's `buildJoinedReferenceIndex` (calculated-field.utils.ts) on which of them
- * resolve — including its three deliberate asymmetries against the own-Data-Mart rules above: a
- * joined field HIDDEN for reporting is refused at save, a source EXCLUDED from reporting is still
- * perfectly referenceable (its join is built either way), and a joined CALCULATED field stays
- * refused where an own one is now allowed (D12, see below).
+ * Joined fields come from the blendable schema instead, and `buildJoinedReferenceIndex` mirrors the
+ * backend's on which of them resolve — including three deliberate asymmetries: a joined field
+ * HIDDEN for reporting is refused, a source EXCLUDED from reporting is still referenceable, and a
+ * joined CALCULATED field stays refused where an own one is allowed.
  */
 
 import {
@@ -72,9 +66,9 @@ export interface ReferenceableField {
    * every other entry, joined ones included (a joined calculated field is never offered at all).
    *
    * Its `level` is carried VERBATIM, so it is absent for a formula applied in this session, whose
-   * level no save has derived yet. Deliberately not resolved here: the two consumers want
-   * different things from not knowing. A menu label may take the quiet guess
-   * (`isRowLevelCalculatedField`); a hover sentence that rules something out may not.
+   * level no save has derived yet. Not resolved here, because the two consumers want different
+   * things from not knowing: a menu label may take the quiet guess, a hover sentence that rules
+   * something out may not.
    */
   calculated?: { level?: CalculatedFieldLevel };
 }
@@ -90,17 +84,13 @@ function isReachable(field: SchemaField): boolean {
 }
 
 /**
- * A field with no name cannot be named by a formula — and offering one is not merely useless.
- * "Add calculated field" appends a CONNECTED row whose name is typed AFTERWARDS, so the schema
- * editor genuinely holds a nameless field for a while, and an empty name in the index matches the
- * empty string at every boundary in the formula: `resolveAll` returns zero-length references and
- * `toStoredForm` splices a `{{ref field=""}}` into each of them. Whitespace-only for the same
- * reason — a name being typed passes through a lone space, which matches every space in the text.
+ * A nameless field is a real state — "Add calculated field" appends a row whose name is typed
+ * afterwards — and an empty name matches the empty string at every boundary in the formula:
+ * `resolveAll` returns zero-length references and `toStoredForm` splices `{{ref field=""}}` into
+ * each. Whitespace-only for the same reason.
  *
- * Checked rather than trusted, although `name` is a required field: these types are plain
- * interfaces over a cast API response that nothing validates at runtime, and a `TypeError` raised
- * from the `useMemo` that builds this index would blank the whole schema table. (`typeof` rather
- * than `?.` — `no-unnecessary-condition` rejects an optional chain on a `string`.)
+ * Checked rather than trusted although `name` is required: these are plain interfaces over a cast
+ * API response, and a `TypeError` from the `useMemo` here would blank the whole schema table.
  */
 function isNameable(field: SchemaField): boolean {
   return typeof field.name === 'string' && field.name.trim() !== '';
@@ -109,17 +99,13 @@ function isNameable(field: SchemaField): boolean {
 /**
  * Every field a formula on THIS Data Mart may reference.
  *
- * Hidden fields ARE offered: `isHiddenForReporting` takes a column off the reporting menu, it
- * does not remove it from the source, and computing is not projecting. Calculated fields ARE
- * offered since #6732, carrying their level — withholding it would invite the very formula the
- * save then refuses, since the level is what decides whether the field is legal bare or has to be
- * wrapped in an aggregation. Disconnected fields are NOT offered: they are genuinely gone from the
- * warehouse, and so is their whole subtree.
+ * Hidden fields ARE offered — hiding takes a column off the reporting menu, not out of the source,
+ * and computing is not projecting. Calculated fields are offered too, carrying their level.
+ * Disconnected ones are NOT: they are gone from the warehouse, subtree included.
  *
- * A field's own name is offered to its own formula too. That reads like an invitation to a
- * self-reference, and is deliberate: the backend answers one with "`roas` references itself, so it
- * has no value to compute", which it can only do for a name it RESOLVED — filter it out here and
- * the same formula comes back as a bare unknown word instead.
+ * A field's own name is offered to its own formula, deliberately: the backend answers a
+ * self-reference with "`roas` references itself, so it has no value to compute", which it can only
+ * do for a name it RESOLVED. Filtered out here, the same formula returns as a bare unknown word.
  */
 export function buildReferenceIndex(fields: readonly SchemaField[]): ReferenceableField[] {
   const out: ReferenceableField[] = [];
@@ -150,18 +136,15 @@ export function buildReferenceIndex(fields: readonly SchemaField[]): Referenceab
  * Every field of the JOINED Data Marts a formula on this one may reference, offered under the
  * dotted name `<aliasPath>.<field>`.
  *
- * That name is built from the STRUCTURAL alias path, never from the source's display name: each
- * aliasPath segment is a join alias validated against `^[a-z0-9_]+$` (ALIAS_SEGMENT_REGEX), while
- * a display name is free-form user text that may hold spaces and would not be typeable as SQL.
+ * Built from the STRUCTURAL alias path, never the source's display name: each segment is validated
+ * against `^[a-z0-9_]+$`, while a display name is free-form text that would not be typeable as SQL.
  *
- * Hidden fields are NOT offered — the opposite of the own-Data-Mart rule above, and deliberately
- * so: `CalculatedFieldValidatorService` refuses a joined reference to a hidden field
- * (`joinedFieldHidden`), so offering one would suggest a formula the save is guaranteed to reject.
+ * Hidden fields are NOT offered — the opposite of the own-Data-Mart rule above, because the save
+ * refuses a joined reference to one.
  */
 /**
- * Both candidates are free-form user text stored exactly as typed (neither the join form nor the
- * schema trims), so a whitespace-only one falls through to the next rather than labelling the
- * field with padding — the same discipline as the backend's `formatBlendedFieldDisplayName`.
+ * Both candidates are free-form text stored exactly as typed, so a whitespace-only one falls
+ * through to the next rather than labelling the field with padding.
  */
 function sourceLabelOf(field: JoinedSchemaField): string | undefined {
   for (const candidate of [field.outputPrefix, field.sourceDataMartTitle]) {
@@ -176,8 +159,8 @@ export function buildJoinedReferenceIndex(
 ): ReferenceableField[] {
   const out: ReferenceableField[] = [];
   for (const field of fields) {
-    // NOT the own-Data-Mart rule above, and the difference is deliberate: #6732 lifted the refusal
-    // for the metric's OWN mart only (D12). A JOINED formula is still answered with
+    // NOT the own-Data-Mart rule above, and the difference is deliberate: the refusal is
+    // lifted for the metric's OWN mart only. A JOINED formula is still answered with
     // FORMULA_CALCULATED_REFERENCE — its text never crosses the wire to be substituted, and
     // routing and `assertAllRequestedSourcesAccessible` are both decided from THIS formula's raw
     // text, so a source reachable only through it would be joined without being access-checked.
@@ -213,17 +196,12 @@ export type ReferenceNameIndex = ReadonlyMap<string, ReferenceableField | 'ambig
 /**
  * Collapses the offered fields into one lookup from typed name to the field it resolves to.
  *
- * Built ONCE per resolution pass rather than scanned per name: the editor re-resolves on every
- * keystroke, and since this index also carries every joined source's fields, a wide join tree can
- * reach four figures of entries — a per-name linear scan of that is quadratic work per character
- * typed, on exactly the blended Data Marts this feature is for.
+ * Built ONCE per resolution pass: the editor re-resolves on every keystroke, and a wide join tree
+ * reaches four figures of entries, so a per-name scan is quadratic work per character typed.
  *
- * Precedence is decided here, once per name, so there is a single place that knows the rule:
- * OWN-Data-Mart fields win. A BigQuery RECORD `orders` with a subfield `amount` and a Data Mart
- * joined under the alias `orders` both produce the typed name `orders.amount`, and the metric's own
- * Data Mart takes it. Only a collision WITHIN the winning group is ambiguous — two joined
- * candidates can still collide (source `orders` with field `items.qty` against source
- * `orders.items` with field `qty`), and neither is guessed.
+ * Precedence in one place: OWN-Data-Mart fields win. A RECORD `orders` with a subfield `amount` and
+ * a Data Mart joined under the alias `orders` both produce `orders.amount`. Only a collision WITHIN
+ * the winning group is ambiguous, and neither candidate is guessed.
  */
 export function buildNameIndex(fields: readonly ReferenceableField[]): ReferenceNameIndex {
   const hitsByName = new Map<string, ReferenceableField[]>();

@@ -117,7 +117,7 @@ function referenceable(overrides: Partial<ReferenceableField> = {}): Referenceab
  * Monaco has a slot for each (`CompletionItemLabel`). Packing them into one `detail` string put
  * them all in the same right-aligned element, where the type read as part of the source name.
  */
-describe('registerFormulaCompletionProvider: field rows (#6732)', () => {
+describe('registerFormulaCompletionProvider: field rows', () => {
   it('gives a joined field its own name, type and Data Mart slots', () => {
     const [item] = ownCompletionsFor({
       fields: [
@@ -272,7 +272,7 @@ function trackingMonaco() {
  * the next — and the module keeps ONE entry per (monaco, language) so a new registration tears the
  * previous one down. That entry belongs to whoever wrote it last.
  */
-describe('registerFormulaCompletionProvider: registration lifecycle (#6732)', () => {
+describe('registerFormulaCompletionProvider: registration lifecycle', () => {
   it('leaves a later editor’s registration in place when an earlier one unmounts', () => {
     const monaco = trackingMonaco();
     const register = () =>
@@ -298,7 +298,7 @@ describe('registerFormulaCompletionProvider: registration lifecycle (#6732)', ()
   });
 });
 
-describe('registerFormulaCompletionProvider: other models (#6732)', () => {
+describe('registerFormulaCompletionProvider: other models', () => {
   it('answers nothing for a model that is not this editor’s', () => {
     // Monaco registers a completion provider per LANGUAGE, and the Data Mart's SQL definition
     // editor mounts as `sql` on this same page — so without this guard its author is offered
@@ -325,7 +325,7 @@ function replacedText(typed: string, item: CompletionItemLike | undefined): stri
  * the default range covers only what follows it. Accepting `IS NOT NULL` at `x IS N` would then
  * overwrite `N` alone and leave `x IS IS NOT NULL`.
  */
-describe('registerFormulaCompletionProvider: multi-word entries (#6732)', () => {
+describe('registerFormulaCompletionProvider: multi-word entries', () => {
   it('overwrites the part of the phrase already typed, not just the last word', () => {
     const typed = 'SUM(clicks) AND x IS N';
     const suggestions = ownCompletionsFor({ typed, scalarFunctions: ['IS NOT NULL'] });
@@ -421,7 +421,7 @@ describe('registerFormulaCompletionProvider: multi-word entries (#6732)', () => 
   });
 });
 
-describe('registerFormulaCompletionProvider: scalar functions (#6732)', () => {
+describe('registerFormulaCompletionProvider: scalar functions', () => {
   it('offers a scalar function as a call snippet, after the aggregates', () => {
     const suggestions = ownCompletionsFor({
       functions: ['SUM'],

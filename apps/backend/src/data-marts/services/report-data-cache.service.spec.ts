@@ -231,10 +231,10 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     expect(opts.uniqueCountSources).toEqual(uniqueCountSources);
   });
 
-  // #6732. Looker Studio reads this cached description and nothing else, so the two lines that
+  // Looker Studio reads this cached description and nothing else, so the two lines that
   // wire a calculated metric through here decide whether the connector sees the metric at all —
   // and both could be deleted without a single test noticing.
-  describe('calculated metrics (#6732)', () => {
+  describe('calculated metrics', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const ctrPlan = {
       outputName: 'ctr',

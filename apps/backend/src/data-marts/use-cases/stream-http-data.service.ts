@@ -417,9 +417,9 @@ export class StreamHttpDataService {
       // the resolved header names. A report always projects by resolved headers — correct for both
       // an explicit columnConfig and a null (all-columns) config.
       //
-      // A selected calculated metric is the same class of case: it IS an aggregate (spec §2.3)
+      // A selected calculated metric is the same class of case: it IS an aggregate
       // even when `aggregationConfig` itself is empty, so `aggregated` alone is a separate axis
-      // from `hasOutputControls`'s own calculated-metric flip above (Task 8) — that one governs
+      // from `hasOutputControls`'s own calculated-metric flip above — that one governs
       // header SYNTHESIS, this one governs which column NAMES `streamRows` looks each row value
       // up by. Missing it does not error: `buildFieldIndexMap` looks a name up in `dataHeaders`
       // by NAME, so a name absent from `dataHeaders` resolves to index -1 and streams as a

@@ -693,7 +693,7 @@ describe('BaseSchemaTable — calculated field row', () => {
   });
 
   // The index is built HERE, from the table's own schema fields, so this is the only place that
-  // pins a calculated field of the Data Mart reaching the menu at all (#6732).
+  // pins a calculated field of the Data Mart reaching the menu at all.
   it('offers the table’s other calculated field to a formula, level and all', () => {
     monacoState.registeredProvider = null;
     render(
@@ -904,7 +904,7 @@ describe('BaseSchemaTable — calculated field row', () => {
     expect(addCalculated?.className).not.toMatch(/(^|\s)rounded-br-none(\s|$)/);
   });
 
-  it('offers the joined fields published on the page, storing the reference with its path (#6732)', () => {
+  it('offers the joined fields published on the page, storing the reference with its path', () => {
     // The wiring this test exists for: the joined universe reaches the formula cell through
     // context, because the only path between the page and the cell runs through five per-storage
     // tables that have nothing to do with joins.
@@ -959,10 +959,9 @@ describe('BaseSchemaTable — calculated field row', () => {
 
   // -------------------------------------------------------------------------
   // A ROW-LEVEL calculated field (`level: 'column'`), which the backend now derives from a
-  // formula with no aggregate call. Slice 1 shows the level NOWHERE: every assertion below is
+  // formula with no aggregate call. The level shows NOWHERE: every assertion below is
   // that this row looks exactly like a metric's. They are here so the two reasons stop being
-  // confused with each other — one of them is permanent, the other is decision D2 and Slice 3
-  // is meant to INVERT it.
+  // confused with each other — one of them is permanent, the other is not.
   // -------------------------------------------------------------------------
   describe('a row-level calculated field', () => {
     const ROW_LEVEL_FORMULA = '{{ref field="clicks"}} * 2';
@@ -997,7 +996,7 @@ describe('BaseSchemaTable — calculated field row', () => {
       expect(within(screen.getAllByRole('row')[1]).getByRole('checkbox')).toBeInTheDocument();
     });
 
-    // Slice 3 (D2 lifted): a row-level field IS aggregatable, so it owns the "Σ available" cell
+    // A row-level field IS aggregatable, so it owns the "Σ available" cell
     // exactly like an ordinary column — that set is what a report's aggregation menu is drawn
     // from, and the backend now honours it for this level.
     it('owns the "Σ available" control, exactly like an ordinary column', () => {

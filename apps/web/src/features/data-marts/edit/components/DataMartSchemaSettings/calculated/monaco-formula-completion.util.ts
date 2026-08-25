@@ -39,30 +39,17 @@ const providerDisposableByKey = new WeakMap<typeof monaco, Map<string, monaco.ID
  * Autocomplete for the formula editor. Unlike the insight template editor's `{{ }}` tag detection,
  * a formula never has a syntax marker to key off — every word character is a trigger.
  *
- * Four sources, in menu order:
- * 1. every referenceable field (hidden and calculated included) from `getIndex()`, each row
- *    carrying its name, its type and what qualifies it — Data Mart, level, hidden — in Monaco's
- *    three label slots rather than in one packed `detail` string;
- * 2. the guarded-division snippet. Spec decision 6 downgraded unguarded division from an error to
- *    a warning on the stated grounds that the validator warns AND autocomplete offers the guarded
- *    form — so this entry is half of that bargain, not decoration;
- * 3. the aggregate functions the BACKEND parser recognizes for this storage (`getFunctions()`).
- *    Only those: a function the parser does not know as an aggregate makes its arguments read as
- *    bare row-level columns and fails the level-mixing rule, so suggesting a name the backend has
- *    never heard of would actively mislead.
- * 4. scalar functions for this storage (`getScalarFunctions()`), last. Point 3's restriction does
- *    not carry over and does not contradict this: it is about names that must be RECOGNIZED AS
- *    AGGREGATES, whereas the parser lets every non-aggregate call through untouched and leaves
- *    "does this function exist" to the warehouse dry run. So this group may — and must — offer
- *    names no backend list holds; it is a suggestion, never a claim about what is legal.
+ * Four sources, in menu order: every referenceable field; the guarded-division snippet; the
+ * AGGREGATE functions the backend parser recognizes for this storage; and scalar functions.
  *
- * Guarded the same way `registerTemplateSlashCommandProvider` guards itself
- * (`insights/utils/monaco-template-commands.util.ts`): the Data Mart SQL definition editor also
- * mounts with `language='sql'` and can be on the same page as this editor, so without a dedupe
- * guard a mounted FormulaEditor would leak its field completions into that unrelated editor too.
- * Deduping is only half of it — Monaco asks EVERY provider registered for the language, whichever
- * editor it came from — so the same `model !== getModel()` guard `registerFormulaHoverProvider`
- * applies is what keeps this editor's schema fields out of that unrelated SQL editor's menu.
+ * The aggregate group is restricted to what the parser knows, because a call it does not recognise
+ * makes its arguments read as bare row-level columns and fails the level-mixing rule. The scalar
+ * group is NOT restricted the same way and must not be — the parser lets every non-aggregate call
+ * through and leaves existence to the dry run, so this group is a suggestion, never a claim.
+ *
+ * The Data Mart SQL definition editor also mounts with `language='sql'` and can share a page with
+ * this one, and Monaco asks EVERY provider registered for the language. The `model !== getModel()`
+ * guard is what keeps this editor's schema fields out of that unrelated editor's menu.
  */
 export function registerFormulaCompletionProvider(
   monacoInstance: typeof monaco,
@@ -119,20 +106,13 @@ export function registerFormulaCompletionProvider(
        * the default range covers `N` alone and accepting `IS NOT NULL` would leave
        * `x IS IS NOT NULL`. Widen it to however much of the phrase is already typed.
        *
-       * Two bounds, because a range that is wrong in the other direction eats the analyst's text:
-       * it never NARROWS below the typed word (`abcIS` keeps the whole word, so no entry can
-       * replace a word's tail and leave its head behind), and it never starts INSIDE the previous
-       * identifier — `CASE WHEN analysis ` ends with `is `, and without the boundary check
-       * accepting `IS NULL` there would produce `CASE WHEN analysIS NULL`.
+       * Two bounds, because a range wrong in the other direction eats the analyst's text: it never
+       * NARROWS below the typed word, and it never starts INSIDE the previous identifier —
+       * `CASE WHEN analysis ` ends with `is `, and without the boundary check accepting `IS NULL`
+       * there produces `CASE WHEN analysIS NULL`.
        *
-       * Only prefix-aligned typing is covered, deliberately: `x NOT N` and `x IS  N` (two spaces)
-       * are not prefixes of `IS NOT NULL`, so those still fall back to the plain word range and
-       * still insert the phrase whole. Closing those would mean guessing which typed words the
-       * analyst meant as part of the phrase.
-       *
-       * No `filterText` is needed to keep the entry visible mid-phrase — Monaco derives each item's
-       * filter word from that item's own range start, so a widened range widens the word it is
-       * matched against too.
+       * Only prefix-aligned typing is covered: `x NOT N` falls back to the plain word range and
+       * still inserts the phrase whole. Closing that would mean guessing which words were meant.
        */
       const rangeFor = (label: string) => {
         if (!label.includes(' ')) return range;
@@ -156,13 +136,10 @@ export function registerFormulaCompletionProvider(
       const order = (group: number, i: number) => `${group}${String(i).padStart(4, '0')}`;
 
       const fields = getIndex().map((entry, i) => {
-        // Everything about a candidate except its name and type shares one slot, because all of it
-        // answers the same question: where does this come from, and may I use it as it stands?
-        // A joined candidate names its Data Mart (`orders.amount` and `order_items.amount` are
-        // told apart by the alias alone otherwise, and an alias is not what the analyst knows the
-        // Data Mart by). A calculated one names its LEVEL, which is what decides whether it may be
-        // written bare or has to be wrapped in an aggregation. Only the last two can co-occur: a
-        // joined field is never hidden here and never calculated (neither is offered at all).
+        // One slot for everything but name and type, because it all answers "where is this from,
+        // and may I use it as it stands?". A joined candidate names its Data Mart, since an alias
+        // is not what the analyst knows it by; a calculated one names its LEVEL, which decides
+        // whether it may be written bare.
         const description = [
           entry.sourceLabel,
           entry.calculated ? calculatedLabelFor(entry.calculated) : undefined,

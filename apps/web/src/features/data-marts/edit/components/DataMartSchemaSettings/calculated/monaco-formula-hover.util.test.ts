@@ -87,7 +87,7 @@ function hoverFor(options: {
  * that keeps its own per-(monaco, language) map: the entry belongs to whoever wrote it last, so an
  * earlier editor unmounting must not take a later one's registration off the books.
  */
-describe('registerFormulaHoverProvider: registration lifecycle (#6732)', () => {
+describe('registerFormulaHoverProvider: registration lifecycle', () => {
   it('leaves a later editor’s registration in place when an earlier one unmounts', () => {
     const disposed: number[] = [];
     let registrations = 0;

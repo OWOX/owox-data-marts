@@ -2198,7 +2198,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     });
 
     /**
-     * A ROW-LEVEL calculated field is a real grouping key of the report (#6732 slice 2, D6), so
+     * A ROW-LEVEL calculated field is a real grouping key of the report, so
      * the restriction has to reproduce it — one key coarser and the metric filter keeps a
      * different row set than the report shows, which is a wrong number rather than an error. The
      * flat renderer already does this; these are the two halves the blended builder was missing.
@@ -2306,7 +2306,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
        * fields are deliberately absent from `calculatedMetrics` and travel here instead — where the
        * two ownership guards, which walked those two lists, never saw them.
        *
-       * A row-level formula reads its own Data Mart only (spec §3.1). One that names a joined field
+       * A row-level formula reads its own Data Mart only. One that names a joined field
        * has nothing to route it: no sleeve is planned for a restriction dimension. It does NOT fail
        * loudly — the reference resolves through the shared options object to the joined mart's DEDUP
        * CTE, so the CTE emitted `GROUP BY main.channel, CONCAT(spend.spend__cost)` and the sleeve
@@ -2340,10 +2340,10 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
         ).toThrow(BusinessViolationException);
       });
 
-      // Slice 3: once the REPORT aggregates it, the field is no longer a grouping key — so the
+      // Once the REPORT aggregates it, the field is no longer a grouping key — so the
       // restriction, which reproduces the report's own grain, must stop reproducing it. Kept, the
       // CTE groups one key FINER than the report, its HAVING keeps a different row set, and Totals
-      // come back plausibly wrong; since Task 2's refusal the whole blended Totals query throws
+      // come back plausibly wrong; since that refusal landed the whole blended Totals query throws
       // instead, because this CTE renders from an EMPTY rule list on purpose.
       it('drops a plan the report AGGREGATES, so the CTE stays at the report grain', () => {
         const context = restrictedContext();
@@ -2868,11 +2868,11 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
 });
 
 /**
- * A main-owner calculated metric on a report that ALSO spans a joined Data Mart (#6732). The
+ * A main-owner calculated metric on a report that ALSO spans a joined Data Mart. The
  * bottom-up join leaves at most one row per main-mart row, so `SUM(clicks)` inside a formula is
  * the same grain — and the same render site — as the already-shipped `SUM(spend__cost)`.
  */
-describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
+describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   let builder: TestBlendedWithRenderer;
   const buildContext = createBuildContext('main_table');
 
@@ -2937,7 +2937,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
     expect(sql).toContain('GROUP BY\n  main.channel,\n  orders.orders__country');
   });
 
-  // A formula that reads another formula (#6732). The main CTE's projection is derived from the
+  // A formula that reads another formula. The main CTE's projection is derived from the
   // formulas this query RENDERS, and a dependency is one of them — so both halves of that
   // derivation have to walk the closure, not just the top-level plans.
   const revenueMetric: CalculatedMetricPlan = {
@@ -3026,7 +3026,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
   // formula is a dimension, so it must not turn a plain blended projection into a grouped one.
   //
   // Only the flip is pinned here. What that ungrouped SELECT projects is the PLAIN blended path's
-  // own question, and that path has no calculated channel yet (spec §4) — the grouped path's
+  // own question, and that path has no calculated channel yet — the grouped path's
   // rendering is pinned in its own describe below.
   it('does not force the grouped shape when the only calculated field is row-level', () => {
     const { sql } = builder.buildBlendedQuery({
@@ -3106,8 +3106,8 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
     expect(mainCte![1]).toContain('clicks');
     expect(mainCte![1]).toContain('impressions');
     expect(sql).toContain(CTR_SELECT_ITEM);
-    // A FLOAT-declared metric sorts by the same cast expression its filter would compare (D23,
-    // extended to the sort): ordering the bare alias sorted the formula's text, which under a
+    // A FLOAT-declared metric sorts by the same cast expression its filter would compare, extended
+    // to the sort: ordering the bare alias sorted the formula's text, which under a
     // LIMIT returns a different ROW SET. The alias itself cannot be wrapped — Redshift does not
     // resolve an output name inside an ORDER BY expression — so the expression is repeated.
     expect(sql).toContain(
@@ -3116,7 +3116,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
     expect(sql).not.toContain('ORDER BY\n  `ctr` DESC');
   });
 
-  // #6732 spec §2: a predicate on a Calculated Field compares its FORMULA. It travels on its own
+  // A predicate on a Calculated Field compares its FORMULA. It travels on its own
   // channel because the field need not be SELECTED to be filtered on — and an aggregate-level
   // PREDICATE forces the grouped shape exactly as selecting one does, or this takes the ungrouped
   // branch where `assertNoHavingRules` refuses a predicate that belongs to no clause.
@@ -3129,7 +3129,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
       ] satisfies RoutedFilterRule[],
     });
 
-    // Both sides carry the DECLARED type (#6732, D23/D25); the VALUE's half appears only because
+    // Both sides carry the DECLARED type; the VALUE's half appears only because
     // `partitionBlendedFilters` answers a Calculated Field with its declaration.
     expect(sql).toContain(
       'HAVING CAST((SUM(main.clicks) / NULLIF(SUM(main.impressions), 0)) AS FLOAT64) > ' +
@@ -3172,13 +3172,13 @@ describe('AbstractBlendedQueryBuilder — calculated metric (#6732)', () => {
 });
 
 /**
- * A ROW-LEVEL calculated field on a report that spans a join (#6732 slice 2). It is a DIMENSION:
+ * A ROW-LEVEL calculated field on a report that spans a join. It is a DIMENSION:
  * the outer query groups by its rendered expression, so every metric sleeve has to carry that same
  * key. A sleeve left at the coarser grain would join one of its rows against several outer groups
  * and `ANY_VALUE` would hand each of them a value computed over all of them — a plausible number,
  * with no NULL and no warehouse error to show for it.
  */
-describe('AbstractBlendedQueryBuilder — a row-level calculated field on a joined report (#6732)', () => {
+describe('AbstractBlendedQueryBuilder — a row-level calculated field on a joined report', () => {
   const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
   const sessionKey: CalculatedMetricPlan = {
@@ -3313,7 +3313,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
   });
 
   /**
-   * Slice 3 (spec §2): the report may apply an aggregation to the field, and it then stops being a
+   * The report may apply an aggregation to the field, and it then stops being a
    * grouping key — of the OUTER query and of every SLEEVE, together. One key out of step and the
    * sleeve's join-back matches nothing: NULL, or 0 once the COUNT_DISTINCT pull coalesces.
    */
@@ -3360,7 +3360,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
       expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
     });
 
-    // #6732 D18/D19b, the blended half of probe shape 4b. The outer SELECT casts the substituted
+    // The blended half of probe shape 4b. The outer SELECT casts the substituted
     // formula to the declared type before SUM reads it; a metric filter over that same aggregation
     // must compare the SAME string. Where it re-derived its own left-hand side, Redshift printed
     // `1.75` for a group and then dropped it for failing `> 1.5`, having truncated the uncast
@@ -3369,7 +3369,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
       const numericText: CalculatedMetricPlan = {
         ...sessionKey,
         // Declared FLOAT over a text formula: legal (a declaration is never validated against the
-        // formula, D3) and the shape that makes the cast observable.
+        // formula) and the shape that makes the cast observable.
         type: 'FLOAT',
         isAggregatedByReport: true,
       };
@@ -3410,7 +3410,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
   });
 
   /**
-   * Slice 3b (spec §2.1, D17): the report may BUCKET the field by date, and the outer GROUP BY key
+   * The report may BUCKET the field by date, and the outer GROUP BY key
    * is then the truncated expression. The sleeve has to reproduce both steps in the same order —
    * projecting the raw formula is the drift `abstract-blended-query-builder.ts` records as having
    * already happened once for an ordinary column, and a COUNT_DISTINCT pull would today COALESCE
@@ -3420,7 +3420,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     const VISIT_DAY_FORMULA = 'COALESCE({{ref field="visit_ts"}}, {{ref field="created_ts"}})';
     const VISIT_DAY_SQL = 'COALESCE(main.visit_ts, main.created_ts)';
     // DATE-declared, which is what makes the type argument observable: BigQuery's renderer wraps a
-    // non-DATE expression in `DATE(...)` and leaves a DATE one bare (§1.4).
+    // non-DATE expression in `DATE(...)` and leaves a DATE one bare.
     const visitDay: CalculatedMetricPlan = {
       outputName: 'visit_day',
       type: 'DATE',
@@ -3451,7 +3451,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
       expect(sql).not.toContain(`${VISIT_DAY_SQL} AS _owox_dim_1`);
     });
 
-    // D16: the probe measured `CAST(<expr> AS DATE)` returning `2026-05-01` on Redshift for a value
+    // The probe measured `CAST(<expr> AS DATE)` returning `2026-05-01` on Redshift for a value
     // meaning the 5th of August, where the uncast shape errors — so a cast added here to "help" the
     // sleeve would trade a loud refusal for a wrong month.
     it('adds no cast on the way to the truncation', () => {
@@ -3500,7 +3500,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
   });
 
   /**
-   * Slice 4 (spec §4): the report FILTERS on the field, and the predicate must reach the outer
+   * The report FILTERS on the field, and the predicate must reach the outer
    * query AND the inside of every metric sleeve.
    *
    * This is #6766's Critical C1 in this feature's shape — there the sleeve read `FROM main`
@@ -3581,7 +3581,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
 });
 
 /**
- * The SAME field on a joined report carrying NO aggregation rules (#6732 slice 2, spec §4).
+ * The SAME field on a joined report carrying NO aggregation rules.
  *
  * A row-level field is a DIMENSION, so it does not flip the query into the grouped shape — the
  * PLAIN blended projection is the only thing that can carry it, and it had no calculated channel
@@ -3589,7 +3589,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
  * published a header for it regardless. A blank column on BigQuery, Snowflake and Databricks; an
  * exception on Athena and Redshift.
  */
-describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNGROUPED joined report (#6732)', () => {
+describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNGROUPED joined report', () => {
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
   const sessionKey: CalculatedMetricPlan = {
     outputName: 'session_key',
@@ -3660,7 +3660,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
   });
 
   // Same verdict as the grouped path, from the same assertion: a row-level formula reads its own
-  // Data Mart only (spec §3.1), so a joined reference is refused rather than qualified against
+  // Data Mart only, so a joined reference is refused rather than qualified against
   // `main` — an unrecognized name, or a wrong number when main owns a column of that name.
   it('refuses a joined reference in a row-level formula on this path too', () => {
     expect(() =>
@@ -3693,12 +3693,12 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
 });
 
 /**
- * A formula whose aggregate calls span BOTH Data Marts (#6732). The joined call cannot be computed
+ * A formula whose aggregate calls span BOTH Data Marts. The joined call cannot be computed
  * in the outer SELECT — the blend aggregates `orders` by its join key before joining it in, so
  * re-aggregating that collapsed CTE over- or under-counts on a fanning join — so it is lifted into
  * its own metric sleeve and its call site is replaced by that sleeve's pull.
  */
-describe('AbstractBlendedQueryBuilder — calculated metric across joined Data Marts (#6732)', () => {
+describe('AbstractBlendedQueryBuilder — calculated metric across joined Data Marts', () => {
   let builder: TestBlendedWithRenderer;
 
   // Enough of a warehouse's aggregate vocabulary for the owner analysis to split these formulas.
@@ -3890,7 +3890,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
   // Both guards iterated the SELECTED metrics only, so a FILTER-only formula reached the SQL with
   // no ownership check at all — and `buildFormulaOwnerPlan` hands a mixed-owner call back as
   // own-owner, so it renders `main.amount`: an unrecognised name, or a plausible WRONG NUMBER when
-  // main happens to own a column of that name. D22 refuses this filter upstream; the builder is
+  // main happens to own a column of that name. The validator refuses this filter upstream; the builder is
   // where the refusal has to be true even when nothing upstream ran.
   it('refuses a mixed-owner call on a formula that is only FILTERED', () => {
     const formula = 'SUM({{ref field="cost"}} * {{ref path="orders" field="amount"}})';
@@ -3942,7 +3942,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
     expect(() => builder.buildBlendedQuery(context)).toThrow(/orders\.amount/);
   });
 
-  // Task 1's bug class: a commented-out reference is not live SQL, so it must neither build a
+  // The bug class: a commented-out reference is not live SQL, so it must neither build a
   // sleeve nor trip the routing guard.
   it('ignores a joined reference that is commented out', () => {
     const formula = 'SUM({{ref field="cost"}}) /* was {{ref path="orders" field="amount"}} */';

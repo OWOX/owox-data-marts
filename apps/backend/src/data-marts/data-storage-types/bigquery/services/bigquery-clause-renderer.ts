@@ -17,7 +17,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
 
   /**
    * A declared type is a BigQueryFieldType — the API's vocabulary, which GoogleSQL does not answer
-   * to: `CAST(x AS FLOAT)` is `Type not found: FLOAT`, measured live (#6732). INT64 rather than the
+   * to: `CAST(x AS FLOAT)` is `Type not found: FLOAT`, measured live. INT64 rather than the
    * declared INTEGER for safety, not necessity: `CAST('1' AS INTEGER)` dry-runs clean, but FLOAT
    * proved an alias accepted elsewhere can still be absent from a CAST, so the canonical name is
    * the one worth spelling.
@@ -54,7 +54,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
   // placeholder in CAST(@p AS <type>) so the string is parsed to the column type.
   private static readonly DATE_CAST_TYPES = new Set(['DATE', 'DATETIME', 'TIME', 'TIMESTAMP']);
 
-  // `valueCastType` is the declared type a Calculated Field's comparison imposes (#6732, D25) —
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
   // disjoint from the date set above, since it is only ever a numeric target. It matters most on
   // this dialect: the SDK types a param from its JS value, so `= 10` and `= '10'` over one field
   // were measured flipping between `No matching signature for operator =` and the right answer.

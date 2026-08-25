@@ -345,11 +345,11 @@ describe('CalculatedFieldFormulaCell', () => {
   });
 
   /**
-   * The whole point of #6732, end to end on the web side: `roas = revenue / cost` where both
+   * The whole point, end to end on the web side: `roas = revenue / cost` where both
    * operands are calculated fields of this same Data Mart. Until the index offered them, the two
    * names resolved to nothing, travelled as bare SQL, and Apply refused the formula outright.
    */
-  describe('a formula reading another calculated field (#6732)', () => {
+  describe('a formula reading another calculated field', () => {
     const calculatedOwn = [
       ...fields,
       field({
@@ -413,7 +413,7 @@ describe('CalculatedFieldFormulaCell', () => {
 
   // Asked for after seeing chips live: the popover covers the row it is editing, the footer's left
   // half was empty, and a field looked like a field only inside the editor.
-  describe('the popover chrome and the row (#6732)', () => {
+  describe('the popover chrome and the row', () => {
     const chipsIn = (element: HTMLElement) =>
       [...element.querySelectorAll('.formula-field-chip')].map(chip => chip.textContent);
 
@@ -515,7 +515,7 @@ describe('CalculatedFieldFormulaCell', () => {
     expect(screen.queryByTestId('formula-editor')).not.toBeInTheDocument();
   });
 
-  describe('live problems from the backend (#6732)', () => {
+  describe('live problems from the backend', () => {
     beforeEach(() => {
       vi.useFakeTimers();
       validateFormula.mockReset();
@@ -566,7 +566,7 @@ describe('CalculatedFieldFormulaCell', () => {
      * The schema editor defers its save, so `revenue` and `cost` exist only on screen while
      * `roas = revenue / cost` is being written. Asked about the persisted schema alone, the panel
      * answered "`revenue` no longer exists in the Data Mart" and squiggled the reference — in the
-     * exact flow #6732 exists for, about a formula the save then accepted.
+     * exact flow this exists for, about a formula the save then accepted.
      */
     it('tells the check which formulas the editor is holding, saved or not', async () => {
       renderCell({
@@ -685,7 +685,7 @@ describe('CalculatedFieldFormulaCell', () => {
     });
   });
 
-  describe('joined Data Mart fields (#6732)', () => {
+  describe('joined Data Mart fields', () => {
     it('saves a joined reference as a tag carrying the joined source path', () => {
       const onSave = renderCell({
         formula: 'SUM({{ref field="clicks"}})',

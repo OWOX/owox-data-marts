@@ -521,7 +521,7 @@ describe('collectFormulaReferenceableFields', () => {
       ...extra,
     }) as unknown as DataMartSchemaField;
 
-  it('keeps a hidden field — unlike collectSchemaFieldPathDescriptors, a formula may reference it (spec §7)', () => {
+  it('keeps a hidden field — unlike collectSchemaFieldPathDescriptors, a formula may reference it', () => {
     const fields = [mkField('internal_id', { isHiddenForReporting: true }), mkField('clicks')];
     expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual([
       'internal_id',

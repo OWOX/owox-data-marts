@@ -46,7 +46,7 @@ describe('partitionBlendedFilters — pre/post-join split', () => {
   });
 
   // A pre-join HAVING has nowhere to run: the raw CTE renders WHERE only, and HAVING exists
-  // post-join. D21 (#6732) — a function-less rule routed to HAVING must trip the same invariant,
+  // post-join. A function-less rule routed to HAVING must trip the same invariant,
   // or an aggregate-level Calculated Field's predicate is silently pushed into a raw CTE that
   // drops it, and the report returns more rows than asked for.
   it('throws for a pre-join rule carrying a function', () => {
@@ -81,11 +81,11 @@ describe('partitionBlendedFilters — pre/post-join split', () => {
     ).toThrow(/cannot be pushed pre-join/);
   });
 
-  // #6732 D25 — the blended half of the one type seat. `columnTypes.postJoin` is built from the
+  // The blended half of the one type seat. `columnTypes.postJoin` is built from the
   // blended field index, which holds warehouse columns only, so a Calculated Field could never
   // appear there: the resolver answered `undefined` for it and the VALUE's JS type decided the
   // comparison. Both plan lists are read, since a filter may name a field the report also selects.
-  describe('the declared type of a Calculated Field (#6732, D25)', () => {
+  describe('the declared type of a Calculated Field', () => {
     const ctr = {
       outputName: 'ctr',
       type: 'FLOAT',

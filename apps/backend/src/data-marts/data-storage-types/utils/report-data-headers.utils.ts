@@ -13,36 +13,17 @@ import {
 } from '../../dto/schemas/aggregation-labels';
 
 /**
- * Resolves the final list of report data headers from the native schema
- * headers and an optional column filter produced by
- * `BlendedReportDataService.resolveBlendingDecision`.
+ * Resolves the final list of report data headers from the native schema headers and the optional
+ * column filter `BlendedReportDataService.resolveBlendingDecision` produced.
  *
- * Behavior:
- * - When `options` is not provided or `columnFilter` is empty, returns the
- *   native headers unchanged (default: every column from the schema).
- * - When `columnFilter` is set, returns a new list containing only the
- *   headers whose `name` appears in the filter, preserving the filter order.
- * - Columns not found in native headers fall back to the blended headers
- *   supplied via `options.blendedDataHeaders`, and finally to a minimal
- *   `ReportDataHeader(name, name)` placeholder so the reader still emits a
- *   column (e.g. for SQL override results that contain unknown names).
- * - Aggregated columns are expanded to one header per applied function, named
- *   `aggregatedColumnLabel(col, fn)` — the SAME labels the SQL renderer emits as output
- *   aliases — each with its effective type and aggregate function set. A column may carry
- *   more than one function (each becomes its own output column). Readers map result rows to
- *   headers BY NAME, so the header name MUST equal the SQL alias. Header order does NOT have
- *   to equal SELECT column order, and on the blended path it does not: a metric-sleeve pull
- * (joined COUNT DISTINCT / SUM / AVG,) is appended after the non-sleeve select items, while the
- *   header for it sits at its own column's position.
- * - `uniqueCountSources` appends one header per joined source, after the main Data Mart's
- *   `Unique Count`. Its `name` is the SQL-safe `outputLabel` (`orders__unique_count`) the sleeve
- *   aliased, and its display alias is the free-form `displayLabel` (`Orders Unique Count`) — the
- *   same name/alias split every blended column header already uses. It is the SAME list the blended
- *   builder rendered its sleeves from, so a source dropped there has no header here either.
- * - `calculatedMetrics` appends one header per selected calculated metric, last. There is no
- *   warehouse column to derive its type from, so it carries the analyst's declared `type` — the
- *   same synthesis Unique Count and the aggregation aliases already use. One that the REPORT
- *   aggregates expands per function instead, exactly as an aggregated column does (#6732).
+ * Readers map rows to headers BY NAME, so every name emitted here must match the SQL renderer's
+ * output alias exactly; ORDER need not, and on the blended path does not.
+ *
+ * A filtered name present in neither the native nor the blended headers still gets a placeholder
+ * header, so an SQL override returning unknown columns still emits them.
+ *
+ * `calculatedMetrics` headers carry the analyst's DECLARED type — there is no warehouse column to
+ * derive one from.
  */
 export function resolveReportDataHeaders(
   nativeHeaders: ReportDataHeader[],
@@ -68,7 +49,7 @@ export function resolveReportDataHeaders(
   // the SQL emits no metric and falls back to a plain SELECT, so a metrics-only header list here
   // would leave the report with no columns at all for a result full of them.
   //
-  // The calculated clause stays LEVEL-BLIND (#6732): `composePlainSelectBody` drops the wildcard
+  // The calculated clause stays LEVEL-BLIND: `composePlainSelectBody` drops the wildcard
   // once any calculated item is present, so a ROW-LEVEL-only selection also projects that one
   // field and nothing else. Counting aggregating fields only would answer with every native
   // header for it.
@@ -153,31 +134,22 @@ export function resolveReportDataHeaders(
     ];
   }
 
-  // A calculated metric has no warehouse column to derive a type from, so it is typed by the
-  // analyst's own declaration instead — the same synthesis Unique Count and the aggregation
-  // aliases already use above.
+  // A calculated metric is typed by the analyst's declaration; there is no warehouse column.
   //
   // `aggregateFunction` stays undefined because no single report function describes a formula, so
-  // the header carries the field's LEVEL instead: a bare `undefined` there means "an ordinary
-  // native column" to consumers, and Looker Studio reads that as METRIC + defaultAggregation SUM
-  // + isReaggregatable — i.e. it would re-sum a ratio, the exact non-additive failure this
-  // feature exists to remove (spec §8). The level travels rather than the mere fact of being
-  // calculated because the destination's answer differs by it: a row-level formula is a DIMENSION
-  // and must take the ordinary path (spec §4.5), and the mapper deliberately refuses to re-derive
-  // that from the declared type.
+  // the header carries the field's LEVEL instead. A bare `undefined` there reads as "ordinary
+  // native column", which Looker Studio maps to a re-summable SUM — the non-additive failure this
+  // feature exists to remove. The LEVEL travels rather than the fact of being calculated, because
+  // a row-level formula is a DIMENSION and must take the ordinary path.
   //
-  // UNLESS the REPORT aggregates it (#6732 spec §2.1). A row-level field carrying an aggregation
-  // rule is no longer a grouping key, and `renderAggregatedSelect` emits one aggregate per rule
-  // under `aggregatedColumnLabel` instead of the bare name — so the headers expand the same way an
-  // ordinary aggregated column does above, through the same label helper the alias came from.
-  // Named `outputName` regardless, the reader binds to a column the SELECT never emitted. The
-  // grain verdict is read off the PLAN (`isCalculatedGroupingKey`) and never re-derived from the
-  // rules; the rules only say WHICH functions, exactly as they do for the renderer.
+  // UNLESS the REPORT aggregates it: a row-level field carrying a rule is no longer a grouping key,
+  // and the renderer emits one aggregate per rule under `aggregatedColumnLabel`, so the headers
+  // expand the same way. Named `outputName` regardless, the reader binds to a column the SELECT
+  // never emitted. The grain verdict comes off the PLAN, never re-derived from the rules.
   //
-  // The analyst's `alias`/`description` travel on the plan and are re-attached here, for the same
-  // reason the type is: this list is the metric's ONLY header source. Skipping them left a metric
-  // aliased "CTR, %" as the one column in its own report still labelled `ctr`, while every field
-  // beside it showed its alias.
+  // `alias`/`description` are re-attached here for the same reason the type is: this list is the
+  // metric's ONLY header source, and skipping them left a metric aliased "CTR, %" as the one column
+  // in its own report still labelled `ctr`.
   for (const metric of options?.calculatedMetrics ?? []) {
     const fns =
       isCalculatedGroupingKey(metric) || isAggregateLevel(metric.level)

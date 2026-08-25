@@ -181,7 +181,7 @@ describe('DatabricksClauseRenderer', () => {
   });
 
   // Spark SQL spells its own vocabulary, so most entries are identities — DECIMAL is not: a bare
-  // one is (10,0) here, and casting to it would truncate every fraction (#6732, D19).
+  // one is (10,0) here, and casting to it would truncate every fraction.
   describe('castTypeForDeclaredType (declared Databricks type → Spark SQL cast target)', () => {
     // Spark's FLOAT is 32-bit, so a declared FLOAT widens to DOUBLE: `12.75` was measured through
     // DOUBLE here, and a formula returning a double today would silently round to ~7 significant
@@ -207,10 +207,10 @@ describe('DatabricksClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25. Like Snowflake this dialect already coerced the probe's `> 5` correctly, so the
-  // point here is the NO-OP plus the declaration finally being stated — and D19b matters most on
+  // Like Snowflake this dialect already coerced the probe's `> 5` correctly, so the
+  // point here is the NO-OP plus the declaration finally being stated — and the integer rule matters most on
   // this dialect, because Spark's `CAST(1.5 AS INT)` TRUNCATES where the other four round.
-  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
     const numericText: CalculatedMetricPlan = {
       outputName: 'probe',
@@ -262,7 +262,7 @@ describe('DatabricksClauseRenderer', () => {
       );
     });
 
-    // D19b, on the dialect that makes the rule non-negotiable: casting an integer declaration here
+    // On the dialect that makes the rule non-negotiable: casting an integer declaration here
     // truncates where the other four round, so one report would answer differently per warehouse.
     it('never casts the integer family, which Spark truncates where the others round', () => {
       expect(r.castTypeForDeclaredType('INT')).toBe('INT');
@@ -303,7 +303,7 @@ describe('DatabricksClauseRenderer', () => {
       }
     });
 
-    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
     // make ONE unparseable row fail the WHOLE query where it used to return rows — and on this
     // dialect that is not hypothetical: the probe's own `CAST_INVALID_INPUT` names the ROW's value.
     it('leaves IS NULL, IS NOT NULL and the text matchers uncast', () => {

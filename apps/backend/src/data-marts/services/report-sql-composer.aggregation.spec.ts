@@ -259,7 +259,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
   });
 
   // Every query builder and every reader consumes the PLAN, never the schema field it was built
-  // from, so the field's level has to travel on it (#6732). Missed, a row-level field reads as a
+  // from, so the field's level has to travel on it. Missed, a row-level field reads as a
   // metric — which is a wrong GROUP BY and a wrong number, not an error anyone sees.
   describe('the calculated field level travels on the composed plan', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
@@ -327,7 +327,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     });
 
     // "Needs the output-controls path" and "is aggregated" are two questions that shared one
-    // expression here. Only the SECOND one reads the level (#6732): the formula substitution
+    // expression here. Only the SECOND one reads the level: the formula substitution
     // channel lives on the output-controls path, so a row-level-only selection must still cross
     // it — otherwise no `mainTableReference` is resolved, and on a SQL-defined mart the builder
     // has no source to select the formula's columns from.
@@ -349,7 +349,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       );
     });
 
-    // `level` answers "does the formula aggregate?", and until slice 3 that also answered "is the
+    // `level` answers "does the formula aggregate?", and it once also answered "is the
     // field a grouping key?". A report aggregating a row-level field is where they diverge, and
     // the answer is decided HERE, at the plan factory — kept off the level, every downstream site
     // would re-derive it, and a field both grouped by and counted distinct returns 1 on every row.
@@ -703,7 +703,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     // for a calculated metric (it can never legally appear in aggregationConfig). Left unfiltered,
     // `ctr` would reach `renderKeptGroupsJoin`, which hands `restriction.dimensions` to
     // `renderAggregatedSelect` with NO calculated-metric exclusion — a bare, nonexistent `ctr`
-    // column reference and a guaranteed `Unrecognized name` on every dialect (#6732 Task 9).
+    // column reference and a guaranteed `Unrecognized name` on every dialect.
     it('never leaks the calculated metric into the kept-groups restriction dimensions', async () => {
       const ctrFormula =
         'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
@@ -805,8 +805,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     // which the aggregated renderer then GROUPS BY. The Totals query returned one row per
     // row-level group and `ReportTotalsService.computeTotals` publishes `dataRows[0]` as the grand
     // total: an arbitrary group's SUM, labelled `calculated_by_owox`, with no exception, no log
-    // line, and no degradation signal (#6732).
-    describe('a ROW-LEVEL calculated field is never a totals metric (#6732)', () => {
+    // line, and no degradation signal.
+    describe('a ROW-LEVEL calculated field is never a totals metric', () => {
       const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
       // Declared FLOAT deliberately: the declared type is the analyst's free choice, so this field
       // PASSES `isTotalsEligible`'s numeric test. Only the level rules it out.
@@ -933,7 +933,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         expect(outerTail).not.toMatch(/GROUP BY/);
       });
 
-      // Slice 3 lets a report apply an aggregation to a row-level field, and the field then stops
+      // A report may apply an aggregation to a row-level field, and the field then stops
       // being a grouping key. Both halves above have to follow it there.
       describe('once the REPORT aggregates it', () => {
         const COUNT_SESSIONS: AggregationRule[] = [
@@ -942,7 +942,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         ];
 
         /**
-         * DECISION D11 — a Calculated Field is NEVER a Totals metric, whatever the report does
+         * A Calculated Field is NEVER a Totals metric, whatever the report does
          * with it. The analyst sees a `COUNT_DISTINCT` column with no Totals value: a visible
          * absence rather than a wrong number.
          *
@@ -951,9 +951,9 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
          * "the report aggregates it" as the metric signal for a non-numeric field — so the skip is
          * the only thing keeping an aggregated `session_key` out. Delete it as an oversight and
          * Totals silently gains a `session_key | COUNTUNIQUE` grand total. A later slice that wants
-         * that has to change D11, not stumble into the code.
+         * that has to change this rule, not stumble into the code.
          */
-        it('D11: an aggregation rule on it still does not make it a totals metric', async () => {
+        it('an aggregation rule on it still does not make it a totals metric', async () => {
           const { service } = makeEchoingComposer();
           const report = buildTotalsReport(
             {
@@ -975,7 +975,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         // The other half, and the one that breaks: the restriction reproduces the REPORT's
         // grouping, and the report stopped grouping by this field the moment it aggregated it.
         // Reproduced as a key the restriction is one key FINER than the report, so the HAVING keeps
-        // a different row set and Totals summarise rows the report does not show. Since Task 2 it
+        // a different row set and Totals summarise rows the report does not show. Since that refusal it
         // does not even get that far — the restriction renders from an EMPTY rule list, so the
         // renderer refuses a plan it has no function for and the whole Totals block 500s.
         it('drops it from the kept-groups restriction, which the report no longer groups by', async () => {
@@ -1029,7 +1029,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       });
     });
 
-    // D21 (#6732): the clause a predicate belongs in is decided ONCE, from the rule AND the
+    // The clause a predicate belongs in is decided ONCE, from the rule AND the
     // field's level, and carried on the rule. `rule.function` cannot express this case — an
     // aggregate-level Calculated Field's aggregation lives inside the formula, so its rule carries
     // no function and, by AGGREGATION_ON_CALCULATED_METRIC, never can. Split on `rule.function`
@@ -1346,8 +1346,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     };
 
     /**
-     * Totals + a metric filter + a ROW-LEVEL calculated field, on a report that JOINS (#6732
-     * slice 2, D6) — the shape where composer and builder have to agree. `composeTotals` keeps the
+     * Totals + a metric filter + a ROW-LEVEL calculated field, on a report that JOINS — the shape where composer and builder have to agree. `composeTotals` keeps the
      * field out of the totals metrics (it is a dimension) and puts its plan on the restriction, so
      * the builder is the only thing that can render it: the field's NAME is in the restriction's
      * dimension list while `calculatedMetrics` deliberately excludes it.

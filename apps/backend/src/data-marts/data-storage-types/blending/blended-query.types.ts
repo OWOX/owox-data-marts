@@ -107,7 +107,7 @@ export interface SleevePull {
 }
 
 /**
- * The ROW-LEVEL calculated fields a sleeve's grain carries (#6732), on a channel PARALLEL to its
+ * The ROW-LEVEL calculated fields a sleeve's grain carries, on a channel PARALLEL to its
  * `dimensions` list rather than inside it.
  *
  * The list itself stays `string[]` and a row-level field contributes its output NAME, because ten
@@ -167,7 +167,7 @@ export interface SleeveFilterOptions {
   resolveColumnType?: ColumnTypeResolver;
   whereParamPrefix: string;
   /**
-   * The SAME `buildCalculatedPredicateExpressions` map the outer WHERE uses (#6732): a filter on a
+   * The SAME `buildCalculatedPredicateExpressions` map the outer WHERE uses: a filter on a
    * Calculated Field compares its FORMULA, and the field's name is a SELECT alias no CTE projects.
    * Without it the sleeve emitted `main.<field>` over a `main` CTE that correctly carries no such
    * column — and a sleeve that cannot apply the report's predicate is the shape #6766's Critical C1

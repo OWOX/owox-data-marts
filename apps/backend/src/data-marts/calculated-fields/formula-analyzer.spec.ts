@@ -408,7 +408,7 @@ describe('analyzeFormula', () => {
     expect(a.aggregateCalls.map(c => [c.name, c.owner])).toEqual([['SUM', '']]);
   });
 
-  // spec §4.3: Unique Count (and any measure) is already an aggregate — wrapping it in another
+  // Unique Count (and any measure) is already an aggregate — wrapping it in another
   // one double-counts a number that is already per-group.
   it('rejects wrapping an already-aggregated reference in another aggregate call', () => {
     const known = (_path: string, field: string) =>
@@ -458,7 +458,7 @@ describe('analyzeFormula', () => {
   // The refusal is checked apart from the reference-state chain, so no state can claim the
   // reference first and let it through. 'aggregate' is the state that did: a JOINED Unique Count
   // is refused out of band by the validator today, but that restriction is a slice-1 limit the
-  // roadmap intends to lift, while spec §3.1 is permanent — so the permanent rule must not depend
+  // roadmap intends to lift, while the other is permanent — so the permanent rule must not depend
   // on the temporary one still being there.
   it('refuses a joined reference at row level whatever the reference state', () => {
     const known = (_path: string, field: string) =>
@@ -495,7 +495,7 @@ describe('analyzeFormula', () => {
     ]);
   });
 
-  // spec §2.1: level = 'metric' iff the formula contains an aggregate call OR references a
+  // Level = 'metric' iff the formula contains an aggregate call OR references a
   // Calculated Field whose own level is 'metric'. B's aggregation lives in B's string, so A's own
   // token stream can never see it — the transitive half is only answerable once the references have
   // been resolved, which is why the derivation had to move below the resolution.
@@ -538,7 +538,7 @@ describe('analyzeFormula', () => {
     ]);
   });
 
-  // PERMANENT (design §1, D12): a formula may not read ANOTHER Data Mart's formula, whatever level
+  // PERMANENT: a formula may not read ANOTHER Data Mart's formula, whatever level
   // that formula has. This passed with ZERO errors when the levelled states arrived — the metric
   // level is exactly what disables the row-level joined guard above, and the calculated-metric arm
   // then claimed the reference. Unreachable while the validator refuses a joined calculated
@@ -559,7 +559,7 @@ describe('analyzeFormula', () => {
     }
   });
 
-  // The own-Data-Mart refusal is what #6732 lifts: two bare aggregate-level calculated references
+  // The own-Data-Mart refusal is the one lifted: two bare aggregate-level calculated references
   // save clean and make the formula a metric (pinned above), and this is the same formula reaching
   // for a JOINED one inside an aggregate — still refused, so nothing about the lift is symmetric.
   it('refuses a joined calculated reference even inside an aggregate call', () => {

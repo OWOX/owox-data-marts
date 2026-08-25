@@ -797,7 +797,7 @@ describe('DataMartSchemaSettings calculated-field save feedback', () => {
   });
 });
 
-describe('DataMartSchemaSettings joined formula fields (#6732)', () => {
+describe('DataMartSchemaSettings joined formula fields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     testState.blendableSchema = undefined;
@@ -868,7 +868,7 @@ describe('DataMartSchemaSettings joined formula fields (#6732)', () => {
   });
 });
 
-describe('DataMartSchemaSettings broken calculated fields (#6732)', () => {
+describe('DataMartSchemaSettings broken calculated fields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     testState.blendableSchema = undefined;

@@ -239,7 +239,7 @@ describe('ReportSqlComposerService', () => {
       expect.anything(),
       expect.objectContaining({
         columns: ['a'],
-        // Forwarded with the clause the composer decided for it (#6732, D21) — the builders read
+        // Forwarded with the clause the composer decided for it — the builders read
         // that verdict and never re-derive one from `rule.function`.
         filters: [{ ...filterConfig[0], clause: 'where' }],
         sort: sortConfig,
@@ -1173,7 +1173,7 @@ describe('ReportSqlComposerService', () => {
       expect((sql.match(/`ctr`/g) ?? []).length).toBe(1);
     });
 
-    // #6732 spec §2, and the end-to-end proof that `renderHaving`'s named throw is unreachable
+    // The end-to-end proof that `renderHaving`'s named throw is unreachable
     // from a report: `compose` builds the predicate plan from the FILTER's own columns, so the
     // rule and the plan come from one schema list and cannot disagree about which fields exist.
     // The field is deliberately NOT selected — the shape the projection channel cannot reach.
@@ -1188,7 +1188,7 @@ describe('ReportSqlComposerService', () => {
       const { sql } = await composer.compose(report, { userId: 'u1', roles: ['admin'] });
 
       expect(sql).toMatch(/GROUP BY\s+`country`/);
-      // Both sides carry the field's DECLARED type (#6732, D23/D25), composed end to end: the
+      // Both sides carry the field's DECLARED type, composed end to end: the
       // VALUE's half appears only because the schema field's type reaches the builder's type
       // resolver, which is the whole path a report takes.
       expect(sql).toContain(
@@ -1242,7 +1242,7 @@ describe('ReportSqlComposerService', () => {
       const { sql } = await composer.compose(report, { userId: 'u1', roles: ['admin'] });
 
       // isHiddenForReporting only takes a column off the reporting menu; the formula still
-      // reads its real warehouse column (spec §7).
+      // reads its real warehouse column.
       expect(sql).toContain(
         'SUM(`internal_clicks`) / NULLIF(SUM(`impressions`), 0) AS `hidden_ratio`'
       );
@@ -1265,7 +1265,7 @@ describe('ReportSqlComposerService', () => {
     // supported dialect, and the only spelling that could work (there is no column behind it).
     // The metric's name is an output alias, never a warehouse column — but a FLOAT declaration
     // also makes its sort a COMPARISON, so the declared type reaches ORDER BY the same way it
-    // reaches a filter (D23, extended to the sort). Ordering the bare alias sorted the formula's
+    // reaches a filter, extended to the sort. Ordering the bare alias sorted the formula's
     // text; under a LIMIT that returns a different ROW SET, measured on four dialects.
     it('renders ORDER BY on the calculated metric as its cast expression', async () => {
       const composer = makeComposer(['country', 'ctr']);
@@ -1327,7 +1327,7 @@ describe('ReportSqlComposerService', () => {
       expect(calculatedMetrics![0].description).toBeUndefined();
     });
 
-    // #6732: `roas = revenue / cost` over two aggregate-level Calculated Fields — the headline
+    // `roas = revenue / cost` over two aggregate-level Calculated Fields — the headline
     // formula of the feature, composed end to end through the real BigQuery builder.
     describe('a formula referencing another formula', () => {
       const REVENUE_FORMULA = 'SUM({{ref field="amount"}})';
@@ -1356,7 +1356,7 @@ describe('ReportSqlComposerService', () => {
               name: 'roas',
               type: 'FLOAT',
               status: 'CONNECTED',
-              // STALE (D13): `roas` was saved while its two dependencies were row-level, and a
+              // STALE: `roas` was saved while its two dependencies were row-level, and a
               // schema write that skips the validator left this cache behind. The composer must
               // re-derive 'metric' from the chain — read as written, the report below groups by
               // `roas`'s own expression and collapses to a single silently wrong row.
@@ -1377,7 +1377,7 @@ describe('ReportSqlComposerService', () => {
         expect(sql).not.toMatch(/GROUP BY[^]*roas/);
       });
 
-      // D15: the dependencies enter the plan to be SUBSTITUTED, never to be projected — a report
+      // The dependencies enter the plan to be SUBSTITUTED, never to be projected — a report
       // asking for `roas` must not silently gain two more columns in its Sheet, its Looker Studio
       // field list and its MCP result.
       it('projects only the selected metric, never the formulas it reads', async () => {
@@ -1410,7 +1410,7 @@ describe('ReportSqlComposerService', () => {
         expect(totals!.sql).toContain('(SUM(`amount`)) / NULLIF((SUM(`spend`)), 0) AS `roas`');
       });
 
-      // A wildcard (no explicit projection) composes no calculated field at all — decision 10 —
+      // A wildcard (no explicit projection) composes no calculated field at all —
       // so a dependency cannot arrive through one either.
       it('does not compose a dependency for a report with no explicit projection', async () => {
         const composer = makeComposer([]);
@@ -1436,7 +1436,7 @@ describe('ReportSqlComposerService', () => {
         const totals = await composer.composeTotals(report, { userId: 'u1', roles: ['admin'] });
 
         expect(totals).not.toBeNull();
-        // The metric is NOT an ordinary summarizable column — already an aggregate (spec §2.3) —
+        // The metric is NOT an ordinary summarizable column — already an aggregate —
         // so it must never gain a stray SUM/AVG/MIN/MAX rule; 'revenue' still gets its normal set.
         expect(totals!.aggregations.some(a => a.column === 'ctr')).toBe(false);
         expect(totals!.aggregations.some(a => a.column === 'revenue')).toBe(true);
@@ -1451,7 +1451,7 @@ describe('ReportSqlComposerService', () => {
         expect((totals!.sql.match(/`ctr`/g) ?? []).length).toBe(1);
       });
 
-      it('excludes the metric from the legacy no-columnConfig fallback (decision 10)', async () => {
+      it('excludes the metric from the legacy no-columnConfig fallback', async () => {
         const composer = makeComposer(['clicks', 'impressions', 'country', 'revenue', 'date']);
         // A legacy report predating both aggregations and columnConfig: null selection means
         // "every native column" — but never a calculated metric, which is composed only when
@@ -1494,11 +1494,11 @@ describe('ReportSqlComposerService', () => {
       return { composer, blendedDataService, blendableSchemaService };
     }
 
-    // Task 10: the warehouse dry-run pass at schema-save time composes through this wrapper —
+    // The warehouse dry-run pass at schema-save time composes through this wrapper —
     // these tests prove it never resolves a blending decision (so it needs no accessor / IDP
     // lookup, matching an unauthenticated schema-save call site) and emits the same real,
     // formula-substituted SQL the report path does.
-    describe('composeMetricsOnly — Task 10 warehouse dry-run wrapper', () => {
+    describe('composeMetricsOnly — the warehouse dry-run wrapper', () => {
       it('composes a single metric with no dimension columns and no GROUP BY', async () => {
         const { composer, blendedDataService, blendableSchemaService } = makeComposerWithSpies();
 
@@ -1525,7 +1525,7 @@ describe('ReportSqlComposerService', () => {
       });
     });
 
-    // Task 11: a formula that reads a JOINED Data Mart has to be dry-run through the SAME blended
+    // A formula that reads a JOINED Data Mart has to be dry-run through the SAME blended
     // path the report itself will take. Composed flat it renders `main."amount"`, which either
     // fails at the warehouse (so a valid formula cannot be saved) or — the dangerous half —
     // SUCCEEDS against a same-named column of the main Data Mart, stamping
@@ -1627,7 +1627,7 @@ describe('ReportSqlComposerService', () => {
         expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
       });
 
-      // Task 1's bug class: a commented-out joined reference is not SQL, so it must not drag the
+      // The bug class: a commented-out joined reference is not SQL, so it must not drag the
       // dry run onto the blended path (nor demand an accessor).
       it('stays on the flat path for a metric whose joined reference is commented out', async () => {
         const { composer, blendedDataService } = makeComposerWithSpies();

@@ -56,11 +56,9 @@ function markersFor(
 export interface FormulaEditorProps {
   value: string;
   /**
-   * The refs the parent currently believes hold for `value`. Used to carry forward a reference
-   * whose field went missing from `index` between renders (e.g. disconnected) as long as its span
-   * is untouched by the edit — see `resolveAll`'s `previousRefs` parameter. Beyond that, resolution
-   * is always freshly re-derived from `index`, never trusted from here, so a genuinely edited
-   * reference cannot survive as stale.
+   * The refs the parent currently believes hold for `value`, used to carry forward a reference whose
+   * field went missing from `index` between renders as long as its span is untouched. Everything
+   * else is re-derived from `index`, so an edited reference cannot survive as stale.
    */
   references: readonly ResolvedReference[];
   index: readonly ReferenceableField[];
@@ -81,23 +79,23 @@ export interface FormulaEditorProps {
   /** Accessible name for the editor, forwarded to Monaco's own `ariaLabel` option. */
   ariaLabel?: string;
   /**
-   * What the backend currently makes of this formula (`useFormulaDiagnostics`). Shown as markers
-   * on the tokens at fault AND as text beneath the editor — both, because a squiggle is easy to
-   * miss and the wire carries no range for several violations at all.
+   * What the backend makes of this formula. Shown as markers on the tokens at fault AND as text
+   * beneath the editor — both, because a squiggle is easy to miss and the wire carries no range for
+   * several violations at all.
    *
    * Never a gate: Apply is refused only by the synchronous local name check, so this may lag the
-   * text on screen by a debounce and a round trip without anything depending on it.
+   * text on screen by a debounce and a round trip.
    */
   diagnostics?: FormulaDiagnostics;
 }
 
 /**
  * The formula editor an analyst types plain warehouse SQL into. Fully controlled — `value` and
- * `references` live in the parent, never mirrored locally — so a re-render after a save or a
- * reopen of the editor can never show text out of sync with what the parent believes is resolved.
+ * `references` live in the parent, never mirrored locally — so a re-render can never show text out
+ * of sync with what the parent believes is resolved.
  *
  * The analyst never types or sees a `{{ref}}` tag: that spelling is a storage detail owned by
- * `formula-authoring.ts`. This editor only ever shows and resolves plain field names.
+ * `formula-authoring.ts`.
  */
 export function FormulaEditor({
   value,
@@ -220,14 +218,12 @@ export function FormulaEditor({
     editor.focus();
   };
 
-  // Ranges are re-derived from the text ON SCREEN every time, never remembered from the response:
-  // a violation about a token the analyst has since deleted then simply marks nothing, instead of
-  // leaving a squiggle over whatever now occupies those offsets.
+  // Ranges are re-derived from the text ON SCREEN, never remembered from the response, so a
+  // violation about a token the analyst has since deleted marks nothing instead of leaving a
+  // squiggle over whatever now occupies those offsets.
   //
-  // A STALE verdict marks nothing at all. Re-deriving is what makes a marker follow the very edit
-  // that was meant to fix it — wrap `clicks` in a SUM and the "wrap this in an aggregation"
-  // squiggle re-anchors onto the wrapped token, at full strength, for a debounce and a round trip.
-  // The sentence stays (dimmed, see below); the accusation on the token does not.
+  // A STALE verdict marks nothing at all: re-anchoring would put the "wrap this in an aggregation"
+  // squiggle back onto the token the analyst just wrapped. The sentence stays, dimmed.
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
@@ -254,14 +250,11 @@ export function FormulaEditor({
   const messages: FormulaMessage[] = [
     ...errors.map((violation): FormulaMessage => ({ tone: 'error', text: violation.message })),
     ...warnings.map((violation): FormulaMessage => ({ tone: 'warning', text: violation.message })),
-    // Not a problem with the formula on screen — the analyst's own row is fine — so it names the
-    // OTHER metric and marks nothing here.
+    // Not a problem with the formula on screen, so it names the OTHER metric and marks nothing here.
     //
-    // "will fail on", not "this will break": the wire carries no baseline, so a metric that was
-    // already broken before this editor opened arrives in exactly the same bucket. What is true of
-    // every entry is that the save is refused and which field refuses it; which edit caused it is
-    // not established, and saying so would send the analyst hunting their own formula for someone
-    // else's fault.
+    // "will fail on", not "this will break": the wire carries no baseline, so a metric already
+    // broken before this editor opened arrives in the same bucket. What every entry establishes is
+    // that the save is refused and which field refuses it, never which edit caused it.
     ...otherFieldErrors.map(
       (violation): FormulaMessage => ({
         tone: 'warning',
@@ -299,14 +292,13 @@ export function FormulaEditor({
             lineNumbers: 'off',
             folding: false,
             glyphMargin: false,
-            // The suggest widget renders INSIDE the editor's DOM by default, and this editor lives in
-            // a fixed-height wrapper with `overflow-hidden` inside a popover — so the list was drawn
-            // and immediately clipped, looking exactly like autocomplete not working at all.
+            // The suggest widget renders inside the editor's DOM by default, and this editor lives
+            // in an `overflow-hidden` wrapper inside a popover, so the list was drawn and clipped —
+            // indistinguishable from autocomplete not working.
             //
-            // `fixedOverflowWidgets` alone does NOT fix it here: it only makes the widget
-            // `position: fixed`, and the Radix popover animates with `transform`, which turns a
-            // transformed ancestor into the containing block — so the widget stays inside the popover
-            // and stays clipped. The container has to leave the popover's subtree entirely.
+            // `fixedOverflowWidgets` alone does NOT fix it: it makes the widget `position: fixed`,
+            // and the Radix popover animates with `transform`, which turns a transformed ancestor
+            // into the containing block. The container has to leave the popover's subtree entirely.
             fixedOverflowWidgets: true,
             overflowWidgetsDomNode: overflowHost ?? undefined,
             ariaLabel,

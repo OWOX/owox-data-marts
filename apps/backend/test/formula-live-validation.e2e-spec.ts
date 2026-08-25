@@ -210,7 +210,7 @@ describe('Formula live validation API (e2e)', () => {
   });
 
   /**
-   * The wire half of #6732's deferred-save fix, and the only place it can be established: the
+   * The wire half of the deferred-save fix, and the only place it can be established: the
    * global pipe runs `forbidNonWhitelisted`, so a DTO that failed to declare `calculatedFields`
    * answers 400 for every live check the editor makes — while every unit test on both sides keeps
    * passing, because neither of them goes through the pipe.
@@ -261,7 +261,7 @@ describe('Formula live validation API (e2e)', () => {
 
     expect(res.status).toBe(200);
     // The refusal that MEANS "you named yourself" is the cycle one; the calculated-reference
-    // refusal that used to say so caught it only incidentally and lifted with #6732.
+    // refusal that used to say so caught it only incidentally and has since been lifted.
     expect(res.body.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -284,7 +284,7 @@ describe('Formula live validation API (e2e)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.errors).toEqual([]);
-    // Since #6732 `roas` MAY read `impressions` — what it may not do is wrap an aggregate-level
+    // `roas` MAY read `impressions` — what it may not do is wrap an aggregate-level
     // formula in another aggregate. The code changed with the feature; the attribution did not.
     expect(res.body.otherFieldErrors).toEqual(
       expect.arrayContaining([

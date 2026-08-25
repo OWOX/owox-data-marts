@@ -76,8 +76,8 @@ describe('buildCalculatedFieldIndex', () => {
   });
 
   it('holds nothing for a JOINED entry, even one that arrives carrying a level', () => {
-    // No producer emits that today — `buildJoinedReferenceIndex` skips calculated fields outright
-    // (D12). The guard is what keeps it that way: this map is keyed by NAME, and a joined entry's
+    // No producer emits that today — `buildJoinedReferenceIndex` skips calculated fields outright.
+    // The guard is what keeps it that way: this map is keyed by NAME, and a joined entry's
     // name is dotted, so `orders.amount` would answer for an own struct field of the same name.
     const joinedCalculated: ReferenceableField = {
       ...joined('orders', 'amount', 'Orders'),
@@ -124,7 +124,7 @@ describe('describeReferenceSource', () => {
 
   /**
    * A chip on an own reference spells a plain field name, which says neither that the field is a
-   * formula nor the one fact that decides how it may be written. #6732 made both worth saying:
+   * formula nor the one fact that decides how it may be written. Both are worth saying:
    * `revenue` and `clicks` read identically in the text and are not interchangeable in it.
    */
   it('warns that an aggregate-level calculated reference cannot be wrapped', () => {

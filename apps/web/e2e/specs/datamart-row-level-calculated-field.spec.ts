@@ -3,7 +3,7 @@ import { test, expect } from '../fixtures/base';
 import { TESTIDS } from '../selectors/testids';
 
 // ---------------------------------------------------------------------------
-// DSET-11 / #6732 slice 1: authoring a ROW-LEVEL calculated field.
+// Authoring a ROW-LEVEL calculated field.
 //
 // The level is DERIVED by the backend from the formula and surfaced nowhere in the UI, so nothing
 // about this journey is supposed to look different from authoring a metric. That is exactly why it
@@ -44,7 +44,7 @@ test.describe('Data Setup - row-level calculated field', () => {
   test.beforeEach(async ({ apiHelpers }) => {
     const storage = await apiHelpers.createStorage();
     storageId = storage.id;
-    // Deliberately NOT joined to anything: slice 1 refuses a row-level field on a blended report,
+    // Deliberately NOT joined to anything: the flat path refuses a row-level field on a blended report,
     // so the whole journey has to be walked on a Data Mart that owns all of its own fields.
     const dataMart = await apiHelpers.createDataMart(storageId, `Row-level DM ${Date.now()}`);
     dataMartId = dataMart.id;
@@ -141,7 +141,7 @@ test.describe('Data Setup - row-level calculated field', () => {
 
     // The one thing on this journey the UI never shows, read back from the API instead: the
     // backend derived `column` from a formula with no aggregate call. A metric would read
-    // `metric` here, and slice 1's whole point is that the two are told apart on the server.
+    // `metric` here, and the whole point is that the two are told apart on the server.
     const fields = await readSchemaFields(page);
     const saved = fields.find(f => f.name === FIELD_NAME);
     expect(saved).toBeDefined();
@@ -149,7 +149,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     expect(saved?.calculated?.formula).toBe('{{ref field="clicks"}} * 2');
 
     // …and it survives a reload, drawn like any other calculated field: ƒ icon, no PK checkbox,
-    // formula spanning the band between them — and, since slice 3, its OWN allowed-aggregations
+    // formula spanning the band between them — and its OWN allowed-aggregations
     // cell, which is where that band now stops.
     await page.reload();
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
@@ -222,7 +222,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     await expect(checkbox).toBeChecked();
 
     // The two controls live in one fixed-height slot at the row's right edge, and BOTH are offered
-    // since #6732 §1.1 disproved the filter refusal's reason (it described a SELECT-list alias,
+    // since the filter refusal's reason was disproved (it described a SELECT-list alias,
     // where a predicate's left-hand side is the formula itself). Asserted in a real browser as
     // well as in the unit suite because a control that is only painted off-screen is neither
     // offered nor suppressed.
@@ -248,8 +248,8 @@ test.describe('Data Setup - row-level calculated field', () => {
         calculated: { formula: 'CAST({{ref field="clicks"}} AS STRING)' },
       },
       {
-        // Declared DATE, and row-level: the shape slice 3b opened the date bucket for, once the
-        // five-dialect probe answered what D10 had deferred on.
+        // Declared DATE, and row-level: the shape the date bucket opened for, once the
+        // five-dialect probe answered what had been deferred.
         name: SESSION_DAY,
         type: 'DATE',
         mode: 'NULLABLE',
@@ -294,7 +294,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     // Applied: the icon now reads as active, which is the row's only sign the field carries one.
     await expect(keyRow.getByRole('button', { name: 'Manage aggregations' })).toBeVisible();
 
-    // The DATE-declared row-level field: aggregation yes, and — since slice 3b — a bucket too.
+    // The DATE-declared row-level field: aggregation yes, and a bucket too.
     //
     // This assertion was the reverse until the five-dialect probe measured what each warehouse does
     // with a truncation over a formula. Nothing returns an empty column: every dialect either
@@ -337,7 +337,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     // aggregated report cannot ride on the implicit "all native columns" list, which leaves every
     // calculated field out.
     expect(saved.columnConfig).toContain(SESSION_KEY);
-    // D10: nothing on this report is bucketed, and the DATE-declared formula above is why that
+    // Nothing on this report is bucketed, and the DATE-declared formula above is why that
     // has to be asserted rather than assumed.
     expect(saved.dateTruncConfig ?? []).toEqual([]);
 

@@ -35,7 +35,7 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
     // SQL without the metric while the reader still synthesizes its header, i.e. a permanently
     // `null` column on every surface.
     //
-    // The calculated-metric clause stays LEVEL-BLIND on purpose (#6732): this gate is the parent's
+    // The calculated-metric clause stays LEVEL-BLIND on purpose: this gate is the parent's
     // `hasOutputControls`, not its aggregated flip. The formula substitution channel lives beyond
     // it, so a report whose only calculated field is ROW-LEVEL still has to cross it — narrowing
     // it to aggregating formulas would route that report down the preprocessor path and reproduce

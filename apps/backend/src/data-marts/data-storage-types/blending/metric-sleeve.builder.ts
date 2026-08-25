@@ -59,18 +59,14 @@ import {
 import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
 
 /**
- * Every table qualifier `sql` reads a COLUMN through, lower-cased and de-duplicated: the leading
- * segment of each dotted chain that is not a function call.
+ * Every table qualifier `sql` reads a COLUMN through: the leading segment of each dotted chain that
+ * is not a function call. Lexical, over `scanSql`, so `WHEN status = 'a.b'` is not a reference.
  *
- * Lexical, over `scanSql`, so string literals and comments contribute nothing — a formula's
- * `WHEN status = 'a.b'` is not a reference. Two shapes are deliberately NOT qualifiers: a middle
- * segment of a chain (`orders_raw.address.city` names one table, not two), and a namespace before
- * a call (`SAFE.DIVIDE(a, b)` — the guarded-division form this feature's own autocomplete
- * suggests), told apart by the `(` that follows.
+ * NOT qualifiers: a middle segment (`orders_raw.address.city` names one table) and a namespace
+ * before a call (`SAFE.DIVIDE(a, b)`), told apart by the `(` that follows.
  *
- * Bare unqualified names are out of reach by construction: nothing distinguishes a column `amount`
- * from the keyword `END` or a function name without parsing the dialect's grammar. That is the
- * stated limit of this check, not an oversight — see `buildFormulaSleeveCte`.
+ * Bare unqualified names are out of reach by construction — nothing distinguishes a column `amount`
+ * from the keyword `END` without parsing the dialect's grammar. A stated limit, not an oversight.
  */
 function columnQualifiersIn(sql: string): string[] {
   const tokens = scanSql(sql).filter(t => t.kind !== 'comment');
@@ -146,7 +142,7 @@ export class MetricSleeveBuilder {
         isIdentity: boolean;
       }>;
       /**
-       * The calculated fields that are GROUPING KEYS of the report (#6732) — dimensions like any
+       * The calculated fields that are GROUPING KEYS of the report — dimensions like any
        * other, except that they have no column name to qualify, so the expression travels beside
        * the grain instead of in it. See `SleeveCalculatedDimensions`.
        */
@@ -163,7 +159,7 @@ export class MetricSleeveBuilder {
     const { outputAliasToRoot, filters, resolveColumnType, keptGroups, calculatedDimensions } =
       opts;
     // The grain below is built from these plans alone, so one that is NOT a grouping key widens
-    // every sleeve past the outer GROUP BY and its join-back matches nothing (#6732 spec §2.3).
+    // every sleeve past the outer GROUP BY and its join-back matches nothing.
     // Asserted here, ahead of the caller's own count and membership checks, because those only run
     // once a sleeve exists — a blended report with no sleeve reaches neither.
     for (const [name, plan] of calculatedDimensions?.plans ?? []) {
@@ -409,18 +405,14 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * the `LEFT JOIN <root> ON main.<src> = <root>.<tgt>` clauses (the DEDUP CTEs, at
-   * the coarse post-dedup grain) a sleeve subquery needs so a BLENDED dimension or post-join
-   * filter column resolves through the SAME `qualifyColumn` ref the OUTER query uses — making
-   * the sleeve's projected dimension, `dimRefs.outer`, and the outer GROUP BY byte-identical by
-   * CONSTRUCTION (a fanning blended dimension's roll-up, e.g. STRING_AGG → 'A, B', otherwise
-   * disagrees with the raw value 'A' the sleeve used to project, so the join-back never matched).
+   * The `LEFT JOIN <root> ON …` clauses a sleeve subquery needs so a BLENDED dimension or post-join
+   * filter column resolves through the SAME `qualifyColumn` ref the OUTER query uses, making the
+   * sleeve's projected dimension and the outer GROUP BY byte-identical by construction. Otherwise a
+   * fanning dimension's roll-up (STRING_AGG → 'A, B') disagrees with the raw value the sleeve
+   * projects, and the join-back never matches.
    *
-   * One join per DISTINCT root chain; a main-native column needs none (it references `main`
-   * directly). These dedup CTEs are 1:1 with `main` (they GROUP BY their parent-join-key), so
-   * joining them does NOT add fan-out — the raw CTEs joined by `buildSleeveAncestorJoins` remain
-   * the sole fan-out identity source. Emitted in `context.chains` order (parents before children)
-   * for deterministic SQL; 4-space indent, matching `buildSleeveAncestorJoins`.
+   * One join per DISTINCT root chain; a main-native column needs none. These dedup CTEs are 1:1
+   * with `main`, so joining them adds no fan-out — the raw CTEs remain the sole identity source.
    */
   buildSleeveDedupRootJoins(
     columns: readonly string[],
@@ -461,10 +453,10 @@ export class MetricSleeveBuilder {
   // `qualify` resolver the outer query uses (main-native → `main.<col>`, blended → the dedup
   // CTE `<root>.<col>` joined via `buildSleeveDedupRootJoins`). Returns `{ sql: '', params: [] }`
   // when there is nothing to apply. `renderWhere` already skips every rule whose carried clause
-  // is HAVING (D21) — no sleeve template emits a HAVING at all.
+  // is HAVING — no sleeve template emits a HAVING at all.
   //
   // `calculatedExpressions` is the LAST argument for the same reason it is on the outer call: a
-  // rule naming a Calculated Field compares that field's formula, not a column (#6732).
+  // rule naming a Calculated Field compares that field's formula, not a column.
   renderSleeveWhere(
     filterOpts: SleeveFilterOptions,
     qualify: ColumnRefResolver
@@ -481,23 +473,17 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * builds ONE merged value-sleeve CTE for a GROUP of SUM/AVG metrics sharing the
-   * same owner chain + dimensions — a SINGLE inner `SELECT DISTINCT (dims, owner identity,
-   * value_i...)` dedup pass, wrapped by an outer SELECT computing every metric's own aggregate
-   * over its own value slot. Metrics that target the SAME underlying column (SUM + AVG of one
-   * field) share ONE value slot (`_val`) — the dedup set is identical for both, so deduping it
-   * twice would be wasted work, which is the concrete case this merge exists for. Metrics on
-   * DIFFERENT columns would get their own slot (`_val_0`, `_val_1`, ...) inside the same pass,
-   * but the planner no longer forms such a group: `DISTINCT` spans the whole tuple, so a second
-   * column's variation would keep rows apart that the first column's identity means to collapse.
-   * Structurally mirrors `buildSleeveCte`'s SUM/AVG branch (which delegates here for the common
-   * singleton-metric case) generalized to N metrics.
+   * ONE merged value-sleeve CTE for a group of SUM/AVG metrics sharing an owner chain and
+   * dimensions: a single inner `SELECT DISTINCT (dims, owner identity, value slots)` pass, wrapped
+   * by an outer SELECT computing each metric's aggregate over its own slot.
    *
-   * (C3): the "owner identity" and "value" legs branch on whether the owner's OWN
-   * pre-join `aggregateFunction` is a raw passthrough or a real aggregate
-   * (`isIdentityPreJoinField`) — see the two branches below. `splitValueSleeveGroupsByIdentity`
-   * guarantees every metric in `group.metrics` shares ONE classification before this method
-   * ever sees it; the check here is a defensive invariant, not a routing decision.
+   * Metrics on the SAME column (SUM + AVG of one field) share ONE slot, since the dedup set is
+   * identical. The planner no longer forms a group spanning DIFFERENT columns: `DISTINCT` covers
+   * the whole tuple, so a second column's variation keeps apart rows the first means to collapse.
+   *
+   * The identity and value legs branch on `isIdentityPreJoinField`.
+   * `splitValueSleeveGroupsByIdentity` guarantees one classification per group, so the check here
+   * is a defensive invariant rather than a routing decision.
    */
   buildValueSleeveGroupCte(
     group: ValueSleeveGroup,
@@ -590,33 +576,20 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * One aggregate call of a calculated metric's formula, computed by its OWN sleeve:
-   * `fn(<valueSql>)` recomputed at the report's dimension grain over the owner's RAW rows. Same
-   * dedup-then-aggregate shape as a value sleeve — the ONE thing that differs is that the inner
-   * slot holds a rendered EXPRESSION (`amount * rate`) instead of a single column reference,
-   * which is what a formula's argument is.
+   * One aggregate call of a calculated metric's formula, computed by its OWN sleeve: `fn(<valueSql>)`
+   * recomputed at the report's dimension grain over the owner's RAW rows. Same shape as a value
+   * sleeve, except the inner slot holds a rendered EXPRESSION rather than a column reference.
    *
-   * `group.isIdentity` picks the same two branches the value sleeve has, and for the same reason: a
-   * joined field's declared pre-join `aggregateFunction` is what that field MEANS once blended, so a
-   * formula naming it must read the value a report metric on it would. A single reference to a
-   * funnel-shaped field (`COUNT(DISTINCT hitId)` per session) therefore reads the rolled-up column
-   * off `<owner>`, exactly as `buildValueSleeveGroupCte` does. Raw is right — and is the default —
-   * for a row-level expression over several of the owner's columns (`amount * rate`), which no
-   * single collapsed slot can represent. The caller classifies, because only it can see which
-   * FIELDS the rendered expression reads.
+   * `group.isIdentity` picks the same two branches the value sleeve has: a joined field's declared
+   * pre-join `aggregateFunction` is what that field MEANS once blended, so a single reference to a
+   * funnel-shaped field reads the rolled-up column off `<owner>`. Raw is the default, and the only
+   * option for a row-level expression over several of the owner's columns.
    *
-   * That the expression reads ONLY the owner is ENFORCED, not assumed. `buildSleeveAncestorJoins`
-   * puts `main` and the whole ancestor closure in scope, while the inner DISTINCT keys on the
-   * OWNER's identity alone — so a call mixing `orders_raw.amount` with a main or ancestor column
-   * would keep N rows apart per owner row and multiply the aggregate by N, silently. The save-time
-   * `FORMULA_AGGREGATE_MIXES_OWNERS` gate cannot protect a formula saved before it landed or one
-   * whose field a later schema change re-homed, so the invariant is asserted where the SQL is
-   * built. The check reaches QUALIFIED references only (see `columnQualifiersIn`); a rendered
-   * reference is always qualified, so an unqualified name in `valueSql` means the renderer is
-   * broken rather than the formula.
-   *
-   * v1 builds one sleeve per call and never merges two, so the caller owns the CTE name and the
-   * output alias (`FormulaSleeveGroup.alias`), and the result carries exactly one pull.
+   * That the expression reads ONLY the owner is ENFORCED, not assumed: `main` and the ancestor
+   * closure are in scope while the inner DISTINCT keys on the owner's identity alone, so a call
+   * mixing in a main column keeps N rows apart per owner row and multiplies the aggregate by N,
+   * silently. QUALIFIED references only — an unqualified name in `valueSql` means the renderer is
+   * broken, not the formula.
    */
   buildFormulaSleeveCte(
     group: FormulaSleeveGroup,
@@ -702,12 +675,10 @@ export class MetricSleeveBuilder {
    * `SELECT DISTINCT (dims, owner identity, value slot(s))` over the raw (pre-dedup) path,
    * wrapped by an outer aggregate per slot.
    *
-   * What its two callers decide is only WHAT the slots hold and HOW they are aggregated — one
-   * column reference per metric for `buildValueSleeveGroupCte`, one rendered expression for
-   * `buildFormulaSleeveCte`. Everything else (the two join sets, the dimension expressions, the
-   * owner-identity leg, the reserved-alias guard, the reproduced WHERE and the kept-groups
-   * semi-join) is identical and must stay so: a sleeve that resolved any of them differently
-   * would aggregate over a different row set than the query it feeds.
+   * Its two callers decide only WHAT the slots hold and HOW they are aggregated. Everything else —
+   * the two join sets, the dimension expressions, the owner-identity leg, the reproduced WHERE and
+   * the kept-groups semi-join — is identical and must stay so: a sleeve that resolved any of them
+   * differently would aggregate over a different row set than the query it feeds.
    */
   private buildDedupValueSleeveCte(spec: {
     /** The public method that asked for this CTE, quoted back in the guards' messages. */
@@ -729,7 +700,7 @@ export class MetricSleeveBuilder {
     context: BlendedQueryContext;
     outputAliasToRoot: ReadonlyMap<string, string>;
     filterOpts: SleeveFilterOptions;
-    /** The row-level plans behind any calculated name in `dimensions` (#6732). */
+    /** The row-level plans behind any calculated name in `dimensions`. */
     calculatedDimensions?: SleeveCalculatedDimensions;
   }): SleeveResult {
     const { caller, computes, ownerCteName, dimensions, cteName, isIdentity } = spec;
@@ -894,19 +865,15 @@ export class MetricSleeveBuilder {
       ...spec.slots.map(s => s.alias),
       '_dedup',
     ]);
-    // A BACKSTOP since dimensions became positionally aliased (`_owox_dim_<i>`): they no longer
-    // enter this SELECT under their own names, so a dimension called `_oid` can no longer collide
-    // with the identity leg. It stays because the invariant is structural rather than obvious —
-    // reverting to name-based dimension aliases would silently reopen the collision, and this
-    // file's style is to assert such invariants instead of trusting them.
+    // A BACKSTOP: dimensions are positionally aliased now, so a dimension called `_oid` can no
+    // longer collide with the identity leg. Kept because reverting to name-based aliases would
+    // silently reopen it.
     //
-    // Matched case-INSENSITIVELY, and unconditionally rather than per dialect: these aliases are
-    // safe identifiers, so `quoteIdentifier` leaves them unquoted, and Athena/Redshift then fold
-    // them to lower case while Spark resolves identifiers case-insensitively — a dimension named
-    // `_OID` collides there exactly as `_oid` does. Snowflake always quotes, so the name would in
-    // fact be safe there; a dialect-dependent guard would mean the SAME saved report is accepted
-    // on one warehouse and silently corrupted on another, which is worse than rejecting a name
-    // that would technically have worked on one of them.
+    // Case-INSENSITIVE and unconditional rather than per dialect: these aliases are safe
+    // identifiers, so they go unquoted, and Athena/Redshift fold them while Spark resolves
+    // case-insensitively — `_OID` collides there exactly as `_oid` does. Snowflake always quotes,
+    // so a dialect-dependent guard would accept the same saved report on one warehouse and
+    // silently corrupt it on another.
     const foldedReservedInnerSleeveNames = new Set(
       Array.from(reservedInnerSleeveNames, n => n.toLowerCase())
     );
@@ -974,35 +941,20 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * Builds a "metric sleeve" CTE for one joined metric: it re-joins `main` with the raw
-   * (pre-dedup) CTEs — bypassing the parent-key dedup that the normal `<alias>`
-   * aggregation CTE applies — and re-aggregates at the REPORT dimension grain instead.
-   * This is what makes a joined COUNT_DISTINCT/SUM/AVG correct: the dedup CTE already
-   * collapsed to one row per parent-join-key, so aggregating there double/under-counts
-   * relative to the report's actual GROUP BY.
+   * A "metric sleeve" CTE for one joined metric: re-joins `main` with the RAW pre-dedup CTEs and
+   * re-aggregates at the REPORT dimension grain. That is what makes a joined COUNT_DISTINCT/SUM/AVG
+   * correct — the dedup CTE already collapsed to one row per parent-join-key, so aggregating there
+   * double- or under-counts against the report's GROUP BY.
    *
-   * Two shapes, branched on `metric.function`:
-   * - COUNT_DISTINCT: single-level `COUNT(DISTINCT metricRef)` at the dimension grain, assembled
-   *   below over `buildCountingSleeveCte` — the same assembly a joined Unique Count uses.
-   * - SUM/AVG (C2.2, "value sleeve"): a nested `SELECT DISTINCT (dims, owner __owox_rid,
-   *   value)` subquery wrapped by an outer `SUM`/`AVG` — delegated to
-   * `buildValueSleeveGroupCte` with a singleton one-metric group (1 generalized
-   *   that shape to N metrics for the merged case; this keeps the singleton SQL byte-
-   *   identical to before the merge, sharing ONE implementation with it). `__owox_rid` (C2.1) is
-   *   the metric's owning chain's per-raw-row surrogate, so a value that fans out to
-   *   multiple report rows is still counted at most once per PRE-fanout owner row.
+   * SUM/AVG wrap a `SELECT DISTINCT (dims, owner `__owox_rid`, value)`: `__owox_rid` is the owning
+   * chain's per-raw-row surrogate, so a value that fans out to several report rows is counted at
+   * most once per PRE-fanout owner row. COUNT_DISTINCT needs no such nesting.
    *
-   * `<alias>_raw` CTEs already project every join key + blended field
-   * (`collectSubsidiaryReferences`) and `main` projects join source keys
-   * (`collectMainReferences`), so this JOINs the raw CTEs already defined for the normal
-   * dedup path rather than defining new ones — a SQL-text reuse guarantee only. A
-   * CTE-inlining engine may still physically re-scan the underlying source table once per
-   * reference (this is not a claim about the execution plan).
+   * Reusing the raw CTEs is a SQL-TEXT guarantee only; a CTE-inlining engine may still re-scan the
+   * source table per reference.
    *
-   * An empty `dimensions` list (a lone grand-total metric, no grouping) collapses the
-   * sleeve to a single global row: no `GROUP BY` is emitted (at either nesting level for
-   * the value-sleeve form) and `dimRefs` is empty — the caller (`buildBlendedQuery`) must
-   * CROSS JOIN it instead of a dimension-tuple ON.
+   * An empty `dimensions` list collapses the sleeve to a single global row: no GROUP BY, empty
+   * `dimRefs`, and the caller must CROSS JOIN it instead of a dimension-tuple ON.
    */
   buildSleeveCte(
     metric: AggregationRule,
@@ -1021,7 +973,7 @@ export class MetricSleeveBuilder {
     // the full set of COUNT DISTINCT metrics this one CTE serves, when the
     // caller merged several that share an owner chain and dimensions. Omitted → just `metric`.
     mergedMetrics?: AggregationRule[],
-    // The row-level plans behind any calculated name in `dimensions` (#6732).
+    // The row-level plans behind any calculated name in `dimensions`.
     calculatedDimensions?: SleeveCalculatedDimensions
   ): {
     cteName: string;
@@ -1302,7 +1254,7 @@ export class MetricSleeveBuilder {
     context: BlendedQueryContext;
     outputAliasToRoot: ReadonlyMap<string, string>;
     filterOpts: SleeveFilterOptions;
-    /** The row-level plans behind any calculated name in `dimensions` (#6732). */
+    /** The row-level plans behind any calculated name in `dimensions`. */
     calculatedDimensions?: SleeveCalculatedDimensions;
   }): {
     dimRefs: { column: string; outer: string; sleeve: string }[];
@@ -1404,28 +1356,21 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * Renders ONE element of a sleeve's grain so its SELECT/GROUP BY stays identical to the outer
-   * aggregated SELECT's rendering for the same key — the three shapes `renderAggregatedSelect`
-   * itself emits: a plain qualified column, a date-trunc bucket, and a row-level calculated
-   * field's formula (#6732). All three go through the SAME functions the outer SELECT uses, so
-   * neither path can drift from the other.
+   * Renders ONE element of a sleeve's grain through the SAME functions `renderAggregatedSelect`
+   * uses, so the sleeve's SELECT/GROUP BY stays byte-identical to the outer aggregated SELECT for
+   * that key. Takes the grain ELEMENT rather than a qualified ref: a calculated field is a NAME in
+   * the grain and an expression on `opts.calculatedDimensions`, with no column to qualify.
    *
-   * Takes the grain ELEMENT rather than an already-qualified ref, because a calculated field has
-   * no column to qualify: it is a NAME in the grain and an expression on `opts.calculatedDimensions`.
+   * The calculated branch is checked FIRST — `qualify(dimension)` would resolve a calculated name
+   * against `main` and emit a column no CTE projects — but must NOT return before the date bucket
+   * is applied. A row-level calculated field may be bucketed, and the outer SELECT then groups by
+   * `renderDateTruncExpression(renderRowLevelDimensionExpression(...), ...)`. Both steps, in that
+   * order, or the sleeve joins on the raw formula against a truncated outer key and the metric
+   * reads NULL on every row.
    *
-   * The calculated branch is checked FIRST because the two lookups answer different questions and
-   * only the first one can qualify: a calculated name is not a column, so `qualify(dimension)`
-   * below would resolve it against `main` and emit a column no CTE projects. But it must not
-   * RETURN before the bucket is applied — since slice 3b a row-level calculated field may be
-   * bucketed by date (#6732 D16/D17), and the outer SELECT then groups by
-   * `renderDateTruncExpression(renderRowLevelDimensionExpression(...), unit, tz, plan.type)`. Both
-   * steps, in that order, or this sleeve joins back on the raw formula against a truncated outer
-   * key — the drift `abstract-blended-query-builder.ts` records as having already cost this feature
-   * a metric that read NULL on every row, and would today read as a COALESCEd zero.
-   *
-   * The type argument is the PLAN's declared type, not `columnTypes.postJoin`: the plan objects
-   * here are the SAME ones the outer SELECT renders from, so byte-identity holds by object identity
-   * rather than by two lookups happening to agree. Nothing is cast on the way (D16).
+   * The type argument is the PLAN's declared type, not `columnTypes.postJoin`: the plan objects are
+   * the same ones the outer SELECT renders from, so identity holds by object rather than by two
+   * lookups agreeing.
    */
   renderDimensionExpr(
     dimension: string,

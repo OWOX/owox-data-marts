@@ -8,16 +8,12 @@ export interface FormulaViolation {
    * or a function name (`SUM`) — for a client that wants to point at it: an editor marker, a
    * highlight, a "jump to" affordance.
    *
-   * It exists because the editor was deriving that token by parsing the leading backticked word
-   * out of `message`, which silently couples marker placement to English wording: reword a
-   * sentence and markers land wrong or stop appearing, with nothing failing anywhere. Every
-   * constructor that has such a token already interpolates it into its own message, so this is the
-   * SAME value published as data rather than re-extracted from prose — not a second source of
-   * truth, and formula-violations.spec.ts pins the two together.
+   * Published as DATA rather than parsed back out of `message`, which silently coupled marker
+   * placement to English wording: reword a sentence and markers land wrong or stop appearing, with
+   * nothing failing anywhere.
    *
-   * Absent when the violation is about the formula as a whole (a subquery, a stray `;`, an
-   * unguarded division, a warehouse rejection) — there is no one token to blame, and inventing one
-   * would put a marker somewhere arbitrary.
+   * Absent when the violation is about the formula as a whole — there is no one token to blame, and
+   * inventing one puts a marker somewhere arbitrary.
    */
   subject?: string;
 }
@@ -31,7 +27,7 @@ export const FormulaViolations = {
       `\`${column}\` is a row-level column, so it has no defined value once a report groups ` +
       `rows. Wrap it in an aggregation (SUM / COUNT / MIN / MAX).`,
   }),
-  // Permanent, not a slice limit (spec §3.1): the dedup CTE collapses each joined column
+  // Permanent, not a slice limit: the dedup CTE collapses each joined column
   // independently by its own aggregate, so a row-level read of two of them returns a tuple that
   // exists in no real row, and for a non-orderable type the collapse is not even stable within one
   // query. An aggregate call is the only reading that has a defined value.
@@ -57,7 +53,7 @@ export const FormulaViolations = {
     subject: fn,
     message: `\`${fn}\` contains another aggregation. An aggregation cannot nest inside one.`,
   }),
-  // spec §4.3: a reference to an already-aggregated measure (e.g. Unique Count) may be used bare
+  // A reference to an already-aggregated measure (e.g. Unique Count) may be used bare
   // at the metric's own aggregate level, but wrapping it in a further aggregate call double-counts
   // a number that is already per-group.
   aggregateOnAggregate: (field: string, ref: string): FormulaViolation => ({
@@ -67,7 +63,7 @@ export const FormulaViolations = {
     message: `\`${ref}\` is already an aggregate and cannot be wrapped in another aggregation.`,
   }),
   // Same verdict and the same code as `aggregateOnAggregate` — a client keying on the code sees no
-  // new outcome — but deliberately NOT the same sentence (spec §3.2): told only "already an
+  // new outcome — but deliberately NOT the same sentence: told only "already an
   // aggregate", an analyst looking at a Unique Count measure has nothing to change, while one
   // looking at a calculated field has another formula to open. The wording is what carries that.
   calculatedMetricOnAggregate: (field: string, ref: string): FormulaViolation => ({
@@ -122,22 +118,19 @@ export const FormulaViolations = {
       'A formula is a single expression and cannot contain a top-level `,`. Remove the comma — a ' +
       'comma between the arguments of a function, as in CONCAT(a, b), is fine.',
   }),
-  // `#` and `//` are the two comment markers whose meaning is not shared across the warehouses
-  // this feature supports, and the disagreement is not a matter of degree — it is a contradiction.
-  // Measured on all five: `SELECT 5 # 3` returns 5 on BigQuery, where `#` opens a comment, and 6
-  // on Redshift, where `#` is bitwise XOR; `SELECT 1 + 2 # + 100` returns 3 and 103 respectively.
-  // `//` opens a comment on Snowflake and is a syntax error on the other four.
+  // `#` and `//` are a CONTRADICTION between the warehouses, not a difference of degree. Measured:
+  // `SELECT 5 # 3` returns 5 on BigQuery, where `#` opens a comment, and 6 on Redshift, where it is
+  // bitwise XOR; `SELECT 1 + 2 # + 100` returns 3 and 103. `//` opens a comment on Snowflake and is
+  // a syntax error on the other four.
   //
-  // The scanner reads one lexical model for five dialects, so whichever reading it picked would be
-  // wrong somewhere — and wrong in the worst direction on the reading it picks today: treating the
-  // marker as CODE means the analyzer validates a tail the warehouse silently drops, the dry run
-  // passes because what reaches the warehouse is valid SQL, and the report is quietly missing part
-  // of its own formula.
+  // One lexical model for five dialects must be wrong somewhere, and the reading it picks is wrong
+  // in the worst direction: treating the marker as CODE means the analyzer validates a tail the
+  // warehouse silently drops, so the dry run passes and the report is quietly missing part of its
+  // own formula.
   //
-  // Refused rather than interpreted, for the same reason `;` and a top-level `,` are: a formula
-  // carrying one is ambiguous by construction, and `--` means the same thing on every one of the
-  // five. The cost is a BigQuery `#` comment, a Snowflake `//` comment and Redshift's integer XOR,
-  // each with a plain alternative; the alternative to refusing is a wrong number nobody can see.
+  // Refused rather than interpreted. `--` means the same thing on all five, so the cost is one
+  // comment syntax with a plain alternative; the alternative to refusing is a wrong number nobody
+  // can see.
   dialectAmbiguousMarker: (field: string, marker: string): FormulaViolation => ({
     code: 'FORMULA_DIALECT_AMBIGUOUS_MARKER_NOT_ALLOWED',
     field,
@@ -147,15 +140,12 @@ export const FormulaViolations = {
       'error, on others — so the same formula would compute different things depending on which ' +
       'Data Mart it belongs to. Use `--` for a comment: it means the same thing everywhere.',
   }),
-  // A backslash inside a quoted literal is the same shape as `#`: four warehouses read `\\'` as an
-  // escaped quote (measured), Athena/Trino does not. Whichever way the scanner reads it, one side
-  // disagrees about where the literal ENDS — and the side that ends it early executes the rest of
-  // the formula as code while this analyzer sees one inert string token, with every structural
-  // guard blind at once.
+  // The same shape as `#`: four warehouses read `\\'` as an escaped quote (measured), Athena/Trino
+  // does not, so the two readings put the closing quote in DIFFERENT PLACES. The side that ends the
+  // literal early executes the rest of the formula as code while this analyzer sees one inert string
+  // token — every structural guard blind at once.
   //
-  // Refused rather than reconciled, because there is nothing to reconcile: the two readings put the
-  // closing quote in different places. A literal quote is still writable as `''`, which four of the
-  // five accept and which the scanner and the warehouse then agree about.
+  // A literal quote is still writable as `''`, which the scanner and the warehouse agree about.
   dialectAmbiguousEscape: (field: string): FormulaViolation => ({
     code: 'FORMULA_DIALECT_AMBIGUOUS_ESCAPE_NOT_ALLOWED',
     field,
@@ -171,7 +161,7 @@ export const FormulaViolations = {
     subject: ref,
     message: `\`${ref}\` ${state === 'missing' ? 'no longer exists in the Data Mart' : 'cannot be resolved'}.`,
   }),
-  // JOINED only since #6732 (D12): a formula may read another calculated field of its OWN Data
+  // JOINED only: a formula may read another calculated field of its OWN Data
   // Mart, and the sentence has to say which one is refused — told merely "a formula cannot
   // reference another one", an analyst has no reason to try the thing that now works.
   calculatedReference: (field: string, ref: string): FormulaViolation => ({
@@ -284,12 +274,9 @@ export const FormulaViolations = {
       `\`${ref}\` is a joined Data Mart's Unique Count measure, which a formula cannot reference ` +
       `yet. Select it as a report column instead, or reference one of that Data Mart's fields.`,
   }),
-  // A BARE `unique_count` reference — no `path` — reads as the metric's OWN Data Mart's Unique
-  // Count measure. Spec §4.3 is about a JOINED source's Unique Count (see
-  // `joinedUniqueCountReference`), so the main-Data-Mart reading has no legitimate
-  // use: there is no such column, and the measure is a SELECT alias of the very query the formula
-  // renders into — no dialect can reference an alias from within its own SELECT list. Accepted, it
-  // rendered as a bare `unique_count` and failed at the warehouse on every run.
+  // A BARE `unique_count` — no `path` — has no legitimate reading: there is no such column, and the
+  // measure is a SELECT alias of the very query the formula renders into, which no dialect can
+  // reference from inside its own SELECT list.
   mainUniqueCountReference: (field: string, ref: string): FormulaViolation => ({
     code: 'FORMULA_MAIN_UNIQUE_COUNT_REFERENCE_NOT_SUPPORTED',
     field,
@@ -317,7 +304,7 @@ export const FormulaViolations = {
       'This formula divides without guarding against a zero or empty denominator. ' +
       'Wrap it, e.g. NULLIF(SUM(impressions), 0).',
   }),
-  // Used by the dry-run pass (Task 10). Defined here so every message this feature can emit
+  // Used by the dry-run pass. Defined here so every message this feature can emit
   // lives in one file.
   warehouseRejected: (field: string, detail?: string): FormulaViolation => ({
     code: 'FORMULA_WAREHOUSE_REJECTED',

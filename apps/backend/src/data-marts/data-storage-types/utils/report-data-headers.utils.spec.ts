@@ -557,7 +557,7 @@ describe('resolveReportDataHeaders', () => {
     // No report aggregate function describes a formula, so the header cannot carry one — and a
     // BARE `undefined` there is how an ordinary native column looks. Consumers that read the
     // absence (Looker Studio's schema builder does) would then treat a ratio as a plain numeric
-    // column they may roll up. The LEVEL is what keeps the two apart; see spec §8.
+    // column they may roll up. The LEVEL is what keeps the two apart.
     it('carries the aggregating level onto the header, with no report aggregate function', () => {
       const headers = resolveReportDataHeaders(
         [],
@@ -573,7 +573,7 @@ describe('resolveReportDataHeaders', () => {
 
     // The header used to mark every calculated field as an aggregate, which the Looker mapper
     // reads as "METRIC whatever the declared type says" — so a row-level `CONCAT(session_id,
-    // user_id)` reached the destination as a metric Looker refuses to group by (spec §4.5). The
+    // user_id)` reached the destination as a metric Looker refuses to group by. The
     // level must travel, not the fact of being calculated.
     it('carries the ROW-LEVEL level onto the header, unchanged from the plan', () => {
       const headers = resolveReportDataHeaders(
@@ -714,7 +714,7 @@ describe('resolveReportDataHeaders', () => {
     // once a calculated item is present, so `columns: []` plus a row-level field emits
     // `SELECT <expr> AS session_key FROM t` and nothing else (pinned by "projects a row-level
     // calculated field alone, without a wildcard" in each dialect's builder spec). Narrowing this
-    // branch to aggregating fields — which spec §4.5 asks for, written before that wildcard
+    // branch to aggregating fields — which the design asks for, written before that wildcard
     // decision — would answer with every native header for a SELECT that projects one column: a
     // null-filled row on BigQuery/Snowflake/Databricks, `Column ... not found` on Athena/Redshift.
     it('row-level-only with no/empty columnFilter → ONLY that field (the SELECT drops the wildcard)', () => {
@@ -737,7 +737,7 @@ describe('resolveReportDataHeaders', () => {
       expect(emptyFilter.map(h => h.name)).toEqual(['session_key']);
     });
 
-    // Slice 3 (spec §2.1): a report may apply an aggregation to a ROW-LEVEL calculated field, and
+    // A report may apply an aggregation to a ROW-LEVEL calculated field, and
     // the SQL then emits one `<expr>` aggregate per rule under `aggregatedColumnLabel` instead of
     // the bare name. Readers bind rows to headers BY NAME, so a header still called `session_key`
     // matches no output column at all — a null column on BigQuery/Snowflake/Databricks and a hard

@@ -20,7 +20,7 @@ import type { CalculatedMetricPlan } from '../../data-storage-types/utils/sql-cl
 export interface GroupRestriction {
   /**
    * The report's own dimensions — the grain its HAVING filtered. A ROW-LEVEL calculated field is
-   * one of them (#6732), listed here under its output name and rendered from `calculatedDimensions`
+   * one of them, listed here under its output name and rendered from `calculatedDimensions`
    * below; an AGGREGATE-level one never is (it is a metric, not a key).
    */
   dimensions: string[];
@@ -41,7 +41,7 @@ export interface GroupRestriction {
   /**
    * The rules whose predicate belongs AFTER the GROUP BY; the WHERE rules stay in `filters`.
    *
-   * NOT "the rules carrying a `function`" — that reading is what made this the silent seat (D21).
+   * NOT "the rules carrying a `function`" — that reading is what made this the silent seat.
    * An AGGREGATE-level Calculated Field aggregates inside its formula, so its rule carries no
    * function and never can (`AGGREGATION_ON_CALCULATED_METRIC`); read that way, a report whose only
    * metric filter is one built NO restriction at all — `renderKeptGroupsJoin` early-returns on an
@@ -60,7 +60,7 @@ export interface GroupRestriction {
    * Both shapes need one, for different halves of the left-hand side. A rule carrying a FUNCTION
    * aggregates a row-level field the report aggregates, so the restriction must compare the same
    * ARGUMENT the report's own aggregate was given — the substituted formula cast to the declared
-   * type (#6732, D18) — and re-deriving it from `calculatedDimensions` is impossible (an aggregated
+   * type — and re-deriving it from `calculatedDimensions` is impossible (an aggregated
    * plan is not a key and never travels there) while re-deriving it from the predicate expressions
    * would be a THIRD spelling: those are cast per OPERATOR, not per function, so `MIN` would gain a
    * cast the projection does not have. A function-LESS rule is an aggregate-level field, whose
@@ -82,7 +82,7 @@ export interface GroupRestriction {
 }
 
 /**
- * A restriction whose `having` rules have already been ROUTED (#6732, D21) — what a read plan and
+ * A restriction whose `having` rules have already been ROUTED — what a read plan and
  * the two builder facades take.
  *
  * `having` is the third path into `renderHaving` beside the two `filters` channels, and its

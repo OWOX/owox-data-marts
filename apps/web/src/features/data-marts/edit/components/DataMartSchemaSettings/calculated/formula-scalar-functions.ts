@@ -3,52 +3,30 @@ import { DataStorageType } from '../../../../../data-storage';
 /**
  * Scalar functions the formula editor SUGGESTS, per warehouse dialect.
  *
- * This list is a suggestion and never a validation. It is curated by hand and deliberately
- * incomplete — BigQuery alone documents hundreds of scalar functions — so nothing may read it as
- * "the functions this warehouse has". The backend agrees by construction: its formula analyzer
- * only asks the dialect whether a call is an AGGREGATE (`formula-analyzer.ts` filters
- * `dialect.isAggregateFunction`), lets every other call through as scalar, and leaves the question
- * of whether that function actually exists to the warehouse dry run. Absence from this file must
- * therefore NEVER reject, warn about, underline or block a formula: this branch has already shipped
- * one save-blocker that refused legal SQL, and a list like this is exactly how that happens again.
+ * A suggestion, never a validation: curated by hand and deliberately incomplete. The backend lets
+ * every non-aggregate call through as scalar and leaves existence to the dry run, so absence from
+ * this file must NEVER reject, warn about, underline or block a formula.
  *
- * Unlike `formula-function-dialects.ts`, this module is NOT mirrored in `backend-mirror.test.ts`.
- * That mirror exists because the backend JUDGES formulas with its aggregate lists, so a drift there
- * changes what saves; this list judges nothing, so pinning it to backend source would pay for
- * duplication that protects nothing and would invite the very "it must match the backend, so it
- * must be authoritative" reading the paragraph above forbids.
+ * It cannot BREAK a formula, but it may not LIE either: offering `SAFE_CAST` on Snowflake costs an
+ * analyst a round trip through a save the dry run then rejects. Every name offered for a storage
+ * must be one that warehouse's own reference documents; where support is uncertain, NARROW.
  *
- * Suggestion-only means this list cannot BREAK a formula. It does not mean the list may LIE.
- * Offering `SAFE_CAST` on Snowflake costs an analyst a round trip — they take the suggestion, save,
- * and the dry run rejects a function this editor recommended — which is a worse experience than
- * never suggesting it. So every name offered for a storage must be one that warehouse's own
- * reference documents; this is the same bar `formula-function-dialects.test.ts` already holds the
- * aggregate lists to ("never offers a function from another dialect"), and
- * `formula-scalar-functions.test.ts` pins it name by name. When a name's support is uncertain,
- * NARROW: dropping it costs one suggestion on one warehouse, keeping it wrongly costs a lie.
- *
- * Curation rule, if you extend it: prefer functions an analyst reaches for INSIDE an aggregate's
- * argument — conditionals, null handling, casting, string and date work — order the per-dialect
- * extras by how often that happens, never repeat an aggregate name (that would put one name in two
- * completion groups), and keep each storage at or under {@link MAX_SUGGESTIONS_PER_STORAGE}.
+ * Keep each storage at or under {@link MAX_SUGGESTIONS_PER_STORAGE}.
  */
 
 /** A menu longer than this stops being a menu. The cut falls at the low-priority tail. */
 const MAX_SUGGESTIONS_PER_STORAGE = 100;
 
 /**
- * Offered on every dialect — the spec's shared set, amended: a name belongs here only if all five
- * warehouses document it AND allow it over table data, because everything here is offered to all
- * five at once. Eleven of the spec's names failed that bar and moved into the extras of the dialects
- * that have them: `SAFE_CAST`, `DATE_DIFF`, `TRUNC`, `LEFT`, `RIGHT`, `DATE`, `SUBSTR`, `IF`, plus
- * `CURRENT_TIMESTAMP`, `LOG` and `LN`, which Redshift restricts to the leader node — a query
- * touching user tables runs on the compute nodes and fails with "Specified types or functions … not
- * supported on Redshift tables", an error that names neither the formula nor the function. `LN`'s
- * restriction is conditional on the argument's type (`DECIMAL`/`NUMERIC` among them, i.e. money)
- * and appears only on its own doc page, which is why an index-page sweep misses it.
- * Five names that had been curated into every dialect's extras are universal and moved here
- * (`LPAD`, `RPAD`, `REVERSE`, `REGEXP_REPLACE`, `TRANSLATE`). Includes the SQL keywords a `CASE`
- * expression is built from, which an analyst looks for in the same menu as the functions.
+ * Offered on every dialect: a name belongs here only if all five warehouses document it AND allow it
+ * over TABLE DATA. `CURRENT_TIMESTAMP`, `LOG` and `LN` failed the second half — Redshift restricts
+ * them to the leader node, and a calculated field reading user tables fails with "Specified types or
+ * functions … not supported on Redshift tables", which names neither the formula nor the function.
+ * `LN`'s restriction is conditional on the argument type and appears only on its own doc page, so an
+ * index sweep misses it.
+ *
+ * Includes the SQL keywords a `CASE` expression is built from, which an analyst looks for in the
+ * same menu.
  */
 const SHARED_SCALAR = [
   'ABS',
@@ -97,19 +75,12 @@ const SHARED_SCALAR = [
 /**
  * The entries that are SQL words rather than calls: completing them must not append `()`.
  *
- * Two groups. The logical and `CASE` keywords all live in {@link SHARED_SCALAR}, so they are
- * offered — and bare — on every dialect. The niladic date functions below are here for a stricter
- * reason: `CURRENT_DATE`, `CURRENT_TIMESTAMP` and `SYSDATE` are SQL-standard niladic forms that
- * **Trino (Athena) and Redshift reject with parentheses at all**, so completing them as `NAME()`
- * hands the analyst a formula the warehouse refuses — the one thing this curated list is not
- * allowed to do (it may be incomplete; it may not be wrong). Bare is legal on all five dialects:
- * BigQuery, Snowflake and Databricks all document the parentheses as optional.
+ * Two groups. The logical and `CASE` keywords are bare everywhere. The niladic date functions are
+ * here for a stricter reason: Trino (Athena) and Redshift REJECT `CURRENT_DATE`,
+ * `CURRENT_TIMESTAMP` and `SYSDATE` with parentheses at all, so completing them as `NAME()` hands
+ * the analyst a formula the warehouse refuses. Bare is legal on all five.
  *
- * Not here, deliberately: `NOW` and `GETDATE`, which are ordinary functions and DO require their
- * parentheses on every dialect that offers them.
- *
- * Membership is per NAME, not per dialect — a word offered by one storage's list and not another's
- * simply never comes up there.
+ * NOT here: `NOW` and `GETDATE`, ordinary functions that DO require their parentheses.
  */
 export const SCALAR_WORD_OPERATORS: readonly string[] = [
   'AND',
@@ -302,17 +273,13 @@ const SNOWFLAKE = [
 ];
 
 /**
- * Amazon Redshift scalar functions (Redshift SQL functions reference), skipping two kinds of name:
- * the ones AWS marks leader-node-only — a calculated field always reads user tables, so it runs on
- * the compute nodes, where those error out — and the ones whose OWN page adds a restriction the
- * index page does not show (`LN` errors over a user table for `DECIMAL`/`NUMERIC` and five other
- * types; a money column is `DECIMAL`).
+ * Redshift scalar functions, skipping two kinds of name: the ones AWS marks leader-node-only, since
+ * a calculated field reads user tables and runs on the compute nodes, and the ones whose OWN page
+ * adds a restriction the index page does not show (`LN` errors over `DECIMAL`, i.e. money).
  *
- * `GETDATE`/`SYSDATE` are AWS's own named remedy for `CURRENT_TIMESTAMP` ("Use GETDATE function or
- * SYSDATE instead"). `DLOG10`/`DLOG1` are NOT: AWS presents them only as synonyms of `LOG`/`LN`
- * ("you can also use DLOG10"), never as a leader-node workaround. What recommends them here is
- * weaker and worth stating plainly — their own doc pages carry no restriction note, while
- * `LOG`'s and `LN`'s do.
+ * `GETDATE`/`SYSDATE` are AWS's own named remedy for `CURRENT_TIMESTAMP`. `DLOG10`/`DLOG1` are not
+ * — they are presented only as synonyms, and what recommends them here is weaker: their doc pages
+ * carry no restriction note where `LOG`'s and `LN`'s do.
  */
 const REDSHIFT = [
   'NVL',
@@ -437,14 +404,10 @@ const EXTRA_BY_STORAGE: Readonly<Partial<Record<DataStorageType, readonly string
  * Scalar functions to suggest for this storage: de-duplicated, upper-case, sorted for a stable menu.
  *
  * A storage with no curated dialect gets an EMPTY list, not the shared set — the opposite of
- * `aggregateFunctionsFor`, on purpose. The shared aggregates (`SUM`, `COUNT`, …) are spelled the
- * same in every SQL dialect worth the name; the shared SCALARS are not (`IF` is `IIF` in T-SQL,
- * `SAFE_CAST` and `DATE_DIFF` are BigQuery spellings), so offering them onto an unrecognised
- * warehouse would be guessing a dialect. Suggesting nothing costs the analyst a menu; suggesting a
- * name their warehouse does not have costs them a failed dry run they cannot explain.
- *
- * The result is only ever a suggestion — see this file's header. Do not use it to decide whether a
- * function is allowed.
+ * `aggregateFunctionsFor`, on purpose. Shared aggregates are spelled the same in every dialect
+ * worth the name; shared SCALARS are not, so offering them onto an unrecognised warehouse would be
+ * guessing a dialect. Suggesting nothing costs a menu; suggesting a name the warehouse lacks costs
+ * a failed dry run nobody can explain.
  */
 export function scalarFunctionsFor(storageType: string): string[] {
   // Own-property check, not a bare lookup: `storageType` is a plain string off the wire, and

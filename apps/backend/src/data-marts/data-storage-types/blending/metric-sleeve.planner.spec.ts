@@ -150,7 +150,7 @@ describe('metric-sleeve planner', () => {
       expect(collectReportDimensions(columns, aggs)).toEqual(['users__country']);
     });
 
-    // A ROW-LEVEL calculated field is a dimension (#6732), and it reaches this function on a list
+    // A ROW-LEVEL calculated field is a dimension, and it reaches this function on a list
     // of its own: every calculated name was stripped out of `columns` upstream. Appended, and in
     // plan order, so the sleeve's grain lands in the same order `renderAggregatedSelect` emits its
     // own GROUP BY keys — column keys first, then the row-level ones.
@@ -614,7 +614,7 @@ describe('metric-sleeve planner', () => {
       expect(sleeveJoinColumns(filterOpts())).toEqual(['users__country']);
     });
 
-    // D21 (#6732): the HAVING rule of an aggregate-level Calculated Field carries no `function`,
+    // The HAVING rule of an aggregate-level Calculated Field carries no `function`,
     // so a `function` test would pull its column into the sleeve's join list — a dedup CTE joined
     // for a predicate no sleeve template ever emits.
     it('sleeveFilterColumns drops a function-less rule routed to HAVING', () => {
@@ -626,7 +626,7 @@ describe('metric-sleeve planner', () => {
     });
   });
 
-  // #6732: a formula's JOINED aggregate call gets a sleeve of its own — keyed by the CALL, not by
+  // A formula's JOINED aggregate call gets a sleeve of its own — keyed by the CALL, not by
   // a column, which is what lets v1 skip merging entirely (and with it the multi-column hazard
   // `groupValueSleeveMetrics` guards against).
   describe('formula sleeves', () => {

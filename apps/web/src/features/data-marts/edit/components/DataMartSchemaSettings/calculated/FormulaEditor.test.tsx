@@ -430,10 +430,10 @@ describe('FormulaEditor', () => {
     });
   });
 
-  // Spec §9 requires the dialect function list, and decision 6 downgraded unguarded division from
+  // The dialect function list is required, and unguarded division was downgraded from
   // an error to a warning specifically because "the validator warns AND autocomplete offers the
   // guarded pattern". Only the warning half had shipped.
-  describe('function and pattern completions (#6732)', () => {
+  describe('function and pattern completions', () => {
     it('offers the dialect functions it was given, as functions with a call snippet', async () => {
       render(
         <FormulaEditor
@@ -499,7 +499,7 @@ describe('FormulaEditor', () => {
       expect((await completionLabels()).filter(s => s.detail === 'aggregation')).toEqual([]);
     });
 
-    // Task 1 shipped the scalar group behind the provider's fourth parameter with nothing passing
+    // The scalar group shipped behind the provider's fourth parameter with nothing passing
     // it. Without this prop the whole curated per-storage list is dead code.
     it('offers the scalar functions it was given, below the aggregates', async () => {
       render(
@@ -579,7 +579,7 @@ describe('FormulaEditor', () => {
   // The product asked for Looker's behaviour: a squiggle on the token at fault AND the sentence
   // spelled out under the editor. Neither replaces the other — several violations carry no
   // locatable token at all, and a squiggle alone says nothing about what is wrong.
-  describe('live problems (#6732)', () => {
+  describe('live problems', () => {
     const diagnostics = (overrides: Partial<FormulaDiagnostics> = {}): FormulaDiagnostics => ({
       errors: [],
       warnings: [],
@@ -806,7 +806,7 @@ describe('FormulaEditor', () => {
   // that a chip and the backend's squiggle over the same field can be on screen together. Whether
   // the caret, the selection and the paint then behave is measured in a real browser
   // (e2e/specs/datamart-calculated-field-chips.spec.ts); happy-dom has none of the three.
-  describe('field chips (#6732)', () => {
+  describe('field chips', () => {
     it('draws a chip over each resolved reference', () => {
       render(
         <FormulaEditor
@@ -923,7 +923,7 @@ describe('FormulaEditor', () => {
   // The provider's own decisions are pinned in monaco-formula-hover.util.test.ts; this is the
   // wiring — that the editor hands it the reference index, which is the only thing that knows the
   // Data Mart behind an alias.
-  describe('chip hover (#6732)', () => {
+  describe('chip hover', () => {
     interface HoverProviderLike {
       provideHover: (
         model: unknown,

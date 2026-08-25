@@ -62,25 +62,18 @@ function isFollowedByOpenParen(text: string, end: number): boolean {
 }
 
 /**
- * Re-derives every resolved reference straight from `text`, ignoring whatever the caller last
- * knew — the only way to guarantee that editing a reference into something unrecognizable drops
- * it instead of leaving a tag pointing at a field the analyst is no longer looking at.
+ * Re-derives every resolved reference straight from `text`, ignoring what the caller last knew —
+ * the only way to guarantee that editing a reference into something unrecognizable drops it rather
+ * than leaving a tag on a field the analyst is no longer looking at.
  *
- * Matches are tried longest-name-first and claim their span, so `payload.value` wins over a bare
- * `payload`; whole-word boundaries stop `rev` from eating into `revenue`; a match inside a string
- * literal or a comment is discarded; a match immediately followed by `(` is discarded as a
- * function call rather than a column reference; and a name that resolves 'ambiguous' (two fields
- * legitimately sharing a dotted name) is skipped entirely rather than guessing one of the
- * candidates.
+ * Longest name first, whole-word only, and a match is discarded inside a string or comment, before
+ * a `(` (function call), or when the name is 'ambiguous' — two fields legitimately sharing a dotted
+ * name are skipped rather than guessed.
  *
- * `previousRefs` is the one exception to "always re-derived, never trusted": a reference whose
- * exact span is untouched by this edit, but whose name no longer appears in `index` at all (the
- * field went DISCONNECTED between renders), is carried forward rather than dropped. Dropping it
- * would turn a save-time error the backend can name ("field X is missing") into a bare word the
- * backend's analyzer has no way to flag, deferring the failure to warehouse run time. This does
- * not apply to a name that changed under the edit — that is still the drop-on-edit rule above —
- * nor to a name that merely became ambiguous, which is a different, new problem rather than the
- * same field going missing.
+ * `previousRefs` is the one exception: a reference whose span this edit did not touch but whose
+ * name vanished from `index` (the field went DISCONNECTED) is carried forward. Dropping it would
+ * turn a save-time error the backend can name into a bare word it cannot flag, deferring the
+ * failure to warehouse run time. A name that CHANGED under the edit still drops.
  */
 export function resolveAll(
   text: string,

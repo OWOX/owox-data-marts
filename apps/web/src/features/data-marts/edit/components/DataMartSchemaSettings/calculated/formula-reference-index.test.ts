@@ -39,7 +39,7 @@ describe('buildReferenceIndex', () => {
     ]);
   });
 
-  // #6732: a formula may read another calculated field of the SAME Data Mart, so hiding them from
+  // A formula may read another calculated field of the SAME Data Mart, so hiding them from
   // the menu now withholds legal candidates rather than protecting the analyst from a refusal.
   it('offers a calculated field, carrying the level that decides how it may be used', () => {
     const index = buildReferenceIndex([
@@ -194,8 +194,8 @@ describe('buildJoinedReferenceIndex', () => {
     expect(index.map(f => f.name)).toEqual(['orders.amount']);
   });
 
-  // NOT the own-Data-Mart rule above, and the asymmetry is the point: #6732 lifted the refusal for
-  // the metric's own mart only (D12). A JOINED formula is still refused — its text never crosses
+  // NOT the own-Data-Mart rule above, and the asymmetry is the point: the refusal is lifted for
+  // the metric's own mart only. A JOINED formula is still refused — its text never crosses
   // the wire to be substituted, and routing and the source access check are both decided from THIS
   // formula's raw text, so a source reachable only through it would be joined unchecked.
   it('does not offer a CALCULATED field of the joined Data Mart', () => {

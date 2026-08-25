@@ -140,10 +140,10 @@ describe('DatabricksClauseRenderer — percentile and STRING_AGG aggregations', 
   });
 
   // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
-  // SELECT and GROUP BY, and it lands after every column key (#6732). Pinned per dialect because
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
   // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
   // error no stub renderer can show.
-  describe('a ROW-LEVEL calculated field (#6732)', () => {
+  describe('a ROW-LEVEL calculated field', () => {
     const rowLevel = {
       outputName: 'session_key',
       type: 'STRING',
@@ -170,7 +170,7 @@ describe('DatabricksClauseRenderer — percentile and STRING_AGG aggregations', 
       expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS \`session_key\``]);
     });
 
-    // #6732 slice 3b, D16: a DATE-declared row-level field may be bucketed, and the truncation
+    // A DATE-declared row-level field may be bucketed, and the truncation
     // wraps the WHOLE substituted formula in this dialect's own spelling. No CAST — this is the
     // one dialect whose loudness is a session setting (`try_cast … return NULL instead`), which is
     // a reason to keep OWOX's own refusals rather than to add a conversion of our own.
@@ -195,7 +195,7 @@ describe('DatabricksClauseRenderer — percentile and STRING_AGG aggregations', 
       expect(out.selectSql).not.toMatch(/CAST/);
     });
 
-    // Slice 3: once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
     // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
     // warehouse. Per dialect because the aggregate spelling AND the alias quoting are this one's.
     it('aggregates it under the labelled alias and drops it from the grouping keys', () => {
@@ -218,10 +218,10 @@ describe('DatabricksClauseRenderer — percentile and STRING_AGG aggregations', 
       expect(out.groupBySql).toBe('\nGROUP BY\n  `channel`');
     });
 
-    // #6732 D18. Databricks — the dialect the original question worried about — already answered
+    // Databricks — the dialect the original question worried about — already answered
     // `12.75` on probe shape 8a UNCAST, and `12.75` again on 8c WITH the cast, so here the rule
     // has to be a no-op on a number that is already right.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. True SUM 12.75.
       const NUM_EXPR = 'CONCAT(`num_prefix`, `num_suffix`)';
       const numericText = {
@@ -276,7 +276,7 @@ describe('DatabricksClauseRenderer — percentile and STRING_AGG aggregations', 
         expect(selectFor('SUM', 'STRING')).toBe(`SUM((${NUM_EXPR})) AS \`amount | SUM\``);
       });
 
-      // D19b, and this is the dialect that makes the rule non-negotiable: Spark's `CAST(1.5 AS
+      // This is the dialect that makes the rule non-negotiable: Spark's `CAST(1.5 AS
       // INT)` TRUNCATES where BigQuery, Trino, Redshift and Snowflake all round. Casting an
       // INTEGER declaration would therefore return a different total here than on the other four,
       // for the same report and the same data.

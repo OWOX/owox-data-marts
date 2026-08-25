@@ -72,7 +72,7 @@ export interface AggregationEditorPopoverProps {
   allowDateBucket?: boolean;
   /**
    * Whether THIS column's bucket may carry a time zone. False for a Calculated Field, on every
-   * storage (#6732 §6.1): Snowflake's `CONVERT_TIMEZONE` is the one thing that coerces a formula's
+   * storage: Snowflake's `CONVERT_TIMEZONE` is the one thing that coerces a formula's
    * string into a date, and it read `05/08/2026` as May where the formula meant the 5th of August —
    * no error, no NULL, and a month that depends on the warehouse session rather than on the data.
    * Independent of `allowDateBucket`: the bucket itself is unaffected.

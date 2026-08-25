@@ -69,7 +69,7 @@ describe('SLEEVE_ROUTING', () => {
   });
 });
 
-// #6732 D18: which functions read their argument as a number, and therefore get the analyst's
+// Which functions read their argument as a number, and therefore get the analyst's
 // declared type imposed on a Calculated Field's expression before the function is applied.
 describe('DOES_ARITHMETIC_ON_ARGUMENT', () => {
   it('names exactly the six functions that do arithmetic on the value', () => {

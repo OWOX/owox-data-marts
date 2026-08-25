@@ -13,7 +13,7 @@ describe('BlendedQueryBuilderFacade', () => {
   let resolver: jest.Mocked<TypeResolver<DataStorageType, BlendedQueryBuilder>>;
   let builder: jest.Mocked<BlendedQueryBuilder>;
 
-  // Routed, because that is what the facade takes (#6732, D21).
+  // Routed, because that is what the facade takes.
   const context: RoutedBlendedQueryContext = {
     mainTableReference: 'main_table',
     mainDataMartTitle: 'Main',

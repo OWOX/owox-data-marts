@@ -154,10 +154,10 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
   });
 
   // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
-  // SELECT and GROUP BY, and it lands after every column key (#6732). Pinned per dialect because
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
   // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
   // error no stub renderer can show.
-  describe('a ROW-LEVEL calculated field (#6732)', () => {
+  describe('a ROW-LEVEL calculated field', () => {
     const rowLevel = {
       outputName: 'session_key',
       type: 'VARCHAR',
@@ -185,7 +185,7 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS "session_key"`]);
     });
 
-    // #6732 slice 3b, D16 — and this is the dialect the decision was made on. The probe wrapped a
+    // And this is the dialect the decision was made on. The probe wrapped a
     // day-ambiguous string formula in `CAST(… AS DATE)` here and got `2026-05-01` back for a value
     // meaning the 5th of August: no error, no NULL, just the wrong month. Uncast, the same shape
     // raises. So the truncation takes the substituted formula bare.
@@ -210,7 +210,7 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       expect(out.selectSql).not.toMatch(/CAST/);
     });
 
-    // Slice 3: once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
     // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
     // warehouse. The `||` chain this dialect's formula uses is the body that
     // precedence fix was about, so the parentheses around the substituted expression matter most
@@ -235,12 +235,12 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
     });
 
-    // #6732 D18 — the live wrong number, on the dialect that produces it. `SUM` over a text
+    // The live wrong number, on the dialect that produces it. `SUM` over a text
     // expression is not an error here: Redshift coerces the varchar to `Decimal` with SCALE 0 and
     // truncates EVERY ROW before summing, so probe shape 8a returned `12` where `12.75` is right
     // (its own words on the neighbouring cell: `Invalid digit, Value 'a', Pos 0, Type: Decimal`).
     // Shape 8c, the same query with the declared type in the cast, returned `12.75` live.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. Redshift's
       // CONCAT is binary-only, so a formula here says `||` — the operator that makes the
       // parentheses around the substituted expression load-bearing.
@@ -297,7 +297,7 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
         expect(selectFor('SUM', 'VARCHAR')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
       });
 
-      // D19b: an INTEGER declaration is refused a cast although this dialect states a target for
+      // An INTEGER declaration is refused a cast although this dialect states a target for
       // it. Casting would ROUND every row before summing here — the per-row conversion this slice
       // exists to remove, and one Spark spells as truncation instead.
       it('never casts an INTEGER declaration, though the mapping states a target for it', () => {

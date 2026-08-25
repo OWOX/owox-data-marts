@@ -38,20 +38,17 @@ const enclosingRun =
 /**
  * A tag inside a string literal: text to the warehouse, a reference to Handlebars.
  *
- * A DOUBLE-quoted run counts too, and that is not a formality: `"` opens a STRING on BigQuery and
- * Databricks (measured) and a quoted identifier on the other three, while the scanner reads one
- * lexical model for all five and calls it `quotedIdentifier` everywhere. Judged live, a tag inside
- * `"…"` is resolved, substituted, and then rendered by those two warehouses as a text constant —
- * the field publishes its own name where a number belongs, silently. Counting it as a string
- * instead makes the same formula refuse at save (FORMULA_TAG_IN_STRING_LITERAL), which is the loud
- * direction and correct on all five: a reference has no meaning inside a quoted identifier either.
+ * A DOUBLE-quoted run counts too. `"` opens a STRING on BigQuery and Databricks (measured) and a
+ * quoted identifier on the other three, while the scanner reads one lexical model for all five and
+ * calls it `quotedIdentifier` everywhere. Left uncounted, a tag inside `"..."` resolves, substitutes,
+ * and renders on those two warehouses as a text constant — the field publishes its own name where a
+ * number belongs, silently. Counting it refuses the formula at save instead, which is correct on all
+ * five: a reference has no meaning inside a quoted identifier either.
  *
- * Judged by OVERLAP rather than containment, because the double-quoted case is precisely the one
- * containment cannot see — the tag's own quotes split the run into three tokens, none of which
- * holds the whole tag. This is not hypothetical: it is what the editor writes today for
- * `MAX("clicks")`, and it is the only spelling it ever writes, since a tag is always serialized
- * with double quotes. The single-quoted spelling the specs pinned was the one shape the system
- * never produces.
+ * Judged by OVERLAP rather than containment, because the double-quoted case is the one containment
+ * cannot see — the tag's own quotes split the run into three tokens, none of which holds the whole
+ * tag. That is what the editor writes for `MAX("clicks")`, and a tag is always serialized with
+ * double quotes.
  */
 const inStringLike = (tokens: readonly SqlToken[], r: FormulaReference): boolean =>
   enclosingRun('string')(tokens, r) || enclosingRun('quotedIdentifier')(tokens, r);

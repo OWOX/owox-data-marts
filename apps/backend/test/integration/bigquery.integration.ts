@@ -1840,7 +1840,7 @@ describeIfCredentials(
 );
 
 // ---------------------------------------------------------------------------
-// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix (, real
+// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix, on a real
 // BigQuery). This proves the N-hop NESTED-bridge variant: a 2-hop chain
 // events -> users -> organizations, where `organizations` is a CHILD of
 // `users` (org_id lives on users), NOT a sibling of it. Main = events
@@ -2221,7 +2221,7 @@ describeIfCredentials(
 );
 
 // ---------------------------------------------------------------------------
-// Blended COUNT_DISTINCT through a bridge — SIBLING topology (, real
+// Blended COUNT_DISTINCT through a bridge — SIBLING topology, on a real
 // BigQuery). Complements the NESTED case above with the prototype's flagship
 // shape: main = events (event_id, user_id, org_id), and TWO DIRECT (sibling)
 // chains off main — events.user_id -> users.userId (dimension: country) and
@@ -4393,7 +4393,7 @@ describeIfCredentials(
   }
 );
 
-// Calculated Metrics — main-owner grain correctness and the zero-denominator promise (#6732).
+// Calculated Metrics — main-owner grain correctness and the zero-denominator promise.
 //
 // This is the ONE place in the whole suite that can prove the feature's actual arithmetic: every
 // other calculated-metric test (output-controls.e2e-spec.ts, http-data.e2e-spec.ts) runs against a
@@ -4420,7 +4420,7 @@ describeIfCredentials(
 // 0/0 row). A "compute the average instead of the ratio of the sums" implementation — the exact
 // defect this feature exists to prevent — fails this assertion under either flavor of that mistake.
 describeIfCredentials(
-  'Calculated metric — grain correctness and zero-denominator (real BigQuery, #6732)',
+  'Calculated metric — grain correctness and zero-denominator (real BigQuery)',
   () => {
     let adapter: BigQueryApiAdapter;
     let fqName: string;
@@ -4527,7 +4527,7 @@ describeIfCredentials(
 );
 
 // Calculated metric whose formula aggregates a JOINED Data Mart — grain correctness through a
-// FANNING join (#6732).
+// FANNING join.
 //
 // The blend aggregates each joined source by its join key BEFORE joining it in, so re-aggregating
 // that collapsed CTE is wrong in both directions on a fan-out. Each joined aggregate call is
@@ -4587,7 +4587,7 @@ describeIfCredentials(
 // per-group values: the per-group products sum to 18176, the per-group joined sums to 344 (o3
 // counted in both `organic` and `shared`), and the per-group counts to 13.
 describeIfCredentials(
-  'Calculated metric over a JOINED Data Mart — fan-out grain (real BigQuery, #6732)',
+  'Calculated metric over a JOINED Data Mart — fan-out grain (real BigQuery)',
   () => {
     let adapter: BigQueryApiAdapter;
     let visitsFQN: string;

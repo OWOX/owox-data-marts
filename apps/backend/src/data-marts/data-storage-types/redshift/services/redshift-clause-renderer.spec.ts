@@ -310,7 +310,7 @@ describe('RedshiftClauseRenderer', () => {
   });
 
   // The dialect the probe caught returning 12 where 12.75 is correct: Redshift coerces a text
-  // expression to Decimal with SCALE 0 and truncates every row before summing (#6732, D19). Every
+  // expression to Decimal with SCALE 0 and truncates every row before summing. Every
   // exact type therefore states its scale, the way textCastType states its VARCHAR length — a bare
   // DECIMAL/NUMERIC is (18,0) here, which is the same defect wearing a CAST.
   describe('castTypeForDeclaredType (declared Redshift type → cast target)', () => {
@@ -338,12 +338,12 @@ describe('RedshiftClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25, and this is the dialect that produced the measured silent wrong answer: the
+  // This is the dialect that produced the measured silent wrong answer: the
   // probe filtered a FLOAT-declared formula returning '9', '10' and '100' with `> 5` and got back
   // `9` alone — Redshift coerces the numeric literal to TEXT and compares lexicographically, so a
   // plausible one-row report lost its two largest values with no error and no NULL. Both sides of
   // the comparison now carry the declaration, which makes the same predicate arithmetic.
-  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes the declared type', () => {
     // Redshift's CONCAT is binary-only, so the probe's formula says `||` here — the operator that
     // makes the parentheses around the substituted expression load-bearing.
     const NUM_EXPR = '"n_prefix" || "n_suffix"';
@@ -376,7 +376,7 @@ describe('RedshiftClauseRenderer', () => {
       );
     });
 
-    // D25: `= 10` and `= '10'` over ONE field flip BigQuery and Athena between a hard error and
+    // `= 10` and `= '10'` over ONE field flip BigQuery and Athena between a hard error and
     // the right answer today, because nothing consults the declaration. Here the JS type only
     // decides how the literal is spelled inside a cast that is the same either way.
     it('binds the literal under the declaration whether the value arrives as 10 or as "10"', () => {
@@ -409,7 +409,7 @@ describe('RedshiftClauseRenderer', () => {
       );
     });
 
-    // D19b: casting an INTEGER declaration would introduce the very per-row conversion the cast
+    // Casting an INTEGER declaration would introduce the very per-row conversion the cast
     // exists to remove, and Spark truncates where this dialect rounds — the same report, two
     // totals. The mapping states a target for it; declining to use it is the comparison's policy.
     it('never casts an INTEGER declaration, though the mapping states a target for it', () => {
@@ -447,7 +447,7 @@ describe('RedshiftClauseRenderer', () => {
       }
     });
 
-    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
     // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
     // mode, on a predicate that never reads a value — and a numeric target inside STRPOS buys
     // nothing at all.
@@ -486,7 +486,7 @@ describe('RedshiftClauseRenderer', () => {
     });
 
     // The other clause, same imposition: an AGGREGATE-level field's rule carries no function and
-    // its formula is the HAVING left-hand side (spec §2).
+    // its formula is the HAVING left-hand side.
     it('imposes the declaration in HAVING too, for an aggregate-level field', () => {
       const roas: CalculatedMetricPlan = {
         outputName: 'roas',

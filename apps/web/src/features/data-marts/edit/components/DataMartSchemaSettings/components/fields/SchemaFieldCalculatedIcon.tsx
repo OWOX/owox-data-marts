@@ -10,7 +10,7 @@ import { describeMissingReferences } from '../../../../../shared/utils/calculate
 
 interface SchemaFieldCalculatedIconProps {
   /**
-   * The names this metric's formula can no longer resolve (spec §7). Omitted or empty = healthy.
+   * The names this metric's formula can no longer resolve. Omitted or empty = healthy.
    */
   missingReferences?: readonly string[];
 }

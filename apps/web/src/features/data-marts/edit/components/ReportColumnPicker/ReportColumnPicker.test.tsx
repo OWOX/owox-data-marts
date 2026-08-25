@@ -3453,7 +3453,7 @@ describe('ReportColumnPicker calculated fields', () => {
     expect(within(row).getByRole('checkbox')).not.toBeDisabled();
   });
 
-  // The backend renders a main-owner metric on the blended path too (#6732), so blending is no
+  // The backend renders a main-owner metric on the blended path too, so blending is no
   // longer a reason to hold one back from a bulk selection.
   it('Select all sweeps a calculated field in even when the selection blends', () => {
     const { onChange } = renderPicker(
@@ -3557,7 +3557,7 @@ describe('ReportColumnPicker calculated fields', () => {
     expect(next).toEqual(expect.arrayContaining(['clicks', 'ctr']));
   });
 
-  // The v1 limitation is lifted (#6732): the blended builder renders the metric from its stored
+  // The v1 limitation is lifted: the blended builder renders the metric from its stored
   // formula, so a report that already selects a joined field can still take one on.
   it('offers an unselected calculated field on a report that already spans a joined Data Mart', () => {
     const schema = blendedSchemaWith([
@@ -3617,7 +3617,7 @@ describe('ReportColumnPicker calculated fields', () => {
     // A calculated field's `status` is a warehouse-derived artifact that means nothing for it —
     // it never came from the warehouse. Dropping it from `nativeFields` on DISCONNECTED (as an
     // ordinary field is) would demote it to a generic "Disconnected columns" fallback entry
-    // instead of its own row — the one thing spec §7 forbids: a broken metric must be listed,
+    // instead of its own row — the one thing forbidden: a broken metric must be listed,
     // disabled, WITH ITS REASON, not folded into the same bucket as a column the schema dropped.
     const schema = buildSchema({
       nativeFields: [
@@ -3696,7 +3696,7 @@ describe('ReportColumnPicker calculated fields', () => {
     });
   });
 
-  // Filtering BY a calculated field was refused on both surfaces until #6732 §1.1 disproved the
+  // Filtering BY a calculated field was refused on both surfaces until that disproved the
   // published reason: it described a SELECT-list ALIAS, but a predicate's left-hand side is the
   // formula itself, which every dialect resolves. Which CLAUSE the predicate lands in (WHERE for a
   // row-level formula, HAVING for an aggregate-level one) is decided by the backend from the
@@ -3777,12 +3777,12 @@ describe('ReportColumnPicker calculated fields', () => {
   // with no aggregate call. Two overrides used to treat both levels identically, and they are
   // answers to DIFFERENT questions:
   //
-  //   the LEVEL FORK      — decision D2 (slice 3) plus the date bucket (slice 3b). A row-level
+  //   the LEVEL FORK      — aggregation plus the date bucket. A row-level
   //                         formula IS a dimension: a report may aggregate it AND group it by
   //                         month or week, exactly like the ordinary column beside it. An
   //                         aggregate-level one already IS an aggregate — it is not a dimension
   //                         at all, so it is offered neither, permanently.
-  //   isCalculated: true  — now gates the bucket TIME ZONE only (#6732 §6.1). The filter it used
+  //   isCalculated: true  — now gates the bucket TIME ZONE only. The filter it used
   //                         to gate as well is offered at both levels since §1.1.
   // ---------------------------------------------------------------------------
   describe('a row-level calculated field', () => {
@@ -3825,7 +3825,7 @@ describe('ReportColumnPicker calculated fields', () => {
       expect(onChange.mock.calls.at(-1)?.[0]).toContain('doubled_clicks');
     });
 
-    // D2 lifted — the first of the three surfaces the single override gates.
+    // The first of the three surfaces the single override gates.
     it('gets a per-row Σ aggregation control, offering its declared type’s menu', async () => {
       renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], withOutputControls);
 
@@ -3878,7 +3878,7 @@ describe('ReportColumnPicker calculated fields', () => {
       expect(within(listbox).getByText('doubled_clicks')).toBeInTheDocument();
     });
 
-    // The report an agent can already create over MCP, opened in the editor. Before slice 3 the
+    // The report an agent can already create over MCP, opened in the editor. Before this the
     // picker forced an empty allowed set, so this rule rendered ORPHANED — red, struck through,
     // labelled "Column not found in schema", with Edit disabled and only Remove left. The column
     // is right there and selected; the only offered fix silently turned a metric back into a
@@ -3899,7 +3899,7 @@ describe('ReportColumnPicker calculated fields', () => {
       expect(screen.getByRole('button', { name: 'Edit aggregation' })).toBeInTheDocument();
     });
 
-    // The THIRD surface behind the level fork, and the one slice 3b opens: a row-level formula is
+    // The THIRD surface behind the level fork, and the one the date bucket opens: a row-level formula is
     // a dimension, so a DATE-declared one groups by month or week like the ordinary DATE column
     // beside it. Until this slice the picker refused it at BOTH levels.
     it('offers a DATE-typed row-level field the date bucket beside its aggregations', async () => {
@@ -4108,13 +4108,13 @@ describe('ReportColumnPicker calculated fields', () => {
       expect(within(listbox).getByText('doubled_clicks')).toBeInTheDocument();
     });
 
-    // D24: the operator menu comes from the DECLARED type and is NOT narrowed for a calculated
+    // The operator menu comes from the DECLARED type and is NOT narrowed for a calculated
     // field, even though a MIS-declared date filters the wrong rows on Snowflake and Redshift —
     // the honest case works on all five storages, and documentation is the agreed mitigation
-    // (Task 7). `operatorsForType` is what turns the type into the menu (pinned in
+    //. `operatorsForType` is what turns the type into the menu (pinned in
     // output-controls-operators.test.ts), so what is left to pin here is that the picker hands the
     // editor the DECLARED type untouched: a date-typed value input is only rendered for the DATE
-    // family, and the obvious way to dodge D24's risk — quietly passing STRING — renders
+    // family, and the obvious way to dodge that risk — quietly passing STRING — renders
     // `type="text"` instead.
     it('hands the filter editor the declared DATE type, not a narrowed one', async () => {
       renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], withOutputControls);
@@ -4140,7 +4140,7 @@ describe('ReportColumnPicker calculated fields', () => {
 // selection: nothing else prunes `columnConfig`, so a row that disappeared would leave a report
 // stuck with a column it cannot clear.
 // ---------------------------------------------------------------------------
-describe('a joined Data Mart’s calculated field (#6732)', () => {
+describe('a joined Data Mart’s calculated field', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -4245,7 +4245,7 @@ describe('a joined Data Mart’s calculated field (#6732)', () => {
     expect(within(listbox).queryByText('roas')).not.toBeInTheDocument();
   });
 
-  // The row's own control, which the picker-list assertion above cannot see. Since #6732 an
+  // The row's own control, which the picker-list assertion above cannot see. An
   // OWN-mart calculated field DOES get this icon, so nothing about "calculated" suppresses it any
   // more — only the remove-only path a joined formula takes, for the reason the hint gives.
   it('offers no filter control on the row, while its ordinary neighbour does', () => {

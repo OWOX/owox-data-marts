@@ -122,12 +122,12 @@ describe('RedshiftQueryBuilder', () => {
     expect(sql).not.toContain('*');
   });
 
-  // #6732 D23/D25 — the seam this builder left dead at BOTH ends. It passed
+  // The seam this builder left dead at BOTH ends. It passed
   // `resolveColumnType: undefined` and no fragment read a type, so the probe's shape 1 came out as
   // `WHERE ("n_prefix" || "n_suffix") > 5`, which Redshift compares LEXICOGRAPHICALLY: `9` came
   // back where `9, 10, 100` is correct, with no error and no NULL. Asserted at the BUILDER rather
   // than at the renderer because the value's cast appears only when the resolver is wired.
-  describe('a filter on a calculated field imposes the declared type (#6732, D23/D25)', () => {
+  describe('a filter on a calculated field imposes the declared type', () => {
     const probePlan = (type: string) => ({
       outputName: 'probe',
       type,

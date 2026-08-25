@@ -185,7 +185,7 @@ export class BlendableSchemaService {
       // that list but is still counted, so deriving it there reports "no key" for a key that works.
       mainUniqueCountKeyFields: getMainUniqueCountKeyFields(rawSchemaFields).map(f => f.name),
       // Same reason, same RAW input: `brokenReferencesOf` deliberately keeps a hidden field as a
-      // valid formula target (spec §7 — hidden takes a column off the reporting menu, it does not
+      // valid formula target (hidden takes a column off the reporting menu, it does not
       // remove it from the source), so resolving against `nativeFields` would misreport every
       // metric that references one as broken. Mirrors `output-controls-validator.service.ts`'s own
       // composition-time check exactly (same function, same input shape); only entries that

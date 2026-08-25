@@ -163,7 +163,7 @@ function showBulkMergeFeedback(
 
 /**
  * Renders a `field → messages` map as one list per field. Every violation the backend sent shows
- * (spec §6.2: it reports the whole set, not just the first one it finds) — a field with two
+ * (the backend reports the whole set, not just the first one it finds) — a field with two
  * violations gets two bullets, not one.
  */
 function ViolationsByFieldList({ violationsByField }: { violationsByField: ViolationsByField }) {

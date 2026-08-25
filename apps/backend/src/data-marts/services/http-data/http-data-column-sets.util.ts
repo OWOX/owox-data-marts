@@ -9,7 +9,7 @@ export interface ReportingColumns {
    * name, same as any other column. */
   native: string[];
   /** `native` minus any calculated metric — what an implicit-all / wildcard selection (`columns`
-   * omitted, `columns=*`, `columns=**`) actually resolves to. Decision 10 (spec §8): a calculated
+   * omitted, `columns=*`, `columns=**`) actually resolves to. Decision 10: a calculated
    * metric is composed only when asked for by name, so adding one to the schema must not change
    * what an existing wildcard caller receives. */
   implicitAllNative: string[];

@@ -25,7 +25,7 @@ export interface ReportLikeReadPlan {
    * keep. Totals have no GROUP BY, so those filters cannot apply there directly — see
    * `ReportSqlComposerService.composeTotals`.
    *
-   * `having` carries the ROUTED rules (#6732, D21): this plan is handed straight to the query
+   * `having` carries the ROUTED rules: this plan is handed straight to the query
    * builder facade, so the verdict has to be decided before it is built, not after.
    */
   groupRestriction?: RoutedGroupRestriction;
@@ -74,7 +74,7 @@ export function usesSuffixedJoinedFieldNames(report: ReportLike): boolean {
  * aggregation, date-trunc bucket, or a selected calculated metric. Single source for this
  * predicate (run / cache / compose / run-record paths) so the copies cannot drift.
  *
- * A calculated metric IS an aggregate (spec §2.3), so selecting one must flip a plan to the
+ * A calculated metric IS an aggregate, so selecting one must flip a plan to the
  * output-controls path even when nothing else does — otherwise a report like
  * `columnConfig: ['clicks', 'ctr']` with no other control passes this predicate as `false` at
  * every one of its callers (`RunReportService`, `ReportDataCacheService`,
@@ -102,7 +102,7 @@ export function hasOutputControls(report: ReportLike): boolean {
  * CURRENT schema. Reads `columnConfig` as given — it does not distinguish an analyst's genuine
  * explicit pick from a wildcard already materialised into an explicit list upstream: on the HTTP
  * Data ad-hoc path, `HttpDataColumnResolver.resolve` expands `*` / an absent `columns` param
- * before `readPlan.columnConfig` is ever built. Decision 10 (spec §8) wants explicit-only, and
+ * before `readPlan.columnConfig` is ever built. Decision 10 wants explicit-only, and
  * that is enforced UPSTREAM of this predicate rather than here: `nativeColumnNames`
  * (`http-data-column-sets.util.ts`) excludes a calculated metric from the implicit-all field list
  * the resolver expands a wildcard into, so a `?columns=` caller who never named the metric never

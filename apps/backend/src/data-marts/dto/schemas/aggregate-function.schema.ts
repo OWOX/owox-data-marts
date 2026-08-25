@@ -90,24 +90,20 @@ export const VALUE_SLEEVE_FUNCTIONS: ReadonlySet<ReportAggregateFunction> = new 
 );
 
 /**
- * Whether the aggregation does ARITHMETIC on its argument — which is what decides whether a
- * Calculated Field's substituted expression is cast to the analyst's DECLARED type before the
- * function is applied (#6732, D18). A declared type is never validated against the formula (D3),
- * so a formula returning text on a field declared FLOAT is legal and reaches the warehouse: on
- * Redshift `SUM` over it coerces the varchar to `Decimal` with SCALE 0 and truncates every row,
- * measured returning `12` where `12.75` is correct.
+ * Whether the aggregation does ARITHMETIC on its argument, which decides whether a Calculated
+ * Field's expression is cast to the analyst's DECLARED type first. A declaration is never validated
+ * against the formula, so a FLOAT-declared formula returning text reaches the warehouse: Redshift
+ * `SUM` coerces it to `Decimal` with scale 0 and truncates every row, measured `12` for `12.75`.
  *
- * Every `false` here changes an ANSWER, not an amount of effort:
+ * Every `false` changes an ANSWER, not an amount of effort:
  * - `COUNT` — the argument's type cannot affect a count.
- * - `COUNT_DISTINCT` — a cast changes WHICH VALUES ARE EQUAL. `'01'` and `'1'` are two distinct
- *   strings and one number; the analyst asked how many distinct values the formula produces.
+ * - `COUNT_DISTINCT` — a cast changes WHICH VALUES ARE EQUAL: `'01'` and `'1'` are two strings and
+ *   one number.
  * - `MIN` / `MAX` — a cast changes ORDERING: `'10' < '9'` as text, `10 > 9` as numbers.
  * - `STRING_AGG`, `ANY_VALUE` — neither reads the value as a number.
  *
- * An exhaustive record rather than a bare set, exactly as `SLEEVE_ROUTING` above and for a sharper
- * reason: a set makes a thirteenth function silently uncast, and uncast on Redshift is a wrong
- * number rather than an error. `Record<ReportAggregateFunction, boolean>` is the guard that makes
- * the omission impossible — keep it; the accessor below is a second floor, not a replacement.
+ * An exhaustive record rather than a set, because a set makes a thirteenth function silently
+ * uncast, and uncast on Redshift is a wrong number rather than an error.
  */
 const DOES_ARITHMETIC_ON_ARGUMENT: Record<ReportAggregateFunction, boolean> = {
   SUM: true,

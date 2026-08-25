@@ -72,8 +72,8 @@ export interface AggregationDropdownColumn {
    */
   isAggregateLevelCalculated?: boolean;
   /**
-   * True for ANY calculated field, at either level, which is offered no bucket TIME ZONE (#6732
-   * §6.1). Separate from the flag above and not implied by it: a row-level formula buckets like the
+   * True for ANY calculated field, at either level, which is offered no bucket TIME ZONE. Separate from the
+   * flag above and not implied by it: a row-level formula buckets like the
    * column beside it and is still refused the zone. Snowflake's `CONVERT_TIMEZONE` is the one thing
    * that coerces a formula's string into a date, and it read `05/08/2026` as May where the formula
    * meant the 5th of August — no error, and a month decided by the warehouse session.

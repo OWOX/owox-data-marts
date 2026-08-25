@@ -182,7 +182,7 @@ export class CalculatedFieldIssueDto {
     type: [String],
     description:
       "Names this field's formula references that no longer resolve against the Data Mart's " +
-      'schema (spec §7) — the same names `CALCULATED_METRIC_BROKEN_REFERENCES` reports at query ' +
+      'schema — the same names `CALCULATED_METRIC_BROKEN_REFERENCES` reports at query ' +
       'composition time. Never empty when this entry is present.',
   })
   missing: string[];
@@ -224,7 +224,7 @@ export class BlendableSchemaDto {
     type: [CalculatedFieldIssueDto],
     description:
       'Every calculated field of the main Data Mart whose formula references a field the schema ' +
-      'no longer has (spec §7) — resolved against the RAW schema (like `mainUniqueCountKeyFields` ' +
+      'no longer has — resolved against the RAW schema (like `mainUniqueCountKeyFields` ' +
       'above), never `nativeFields`: a formula may legally reference a field hidden for reporting, ' +
       'and that list has already had those stripped. A field with no issue is simply absent here.',
   })

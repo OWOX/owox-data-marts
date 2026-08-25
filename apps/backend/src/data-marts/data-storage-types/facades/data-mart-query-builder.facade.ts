@@ -23,7 +23,7 @@ export class DataMartQueryBuilderFacade {
   /**
    * `RoutedDataMartQueryOptions`, not `DataMartQueryOptions`: this facade is the only way
    * production code reaches a query builder, so requiring the clause verdict here is what stops a
-   * producer forwarding `report.filterConfig` unrouted (#6732, D21).
+   * producer forwarding `report.filterConfig` unrouted.
    */
   async buildQuery(
     storageType: DataStorageType,

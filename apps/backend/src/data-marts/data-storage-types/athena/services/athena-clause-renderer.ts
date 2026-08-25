@@ -48,8 +48,7 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
 
   /**
    * A declared type is an AthenaFieldType — the Glue/DDL vocabulary — while a query is Trino, which
-   * has no FLOAT at all: Athena's own docs say to write `float` in DDL and `real` in a query
-   * (#6732).
+   * has no FLOAT at all: Athena's own docs say to write `float` in DDL and `real` in a query.
    *
    * The whole float family targets DOUBLE, including the 32-bit declarations. Trino's faithful
    * answer to a declared FLOAT is REAL, but `revenue / clicks` already returns a double today with
@@ -102,7 +101,7 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     'TIMESTAMP WITH TIME ZONE',
   ]);
 
-  // `valueCastType` is the declared type a Calculated Field's comparison imposes (#6732, D25) —
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
   // disjoint from the date set above, since it is only ever a numeric target. It matters most on
   // this dialect and BigQuery: an ExecutionParameter is typed from the value it carries, so `= 10`
   // raised `Cannot apply operator: varchar = integer` where `= '10'` returned the right row.

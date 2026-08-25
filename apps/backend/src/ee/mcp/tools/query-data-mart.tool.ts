@@ -485,7 +485,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       );
     }
 
-    // A calculated-field refusal raised OUTSIDE the output-controls validator (#6732). These
+    // A calculated-field refusal raised OUTSIDE the output-controls validator. These
     // hand-write their reason and name only fields of the caller's own Data Mart, so the message
     // is forwarded rather than reworded. Without this branch they fall to the generic
     // `query_failed` below, which names no field and tells the agent to check field names that are

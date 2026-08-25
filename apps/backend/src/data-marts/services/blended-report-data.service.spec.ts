@@ -2024,7 +2024,7 @@ describe('BlendedReportDataService', () => {
         expect(context!.groupRestriction?.dimensions).toEqual(['blended_b']);
       });
 
-      // A ROW-LEVEL calculated field is a restriction dimension under its own NAME (#6732), and
+      // A ROW-LEVEL calculated field is a restriction dimension under its own NAME, and
       // that name belongs to no Data Mart. It must travel to the builder verbatim — the builder
       // renders its formula and strips the name out of the CTE projections — while resolving here
       // to no blended field and therefore no join chain of its own.
@@ -2471,7 +2471,7 @@ describe('BlendedReportDataService', () => {
         );
       });
 
-      // #6732: the BLENDED path builds its own plans, so the dependency closure has to be built
+      // The BLENDED path builds its own plans, so the dependency closure has to be built
       // here too — without it the renderer resolves `{{ref field="net_revenue"}}` as a plain column
       // of `main`, which is an unrecognised name (or, worse, a real column of the same name).
       it('carries the formulas a selected metric reads, without projecting them', async () => {
@@ -2507,11 +2507,11 @@ describe('BlendedReportDataService', () => {
         expect(result.calculatedMetrics?.[0].dependencies).toEqual([
           { outputName: 'net_revenue', type: 'FLOAT', formula: REVENUE, level: 'metric' },
         ]);
-        // D15: a dependency is not a column — it must not reach the raw CTE's projection either.
+        // A dependency is not a column — it must not reach the raw CTE's projection either.
         expect(result.columnFilter).toEqual(['blended_field']);
       });
 
-      // The blended path builds its OWN plan, so the level has to be populated here too (#6732).
+      // The blended path builds its OWN plan, so the level has to be populated here too.
       // A level carried only by the flat builder leaves every blended report reading a row-level
       // field as a metric: a wrong GROUP BY and a wrong number, with nothing to notice.
       describe('the calculated field level travels on the plan', () => {
@@ -2561,7 +2561,7 @@ describe('BlendedReportDataService', () => {
         });
 
         // The blended path builds its OWN plan, so the grain has to be decided here too — the
-        // level alone stops answering it once a report may aggregate a row-level field (spec §2.2).
+        // level alone stops answering it once a report may aggregate a row-level field.
         // Hardcoding either factory's answer leaves the other one wrong, and the blended half is
         // where a stale grouping key also desyncs every metric sleeve's join-back.
         describe('an aggregation rule on a row-level field takes it off the grouping keys', () => {
@@ -2602,7 +2602,7 @@ describe('BlendedReportDataService', () => {
         });
       });
 
-      // Slice 2's deliverable: a row-level formula behaves on a joined report exactly as it does
+      // The joined deliverable: a row-level formula behaves on a joined report exactly as it does
       // on a plain one. It reaches the builder as a plan of level `column`, which projects its
       // expression, makes that expression a GROUP BY key, and gives every metric sleeve the same
       // key to join back on — the grain the sleeve builder now carries.
@@ -2714,7 +2714,7 @@ describe('BlendedReportDataService', () => {
           );
         });
 
-        // Slice 1's actual deliverable. The Data Mart HAS a joined source available; this report
+        // The flat path's actual deliverable. The Data Mart HAS a joined source available; this report
         // just never references it, so the row-level field renders on the flat path as designed.
         it('leaves the flat path alone when the report references no joined source', async () => {
           const result = await resolve([rowLevel('session_key')], ['session_key', 'clicks']);
@@ -2752,7 +2752,7 @@ describe('BlendedReportDataService', () => {
         // A Data Mart HAVING joins configured must not be conflated with THIS report needing
         // blending — the metric is selected alongside no blended reference, filter, sort, or
         // Unique Count source, so the report never leaves the flat path and the metric renders
-        // fine there (Task 8). Gating any earlier would refuse a request that was never going to
+        // fine there. Gating any earlier would refuse a request that was never going to
         // fail.
         const report = makeReport({ columnConfig: ['ctr', 'clicks'] });
         report.dataMart.schema = makeMainSchema([
@@ -2785,7 +2785,7 @@ describe('BlendedReportDataService', () => {
       });
     });
 
-    // #6732 Task 5b. A JOINED Data Mart's calculated field is a formula this path cannot render:
+    // A JOINED Data Mart's calculated field is a formula this path cannot render:
     // only the main mart's formulas become `CalculatedMetricPlan`s, so a joined one is mapped to
     // `targetFieldName: originalFieldName` and projected from the joined mart's PHYSICAL table.
     // `BlendedFieldDto.isCalculated` documents the refusal ("It cannot be selected as an ordinary
@@ -3125,7 +3125,7 @@ describe('BlendedReportDataService', () => {
         ).rejects.toThrow(/missing access to data marts: "Orders"/);
       });
 
-      // Task 1's bug class: a commented-out reference is not SQL, so it must neither force blending
+      // The bug class: a commented-out reference is not SQL, so it must neither force blending
       // nor make an inaccessible source the reason a report fails.
       it('ignores a joined reference that is commented out', async () => {
         const report = makeReport({ columnConfig: ['channel', 'roi'] });

@@ -707,7 +707,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * data mart's reportable columns instead, exactly as the web picker does when a joined
    * source's Unique Count is toggled on while the selection is still implicit (#6792).
    *
-   * A CALCULATED METRIC is excluded from that materialization (decision 10): a metric enters a
+   * A CALCULATED METRIC is excluded from that materialization: a metric enters a
    * query only when someone selects it BY NAME, so `['*']` must never turn into one. This path is
    * reached exactly when the report has a joined Unique Count — i.e. exactly when it is blended,
    * where a selected metric is refused — so an agent's otherwise innocuous "keep all fields"

@@ -214,7 +214,7 @@ describe('ValidateFormulaService', () => {
    * "`revenue` no longer exists in the Data Mart" and marked up the very reference the save then
    * accepted: the loudest possible way to tell an analyst their new feature does not work.
    */
-  describe('the calculated fields the editor is holding (#6732)', () => {
+  describe('the calculated fields the editor is holding', () => {
     it('resolves a sibling that exists only in the draft', async () => {
       const { service } = buildService({
         schema: schemaWith([
@@ -391,7 +391,7 @@ describe('ValidateFormulaService', () => {
     ]);
   });
 
-  // Other formulas belong to other rows. They stay IN the probe schema — since #6732 a formula may
+  // Other formulas belong to other rows. They stay IN the probe schema — a formula may
   // read one, so dropping them would report a legal reference as an unknown field — but a problem
   // that PREDATES this edit is not this row's error.
   //
@@ -445,7 +445,7 @@ describe('ValidateFormulaService', () => {
     );
 
     expect(result.errors).toEqual([]);
-    // Since #6732 `roas` MAY read `impressions` — what it may not do is wrap an aggregate-level
+    // `roas` MAY read `impressions` — what it may not do is wrap an aggregate-level
     // formula in another aggregate. The code changed with the feature; the attribution, which is
     // what this test is about, did not.
     expect(result.otherFieldErrors).toEqual([

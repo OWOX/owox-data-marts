@@ -1022,7 +1022,7 @@ describe('BlendableSchemaService', () => {
 
     describe('uniqueCountAvailability', () => {
       // Wires a single joined source with the given RAW target schema fields and returns the
-      // corresponding availableSources[0], the way Task 8's picker will read it.
+      // corresponding availableSources[0], the way the picker reads it.
       async function computeJoinedAvailableSource(
         fields: Array<Record<string, unknown>>
       ): Promise<AvailableSourceDto> {
@@ -1308,7 +1308,7 @@ describe('BlendableSchemaService', () => {
       });
 
       // A joined reference goes stale in ways an own reference cannot: the join is deleted, or its
-      // alias is renamed somewhere this Data Mart's cascade never reaches (#6732).
+      // alias is renamed somewhere this Data Mart's cascade never reaches.
       describe('joined references', () => {
         async function computeJoinedIssues(
           formula: string,

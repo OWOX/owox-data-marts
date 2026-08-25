@@ -644,7 +644,7 @@ describe('McpDataMartsFacadeImpl', () => {
     expect(relationshipService.findByIds).toHaveBeenCalledWith(['rel_1']);
   });
 
-  it("omits a joined Data Mart's calculated field, which no report surface accepts (#6732)", async () => {
+  it("omits a joined Data Mart's calculated field, which no report surface accepts", async () => {
     const dataMartService = createDataMartService({
       id: 'dm_1',
       title: 'blended_events',
@@ -711,7 +711,7 @@ describe('McpDataMartsFacadeImpl', () => {
     ]);
   });
 
-  it('keeps an omitted joined calculated field reserving its Unique Count name (#6732)', async () => {
+  it('keeps an omitted joined calculated field reserving its Unique Count name', async () => {
     const dataMartService = createDataMartService({
       id: 'dm_1',
       title: 'blended_events',

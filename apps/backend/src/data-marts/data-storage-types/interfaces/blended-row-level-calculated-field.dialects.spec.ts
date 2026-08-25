@@ -1,6 +1,5 @@
 /**
- * A ROW-LEVEL calculated field on a JOINED report, through the REAL builder of every storage
- * (#6732 slice 2).
+ * A ROW-LEVEL calculated field on a JOINED report, through the REAL builder of every storage.
  *
  * Everything the slice added so far was asserted against one test double that quotes like
  * BigQuery — and the two shapes it adds here are precisely where a dialect's own spelling reaches
@@ -10,7 +9,7 @@
  * different quoting sources in one SELECT item, and a report on the wrong side of either fails in
  * the warehouse rather than in a test.
  *
- * This does NOT satisfy D7: nothing here executes SQL. It fixes the SHAPE per dialect; the live
+ * This is NOT a live-warehouse proof: nothing here executes SQL. It fixes the SHAPE per dialect; the live
  * five-storage pass still owes the numbers.
  */
 import { AthenaBlendedQueryBuilder } from '../athena/services/athena-blended-query-builder';
@@ -46,7 +45,7 @@ const marginPlan = (): CalculatedMetricPlan => ({
   level: 'column',
 });
 
-/** DATE-declared, because slice 3b lets the report bucket exactly that (#6732 §2). */
+/** DATE-declared, because the report may bucket exactly that. */
 const VISIT_DAY_FORMULA = 'COALESCE({{ref field="visit_ts"}}, {{ref field="created_ts"}})';
 const visitDayPlan = (): CalculatedMetricPlan => ({
   outputName: 'visit_day',
@@ -64,12 +63,12 @@ const DIALECTS: {
   alias: (name: string) => string;
   /** How the BUILDER quotes an internal alias (`_owox_dim_i`, `_owox_kg_i`) — bare when safe. */
   id: (name: string) => string;
-  /** A float type this dialect DECLARES, and the SQL name its renderer casts that to (#6732). */
+  /** A float type this dialect DECLARES, and the SQL name its renderer casts that to. */
   declaredFloat: string;
   floatCast: string;
-  /** An integer type it declares — mapped by the renderer, and never cast on purpose (D19b). */
+  /** An integer type it declares — mapped by the renderer, and never cast on purpose. */
   declaredInteger: string;
-  /** This dialect's own spelling of a MONTH bucket over a DATE-declared expression (#6732 D16). */
+  /** This dialect's own spelling of a MONTH bucket over a DATE-declared expression. */
   monthBucket: (expression: string) => string;
 }[] = [
   {
@@ -214,7 +213,7 @@ async function roiPlan(builder: AbstractBlendedQueryBuilder): Promise<Calculated
   };
 }
 
-describe('a row-level calculated field on a joined report — every dialect (#6732)', () => {
+describe('a row-level calculated field on a joined report — every dialect', () => {
   describe.each(DIALECTS)('$name', d => {
     const expression = `(${d.ref('revenue')} - ${d.ref('cost')})`;
     /** One CTE's body — Snowflake quotes every CTE name, the rest leave a safe one bare. */
@@ -249,7 +248,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(mainCte).not.toContain('margin');
     });
 
-    // D23 imposes the declared type on a COMPARISON, and a sort is a comparison. Ordering by the
+    // The declared type is imposed on a COMPARISON, and a sort is a comparison. Ordering by the
     // bare alias sorted a float-declared formula's TEXT: measured `9, 100` where `100, 10` is
     // correct, identically on BigQuery, Athena, Redshift and Databricks — under a LIMIT that is a
     // different ROW SET, not a different order.
@@ -292,7 +291,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(sql).toContain(`(${expression}) = (`);
     });
 
-    // Slice 3b (spec §2.1, D17): the report buckets the field, so the outer GROUP BY key is the
+    // The report buckets the field, so the outer GROUP BY key is the
     // TRUNCATED expression and every sleeve must reproduce both steps in the same order. Each
     // dialect spells the truncation its own way, and the join-back is byte-identity or nothing —
     // an untruncated sleeve key matches no row, which a COUNT_DISTINCT pull reads as a plain 0.
@@ -314,7 +313,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       // The raw expression is not a key of its own anywhere: `... AS _owox_dim_1` on the untruncated
       // formula is precisely the drift, and it is what the builder's membership assertion refuses.
       expect(sql).not.toContain(`${visitExpression} AS ${d.id('_owox_dim_1')}`);
-      // D16, per dialect: the cast the design rejected returns the wrong MONTH on Redshift where
+      // Per dialect: the cast the design rejected returns the wrong MONTH on Redshift where
       // the uncast shape errors, so no dialect may acquire one on this path. What this pins is a
       // HAND-WRITTEN cast, and only that. The fixture declares DATE and all five real
       // `castTypeForDeclaredType` maps are numeric-only, so a cast resolved through that seat —
@@ -430,7 +429,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(sql).toContain(joinsBackOn('sleeve_spend__cost'));
     });
 
-    // D6: Totals restricted by a metric filter must reproduce the report's OWN grain, the
+    // Totals restricted by a metric filter must reproduce the report's OWN grain, the
     // row-level expression included — a restriction one key coarser keeps a different row set
     // than the report shows, which is a wrong number rather than an error.
     it('regroups the kept-groups CTE by the expression, after every column key', () => {
@@ -468,7 +467,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
     // the warehouse error.
     //
     // Asserted as the RELATIONSHIP between the two queries: one `aggregateArgument` on both sides,
-    // so a mutation to D18's cast rule fails the projection and the restriction together, and a
+    // so a mutation to the cast rule fails the projection and the restriction together, and a
     // restriction that derives its own spelling fails alone.
     it('compares the same aggregate argument in the kept-groups CTE as in the report', () => {
       const aggregated: CalculatedMetricPlan = {
@@ -496,7 +495,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
         ] as AggregationRule[],
         filters: [metricFilter],
       });
-      // D11 keeps a calculated field out of the Totals plan's own metrics, so this query renders
+      // A calculated field stays out of the Totals plan's own metrics, so this query renders
       // the aggregate nowhere but inside the restriction.
       const totals = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['spend__cost']),
@@ -516,13 +515,13 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(totals.sql).not.toContain(d.ref('margin'));
     });
 
-    // Slice 4 (spec §4): the report FILTERS on the field. The predicate has to reach the outer
+    // The report FILTERS on the field. The predicate has to reach the outer
     // query AND the inside of every sleeve — #6766's Critical C1 was a sleeve reading `FROM main`
     // unfiltered, which computes the joined metric over ALL rows and gives Totals an unfiltered
     // grand total, silently. Per dialect because the left-hand side is the formula qualified by
     // the BUILDER while the placeholder beside it comes from the CLAUSE RENDERER.
     //
-    // The left-hand side carries the DECLARED type (#6732, D23) — declared per dialect here so all
+    // The left-hand side carries the DECLARED type — declared per dialect here so all
     // five impose one, and the sleeve's copy has to impose the same one or the two clauses select
     // different rows for the same report.
     it('reproduces a row-level calculated predicate inside the sleeve', () => {
@@ -535,7 +534,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
         aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
         filters: [{ column: 'margin', operator: 'gt', value: 1, clause: 'where' }],
       });
-      // Trailing `CAST(` on purpose: the VALUE carries the declaration too (D25), and the sleeve is
+      // Trailing `CAST(` on purpose: the VALUE carries the declaration too, and the sleeve is
       // where losing it is silent — an unfiltered joined metric, #6766's Critical C1 all over.
       const predicate = `WHERE CAST((${expression}) AS ${d.floatCast}) > CAST(`;
 
@@ -568,7 +567,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(cteBody(sql, 'sleeve_spend__cost')).not.toContain(d.id('_owox_dim_1'));
     });
 
-    // Slice 3: the report may aggregate the field, and it then leaves the OUTER grouping keys and
+    // The report may aggregate the field, and it then leaves the OUTER grouping keys and
     // the SLEEVE's grain together. Out of step, the sleeve carries one key more than the outer
     // query and the join-back matches nothing — NULL, or 0 after the COUNT_DISTINCT coalesce.
     it('keeps an aggregated field out of both the outer GROUP BY and the sleeve grain', () => {
@@ -610,8 +609,8 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(outer.slice(outer.indexOf('GROUP BY'))).not.toContain(expression);
     });
 
-    // #6732 D18 on the BLENDED outer SELECT. Both aggregated-field tests above use COUNT_DISTINCT,
-    // which D18 excludes — so the cast could have been absent from this whole path with every
+    // The cast rule on the BLENDED outer SELECT. Both aggregated-field tests above use COUNT_DISTINCT,
+    // which the rule excludes — so the cast could have been absent from this whole path with every
     // suite green. The two derivations are one method, but "one method" is a claim about the flat
     // path until a blended query is asked for the string.
     const aggregatedMarginSql = (declaredType: string): string =>
@@ -643,7 +642,7 @@ describe('a row-level calculated field on a joined report — every dialect (#67
       expect(outer.slice(outer.indexOf('GROUP BY'))).not.toContain(expression);
     });
 
-    // D19b: the integer family is refused the cast even though every dialect maps it, because the
+    // The integer family is refused the cast even though every dialect maps it, because the
     // cast would introduce a per-row rounding the warehouse was not doing — and Spark truncates
     // where the other four round, so the same blended report would total differently per storage.
     it('leaves an INTEGER-declared aggregated expression uncast in the outer SELECT', () => {

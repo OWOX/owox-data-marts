@@ -89,7 +89,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       calculatedFilterMetrics,
       this.type
     );
-    // A predicate on a Calculated Field compares its FORMULA, at both levels (#6732 spec §2) —
+    // A predicate on a Calculated Field compares its FORMULA, at both levels —
     // its name is a SELECT alias, so `src`.`ctr` names nothing. One map for both branches and both
     // clauses.
     const calculatedPredicateExpressions = this.clauseRenderer.buildCalculatedPredicateExpressions(
@@ -156,7 +156,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     }
 
     // Not aggregated, so every remaining calculated field is row-level: a projected expression
-    // and nothing else (spec §2.1). SELECT/projection stays unqualified, as it is above.
+    // and nothing else. SELECT/projection stays unqualified, as it is above.
     assertNoHavingRules(queryOptions?.filters ?? [], 'BigQueryQueryBuilder plain query');
     const plainSelect = composePlainSelectBody(
       selectList,

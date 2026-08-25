@@ -284,7 +284,7 @@ describe('AggregationSettingsDropdown — the date bucket follows the calculated
   });
 });
 
-// The time zone follows CALCULATED-ness rather than the level (#6732 §6.1), which is the one place
+// The time zone follows CALCULATED-ness rather than the level, which is the one place
 // these two flags part company: a row-level formula buckets like the TIMESTAMP column beside it and
 // is still refused the zone. Measured on Snowflake — `CONVERT_TIMEZONE` coerced the formula's
 // `05/08/2026` and bucketed the report into May, where it means the 5th of August.

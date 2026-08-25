@@ -321,7 +321,7 @@ describe('AggregationEditorPopover — allowDateBucket', () => {
   });
 });
 
-// `allowBucketTimeZone` is the #6732 §6.1 refusal in the UI: a Calculated Field's bucket may not
+// `allowBucketTimeZone` is the time-zone refusal in the UI: a Calculated Field's bucket may not
 // carry a time zone on any storage. Measured on Snowflake 2026-08-24 — `CONVERT_TIMEZONE` coerced
 // the string `05/08/2026` and bucketed the report into May where the formula meant the 5th of
 // August, with no error. The BUCKET is untouched; only the zone goes.

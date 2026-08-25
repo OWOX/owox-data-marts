@@ -13,7 +13,7 @@ const WORD_BODY = /[A-Za-z0-9_$]/;
 /**
  * Lexical structure only. It knows string literals, comments, quoted identifiers, numbers, words
  * and punctuation — no precedence, no syntax validation, no dialect reimplementation. Validating
- * that the SQL is actually well-formed is the warehouse dry run's job (spec §6 pass 2).
+ * that the SQL is actually well-formed is the warehouse dry run's job.
  */
 export function scanSql(sql: string): SqlToken[] {
   const tokens: SqlToken[] = [];

@@ -45,7 +45,7 @@ const SESSION_KEY_PLAN: CalculatedMetricPlan = {
   formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
 };
 
-/** The same, declared DATE — the shape slice 3b lets a report bucket by month (#6732, D16). */
+/** The same, declared DATE — the shape a report may bucket by month. */
 const VISIT_DAY_PLAN: CalculatedMetricPlan = {
   outputName: 'visit_day',
   type: 'DATE',
@@ -187,7 +187,7 @@ describe('kept-groups restriction', () => {
       }
     });
 
-    // The defect: a ROW-LEVEL calculated field is a real grouping key of the report (#6732), but
+    // The defect: a ROW-LEVEL calculated field is a real grouping key of the report, but
     // calculated names were stripped from the restriction outright — so the kept-groups CTE
     // regrouped at a COARSER grain than the report, and the metric filter then kept a different
     // row set than the report shows.
@@ -210,7 +210,7 @@ describe('kept-groups restriction', () => {
       expect(sql).toContain(`AND ((${expr}) = `);
     });
 
-    // Slice 3b (D16): the two shapes above combine. A report grouped by a BUCKETED calculated
+    // The two shapes above combine. A report grouped by a BUCKETED calculated
     // dimension regroups the restriction at that same bucket — regrouping at the raw formula value
     // is the identical defect the date-bucket case above records, one grain finer, and it reads as
     // a silent 0 in Totals rather than as an error.
@@ -359,7 +359,7 @@ describe('kept-groups restriction', () => {
   });
 
   /**
-   * The positional 1:1 with a FILTERED subsequence (#6732).
+   * The positional 1:1 with a FILTERED subsequence.
    *
    * `renderAggregatedSelect` emits a grouping key for a ROW-LEVEL plan and none at all for an
    * aggregate-level one, so the calculated keys are a subsequence of `calculatedDimensions` — not

@@ -285,12 +285,12 @@ describe('QueryDataMartService', () => {
     );
   });
 
-  // #6732. The MCP read path gained two lines for calculated metrics — forwarding the composed
+  // The MCP read path gained two lines for calculated metrics — forwarding the composed
   // plans, and stripping their names out of `columnFilter` — and both could be deleted without a
   // single test noticing. Deleting the forward drops the metric's column from the response
   // entirely (its header has no other source); deleting the strip double-emits it, once correctly
   // and once as a bare reference to a column the warehouse does not have.
-  describe('calculated metrics (#6732)', () => {
+  describe('calculated metrics', () => {
     const ctrPlan = {
       outputName: 'ctr',
       type: 'FLOAT',
@@ -1813,7 +1813,7 @@ describe('QueryDataMartService', () => {
     });
   });
 
-  describe('date bucketing (Task 10)', () => {
+  describe('date bucketing', () => {
     it('sets dateTruncConfig on the read plan when date_buckets are provided', async () => {
       const { service, composer } = createService();
 
@@ -1891,7 +1891,7 @@ describe('QueryDataMartService', () => {
     });
   });
 
-  describe('billing gate (Task 9)', () => {
+  describe('billing gate', () => {
     it('records RESTRICTED before query work when authorization rejects the project', async () => {
       const { service, projectBilling, dataMartRunService, composer, readerResolver } =
         createService();

@@ -62,7 +62,7 @@ describe('nativeColumnNames', () => {
 });
 
 describe('implicitAllNativeColumnNames', () => {
-  it('excludes a calculated metric — composed only when asked for by name (decision 10)', () => {
+  it('excludes a calculated metric — composed only when asked for by name', () => {
     const schema = schemaOf({
       nativeFields: [
         { name: 'clicks' },
@@ -123,7 +123,7 @@ describe('visibleBlendedColumnNames', () => {
 });
 
 describe('implicitAllBlendedColumnNames', () => {
-  // The blended half of decision 10. Without it, an unchanged `columns=**` integration starts
+  // The blended half of named-selection-only. Without it, an unchanged `columns=**` integration starts
   // failing the day an analyst adds a formula to a JOINED Data Mart: the field lands in the
   // wildcard expansion, and the blended path then refuses the projection by name — a 400 on a
   // request nobody touched.

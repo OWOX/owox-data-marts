@@ -6,7 +6,7 @@ export type CalculatedFieldIssues = ReadonlyMap<string, readonly string[]>;
 const NONE: CalculatedFieldIssues = new Map();
 
 /**
- * Which calculated fields the backend found broken (spec §7), published by
+ * Which calculated fields the backend found broken, published by
  * `DataMartSchemaSettings` from the shared blendable-schema query and read by the table that draws
  * the status column.
  *

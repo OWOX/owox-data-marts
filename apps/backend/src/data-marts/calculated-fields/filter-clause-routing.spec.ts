@@ -24,9 +24,9 @@ const SCHEMA: DataMartSchemaField[] = [
 const clauseFor = (rule: FilterRule, schema = SCHEMA) =>
   routeFilterClauses([rule], schema)[0].clause;
 
-describe('the one seat that decides a filter rule clause (#6732, D21)', () => {
+describe('the one seat that decides a filter rule clause', () => {
   describe('routeFilterClauses stamps the verdict', () => {
-    // The pre-#6732 rule, unchanged: an ordinary column filtered raw is a WHERE rule, and one
+    // The pre-existing rule, unchanged: an ordinary column filtered raw is a WHERE rule, and one
     // filtered through a report aggregation is a HAVING rule.
     it('routes an ordinary column with no function to WHERE', () => {
       expect(clauseFor({ column: 'channel', operator: 'eq', value: 'paid' })).toBe('where');
@@ -48,8 +48,8 @@ describe('the one seat that decides a filter rule clause (#6732, D21)', () => {
       expect(clauseFor({ column: 'session_key', operator: 'eq', value: 'a1' })).toBe('where');
     });
 
-    // Through `calculatedFieldLevelOf`, never off the recorded `level` alone: that one is a cache
-    // (D13), so the formula text answers first and the recorded level only ever upgrades.
+    // Through `calculatedFieldLevelOf`, never off the recorded `level` alone: that one is a cache,
+    // so the formula text answers first and the recorded level only ever upgrades.
     it('derives the level through the level seat, formula text first', () => {
       const schema = [
         ...SCHEMA,
@@ -67,7 +67,7 @@ describe('the one seat that decides a filter rule clause (#6732, D21)', () => {
     });
 
     // A row-level field the REPORT aggregates carries a function, so the first half of the rule
-    // already routes it — spec §2, row 3.
+    // already routes it.
     it('routes an aggregated ROW-LEVEL calculated field to HAVING through its function', () => {
       expect(
         clauseFor({ column: 'session_key', function: 'COUNT_DISTINCT', operator: 'gt', value: 2 })

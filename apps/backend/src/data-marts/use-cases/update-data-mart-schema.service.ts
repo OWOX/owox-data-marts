@@ -113,7 +113,7 @@ export class UpdateDataMartSchemaService {
     );
     if (errors.length > 0) {
       // All violations in one round trip: the editor shows every offending field at once, instead
-      // of making the analyst rediscover them one save at a time (spec §6.2).
+      // of making the analyst rediscover them one save at a time.
       throw new BusinessViolationException('Calculated field validation failed', { errors });
     }
 
@@ -128,7 +128,7 @@ export class UpdateDataMartSchemaService {
     }
     const effectiveWarehouseValidation = warehouseCheckSkipped ? 'skipped' : warehouseValidation;
 
-    // Design decision 9: a `skipped` metric must be re-checked on the next save, and a `passed`
+    // A `skipped` metric must be re-checked on the next save, and a `passed`
     // one carries proof it was. Both need the stamp to actually reach the persisted field —
     // computing it and never writing it down defeats the point.
     if (effectiveWarehouseValidation) {

@@ -538,7 +538,7 @@ describe('BigQueryClauseRenderer', () => {
   });
 
   // BigQueryFieldType is the API vocabulary, not GoogleSQL: the live probe substituted a declared
-  // FLOAT into a CAST and BigQuery answered `Type not found: FLOAT at [2:51]` (#6732, D19).
+  // FLOAT into a CAST and BigQuery answered `Type not found: FLOAT at [2:51]`.
   describe('castTypeForDeclaredType (declared BigQuery type → GoogleSQL cast target)', () => {
     it('maps every numeric declared type to the GoogleSQL name, FLOAT to FLOAT64', () => {
       expect(r.castTypeForDeclaredType('INTEGER')).toBe('INT64');
@@ -559,11 +559,11 @@ describe('BigQueryClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25. This is one of the two dialects where the VALUE's JS type decides the outcome
+  // This is one of the two dialects where the VALUE's JS type decides the outcome
   // today: the SDK infers a param's type from it, so `= 10` and `= '10'` over the SAME field flip
   // between `No matching signature for operator =` and the right answer. The placeholder now
   // carries the declaration, so one predicate is emitted for both and the driver infers nothing.
-  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
     const numericText: CalculatedMetricPlan = {
       outputName: 'probe',
@@ -591,7 +591,7 @@ describe('BigQueryClauseRenderer', () => {
       );
     });
 
-    // D25, measured: shapes 5a and 5b differ only in whether the rule's value is `10` or `'10'`,
+    // Measured: shapes 5a and 5b differ only in whether the rule's value is `10` or `'10'`,
     // and that alone flipped this dialect between BQ-E3 and the one correct row. One SQL text now
     // serves both, and the bound value travels as the analyst supplied it.
     it('emits ONE predicate whether the value arrives as 10 or as "10"', () => {
@@ -626,7 +626,7 @@ describe('BigQueryClauseRenderer', () => {
       );
     });
 
-    // D19b: `CAST(1.5 AS INT64)` rounds here and Spark's equivalent truncates, so casting an
+    // `CAST(1.5 AS INT64)` rounds here and Spark's equivalent truncates, so casting an
     // integer declaration would make one report answer differently per warehouse.
     it('never casts an INTEGER declaration, though the mapping states INT64 for it', () => {
       expect(r.castTypeForDeclaredType('INTEGER')).toBe('INT64');
@@ -645,7 +645,7 @@ describe('BigQueryClauseRenderer', () => {
 
     // A DATE declaration takes this dialect's DATE-placeholder cast — the one an ordinary DATE
     // column has always had and which a calculated field NEVER REACHED before, because the type
-    // resolver answered `undefined` for it (#6732, D25). It gains no NUMERIC target: D24 ships date
+    // resolver answered `undefined` for it. It gains no NUMERIC target: dates ship
     // ranges as measured, and this dialect's answer to a mis-declared one is the loud BQ-E4.
     it('takes the DATE placeholder cast a calculated field never reached before', () => {
       expect(whereFor('DATE', { column: 'probe', operator: 'gte', value: '2026-07-01' }).sql).toBe(
@@ -673,7 +673,7 @@ describe('BigQueryClauseRenderer', () => {
       expect(relative('DATETIME', 'today')).toBe(`\nWHERE DATE((${NUM_EXPR})) = CURRENT_DATE()`);
     });
 
-    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
     // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
     // mode, on a predicate that never reads a value — and a numeric target inside STRPOS buys
     // nothing at all.

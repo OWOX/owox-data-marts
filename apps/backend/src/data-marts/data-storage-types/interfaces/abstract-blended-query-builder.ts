@@ -68,23 +68,14 @@ import type { FormulaReference } from '../../calculated-fields/formula-reference
 /**
  * Base class for blended SQL query builders.
  *
- * Produces CTE-based SQL using a **bottom-up** join strategy that guarantees
- * the result row count never exceeds the main data mart's row count.
+ * Bottom-up CTE strategy: leaf data marts are aggregated by their join key to the parent, LEFT
+ * JOINed into the parent's raw data and aggregated again, up to the root. At each level the GROUP
+ * BY holds ONLY the join key to that node's parent, so the result never exceeds the main data
+ * mart's row count.
  *
- * The algorithm works by processing leaf data marts first, aggregating them
- * by their join key to the parent, then LEFT JOINing the aggregated results
- * into the parent's raw data, and aggregating again — all the way up to the
- * root level. At each level the GROUP BY contains ONLY the join key to that
- * node's parent, ensuring at most one output row per parent-key value.
- *
- * Filter rules with `placement: 'pre-join'` are pushed down into the
- * subsidiary `*_raw` CTE so the joined data mart is narrowed before being
- * JOINed in. Filter rules with `placement: 'post-join'` (the default) are
- * applied to the final SELECT.
- *
- * Slice semantics: subsidiaries are LEFT JOINed, so a slice narrows the
- * subsidiary CTE but does NOT drop home rows (unmatched home rows pass through
- * with NULL). Use a post-join filter on top for row elimination.
+ * `pre-join` filters are pushed into the subsidiary `*_raw` CTE; `post-join` ones apply to the
+ * final SELECT. Subsidiaries are LEFT JOINed, so a slice narrows the subsidiary without dropping
+ * unmatched home rows — use a post-join filter to eliminate rows.
  *
  * ```sql
  * WITH
@@ -110,16 +101,12 @@ import type { FormulaReference } from '../../calculated-fields/formula-reference
  * value at the report's own dimension grain; the outer query pulls it back with
  * `ANY_VALUE` over a NULL-safe join on the dimension tuple.
  *
- * This class owns the DIALECT and the orchestration of one query. The SQL itself lives in
- * `../blending/`, behind the narrow `BlendedSqlDialect` port this class supplies:
- * `BlendCteBuilder` (the CTE tree above), `MetricSleeveBuilder` (sleeve CTEs),
- * `metric-sleeve.planner` (which sleeves exist and what they are named — no SQL, no dialect)
- * and `partitionBlendedFilters` (pre-join vs post-join split).
+ * This class owns the DIALECT and the orchestration of one query; the SQL itself lives in
+ * `../blending/`, behind the `BlendedSqlDialect` port.
  *
- * What a dialect subclass must supply: `identifierQuoteChar`, `clauseRenderer` and
- * `buildStringAgg` (abstract). What it MAY override: `buildAggregation` (aggregate spelling),
- * `buildAnyValue` (Athena needs `arbitrary()`), `buildRowSurrogate` (Redshift rejects a
- * constant window ORDER BY) and `quoteIdentifier` (Snowflake case folding).
+ * A subclass must supply `identifierQuoteChar`, `clauseRenderer` and `buildStringAgg`. It may
+ * override `buildAggregation`, `buildAnyValue` (Athena needs `arbitrary()`), `buildRowSurrogate`
+ * (Redshift rejects a constant window ORDER BY) and `quoteIdentifier` (Snowflake case folding).
  */
 export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder {
   abstract readonly type: DataStorageType;
@@ -145,11 +132,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   /**
    * The `_kept_groups` CTE plus the semi-join that restricts a Totals query to the rows of the
-   * groups its report actually shows (`context.groupRestriction`).
-   *
-   * It re-runs the report's own grouping over the SAME CTEs — dimensions, WHERE and HAVING —
-   * and projects just the dimension tuple. A GROUP BY result has distinct tuples, so joining it
-   * filters rows without duplicating any. Returns undefined when there is nothing to restrict.
+   * groups its report shows. Re-runs the report's own grouping over the SAME CTEs and projects the
+   * dimension tuple; a GROUP BY result has distinct tuples, so joining it duplicates nothing.
    */
   private buildKeptGroupsCte(
     context: BlendedQueryContext,
@@ -164,18 +148,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     if (!restriction?.having.length) return undefined;
 
     const cteName = KEPT_GROUPS_CTE;
-    // Same rendering as the report: its dimensions become the GROUP BY, and its metric filters
-    // become the HAVING — so "the groups this query keeps" is decided by the exact expressions the
-    // report used. Two things must come from the RESTRICTION rather than from this query:
+    // Two things come from the RESTRICTION rather than from this query:
     //  - NO aggregation rules. A Totals plan makes every selected numeric column a metric, so a
-    //    dimension that is also one would stop being a GROUP BY key here — the HAVING would then
-    //    be evaluated at the wrong grain, and the join would reference a key that was never
-    //    projected.
-    //  - the report's date buckets. Totals carry none of their own (no GROUP BY), so reading
-    //    `context.dateTruncs` would regroup at the raw grain: `GROUP BY date` where the report
-    //    grouped by month, and a month that clears the filter can have no single day that does.
+    //    dimension that is also one would stop being a GROUP BY key and the join would reference a
+    //    key that was never projected.
+    //  - the report's date buckets. Totals carry none of their own, so reading `context.dateTruncs`
+    //    would regroup at the raw grain — and a month that clears the filter can have no single day
+    //    that does.
     const restrictionDateTruncs = restriction.dateTruncs ?? [];
-    // A calculated field the report GROUPS BY is a real grouping key of the report (#6732), so the
+    // A calculated field the report GROUPS BY is a real grouping key of the report, so the
     // restriction reproduces it as its own rendered expression — the flat renderer's three moves
     // (`renderKeptGroupsJoin`). Only a grouping key becomes one: an aggregate-level plan already IS
     // an aggregate, and a row-level one the report aggregates stopped being a key. So the
@@ -218,7 +199,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // This CTE projects the dimension tuple alone, so nothing here renders the aggregate the report
     // printed and there is no `aggregateArgumentByLabel` to pass on — it comes from the
     // restriction's own plans, through the same seats and the same options object the projection
-    // above used (D18), so a filter on an aggregated calculated field compares one string here and
+    // above used, so a filter on an aggregated calculated field compares one string here and
     // in the report rather than two derivations of it.
     const having = renderer.renderHaving(
       restriction.having,
@@ -270,17 +251,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   }
 
   /**
-   * A HAVING rule targeting a sleeve metric's column (joined COUNT_DISTINCT, SUM or AVG) would
-   * re-derive its aggregate expression from `qualifyColumn` — the dedup CTE — and so filter on the
-   * OLD, wrong value rather than what the SELECT emits from the sleeve. The output-controls
-   * validator rejects that combination at save time, but stating the invariant only in a comment
-   * is how it comes back: this file throws for the GROUP BY drift invariant for exactly the same
-   * reason, so enforce this one too.
+   * A HAVING rule over a sleeve metric's column would re-derive its aggregate from the dedup CTE
+   * and filter on the OLD value rather than what the SELECT emits from the sleeve. Refused at save
+   * time too, but enforced here because an invariant stated only in a comment comes back.
    *
-   * Takes the rules as ONE list because they arrive from two places: the outer query's post-join
-   * filters and, for Totals, `groupRestriction.having`. Checking only the first left the entire
-   * restriction outside the invariant — `_kept_groups` rendered `SUM(<dedupCte>.<col>)` for a
-   * metric the report itself computes in a sleeve, which is the very thing this forbids.
+   * Takes the rules as ONE list: they arrive from the outer query's post-join filters and, for
+   * Totals, from `groupRestriction.having`. Checking only the first left `_kept_groups` rendering
+   * `SUM(<dedupCte>.<col>)` for a metric the report computes in a sleeve.
    */
   private assertNoHavingOnSleeveMetric(
     rules: readonly FilterRule[],
@@ -306,14 +283,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   }
 
   /**
-   * How the outer query reads one sleeve's value back. `ANY_VALUE` over the join-back, because the
-   * sleeve holds exactly one row per group; `COALESCE(…, 0)` on top for a counting metric, whose
-   * sleeve already answers 0 over zero rows while the pull's `ANY_VALUE` would answer NULL for a
-   * group the join-back does not reach. Which shape a pull is, is decided where it is BUILT
-   * (`SleevePull.coalesceEmptyToZero`).
-   *
-   * Shared by the two sites that read a pull — an ordinary sleeve's own SELECT item, and a formula
-   * sleeve's expression spliced into its metric — so the two cannot spell it differently.
+   * How the outer query reads one sleeve's value back: `ANY_VALUE` over the join-back, since the
+   * sleeve holds exactly one row per group, plus `COALESCE(…, 0)` for a counting metric — its
+   * sleeve answers 0 over zero rows, while `ANY_VALUE` answers NULL for a group the join-back does
+   * not reach. Shared by the two sites that read a pull, so they cannot spell it differently.
    */
   private sleevePullExpression(cteName: string, pull: SleevePull): string {
     const pulled = this.buildAnyValue(
@@ -342,34 +315,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    * A joined aggregate call's argument, rendered against its owner, and WHICH of the owner's two
    * row sets it was rendered against.
    *
-   * A calculated metric is computed at the last join, AFTER dedup — and reading the dedup CTE IS
-   * "after dedup", which is what the sleeve makes safe at the report's grain. So the choice is the
-   * same `isIdentityPreJoinField` classification the value sleeve branches on, applied to the
-   * fields the argument reads: a joined field's declared pre-join `aggregateFunction` is what that
-   * field MEANS once blended, so a formula naming it must read the value a report metric on it
-   * reads. A lone rolled-up field is read off the owner's dedup CTE, where that roll-up lives;
-   * anything with no roll-up to honour is read off the owner's RAW rows — which is also the only
-   * thing a row-level product of two of the owner's columns can be computed from.
+   * The choice follows the same `isIdentityPreJoinField` classification the value sleeve branches
+   * on: a joined field's declared pre-join `aggregateFunction` is what that field MEANS once
+   * blended, so a lone rolled-up field is read off the owner's dedup CTE where that roll-up lives,
+   * and anything with no roll-up to honour is read off the owner's RAW rows.
    *
    * SEVERAL fields where any one carries a real roll-up is REFUSED: each was collapsed separately,
-   * to one value per join key, and a product of sums is not a sum of products — so no row set
-   * computes what the analyst wrote, and computing it raw would silently contradict the field's own
-   * declared meaning. The refusal covers a DISTINCT-COUNTING call too, and must: a single reference
-   * is exempted from the roll-up only because a report metric on that field answers the same way,
-   * and a multi-field EXPRESSION has no report counterpart to inherit that from.
+   * and a product of sums is not a sum of products, so no row set computes what the analyst wrote.
+   * A plain joined `COUNT` never reaches here — `planFormulaSleeves` leaves it in the outer SELECT.
    *
-   * It does NOT cover a plain joined `COUNT`, and deliberately so — that call never reaches here,
-   * because `planFormulaSleeves` leaves it in the outer SELECT (see `isJoinedCallLeftInPlace`).
-   * `COUNT(a * b)` over the dedup CTE counts the MAIN rows whose product is non-null, which IS the
-   * ruled reading ("computed at the last join, after dedup"), so it is allowed and stays allowed.
-   * The message above therefore names the CALL it refuses rather than claiming a general rule about
-   * combining a summarised field with another column — the rule that would be false for COUNT.
-   *
-   * A DISTINCT-COUNTING call over one field always reads RAW, mirroring the report path's own
-   * COUNT_DISTINCT sleeve and for its stated reason: counting distinct roll-ups conflates raw
-   * values that happen to roll up alike. Keyed on `isDistinctCountingFormulaFunction` as well as on
-   * the quantifier, so `APPROX_COUNT_DISTINCT(x)` — which carries no keyword — is not answered off
-   * the roll-up while `COUNT(DISTINCT x)` is answered off the raw rows.
+   * A DISTINCT-COUNTING call over one field always reads RAW: counting distinct roll-ups conflates
+   * raw values that happen to roll up alike. Keyed on `isDistinctCountingFormulaFunction` as well
+   * as on the quantifier, so `APPROX_COUNT_DISTINCT(x)` is not answered off the roll-up.
    */
   private renderFormulaSleeveValue(
     plan: FormulaSleevePlan,
@@ -503,20 +460,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   /**
    * Every LIVE joined reference of a formula must end up as SQL over the source it names. There are
    * exactly two ways: inside a call this query lifted into a sleeve (the whole span is replaced), or
-   * inside a call the outer SELECT computes itself, where the reference resolves through its
-   * unified blended name to `<root>.<alias>`.
+   * inside a call the outer SELECT computes itself, where the reference resolves through its unified
+   * blended name to `<root>.<alias>`.
    *
    * Anything else renders as `main.<rawField>` — an unrecognised name, or a wrong number when main
    * owns a column of that name. So a reference must be replaced, or sit inside the ONE call shape
    * the planner deliberately leaves in place (`isJoinedCallLeftInPlace` — a non-DISTINCT joined
    * `COUNT`) AND resolve to a blended column this query can qualify.
    *
-   * That second arm used to read "inside some aggregate", which let a joined `SUM` whose sleeve
-   * vanished between planning and emission pass: its reference is resolvable and does sit inside an
-   * aggregate, so it rendered `SUM(<dedup>.<col>)` — the fan-out-inflated number the sleeve exists
-   * to prevent. Replacement is checked against the spans ACTUALLY built rather than against the
-   * plan, so with the arm narrowed a lost sleeve is now genuinely caught. A commented-out reference
-   * is not live SQL and is deliberately not counted.
+   * Do NOT widen that second arm to "inside some aggregate": a joined `SUM` whose sleeve vanished
+   * between planning and emission then passes, rendering `SUM(<dedup>.<col>)` — the fan-out-inflated
+   * number the sleeve exists to prevent. Replacement is checked against the spans ACTUALLY built,
+   * not against the plan.
    */
   private assertJoinedReferencesRouted(
     metric: CalculatedMetricPlan,
@@ -560,9 +515,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       (context.dateTruncs?.length ?? 0) > 0 ||
       (context.uniqueCount === true && (context.primaryKeyColumns?.length ?? 0) > 0) ||
       uniqueCountSources.length > 0 ||
-      // An AGGREGATING calculated field is an aggregate (spec §2.3), so selecting one makes the
+      // An AGGREGATING calculated field is an aggregate, so selecting one makes the
       // query aggregated even with no aggregation rules — the remaining columns become its
-      // grouping keys. A row-level one is a dimension and does not (#6732). FILTERING on one does
+      // grouping keys. A row-level one is a dimension and does not. FILTERING on one does
       // the same and for the same reason: the field is the only thing that would have made the
       // query aggregated, so without this a report that filters on one without selecting it takes
       // the ungrouped branch, where its predicate belongs to no clause at all.
@@ -578,7 +533,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       (context.limit ?? null) !== null ||
       aggregated ||
       // A ROW-LEVEL field leaves `aggregated` false, and only the renderer can spell its formula —
-      // without this the column would be silently dropped rather than refused (spec §4).
+      // without this the column would be silently dropped rather than refused.
       calculatedMetrics.length > 0;
     if (hasOutputControls && this.clauseRenderer === null) {
       throw new NotImplementedException(
@@ -593,24 +548,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
-    // Every formula this query renders anywhere. A Totals plan projects no dimensions, so its
-    // row-level fields are deliberately absent from `calculatedMetrics` and travel on the group
-    // restriction instead — but the kept-groups CTE renders them, so their names and their
-    // columns are subject to exactly the same two rules below (#6732).
+    // Every formula this query renders ANYWHERE, which is three things, not one:
+    //  - a Totals plan's row-level fields, absent from `calculatedMetrics` and travelling on the
+    //    group restriction, but rendered by the kept-groups CTE;
+    //  - a DEPENDENCY, since the outer SELECT emits the SUBSTITUTED text, so the columns behind it
+    //    are the dependency's, not the reading field's;
+    //  - a FILTERED field, selected or not — its formula IS the predicate's left-hand side.
     //
-    // A DEPENDENCY is one of those rendered formulas: since a formula may read another Calculated
-    // Field, the outer SELECT emits the SUBSTITUTED text, so the columns behind it are `amount` and
-    // `spend`, never `revenue` and `cost`. Both rules below therefore have to walk the closure —
-    // otherwise the main raw CTE projects the dependency's NAME (which no warehouse column may own)
-    // and omits the columns the query actually reads: `Unrecognized name`, twice over. The closure
-    // is flat, so one level of flattening is the whole of it.
-    //
-    // A FILTERED field counts as rendered too, selected or not (#6732 spec §2): its formula IS the
-    // predicate's left-hand side, so the columns behind it are read by this query — and its own
-    // name arrives in `referencedColumns` through the filter rule below, where nothing else would
-    // take it out. Omitting it therefore failed twice over, `Unrecognized name` each time: the
-    // main raw CTE projected `ctr` (no warehouse column may own a formula's name) and not the
-    // `clicks` and `impressions` the predicate actually reads.
+    // Miss any of them and the main raw CTE projects a formula's NAME, which no warehouse column
+    // owns, and omits the columns the query actually reads: `Unrecognized name`, twice over.
     const renderedFormulas = [
       ...calculatedMetrics,
       ...(context.calculatedFilterMetrics ?? []),
@@ -630,19 +576,16 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // loud half; omitting the dimensions silently qualifies them against the wrong CTE.
       ...(context.groupRestriction?.dimensions ?? []),
       ...(context.groupRestriction?.having ?? []).map(rule => rule.column),
-      // A calculated metric's own name is never a column, but the main columns its formula reads
-      // are — and nothing else references them, so without this the outer SELECT says
-      // `main."cost"` over a main CTE that never projected `cost`.
+      // A metric's own name is never a column, but the main columns its formula reads are, and
+      // nothing else references them — without this the outer SELECT says `main."cost"` over a
+      // main CTE that never projected `cost`.
       //
-      // OWN-Data-Mart references only (`path === ''`). A joined reference's `field` is the JOINED
-      // mart's own column name, and this set feeds `collectMainReferences` alone — so adding one
-      // puts `SELECT amount FROM <main table>` in the main CTE. Its owner's `<alias>_raw` is where
-      // it has to be projected, which the service arranges by naming the field as referenced.
+      // OWN-Data-Mart references only: a joined reference's `field` is the JOINED mart's column
+      // name, and this set feeds `collectMainReferences` alone, so adding one would put
+      // `SELECT amount FROM <main table>` in the main CTE.
       //
-      // LIVE references only, like every other reader of a stored formula: a commented-out tag is
-      // text the warehouse never evaluates, so the column behind it may well be gone — and
-      // projecting it here fails the whole blended query with `Unrecognized name` from a CTE the
-      // analyst cannot see, while the flat path (which never reads this) runs fine.
+      // LIVE references only: the column behind a commented-out tag may well be gone, and
+      // projecting it fails the whole blended query from a CTE the analyst cannot see.
       ...renderedFormulas.flatMap(metric =>
         liveFormulaReferences(metric.formula)
           .filter(ref => ref.path === '')
@@ -664,7 +607,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // column can own a calculated field's name, so it must never reach the main raw CTE. The
     // restriction's own row-level fields are included: their NAMES arrive above with
     // `groupRestriction.dimensions`, and stripping only `calculatedMetrics` left a Totals query
-    // emitting `SELECT session_key FROM <main table>` — `Unrecognized name` (#6732).
+    // emitting `SELECT session_key FROM <main table>` — `Unrecognized name`.
     for (const metric of renderedFormulas) referencedColumns.delete(metric.outputName);
 
     const cteBuilder = new BlendCteBuilder(this.dialectPort());
@@ -700,29 +643,22 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     cteBlocks.push(mainRaw.sql);
     cteParams.push(...mainRaw.params);
 
-    // Every formula whose OWNERSHIP this query has to be able to route — all THREE channels a
-    // formula reaches the SQL through, because a guard that walks one of them is a guard the other
-    // two do not have.
+    // All THREE channels a formula reaches the SQL through — selected, FILTERED (its formula is the
+    // predicate's left-hand side) and a RESTRICTION dimension (rendered by the kept-groups CTE).
+    // Nothing plans a sleeve for the latter two, so neither reaches the routing a selected
+    // formula's joined call gets.
     //
-    // A FILTERED field's formula is emitted SQL exactly as a selected one's is (it is the
-    // predicate's left-hand side), and a RESTRICTION dimension's is rendered by the kept-groups CTE
-    // — which a Totals plan relies on precisely BECAUSE it projects no dimensions, so its row-level
-    // fields are deliberately absent from `calculatedMetrics`. Neither reaches either of the two
-    // ways a selected formula's joined call is routed, since nothing plans a sleeve for them.
-    //
-    // Iterating the selected metrics alone left both with no ownership check at all, and neither
-    // failure announces itself: a mixed-owner call renders `main.<field>`, a wrong number wherever
-    // main owns a column of that name; and a joined reference in a restriction dimension resolves
-    // through the shared options object to the joined mart's DEDUP CTE, so the restriction runs,
-    // keyed on a post-roll-up value instead of the report's grain, and Totals cover a different row
-    // set than the report shows.
+    // Iterating the selected metrics alone left both unchecked, and neither failure announces
+    // itself: a mixed-owner call renders `main.<field>`, wrong wherever main owns a column of that
+    // name; and a joined reference in a restriction dimension resolves to the joined mart's DEDUP
+    // CTE, so Totals cover a different row set than the report shows.
     const routableFormulas = [
       ...calculatedMetrics,
       ...(context.calculatedFilterMetrics ?? []),
       ...(context.groupRestriction?.calculatedDimensions ?? []),
     ];
 
-    // One sleeve per JOINED aggregate call of a calculated metric's formula (#6732). Planned and
+    // One sleeve per JOINED aggregate call of a calculated metric's formula. Planned and
     // RENDERED here, ahead of the raw CTEs: a sleeve reading the owner's raw rows needs the row
     // identity projected into `<alias>_raw`, no aggregation rule mentions that chain, and only the
     // rendered classification says which sleeves those are.
@@ -797,12 +733,12 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         this.resolveFormulaReference(ref, aliasByJoinedField, qualifyColumn),
     };
 
-    // A predicate on a Calculated Field compares its FORMULA (#6732 spec §2) — its name is an
+    // A predicate on a Calculated Field compares its FORMULA — its name is an
     // outer SELECT alias, not a column of any CTE. Rendered through the SAME options object as the
     // projection above, so the two spellings of one formula cannot drift. Only the FILTERED fields
     // are rendered here: a selected metric whose joined call becomes a sleeve has its call site
-    // spliced later, and a map built from it now would hold the pre-splice expression — but D22
-    // refuses a filter on such a field, so nothing here ever needs the splice.
+    // spliced later, and a map built from it now would hold the pre-splice expression — but a filter
+    // on such a field is refused, so nothing here ever needs the splice.
     const calculatedPredicateExpressions = renderer
       ? renderer.buildCalculatedPredicateExpressions(
           context.calculatedFilterMetrics,
@@ -845,7 +781,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         cteParams.push(...keptGroups.params);
       }
 
-      // A calculated field that is a GROUPING KEY (#6732): the outer GROUP BY keys on its
+      // A calculated field that is a GROUPING KEY: the outer GROUP BY keys on its
       // expression, so every sleeve has to carry the same key or its join-back reads a coarser
       // grain. Read off the plan, never re-derived from the level — a row-level field the report
       // aggregates is no longer a key, and leaving it here would put one more key in every sleeve
@@ -921,8 +857,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       }
       // `calculatedPredicateExpressions` was rendered ABOVE the splice loop, so it holds each
       // filtered formula's PRE-splice text. That is correct only while no filtered field can carry
-      // a splice — which D22 guarantees by refusing a filter on a sleeve-routed aggregate-level
-      // field. Asserted rather than trusted: if one ever does, the predicate and the projection
+      // a splice — which the validator guarantees by refusing a filter on a sleeve-routed
+      // aggregate-level field. Asserted rather than trusted: if one ever does, the predicate and the projection
       // become two different renderings of one formula, and two renderings that disagree about
       // which rows a metric covers is a wrong number with nothing on screen to say so.
       for (const metric of context.calculatedFilterMetrics ?? []) {
@@ -991,16 +927,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         );
       }
       for (const s of sleeves) {
-        // Both directions matter, and the DANGEROUS one is this: an outer GROUP BY key the
-        // sleeve does NOT carry makes the LEFT JOIN match one sleeve row against several outer
-        // groups, so ANY_VALUE hands each of them a value computed at a COARSER grain — a
-        // plausible number, no NULL, no error. (The subset check below catches the opposite
-        // drift, which announces itself as NULL/0.) The two sets are equal by construction
-        // today; this asserts it rather than trusting two independent derivations to stay so.
-        // Counted against the keys the outer query actually EMITS, not against the de-duplicated
-        // set: a report listing the same column twice emits it twice, so comparing with the set
-        // size reported a grain mismatch — pointing at the sleeve — for what is really a
-        // duplicate projection. The distinct case gets its own message below.
+        // The DANGEROUS direction: an outer GROUP BY key the sleeve does NOT carry makes the LEFT
+        // JOIN match one sleeve row against several outer groups, so ANY_VALUE hands each a value
+        // computed at a COARSER grain — a plausible number, no NULL, no error. Counted against the
+        // keys the outer query EMITS, not the de-duplicated set, or a report listing one column
+        // twice reads as a grain mismatch.
         if (s.dimRefs.length !== agg.groupByParts.length) {
           throw new Error(
             `buildBlendedQuery: metric sleeve '${s.cteName}' groups by ${s.dimRefs.length} ` +
@@ -1021,26 +952,17 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           }
         }
       }
-      // One ANY_VALUE pull per METRIC (a merged group's several metrics each get their own
-      // SELECT item) but the join-back below is still one per CTE — that shared join-back is
-      // the point of merging.
+      // One ANY_VALUE pull per METRIC, but the join-back below is still one per CTE — that shared
+      // join-back is the point of merging.
       //
-      // a counting sleeve pull is wrapped in COALESCE(..., 0). The sleeve
-      // itself always computes the right value (COUNT is a counting function — 0 over zero
-      // rows, never NULL), but the OUTER pull reads it through ANY_VALUE over the join-back
-      // (CROSS JOIN for a grand total, LEFT JOIN per group) — and ANY_VALUE, like AVG, returns
-      // NULL over an empty input set. That happens whenever the outer FROM clause contributes
-      // zero rows for a bucket: a report WHERE that matches nothing (grand-total Totals), or a
-      // LEFT-JOIN miss for one dimension group. Either way the correct read is 0, not NULL —
-      // COALESCE restores the sleeve's own already-correct value. SUM and AVG are LEFT bare:
-      // NULL-over-empty is the correct SQL aggregate semantics for those (no data is not the
-      // same as a genuine zero), so coalescing them would misrepresent "no data" as "zero".
-      // Which shape a pull is, is decided where it is BUILT (`SleevePull.coalesceEmptyToZero`) —
-      // a joined Unique Count counts too but carries no aggregation rule to re-derive it from.
+      // A COUNTING pull is wrapped in COALESCE(…, 0): the sleeve itself answers 0 over zero rows,
+      // but ANY_VALUE over the join-back returns NULL whenever the outer FROM contributes no row
+      // for a bucket. SUM and AVG are left bare — NULL-over-empty is their correct semantics, and
+      // coalescing would misrepresent "no data" as a genuine zero.
       //
-      // A formula sleeve is skipped here: its pull is one operand INSIDE its metric's expression,
-      // spliced above, and emitting it here as well would project half a metric under a name no
-      // header claims.
+      // A formula sleeve is skipped: its pull is one operand INSIDE its metric's expression,
+      // spliced above, and emitting it here too would project half a metric under an unclaimed
+      // name.
       const sleeveSelect = sleeves
         .filter(s => !s.formulaCall)
         .flatMap(s =>
@@ -1081,10 +1003,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         calculatedPredicateExpressions
       );
       // Post-aggregation filters become HAVING, using the SAME qualified aggregate expression the
-      // SELECT emits; WHERE skips them above. The split is the rule's carried clause (D21).
+      // SELECT emits; WHERE skips them above. The split is the rule's carried clause.
       // A calculated field's aggregate travels as the argument the SELECT above already rendered:
       // its name is an outer alias, not a column of `main`, and the declared-type cast lives on
-      // that side only (#6732, D18/D19b).
+      // that side only.
       const having = renderer.renderHaving(
         postJoinFilters,
         qualifyColumn,
@@ -1093,16 +1015,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         agg.aggregateArgumentByLabel,
         calculatedPredicateExpressions
       );
-      // A bare aggregated column is not in GROUP BY, so ORDER BY references the output alias
-      // instead of the plain qualified column. `renderAggregatedSelect` documents the contract
-      // as "an ORDER BY on a multi-aggregated column resolves to its FIRST aggregation" — first
-      // in RULE order — and `agg.aliasByColumn` alone can no longer honour it: it is built from
-      // `nonSleeveAggs`, so a column carrying BOTH a sleeve function and a non-sleeve one holds
-      // the first NON-sleeve function there. A saved report sorting on such a column would
-      // silently switch to a different metric (e.g. rules [SUM, MAX] sorted by MAX), changing
-      // which rows survive LIMIT with no error — `SortRule` carries no function, so the user
-      // cannot even express the intent again. Re-resolve every aggregated column from the FULL,
-      // unfiltered rule list; dimensions keep the alias `renderAggregatedSelect` assigned.
+      // ORDER BY on a multi-aggregated column must resolve to its FIRST aggregation in RULE order,
+      // and `agg.aliasByColumn` cannot honour that alone: built from `nonSleeveAggs`, it holds the
+      // first NON-sleeve function for a column carrying both kinds. A saved report would silently
+      // sort by a different metric — rules [SUM, MAX] sorted by MAX — changing which rows survive
+      // LIMIT, with no error and no way for the user to express the intent again.
       const aliasByColumnWithSleeves = new Map(agg.aliasByColumn);
       const aliasResolvedColumns = new Set<string>();
       for (const rule of context.aggregations ?? []) {
@@ -1141,9 +1058,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
     const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
 
-    // A ROW-LEVEL calculated field does NOT flip the query into the grouped shape (spec §2.1), so
+    // A ROW-LEVEL calculated field does NOT flip the query into the grouped shape, so
     // this projection is the only place it can appear — and without it the field was absent from
-    // the SQL while a header was still published for it (spec §4). The aggregated branch's
+    // the SQL while a header was still published for it. The aggregated branch's
     // reference assertion runs here too, over no replacement spans: this path lifts no call into a
     // sleeve, so a joined reference has nowhere to be routed and must be refused rather than
     // qualified against `main`.
@@ -1252,24 +1169,16 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   }
 
   /**
-   * SQL expression assigning a value distinct per raw row, PRE-fan-out — the synthetic
-   * owner-identity surrogate a value-sleeve dedups on: `DISTINCT (dim, <this>, value)`. Emitted for
-   * EVERY value-sleeve owner, not only a keyless one: a declared key with a NULL component falls
-   * back to the surrogate, so it has to be projected either way. Genuine duplicate raw rows are
-   * deliberately counted as distinct owners here — a documented, later follow-up.
+   * SQL expression assigning a value distinct per raw row, PRE-fan-out — the owner-identity
+   * surrogate a value-sleeve dedups on: `DISTINCT (dim, <this>, value)`. Emitted for EVERY
+   * value-sleeve owner: a declared key with a NULL component falls back to it. Genuine duplicate
+   * raw rows are counted as distinct owners here — a known follow-up.
    *
-   * Default `ROW_NUMBER() OVER (ORDER BY 1)`: BigQuery, Snowflake, Trino/Presto (Athena)
-   * and Databricks/Spark all resolve an integer literal in a window's ORDER BY as a plain
-   * constant expression, NOT as an ordinal reference into the outer SELECT list (that
-   * ordinal shorthand is a distinct grammar production that applies only to a top-level
-   * query's own ORDER BY). ROW_NUMBER() still assigns a distinct sequential value to every
-   * row even when every row ties on that constant — the specific order is irrelevant here,
-   * only distinctness is. Snowflake's docs say this explicitly: "The ORDER BY clause for
-   * window functions does not support the use of an ordinal position... `2` is interpreted
-   * as the constant `2`". Redshift is the one dialect that rejects this: its window ORDER
-   * BY requires an actual column identifier and explicitly disallows constants ("Neither
-   * constants nor constant expressions can be used as substitutes for column names" — AWS
-   * Redshift docs) — see `RedshiftBlendedQueryBuilder.buildRowSurrogate`'s override.
+   * Default `ROW_NUMBER() OVER (ORDER BY 1)`: BigQuery, Snowflake, Trino/Presto (Athena) and
+   * Databricks/Spark all read an integer literal in a window's ORDER BY as a constant, not as an
+   * ordinal into the SELECT list — ROW_NUMBER() still numbers every row when they all tie on it.
+   * Redshift is the one dialect that rejects a constant there and needs a column identifier; see
+   * `RedshiftBlendedQueryBuilder.buildRowSurrogate`.
    */
   protected buildRowSurrogate(partitionByRefs: readonly string[] = []): string {
     const partition = partitionByRefs.length ? `PARTITION BY ${partitionByRefs.join(', ')} ` : '';

@@ -15,7 +15,7 @@ export interface AggregateCall {
   /** aliasPath of the Data Mart the call reads; '' = the metric's own Data Mart. */
   owner: string;
   references: FormulaReference[];
-  /** Offset of the function name (its first letter), not of its opening parenthesis. Task 8 uses it to splice the outer SELECT. */
+  /** Offset of the function name (its first letter), not of its opening parenthesis. Used to splice the outer SELECT. */
   nameStart: number;
 }
 
@@ -34,10 +34,10 @@ export interface FormulaAnalysis {
 }
 
 /**
- * 'aggregate' = the reference already names an aggregated measure, e.g. Unique Count (spec §4.3).
+ * 'aggregate' = the reference already names an aggregated measure, e.g. Unique Count.
  *
  * The two 'calculated-*' states name another Calculated Field AND carry ITS OWN level, which the
- * level rule (spec §2.1) needs and 'aggregate' cannot supply: its message says "is already an
+ * level rule needs and 'aggregate' cannot supply: its message says "is already an
  * aggregate", which hides from the analyst that the thing to go and fix is another formula.
  */
 export type ReferenceState =
@@ -70,7 +70,7 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
         aggregateCalls: [],
         references: [],
         warnings: [],
-        // Neither half of the level rule (spec §2.1) has anything to read: no call list was ever
+        // Neither half of the level rule has anything to read: no call list was ever
         // built to find an aggregate in, and no reference was ever resolved to ask a level of.
         level: 'column',
         errors: [
@@ -87,7 +87,7 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
   const tokens = scanSql(formula);
 
   // A tag inside a string literal is text to the warehouse but a reference to Handlebars —
-  // the two readings disagree, so refuse instead of picking one (spec §3.3).
+  // the two readings disagree, so refuse instead of picking one.
   if (references.some(r => isReferenceInString(tokens, r)))
     errors.push(FormulaViolations.tagInStringLiteral(fieldName));
 
@@ -120,17 +120,14 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
     errors.push(FormulaViolations.expressionSeparator(fieldName));
   }
 
-  // The third member of the same family, and the only one where the warehouses CONTRADICT each
-  // other rather than merely differ. `#` opens a line comment on BigQuery and is bitwise XOR on
-  // Redshift; `//` opens one on Snowflake and is a syntax error elsewhere — all measured. This
-  // scanner reads one lexical model for five dialects, so it calls both of them `punct`, which
-  // means the analyzer judges everything after the marker as LIVE code: it resolves the references
-  // there, counts an aggregate call there towards the field's LEVEL, and the dry run raises
-  // nothing because what the warehouse receives is valid SQL with that tail commented out.
-  // See `FormulaViolations.dialectAmbiguousMarker` for the numbers and the reasoning.
+  // The one place the warehouses CONTRADICT each other rather than merely differ: `#` opens a line
+  // comment on BigQuery and is bitwise XOR on Redshift, `//` opens one on Snowflake and is a syntax
+  // error elsewhere. Measured. One lexical model cannot be right for both, so the scanner calls
+  // them `punct` and the analyzer would judge everything after the marker as LIVE code — resolving
+  // references there, counting aggregate calls there towards the LEVEL — while the warehouse
+  // receives valid SQL with that tail commented out and the dry run raises nothing.
   //
-  // Inside a string literal or a comment neither marker is a `punct` token, so `'#tag'` and
-  // `-- see //docs` stay legal text, exactly as they do for `;`.
+  // Inside a string or a comment neither is a `punct` token, so `'#tag'` stays legal text.
   for (const marker of ambiguousCommentMarkers(tokens)) {
     errors.push(FormulaViolations.dialectAmbiguousMarker(fieldName, marker));
   }
@@ -202,7 +199,7 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
 
   // RESOLVE, then derive, then judge. The order is the whole point: a referenced Calculated Field's
   // own aggregation lives in ITS string, so this formula's token stream cannot see it, and the level
-  // is only knowable once every reference has come back (spec §2.1).
+  // is only knowable once every reference has come back.
   const resolved = references
     .filter(isLive)
     .map(ref => ({ ref, state: input.knownField(ref.path, ref.field) }));
@@ -219,23 +216,22 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
       : 'column';
 
   // One pass per live reference: is it a known field at all, and — if so — does its state agree
-  // with where it sits? An aggregate-level reference — a measure like Unique Count ('aggregate',
-  // spec §4.3) or an aggregate-level Calculated Field — is legal bare at the metric's own aggregate
+  // with where it sits? An aggregate-level reference — a measure like Unique Count ('aggregate') or an aggregate-level Calculated Field — is legal bare at the metric's own aggregate
   // level but illegal wrapped in another aggregate call; every other state is the reverse — inside
   // an aggregate call at level 'metric', anywhere at level 'column'.
   for (const { ref, state } of resolved) {
     const covered = coveringCall(ref) !== undefined;
 
     // Its own statement rather than an arm of the chain below, because the rule is PERMANENT
-    // (spec §3.1) and holds whatever the reference turns out to be: a row-level read of a joined
+    // and holds whatever the reference turns out to be: a row-level read of a joined
     // field is a per-key collapse, not a row value, even when that field is an already-aggregated
     // measure — a state an arm above would otherwise have claimed first and silently allowed.
     if (level === 'column' && ref.path) {
       errors.push(FormulaViolations.joinedReferenceOutsideAggregate(fieldName, refLabel(ref)));
     }
 
-    // Its own statement for the same reason, and PERMANENT for the same one (D12): #6732 lifts the
-    // refusal for the metric's OWN Data Mart only. Substituting a joined formula would need its
+    // Its own statement for the same reason, and PERMANENT for the same one: the refusal is lifted
+    // for the metric's OWN Data Mart only. Substituting a joined formula would need its
     // text — which the blendable payload does not carry — and would join a source that routing and
     // `assertAllRequestedSourcesAccessible` never saw, since both are decided from THIS formula's
     // raw text. An arm of the chain below would not do: the metric level that makes a calculated
@@ -295,12 +291,10 @@ function hasTopLevelComma(tokens: readonly SqlToken[]): boolean {
 }
 
 /**
- * The comment markers the supported warehouses read differently, in the order they appear, without
- * repeats — so one formula holding three `#` reports one violation naming `#`, not three.
+ * The comment markers the warehouses read differently, in order, without repeats.
  *
- * `//` is two `punct` tokens rather than one, and they only mean `//` when they ADJOIN: `a / /b` is
- * not valid SQL anywhere, but reading the pair off token values alone would also flag `a / b / c`,
- * which is ordinary division. The offsets decide it.
+ * `//` is two `punct` tokens and only means `//` when they ADJOIN — reading the pair off token
+ * values alone would also flag `a / b / c`, which is ordinary division. The offsets decide it.
  */
 function ambiguousCommentMarkers(tokens: readonly SqlToken[]): string[] {
   const found: string[] = [];
@@ -324,14 +318,11 @@ const contains = (outer: SqlFunctionCall, inner: SqlFunctionCall) =>
 const outerNameOf = (all: SqlFunctionCall[], inner: SqlFunctionCall) =>
   all.find(c => c !== inner && contains(c, inner))?.name ?? inner.name;
 
-// Collapses violations that are identical in every field a caller can see (code, message, and the
-// calculated field they're attributed to) — e.g. SUM(SUM(SUM(x))) finds the same true outer
-// aggregate containing two different inner calls and would otherwise report the same
-// "SUM contains another aggregation" sentence twice.
+// Collapses violations identical in every field a caller can see: `SUM(SUM(SUM(x)))` finds the same
+// outer aggregate containing two inner calls and would otherwise say the same sentence twice.
 //
-// The separator is written as the ESCAPE `\0`, never as a literal NUL byte: a source file holding
-// one is skipped by grep AND ripgrep (both treat it as binary), which made this whole module —
-// every parser rule the feature has — invisible to every search tool a later slice would use.
+// The separator is the ESCAPE `\0`, never a literal NUL byte — a source file holding one is treated
+// as binary by grep and ripgrep alike, which makes the whole module invisible to search.
 function dedupeViolations(violations: FormulaViolation[]): FormulaViolation[] {
   const seen = new Set<string>();
   return violations.filter(v => {
@@ -343,14 +334,10 @@ function dedupeViolations(violations: FormulaViolation[]): FormulaViolation[] {
 }
 
 /**
- * A `/` whose right-hand side is neither a numeric literal nor already wrapped in a
- * null-guarding call. Deliberately shallow — an advisory (decision 6), not a correctness gate —
- * and known gaps are left for a human to catch rather than chased here: it does not recognise a
- * guard around the RESULT of the division (COALESCE(SUM(a) divided by SUM(b), 0) still warns,
- * because the guard wraps the quotient, not the denominator), it does not recognise an IF or CASE
- * guard, and its guard-function set is fixed rather than derived per dialect. A false positive
- * costs a dismissible notice; closing every one of these gaps would cost the mirroring guarantee
- * that keeps this check simple enough to trust.
+ * A `/` whose right-hand side is neither a numeric literal nor already wrapped in a null-guarding
+ * call. Deliberately shallow — an advisory, not a correctness gate. Known gaps, left for a human:
+ * a guard around the RESULT of the division still warns, because it does not guard the denominator;
+ * IF and CASE guards are not recognised; the guard-function set is fixed rather than per dialect.
  */
 function hasUnguardedDivision(
   tokens: readonly SqlToken[],

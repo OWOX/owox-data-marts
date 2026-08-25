@@ -16,8 +16,7 @@ export class HttpDataColumnResolver {
   private select(selector: ColumnSelector, columns: ReportingColumns): string[] {
     switch (selector.mode) {
       // A wildcard resolves through `implicitAllNative`/`implicitAllBlended`, not `native`/
-      // `blended`: a calculated field is composed only when asked for by name (decision 10,
-      // spec §8), on either side of the join — an EXPLICIT name still reaches this method
+      // `blended`: a calculated field is composed only when asked for by name, on either side of the join — an EXPLICIT name still reaches this method
       // verbatim, in `selector.explicit` below.
       case 'allBlendable':
         return [...columns.implicitAllNative, ...columns.implicitAllBlended];

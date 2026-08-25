@@ -3,18 +3,12 @@
  * removes all of it, and a selection never covers half of it. Monaco offers none of this — a
  * decoration is paint, not structure — so it is caret, selection and key interception.
  *
- * Two rules this layer holds itself to:
+ * Caret corrections never go through `executeEdits`: that would put a no-op step on the undo stack
+ * and Ctrl+Z would start undoing cursor movements. Only a chip deletion edits, once, between two
+ * undo stops.
  *
- * - **It never edits the model to move the caret.** A caret correction that went through
- *   `executeEdits` would put a no-op step on the undo stack, and Ctrl+Z would start undoing
- *   cursor movements. Only a chip deletion edits, and it does so once, between two undo stops, so
- *   one Ctrl+Z brings the whole chip back.
- * - **It owns no state about chips.** Ranges are asked for on every event, from the decorations
- *   collection, which Monaco keeps in step with the model through every edit — so this layer is
- *   never a keystroke behind what is drawn on screen.
- *
- * Composition (IME) is deliberately not intercepted: a composed character lands as ordinary text
- * and the reference either still resolves or stops being a chip, which is the designed outcome.
+ * Chip ranges are read from the decorations collection on every event rather than cached, so this
+ * layer is never a keystroke behind what is drawn.
  */
 
 import type * as monaco from 'monaco-editor';

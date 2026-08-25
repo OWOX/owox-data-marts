@@ -188,10 +188,10 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
   });
 
   // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
-  // SELECT and GROUP BY, and it lands after every column key (#6732). Pinned per dialect because
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
   // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
   // error no stub renderer can show.
-  describe('a ROW-LEVEL calculated field (#6732)', () => {
+  describe('a ROW-LEVEL calculated field', () => {
     const rowLevel = {
       outputName: 'session_key',
       type: 'VARCHAR',
@@ -218,7 +218,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
       expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS "session_key"`]);
     });
 
-    // #6732 slice 3b, D16: a DATE-declared row-level field may be bucketed, and the truncation
+    // A DATE-declared row-level field may be bucketed, and the truncation
     // wraps the WHOLE substituted formula in this dialect's own spelling. No CAST — the probe
     // measured one turning a loud refusal into a wrong month on Redshift, so none is emitted here
     // either; Athena is the dialect that refuses the mis-declared shape outright instead.
@@ -243,7 +243,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
       expect(out.selectSql).not.toMatch(/CAST/);
     });
 
-    // Slice 3: once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
     // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
     // warehouse. Per dialect because the aggregate spelling AND the alias quoting are this one's.
     it('aggregates it under the labelled alias and drops it from the grouping keys', () => {
@@ -266,11 +266,11 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
       expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
     });
 
-    // #6732 D18. Athena is the second dialect where the fix makes a query that RAISES today start
+    // Athena is the second dialect where the fix makes a query that RAISES today start
     // returning a number — not a regression, the declared type finally reaching the warehouse.
     // Probe shape 8a answered `FUNCTION_NOT_FOUND: Unexpected parameters (varchar) for function
     // sum`; shape 8c, the same query with the cast, measured `12.75` live.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. True SUM 12.75.
       const NUM_EXPR = 'CONCAT("num_prefix", "num_suffix")';
       const numericText = {
@@ -328,7 +328,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
         expect(selectFor('SUM', 'VARCHAR')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
       });
 
-      // D19b: the whole integer family is refused a cast although this dialect states targets for
+      // The whole integer family is refused a cast although this dialect states targets for
       // all four. Casting would introduce a per-row conversion the warehouse was not making, and
       // Trino ROUNDS where Spark truncates — the same report, two totals.
       it('never casts the integer family, though the mapping states targets for it', () => {

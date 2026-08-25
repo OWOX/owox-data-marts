@@ -172,7 +172,7 @@ export class UpdateDataMartRelationshipService {
 
   /**
    * Rewrites the alias inside every stored formula that reads the renamed source
-   * (`{{ref path="orders" field="amount"}}`, #6732). A formula's `path` is the same structural
+   * (`{{ref path="orders" field="amount"}}`). A formula's `path` is the same structural
    * alias path a blended-fields config carries, so a rename that reaches one and not the other
    * turns a working metric into a broken one at the next read.
    *

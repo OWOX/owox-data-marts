@@ -892,7 +892,7 @@ describe('HTTP Data API (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Calculated metrics — composition-time guards (#6732 Task 9, spec §6.3 / §8)
+  // Calculated metrics — composition-time guards
   // ---------------------------------------------------------------------------
   // A dedicated Data Mart + schema (not the shared `dataMartId`, whose schema every earlier test
   // in this file relies on staying `date`/`revenue`-shaped): `country`/`clicks`/`impressions` plus
@@ -1001,7 +1001,7 @@ describe('HTTP Data API (e2e)', () => {
       expect(headerNamesOf(res)).toContain('ctr');
     });
 
-    // Pins the `outputColumns` gate in stream-http-data.service.ts (spec §8): a selected metric
+    // Pins the `outputColumns` gate in stream-http-data.service.ts: a selected metric
     // IS an aggregate even with no `aggregation=` param, so the gate that decides whether to
     // project by resolved headers or the raw request must recognize `calculatedMetrics`, not only
     // `aggregationConfig` — else a column it does not recognise streams as a silent `null`.

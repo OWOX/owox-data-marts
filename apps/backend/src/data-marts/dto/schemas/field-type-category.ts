@@ -35,7 +35,7 @@ export function isFloatingPointType(fieldType: string | undefined): boolean {
 
 /**
  * The WHOLE-NUMBER subset of NUMBER_TYPES, across all five dialect vocabularies. Read by the
- * declared-type cast (#6732, D19b), which imposes a float or exact-decimal declaration on a
+ * declared-type cast, which imposes a float or exact-decimal declaration on a
  * Calculated Field's expression and REFUSES an integer one: casting to an integer is a per-row
  * rounding the warehouse was not performing, and the dialects disagree on its direction (Spark
  * truncates where BigQuery, Trino, Redshift and Snowflake round).
@@ -48,7 +48,7 @@ export function isFloatingPointType(fieldType: string | undefined): boolean {
  */
 export const INTEGER_TYPES = new Set(['TINYINT', 'SMALLINT', 'INT', 'INTEGER', 'BIGINT']);
 
-/** Fixed-point, so exact and NaN-free: the family a scale must be spelled out for (#6732). */
+/** Fixed-point, so exact and NaN-free: the family a scale must be spelled out for. */
 export const EXACT_NUMERIC_TYPES = new Set(['NUMERIC', 'BIGNUMERIC', 'DECIMAL']);
 
 export function isIntegerType(fieldType: string | undefined): boolean {

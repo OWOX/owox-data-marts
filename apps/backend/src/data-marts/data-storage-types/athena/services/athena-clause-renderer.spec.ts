@@ -452,8 +452,8 @@ describe('AthenaClauseRenderer', () => {
     });
   });
 
-  // AthenaFieldType is the Glue/DDL vocabulary; a query is Trino, which has no FLOAT and no STRING
-  // (#6732, D19). DECIMAL carries its scale explicitly for the same reason Redshift's textCastType
+  // AthenaFieldType is the Glue/DDL vocabulary; a query is Trino, which has no FLOAT and no STRING.
+  // DECIMAL carries its scale explicitly for the same reason Redshift's textCastType
   // carries a length: a bare DECIMAL is (38,0) here, and that truncates every fraction.
   describe('castTypeForDeclaredType (declared Athena type → Trino cast target)', () => {
     // DOUBLE for the whole float family, including the 32-bit declarations. Trino's answer to a
@@ -483,11 +483,11 @@ describe('AthenaClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25. The second dialect where the VALUE's JS type decides the outcome: an
+  // The second dialect where the VALUE's JS type decides the outcome: an
   // ExecutionParameter is typed from the value it carries, so `= 10` raised `Cannot apply
   // operator: varchar = integer` while `= '10'` returned the right row, over the SAME field. The
   // placeholder now carries the declaration and one predicate serves both.
-  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT("n_prefix", "n_suffix")';
     const numericText: CalculatedMetricPlan = {
       outputName: 'probe',
@@ -546,7 +546,7 @@ describe('AthenaClauseRenderer', () => {
       );
     });
 
-    // D19b: casting an integer declaration introduces a per-row conversion the warehouse was not
+    // Casting an integer declaration introduces a per-row conversion the warehouse was not
     // making, and Trino rounds where Spark truncates.
     it('never casts the integer family, though the mapping states targets for it', () => {
       expect(r.castTypeForDeclaredType('BIGINT')).toBe('BIGINT');
@@ -583,7 +583,7 @@ describe('AthenaClauseRenderer', () => {
       }
     });
 
-    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
     // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
     // mode, on a predicate that never reads a value — and a numeric target inside strpos buys
     // nothing at all.

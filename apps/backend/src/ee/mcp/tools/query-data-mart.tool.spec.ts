@@ -998,7 +998,7 @@ describe('QueryDataMartTool', () => {
       expect(text).not.toContain('SUM(revenue)');
     });
 
-    // #6732. A calculated-field refusal raised outside the output-controls validator must not fall
+    // A calculated-field refusal raised outside the output-controls validator must not fall
     // to the generic fallback — "Verify the field names, filters, and aggregations… then retry" —
     // which names nothing, is unactionable, and actively misdirects, since the field names are
     // right and re-fetching the schema only keeps confirming them.

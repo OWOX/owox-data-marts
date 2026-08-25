@@ -61,7 +61,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
       calculatedFilterMetrics,
       this.type
     );
-    // A predicate on a Calculated Field compares its FORMULA, at both levels (#6732 spec §2) — its
+    // A predicate on a Calculated Field compares its FORMULA, at both levels — its
     // name is a SELECT alias with no column behind it. One map for both branches and both clauses.
     const calculatedPredicateExpressions =
       this.clauseRenderer.buildCalculatedPredicateExpressions(calculatedFilterMetrics);
@@ -124,7 +124,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     }
 
     // Not aggregated, so every remaining calculated field is row-level: a projected expression
-    // and nothing else (spec §2.1).
+    // and nothing else.
     assertNoHavingRules(queryOptions?.filters ?? [], 'DatabricksQueryBuilder plain query');
     const plainSelect = composePlainSelectBody(
       selectList,

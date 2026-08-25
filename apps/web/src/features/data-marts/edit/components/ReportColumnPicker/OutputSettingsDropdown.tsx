@@ -74,7 +74,7 @@ export interface OutputSettingsDropdownColumn {
    * True for a JOINED Data Mart's calculated field, which the backend refuses on every surface a
    * report can name a column on (`JOINED_CALCULATED_FIELD_UNSUPPORTED`) — filters included — so it
    * must never enter the "add filter" picker. NOT raised for this Data Mart's OWN calculated
-   * fields: those are filterable at either level since #6732 §1.1. An EXISTING rule referencing a
+   * fields: those are filterable at either level. An EXISTING rule referencing a
    * refused column still renders normally, since this only gates the addable-columns list.
    */
   isJoinedCalculated?: boolean;

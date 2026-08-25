@@ -93,10 +93,10 @@ describe('the draft bounds match the endpoint that enforces them', () => {
 });
 
 /**
- * The two reference indexes are deliberately asymmetric since #6732: `buildReferenceIndex` OFFERS a
+ * The two reference indexes are deliberately asymmetric: `buildReferenceIndex` OFFERS a
  * calculated field of THIS Data Mart, `buildJoinedReferenceIndex` still skips one belonging to a
  * joined Data Mart. That asymmetry is not the web's taste — it is the backend analyzer's rule, and
- * the joined half of it is a security boundary (D12): routing and `assertAllRequestedSourcesAccessible`
+ * the joined half of it is a security boundary: routing and `assertAllRequestedSourcesAccessible`
  * are both decided from the formula's own raw text, so a source reachable only through a joined
  * formula would be joined without ever being access-checked.
  *

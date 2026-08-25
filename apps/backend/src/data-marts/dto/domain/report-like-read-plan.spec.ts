@@ -67,7 +67,7 @@ describe('hasOutputControls', () => {
     expect(hasOutputControls({ ...basePlan, uniqueCountConfig: [] })).toBe(false);
   });
 
-  // A calculated metric IS an aggregate (spec §2.3): selecting one must flip a plan to the
+  // A calculated metric IS an aggregate: selecting one must flip a plan to the
   // output-controls path even with no filter/sort/aggregation/dateTrunc/limit/uniqueCount set —
   // otherwise RunReportService, ReportDataCacheService and StreamHttpDataService never call
   // ReportSqlComposerService.compose for a metric-only report, and their reader falls back to a

@@ -457,11 +457,11 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // A row-level calculated field is a DIMENSION (spec §2.1/§2.2): when the report groups at all,
+  // A row-level calculated field is a DIMENSION: when the report groups at all,
   // the field joins the grouping keys as its own rendered expression — never as the columns that
   // expression happens to mention, which is a finer grain that leaves the field's own value
   // duplicated in a report grouped by it.
-  describe('renderAggregatedSelect — a ROW-LEVEL calculated field (#6732)', () => {
+  describe('renderAggregatedSelect — a ROW-LEVEL calculated field', () => {
     const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
     const SESSION_KEY_SQL = 'CONCAT("session_id", "user_id")';
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
@@ -639,7 +639,7 @@ describe('SqlClauseRenderer', () => {
       });
     });
 
-    // Slice 3b (spec §2, D16): a row-level field is a dimension, so it may carry a date bucket —
+    // A row-level field is a dimension, so it may carry a date bucket —
     // and the bucket wraps the WHOLE substituted formula, in SELECT and GROUP BY alike, exactly as
     // it wraps a column reference a few lines above in the renderer.
     describe('with a date bucket on it', () => {
@@ -656,8 +656,8 @@ describe('SqlClauseRenderer', () => {
         expect(out.aliasByColumn.get('session_key')).toBe('"session_key"');
       });
 
-      // D16, and the counter-intuitive half of it. Slice 3's §5 called `CAST(<expr> AS <declared
-      // type>)` before the truncation "the only option compatible with D3"; the probe measured it
+      // The counter-intuitive half of it. The design called `CAST(<expr> AS <declared type>)`
+      // before the truncation, as the only option compatible with it; the probe measured it
       // turning a LOUD Redshift refusal into `2026-05-01` for a formula meaning the 5th of August.
       // No dialect returned NULL without it. So the absence of a cast here is a measured decision,
       // and this asserts the absence rather than trusting the shape above to reveal it.
@@ -693,7 +693,7 @@ describe('SqlClauseRenderer', () => {
         expect(out.groupByParts).toEqual(['"country"']);
       });
 
-      // An aggregate-level formula is not a dimension at all, permanently (§4). Its projection is
+      // An aggregate-level formula is not a dimension at all, permanently. Its projection is
       // untouched by a bucket rule that should never have reached here.
       it('ignores a bucket on an aggregate-level field', () => {
         const out = r.renderAggregatedSelect(['country'], [], new Map([['ctr', 'MONTH']]), {
@@ -706,7 +706,7 @@ describe('SqlClauseRenderer', () => {
         expect(out.groupByParts).toEqual(['"country"']);
       });
 
-      // The anti-drift pin Task 4's sleeve rests on: the sleeve derives this same key OUTSIDE this
+      // The anti-drift pin the sleeve rests on: the sleeve derives this same key OUTSIDE this
       // class, and joins back on it. Both sides must reach it through the two PUBLIC seats, with
       // the plan's own declared type as the type argument — a sleeve reading the type from
       // somewhere else is exactly the drift the join-back cannot survive.
@@ -724,7 +724,7 @@ describe('SqlClauseRenderer', () => {
       });
     });
 
-    // Slice 3 (spec §2.1): a report may apply an aggregation to a row-level field, and the field
+    // A report may apply an aggregation to a row-level field, and the field
     // then STOPS being a grouping key. Kept as one, `COUNT(DISTINCT expr) … GROUP BY expr` puts
     // exactly one distinct value in every group and the metric reads 1 on EVERY row — no error, on
     // any warehouse, and a constant rather than an inflated number.
@@ -875,7 +875,7 @@ describe('SqlClauseRenderer', () => {
       });
 
       // The Totals half of the same shape, and the half nothing covered at any level. The report
-      // compares the aggregate its SELECT printed — the argument CAST to the declared type (D18);
+      // compares the aggregate its SELECT printed — the argument CAST to the declared type;
       // the restriction re-runs the report's grouping in a subquery of its own and has to compare
       // the SAME thing. Re-derived there it was the field's NAME — `SUM("clicks_rate")` over a
       // FROM that has no such column — so a correctly filtered report lost its Totals row and the
@@ -918,7 +918,7 @@ describe('SqlClauseRenderer', () => {
           filters: metricFilter,
           calculatedMetrics: [rate],
         });
-        // D11 keeps a calculated field out of the Totals plan's own metrics, so this query never
+        // A calculated field stays out of the Totals plan's own metrics, so this query never
         // renders the aggregate itself — the restriction is the only place it can appear.
         const totals = r.renderAggregatedQuery({
           ...shared,
@@ -939,15 +939,15 @@ describe('SqlClauseRenderer', () => {
       });
     });
 
-    // Slice 3b (design §3, D18). `SUM` over a text expression is not a compile error everywhere:
+    // `SUM` over a text expression is not a compile error everywhere:
     // Redshift coerces the varchar to `Decimal` with SCALE 0 and truncates every row before
     // summing, so the live probe measured `12` where `12.75` is correct. The analyst's DECLARED
     // type is the only thing that can tell the warehouse otherwise, and it reaches it here —
     // inside the aggregate, around the substituted expression, for the functions that read the
     // value as a number and for no others.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The stub above leaves the dialect-only functions unimplemented on purpose, and two tests
-      // pin that base contract. D18 rules on all twelve functions, so this renderer answers for
+      // pin that base contract. The rule covers all twelve functions, so this renderer answers for
       // all twelve — in spellings no dialect uses, so a cast leaking into one is unmistakable.
       class EveryFunctionRenderer extends StubRenderer {
         protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
@@ -1009,7 +1009,7 @@ describe('SqlClauseRenderer', () => {
         expect(selectFor('SUM', 'STRING')).toBe(`SUM((${NUMERIC_TEXT_SQL})) AS "amount | SUM"`);
       });
 
-      // D19b, added after review. An INTEGER declaration is excluded even though the dialect DOES
+      // Added after review. An INTEGER declaration is excluded even though the dialect DOES
       // state a target for it (this stub answers `INT64`), so this assertion fails if the
       // exclusion is dropped rather than passing on the `undefined` fallback.
       //
@@ -1056,7 +1056,7 @@ describe('SqlClauseRenderer', () => {
       });
 
       // An AGGREGATE-level formula is projected as itself and is never wrapped in an aggregation
-      // at all (design §4), so there is no arithmetic of ours to impose a type on.
+      // at all, so there is no arithmetic of ours to impose a type on.
       it('never casts an aggregate-level formula, which no aggregation wraps', () => {
         const out = rf.renderAggregatedSelect(['country'], [], undefined, {
           calculatedMetrics: [
@@ -1157,7 +1157,7 @@ describe('SqlClauseRenderer', () => {
       ).toThrow(/orders\.amount/);
     });
 
-    // Task 1's bug class: a reference inside a SQL comment is not SQL, so commenting an old joined
+    // The bug class: a reference inside a SQL comment is not SQL, so commenting an old joined
     // reference out must not be what makes a metric unrenderable.
     it('renders a metric whose only joined reference is commented out', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
@@ -1233,10 +1233,10 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // #6732: a formula may reference another Calculated Field of the SAME Data Mart. The referenced
+  // A formula may reference another Calculated Field of the SAME Data Mart. The referenced
   // field's plan travels inside `dependencies` and is substituted here, at compose time — never
   // persisted, so editing the referenced formula reaches every formula that reads it.
-  describe('renderAggregatedSelect — a formula referencing another formula (#6732)', () => {
+  describe('renderAggregatedSelect — a formula referencing another formula', () => {
     const revenue: CalculatedMetricPlan = {
       outputName: 'revenue',
       type: 'FLOAT',
@@ -1257,7 +1257,7 @@ describe('SqlClauseRenderer', () => {
       dependencies: [revenue, cost],
     };
 
-    // THE formula design §2 is written around. Kills "resolve a reference to a dependency as a
+    // THE formula this is written around. Kills "resolve a reference to a dependency as a
     // plain column", which emits `"revenue" / NULLIF("cost", 0)` — a warehouse error if no such
     // column exists, and a valid read of the WRONG column if one does.
     it('substitutes each referenced formula and projects the metric alone', () => {
@@ -1268,7 +1268,7 @@ describe('SqlClauseRenderer', () => {
       expect(out.selectSql).toBe(
         '"country",\n  (SUM("amount")) / NULLIF((SUM("spend")), 0) AS "roas"'
       );
-      // D15: a dependency is not a column. It is neither projected under its own name nor grouped.
+      // A dependency is not a column. It is neither projected under its own name nor grouped.
       expect(out.selectSql).not.toContain('AS "revenue"');
       expect(out.groupBySql).toBe('\nGROUP BY\n  "country"');
     });
@@ -1364,7 +1364,7 @@ describe('SqlClauseRenderer', () => {
     });
 
     // A loop only reaches a report from a schema written by a path that skips save-time
-    // validation (D14). Unguarded, the substitution recurses for ever: a stack overflow, i.e. a
+    // validation. Unguarded, the substitution recurses for ever: a stack overflow, i.e. a
     // 500 carrying no field name at all. Kills "expand without the guard".
     it('refuses a cycle by name instead of overflowing the stack', () => {
       const a: CalculatedMetricPlan = {
@@ -1392,7 +1392,7 @@ describe('SqlClauseRenderer', () => {
       expect((caught as Error).message).toContain('a → b → a');
     });
 
-    // The self-reference guard the own-mart refusal used to provide incidentally (design §3.5).
+    // The self-reference guard the own-mart refusal used to provide incidentally.
     it('refuses a formula that references itself', () => {
       const self: CalculatedMetricPlan = {
         outputName: 'a',
@@ -1457,7 +1457,7 @@ describe('SqlClauseRenderer', () => {
       ).not.toThrow();
     });
 
-    // ACCESS CONTROL, not merely correctness (design §1). Routing and the source access check are
+    // ACCESS CONTROL, not merely correctness. Routing and the source access check are
     // decided from the SELECTED metric's own text, so a joined source reachable only THROUGH a
     // dependency would be joined without ever being access-checked. The caller's joined resolver
     // must therefore never see a dependency's references — even though, as here, it would happily
@@ -1571,7 +1571,7 @@ describe('SqlClauseRenderer', () => {
     });
 
     // A row-level formula over another row-level formula stays a grouping key, and the report
-    // groups by ITS OWN whole expression — the dependency contributes no key of its own (spec §2.2).
+    // groups by ITS OWN whole expression — the dependency contributes no key of its own.
     it('groups a row-level formula by its whole substituted expression, and by nothing else', () => {
       const initials: CalculatedMetricPlan = {
         outputName: 'initials',
@@ -1755,7 +1755,7 @@ describe('SqlClauseRenderer', () => {
     // The report-aggregated row-level branch closes a parenthesis after the expression, so the
     // comment swallows that too — and with it the aggregate call's own closing paren.
     //
-    // Since #6732 D18 this site writes MORE after the expression than a parenthesis: a declared
+    // This site now writes MORE after the expression than a parenthesis: a declared
     // numeric type puts ` AS <cast type>)` there as well, and a swallowed `AS DOUBLE` is an
     // unterminated CAST rather than a missing alias. It is covered by the same newline because
     // that newline is applied once, to the whole formula, at the one render step every shape goes
@@ -1901,10 +1901,10 @@ describe('SqlClauseRenderer', () => {
   });
 
   // A calculated field's declared type is the analyst's free choice and is never validated against
-  // the formula (D3), so it reaches the renderer as a name from that DIALECT's field-type
+  // the formula, so it reaches the renderer as a name from that DIALECT's field-type
   // vocabulary — which is not always a SQL type name. The live probe substituted the declared name
   // verbatim and BigQuery answered `Type not found: FLOAT at [2:51]`, its SQL spelling being
-  // FLOAT64 (#6732, D19).
+  // FLOAT64.
   describe('castTypeForDeclaredType — the declared type in each dialect own SQL spelling', () => {
     // [dialect, renderer, a float-family type it declares, the SQL name it accepts in a CAST]
     const dialects: ReadonlyArray<[string, SqlClauseRenderer, string, string]> = [
@@ -1932,9 +1932,9 @@ describe('SqlClauseRenderer', () => {
     });
 
     // A cast may WIDEN a declared float but never narrows one: the probe measured `12.75` through
-    // each dialect's 64-bit float, and Task 5's live numbers were measured with no cast at all, so
+    // each dialect's 64-bit float, and the live numbers were measured with no cast at all, so
     // a 32-bit target would move a number that is correct today — silently, to about seven
-    // significant digits. The integer and exact types stay faithful to the declaration (§3): those
+    // significant digits. The integer and exact types stay faithful to the declaration: those
     // state a GRAIN the analyst chose, while 32-bit-ness is a storage width nobody asked for.
     it('never narrows a declared float to a 32-bit target', () => {
       const narrowingTargets = new Set(['REAL', 'FLOAT4']);
@@ -1980,9 +1980,9 @@ describe('SqlClauseRenderer', () => {
       }
     });
 
-    // D19b's safety net. The caller casts a float or exact-decimal declaration and REFUSES an
+    // The integer rule's safety net. The caller casts a float or exact-decimal declaration and REFUSES an
     // integer one, so a numeric type belonging to none of the three families would fall through to
-    // "cast it" — the per-row truncation D19b exists to prevent, on a type nobody classified.
+    // "cast it" — the per-row truncation the rule exists to prevent, on a type nobody classified.
     // Keyed on the same dialect vocabularies as the coverage test above, so it fails the moment an
     // enum grows rather than when a report is run.
     it('classifies every numeric type each dialect can declare as integer, float or exact', () => {
@@ -2006,7 +2006,7 @@ describe('SqlClauseRenderer', () => {
       }
     });
 
-    // Same reason as textCastType above, and the reason D19 names it: each vocabulary is its own,
+    // Same reason as textCastType above, and the reason it is named: each vocabulary is its own,
     // so no shared table can hold this — and a default would let a new dialect pass every test here
     // and then be told `Type not found` by the warehouse.
     it('makes every dialect state its own declared-type mapping instead of inheriting one', () => {
@@ -2020,13 +2020,13 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25 — the two halves of ONE decision, asserted as a relationship rather than as two
+  // The two halves of ONE decision, asserted as a relationship rather than as two
   // greps for `CAST`. The expression's cast is decided from the PLAN's declared type inside
   // `buildCalculatedPredicateExpressions`; the value's is decided from the type RESOLVER at the
   // comparison. Two derivations of one declaration is the drift this branch has already paid for
   // repeatedly, so the assertion reads the target out of the left-hand side and REQUIRES the value
   // to name that same one — out of a single rendered predicate, per dialect.
-  describe('a Calculated Field comparison imposes ONE type on both sides (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes ONE type on both sides', () => {
     // [dialect, renderer, a float-family type it declares]
     const comparisonDialects: ReadonlyArray<[string, SqlClauseRenderer, string]> = [
       ['BigQuery', new BigQueryClauseRenderer(), 'FLOAT'],
@@ -2081,11 +2081,11 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // #6732 D25 — the ONE seat a filter's type comes from. A Calculated Field has no warehouse
+  // The ONE seat a filter's type comes from. A Calculated Field has no warehouse
   // column, so `columnTypes` can never hold one and the resolver answered `undefined` for it: the
   // value's JS type then decided the comparison, measured flipping BigQuery and Athena between a
   // hard error and the right answer for `= 10` versus `= '10'` over one field.
-  describe('buildFilterTypeResolver (#6732, D25)', () => {
+  describe('buildFilterTypeResolver', () => {
     const ctr: CalculatedMetricPlan = {
       outputName: 'ctr',
       formula: 'SUM({{ref field="clicks"}})',
@@ -2170,7 +2170,7 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // D21 (#6732): both clauses read the verdict stamped on the rule, never `rule.function` — an
+  // Both clauses read the verdict stamped on the rule, never `rule.function` — an
   // aggregate-level Calculated Field's rule carries none and never can, so a `function` test sends
   // its predicate to WHERE, where an aggregate is invalid on every engine.
   describe('renderWhere / renderHaving split on the carried clause', () => {
@@ -2189,7 +2189,7 @@ describe('SqlClauseRenderer', () => {
       expect(r.renderWhere(routedWhere).sql).toBe('\nWHERE "session_key" = @p0');
     });
 
-    // Task 1 routes it here and stops. The LHS of a function-less HAVING is the field's own
+    // Routing brings it here and stops. The LHS of a function-less HAVING is the field's own
     // formula, which nothing hands this renderer yet — so it refuses loudly rather than skipping
     // the rule, which would apply the predicate in neither clause and leave no trace.
     it('renderHaving refuses a function-less rule routed to HAVING instead of dropping it', () => {
@@ -2219,11 +2219,11 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // #6732 spec §2: a Calculated Field's predicate compares its FORMULA, at both levels —
+  // A Calculated Field's predicate compares its FORMULA, at both levels —
   // `(<expr>) <op> <value>`. Its name is a SELECT alias with no warehouse column behind it, so the
   // ordinary `qualifyColumn(rule.column)` left-hand side names something that does not exist:
   // `HAVING (<expr>) > @h0` is what the probe measured compiling identically on all five storages.
-  describe('a Calculated Field as the predicate left-hand side (#6732)', () => {
+  describe('a Calculated Field as the predicate left-hand side', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const CTR_SQL = 'SUM("clicks") / NULLIF(SUM("impressions"), 0)';
     const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
@@ -2245,7 +2245,7 @@ describe('SqlClauseRenderer', () => {
     // Redshift binds `=` tighter than `||`, so a bare `a || b = 'x'` parses as `a || (b = 'x')`.
     // `renderAggregateArgument` parenthesises for exactly this reason.
     //
-    // The expression is NEVER cast here (#6732, D23): the target each field's COMPARISONS impose
+    // The expression is NEVER cast here: the target each field's COMPARISONS impose
     // travels beside it, because whether it applies is a property of the operator. The stub maps
     // FLOAT to DOUBLE and states no target for STRING.
     it('renders each plan as a parenthesised expression keyed by its output name', () => {
@@ -2267,7 +2267,7 @@ describe('SqlClauseRenderer', () => {
       );
     });
 
-    // The move Task 1 left undone: without it this rule reaches the renderer with no formula and
+    // The move left undone: without it this rule reaches the renderer with no formula and
     // dies on the named throw below — the whole reason the refusal could not simply be lifted.
     it('renderHaving compares the formula for a function-less rule routed to HAVING', () => {
       const routed: RoutedFilterRule[] = [
@@ -2282,7 +2282,7 @@ describe('SqlClauseRenderer', () => {
         r.buildCalculatedPredicateExpressions([ctr])
       );
 
-      // The declared FLOAT reaches the expression from the PLAN (#6732, D23); this call passes no
+      // The declared FLOAT reaches the expression from the PLAN; this call passes no
       // type resolver, so the VALUE keeps the plain placeholder — the half that depends on wiring.
       expect(out.sql).toBe(`\nHAVING CAST((${CTR_SQL}) AS DOUBLE) = @h0`);
       expect(out.params).toEqual([{ name: 'h0', value: 0.5 }]);
@@ -2343,7 +2343,7 @@ describe('SqlClauseRenderer', () => {
     });
 
     // A rule carrying a function on a report-aggregated ROW-LEVEL field keeps comparing the
-    // aggregate the SELECT emitted (D18) — the expression map must not overtake that seat, or the
+    // aggregate the SELECT emitted — the expression map must not overtake that seat, or the
     // predicate reads the UNCAST value while the projection prints the cast one.
     it('keeps the aggregate argument as the left-hand side when the rule carries a function', () => {
       const routed: RoutedFilterRule[] = [
@@ -2491,7 +2491,7 @@ describe('Unique Count primary-key rendering (#6792)', () => {
 });
 
 /**
- * A metric filter must compare the SAME aggregate its own SELECT prints (#6732, D18/D19b).
+ * A metric filter must compare the SAME aggregate its own SELECT prints.
  *
  * The projection wraps a report-aggregated Calculated Field's expression in the analyst's declared
  * type before SUM/AVG/percentile read it; `renderHaving` derived its own left-hand side and did not.
@@ -2514,7 +2514,7 @@ describe('renderAggregatedQuery — a metric filter compares the aggregate the S
     renderer: SqlClauseRenderer;
     /** A float-family declaration this dialect states a cast target for. */
     float: string;
-    /** An integer-family one it also maps, and that D19b refuses to cast anyway. */
+    /** An integer-family one it also maps, and that the integer rule refuses to cast anyway. */
     integer: string;
     /** How this dialect qualifies a PREDICATE column — only BigQuery aliases its FROM. */
     qualifyColumn: ColumnRefResolver | undefined;
@@ -2627,7 +2627,7 @@ describe('renderAggregatedQuery — a metric filter compares the aggregate the S
     });
   }
 
-  // D19b: casting an INTEGER declaration introduces the per-row truncation this rule removes, and
+  // Casting an INTEGER declaration introduces the per-row truncation this rule removes, and
   // Spark truncates where the other four round. Both sides decline it, and for the same reason.
   it('never casts an INTEGER declaration on either side, though every dialect maps one', () => {
     for (const dialect of dialects) {

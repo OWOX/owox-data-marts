@@ -84,8 +84,6 @@ describe('AiAssistantSqlContextPrefetchService', () => {
 
     expect(result.result.fullyQualifiedTableName).toBe('project.dataset.table_name');
     expect(result.result.metadata.storageType).toBe('bigquery');
-    // Neither the DISCONNECTED field nor the calculated one (no physical column, however
-    // "connected" its status reads) may reach the AI SQL-builder's authoritative schema.
     expect(result.result.metadata.schema.fields).toEqual([
       { name: 'connected_field', status: DataMartSchemaFieldStatus.CONNECTED },
     ]);

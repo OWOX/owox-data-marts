@@ -67,7 +67,7 @@ describe('the level predicates', () => {
   });
 });
 
-// Design §2 / D13: the level decides the GROUP BY, and the persisted one is a CACHE. Every case
+// The level decides the GROUP BY, and the persisted one is a CACHE. Every case
 // below is a formula whose own token stream holds no aggregate at all, so reading `calculated.level`
 // (or re-deriving from A's own text) answers 'column' — a row-level dimension — and the report
 // silently collapses to a grand total with no error and no log line.
@@ -99,7 +99,7 @@ describe('calculatedFieldLevelOf', () => {
     ).toBe('metric');
   });
 
-  // The base case is a cache too (D13). `revenue` plainly aggregates in its own text, and every
+  // The base case is a cache too. `revenue` plainly aggregates in its own text, and every
   // supported dialect calls SUM an aggregate — so the recorded 'column' cannot be what decides it.
   // Kills "if (isAggregateLevel(field.calculated.level)) return 'metric'" as the only own-text rule.
   it('reads a field’s own formula text, not its persisted level, when the two disagree', () => {
@@ -169,7 +169,7 @@ describe('calculatedFieldLevelOf', () => {
     expect(calculatedFieldLevelOf(label, [mkField('amount'), revenue, label])).toBe('column');
   });
 
-  // A joined Data Mart's calculated field is refused outright (D12) and is never substituted, so it
+  // A joined Data Mart's calculated field is refused outright and is never substituted, so it
   // cannot be what makes this formula a metric either.
   it('ignores a joined reference', () => {
     const roas = mkCalculated('roas', '{{ref path="orders" field="revenue"}} / 2', 'column');
@@ -194,7 +194,7 @@ describe('calculatedFieldLevelOf', () => {
   });
 });
 
-// D15: a dependency enters the plan set to be SUBSTITUTED, never to be projected. The closure is
+// A dependency enters the plan set to be SUBSTITUTED, never to be projected. The closure is
 // flat and deduped so nothing here can build a cyclic object graph out of a cyclic schema.
 describe('calculatedDependencyPlans', () => {
   // `undefined`, not `[]`: a plan for a formula that reads only columns must stay byte-identical
@@ -311,7 +311,7 @@ describe('brokenReferencesOf', () => {
     expect(brokenReferencesOf(ctr, schemaFields)).toEqual(['impressions']);
   });
 
-  // INVERTED by #6732: a reference to a calculated field is no longer broken FOR BEING ONE — that
+  // INVERTED: a reference to a calculated field is no longer broken FOR BEING ONE — that
   // is the whole feature. What it is now is TRANSITIVE: `ctr` is only as usable as `clicks`'s own
   // chain, and `raw_clicks` is the column that actually went missing. Kills "keep reporting the
   // calculated target itself", which would name a field that is right there in the schema.
@@ -377,7 +377,7 @@ describe('brokenReferencesOf', () => {
     expect(brokenReferencesOf(roas, [parent, roas])).toEqual(['parent.child']);
   });
 
-  it('does not flag a reference to a field the reporting menu merely hides (spec §7)', () => {
+  it('does not flag a reference to a field the reporting menu merely hides', () => {
     const hiddenRatio = mkCalculated(
       'hidden_ratio',
       'SUM({{ref field="internal_clicks"}}) / {{ref field="impressions"}}'
@@ -391,7 +391,7 @@ describe('brokenReferencesOf', () => {
     expect(brokenReferencesOf(hiddenRatio, schemaFields)).toEqual([]);
   });
 
-  it('does not flag a bare unique_count token when no real field owns that name (spec §4.3)', () => {
+  it('does not flag a bare unique_count token when no real field owns that name', () => {
     const shareOfTotal = mkCalculated(
       'share_of_total',
       '{{ref field="clicks"}} / {{ref field="unique_count"}}'
@@ -403,7 +403,7 @@ describe('brokenReferencesOf', () => {
 
   it('resolves unique_count through a REAL calculated field of that name — the real field shadows the token', () => {
     // A real, CONNECTED "unique_count" field shadows the synthetic token (mirrors the save-time
-    // reading: `found` wins before the token fallback is ever consulted). Since #6732 a calculated
+    // reading: `found` wins before the token fallback is ever consulted). A calculated
     // field of that name is a legal target, so what decides the verdict is ITS chain — and the
     // assertion is that the chain was walked at all: had the synthetic-token reading won instead,
     // `gone` would never have been looked at and this would come back empty.
@@ -434,7 +434,7 @@ describe('brokenReferencesOf', () => {
     expect(brokenReferencesOf(shareOfTotal, schemaFields)).toEqual([]);
   });
 
-  it('skips a joined reference (ref.path set) — Slice 1 resolves own-Data-Mart references only', () => {
+  it('skips a joined reference (ref.path set) — own-Data-Mart references only', () => {
     const joined = mkCalculated('cross_dm_ratio', '{{ref path="orders" field="revenue"}}');
 
     expect(brokenReferencesOf(joined, [joined])).toEqual([]);

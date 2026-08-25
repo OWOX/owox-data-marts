@@ -417,20 +417,16 @@ export class DataMartService {
 
   /**
    * Applies a path-shaped rewrite — an alias rename cascading into stored definitions — to a Data
-   * Mart's `schema` and `blendedFieldsConfig`. A targeted two-column update, not a full entity
-   * save: the rename edits paths inside SQL an analyst authored, and must never clobber the rest
-   * of a Data Mart the caller happens to have loaded.
+   * Mart's `schema` and `blendedFieldsConfig`. A targeted two-column update, not a full entity save:
+   * the rename edits SQL an analyst authored and must not clobber the rest of a loaded Data Mart.
    *
-   * The row is re-read here rather than reused from earlier in the request, and on MySQL that read
-   * takes a write lock so it returns the latest committed row instead of the transaction's
-   * REPEATABLE READ snapshot — without it the rewrite base is the schema as it looked when the
-   * request began, and every formula saved since is written back out of existence. SQLite
-   * serializes transactions already (see sqlite-transaction-serializer), so it needs no lock.
+   * The row is re-read here under a write lock on MySQL, so the rewrite base is the latest committed
+   * row rather than the transaction's REPEATABLE READ snapshot — without it every formula saved
+   * since the request began is written back out of existence. SQLite serializes transactions
+   * already.
    *
-   * Read-compare-write in the same shape as {@link updateDataLastUpdated}: `rewrite` returning
-   * false means nothing changed and no statement is issued. This narrows the lost-update window to
-   * the width of the caller's transaction, it does not close it — a writer committing after this
-   * read still loses. Closing it properly needs a version column, and that is a migration.
+   * This NARROWS the lost-update window to the caller's transaction; it does not close it. A writer
+   * committing after this read still loses, and closing that needs a version column.
    *
    * @returns true when the rewrite was persisted; false when it changed nothing or the row is gone.
    */

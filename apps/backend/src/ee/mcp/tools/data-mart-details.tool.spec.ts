@@ -231,12 +231,12 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });
 
-  // #6732. A Calculated Metric carries neither `aggregationRole` nor `allowedAggregations` — the
+  // A Calculated Metric carries neither `aggregationRole` nor `allowedAggregations` — the
   // dialog that creates one deliberately sets neither — so governance falls back to the TYPE
   // defaults and a FLOAT metric was published as SUM/AVG/MIN/MAX-able under a description reading
   // "Use only these". The agent did the advertised thing and got a 400
   // AGGREGATION_ON_CALCULATED_METRIC. The web picker has always forced the empty set; this is the
-  // same rule on the MCP surface (spec §8).
+  // same rule on the MCP surface.
   it('publishes a calculated metric as non-aggregatable, and never ships its formula', async () => {
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue({
@@ -279,11 +279,11 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.fields[1].calculated).not.toHaveProperty('formula');
   });
 
-  // #6732 slice 1. This prose is the ONLY thing that tells an agent what a Calculated Field is,
+  // This prose is the ONLY thing that tells an agent what a Calculated Field is,
   // and a stale sentence in it fails no other test while silently degrading every agent that
   // reads it. Both level texts are pinned verbatim so that editing either one is a visible
   // change in this file rather than a quiet change in a model's context.
-  describe('the calculated-field prose an agent reads (#6732)', () => {
+  describe('the calculated-field prose an agent reads', () => {
     const AGGREGATE_AND_ROW_LEVEL_DESCRIPTION =
       '"metric" — the formula is ALREADY aggregated: select it by name and it is recomputed ' +
       'correctly at whatever grain your query asks for, including in a query that reads a joined ' +
@@ -328,7 +328,7 @@ describe('GetDataMartDetailsTool', () => {
       expect(publishedLevelSchema().description).toBe(AGGREGATE_AND_ROW_LEVEL_DESCRIPTION);
     });
 
-    // The two halves must disagree, and slice 3 widens the gap rather than closing it: the
+    // The two halves must disagree, and this widens the gap rather than closing it: the
     // row-level half now says the field can be aggregated, while the aggregate half still says
     // it cannot. A sentence claiming a row-level aggregation is unsupported would fail no other
     // test and would send every agent that reads it away from a query that works.
@@ -353,7 +353,7 @@ describe('GetDataMartDetailsTool', () => {
       // pages and filter them itself.
       expect(publishedLevelSchema().description).not.toContain('refused at either level');
       expect(aggregateHalf).not.toContain('or filtered on');
-      // Slice 3b lifted the bucket for a row-level field. While the sentence still refused one,
+      // The bucket is lifted for a row-level field. While the sentence still refused one,
       // an agent either declined a request it could serve or bucketed some other field and
       // answered at the wrong grain without saying so.
       expect(rowLevelHalf).not.toContain('cannot yet be bucketed by date');
@@ -374,7 +374,7 @@ describe('GetDataMartDetailsTool', () => {
       expect(aggregateHalf).toContain('including in a query that reads a joined Data Mart');
     });
 
-    // Slice 3 reverses decision D2 for the row-level level ONLY: the mechanism that renders
+    // The refusal is reversed for the row-level level ONLY: the mechanism that renders
     // COUNT_DISTINCT over a formula now exists, so the field is advertised with the governance
     // menu the validator will actually enforce — resolved from its DECLARED type, since a
     // calculated field carries no aggregationRole and no override of its own.

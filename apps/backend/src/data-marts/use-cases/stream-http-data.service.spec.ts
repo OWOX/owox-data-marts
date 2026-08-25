@@ -958,11 +958,11 @@ describe('StreamHttpDataService', () => {
     expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300}\n']);
   });
 
-  // #6732. A selected calculated metric IS an aggregate even with no `aggregation=` param, so the
+  // A selected calculated metric IS an aggregate even with no `aggregation=` param, so the
   // ad-hoc path has to treat it like one: compose the SQL, forward the plans to the reader, strip
   // the metric's name out of `columnFilter`, and project rows by the RESOLVED header names. The
   // whole feature had zero coverage in this file.
-  describe('calculated metrics (#6732)', () => {
+  describe('calculated metrics', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const ctrPlan = {
       outputName: 'ctr',

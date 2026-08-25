@@ -44,7 +44,7 @@ describe('HttpDataColumnResolver', () => {
     ).toThrow(BusinessViolationException);
   });
 
-  describe('a calculated metric — decision 10', () => {
+  describe('a calculated metric — named selection only', () => {
     // `native` still carries it (existence-checking authority for HttpDataColumnValidator);
     // `implicitAllNative` does not (what a wildcard actually resolves to).
     const withCalculatedMetric: ReportingColumns = {
@@ -83,7 +83,7 @@ describe('HttpDataColumnResolver', () => {
   // projected at all (the blended path refuses it by name), so sweeping it into "**" turns an
   // unchanged NDJSON integration into a 400 the day someone adds a formula to a DIFFERENT Data
   // Mart — the exact promise the feature makes about wildcard requests.
-  describe('a joined Data Mart calculated field — decision 10 across the join', () => {
+  describe('a joined Data Mart calculated field — named selection across the join', () => {
     const withJoinedCalculated: ReportingColumns = {
       native: ['date'],
       implicitAllNative: ['date'],

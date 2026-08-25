@@ -18,8 +18,8 @@ export interface JoinedFormulaFields {
 
 /**
  * 'ready', not 'loading': outside the provider (a read-only table, a table test) nothing is in
- * flight and nothing failed — there simply is no join tree, which is exactly the pre-#6732
- * behaviour of offering own-Data-Mart fields only.
+ * flight and nothing failed — there simply is no join tree, so only own-Data-Mart
+ * fields are offered.
  */
 const NONE: JoinedFormulaFields = { fields: [], status: 'ready' };
 

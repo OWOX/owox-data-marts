@@ -248,8 +248,8 @@ describe('LookerStudioTypeMapperService', () => {
   });
 
   // A calculated field carries no `aggregateFunction` whatever its level, so the LEVEL is the only
-  // thing that tells the two apart here — and this is the seam it has to cross to reach the mapper
-  // (spec §4.5). Both headers below are byte-identical but for it.
+  // thing that tells the two apart here — and this is the seam it has to cross to reach the mapper.
+  // Both headers below are byte-identical but for it.
   describe('buildSchemaField — calculated field level', () => {
     it("level 'metric' → METRIC, not re-aggregatable, no defaultAggregationType", () => {
       const header = new ReportDataHeader(
@@ -467,7 +467,7 @@ describe('LookerStudioTypeMapperService', () => {
       expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
     });
 
-    // End-to-end for spec §8: the flag `resolveReportDataHeaders` puts on a calculated-metric
+    // End-to-end: the flag `resolveReportDataHeaders` puts on a calculated-metric
     // header has to survive into the Looker schema field, or the connector still advertises a
     // ratio as a summable metric.
     it('calculated metric — METRIC, isReaggregatable false, and NO defaultAggregationType', () => {

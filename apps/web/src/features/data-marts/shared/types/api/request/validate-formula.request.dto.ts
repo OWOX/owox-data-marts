@@ -2,7 +2,7 @@
  * A calculated field as the schema editor is HOLDING it, saved or not.
  *
  * The Output Schema editor defers its save, so the fields on screen and the fields on disk are not
- * the same list, and the whole point of #6732 — `roas = revenue / cost` written in one sitting —
+ * the same list, and the whole point of the feature — `roas = revenue / cost` written in one sitting —
  * names two siblings the server has never seen.
  */
 export interface DraftCalculatedFieldDto {

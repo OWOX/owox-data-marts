@@ -215,7 +215,7 @@ export class BlendedReportDataService {
     const selectedCalculated = calculatedFieldsOf(schemaFields).filter(f =>
       columnConfig.includes(f.name)
     );
-    // A predicate on a Calculated Field compares its FORMULA (#6732 spec §2), so the plan must
+    // A predicate on a Calculated Field compares its FORMULA, so the plan must
     // reach the builder even when the report does not SELECT the field — `selectedCalculated` is
     // selection-only by design, and it is what the PROJECTION is built from. The restriction's
     // HAVING counts: on the Totals path the report's metric filters travel there, not in
@@ -243,15 +243,15 @@ export class BlendedReportDataService {
       type: String(f.type),
       formula: f.calculated.formula,
       level: calculatedFieldLevelOf(f, schemaFields),
-      // The formulas this one reads (#6732), carried so the renderer can substitute them. A
+      // The formulas this one reads, carried so the renderer can substitute them. A
       // dependency's own JOINED references are refused at that substitution rather than
       // routed: `formulaJoinedFieldNames` below reads the SELECTED metrics' formulas only, so
       // a source reachable only through a dependency would be joined without being
-      // access-checked (design §1).
+      // access-checked.
       dependencies: calculatedDependencyPlans(f, schemaFields),
       alias: f.alias?.trim() || undefined,
       description: f.description?.trim() || undefined,
-      // Which Data Mart each aggregate call reads (#6732). Always analysed, not only when a
+      // Which Data Mart each aggregate call reads. Always analysed, not only when a
       // joined path is present: absent means "not analysed" to the blended builder, which then
       // refuses a joined formula outright — and that is also the right reading of a formula
       // persisted before validation existed and no longer parseable, so the parse failure
@@ -411,7 +411,7 @@ export class BlendedReportDataService {
         calculatedFilterMetrics:
           calculatedFilterMetrics.length > 0 ? calculatedFilterMetrics : undefined,
         // The clause each predicate belongs in is decided here, from the rule and the field's
-        // level, and carried on the rule (D21) — the builder reads it and never re-derives it.
+        // level, and carried on the rule — the builder reads it and never re-derives it.
         filters: report.filterConfig?.length
           ? routeFilterClauses(report.filterConfig, schemaFields)
           : undefined,
@@ -449,16 +449,14 @@ export class BlendedReportDataService {
   /**
    * The blended column names a selected metric's formula reads from a joined Data Mart.
    *
-   * A `{{ref}}` tag carries the STRUCTURAL identity — alias path plus the source's own field name —
-   * while every column list downstream speaks the unified `<path>__<field>` name, so the two are
-   * matched on `(aliasPath, originalFieldName)` and never as strings. HIDDEN fields are matched
-   * too: a formula saved before the field was hidden still reads that source, and being hidden must
-   * not become a way past the access check.
+   * A `{{ref}}` tag carries the STRUCTURAL identity, while every column list downstream speaks the
+   * unified `<path>__<field>` name, so the two are matched on `(aliasPath, originalFieldName)` and
+   * never as strings. HIDDEN fields are matched too — being hidden must not become a way past the
+   * access check.
    *
-   * Only LIVE references count (Task 1's bug class): a reference inside a SQL comment is not SQL,
-   * so it must neither pull a source into the access check nor route a report to the blended
-   * builder. A reference that resolves to nothing is deliberately silent here — the composition-time
-   * validator reports it as a broken metric, with the reference named.
+   * Only LIVE references count: one inside a SQL comment must neither pull a source into the access
+   * check nor route a report to the blended builder. A reference resolving to nothing is silent
+   * here; the composition-time validator reports it as a broken metric.
    */
   private formulaJoinedFieldNames(
     calculatedMetrics: readonly CalculatedMetricPlan[],
@@ -560,12 +558,11 @@ export class BlendedReportDataService {
    * then dropped. `uniqueCountConfig` seeds the chain set by alias path, so such a source still had
    * its CTE built and LEFT JOINed — a paid warehouse scan feeding a column nobody reads.
    *
-   * Deliberately narrow, and it must stay that way. `buildRelationshipChains` is NOT filtered by
-   * `isIncluded`, and that is load-bearing: an excluded source's fields remain selectable,
-   * filterable and sortable, and an ordinary `ORDER BY orders__amount` on one resolves precisely
-   * BECAUSE the join is built unconditionally. So this recomputes what the chain set would have
-   * been had `uniqueCountConfig` never seeded it, then adds back the SURVIVING sources (and their
-   * ancestors, which a nested one still needs). A chain goes only when nothing else wanted it.
+   * Narrow, and it must stay that way: `buildRelationshipChains` is NOT filtered by `isIncluded`,
+   * and that is load-bearing — an excluded source's fields stay selectable, and `ORDER BY
+   * orders__amount` on one resolves precisely BECAUSE the join is built unconditionally. So this
+   * recomputes the chain set as if `uniqueCountConfig` had never seeded it, then adds back the
+   * surviving sources and their ancestors. A chain goes only when nothing else wanted it.
    */
   private withoutChainsOnlyADroppedUniqueCountNeeded(
     chains: ResolvedRelationshipChain[],
@@ -688,19 +685,14 @@ export class BlendedReportDataService {
   }
 
   /**
-   * Builds the minimal set of ResolvedRelationshipChain entries needed to satisfy
-   * the columns requested in columnConfig.
+   * The minimal set of chains needed to satisfy the requested columns.
    *
-   * Each chain's `cteName` is derived from the full `aliasPath` (dots → underscores)
-   * and `parentAlias` is the parent's `cteName` ('main' at the root). The path-prefixed
-   * `cteName` is what guarantees CTE uniqueness when two relationships in the join
-   * tree share the same `targetAlias` (allowed under the
-   * `(sourceDataMart, targetAlias)` unique constraint).
+   * Each `cteName` is derived from the full `aliasPath`, which is what guarantees uniqueness when
+   * two relationships in the tree share a `targetAlias` — allowed under the
+   * `(sourceDataMart, targetAlias)` constraint.
    *
-   * When a requested field lives at depth ≥ 2 (e.g. A→B→C, C-field requested), ALL
-   * ancestor relationships along the aliasPath are also included — otherwise the
-   * resulting SQL cannot form a valid join chain (C would try to join directly to main,
-   * using joinConditions that reference B's fields).
+   * A field at depth ≥ 2 pulls in ALL its ancestors, or the SQL cannot form a valid join chain:
+   * C would join directly to main, using conditions that reference B's fields.
    */
   private async buildRelationshipChains(
     columnConfig: string[],
@@ -818,17 +810,13 @@ export class BlendedReportDataService {
    * table, which either fails with an unrecognised name or, where that table still carries a column
    * of that name, silently serves that column's dedup value in place of the formula.
    *
-   * The seat the validator cannot cover, and NOT because a projection carries no output control:
-   * the validator resolves a blendable schema only when `needsSchema` holds — a filter, a sort, an
-   * aggregation, a date bucket, a Unique Count, or a selected formula of the mart's OWN schema. A
-   * projection alone skips it, and so does a projection plus a `limit`, which counts as an output
-   * control there but not as a reason to resolve a schema. A restriction column is outside its
-   * arguments altogether: `validateForReport` never sees `groupRestriction`. This path always holds
-   * the schema, so it is where those shapes are answered; every rule surface is refused in the
-   * validator, by the same rule, where it also reaches report save.
+   * The seat the validator cannot cover: it resolves a blendable schema only when `needsSchema`
+   * holds, which a bare projection — with or without a `limit` — does not, and it never sees
+   * `groupRestriction` at all. This path always holds the schema, so it answers those shapes; every
+   * rule surface is refused in the validator instead, where it also reaches report save.
    *
-   * Runs BEFORE the orphan check: a joined formula that is ALSO hidden is refused for the more
-   * specific reason, the precedence `joinedFieldState` applies to the same field inside a formula.
+   * Runs BEFORE the orphan check, so a joined formula that is also hidden is refused for the more
+   * specific reason.
    */
   private assertNoJoinedCalculatedColumns(
     dataMart: DataMart,

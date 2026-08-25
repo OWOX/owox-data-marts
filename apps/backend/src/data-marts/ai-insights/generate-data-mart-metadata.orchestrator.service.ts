@@ -75,8 +75,6 @@ export class GenerateDataMartMetadataOrchestratorService {
     let sampleColumns: string[] | null = null;
     let sampleRows: QueryRow[] | null = null;
     if (request.useSample) {
-      // Disconnected fields aren't in the underlying table/view, so selecting them fails the
-      // query — and neither is a calculated field, which has no warehouse column at all.
       const schemaColumns = schema.fields
         .filter(f => !isCalculatedField(f) && isConnected(f))
         .map(f => f.name);

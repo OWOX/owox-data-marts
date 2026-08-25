@@ -464,7 +464,7 @@ describe('Output controls API (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
-  // Calculated metrics (#6732). What http-data.e2e-spec.ts already covers (implicit-all
+  // Calculated metrics. What http-data.e2e-spec.ts already covers (implicit-all
   // exclusion, explicit selection, AGGREGATION_ON_CALCULATED_METRIC) is not repeated here — this
   // block fills the gaps: the schema-save validation contract itself (§6.2's `{ errors, warnings }`
   // channel, the joined-reference gate) and the composition guards that only a report's own save
@@ -473,7 +473,7 @@ describe('Output controls API (e2e)', () => {
   // the warehouse once the parser pass is clean), and the tests that compose go through the
   // file-wide CreateViewService stub (see the file-level comment above), so they assert SQL shape
   // rather than BigQuery execution.
-  describe('Calculated metric — save and composition guards (#6732)', () => {
+  describe('Calculated metric — save and composition guards', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     let cmDataMartId: string;
     let cmDataDestinationId: string;
@@ -558,7 +558,7 @@ describe('Output controls API (e2e)', () => {
       expect(res.status).toBe(200);
       // §6.2: the save response carries `{ errors, warnings }` on the wire, not only internally.
       // This test's storage was created via POST /api/data-storages with no config, so the dry run
-      // is skipped rather than attempted (decision 9) — that must surface as a warning, not a
+      // is skipped rather than attempted — that must surface as a warning, not a
       // silent pass.
       expect(res.body.warnings).toEqual(
         expect.arrayContaining([
@@ -638,7 +638,7 @@ describe('Output controls API (e2e)', () => {
   // A main-owner calculated metric on a report that ALSO spans a joined Data Mart. Forced onto
   // the blended path here via a joined Unique Count, mirroring the `uniqueCountConfig persistence
   // round trip` block above.
-  describe('Calculated metric — on a blended report (#6732)', () => {
+  describe('Calculated metric — on a blended report', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     let blendMainDataMartId: string;
     let blendDestinationId: string;
@@ -803,7 +803,7 @@ describe('Output controls API (e2e)', () => {
       expect(res.status).toBe(200);
     });
 
-    // #6732 spec §1.1: filtering by a metric ships. The published reason for the old refusal
+    // Filtering by a metric ships. The published reason for the old refusal
     // described an ALIAS, and a predicate's left-hand side here is already an opaque SQL string —
     // the LHS is the field's own formula, measured compiling identically on all five storages.
     // Asserted on the BLENDED shape (the joined Unique Count) because that is the path where the
@@ -827,7 +827,7 @@ describe('Output controls API (e2e)', () => {
 
       expect(res.status).toBe(200);
       const sql = res.body.sql as string;
-      // Both sides carry the field's DECLARED type (#6732, D23/D25) — over the whole HTTP path,
+      // Both sides carry the field's DECLARED type — over the whole HTTP path,
       // so the schema's `FLOAT` reaches the comparison rather than the value's JS type deciding it.
       expect(sql).toContain(
         'HAVING CAST((SUM(main.clicks) / NULLIF(SUM(main.impressions), 0)) AS FLOAT64) > ' +

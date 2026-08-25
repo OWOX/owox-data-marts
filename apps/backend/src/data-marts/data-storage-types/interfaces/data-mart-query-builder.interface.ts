@@ -19,11 +19,11 @@ export interface DataMartQueryOptions {
 
   /**
    * Output filters — WHERE on the final SELECT, or HAVING once the query is aggregated. Which one
-   * is the clause each rule CARRIES (#6732, D21), read through `filterClauseOf`; a builder never
+   * is the clause each rule CARRIES, read through `filterClauseOf`; a builder never
    * re-derives it from `rule.function`.
    *
    * Typed as the plain rule because the dialect builders and their specs are also driven with
-   * hand-built rules, for which `filterClauseOf`'s fallback is the pre-#6732 answer. The
+   * hand-built rules, for which `filterClauseOf`'s fallback is the answer. The
    * requirement to ROUTE is enforced one level up, on {@link RoutedDataMartQueryOptions}, which is
    * what `DataMartQueryBuilderFacade` takes — and the facade is the only way production code
    * reaches a builder.
@@ -58,7 +58,7 @@ export interface DataMartQueryOptions {
    */
   primaryKeyColumns?: string[];
 
-  /** Output sort (Task 7+) — applied as ORDER BY on the final SELECT. */
+  /** Output sort — applied as ORDER BY on the final SELECT. */
   sort?: SortRule[];
 
   /** Output row limit (no offset). */
@@ -86,7 +86,7 @@ export interface DataMartQueryOptions {
   columnTypes?: ReadonlyMap<string, string>;
 
   /**
-   * Calculated metrics selected in `columns` (main-owner only — spec §5.1). A calculated metric
+   * Calculated metrics selected in `columns` (main-owner only). A calculated metric
    * IS an aggregate, so its presence forces the aggregated path even with an otherwise-empty
    * `aggregations`/`dateTruncs` — the remaining projected columns become its grouping keys.
    */
@@ -94,7 +94,7 @@ export interface DataMartQueryOptions {
 
   /**
    * Calculated fields a FILTER (or a Totals restriction's HAVING) names, whether or not the report
-   * SELECTS them (#6732 spec §2). A predicate on one compares the field's FORMULA — its name is a
+   * SELECTS them. A predicate on one compares the field's FORMULA — its name is a
    * SELECT alias with no warehouse column behind it — so the plan has to reach the renderer even
    * when the field is not projected. Kept separate from `calculatedMetrics` precisely because that
    * list is the PROJECTION: a filter-only field added to it would appear in the SELECT, in the
@@ -105,7 +105,7 @@ export interface DataMartQueryOptions {
 
 /**
  * What `DataMartQueryBuilderFacade` takes — the same options with every filter's clause already
- * DECIDED (#6732, D21).
+ * DECIDED.
  *
  * This is the guard, and it is placed here rather than on `DataMartQueryOptions` deliberately. The
  * hole it closes is a NEW PRODUCER forwarding `report.filterConfig` straight through: that is a

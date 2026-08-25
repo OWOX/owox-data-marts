@@ -78,7 +78,7 @@ export interface PrepareReportDataOptions {
   signal?: AbortSignal;
 
   /**
-   * Calculated metrics selected in this report (main-owner only — spec §5.1). Each carries no
+   * Calculated metrics selected in this report (main-owner only). Each carries no
    * warehouse column to derive a type from, so `resolveReportDataHeaders` synthesizes its header
    * from the analyst's declared `type` — the same precedent as Unique Count and the aggregation
    * aliases.

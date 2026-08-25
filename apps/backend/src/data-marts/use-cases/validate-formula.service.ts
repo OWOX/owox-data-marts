@@ -19,27 +19,21 @@ export interface ValidateFormulaResult {
   /** Non-blocking advisories about the submitted formula, e.g. an unguarded division. */
   warnings: FormulaViolation[];
   /**
-   * What ELSE would refuse the save, filed under the field that owns it. Attribution follows the
-   * OWNING formula, not the causing one: converting a column into a metric makes every other
-   * formula that references that column illegal, and each of those violations belongs to its own
-   * field. Without this bucket the editor would look green right up to a failing save — the
-   * live-versus-save disagreement this whole design exists to prevent.
+   * What ELSE would refuse the save, filed under the field that OWNS it rather than the one that
+   * caused it: converting a column into a metric makes every formula referencing it illegal, and
+   * each violation belongs to its own field.
    *
-   * It carries NO baseline, so it cannot distinguish a metric this edit broke from one that was
-   * already broken before the analyst opened anything: establishing that would mean validating the
-   * persisted schema on every keystroke as well, doubling a cost that is already the heaviest part
-   * of this endpoint. A client may therefore say the save will fail and name the field, and may not
-   * say this edit is the reason.
+   * Carries NO baseline, so it cannot tell a metric this edit broke from one that was already
+   * broken. A client may therefore say the save will fail and name the field, but not that this
+   * edit is the reason.
    */
   otherFieldErrors: FormulaViolation[];
 }
 
 /**
- * What the parser pass actually reads out of a `DataMartSchema`: its fields, and nothing else. The
- * storage type travels as `validate`'s own second argument, and the discriminator is never touched
- * because the warehouse phase (the only part that composes SQL) is skipped here. Naming that as a
- * type rather than a comment is what lets `buildProbeSchema` be honest for a Data Mart whose schema
- * was never actualized, where there is no truthful discriminator to invent.
+ * What the parser pass reads out of a `DataMartSchema`: its fields, and nothing else. Naming that
+ * as a type is what lets `buildProbeSchema` be honest for a Data Mart whose schema was never
+ * actualized, where there is no truthful discriminator to invent.
  */
 type FormulaProbeSchema = { fields: DataMartSchemaField[] };
 
@@ -47,10 +41,9 @@ type FormulaProbeSchema = { fields: DataMartSchemaField[] };
  * The formula editor's live channel: what is wrong with ONE formula, answered without asking the
  * warehouse.
  *
- * It is deliberately not a second validator. `CalculatedFieldValidatorService.validate` already
- * skips the dry run when no `DryRunContext` is supplied, so calling it that way gives the editor
- * the same rules, the same messages and the same joined-path resolution the save applies — which
- * is the whole point: a second copy could tell the analyst something the save then contradicts.
+ * Not a second validator — `CalculatedFieldValidatorService.validate` already skips the dry run
+ * when no `DryRunContext` is supplied, so the editor gets the same rules and messages the save
+ * applies. A second copy could tell the analyst something the save then contradicts.
  */
 @Injectable()
 export class ValidateFormulaService {
@@ -72,13 +65,10 @@ export class ValidateFormulaService {
       command.projectId
     );
 
-    // The answer describes the Data Mart's fields and its joined sources, so this endpoint must
-    // not become a way to probe a Data Mart the caller cannot see.
-    //
-    // EDIT, matching the route guard and `UpdateDataMartSchemaService` — this endpoint exists to
-    // answer "would the save I am about to make be accepted", so whoever can ask it is whoever can
-    // make that save. A weaker check here would leave the guard as the only real gate, with the
-    // published contract describing a third, weaker one again.
+    // The answer describes the Data Mart's fields and joined sources, so this must not become a way
+    // to probe a Data Mart the caller cannot see. EDIT rather than SEE, matching the route guard
+    // and `UpdateDataMartSchemaService`: this answers "would the save I am about to make be
+    // accepted", so whoever may ask is whoever may make that save.
     const canEdit = await this.accessDecisionService.canAccess(
       command.userId,
       command.roles,
@@ -118,14 +108,10 @@ export class ValidateFormulaService {
       }
     );
 
-    // The probe schema keeps every OTHER calculated field — since #6732 a formula may READ one, so
-    // dropping them would report a legal reference as a missing column — and so this pass also
-    // re-judges formulas nobody is editing. Splitting the result by attribution
-    // is what keeps the editor's own row honest without losing what the save would refuse:
-    // `errors`/`warnings` are about the submitted formula, `otherFieldErrors` is the collateral.
-    //
-    // Other fields' WARNINGS are dropped rather than bucketed: an advisory about a formula the
-    // analyst did not open is noise, and unlike an error it costs nothing at save time.
+    // The probe keeps every OTHER calculated field, since a formula may READ one, so this pass also
+    // re-judges formulas nobody is editing. `errors`/`warnings` are about the submitted formula,
+    // `otherFieldErrors` is the collateral. Other fields' WARNINGS are dropped: an advisory about a
+    // formula the analyst did not open is noise, and unlike an error it costs nothing at save time.
     const isSubmitted = (violation: FormulaViolation) => violation.field === command.name;
     return {
       errors: errors.filter(isSubmitted),
@@ -139,22 +125,16 @@ export class ValidateFormulaService {
 }
 
 /**
- * A field type the storage's own schema does not know, reported as a VIOLATION rather than thrown
- * — the same vocabulary the save refuses it with, read from the same enums the storages' zod
- * schemas wrap. Left unchecked, `{ type: "BANANA" }` came back clean from the live channel and then
- * failed the save, which is the disagreement this endpoint exists to remove.
+ * A field type the storage's schema does not know, reported as a VIOLATION rather than thrown.
  *
- * Why not a 4xx, which is what this used to raise. The channel's contract is that a broken formula
- * is an ANSWER, not a failed request, and the client acts on that: a non-200 leaves the diagnostics
- * panel empty — which reads as "your formula is clean" — and after three of them the client's brake
- * disables the channel for the rest of the session. That made this the loudest possible bug in the
- * quietest possible way on Snowflake, whose web type list offers 35 spellings (`VARCHAR`, `NUMBER`,
- * `BIGINT`, …) against the 11 the backend enum holds — including the `VARCHAR` every new Snowflake
- * metric row is born with. An empty panel must never be how someone learns the check is broken.
+ * Not a 4xx, which is what this used to raise: a broken formula is an ANSWER here, not a failed
+ * request. A non-200 leaves the diagnostics panel empty — which reads as "your formula is clean" —
+ * and after three the client's brake disables the channel for the session. Reachable on Snowflake,
+ * whose web type list offers 35 spellings against the backend enum's 11, including the `VARCHAR`
+ * every new metric row used to be born with.
  *
  * Nothing is validated past this point: a type the storage cannot spell describes a field the save
- * could never persist, so the parser pass would be answering a question about a schema that cannot
- * exist.
+ * could never persist.
  */
 function unknownFieldTypeViolation(
   type: string,
@@ -171,14 +151,11 @@ function unknownFieldTypeViolation(
 }
 
 /**
- * The same check as above, for every OTHER field the draft carries — filed under the field that
- * owns it, which is what `otherFieldErrors` is for: a type the storage cannot spell describes a
- * field the save would refuse, so leaving it unchecked let a schema that cannot be saved come back
- * from this channel clean.
+ * The same check for every OTHER field the draft carries, filed under the field that owns it —
+ * otherwise a schema that cannot be saved comes back from this channel clean.
  *
- * The submitted field is skipped: its type is `command.type`, checked on its own terms, and the
- * probe writes it over the draft's entry of the same name — so the draft's copy describes nothing
- * that will be judged.
+ * The submitted field is skipped: the probe writes `command.type` over the draft's entry of the
+ * same name, so the draft's copy describes nothing that will be judged.
  */
 function unknownDraftFieldTypeViolations(
   command: ValidateFormulaCommand,
@@ -198,33 +175,17 @@ function unknownDraftFieldTypeViolations(
  * a field of the same name, appended when the name is new. That is the point of the whole
  * function: a sibling reference has to resolve here exactly as it will there.
  *
- * Which is why the persisted schema is only half of it. The Output Schema editor is deferred-save,
- * so "the schema the save would persist" is what the EDITOR is holding, and `calculatedFields`
- * carries that: the formulas it holds REPLACE every persisted one rather than adding to them, so a
- * sibling added in this session resolves and one deleted in this session stops being judged.
+ * The Output Schema editor is deferred-save, so "the schema the save would persist" is what the
+ * EDITOR is holding: the formulas in `calculatedFields` REPLACE every persisted one rather than
+ * adding to them.
  *
- * ORDINARY columns still come from the persisted schema, and that is a known gap, not a property of
- * the editor: the same editor adds, renames and deletes them (`BaseSchemaTable`'s name cell and
- * `handleDeleteRow`). It has two halves, and the quiet one is worse:
+ * ORDINARY columns still come from the persisted schema, which is a known gap. The quiet half is
+ * the worse one: nothing rewrites a `{{ref}}` tag when a column is RENAMED, so a formula naming the
+ * old spelling resolves cleanly here and the save then refuses it. Closing it needs the draft's
+ * whole field TREE on the wire, a wider contract left deliberately unbuilt.
  *
- * - LOUD — a formula naming a column deleted in this session still comes back as "no longer exists
- *   in the Data Mart", the same false accusation this parameter removes for formulas;
- * - QUIET — nothing rewrites a `{{ref}}` tag when a column is RENAMED, so an existing formula still
- *   naming the old spelling resolves cleanly here against the persisted probe, and the save then
- *   refuses it. That is the live-versus-save disagreement this endpoint exists to prevent, arriving
- *   from the side where nobody is warned.
- *
- * Closing it needs the draft's whole field TREE on the wire (nested records included, or every
- * `payload.child` reference becomes the false accusation instead), which is a wider contract than
- * this one and is left deliberately unbuilt.
- *
- * A caller that reports no draft at all falls back to the persisted formulas — see the command's
- * own note on why empty and absent must mean the same thing.
- *
- * Deep-cloned because `validate` REWRITES the formulas it accepts in place (canonical spelling).
- * Nothing here saves, and a `findOne` result is not change-tracked, so an un-cloned probe would
- * corrupt only the entity loaded for THIS request — but leaving a formula nobody submitted on it
- * is a trap for whatever reads that entity next.
+ * Deep-cloned because `validate` REWRITES the formulas it accepts in place. Nothing here saves, but
+ * leaving a formula nobody submitted on the loaded entity is a trap for whatever reads it next.
  */
 function buildProbeSchema(
   persisted: DataMartSchema | undefined,

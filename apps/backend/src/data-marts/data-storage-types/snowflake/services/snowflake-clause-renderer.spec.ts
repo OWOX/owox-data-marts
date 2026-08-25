@@ -187,7 +187,7 @@ describe('SnowflakeClauseRenderer', () => {
 
   // Snowflake normalizes every numeric spelling to three declared types upstream
   // (parseSnowflakeFieldType), so this map has three entries — but NUMERIC still has to state its
-  // scale: bare NUMBER is (38,0) here, and a cast to it truncates every fraction (#6732, D19).
+  // scale: bare NUMBER is (38,0) here, and a cast to it truncates every fraction.
   describe('castTypeForDeclaredType (declared Snowflake type → cast target)', () => {
     it('maps every numeric declared type, giving the exact type an explicit scale', () => {
       expect(r.castTypeForDeclaredType('INTEGER')).toBe('INTEGER');
@@ -206,11 +206,11 @@ describe('SnowflakeClauseRenderer', () => {
     });
   });
 
-  // #6732 D23/D25. This dialect already answered the probe's `> 5` correctly — it coerces the text
+  // This dialect already answered the probe's `> 5` correctly — it coerces the text
   // to a number — so the whole point here is the NO-OP: 10 live cells must not move. What changes
   // is that the declaration is now stated rather than inferred, which is what makes the same
   // formula answer identically on Redshift.
-  describe('a Calculated Field comparison imposes the declared type (#6732, D23/D25)', () => {
+  describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT("n_prefix", "n_suffix")';
     const numericText: CalculatedMetricPlan = {
       outputName: 'probe',
@@ -260,7 +260,7 @@ describe('SnowflakeClauseRenderer', () => {
       );
     });
 
-    // D19b: `CAST(x AS INTEGER)` resolves to NUMBER(38,0) here, so casting an integer declaration
+    // `CAST(x AS INTEGER)` resolves to NUMBER(38,0) here, so casting an integer declaration
     // would round every value the report compares.
     it('never casts an INTEGER declaration, though the mapping states a target for it', () => {
       expect(r.castTypeForDeclaredType('INTEGER')).toBe('INTEGER');
@@ -279,7 +279,7 @@ describe('SnowflakeClauseRenderer', () => {
 
     // A DATE declaration takes this dialect's DATE-literal cast — the one an ordinary DATE column
     // has always had and which a calculated field NEVER REACHED before, because the type resolver
-    // answered `undefined` for it (#6732, D25). It gains no numeric target: D24 ships date ranges
+    // answered `undefined` for it. It gains no numeric target: dates ship
     // as measured, and this is the dialect the cast reads MDY on, so a second one is not a fix.
     //
     // This is the SILENT one of the four dialects the change moves. Before, `(CONCAT(…)) >= '…'`
@@ -309,7 +309,7 @@ describe('SnowflakeClauseRenderer', () => {
       }
     });
 
-    // The imposition is a COMPARISON's (D23), and the operator decides. Casting an `IS NULL` would
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
     // make ONE unparseable row fail the WHOLE query where it used to return rows — a new failure
     // mode, on a predicate that never reads a value — and a numeric target inside CONTAINS buys
     // nothing at all.

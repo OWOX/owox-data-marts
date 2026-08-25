@@ -248,7 +248,7 @@ describe('LookerStudioAggregationMapperService', () => {
   // is also how a plain native column arrives — and that branch answers METRIC + defaultAggregation
   // SUM + isReaggregatable true. Applied to `SUM(clicks) / NULLIF(SUM(impressions), 0)` that tells
   // Looker to sum a ratio: the non-additive roll-up this whole feature exists to remove.
-  describe("level 'metric' (spec §8 — copies COUNT_DISTINCT semantics)", () => {
+  describe("level 'metric' (copies COUNT_DISTINCT semantics)", () => {
     it('NUMBER -> METRIC, not re-aggregatable, NO default aggregation', () => {
       const result = service.mapAggregateFunctionToLookerType(
         undefined,
@@ -270,7 +270,7 @@ describe('LookerStudioAggregationMapperService', () => {
       ).toEqual(service.mapAggregateFunctionToLookerType('COUNT_DISTINCT', FieldDataType.NUMBER));
     });
 
-    // The declared type is the analyst's own choice (spec §2.1); an aggregating field must not
+    // The declared type is the analyst's own choice; an aggregating field must not
     // become a groupable DIMENSION because its declared type name maps to a non-NUMBER Looker type.
     it('stays a non-re-aggregatable METRIC for a non-NUMBER declared type', () => {
       const result = service.mapAggregateFunctionToLookerType(
@@ -290,11 +290,11 @@ describe('LookerStudioAggregationMapperService', () => {
     });
   });
 
-  // A ROW-LEVEL formula is a dimension (spec §2.1, §4.5): the SQL always makes it a GROUP BY key,
+  // A ROW-LEVEL formula is a dimension: the SQL always makes it a GROUP BY key,
   // so it arrives in Looker under Dimensions — which is what `.changeset/6732-calculated-metrics.md`
   // and the setup guide both promise. The level has to ARRIVE here for that: deriving it from
   // `dataType` is what the METRIC branch above deliberately refuses to do, and the declared type is
-  // the analyst's own free choice (decision D3), so it cannot stand in for the level.
+  // the analyst's own free choice, so it cannot stand in for the level.
   describe("level 'column' (row-level — a DIMENSION whatever its declared type)", () => {
     it('STRING -> DIMENSION, not the METRIC an aggregating formula gets', () => {
       const result = service.mapAggregateFunctionToLookerType(
@@ -328,7 +328,7 @@ describe('LookerStudioAggregationMapperService', () => {
       );
     });
 
-    // The declared type is the analyst's free choice (decision D3), so the answer must not vary
+    // The declared type is the analyst's free choice, so the answer must not vary
     // with it — a type-keyed reading is the one "fix" that would pass the two tests above while
     // still handing Looker a summable metric for, say, a FLOAT-declared row-level field.
     it('answers DIMENSION for every declared type alike', () => {
@@ -340,13 +340,13 @@ describe('LookerStudioAggregationMapperService', () => {
     });
   });
 
-  // The arm above premises decision D2 — "a row-level field has no report aggregation of its own,
-  // so being a grouping key is its only shape". Slice 3 falsifies that premise: a report may apply
-  // one, and the field then STOPS being a grouping key (spec §2.1). The SQL emits
+  // The arm above premises "a row-level field has no report aggregation of its own, so being a
+  // grouping key is its only shape". That premise is false: a report may apply
+  // one, and the field then STOPS being a grouping key. The SQL emits
   // `COUNT(DISTINCT (<expr>)) AS "session_key | COUNTUNIQUE"` and the header carries that function,
   // so leaving it a DIMENSION files a count under Looker's Dimensions — a number the analyst cannot
   // plot, on a column the warehouse already aggregated.
-  describe("level 'column' WITH a report aggregate function (slice 3 — the report aggregates it)", () => {
+  describe("level 'column' WITH a report aggregate function (the report aggregates it)", () => {
     // Not "METRIC because COUNT_DISTINCT", stated as a constant: once the report aggregates it, it
     // IS an ordinary aggregated column, so it must answer identically to one — including the
     // functions whose answer is DIMENSION (STRING_AGG, ANY_VALUE) and the type-gated ones.

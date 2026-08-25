@@ -48,7 +48,7 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
   // a bare DECIMAL is (10,0) here and would truncate every fraction, and Spark's FLOAT is 32-bit —
   // `12.75` was measured through DOUBLE, and a formula returning a double today would silently
   // round to ~7 significant digits under a FLOAT target. A cast may widen a declared float; it must
-  // never narrow one (#6732).
+  // never narrow one.
   private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
     [DatabricksFieldType.TINYINT, 'TINYINT'],
     [DatabricksFieldType.SMALLINT, 'SMALLINT'],
@@ -74,7 +74,7 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  // `valueCastType` is the declared type a Calculated Field's comparison imposes (#6732, D25) —
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
   // disjoint from the date set above, since it is only ever a numeric target.
   private litCast(
     value: string | number | boolean | null,

@@ -38,7 +38,7 @@ export function buildSourceLabelIndex(
  * path, so the name is the only thing telling one from the next. That is also why joined entries
  * are skipped rather than merely ignored later — a joined name is DOTTED, so `orders.amount` from
  * a joined source would answer for an own struct field spelled the same way. No producer emits a
- * joined entry carrying `calculated` today (`buildJoinedReferenceIndex` skips them outright, D12);
+ * joined entry carrying `calculated` today (`buildJoinedReferenceIndex` skips them outright);
  * this is what keeps that from becoming a wrong answer if one ever does.
  */
 export function buildCalculatedFieldIndex(

@@ -8,11 +8,9 @@ import { DRAFT_FORMULA_MAX_LENGTH, selectDraftCalculatedFields } from './draft-c
 /**
  * How long the analyst has to stop typing before the formula is sent for checking.
  *
- * Not a free parameter: the backend check reads this Data Mart's blendable schema whenever ANY of
- * its calculated fields carries a live joined reference — including one belonging to another row —
- * so a request per keystroke would be a join-tree read per keystroke. 200 ms is short enough to
- * feel immediate and long enough that a burst of typing coalesces into ONE request. This debounce
- * is the only trigger; nothing else may call the endpoint on a shorter path.
+ * Not a free parameter: the backend check reads this Data Mart's blendable schema whenever any of
+ * its calculated fields carries a live joined reference, so a request per keystroke is a join-tree
+ * read per keystroke. This debounce is the only trigger.
  */
 export const FORMULA_DIAGNOSTICS_DEBOUNCE_MS = 200;
 
@@ -22,23 +20,17 @@ export interface FormulaDiagnostics {
   /** Non-blocking advisories, e.g. an unguarded division. */
   warnings: readonly FormulaViolationDto[];
   /**
-   * Violations this edit would cause in ANOTHER calculated field — converting a column into a
-   * metric breaks whatever already referenced it. Nothing about the formula on screen is wrong, so
-   * these never mark it up; they say what the save would break. Empty until the endpoint sends the
-   * bucket (see `ValidateFormulaResponseDto.otherFieldErrors`).
+   * Violations this edit would cause in ANOTHER calculated field. Nothing about the formula on
+   * screen is wrong, so these never mark it up — they say what the save would break.
    */
   otherFieldErrors: readonly FormulaViolationDto[];
   /** A check is scheduled or in flight, so what is on screen may be about an older formula. */
   isChecking: boolean;
   /**
-   * The verdict above describes a DIFFERENT formula from the one currently being asked about — the
-   * analyst has edited since it was given.
-   *
-   * The verdict is deliberately kept on screen while the next one is fetched (blanking it on every
-   * keystroke makes the panel flicker through a whole edit), and this is what says so. It matters
-   * most for the editor markers: a squiggle re-anchored onto the very token the analyst just fixed
-   * reads as a fresh accusation, so markers are dropped while this holds and only the text stays,
-   * dimmed.
+   * The verdict above describes a DIFFERENT formula from the one being asked about — the analyst
+   * has edited since it was given. It is kept on screen while the next one is fetched, since
+   * blanking it every keystroke makes the panel flicker, but MARKERS are dropped: a squiggle
+   * re-anchored onto the token the analyst just fixed reads as a fresh accusation.
    */
   isStale: boolean;
 }
@@ -52,15 +44,12 @@ export interface UseFormulaDiagnosticsOptions {
   /** The formula in STORED form (`{{ref}}` tags) — what the endpoint takes, not the typed text. */
   formula: string;
   /**
-   * Every calculated field the schema editor is holding (`draft-calculated-fields.ts`). Without it
-   * the endpoint resolves a sibling reference against the schema on DISK, and a metric added in
-   * this session comes back as "no longer exists in the Data Mart" — about a reference the save
-   * then accepts.
+   * Every calculated field the schema editor is holding. Without it the endpoint resolves a sibling
+   * reference against the schema on DISK, and a metric added in this session comes back as "no
+   * longer exists in the Data Mart" — about a reference the save then accepts.
    *
-   * Deliberately NOT an effect dependency: it is an array, so a fresh identity every render would
-   * turn a debounce that exists to coalesce typing into a request per render. It is read when a
-   * request is actually built, which is a keystroke apart from any change to it — and the popover
-   * that owns this hook is the only editor open, so the set cannot change underneath it anyway.
+   * NOT an effect dependency: a fresh array identity every render would turn a debounce meant to
+   * coalesce typing into a request per render. Read when a request is built instead.
    */
   calculatedFields?: readonly DraftCalculatedFieldDto[];
   /** Off entirely when false — no timer, no request. Defaults to on. */
@@ -81,27 +70,19 @@ const NO_VERDICT: Verdict = { errors: [], warnings: [], otherFieldErrors: [], fo
 /**
  * How many consecutive 4xx answers one open editor tolerates before it stops asking.
  *
- * A 4xx says the REQUEST is unacceptable — an unknown field type, a formula past the endpoint's
- * length bound, a Data Mart this session may not read. None of those fix themselves while the
- * analyst keeps typing, so without a brake each keystroke buys another guaranteed failure. Kept
- * per open popover (not module-wide): closing and reopening the editor is a deliberate gesture and
- * gets a fresh start, and a 4xx on one metric must not silence another. Server and network
- * failures do NOT count — those are transient and worth retrying.
+ * A 4xx says the REQUEST is unacceptable, and none of those causes fix themselves while the analyst
+ * keeps typing. Kept per open popover rather than module-wide, so reopening the editor gets a fresh
+ * start and a 4xx on one metric does not silence another. Server and network failures do NOT count.
  */
 const CONSECUTIVE_CLIENT_ERROR_LIMIT = 3;
 
 /**
  * Whether this session has been told it may not ask at all.
  *
- * A view-only session is a TOKEN claim, orthogonal to role: it can carry `editor` and still be
- * refused every state-changing request by the IDP guard — and this check is a POST, so it is
- * refused. Nothing about that is a fact about the formula, and retrying it every 200 ms for the
- * rest of the session is a request per keystroke that can only ever fail. Module scope on purpose:
- * the answer belongs to the session, not to one open editor, so reopening the popover or editing a
- * different metric must not start the useless traffic again. Cleared only by a reload.
- *
- * The code is the literal `useCalculatedFieldSave.ts` already matches on — `@owox/idp-protocol`,
- * which declares it, is not a dependency of the web app.
+ * A view-only session is a TOKEN claim orthogonal to role: it can carry `editor` and still have
+ * every state-changing request refused, and this check is a POST. Module scope on purpose — the
+ * answer belongs to the session, so reopening the popover must not restart the useless traffic.
+ * Cleared only by a reload.
  */
 let sessionRefused = false;
 
@@ -122,17 +103,14 @@ function isClientError(error: unknown): boolean {
 
 /**
  * What the backend thinks of the formula the analyst is typing, asked without saving anything and
- * without touching the warehouse (`POST /data-marts/:id/schema/validate-formula`).
+ * without touching the warehouse.
  *
- * This channel is HELP, never a gate. Its answer is asynchronous, so gating Apply on it would race
- * a stale verdict — edit, press Apply before the response lands, and the button would be reflecting
- * the previous formula. The synchronous local name check keeps that job, and the save path runs
- * these same rules again and refuses when it must.
+ * HELP, never a gate: the answer is asynchronous, so gating Apply on it would race a stale verdict.
+ * The synchronous local name check keeps that job, and the save runs these same rules again.
  *
- * Ordering is enforced by the effect's own cleanup rather than by comparing sequence numbers: React
- * runs the cleanup of the previous effect before the next one, so a response that arrives after the
- * formula changed finds its `superseded` flag already set and returns without touching state. The
- * AbortController on top of it means the superseded request is not merely ignored but cancelled.
+ * Ordering comes from the effect's own cleanup rather than sequence numbers — React runs the
+ * previous cleanup first, so a late response finds `superseded` already set. The AbortController
+ * on top means the superseded request is cancelled, not merely ignored.
  */
 export function useFormulaDiagnostics({
   dataMartId,

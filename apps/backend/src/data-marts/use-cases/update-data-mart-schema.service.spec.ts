@@ -201,7 +201,7 @@ describe('UpdateDataMartSchemaService', () => {
     );
   });
 
-  describe('warehouse dry-run context (Task 10)', () => {
+  describe('warehouse dry-run context', () => {
     const calculatedFieldSchema = {
       type: 'bigquery-data-mart-schema',
       fields: [

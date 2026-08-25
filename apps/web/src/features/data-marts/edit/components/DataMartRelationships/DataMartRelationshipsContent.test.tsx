@@ -285,7 +285,7 @@ describe('DataMartRelationshipsContent toolbar filters', () => {
   });
 });
 
-describe('DataMartRelationshipsContent blendable schema (#6732)', () => {
+describe('DataMartRelationshipsContent blendable schema', () => {
   it('refetches on an invalidation of the shared key, which is what every mutation path fires', async () => {
     // This card used to refetch from an effect keyed on its relationship list; it now reads the
     // shared query the schema editor's formula autocomplete reads too, so the refresh comes from

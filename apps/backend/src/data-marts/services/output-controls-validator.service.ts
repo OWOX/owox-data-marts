@@ -108,14 +108,11 @@ export type ValidationError =
   | { code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED'; column: string }
   | { code: 'DATE_TRUNC_INVALID_TIMEZONE'; column: string; timeZone: string }
   | { code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP'; column: string; type: string }
-  // A date bucket on a CALCULATED field carries a time zone (#6732 §6.1). The bucket itself stays;
-  // only this leg goes, and on all five storages rather than per dialect. Measured on Snowflake
-  // 2026-08-24: a TIMESTAMP-declared row-level formula over the string '05/08/2026', bucketed by
-  // MONTH in `America/New_York`, returned `2026-05-01T04:00:00Z` — the 8th of May where the formula
-  // means the 5th of August. One row, no error, no NULL. The zone is the door: `CONVERT_TIMEZONE`
-  // is the only string shape Snowflake returns a value for instead of refusing, and it is the
-  // coercion that parses the string — MDY, under a session default rather than anything in the
-  // data. A cast is not the remedy: §1.2 measured the same wrong date from one on Redshift.
+  // A date bucket on a CALCULATED field may not carry a time zone; the bucket itself stays.
+  // Measured on Snowflake: a TIMESTAMP-declared formula over the string '05/08/2026', bucketed by
+  // MONTH in `America/New_York`, returned the 8th of May where the formula means the 5th of August
+  // — one row, no error, no NULL. `CONVERT_TIMEZONE` is the only string shape Snowflake returns a
+  // value for instead of refusing, and it parses the string as MDY under a session default.
   | { code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD'; column: string; timeZone: string }
   | { code: 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY'; message: string }
   // A HAVING filter (rule carries `function`) must target a configured aggregation —
@@ -124,7 +121,7 @@ export type ValidationError =
   // A HAVING filter is inherently post-aggregation and cannot be pushed pre-join: the blended
   // builder routes a pre-join rule to a CTE where such rules are dropped, so the constraint would
   // apply NOWHERE. `function` is absent for the one HAVING shape that carries none — an
-  // AGGREGATE-level Calculated Field's rule, whose clause comes off its LEVEL (#6732, D21).
+  // AGGREGATE-level Calculated Field's rule, whose clause comes off its LEVEL.
   | { code: 'HAVING_FILTER_INVALID_PLACEMENT'; column: string; function?: string }
   // a joined (blended) COUNT_DISTINCT/SUM/AVG (SLEEVE_ROUTED_FUNCTIONS) is rendered in
   // SELECT via a "sleeve" CTE (the report-dimension-grain computation that avoids join-fanout
@@ -183,9 +180,9 @@ export type ValidationError =
   // Duplicate alias error on BigQuery / silent clobber on name-keyed readers. `label` is the
   // colliding output name.
   | { code: 'OUTPUT_COLUMN_NAME_COLLISION'; label: string }
-  // An aggregation applied to an AGGREGATE-level calculated field, which IS an aggregate already
-  // (spec §2.3). Only that level: slice 3 built the substitution-into-the-aggregate mechanism, so
-  // a rule on a ROW-LEVEL field is no longer an error at all. `level` therefore always reads
+  // An aggregation applied to an AGGREGATE-level calculated field, which IS an aggregate already.
+  // Only that level: with substitution into the aggregate in place, a rule on a ROW-LEVEL
+  // field is no longer an error at all. `level` therefore always reads
   // 'metric' here now, and is kept because it is what makes that fact visible on the wire.
   | {
       code: 'AGGREGATION_ON_CALCULATED_METRIC';
@@ -193,13 +190,9 @@ export type ValidationError =
       message: string;
       level: CalculatedFieldLevel;
     }
-  // A calculated field named by a dateTrunc rule — the one shape that explicitly asks to group
-  // BY it. An aggregate-level one is never a dimension at all: `excludeCalculatedMetricNames`
-  // keeps it out of the plain GROUP BY inference regardless of what else in the report is
-  // aggregated (spec §2.3). Only that level, exactly as the sibling above: slice 3b built the
-  // bucketing, so a rule on a ROW-LEVEL field is no longer an error here at all — it is checked
-  // against its DECLARED type by `validateDateTruncs`, like any column. `level` therefore always
-  // reads 'metric' here now, and is kept because it is what makes that fact visible on the wire.
+  // An AGGREGATE-level field named by a dateTrunc rule. A row-level one is not an error here: it
+  // is checked against its DECLARED type by `validateDateTruncs`, like any column. `level`
+  // therefore always reads 'metric', and is kept because it makes that visible on the wire.
   | {
       code: 'CALCULATED_METRIC_AS_DIMENSION';
       column: string;
@@ -208,10 +201,10 @@ export type ValidationError =
     }
   // A calculated metric selected/filtered/sorted by this composition references a schema field
   // that no longer resolves (see `brokenReferencesOf`) — fails the query explicitly rather than
-  // returning NULL (spec §7).
+  // returning NULL.
   | { code: 'CALCULATED_METRIC_BROKEN_REFERENCES'; column: string; message: string }
   // A filter names an AGGREGATE-level Calculated Field whose formula aggregates a JOINED Data
-  // Mart (#6732, D22). Exactly its ordinary-metric twin above, one shape further out: that
+  // Mart. Exactly its ordinary-metric twin above, one shape further out: that
   // aggregate is lifted into a metric sleeve — recomputed at the report's grain from the raw,
   // pre-dedup path — while the predicate would be rendered from the dedup CTE, so it would filter
   // on a different value than the SELECT prints. Not expressible through the twin: the twin is
@@ -270,7 +263,7 @@ export class OutputControlsValidatorService {
     for (const rule of filters) {
       // Post-aggregation rules are HAVING — validated by validateHavingFilters against the
       // aggregate's effective type, not here. Which clause a rule belongs in is the verdict it
-      // CARRIES (#6732, D21), never `rule.function`: an AGGREGATE-level Calculated Field's rule
+      // CARRIES, never `rule.function`: an AGGREGATE-level Calculated Field's rule
       // carries no function and never can, and type-checked here it would be read as a WHERE.
       if (isHavingFilterRule(rule)) continue;
       if (rule.placement === 'pre-join') {
@@ -305,23 +298,13 @@ export class OutputControlsValidatorService {
   }
 
   /**
-   * Validates HAVING (post-aggregation) filters — rules carrying a `function`. Each must
-   * reference a configured aggregation (the (column, function) pair must exist in
-   * aggregationConfig), and its operator is checked against the aggregate's EFFECTIVE
-   * result type (COUNT→integer, AVG/percentile→float, STRING_AGG→string), not the
-   * column's raw type — so `COUNT(name) > 5` is valid even though `name` is a string.
+   * Validates HAVING filters — rules carrying a `function`. Each must reference a configured
+   * aggregation, and its operator is checked against the aggregate's EFFECTIVE result type, not the
+   * column's raw type, so `COUNT(name) > 5` is valid even though `name` is a string.
    *
-   * `blendedFieldIndex` (the same index `validateFilters` uses to resolve pre-join slices)
-   * doubles as the "is this column blended?" lookup: a HAVING whose function is
-   * SLEEVE_ROUTED_FUNCTIONS (COUNT_DISTINCT, SUM, or AVG) AND whose column resolves in that
-   * index targets a joined field, which is rejected -- see sleeve gate.
-   *
-   * `blendedFieldIndex` is REQUIRED (no `= new Map` default, Mediums): a
-   * default silently disables the sleeve gate above for any caller that forgets to pass it,
-   * letting a HAVING on a joined COUNT_DISTINCT/SUM/AVG through to filter on the wrong
-   * (dedup-CTE) value with no error at all. Every real caller already has the index
-   * (`validateForReport` builds it via `buildBlendedFieldIndex`) — pass an empty `Map()`
-   * explicitly for the "no blended fields" case instead of relying on a default.
+   * `blendedFieldIndex` is REQUIRED with no default: a default would silently disable the sleeve
+   * gate below for any caller that forgets it, letting a HAVING on a joined COUNT_DISTINCT/SUM/AVG
+   * filter on the wrong value with no error. Pass an empty `Map()` for the no-blended-fields case.
    */
   validateHavingFilters(
     filters: FilterRule[],
@@ -333,7 +316,7 @@ export class OutputControlsValidatorService {
     const errors: ValidationError[] = [];
     const aggregatedPairs = new Set(aggregations.map(a => `${a.column}\u241F${a.function}`));
     for (const rule of filters) {
-      // The clause is the verdict the rule CARRIES (#6732, D21). A rule that lands here with NO
+      // The clause is the verdict the rule CARRIES. A rule that lands here with NO
       // function is an AGGREGATE-level Calculated Field's: its formula is already an aggregate,
       // so it has no `(column, function)` pair to demand and no aggregate function to widen a type
       // through. Every check below that reads `rule.function` is guarded on it for that reason,
@@ -364,16 +347,11 @@ export class OutputControlsValidatorService {
         });
         continue;
       }
-      // a joined (blended) COUNT_DISTINCT/SUM/AVG is rendered in SELECT via a "sleeve"
-      // CTE computed at the report's dimension grain, to avoid the over/under-counting a plain
-      // dedup-then-re-aggregate produces across a join fan-out (see collectSleeveMetrics /
-      // SLEEVE_ROUTED_FUNCTIONS (blending/metric-sleeve.planner.ts), which this gate MUST stay
-      // in lockstep with). HAVING is NOT (yet) routed through that sleeve -- it re-derives its
-      // aggregate expression from the dedup CTE, i.e. the OLD, wrong value (see
-      // the builder throws for it too). Reject outright rather than
-      // silently filtering on a value that doesn't match what SELECT displays. A MAIN (native)
-      // column, or a joined MIN/MAX/COUNT (not sleeve-routed), is unaffected -- only fires when
-      // both the function is sleeve-routed AND the column resolves as blended.
+      // A joined COUNT_DISTINCT/SUM/AVG is rendered in SELECT via a sleeve CTE at the report's
+      // dimension grain, but HAVING is not routed through that sleeve — it re-derives its aggregate
+      // from the dedup CTE, i.e. the wrong value. Rejected outright rather than silently filtering
+      // on a value that does not match what SELECT displays. Must stay in lockstep with
+      // SLEEVE_ROUTED_FUNCTIONS in blending/metric-sleeve.planner.ts.
       if (
         rule.function &&
         SLEEVE_ROUTED_FUNCTIONS.has(rule.function) &&
@@ -398,7 +376,7 @@ export class OutputControlsValidatorService {
         continue;
       }
       // No function to widen through: an aggregate-level Calculated Field's predicate compares the
-      // formula itself, so its DECLARED type (D3) is already the effective one.
+      // formula itself, so its DECLARED type is already the effective one.
       const effectiveType = rule.function
         ? computeEffectiveType(rawType as StorageFieldType, rule.function, storageType)
         : rawType;
@@ -535,7 +513,7 @@ export class OutputControlsValidatorService {
     selectedColumns: ReadonlySet<string>,
     resolveType: (column: string) => string | undefined,
     aggregatedColumns: ReadonlySet<string>,
-    /** The mart's own calculated fields, which are refused the time-zone leg alone (#6732 §6.1). */
+    /** The mart's own calculated fields, which are refused the time-zone leg alone. */
     calculatedColumns: ReadonlySet<string> = new Set()
   ): ValidationError[] {
     const errors: ValidationError[] = [];
@@ -565,7 +543,7 @@ export class OutputControlsValidatorService {
         errors.push({ code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: rule.column, type });
         continue;
       }
-      // #6732 §6.1 — the ONE shape D16's no-cast rendering can still be silently wrong in.
+      // The ONE shape the no-cast rendering can still be silently wrong in.
       // `continue` rather than fall through: every remaining check is about the same time zone,
       // and a second verdict on a value that has to go regardless only buries the fix.
       if (rule.timeZone !== undefined && calculatedColumns.has(rule.column)) {
@@ -605,15 +583,10 @@ export class OutputControlsValidatorService {
   }
 
   /**
-   * Validates that every PROJECTED output column resolves to a unique name. The projected
-   * set mirrors `resolveReportDataHeaders` / `renderAggregatedSelect`: an aggregated column
-   * projects one `aggregatedColumnLabel(col, fn)` per function (and NO dimension), a
-   * non-aggregated column projects its own name (date-trunc keeps the name), plus the
-   * synthetic `Unique Count` (when uniqueCount) and one
-   * `<source>__unique_count` per joined source. A real
-   * column whose name equals a synthetic label — or any two projected names that coincide —
-   * is a duplicate alias on BigQuery / silent clobber on name-keyed readers. Uses the SAME
-   * label helpers the renderer/header-generator use so this can never drift from the SELECT.
+   * Validates that every PROJECTED output column resolves to a unique name. A real column whose
+   * name equals a synthetic label — or any two projected names that coincide — is a duplicate alias
+   * on BigQuery and a silent clobber on name-keyed readers. Uses the SAME label helpers the
+   * renderer and header generator use, so it cannot drift from the SELECT.
    */
   validateOutputColumnNames(
     projectedColumns: readonly string[],
@@ -637,18 +610,12 @@ export class OutputControlsValidatorService {
     const seen = new Set<string>();
     const reported = new Set<string>();
     for (const name of names) {
-      // Compared case-INSENSITIVELY: two output names differing only in case are not two
-      // columns on most warehouses. Only Snowflake quotes every identifier; the other dialects
-      // leave a safe one unquoted, and the engine then folds it (Athena, Redshift) or resolves
-      // it case-insensitively (Spark) — the query projects both under one name, a metric
-      // sleeve's join back on them is ambiguous, and a reader binding by name cannot tell them
-      // apart. Applied to every storage rather than only the folding ones: the alternative is a
-      // report that works on one warehouse and fails on the next.
-      // Also cut to the tightest warehouse identifier limit before comparing. Redshift TRUNCATES
-      // an over-long alias instead of rejecting it, so two long columns sharing a prefix come back
-      // as ONE result column — and since the reader now binds by NAME it refuses the read rather
-      // than mis-assigning values. Catching it here turns that 500 into a 400 that names the
-      // column, on every warehouse, so the same report does not depend on which one runs it.
+      // Compared case-INSENSITIVELY, on every storage rather than only the folding ones: Athena and
+      // Redshift fold an unquoted identifier and Spark resolves case-insensitively, so the query
+      // projects both under one name and a reader binding by name cannot tell them apart.
+      //
+      // Cut to the tightest identifier limit first: Redshift TRUNCATES an over-long alias instead
+      // of rejecting it, so two long columns sharing a prefix come back as ONE result column.
       const key = truncateIdentifierToByteLimit(name).toLowerCase();
       if (seen.has(key) && !reported.has(key)) {
         errors.push({ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: name });
@@ -672,29 +639,17 @@ export class OutputControlsValidatorService {
     uniqueCountConfig?: UniqueCountConfig;
     accessor: BlendableSchemaAccessor;
     /**
-     * The Data Mart's OWN schema fields, exactly as stored (`dataMart.schema?.fields`) — NOT the
-     * reporting-filtered `nativeFields` of the blendable schema. Two jobs:
+     * The Data Mart's OWN schema fields, NOT the reporting-filtered `nativeFields` of the blendable
+     * schema. Two jobs: answering "could this report carry a calculated metric at all?" without a
+     * schema fetch, and being the list a formula's references resolve against.
      *
-     * 1. It answers "could this report carry a calculated metric at all?" without a schema fetch.
-     *    Inferring that from `columnConfig` alone made EVERY projecting report resolve the
-     *    blendable schema — a mart fetch plus every relationship for the storage plus a recursive
-     *    joined-mart walk — and made a plain report fail to save whenever some unrelated
-     *    relationship pointed at a soft-deleted mart.
-     * 2. It is the list a formula's references are resolved against. `nativeFields` has had
-     *    `isHiddenForReporting` fields stripped, and a hidden field is still legal inside a
-     *    formula (spec §7 — hidden takes a column off the reporting menu, it does not remove it
-     *    from the source, and computing is not projecting). Resolving against the filtered list
-     *    reports a metric over a hidden column as broken on every read.
+     * `nativeFields` has had `isHiddenForReporting` fields stripped, and a hidden field is still
+     * legal inside a formula — resolving against the filtered list reports every metric over a
+     * hidden column as broken, on every read. It is also the list `compose` reads its metrics from.
      *
-     * It is also the exact list `ReportSqlComposerService.compose` reads its metrics from, so the
-     * two cannot disagree about which fields are metrics.
-     *
-     * REQUIRED, not optional — deliberately, even though the VALUE may be `undefined`. Dropping
-     * the property silently flipped the metric guards over to `blendableSchema.nativeFields`
-     * (job 2 above), which is the regression that reported every metric over a hidden column as
-     * broken on every read. As a required property, deleting the line is a build error instead.
-     * `undefined` now means one thing only: this Data Mart has NO schema yet — so it has no
-     * calculated field either, and the cheap path is the correct answer, not a guess.
+     * REQUIRED even though the value may be `undefined`, so that dropping the property is a build
+     * error rather than a silent fall back to `nativeFields`. `undefined` means the Data Mart has
+     * no schema, and therefore no calculated field either.
      */
     dataMartSchemaFields: DataMartSchema['fields'] | undefined;
     // Reuse an already-resolved schema (e.g. the totals path) instead of recomputing it.
@@ -726,35 +681,18 @@ export class OutputControlsValidatorService {
         column => column.endsWith(JOINED_UNIQUE_COUNT_NAME_SUFFIX) || column === UNIQUE_COUNT_LABEL
       ) && this.capabilityService.isSupported(args.storageType);
 
-    // A calculated metric's name carries no cheap marker the way Unique Count's fixed suffix
-    // does, so whether a bare projection carries one is answered by the Data Mart's own schema
-    // fields — which every caller already holds — and NOT by "it projects something, so it might".
-    // That reading was true of every report with a projection, on every storage, and it dragged
-    // three costs onto reports that have no formula anywhere near them: a blendable-schema
-    // resolution where there was none, a save failure whenever an unrelated relationship targeted
-    // a soft-deleted Data Mart, and the loss of the projection-only output-name collision check.
-    // Gated on capability too — the same gate `compose()` applies before it will render a metric.
-    //
-    // This is the composition-time chokepoint spec §6.3 (decision 10) requires on every composing
-    // surface, and it is NOT redundant with save-time formula validation:
-    // `ActualizeDataMartSchemaService` writes `dataMart.schema` after every warehouse
-    // actualization without running `CalculatedFieldValidatorService` (that validator is wired
-    // only into `update-data-mart-schema.service.ts`, the analyst-facing save path), and the
-    // schema mergers carry a calculated field through untouched on every merge — so a formula can
-    // silently outlive a column it depends on. Without this, the first sign of trouble would be a
-    // warehouse error on a scheduled run of an already-saved report — see `brokenReferencesOf`.
+    // Whether a bare projection carries a calculated metric is answered from the Data Mart's own
+    // schema fields, which every caller already holds. Inferring it from "it projects something, so
+    // it might" was true of every report with a projection and made each one resolve a blendable
+    // schema it did not need.
     //
     // Narrowed to THIS report's own selection, not to "the mart owns one somewhere": every guard
-    // inside the heavy path that a bare projection can trip (the broken-reference check, the
-    // blended refusal) keys off a SELECTED metric, and the ones that key off a filter, a sort, an
-    // aggregation or a date bucket are already covered by `hasOutputControls` above. Left
-    // mart-wide, one calculated field anywhere removed the early return from EVERY projecting
-    // report on that Data Mart — a blendable-schema resolution each, for a report that never
-    // mentions the formula.
+    // inside the heavy path that a bare projection can trip keys off a SELECTED metric, and the
+    // ones keying off a filter, sort, aggregation or bucket are covered by `hasOutputControls`.
     //
-    // A Data Mart with NO schema at all (`dataMartSchemaFields === undefined`) takes the cheap
-    // path too: it owns no calculated field, so there is no guard to skip. The parameter is
-    // required, so that is a fact about the mart rather than a caller's omission.
+    // Not redundant with save-time validation: `ActualizeDataMartSchemaService` writes
+    // `dataMart.schema` without running the validator, so a formula can silently outlive a column
+    // it depends on, and the first sign would be a warehouse error on a scheduled run.
     const selectedColumns = new Set(args.columnConfig ?? []);
     const mayCarryCalculatedMetric =
       hasColumnConfig &&
@@ -855,13 +793,13 @@ export class OutputControlsValidatorService {
     // Resolved against the Data Mart's OWN schema fields — see the `metricSchemaFields` note
     // inside the actualized branch below for why that list and not `blendableSchema.nativeFields`.
     //
-    // HOISTED out of `if (hasActualizedSchema)` deliberately (#6732, spec §7): the guards that
+    // HOISTED out of `if (hasActualizedSchema)` deliberately: the guards that
     // live in there skip EVERY calculated-field check for a Data Mart whose schema has not been
     // actualized yet, and a refusal about what a formula DOES needs no warehouse schema at all.
     const metricSchemaFields = args.dataMartSchemaFields ?? [];
     const calculated = new Map(calculatedFieldsOf(metricSchemaFields).map(f => [f.name, f]));
     // The clause each rule belongs in, decided once from the rule and the field's LEVEL and
-    // carried on the rule (#6732, D21) — the same seat the composer stamps with, so what this
+    // carried on the rule — the same seat the composer stamps with, so what this
     // validates and what the builder renders cannot disagree about which clause a predicate is in.
     const routedFilters = routeFilterClauses(parsedFilters, metricSchemaFields);
     // Columns whose filter rule is refused below, so no second verdict is stacked on them.
@@ -884,7 +822,7 @@ export class OutputControlsValidatorService {
         });
         continue;
       }
-      // D22. Built on the LEVEL plus what the formula READS, never on the column-plus-function
+      // Built on the LEVEL plus what the formula READS, never on the column-plus-function
       // key the ordinary-metric twin uses: this rule carries no function, so that key is blind
       // to it by construction.
       if (!readsJoinedDataMart(field)) continue;
@@ -901,16 +839,13 @@ export class OutputControlsValidatorService {
       });
     }
 
-    // The report asked for the whole native projection and then filtered on an aggregate-level
-    // Calculated Field. That filter alone flips the query to the aggregated shape, where only
-    // LISTED columns are projected — so the SELECT list came out empty and the whole projection
-    // was silently discarded, on top of the syntax error that produced. Refused here so the
-    // analyst is told which field forced it, rather than meeting it as a warehouse error on every
-    // run and every Generated-SQL preview.
+    // A filter on an aggregate-level Calculated Field flips the query to the aggregated shape,
+    // where only LISTED columns are projected — so a report that asked for the whole native
+    // projection comes out with an empty SELECT list. Refused here so the analyst is told which
+    // field forced it, rather than meeting it as a warehouse error on every run.
     //
-    // Row Count and a MAIN Unique Count are synthetic columns that project without a dimension,
-    // so a report carrying one is not empty and is left alone — the same carve-out
-    // AGGREGATION_REQUIRES_COLUMN_CONFIG makes.
+    // A MAIN Unique Count is a synthetic column that projects without a dimension, so a report
+    // carrying one is not empty and is left alone.
     if (
       !hasColumnConfig &&
       parsedAggregations.length === 0 &&
@@ -968,12 +903,9 @@ export class OutputControlsValidatorService {
           throwDisconnectedReportColumnsError(args.dataMartId, preJoinRefs);
         }
         // Output-name uniqueness is a property of the PROJECTION alone and needs no schema, so an
-        // unactualized Data Mart must not be the one way to persist a case-only duplicate. The
-        // projection-only early return above runs this check; a report that leaves that path (any
-        // output control, a projected Unique Count column, a calculated metric) used to lose it
-        // entirely whenever the schema had not been actualized yet. Same call shape as the
-        // actualized branch below, minus the Unique-Count column classification, which is exactly
-        // the part that needs a schema.
+        // unactualized Data Mart must not be the one way to persist a case-only duplicate. Same
+        // call shape as the actualized branch below, minus the Unique-Count classification, which
+        // is the only part that needs a schema.
         if (hasColumnConfig) {
           errors.push(
             ...this.validateOutputColumnNames(
@@ -1001,39 +933,18 @@ export class OutputControlsValidatorService {
           knownOutputColumns.add(blended.name);
         }
 
-        // Composition-time guards for a calculated metric — spec §6.3, decision 10. Run first,
-        // ahead of the ordinary filter/sort/aggregation checks below, so a metric that is misused
-        // or broken is reported as such rather than as a stale "column not selected" / "unknown
-        // column" message that sends the caller to repair a schema link that is not broken. Every
-        // real composing surface reaches this: `resolveBlendingDecision` calls `validateForReport`
-        // as its own single chokepoint (reports, MCP, and the HTTP Data ad-hoc endpoint alike), so
-        // a guard added here does not need repeating per surface.
+        // Run ahead of the ordinary filter/sort/aggregation checks, so a metric that is misused or
+        // broken is reported as such rather than as a stale "unknown column" that sends the caller
+        // to repair a schema link that is not broken.
         //
-        // Resolved against the Data Mart's OWN schema fields, not `blendableSchema.nativeFields`:
-        // that list has had `isHiddenForReporting` fields stripped, and a hidden field is legal
-        // inside a formula (spec §7 — hidden takes a column off the reporting menu, it does not
-        // remove it from the source, and computing is not projecting). Handing the filtered list
-        // to `brokenReferencesOf` — which is built on a traversal that deliberately KEEPS hidden
-        // fields — reported every metric over a hidden column as broken, on every report save,
-        // run, HTTP Data call and MCP query. It is also the list `compose()` reads its metrics
-        // from, so what this validates and what the composer renders cannot diverge.
-        //
-        // NOT `?? blendableSchema.nativeFields`: that fallback is the very substitution described
-        // above, one dropped argument away, and it is unnecessary — `dataMartSchemaFields` is a
-        // required property, so `undefined` means the Data Mart has no schema at all and therefore
-        // owns no calculated field either.
-        //
-        // `metricSchemaFields` and `calculated` are resolved ABOVE this branch, because the D22
-        // filter refusal needs them and must not inherit this branch's blind spot (see there).
+        // Resolved against the Data Mart's OWN schema fields, never `blendableSchema.nativeFields`
+        // — that list has hidden fields stripped, and a hidden field is legal inside a formula, so
+        // using it reports every metric over a hidden column as broken.
         if (calculated.size > 0) {
-          // An aggregate-level calculated field IS an aggregate (spec §2.3); wrapping it in
-          // another aggregation is the same class of error as aggregating an already-aggregated
-          // Unique Count. A ROW-LEVEL one is not refused at all since slice 3: the renderer
-          // substitutes its expression inside the aggregate, and the field stops being a grouping
-          // key. Nothing was ADDED to let it through — it simply stops being intercepted here and
-          // reaches `validateAggregations` like any column, where its DECLARED type (spec §2.1,
-          // D3) is in `homeFieldTypes` and `buildAggregationGovernance` has resolved an entry from
-          // it. That is the whole mechanism: a STRING-declared formula gets STRING's default menu.
+          // An aggregate-level field IS an aggregate; wrapping it in another one is the same error
+          // as aggregating an already-aggregated Unique Count. A ROW-LEVEL one is not refused —
+          // it reaches `validateAggregations` like any column, where its DECLARED type decides the
+          // menu.
           for (const rule of parsedAggregations) {
             const field = calculated.get(rule.column);
             if (!field) continue;
@@ -1047,27 +958,15 @@ export class OutputControlsValidatorService {
             });
           }
 
-          // NOT "a selected column with no aggregation of its own is a group-by key, therefore a
-          // metric among them is an error" — that premise is false for a calculated metric. Task 8
-          // projects it into SELECT and deliberately excludes it from GROUP BY (it already IS an
-          // aggregate, spec §2.3); `compose()`'s `excludeCalculatedMetricNames` keeps it out of the
-          // plain `columns` list reaching the query builder regardless of what else is aggregated,
-          // so a metric never becomes a dimension by omission. `country` + `SUM(clicks)` + `ctr` is
-          // exactly spec §5.2's own worked example and must validate cleanly (pinned below).
+          // A calculated metric among selected columns is NOT an error: it is projected into SELECT
+          // and excluded from GROUP BY, since it already IS an aggregate. The one shape that can
+          // explicitly ask to group BY one is a dateTrunc rule naming it, and only at
+          // AGGREGATE level.
           //
-          // The one shape where a caller CAN explicitly ask to group BY a metric: a dateTrunc rule
-          // naming it. AGGREGATE-LEVEL only, permanently — such a field is not a dimension at all.
-          //
-          // The row-level arm is GONE (slice 3b, D16). D10 held bucketing back because a
-          // mis-declared formula was expected to yield NULL on the coercing dialects — a silently
-          // empty column. The probe measured all 26 shapes on five warehouses and NO cell returned
-          // NULL: every dialect either truncates correctly or raises. A row-level formula is a
-          // dimension, so it is now bucketed exactly as a warehouse column of its declared type is,
-          // which means the generic type check below is the one that answers — a STRING-declared
-          // formula is refused in the same words a STRING column is. Nothing is CAST on the way
-          // there: the probe measured `CAST(<expr> AS DATE)` turning a loud Redshift refusal into
-          // `2026-05-01` for a value meaning the 5th of August, so a cast trades an error for a
-          // wrong month (§1.2).
+          // A ROW-LEVEL formula buckets like any column of its declared type, so the generic type
+          // check below is what answers. Nothing is CAST on the way there: `CAST(<expr> AS DATE)`
+          // was measured turning a loud Redshift refusal into `2026-05-01` for a value meaning the
+          // 5th of August.
           for (const rule of parsedDateTruncs) {
             const field = calculated.get(rule.column);
             if (!field) continue;
@@ -1082,7 +981,7 @@ export class OutputControlsValidatorService {
           }
 
           // A broken formula reference fails the query explicitly rather than returning NULL
-          // (spec §7) — see `brokenReferencesOf` for why this is not redundant with save-time
+          // — see `brokenReferencesOf` for why this is not redundant with save-time
           // validation. Only checked for a metric this composition actually USES (selects,
           // filters, or sorts by): an unrelated broken metric elsewhere in the schema is not this
           // report's problem.
@@ -1103,7 +1002,7 @@ export class OutputControlsValidatorService {
               ...brokenJoinedReferencesOf(field, joinedReferenceIndex),
             ];
             if (missing.length > 0) {
-              // NOT "gone from the Data Mart" any more (#6732): `brokenReferencesOf` is transitive,
+              // NOT "gone from the Data Mart" any more: `brokenReferencesOf` is transitive,
               // so what it reports can be a column another formula in the chain reads — or the name
               // of a calculated field that is right there in the schema and simply cannot be
               // computed, because ITS own formula is unparseable. Both are unusable; only one of
@@ -1122,21 +1021,18 @@ export class OutputControlsValidatorService {
           }
 
           // Filtering BY a calculated field used to be refused here, at both levels. It is not any
-          // more (#6732 spec §1.1): the published reason described an ALIAS, and a predicate's
+          // more: the published reason described an ALIAS, and a predicate's
           // left-hand side is already an opaque SQL string — the rule's LHS is the field's own
           // formula, measured compiling identically on all five storages. What remains of the
-          // refusal is D22's narrow case, raised ABOVE this branch so a non-actualized schema
+          // refusal is the narrow sleeve-routed case, raised ABOVE this branch so a non-actualized schema
           // cannot skip it, and the ordinary type check the rule now reaches like any column's.
         }
 
         // A JOINED Data Mart's calculated field is refused on every surface that can name one.
-        // Deliberately outside the `calculated.size > 0` block above: those guards are keyed on
-        // the MAIN mart's own fields, and a joined mart's formula is refused whether or not this
-        // Data Mart owns one of its own. The projection is checked here only opportunistically —
-        // this branch runs only where `needsSchema` already paid for a blendable schema, so a
-        // report that merely projects (with or without a `limit`, which is an output control but
-        // not a reason to resolve a schema) never reaches it. `BlendedReportDataService` refuses
-        // the projection unconditionally on the compose path, where it always holds one.
+        // Outside the `calculated.size > 0` block above, because those guards key on the MAIN
+        // mart's own fields and this refusal holds whether or not it owns one. The projection is
+        // only checked opportunistically here; `BlendedReportDataService` refuses it
+        // unconditionally on the compose path, where it always holds a blendable schema.
         const joinedCalculatedRefusals = joinedCalculatedFieldRefusals(
           blendableSchema.blendedFields,
           [
@@ -1153,14 +1049,9 @@ export class OutputControlsValidatorService {
           errors.push({ code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED', ...refusal });
         }
 
-        // Unique Count is always a KNOWN sort target (like a schema field) — whether it's
-        // currently SELECTED (projected) depends on uniqueCountConfig, checked below by
-        // validateSort. So a stale sort-by-Unique-Count left after disabling the toggle is
-        // classified SORT_COLUMN_NOT_SELECTED (a 400) rather than routed to the harsher
-        // DISCONNECTED_REPORT_COLUMNS path, which is reserved for names absent from the
-        // schema entirely. NOTE: this is a code-level classification only — the web renders
-        // just `message`, not `details.errors[].code`, so the two read the same to the user.
-        // The web prunes this rule when the PK disappears, keeping the 400 largely unreachable.
+        // Unique Count is always a KNOWN sort target, so a stale sort left after disabling the
+        // toggle is SORT_COLUMN_NOT_SELECTED rather than the harsher DISCONNECTED_REPORT_COLUMNS,
+        // which is reserved for names absent from the schema entirely.
         const uniqueCountOutputColumns = new Set<string>([UNIQUE_COUNT_LABEL]);
         // Same rule per joined source, keyed off the SCHEMA rather than the config for exactly the
         // reason above: unticking a source must leave its stale sort on the 400, not on the
@@ -1194,7 +1085,7 @@ export class OutputControlsValidatorService {
             message: `"${rule.column}" is a Unique Count metric: it can be selected and sorted by, but not filtered or sliced. Remove the filter on it.`,
           });
         }
-        // A rule on a calculated field is NO LONGER dropped wholesale (#6732): it is checked
+        // A rule on a calculated field is NO LONGER dropped wholesale: it is checked
         // against its DECLARED type like any column's, in whichever clause its LEVEL puts it —
         // which is why these rules are the ROUTED ones, so `validateFilters` and
         // `validateHavingFilters` read the clause off the rule rather than off `rule.function`.
@@ -1228,7 +1119,7 @@ export class OutputControlsValidatorService {
           });
         }
         // A rule on the mart's OWN calculated field is deliberately NOT dropped here the way a
-        // filter rule is (#6732 slice 3b): since the row-level refusal above went away, this
+        // filter rule is: since the row-level refusal above went away, this
         // generic check is the ONLY verdict a row-level field's bucket gets — and the right one,
         // because a STRING-declared formula is refused for the same reason, and in the same words,
         // as a STRING column.
@@ -1271,7 +1162,7 @@ export class OutputControlsValidatorService {
           // selection. Validate sort against that same native-only set so a sort on a
           // blended column is caught here at save time instead of failing at run time.
           //
-          // MINUS every calculated field (decision 10): it has no warehouse column, so `SELECT *`
+          // MINUS every calculated field: it has no warehouse column, so `SELECT *`
           // cannot project it and it is composed only when named. `connectedNativeNames` carries
           // it — `isConnected` answers true for a formula — so without this subtraction a sort on
           // a metric counted as selected, saved without a word, and then emitted

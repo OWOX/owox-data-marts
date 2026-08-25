@@ -29,8 +29,8 @@ const AGG_NOT_ALLOWED_CODES = new Set([
  * formula as an ordinary column. Each code gets its own sentence below; grouped here so the
  * fallback cannot claim them and print a bare code instead.
  *
- * NONE of them forks on the field's `level` any more (#6732, spec §2). A row-level formula is a
- * dimension the report may both AGGREGATE (slice 3) and BUCKET BY DATE (slice 3b), so the validator
+ * NONE of them forks on the field's `level` any more. A row-level formula is a
+ * dimension the report may both AGGREGATE and BUCKET BY DATE, so the validator
  * raises the two structural codes for the aggregate level alone and each has one thing to say —
  * `level` still rides on the wire, and always reads 'metric'. Every branch below therefore claims
  * its code UNSPLIT: an entry no branch claims is subtracted from the informative fallback by
@@ -83,7 +83,7 @@ interface ValidatorErrorEntry {
   /** OUTPUT_COLUMN_NAME_COLLISION names the colliding OUTPUT name here, not in `column`. */
   label?: string;
   /**
-   * Carried by the two structural calculated-field codes (#6732). Nothing here READS it any more —
+   * Carried by the two structural calculated-field codes. Nothing here READS it any more —
    * both are raised for the aggregate level alone, so it always says 'metric' — but it stays on the
    * wire because that is what makes the narrowing visible to a client reading the raw 400.
    */
@@ -138,7 +138,7 @@ export function translateOutputControlsError(
     });
   }
 
-  // Calculated Metric misuse (#6732). Every one of these is a 400 the agent would otherwise see
+  // Calculated Metric misuse. Every one of these is a 400 the agent would otherwise see
   // as an opaque code, and the schema tool advertises an AGGREGATE-level field with an EMPTY
   // allowedAggregations set (a row-level one now carries its real menu) — so reaching the
   // aggregation code means the agent treated an already-aggregated value as an ordinary column.
@@ -147,7 +147,7 @@ export function translateOutputControlsError(
   const namesOf = (entries: ValidatorErrorEntry[]): string =>
     [...new Set(entries.map(e => e.column).filter(Boolean))].join(', ');
 
-  // NOT split by level: since slice 3 a row-level field may be aggregated, so the validator raises
+  // NOT split by level: a row-level field may be aggregated, so the validator raises
   // this code for the aggregate level alone and there is no second thing to say. Every entry is
   // claimed regardless of the level it carries — the code is in RECOGNIZED_CODES, so an unclaimed
   // one would be dropped by the fallback too.
@@ -165,8 +165,8 @@ export function translateOutputControlsError(
     });
   }
 
-  // NOT split by level either, on the same terms as the aggregation code above: since slice 3b a
-  // row-level field may be BUCKETED, so the validator raises this code for the aggregate level
+  // NOT split by level either, on the same terms as the aggregation code above: a row-level
+  // field may be BUCKETED, so the validator raises this code for the aggregate level
   // alone and there is no second thing to say. UNSPLIT rather than narrowed to the aggregate
   // level — this code is in RECOGNIZED_CODES, so an entry no branch claims is subtracted from the
   // informative fallback too, and a lone one makes this function return null: the agent then gets
@@ -181,7 +181,7 @@ export function translateOutputControlsError(
   }
 
   // The metric exists and is spelled right; something its FORMULA reads cannot be computed — a
-  // column that is gone, or (since #6732, formulas may read formulas) another Calculated Field
+  // column that is gone, or (formulas may read formulas) another Calculated Field
   // further down the chain that is itself broken. Nothing the agent can change fixes either, so
   // name the one move that exists: a human edits the formula.
   const brokenMetrics = errors?.filter(e => e.code === 'CALCULATED_METRIC_BROKEN_REFERENCES') ?? [];
@@ -195,7 +195,7 @@ export function translateOutputControlsError(
     });
   }
 
-  // A JOINED Data Mart's Calculated Field, refused on every surface that can name one (#6732).
+  // A JOINED Data Mart's Calculated Field, refused on every surface that can name one.
   // The schema tool OMITS it from `joined_fields` (it is unusable on all of them), so the name
   // reached this request from somewhere the published list is not — a guess, or a schema fetched
   // before that omission landed. The fallback's closing "call get_data_mart_details_by_id if you
@@ -356,8 +356,8 @@ export function translateOutputControlsError(
 
   // A post-aggregation constraint asked to run PRE-JOIN — over MCP, a `slices` entry. Slices run
   // on the raw rows before the join, where an aggregate does not exist yet, so the constraint
-  // would apply nowhere at all. Newly reachable since #6732 lifted the calculated-field filter
-  // refusal: an AGGREGATE-level Calculated Field's rule carries no `function`, so it is named by
+  // would apply nowhere at all. Newly reachable since the calculated-field filter refusal
+  // was lifted: an AGGREGATE-level Calculated Field's rule carries no `function`, so it is named by
   // column alone. Claimed here rather than left to the informative fallback, which prints the bare
   // code and closes with "call get_data_mart_details_by_id if you need the field types" — a
   // re-fetch that teaches the agent nothing, since the field name is correct and only its
@@ -380,7 +380,7 @@ export function translateOutputControlsError(
   // ran fine before, and for an agent this text is the only recovery signal — name the rule and
   // both ways out.
   //
-  // ONE section for BOTH codes (#6732, D22). The sibling is a Calculated Field whose FORMULA
+  // ONE section for BOTH codes. The sibling is a Calculated Field whose FORMULA
   // aggregates a joined source — the same sleeve, the same reason — and it carries no `function`
   // to name. An agent that hit both would otherwise be handed two explanations of one rule.
   const sleeveHaving =
@@ -452,7 +452,7 @@ export function translateOutputControlsError(
             return `field '${e.column}' (type ${e.type}) has no time-of-day component — remove time_zone for this bucket (it only applies to TIMESTAMP/DATETIME fields)`;
           case 'DATE_TRUNC_INVALID_TIMEZONE':
             return `'${e.timeZone}' is not a valid IANA time zone for field '${e.column}' — use e.g. "Europe/Kyiv" or omit time_zone`;
-          // #6732 §6.1. The BUCKET is fine and must not be dropped with the zone, so say which of
+          // The BUCKET is fine and must not be dropped with the zone, so say which of
           // the two to remove. Naming another zone is not a retry worth burning: every zone is
           // refused, on every storage.
           case 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD':

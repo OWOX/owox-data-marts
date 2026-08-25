@@ -280,7 +280,7 @@ describe('BigQueryQueryBuilder', () => {
       expect(result.sql).not.toContain('GROUP BY');
     });
 
-    // D23 imposes the declared type on a comparison and stopped at the filter. A sort is a
+    // The declared type is imposed on a comparison, and that stopped at the filter. A sort is a
     // comparison too, and under a LIMIT the disagreement is not cosmetic: measured
     // `WHERE CAST(s AS <float>) > 5 ORDER BY s DESC LIMIT 2` returned `9, 100` where `100, 10` is
     // correct, identically on BigQuery, Athena, Redshift and Databricks.
@@ -308,7 +308,7 @@ describe('BigQueryQueryBuilder', () => {
       expect(result.sql).not.toContain('ORDER BY\n  `ratio` DESC');
     });
 
-    // An INTEGER declaration is excluded on purpose (D19b): casting one introduces the per-row
+    // An INTEGER declaration is excluded on purpose: casting one introduces the per-row
     // conversion the cast exists to remove, and the dialects disagree on its direction. A STRING
     // declaration has no cast target at all. Both keep the bare alias, so the SQL for every
     // non-float field is byte-identical to what it was.
@@ -348,7 +348,7 @@ describe('BigQueryQueryBuilder', () => {
     // routed to HAVING here would be applied in NEITHER clause — silently more rows than the
     // analyst asked for. Reachable exactly when a report filters on an aggregate-level Calculated
     // Field it does NOT select: the field is the only thing that would have made the query
-    // aggregated (#6732, D21).
+    // aggregated.
     it('refuses a HAVING-routed rule on the non-aggregated branch', async () => {
       const filters: RoutedFilterRule[] = [
         { column: 'ctr', operator: 'gt', value: 0.5, clause: 'having' },
@@ -371,7 +371,7 @@ describe('BigQueryQueryBuilder', () => {
       expect(result.sql).not.toMatch(/HAVING/);
     });
 
-    // #6732 spec §2: a predicate on a Calculated Field compares its FORMULA. The plan travels on
+    // A predicate on a Calculated Field compares its FORMULA. The plan travels on
     // its own channel because the field need not be SELECTED to be filtered on, and the
     // projection channel is selection-only — dropping `calculatedFilterMetrics` from this call
     // leaves the predicate with no left-hand side and the builder throws by name.
@@ -400,7 +400,7 @@ describe('BigQueryQueryBuilder', () => {
           calculatedFilterMetrics: [CTR_PLAN],
         });
         if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-        // Both sides carry the DECLARED type (#6732, D23/D25), and the VALUE's half is the
+        // Both sides carry the DECLARED type, and the VALUE's half is the
         // end-to-end evidence: it appears only because this builder's type resolver answers a
         // Calculated Field with its declaration rather than with `undefined`.
         expect(result.sql).toContain(
@@ -427,7 +427,7 @@ describe('BigQueryQueryBuilder', () => {
         expect(result.sql).not.toContain('src.`session_key`');
       });
 
-      // The shape Task 1's review named as the loud-to-silent conversion, and the one the lifted
+      // The shape review named as the loud-to-silent conversion, and the one the lifted
       // refusal makes reachable: the field is the only thing that would have made the query
       // aggregated, so leaving it out of the projection leaves the predicate homeless. An
       // aggregate-level PREDICATE forces the grouped shape exactly as selecting one does —

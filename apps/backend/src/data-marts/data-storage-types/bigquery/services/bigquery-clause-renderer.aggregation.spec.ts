@@ -241,10 +241,10 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
   });
 
   // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
-  // SELECT and GROUP BY, and it lands after every column key (#6732). Pinned per dialect because
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
   // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
   // error no stub renderer can show.
-  describe('a ROW-LEVEL calculated field (#6732)', () => {
+  describe('a ROW-LEVEL calculated field', () => {
     const rowLevel = {
       outputName: 'session_key',
       type: 'STRING',
@@ -271,11 +271,11 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS \`session_key\``]);
     });
 
-    // #6732 slice 3b, D16. BigQuery is the ONE dialect whose `renderDateTrunc` reads a type at all,
+    // BigQuery is the ONE dialect whose `renderDateTrunc` reads a type at all,
     // and a calculated field has no warehouse column to read one from — so the plan's own declared
     // type is what must reach it. A DATE declaration takes the no-wrap branch; drop the argument
     // and the same formula comes back as `DATE_TRUNC(DATE(DATE(…)), MONTH)`.
-    describe('bucketed by date (#6732 slice 3b)', () => {
+    describe('bucketed by date', () => {
       const VISIT_EXPR = 'DATE(`visit_ts`)';
       const visitDay = {
         outputName: 'visit_day',
@@ -309,7 +309,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
         );
       });
 
-      // The anti-drift pin Task 4's metric sleeve rests on, asserted where the type argument is
+      // The anti-drift pin the metric sleeve rests on, asserted where the type argument is
       // actually load-bearing: the sleeve derives this key OUTSIDE this class and joins back on it,
       // so both sides must reach it through the two public seats with the PLAN's declared type. On
       // this dialect a type read from anywhere else is a visibly different string, not a subtle one.
@@ -328,7 +328,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
         );
       });
 
-      // D16's measured core: a `CAST` before the truncation turned a loud Redshift refusal into a
+      // The measured core: a `CAST` before the truncation turned a loud Redshift refusal into a
       // confidently wrong month, so none is emitted on any dialect however the field is declared.
       it('adds no CAST, whatever the declared type', () => {
         for (const type of ['DATE', 'TIMESTAMP', 'STRING', 'FLOAT']) {
@@ -340,7 +340,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       });
     });
 
-    // Slice 3: once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
     // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
     // warehouse. Per dialect because the aggregate spelling AND the alias quoting are this one's.
     it('aggregates it under the labelled alias and drops it from the grouping keys', () => {
@@ -363,13 +363,13 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       expect(out.groupBySql).toBe('\nGROUP BY\n  `channel`');
     });
 
-    // #6732 D18. On BigQuery this is the dialect where the fix makes a query that RAISES today
+    // On BigQuery this is the dialect where the fix makes a query that RAISES today
     // start returning a number — not a regression, the declared type finally reaching the
     // warehouse. Probe shape 8a (`SUM((CONCAT(…)))`) answered `No matching signature for
     // aggregate function SUM / Argument types: STRING`, and 8c substituting the declared name
     // VERBATIM answered `Type not found: FLOAT` — which is why the cast target is FLOAT64 and why
     // the mapping has to be per dialect at all.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. True SUM 12.75.
       const NUM_EXPR = 'CONCAT(`num_prefix`, `num_suffix`)';
       const numericText = {
@@ -422,7 +422,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
         expect(selectFor('SUM', 'STRING')).toBe(`SUM((${NUM_EXPR})) AS \`amount | SUM\``);
       });
 
-      // D19b: an INTEGER declaration is refused a cast although this dialect states `INT64` for
+      // An INTEGER declaration is refused a cast although this dialect states `INT64` for
       // it. `CAST(1.5 AS INT64)` ROUNDS here and Spark's equivalent TRUNCATES, so casting would
       // make the same report return a different total per warehouse — on top of introducing a
       // per-row conversion where the warehouse was making none.

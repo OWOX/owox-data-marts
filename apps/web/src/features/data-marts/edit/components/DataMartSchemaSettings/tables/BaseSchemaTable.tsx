@@ -611,7 +611,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
     // instead of taking the formula off the row with it.
     //
     // A ROW-LEVEL field's band stops one column short: "Σ available" is a control it owns, so the
-    // formula must not cover it (Slice 3, decision D2 lifted for this level only).
+    // formula must not cover it.
     const typeIndex = result.findIndex(column => columnIdOf(column) === 'type');
     const lastIndex = result.findIndex(column => columnIdOf(column) === 'allowedAggregations');
     const band: string[] = [];

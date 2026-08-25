@@ -83,8 +83,8 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
   for (const field of fields) {
     // A calculated field carries a warehouse-derived status that means nothing for it (mirrors
     // the backend's own carve-out in `blendable-schema.service.ts`'s `flattenSchemaFields`) — it
-    // is never sourced from the warehouse, so DISCONNECTED must not hide it, the one thing spec §7
-    // forbids. `isHiddenForReporting` still applies to it: that is a real, separate governance
+    // is never sourced from the warehouse, so DISCONNECTED must not hide it.
+    // `isHiddenForReporting` still applies to it: that is a real, separate governance
     // choice, not a warehouse-status artifact.
     if (field.isHiddenForReporting) continue;
     if (!field.calculated && field.status === 'DISCONNECTED') continue;
@@ -159,11 +159,11 @@ export interface ReportColumnPickerProps {
   outputConfig?: OutputConfig;
   /**
    * `isRepair` marks a change the picker made on its OWN initiative — reconciling a stored config
-   * against a schema that moved under it, not an edit the user performed. Forms must apply it
-   * without marking themselves dirty, or merely opening a report raises an "unsaved changes" guard.
-   * It carries the keys it actually rewrote: the whole config is always passed, but a form that
-   * stores each key separately must not take an untouched one from it — the picker widens an
-   * unset control to `[]` for its own use, and writing that back is a change the user never made.
+   * against a schema that moved under it. Forms must apply it without marking themselves dirty, or
+   * merely opening a report raises an "unsaved changes" guard.
+   *
+   * It carries the keys it actually rewrote: the picker widens an unset control to `[]` for its own
+   * use, and a form that stores keys separately must not write that back.
    */
   onOutputConfigChange?: (config: OutputConfig, options?: OutputConfigRepairOptions) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
@@ -203,7 +203,7 @@ interface ColumnAggregation {
   timeZone: string | null;
   /** False only for an aggregate-level calculated field — see `dropdownColumns`. */
   allowDateBucket: boolean;
-  /** False for EITHER level of calculated field — see `dropdownColumns` (#6732 §6.1). */
+  /** False for EITHER level of calculated field — see `dropdownColumns`. */
   allowBucketTimeZone: boolean;
 }
 
@@ -247,22 +247,20 @@ interface NativeFieldRowProps {
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
   /**
-   * This metric's own broken-reference names (spec §7) — its formula names a field the schema no
+   * This metric's own broken-reference names — its formula names a field the schema no
    * longer has. `undefined`/empty means fine. Only consulted for a `field.calculated` row.
    */
   brokenReferences?: readonly string[];
 }
 
 /**
- * A broken calculated field blocks a NEW selection with a hint, exactly like
- * `UniqueCountRow`: `aria-disabled`, never the `disabled` attribute (which would drop the control
- * out of the tab order and take the explanation with it), plus a focusable `TooltipTrigger` so the
- * hint reaches keyboard and screen-reader users, not just a mouse hover. Unlike `UniqueCountRow`,
- * an already-CHECKED row here stays clickable regardless of the hint: Unique Count has its own
- * dedicated effect (above) that prunes a stale `uniqueCountConfig` entry the moment it can no
- * longer be kept, so its row never actually needs to un-check itself. A calculated field's
- * selection lives in the plain `value`/`columnConfig` array, which nothing else prunes — blocking
- * the checkbox unconditionally here would leave a report stuck with no way to clear it.
+ * A broken calculated field blocks a NEW selection with a hint: `aria-disabled`, never the
+ * `disabled` attribute, which would drop the control out of the tab order and take the explanation
+ * with it, plus a focusable `TooltipTrigger` so the hint reaches keyboard and screen-reader users.
+ *
+ * An already-CHECKED row stays clickable, unlike `UniqueCountRow`, whose own effect prunes a stale
+ * entry. A calculated field's selection lives in the plain `columnConfig` array that nothing else
+ * prunes, so blocking the checkbox would leave a report stuck with no way to clear it.
  */
 const CALCULATED_FIELD_TRIGGER_BASE_CLASS =
   'min-w-0 truncate text-left font-mono text-xs underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded';
@@ -817,18 +815,15 @@ export function ReportColumnPicker({
     [schema]
   );
 
-  // Every native field that is a calculated field (spec §2.1) — by NAME, so every consumer below
-  // (implicit-selection exclusion, filter suppression, the blended-report guard, "Select all") can
-  // test membership without re-walking the schema. Declared early: several of those consumers are
-  // `useMemo`/`useCallback` calls that read this in their own dependency array, which is evaluated
-  // immediately at render time (unlike a plain function body), so this must exist before the first
-  // of them runs.
+  // Every native field that is calculated, by NAME, so consumers below can test membership without
+  // re-walking the schema. Declared early because several of them read it in a dependency array,
+  // which is evaluated at render time rather than when the callback runs.
   const calculatedFieldNames = useMemo(
     () => new Set(nativeFields.filter(f => f.calculated).map(f => f.name)),
     [nativeFields]
   );
 
-  // The backend's own verdict (spec §7), not a client-side re-derivation: `brokenReferencesOf`
+  // The backend's own verdict, not a client-side re-derivation: `brokenReferencesOf`
   // resolves a formula against the Data Mart's RAW schema, deliberately keeping a field hidden for
   // reporting as a valid reference — this picker's own `nativeFields` has already had those
   // stripped, so reproducing the check here would misreport every metric over a hidden column as
@@ -849,14 +844,13 @@ export function ReportColumnPicker({
   );
   const hasReportablePrimaryKey = mainPrimaryKeyFields.length > 0;
 
-  // Why each source can or cannot offer the Unique Count metric. Kept in two separately-typed
-  // holders, not one map: the main mart and a joined source are decided by different backend rules
+  // Why each source can or cannot offer the Unique Count metric. Two separately-typed holders
+  // rather than one map: the main mart and a joined source are decided by different backend rules
   // that share vocabulary, and only the tagged states keep one from being stored as the other.
-  // Absent (no schema / not in `availableSources`) = absent from the schema, which is what pruning
-  // acts on. Excluded sources stay on purpose — pruning is for a source the SCHEMA lost, and an
-  // exclusion is reversible. Unlike a selected COLUMN of an excluded source (still projected), the
-  // excluded source's Unique Count IS dropped by the backend, so its row keeps rendering (see
-  // groupedBlendedFields) to say so and to let the user clear it.
+  //
+  // Absent means absent from the schema, which is what pruning acts on. EXCLUDED sources stay —
+  // exclusion is reversible — but the backend does drop an excluded source's Unique Count, so its
+  // row keeps rendering to say so and let the user clear it.
   const mainUniqueCount = useMemo<MainUniqueCountState | undefined>(
     () =>
       schema
@@ -916,15 +910,11 @@ export function ReportColumnPicker({
     return schema.blendedFields.filter(f => includedPaths.has(f.aliasPath) && !f.isHidden);
   }, [schema, includedPaths]);
 
-  // A null `value` means "every native column, implicitly" — but a calculated field is composed
-  // only when asked for BY NAME (spec §8, decision 10): the backend's own implicit-all resolution
-  // (`implicitAllNativeColumnNames` in http-data-column-sets.util.ts, which carries a comment
-  // naming this file) excludes every calculated field. Mirroring that here, not just cosmetically:
-  // a metric ticked-but-not-really-selected would (a) render checked while the backend emits no
-  // such column at all — a silent gap between what the picker shows and what a run produces — and
-  // (b) get written into `columnConfig` by the very materialization effects below (toggling a
-  // joined Unique Count, applying an aggregation) the moment `value` is still null, turning an
-  // unrelated action into an accidental metric selection nobody asked for.
+  // A null `value` means "every native column, implicitly", and the backend's own implicit-all
+  // resolution excludes every calculated field — one is composed only when asked for BY NAME.
+  // Mirrored here because a metric ticked-but-not-selected would render checked while the backend
+  // emits no such column, and would be written into `columnConfig` by the materialization effects
+  // below, turning an unrelated action into a selection nobody asked for.
   const effectiveValue = useMemo<string[]>(() => {
     if (value !== null) return value;
     return nativeFields.filter(f => !f.calculated).map(f => f.name);
@@ -948,21 +938,17 @@ export function ReportColumnPicker({
     return names;
   }, [nativeFields, schema]);
 
-  // Unique Count requires a primary key. If a source's PK is later removed, its row goes
-  // disabled, yet the stored source key keeps round-tripping on every save and the backend
-  // rejects (main) or silently drops (joined) it — a trap the user cannot escape through the UI.
-  // Once the schema has loaded, drop the sources that can no longer supply the metric and KEEP
-  // the rest: clearing the whole list would wipe selections that are still perfectly valid.
-  // Gated on `schema` so the empty pre-load field list never clears a legitimate config, and on
-  // `uniqueCountCanKeep` so an availability value the client cannot read never removes anything.
+  // Unique Count requires a primary key, and a source whose PK is later removed keeps
+  // round-tripping its stored key on every save while the backend rejects or silently drops it — a
+  // trap the user cannot escape through the UI. Only the sources that can no longer supply the
+  // metric are dropped; clearing the whole list would wipe selections that are still valid.
   //
-  // A sort rule on a source this repair DROPS is stranded and goes with it: once the name leaves
-  // `uniqueCountConfig` the validator stops treating it as selected, so every later save 400s.
-  // Keyed off the DROPPED sources and nothing else. An EXCLUDED source keeps its config entry
-  // (above), the validator keeps accepting its name deliberately, and the run path drops the rule
-  // in memory per run without persisting — so pruning that one here would silently delete a rule
-  // the user never asked to lose and cannot restore by re-including the source.
-  // Skipped when a real field owns the name — then the rule refers to that field, not the metric.
+  // A sort rule on a DROPPED source goes with it: once the name leaves `uniqueCountConfig` the
+  // validator stops treating it as selected and every later save 400s. Keyed off the dropped
+  // sources alone — an EXCLUDED source keeps its entry, so pruning its rule here would delete
+  // something the user never asked to lose and cannot restore by re-including the source.
+  //
+  // Skipped when a real field owns the name — the rule then refers to that field, not the metric.
   //
   // Flagged `isRepair` because none of this is a user edit: it happens on open, before anyone has
   // touched the form. Marking the form dirty for it both raises a false "unsaved changes" guard and
@@ -1199,10 +1185,10 @@ export function ReportColumnPicker({
   const filterableTypeFor = useCallback(
     (fieldName: string): string | undefined => {
       if (!outputControlsAvailable) return undefined;
-      // A calculated field of THIS Data Mart is filterable at either level (#6732 §1.1): the
+      // A calculated field of THIS Data Mart is filterable at either level: the
       // refusal that used to stand here described a SELECT-list alias, but a predicate's left-hand
       // side is the formula itself. The declared type is returned untouched — the operator menu is
-      // the one the type resolves to, exactly as for an ordinary column (D24). A JOINED Data
+      // the one the type resolves to, exactly as for an ordinary column. A JOINED Data
       // Mart's formula is refused instead by `BlendedFieldRow`'s remove-only path, which keeps an
       // already-saved rule clearable; suppressing its type here would take that away too.
       const t = fieldTypeByName.get(fieldName);
@@ -1327,15 +1313,15 @@ export function ReportColumnPicker({
           aggregationRole: f.aggregationRole,
           // The empty set is forced rather than passed through from `f.allowedAggregations`
           // (usually unset, which would fall back to the type-derived default and offer one
-          // anyway). A ROW-LEVEL field is a dimension a report may aggregate (slice 3), so it
+          // anyway). A ROW-LEVEL field is a dimension a report may aggregate, so it
           // resolves like any other column. This override gates the per-row Σ icon and the
           // field's entry in the Aggregations panel's "add" picker.
           allowedAggregations: isAggregateLevelCalculated ? [] : f.allowedAggregations,
           isAggregateLevelCalculated,
-          // Level-agnostic, and gates the bucket TIME ZONE alone (#6732 §6.1) — a row-level
+          // Level-agnostic, and gates the bucket TIME ZONE alone — a row-level
           // formula buckets like the column beside it and is still refused the zone.
           isCalculated: !!f.calculated,
-          // This Data Mart's own formula, so filterable at either level (#6732 §1.1).
+          // This Data Mart's own formula, so filterable at either level.
           isJoinedCalculated: false,
         });
       }
@@ -1520,7 +1506,7 @@ export function ReportColumnPicker({
         timeZone: timeZoneForColumn(col.name, effectiveOutputConfig.dateTruncConfig),
         allowDateBucket: !col.isAggregateLevelCalculated,
         // The two flags part company here, and only here: a row-level formula buckets like the
-        // TIMESTAMP column beside it and is still refused the ZONE (#6732 §6.1).
+        // TIMESTAMP column beside it and is still refused the ZONE.
         allowBucketTimeZone: !col.isCalculated,
       });
     }

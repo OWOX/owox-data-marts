@@ -27,27 +27,20 @@ function formatRedshiftLiteral(value: string | number | boolean | null): string 
 }
 
 /**
- * Redshift (PostgreSQL-derived) renderer. Unlike Athena/BigQuery it does NOT use
- * bound parameters: every fragment returns finished SQL with `params: []`. Substring
- * matchers use STRPOS/RIGHT (never LIKE) so user `%`/`_` stay literal. Date/time
- * values are bare quoted literals — Postgres `unknown`-literal coercion handles the
- * comparison (verified live).
+ * Redshift (PostgreSQL-derived) renderer. Unlike Athena/BigQuery it does NOT use bound parameters:
+ * every fragment returns finished SQL with `params: []`. Substring matchers use STRPOS/RIGHT (never
+ * LIKE) so user `%`/`_` stay literal. Date/time values are bare quoted literals — Postgres
+ * `unknown`-literal coercion handles the comparison (verified live).
  *
- * `renderFilterFragment` DOES cast now, and only where the caller states a target: `valueCastType`
- * is the declared type a Calculated Field's COMPARISON imposes on both of its sides (#6732,
- * D23/D25). What the dead seam cost is measured, not theoretical (probe 2026-08-24): `>` against a
- * text expression is LEXICOGRAPHIC here, so a FLOAT-declared formula returning '9', '10', '100'
- * filtered `> 5` returned `9` alone — a plausible one-row report, no error and no NULL. Note the
- * remaining hole, which is deliberate: `renderHaving` compares the argument the SELECT printed for
- * a rule carrying a FUNCTION, and D18 casts only SUM/AVG/percentiles — so `MIN`/`MAX`/`ANY_VALUE`
- * over a mis-declared text formula is still lexicographic here. Casting those would change what
- * "the minimum" MEANS, which is a different decision from stating a type for arithmetic.
+ * `renderFilterFragment` casts only where the caller states a target. Measured: `>` against a text
+ * expression is LEXICOGRAPHIC here, so a FLOAT-declared formula returning '9', '10', '100' filtered
+ * `> 5` returned `9` alone — a plausible one-row report, no error and no NULL.
  *
- * `columnType` is still accepted and NOT read, deliberately: the other four dialects use it to cast
- * a DATE/TIMESTAMP value, and a date comparison here is lexicographic instead, so a non-ISO date
- * string filters to an empty report with no message. D24 ships that as measured — a cast is not the
- * remedy for a mis-declared date on any dialect (on Snowflake one is already present and is what
- * runs the wrong comparison), and adding one here would move a shipped path no probe has covered.
+ * Two holes remain by choice. A rule carrying a FUNCTION compares the argument the SELECT printed
+ * and only SUM/AVG/percentiles are cast, so `MIN` over a mis-declared text formula is still
+ * lexicographic — casting it would change what "the minimum" MEANS. And `columnType` is accepted
+ * but NOT read: a non-ISO date string filters to an empty report with no message, which a cast does
+ * not remedy on any dialect either.
  */
 @Injectable()
 export class RedshiftClauseRenderer extends SqlClauseRenderer {
@@ -69,7 +62,7 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
 
   /**
    * The dialect the probe caught returning `12` where `12.75` is correct: Redshift coerces a text
-   * expression to `Decimal` with SCALE 0 and truncates every row before summing (#6732). So the
+   * expression to `Decimal` with SCALE 0 and truncates every row before summing. So the
    * exact types state their scale here, exactly as `textCastType` above states its length — a bare
    * DECIMAL/NUMERIC is (18,0) on Redshift, which is the same silent truncation wearing a CAST.
    * DOUBLE PRECISION is the spelling `SUM(CAST(… AS DOUBLE PRECISION))` returned `12.75` for live,

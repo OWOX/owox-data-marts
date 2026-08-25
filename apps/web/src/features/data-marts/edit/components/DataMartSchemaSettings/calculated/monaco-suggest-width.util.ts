@@ -5,20 +5,15 @@ import type * as monaco from 'monaco-editor';
  * analyst is reading the row for — is what gets ellipsised:
  * `users.organizations.billing_acco…`. This grows the widget to the width its rows actually need.
  *
- * Why not CSS. The 430 comes from `getLayoutInfo().defaultSize` and is written as an INLINE width
- * by `_layout` (suggestWidget.js), so only `!important` could beat it — and the widget's sashes are
- * positioned from its internal `_size`, which a CSS-only override leaves at 430. The right edge
- * would then no longer be where the resize handle is, which breaks dragging outright. Monaco's own
- * `preferredWidth` is no use either: it is `pLabelLen * typicalHalfwidthCharacterWidth`, counting
- * the name alone — for the path above it computes 368px, NARROWER than the default, because it
- * accounts for neither the icon, nor the type, nor the Data Mart column.
+ * Not CSS: the 430 is written as an INLINE width, so only `!important` could beat it — and the
+ * sashes are positioned from the widget's internal `_size`, which a CSS override leaves at 430, so
+ * the right edge stops being where the resize handle is. Monaco's own `preferredWidth` counts the
+ * name alone and computes NARROWER than the default here, accounting for neither the icon, the type
+ * nor the Data Mart column.
  *
- * So the width is measured from the rendered rows and applied through the widget's own
- * `ResizableHTMLElement.layout`, which is what keeps `_size`, the sashes and the list in step.
- *
- * Width is most of the fix, not all of it: a row longer than the cap still has to lose something,
- * and Monaco shrinks the name and the Data Mart beside it in proportion. Which of the two gives way
- * is settled in App.css, scoped to this editor's widget host.
+ * So the width is measured from the rendered rows and applied through `ResizableHTMLElement.layout`,
+ * which keeps `_size`, the sashes and the list in step. Which column gives way when a row still
+ * exceeds the cap is settled in App.css.
  */
 
 /** `getLayoutInfo().defaultSize` — what an open with no analyst-chosen size lays out at. */

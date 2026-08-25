@@ -311,7 +311,7 @@ describe('MetricSleeveBuilder', () => {
       .buildSleeveCte(orgNameMetric, ['users__country'], context, outputAliasToRoot);
 
     // Both source from the SAME chain ('organizations'); if the CTE name were keyed by
-    // chain, Task 4 would emit two `sleeve_organizations` CTEs in one WITH → SQL error.
+    // chain, the builder would emit two `sleeve_organizations` CTEs in one WITH → SQL error.
     expect(orgIdSleeve.cteName).not.toBe(orgNameSleeve.cteName);
     expect(orgIdSleeve.cteName).toBe('sleeve_organizations__orgId');
     expect(orgNameSleeve.cteName).toBe('sleeve_organizations__name');
@@ -322,7 +322,7 @@ describe('MetricSleeveBuilder', () => {
 
   it('walks the FULL ancestor chain for a 2+-hop nested metric (main -> users -> organizations)', () => {
     // Unlike fixtureEventsUsersOrgs (both chains are ROOT siblings of main), here
-    // `organizations` is nested UNDER `users` — mirrors the Task 5 integration topology
+    // `organizations` is nested UNDER `users` — mirrors the live integration topology
     // (events -> users -> organizations bridge). addWithAncestors must walk the FULL
     // parentAlias chain (organizations -> users -> main), not just the metric's own chain.
     const builder = new TestBlendedQueryBuilder();
@@ -1334,7 +1334,7 @@ describe('MetricSleeveBuilder', () => {
     });
   });
 
-  // #6732: a calculated metric may aggregate over a JOINED Data Mart —
+  // A calculated metric may aggregate over a JOINED Data Mart —
   // `SUM({{ref path="orders" field="amount"}} * {{ref path="orders" field="rate"}})`. That call
   // cannot be computed in the outer SELECT (the joined source is already collapsed to one row per
   // join key there), so it takes a sleeve — but its argument is an arbitrary row-level EXPRESSION,
@@ -2968,16 +2968,16 @@ describe('value-sleeve identity across dialects', () => {
 });
 
 /**
- * A ROW-LEVEL calculated field is a DIMENSION (#6732), so every sleeve on a report that selects
+ * A ROW-LEVEL calculated field is a DIMENSION, so every sleeve on a report that selects
  * one has to group by it too — otherwise the sleeve stays at a COARSER grain than the outer GROUP
  * BY and its `ANY_VALUE` join-back hands each of several outer rows a value computed over all of
  * them: a plausible number, no NULL, no error.
  *
  * The grain list stays `string[]`: the field contributes its output NAME and the formula arrives
- * on a parallel channel (spec §3.1), because the value-sleeve merge key joins that list into a
+ * on a parallel channel, because the value-sleeve merge key joins that list into a
  * string and an object element would collapse two different grains into one sleeve.
  */
-describe('MetricSleeveBuilder — a row-level calculated field in the grain (#6732)', () => {
+describe('MetricSleeveBuilder — a row-level calculated field in the grain', () => {
   const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
 
@@ -3063,7 +3063,7 @@ describe('MetricSleeveBuilder — a row-level calculated field in the grain (#67
   describe('consequences that are correct, not defects', () => {
     // `outputAliasToRoot` holds blended columns only, so a calculated name misses and
     // `buildSleeveDedupRootJoins` adds no dedup CTE for it. Correct: a row-level formula reads its
-    // own Data Mart's columns only (permanently, spec §3.1) and `main` is always the sleeve's FROM.
+    // own Data Mart's columns only (permanently) and `main` is always the sleeve's FROM.
     it('joins no extra CTE for the calculated dimension', () => {
       const withField = normalizeSql(buildSleeves([rowLevelPlan('session_key')])[0].sql);
       const without = normalizeSql(buildSleeves([])[0].sql);

@@ -44,7 +44,7 @@ export function partitionBlendedFilters(
       // drops it, while HAVING only exists post-join. It would silently constrain nothing and
       // return more rows than asked for. The validator rejects the combination
       // (HAVING_FILTER_INVALID_PLACEMENT), so reaching here is an invariant violation — the same
-      // class this function already throws on below. Read off the rule (D21), because an
+      // class this function already throws on below. Read off the rule, because an
       // aggregate-level Calculated Field's rule carries no `function` and would slip past.
       throw new Error(
         `buildBlendedQuery: pre-join filter column='${rule.column}'` +
@@ -75,7 +75,7 @@ export function partitionBlendedFilters(
   }
 
   // A Calculated Field has no warehouse column, so `postJoin` can never hold one: its DECLARED type
-  // reaches the filter path through this same resolver rather than a parallel one (#6732, D25).
+  // reaches the filter path through this same resolver rather than a parallel one.
   // Both lists, because a filter may name a field the report also selects.
   const declaredCalculatedTypes = declaredTypeByCalculatedField(
     context.calculatedMetrics,
@@ -91,7 +91,7 @@ export function partitionBlendedFilters(
     // effective type rather than the raw field type. Still keyed on `rule.function` inside
     // `effectiveComparisonType`, and correctly so: that is the aggregate whose result type is
     // being widened, not the clause. An aggregate-level Calculated Field has none to widen — the
-    // declaration above is what its comparison imposes instead (D23/D25).
+    // declaration above is what its comparison imposes instead.
     return effectiveComparisonType(raw, rule, storageType);
   };
 

@@ -100,9 +100,6 @@ describe('prepareSchema', () => {
     });
   });
 
-  // #6732: the stored formula is dialect SQL with `{{ref …}}` Handlebars tags — not usable SQL,
-  // not a referenceable field, and pure noise (or an invitation to copy a literal tag into a
-  // query) in any model's context. Every prompt and the MCP schema tool share this preparer.
   it("strips a calculated field's stored formula but keeps the metric marker", () => {
     const input = {
       fields: [
@@ -128,13 +125,10 @@ describe('prepareSchema', () => {
           name: 'ctr',
           type: 'FLOAT',
           description: 'Clicks per impression.',
-          // The marker (and any future key) survives — it is what makes a consumer publish the
-          // field as non-aggregatable.
           calculated: { level: 'metric', warehouseValidation: 'passed' },
         },
       ],
     });
-    // The domain object the caller still holds is untouched.
     expect(input.fields[0].calculated.formula).toContain('{{ref');
   });
 

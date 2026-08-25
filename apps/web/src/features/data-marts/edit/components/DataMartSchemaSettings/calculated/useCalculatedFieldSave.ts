@@ -33,7 +33,7 @@ const EMPTY: ViolationsByField = {};
 /**
  * Groups a violation list by its `field` (the calculated field's NAME), preserving the order
  * fields first appear in — the backend reports every violation across every calculated field in
- * one response (spec §6.2), and a field can carry more than one.
+ * one response, and a field can carry more than one.
  *
  * A violation naming a field no longer in the current schema (the response can race an edit) is
  * grouped exactly like any other — this function never checks the violation's field against a

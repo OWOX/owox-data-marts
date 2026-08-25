@@ -136,10 +136,10 @@ describe('SnowflakeClauseRenderer — percentile and STRING_AGG aggregations', (
   });
 
   // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
-  // SELECT and GROUP BY, and it lands after every column key (#6732). Pinned per dialect because
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
   // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
   // error no stub renderer can show.
-  describe('a ROW-LEVEL calculated field (#6732)', () => {
+  describe('a ROW-LEVEL calculated field', () => {
     const rowLevel = {
       outputName: 'session_key',
       type: 'VARCHAR',
@@ -166,7 +166,7 @@ describe('SnowflakeClauseRenderer — percentile and STRING_AGG aggregations', (
       expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS "session_key"`]);
     });
 
-    // #6732 slice 3b, D16: a DATE-declared row-level field may be bucketed, and the truncation
+    // A DATE-declared row-level field may be bucketed, and the truncation
     // wraps the WHOLE substituted formula in this dialect's own spelling (uppercase unit, unlike
     // Trino's). No CAST — its `DATE_INPUT_FORMAT` defaults to AUTO and its measured failures carry
     // the same MDY signature Redshift's wrong month did, so it is the likeliest second one.
@@ -191,7 +191,7 @@ describe('SnowflakeClauseRenderer — percentile and STRING_AGG aggregations', (
       expect(out.selectSql).not.toMatch(/CAST/);
     });
 
-    // Slice 3: once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
     // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
     // warehouse. Per dialect because the aggregate spelling AND the alias quoting are this one's.
     it('aggregates it under the labelled alias and drops it from the grouping keys', () => {
@@ -214,11 +214,11 @@ describe('SnowflakeClauseRenderer — percentile and STRING_AGG aggregations', (
       expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
     });
 
-    // #6732 D18. Snowflake already answered `12.75` on probe shape 8a, UNCAST — so here the cast
+    // Snowflake already answered `12.75` on probe shape 8a, UNCAST — so here the cast
     // has nothing to repair and everything to preserve, and the shapes that would have measured
     // it (8c/8d) are the cells the warehouse's daily credit cap left unrun. Its three spellings
     // are documentation-only until a live pass runs them.
-    describe('the declared type, imposed where the aggregation does arithmetic (#6732)', () => {
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
       // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. True SUM 12.75.
       const NUM_EXPR = 'CONCAT("num_prefix", "num_suffix")';
       const numericText = {
@@ -273,7 +273,7 @@ describe('SnowflakeClauseRenderer — percentile and STRING_AGG aggregations', (
         expect(selectFor('SUM', 'VARCHAR')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
       });
 
-      // D19b: an INTEGER declaration is refused a cast although this dialect states a target for
+      // An INTEGER declaration is refused a cast although this dialect states a target for
       // it. `CAST(x AS INTEGER)` resolves to NUMBER(38,0) here, so casting would round every row
       // before summing — a per-row conversion the warehouse was not making.
       it('never casts an INTEGER declaration, though the mapping states a target for it', () => {

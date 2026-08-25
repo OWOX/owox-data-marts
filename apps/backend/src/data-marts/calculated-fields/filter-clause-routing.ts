@@ -5,21 +5,14 @@ import { calculatedFieldLevelOf, calculatedFieldsOf } from './calculated-field.u
 import { isAggregateLevel } from './formula-level';
 
 /**
- * Stamps each rule with the clause its predicate belongs in (#6732, D21) — the factory seat for
- * the verdict {@link filterClauseOf} reads everywhere downstream.
+ * Stamps each rule with the clause its predicate belongs in — the factory seat for the verdict
+ * {@link filterClauseOf} reads everywhere downstream. Idempotent, because the Totals path routes
+ * twice: `composeTotals` splits the report's rules, then `compose` routes the plan it built.
  *
- * Called from the four seats that decide a report's clauses: the three that hand its filters to a
- * builder — `ReportSqlComposerService.compose` and `.composeTotals`, and
- * `BlendedReportDataService.resolveBlendingDecision` — and `OutputControlsValidatorService`, which
- * validates against the same verdict so what it accepts and what the builder renders cannot
- * disagree. Idempotent, because the Totals path routes twice — `composeTotals` splits the report's
- * rules, then `compose` routes the plan it built.
- *
- * Two things put a predicate after the GROUP BY, and both are read here rather than downstream:
- * the rule's own `function` (the report aggregates an ordinary column, or a row-level formula it
- * grouped by — spec §2), and the FIELD's level (an AGGREGATE-level Calculated Field is already an
- * aggregate and carries no function). The level comes through `calculatedFieldLevelOf`, the one
- * seat for it: the recorded `level` is a cache (D13), so the formula's own text answers first.
+ * Two things put a predicate after the GROUP BY, and both are read HERE rather than downstream: the
+ * rule's own `function`, and the FIELD's level — an AGGREGATE-level Calculated Field is already an
+ * aggregate and carries no function. The level comes through `calculatedFieldLevelOf`, since the
+ * recorded `level` is a cache and the formula's own text answers first.
  */
 export function routeFilterClauses(
   filters: readonly FilterRule[] | undefined,

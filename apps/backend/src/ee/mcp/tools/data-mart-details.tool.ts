@@ -56,7 +56,7 @@ const makeAllowedAggregationsField = () =>
     );
 
 // A Calculated Field is published like any other field, but what the agent may DO with it is
-// decided by its `level` (#6732, spec §2) — and the two answers are opposites, so the level, not
+// decided by its `level` — and the two answers are opposites, so the level, not
 // the marker, carries the behaviour. The stored formula never travels (`prepareSchema` strips it);
 // the level does, which is what makes describing it here worth anything.
 //
@@ -287,15 +287,15 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       const category = categorizeFieldType(out.type);
       categories.add(category);
       out.category = category;
-      // A Calculated Metric already IS an aggregate (spec §2.3), and the dialog that creates one
+      // A Calculated Metric already IS an aggregate, and the dialog that creates one
       // deliberately sets neither `aggregationRole` nor `allowedAggregations` — so left to
       // governance it falls through to the TYPE defaults and a FLOAT metric is advertised as
       // SUM/AVG/MIN/MAX-able under a description reading "Use only these". The agent then does the
       // advertised thing and gets a 400 AGGREGATION_ON_CALCULATED_METRIC. Publish the empty set
       // instead — the same thing the web picker forces (`ReportColumnPicker.tsx`).
       //
-      // AGGREGATE level only. A row-level field is a dimension the report may now aggregate
-      // (slice 3), and the validator resolves what it may be aggregated BY from exactly this
+      // AGGREGATE level only. A row-level field is a dimension the report may now aggregate,
+      // and the validator resolves what it may be aggregated BY from exactly this
       // governance call — so forcing the empty set here would advertise a refusal the validator
       // does not make, which is the same drift in the opposite direction.
       out.allowedAggregations = isAggregateLevelCalculatedField(out)

@@ -6,7 +6,7 @@ describe('describeMissingReferences', () => {
     expect(describeMissingReferences([])).toBeUndefined();
   });
 
-  // "gone from the Data Mart" stopped being true with #6732: the backend's verdict is transitive,
+  // "gone from the Data Mart" stopped being true: the backend's verdict is transitive,
   // so a name here can be a calculated field that is present and merely uncomputable.
   it('names one missing field in the singular', () => {
     expect(describeMissingReferences(['clicks'])).toBe(

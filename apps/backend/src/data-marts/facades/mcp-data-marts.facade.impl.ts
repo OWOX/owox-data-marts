@@ -158,8 +158,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         f => !f.isHidden && accessiblePaths.has(f.aliasPath)
       );
 
-      // A joined Data Mart's CALCULATED field is OMITTED rather than published as unusable
-      // (#6732). The own-mart path publishes an aggregate-level formula and clamps its
+      // A joined Data Mart's CALCULATED field is OMITTED rather than published as unusable.
+      // The own-mart path publishes an aggregate-level formula and clamps its
       // allowedAggregations to [] because that field is still selectable by name — only
       // aggregating it is refused. This one is refused on every surface a query can name it on
       // (projection, filter, sort, aggregation, date bucket), so a clamp would leave a name whose

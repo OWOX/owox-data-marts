@@ -54,7 +54,7 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
 
   // Three entries because `parseSnowflakeFieldType` collapses every numeric spelling into three
   // declared types upstream. NUMERIC states its scale: it is a synonym of NUMBER, whose default is
-  // (38,0), so a cast to a bare one truncates every fraction (#6732). FLOAT stays FLOAT because
+  // (38,0), so a cast to a bare one truncates every fraction. FLOAT stays FLOAT because
   // Snowflake's is already 64-bit — there is no narrowing here to avoid, unlike Athena's or Spark's.
   // Documentation-only, all three: the probe's cast shapes (8c/8d) never ran on Snowflake, which
   // hit its daily credit cap at 18 of 26 cells.
@@ -79,7 +79,7 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  // `valueCastType` is the declared type a Calculated Field's comparison imposes (#6732, D25) —
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
   // disjoint from the date set above, since it is only ever a numeric target.
   private litCast(
     value: string | number | boolean | null,

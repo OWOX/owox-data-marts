@@ -63,11 +63,9 @@ export function collectSchemaFieldPathDescriptors(
 
 // A calculated-field formula may legally reference a HIDDEN field: isHiddenForReporting takes a
 // column off the reporting menu, it does not remove it from the source, and computing is not
-// projecting (spec §7 — the same line already drawn for counting by a hidden primary key, see
-// getMainUniqueCountKeyFields). Deliberately NOT built on collectSchemaFieldPathDescriptors, whose
-// callers (reporting/blending) depend on it pruning hidden fields — this is a different governance
-// question with a different answer. DISCONNECTED still prunes: a disconnected field really is gone
-// from the source, unlike a hidden one.
+// projecting. Deliberately NOT built on collectSchemaFieldPathDescriptors, whose callers
+// (reporting/blending) depend on it pruning hidden fields. DISCONNECTED still prunes: a
+// disconnected field really is gone from the source, unlike a hidden one.
 export function collectFormulaReferenceableFields(
   fields: readonly DataMartSchemaField[],
   prefix = ''
