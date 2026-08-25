@@ -29,6 +29,10 @@ import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('UpdateReportService', () => {
+  const SCHEMA_FIELDS = [
+    { name: 'clicks', type: 'INTEGER' },
+    { name: 'ctr', type: 'FLOAT', calculated: { formula: 'SUM(clicks)', level: 'metric' } },
+  ];
   const makeReport = () => ({
     id: 'report-1',
     title: 'Old Title',
@@ -36,6 +40,10 @@ describe('UpdateReportService', () => {
       id: 'dm-1',
       projectId: 'proj-1',
       storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+      // Carries `dataMartSchemaFields` into the validator — the argument every calculated-field
+      // refusal at save depends on. Absent, the assertion below compares `undefined` against a
+      // missing key, which Jest treats as equal.
+      schema: { type: 'bigquery-data-mart-schema', fields: SCHEMA_FIELDS },
     },
     dataDestination: { id: 'dest-1', type: 'LOOKER_STUDIO' },
     destinationConfig: {},
@@ -257,6 +265,8 @@ describe('UpdateReportService', () => {
       // the run path re-validates the same config and must keep degrading instead. Gated on the
       // selection actually changing — see the two tests below.
       rejectUnavailableUniqueCountSources: false,
+      // Named explicitly: this is the argument every calculated-field refusal at save depends on.
+      dataMartSchemaFields: SCHEMA_FIELDS,
     });
   });
 
@@ -326,6 +336,8 @@ describe('UpdateReportService', () => {
       expect.objectContaining({
         uniqueCountConfig: ['orders', 'orders.items'],
         rejectUnavailableUniqueCountSources: true,
+        // Named explicitly: this is the argument every calculated-field refusal at save depends on.
+        dataMartSchemaFields: SCHEMA_FIELDS,
       })
     );
   });
