@@ -135,6 +135,18 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
     errors.push(FormulaViolations.dialectAmbiguousMarker(fieldName, marker));
   }
 
+  // The same family again, and the one that made every guard above unreachable at once. Four of
+  // the five warehouses treat `\\'` inside a literal as an escaped quote and Athena/Trino does not,
+  // so the two readings close the literal in different places — and the reading that closes it
+  // early runs the remainder as SQL while this analyzer sees one inert `string` token.
+  if (
+    tokens.some(
+      t => (t.kind === 'string' || t.kind === 'quotedIdentifier') && t.value.includes('\\')
+    )
+  ) {
+    errors.push(FormulaViolations.dialectAmbiguousEscape(fieldName));
+  }
+
   const calls = findFunctionCalls(tokens);
   const aggregates = calls.filter(c => dialect.isAggregateFunction(c.name));
   const aggregateCalls: AggregateCall[] = [];

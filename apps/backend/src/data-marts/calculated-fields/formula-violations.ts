@@ -147,6 +147,24 @@ export const FormulaViolations = {
       'error, on others — so the same formula would compute different things depending on which ' +
       'Data Mart it belongs to. Use `--` for a comment: it means the same thing everywhere.',
   }),
+  // A backslash inside a quoted literal is the same shape as `#`: four warehouses read `\\'` as an
+  // escaped quote (measured), Athena/Trino does not. Whichever way the scanner reads it, one side
+  // disagrees about where the literal ENDS — and the side that ends it early executes the rest of
+  // the formula as code while this analyzer sees one inert string token, with every structural
+  // guard blind at once.
+  //
+  // Refused rather than reconciled, because there is nothing to reconcile: the two readings put the
+  // closing quote in different places. A literal quote is still writable as `''`, which four of the
+  // five accept and which the scanner and the warehouse then agree about.
+  dialectAmbiguousEscape: (field: string): FormulaViolation => ({
+    code: 'FORMULA_DIALECT_AMBIGUOUS_ESCAPE_NOT_ALLOWED',
+    field,
+    message:
+      'A formula cannot contain a backslash inside a quoted value: some of the supported ' +
+      'warehouses read it as an escape and others read it as an ordinary character, so the text ' +
+      'would end in different places depending on the Data Mart. Write a quote as two quotes ' +
+      "('') instead.",
+  }),
   unknownReference: (field: string, ref: string, state: string): FormulaViolation => ({
     code: 'FORMULA_UNKNOWN_REFERENCE',
     field,

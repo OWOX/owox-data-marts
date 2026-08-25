@@ -1780,7 +1780,6 @@ describe('CalculatedFieldValidatorService', () => {
       ]);
 
       const result = await validator.validate(schema, DataStorageType.GOOGLE_BIGQUERY);
-
       expect(result.errors).toEqual([
         expect.objectContaining({ field: 'ctr', code: 'FORMULA_SYNTAX' }),
       ]);
@@ -1839,9 +1838,14 @@ describe('CalculatedFieldValidatorService', () => {
 
       const result = await validator.validate(schema, DataStorageType.GOOGLE_BIGQUERY);
 
-      expect(result.errors).toEqual([
-        expect.objectContaining({ field: 'ctr', code: 'FORMULA_SYNTAX' }),
-      ]);
+      // Refused EARLIER than it used to be, and for a better reason: the backslash now trips the
+      // dialect-escape guard during analysis, so canonicalization — where this corruption used to
+      // be caught, one step later — is never reached. What the test is really about is unchanged
+      // and asserted below: the mangled formula must not be persisted.
+      expect(result.errors.map(e => e.code)).toContain(
+        'FORMULA_DIALECT_AMBIGUOUS_ESCAPE_NOT_ALLOWED'
+      );
+      expect(result.errors.every(e => e.field === 'ctr')).toBe(true);
       const ctr = schema.fields.find(f => f.name === 'ctr') as unknown as {
         calculated: { formula: string };
       };

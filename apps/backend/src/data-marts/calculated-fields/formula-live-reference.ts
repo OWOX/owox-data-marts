@@ -14,8 +14,21 @@ const containedIn =
   (kind: SqlToken['kind']) => (tokens: readonly SqlToken[], r: FormulaReference) =>
     tokens.some(t => t.kind === kind && t.start <= r.start && r.end <= t.end);
 
-/** A tag inside a string literal: text to the warehouse, a reference to Handlebars. */
-export const isReferenceInString = containedIn('string');
+/**
+ * A tag inside a string literal: text to the warehouse, a reference to Handlebars.
+ *
+ * A DOUBLE-quoted run counts too, and that is not a formality: `"` opens a STRING on BigQuery and
+ * Databricks (measured) and a quoted identifier on the other three, while the scanner reads one
+ * lexical model for all five and calls it `quotedIdentifier` everywhere. Judged live, a tag inside
+ * `"…"` is resolved, substituted, and then rendered by those two warehouses as a text constant —
+ * the field publishes its own name where a number belongs, silently. Counting it as a string
+ * instead makes the same formula refuse at save (FORMULA_TAG_IN_STRING_LITERAL), which is the loud
+ * direction and correct on all five: a reference has no meaning inside a quoted identifier either.
+ */
+const inStringLike = (tokens: readonly SqlToken[], r: FormulaReference): boolean =>
+  containedIn('string')(tokens, r) || containedIn('quotedIdentifier')(tokens, r);
+
+export const isReferenceInString = inStringLike;
 
 /** A tag inside a SQL comment: dead text the warehouse never evaluates. */
 export const isReferenceInComment = containedIn('comment');

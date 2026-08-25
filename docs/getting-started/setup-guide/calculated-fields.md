@@ -212,6 +212,7 @@ When the joined Data Marts have not loaded, a dotted name is refused with *"coul
 | An unclosed parenthesis | `SUM(clicks` |
 | A subquery (`SELECT`), a window function (`OVER`), or a `;` | `SUM(clicks) OVER ()` |
 | A `#` or `//` comment — they mean different things on different warehouses, so use `--` | `SUM(clicks) # daily` |
+| A backslash inside a quoted value — some warehouses read it as an escape and others do not, so write a quote as `''` | `CONCAT(a, 'it\'s')` |
 | A reference to a field that no longer exists | a renamed or deleted column |
 | A reference to a **joined** Data Mart's calculated field — one on your own Data Mart is allowed | `orders.roas` |
 | An aggregated calculated field wrapped in another aggregation | `SUM(revenue)` where `revenue` is `SUM(amount)` |

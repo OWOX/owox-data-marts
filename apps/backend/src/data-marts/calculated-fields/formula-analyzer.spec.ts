@@ -178,6 +178,51 @@ describe('analyzeFormula', () => {
     ).toHaveLength(1);
   });
 
+  // THE GUARD BYPASS. Four warehouses read `\'` inside a literal as an escaped quote and
+  // Athena/Trino does not, so the two readings close the literal in different places. Reading the
+  // backslash as an ordinary character made the closing quote look like the opening half of a
+  // doubled pair, and the whole formula collapsed into ONE string token — every structural guard
+  // reads `punct`/`word`, so a subquery, a `;`, a top-level comma and a comment marker all became
+  // invisible at once, while BigQuery ended the literal at the escaped quote and ran the tail.
+  it.each([
+    [
+      'a subquery reading another dataset',
+      `'a\\'', (SELECT ANY_VALUE(secret) FROM other.ds.customers)`,
+    ],
+    ['a statement separator', `'a\\''; DROP TABLE x`],
+    ['a comment marker', `'a\\''# tail`],
+    ['the same trick in double quotes', `"a\\"", (SELECT 1)`],
+  ])('refuses %s smuggled past every guard by a backslash', (_case, formula) => {
+    expect(analyze(formula).errors.map(e => e.code)).toContain(
+      'FORMULA_DIALECT_AMBIGUOUS_ESCAPE_NOT_ALLOWED'
+    );
+  });
+
+  // And the guards themselves must be able to see through the literal again: with the scanner
+  // ending it where the warehouse does, the comma after it is an ordinary top-level `punct`.
+  it('sees the top-level comma the backslash used to hide', () => {
+    expect(analyze(`'a\\'', (SELECT 1)`).errors.map(e => e.code)).toEqual(
+      expect.arrayContaining([
+        'FORMULA_SUBQUERY_NOT_ALLOWED',
+        'FORMULA_EXPRESSION_SEPARATOR_NOT_ALLOWED',
+      ])
+    );
+  });
+
+  // A doubled quote is the escape all five agree about, so it stays legal text.
+  it('accepts a quote written as two quotes', () => {
+    expect(analyze(`SUM({{ref field="x"}}) + LENGTH('it''s')`).errors).toEqual([]);
+  });
+
+  // `"` opens a STRING on BigQuery and Databricks, so a tag inside one is text there — judged
+  // live it would be substituted and published as a constant. Refused instead, which is correct
+  // on all five: a reference has no meaning inside a quoted identifier either.
+  it('refuses a reference tag inside double quotes', () => {
+    expect(analyze('SUM("{{ref field=\'x\'}}")').errors.map(e => e.code)).toContain(
+      'FORMULA_TAG_IN_STRING_LITERAL'
+    );
+  });
+
   // An extra `)` must not make the depth counter go negative and swallow the comma after it: the
   // formula is broken either way, but the refusal it gets has to be one that names something real.
   it('still rejects a top-level comma after an unbalanced closing parenthesis', () => {

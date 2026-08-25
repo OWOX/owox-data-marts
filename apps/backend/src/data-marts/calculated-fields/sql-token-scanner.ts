@@ -77,8 +77,19 @@ export function scanSql(sql: string): SqlToken[] {
   return tokens;
 }
 
-// A doubled delimiter escapes itself in every dialect we support; a backslash does not. An
-// unterminated literal (no closing delimiter before end of input) still yields one token that
+// A doubled delimiter escapes itself, and so does a BACKSLASH on four of the five warehouses —
+// measured: `SELECT 'it\\'s'` returns `it's` on BigQuery, Redshift, Snowflake and Databricks.
+// This used to claim the opposite ("a backslash does not"), and reading `\\'` as an ordinary
+// character then made the closing quote look like the opening half of a doubled pair: `'a\\''`
+// swallowed the entire rest of the formula into ONE string token. Every structural guard reads
+// `punct`/`word` tokens, so all of them went blind at once — a subquery, a `;`, a top-level comma
+// and a comment marker alike — while the warehouse, which ends the literal at the escaped quote,
+// executed the tail as code.
+//
+// The remaining divergence (Athena/Trino does NOT escape on backslash) is unreachable: the
+// analyzer refuses a backslash inside a literal outright, for the same reason it refuses `#`.
+//
+// An unterminated literal (no closing delimiter before end of input) still yields one token that
 // runs to the end of the string, so the scanner always terminates instead of looping forever.
 function readQuoted(
   sql: string,
@@ -89,6 +100,10 @@ function readQuoted(
 ): number {
   let j = start + 1;
   while (j < sql.length) {
+    if (sql[j] === '\\') {
+      j += 2;
+      continue;
+    }
     if (sql[j] === delim) {
       if (sql[j + 1] === delim) {
         j += 2;
