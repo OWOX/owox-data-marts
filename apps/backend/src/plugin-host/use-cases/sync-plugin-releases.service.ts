@@ -228,7 +228,7 @@ export class SyncPluginReleasesService {
     );
     if (currentVersion && majorOf(semver) <= majorOf(currentVersion.semver)) {
       const incompatibility = findIncompatibleCollectionChange(
-        currentVersion.collections,
+        currentVersion.collections ?? [],
         manifest.manifest.collections
       );
       if (incompatibility) {
