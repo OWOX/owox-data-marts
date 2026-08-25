@@ -176,6 +176,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;
+    this.MAX_RESPONSE_ELEMENTS = 15000;
     this.BASE_URL = "https://api.linkedin.com/rest/";
   
   }
@@ -341,20 +342,43 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     // To overcome this, split fields into chunks and make multiple requests
     const fieldChunks = this.prepareAnalyticsFieldChunks(uniqueApiFields);
 
-    // Process each chunk of fields in separate API requests
-    for (const fieldChunk of fieldChunks) {
-      const url = this.buildAdAnalyticsUrl({
-        startDate,
-        endDate,
-        encodedUrn,
-        fields: fieldChunk
-      });
-      const res = await this.makeRequest(url);
-      const elements = res.elements || [];
+    // The adAnalytics endpoint does not support pagination and caps each response at
+    // MAX_RESPONSE_ELEMENTS elements, so the requested range is fetched one day at a time
+    // to keep every request under the limit.
+    const truncatedDays = [];
 
-      // Merge results from different chunks into a single dataset
-      // Each chunk contains the same rows but different fields
-      allResults = this.mergeAnalyticsResults(allResults, elements);
+    for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
+      let dayTruncated = false;
+
+      // Process each chunk of fields in separate API requests
+      for (const fieldChunk of fieldChunks) {
+        const url = this.buildAdAnalyticsUrl({
+          startDate: day,
+          endDate: day,
+          encodedUrn,
+          fields: fieldChunk
+        });
+        const res = await this.makeRequest(url);
+        const elements = res.elements || [];
+
+        if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
+          dayTruncated = true;
+        }
+
+        // Merge results from different chunks into a single dataset
+        // Each chunk contains the same rows but different fields
+        allResults = this.mergeAnalyticsResults(allResults, elements);
+      }
+
+      if (dayTruncated) {
+        truncatedDays.push(this.formatDateForUrl(day));
+      }
+    }
+
+    if (truncatedDays.length > 0) {
+      this.config.addWarningToCurrentStatus(
+        `adAnalytics responses reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element limit for ${truncatedDays.length} day(s) of ${urn} (e.g. ${truncatedDays[0]}); data for those days may be incomplete`
+      );
     }
 
     // Transform complex dateRange objects to simple Date objects
