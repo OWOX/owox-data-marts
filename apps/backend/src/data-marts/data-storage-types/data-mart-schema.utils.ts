@@ -287,6 +287,19 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .nativeEnum(DataMartSchemaFieldStatus)
         .describe('Field status relatively to the actual data mart schema'),
     })
+    // ROLLING-DEPLOY SAFETY, and it is about data loss rather than validation. This schema is a
+    // TypeORM value transformer: `createZodTransformer.from` parses it on every entity LOAD, and a
+    // bare `z.object` STRIPS keys it does not know. So a pod running the previous release, handed a
+    // field carrying a key that release has never heard of, drops it on read — and then persists
+    // the stripped version, because schema actualization writes the schema back on every report run
+    // and on every Looker `getSchema`.
+    //
+    // That is how `calculated` can be lost during this feature's own rollout, and no code in this
+    // release can prevent it: the pod doing the stripping is the OLD one. `.passthrough()` is
+    // therefore the fix for the NEXT additive change to this shape, not for this one. Keys nothing
+    // reads are carried through untouched rather than deleted, which is the safe direction — an
+    // unknown key is inert, while a deleted one is an analyst's work gone with a success toast.
+    .passthrough()
     .describe('Data mart schema field definition');
   return typedSchema;
 }

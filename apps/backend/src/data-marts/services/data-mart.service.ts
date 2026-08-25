@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOperator, In, Raw, Repository, SelectQueryBuilder } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
@@ -451,7 +452,16 @@ export class DataMartService {
 
     await this.dataMartRepository.update(
       { id },
-      { schema: current.schema, blendedFieldsConfig: current.blendedFieldsConfig }
+      // Cast for TypeORM's inference only, and it costs no safety: `current.schema` is already a
+      // parsed `DataMartSchema` and is written back unchanged. Since the field schema became
+      // `.passthrough()` (rolling-deploy safety — see createBaseFieldSchemaForType),
+      // `QueryDeepPartialEntity` can no longer discriminate the five-member storage union: the
+      // index signature passthrough adds makes every member structurally assignable to every
+      // other, so it picks the wrong arm and rejects `type`.
+      {
+        schema: current.schema,
+        blendedFieldsConfig: current.blendedFieldsConfig,
+      } as QueryDeepPartialEntity<DataMart>
     );
     return true;
   }
