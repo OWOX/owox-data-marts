@@ -114,23 +114,32 @@ export function useReportForm({
         clearError();
         setIsSubmitting(true);
 
-        // Same answer that decided whether a document was asked for, so the config and the form
-        // cannot describe the report differently. Excel is the only documentless destination
-        // this form serves — a third one needs its own branch here, not this fallback.
+        // Named one by one rather than derived from reportNamesTargetDocument: that predicate is
+        // false for every destination that stores no document — Data Studio, Email, Slack and the
+        // rest — so a fallback branch would save any of them as an Excel report, silently and
+        // with no error anywhere. Only two types reach this form today; a third one has to be
+        // added here deliberately, and until it is, it fails where it can still be seen.
         let destinationConfig: DestinationConfigDto;
-        if (reportNamesTargetDocument(destinationType)) {
-          const { spreadsheetId, sheetId } = extractGoogleSheetsUrlComponents(data.documentUrl);
-          if (!spreadsheetId) {
-            setFormError('Invalid Google Sheets URL');
-            return;
+        switch (destinationType) {
+          case DataDestinationType.GOOGLE_SHEETS: {
+            const { spreadsheetId, sheetId } = extractGoogleSheetsUrlComponents(data.documentUrl);
+            if (!spreadsheetId) {
+              setFormError('Invalid Google Sheets URL');
+              return;
+            }
+            destinationConfig = {
+              type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
+              spreadsheetId,
+              sheetId,
+            };
+            break;
           }
-          destinationConfig = {
-            type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
-            spreadsheetId,
-            sheetId,
-          };
-        } else {
-          destinationConfig = { type: DestinationTypeConfigEnum.EXCEL_CONFIG };
+          case DataDestinationType.EXCEL:
+            destinationConfig = { type: DestinationTypeConfigEnum.EXCEL_CONFIG };
+            break;
+          default:
+            setFormError(`This form cannot configure a ${destinationType} report`);
+            return;
         }
 
         let result;

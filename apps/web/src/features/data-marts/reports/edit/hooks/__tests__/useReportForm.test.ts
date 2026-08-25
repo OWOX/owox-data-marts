@@ -339,6 +339,57 @@ describe('useReportForm — submission', () => {
     const payload = mockCreateReport.mock.calls[0][0];
     expect('ownerIds' in payload).toBe(false);
   });
+
+  it('CREATE: saves an Excel report with the Excel config, which names no document', async () => {
+    const { result } = renderHook(() =>
+      useReportForm({
+        mode: ReportFormMode.CREATE,
+        dataMartId: 'dm-1',
+        destinationType: DataDestinationType.EXCEL,
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('title', 'From the add-in');
+      result.current.form.setValue('dataDestinationId', 'dest-1');
+      result.current.form.setValue('columnConfig', ['event_id']);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.getValues());
+    });
+
+    expect(mockCreateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: { type: DestinationTypeConfigEnum.EXCEL_CONFIG },
+      })
+    );
+  });
+
+  it('refuses a destination this form does not serve instead of saving it as Excel', async () => {
+    // Email names no document either, so a predicate-driven fallback would have saved this as an
+    // Excel report — silently, and with no error anywhere.
+    const { result } = renderHook(() =>
+      useReportForm({
+        mode: ReportFormMode.CREATE,
+        dataMartId: 'dm-1',
+        destinationType: DataDestinationType.EMAIL,
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('title', 'Wrong form');
+      result.current.form.setValue('dataDestinationId', 'dest-1');
+      result.current.form.setValue('columnConfig', ['event_id']);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.getValues());
+    });
+
+    expect(mockCreateReport).not.toHaveBeenCalled();
+    expect(result.current.formError).toMatch(/cannot configure/);
+  });
 });
 
 describe('useReportForm — uniqueCountConfig round-trip', () => {
