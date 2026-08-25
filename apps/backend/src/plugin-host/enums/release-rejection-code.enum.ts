@@ -19,6 +19,11 @@ export enum ReleaseRejectionCode {
   MANIFEST_MISSING = 'MANIFEST_MISSING',
   MANIFEST_INVALID_JSON = 'MANIFEST_INVALID_JSON',
   MANIFEST_SCHEMA = 'MANIFEST_SCHEMA',
+  /**
+   * A minor or patch release removes, rescopes or rebinds a collection that an earlier
+   * release declared. The released structure is a contract within a major line; a major
+   * version bump is how a publisher ships such a change deliberately.
+   */
   COLLECTIONS_INCOMPATIBLE = 'COLLECTIONS_INCOMPATIBLE',
   DELIVERY_UNSUPPORTED = 'DELIVERY_UNSUPPORTED',
   URL_NOT_HTTPS = 'URL_NOT_HTTPS',
@@ -28,3 +33,27 @@ export enum ReleaseRejectionCode {
   /** This SemVer is already recorded against a different Release or commit. */
   VERSION_CONFLICT = 'VERSION_CONFLICT',
 }
+
+/**
+ * The rejections a publisher can and should act on: a release wanted to become current
+ * and could not.
+ *
+ * The candidacy codes (DRAFT, PRERELEASE_FLAG, PRERELEASE_TAG, BUILD_METADATA_TAG,
+ * INVALID_TAG) are deliberately absent. They mark releases that are ineligible by design
+ * and permanently -- a repository full of drafts and release candidates would repeat
+ * them on every daily check while nothing is actually wrong, burying the one line that
+ * matters.
+ */
+export const PUBLISHER_ACTIONABLE_REJECTION_CODES: ReadonlySet<ReleaseRejectionCode> = new Set([
+  ReleaseRejectionCode.COMMIT_UNRESOLVABLE,
+  ReleaseRejectionCode.MANIFEST_MISSING,
+  ReleaseRejectionCode.MANIFEST_INVALID_JSON,
+  ReleaseRejectionCode.MANIFEST_SCHEMA,
+  ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
+  ReleaseRejectionCode.DELIVERY_UNSUPPORTED,
+  ReleaseRejectionCode.URL_NOT_HTTPS,
+  ReleaseRejectionCode.URL_PRIVATE_NETWORK,
+  ReleaseRejectionCode.URL_UNREACHABLE,
+  ReleaseRejectionCode.IFRAME_BLOCKED,
+  ReleaseRejectionCode.VERSION_CONFLICT,
+]);

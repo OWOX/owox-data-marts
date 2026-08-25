@@ -54,6 +54,11 @@ export function formatSemver(parts: SemverParts): string {
   return `${parts.major}.${parts.minor}.${parts.patch}`;
 }
 
+/** Major component of a canonical `X.Y.Z` string. */
+export function majorOf(semver: string): number {
+  return Number(semver.split('.')[0]);
+}
+
 /**
  * Field-by-field numeric comparison. Usable directly as an Array#sort comparator.
  *

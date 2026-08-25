@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SyncPluginReleasesCommand, SyncReport } from '../dto/domain/plugin-sync.dto';
+import {
+  ReleaseRejectionDto,
+  SyncPluginReleasesCommand,
+  SyncReport,
+} from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
+import { PUBLISHER_ACTIONABLE_REJECTION_CODES } from '../enums/release-rejection-code.enum';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { PluginAuditService } from '../services/plugin-audit.service';
 import { PluginVersionService } from '../services/plugin-version.service';
@@ -74,7 +79,9 @@ export class RunPluginUpdateCheckService {
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Update check for ${repository} failed: ${detail}`);
-      await this.record(plugin, trigger, actor, 'failed', before, before, detail);
+      await this.record(plugin, trigger, actor, 'failed', before, before, {
+        failureDetail: detail,
+      });
       return {
         pluginId: plugin.id,
         repository,
@@ -91,7 +98,25 @@ export class RunPluginUpdateCheckService {
         ? 'updated'
         : 'up_to_date';
 
-    await this.record(plugin, trigger, actor, outcome, before, synced.currentVersionId);
+    // A throttled check hands back the stored report of an earlier run; repeating its
+    // rejections here would multiply the same line without a new check behind it.
+    const rejections = synced.throttled
+      ? []
+      : synced.report.rejections.filter(rejection =>
+          PUBLISHER_ACTIONABLE_REJECTION_CODES.has(rejection.code)
+        );
+    // warn, not error: nothing on our side failed -- the publisher has something to fix.
+    // Rejections that are permanent by design (drafts, prereleases) stay out of the log;
+    // see PUBLISHER_ACTIONABLE_REJECTION_CODES.
+    for (const rejection of rejections) {
+      this.logger.warn(
+        `${repository}: ${rejection.tagName} rejected (${rejection.code}) — ${rejection.detail}`
+      );
+    }
+
+    await this.record(plugin, trigger, actor, outcome, before, synced.currentVersionId, {
+      rejections,
+    });
 
     return {
       pluginId: plugin.id,
@@ -123,7 +148,7 @@ export class RunPluginUpdateCheckService {
     outcome: PluginUpdateCheckOutcome,
     before: string | null,
     after: string | null,
-    failureDetail?: string
+    detail: { failureDetail?: string; rejections?: ReleaseRejectionDto[] } = {}
   ): Promise<void> {
     await this.audit.record({
       pluginId: plugin.id,
@@ -139,8 +164,10 @@ export class RunPluginUpdateCheckService {
         currentVersionId: after,
         trigger,
         outcome,
-        // GitHub reports failures in its response body, never in credentials we sent.
-        ...(failureDetail ? { failureDetail } : {}),
+        // GitHub reports failures in its response body, never in credentials we sent,
+        // and every rejection detail derives from public repository content.
+        ...(detail.failureDetail ? { failureDetail: detail.failureDetail } : {}),
+        ...(detail.rejections?.length ? { rejections: detail.rejections } : {}),
       },
     });
   }

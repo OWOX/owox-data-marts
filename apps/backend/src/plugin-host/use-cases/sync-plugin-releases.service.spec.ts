@@ -387,20 +387,48 @@ describe('SyncPluginReleasesService', () => {
       expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
     });
 
-    // The collection-compatibility gate is temporarily off; see the ponytail note in
-    // processCandidate. A release that redefines an existing collection must publish.
-    it('accepts a release that redefines a collection from the current manifest', async () => {
+    // The reported case: a patch release binds an already-released collection to an entity.
+    const boundDashboards = {
+      name: 'dashboards',
+      scope: 'project',
+      entityBinding: {
+        type: 'data-mart',
+        actions: { read: 'SEE', create: 'SEE', update: 'EDIT', delete: 'DELETE' },
+      },
+    };
+
+    it('rejects a minor or patch release that redefines a released collection', async () => {
       const s = setup();
-      // The reported case: a patch release binds an already-released collection to an entity.
-      const boundDashboards = {
-        name: 'dashboards',
-        scope: 'project',
-        entityBinding: {
-          type: 'data-mart',
-          actions: { read: 'SEE', create: 'SEE', update: 'EDIT', delete: 'DELETE' },
-        },
-      };
       s.githubApi.listReleases.mockResolvedValue([release('v0.1.1')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(
+        JSON.stringify({ ...JSON.parse(MANIFEST), collections: [boundDashboards] })
+      );
+      s.versionService.findAllByPluginId.mockResolvedValue([
+        {
+          id: 'v1',
+          semver: '0.1.0',
+          collections: [{ name: 'dashboards', scope: 'project' }],
+        },
+      ] as never);
+
+      const result = await run(s, false);
+
+      expect(result.report.acceptedSemvers).toEqual([]);
+      expect(result.report.rejections).toEqual([
+        expect.objectContaining({
+          tagName: 'v0.1.1',
+          code: ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
+          // The detail names the way out, because the publisher reads it with no
+          // other context: the breaking change ships by saying so.
+          detail: expect.stringContaining('publish a new major version'),
+        }),
+      ]);
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
+    });
+
+    it('accepts a major release that redefines a released collection', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
       s.githubApi.getFileAtCommit.mockResolvedValue(
         JSON.stringify({ ...JSON.parse(MANIFEST), collections: [boundDashboards] })
       );
@@ -415,7 +443,7 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.report.rejections).toEqual([]);
-      expect(result.report.acceptedSemvers).toEqual(['0.1.1']);
+      expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
       expect(s.versionService.insertVersionForLease).toHaveBeenCalledWith(
         expect.objectContaining({ collections: [boundDashboards] }),
         'lease-1'

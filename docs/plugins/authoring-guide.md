@@ -205,9 +205,12 @@ without notice.
 
 ## Persisting JSON with collections
 
-Declare every collection in `plugin.json`. The declaration is immutable in structure once
-released: later versions may add collections and change action mappings, but cannot remove a
-collection or change its name, scope, or entity binding.
+Declare every collection in `plugin.json`. The declaration is immutable in structure within a
+major version line: a minor or patch release may add collections and change action mappings, but
+cannot remove a collection or change its name, scope, or entity binding. Such a release is
+rejected and the previous version stays current; the reason appears in the publisher diagnostics
+and on the plugin page. A major version bump waives the check—it is how a breaking collection
+change ships deliberately.
 
 ```json
 {

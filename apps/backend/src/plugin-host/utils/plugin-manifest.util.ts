@@ -192,6 +192,9 @@ export function parsePluginManifest(rawFileContent: string | null): ManifestPars
 /**
  * A new current version may add collections and may change their action map, but it
  * cannot remove or structurally redefine a collection that already owns data.
+ *
+ * The sync applies this only within the released major line: a major version bump is
+ * the publisher's declared breaking change, so the check is waived there.
  */
 export function findIncompatibleCollectionChange(
   current: readonly PluginCollectionDeclaration[],

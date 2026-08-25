@@ -1,4 +1,11 @@
-export { AudienceIcon, InstallPluginDialog, PluginCard, PublishPluginSheet } from './components';
+export {
+  AudienceIcon,
+  InstallPluginDialog,
+  PluginCard,
+  PluginReleaseIssuesCard,
+  PublishPluginSheet,
+} from './components';
+export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './rejections';
 export { pluginsService } from './services/plugins.service';
 export { repositoryPath } from './repository';
 export { safeHttpsUrl } from './safeHttpsUrl';

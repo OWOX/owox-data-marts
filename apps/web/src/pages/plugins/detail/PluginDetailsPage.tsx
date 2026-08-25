@@ -25,6 +25,8 @@ import { useAuth } from '../../../features/idp';
 import {
   AudienceIcon,
   InstallPluginDialog,
+  PluginReleaseIssuesCard,
+  findReleaseIssues,
   usePlugin,
   usePluginActions,
   usePluginInstallations,
@@ -122,6 +124,8 @@ export default function PluginDetailsPage() {
   // §11 has no "move": publishing at another level only adds visibility. Sharing is
   // therefore publish-then-withdraw, and it is offered only to someone who may do both.
   const memberPublication = publications.find(item => item.scope === 'member');
+  // Diagnostics ride only on management responses, so this stays null for non-publishers.
+  const releaseIssues = findReleaseIssues(publications);
   const canShareWithProject =
     publishableScopes.includes('project') &&
     memberPublication !== undefined &&
@@ -388,6 +392,8 @@ export default function PluginDetailsPage() {
               }
             />
           </CollapsibleCard>
+
+          {releaseIssues && <PluginReleaseIssuesCard issues={releaseIssues} />}
 
           <CollapsibleCard collapsible name='plugin-details'>
             <CollapsibleCardHeader>

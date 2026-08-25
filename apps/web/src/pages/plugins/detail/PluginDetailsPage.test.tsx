@@ -9,6 +9,8 @@ import type {
 import { describeVisibility as actualDescribeVisibility } from '../../../features/plugins/visibility';
 import { repositoryPath as actualRepositoryPath } from '../../../features/plugins/repository';
 import { safeHttpsUrl as actualSafeHttpsUrl } from '../../../features/plugins/safeHttpsUrl';
+import { findReleaseIssues as actualFindReleaseIssues } from '../../../features/plugins/rejections';
+import { PluginReleaseIssuesCard as ActualPluginReleaseIssuesCard } from '../../../features/plugins/components/PluginReleaseIssuesCard';
 
 const publish = vi.fn();
 const unpublish = vi.fn();
@@ -41,6 +43,8 @@ vi.mock('../../../features/plugins', () => ({
   describeVisibility: actualDescribeVisibility,
   repositoryPath: actualRepositoryPath,
   safeHttpsUrl: actualSafeHttpsUrl,
+  findReleaseIssues: actualFindReleaseIssues,
+  PluginReleaseIssuesCard: ActualPluginReleaseIssuesCard,
   AudienceIcon: () => null,
   InstallPluginDialog: () => null,
 }));
@@ -318,5 +322,60 @@ describe('PluginDetailsPage', () => {
 
     expect(screen.getByText('Temporarily unavailable')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+  });
+
+  const diagnostics = (
+    rejections: NonNullable<PluginPublication['diagnostics']>['rejections']
+  ): NonNullable<PluginPublication['diagnostics']> => ({
+    deliveryUrl: 'https://plugin.example.com',
+    commitSha: 'abc',
+    accessMode: 'app',
+    syncedAt: '2026-08-17T13:00:12.933Z',
+    acceptedSemvers: [],
+    unchangedSemvers: [],
+    rejections,
+  });
+
+  // The reported gap: a rejected release used to look exactly like "Check now did
+  // nothing", with the reason stored in the database and shown nowhere.
+  it('tells a publisher why a release was rejected', () => {
+    publications = [
+      publication({
+        diagnostics: diagnostics([
+          {
+            tagName: 'v1.0.2',
+            githubReleaseId: 'r2',
+            code: 'COLLECTIONS_INCOMPATIBLE',
+            detail: 'Collection "dashboards" cannot change entity binding',
+          },
+        ]),
+      }),
+    ];
+    renderPage();
+
+    expect(screen.getByText('Release issues')).toBeTruthy();
+    expect(screen.getByText('v1.0.2')).toBeTruthy();
+    expect(screen.getByText('COLLECTIONS_INCOMPATIBLE')).toBeTruthy();
+    expect(screen.getByText('Collection "dashboards" cannot change entity binding')).toBeTruthy();
+  });
+
+  // Drafts and prereleases are out by design; repeating them here would bury the one
+  // entry a publisher needs. And with no diagnostics at all -- a non-publisher -- the
+  // card must not exist.
+  it('shows no release issues for by-design rejections or without diagnostics', () => {
+    publications = [
+      publication({
+        diagnostics: diagnostics([
+          { tagName: 'v2.0.0-rc.1', githubReleaseId: 'r3', code: 'PRERELEASE_TAG', detail: '…' },
+        ]),
+      }),
+    ];
+    renderPage();
+    expect(screen.queryByText('Release issues')).toBeNull();
+    cleanup();
+
+    publications = [publication()];
+    renderPage();
+    expect(screen.queryByText('Release issues')).toBeNull();
   });
 });

@@ -12,6 +12,8 @@ import type { InstalledPlugin, PluginGalleryEntry, PluginUpdateResult } from '..
  * invalidated, and the member would read a stale list with nothing failing anywhere.
  */
 export const GALLERY_KEY = 'plugin-gallery';
+/** Shared with usePluginPublications for the same no-silent-drift reason as GALLERY_KEY. */
+export const PUBLICATIONS_KEY = 'plugin-publications';
 const INSTALLATIONS_KEY = 'plugin-installations';
 
 const EMPTY_GALLERY: PluginGalleryEntry[] = [];
@@ -114,7 +116,13 @@ export function usePluginActions() {
 
   const updateMutation = useMutation({
     mutationFn: (pluginId: string) => pluginsService.checkNow(pluginId),
-    onSuccess: invalidate,
+    // A check rewrites the sync report that the publisher's Release issues card reads
+    // from, so publications refresh along with the member-facing lists.
+    onSuccess: () =>
+      Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: [PUBLICATIONS_KEY, projectId] }),
+      ]),
   });
 
   /**

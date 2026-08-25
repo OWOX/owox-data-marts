@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
+import { ReleaseRejectionDto } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
+import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import { PluginAuditService } from '../services/plugin-audit.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
@@ -13,7 +16,13 @@ const PLUGIN = {
   currentVersionId: 'v1',
 } as Plugin;
 
-function setup(options: { syncedTo?: string | null; throttled?: boolean } = {}) {
+function setup(
+  options: {
+    syncedTo?: string | null;
+    throttled?: boolean;
+    rejections?: ReleaseRejectionDto[];
+  } = {}
+) {
   const sync = {
     run: jest.fn().mockResolvedValue({
       pluginId: 'p1',
@@ -26,7 +35,7 @@ function setup(options: { syncedTo?: string | null; throttled?: boolean } = {}) 
         accessMode: 'anonymous',
         acceptedSemvers: [],
         unchangedSemvers: [],
-        rejections: [],
+        rejections: options.rejections ?? [],
       },
     }),
   } as unknown as jest.Mocked<SyncPluginReleasesService>;
@@ -134,6 +143,87 @@ describe('RunPluginUpdateCheckService', () => {
             outcome: 'failed',
             failureDetail: 'GitHub responded 403',
           }),
+        })
+      );
+    });
+  });
+
+  describe('rejection visibility', () => {
+    const incompatible: ReleaseRejectionDto = {
+      tagName: 'v0.1.2',
+      githubReleaseId: 'r2',
+      code: ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
+      detail: 'Collection "dashboards" cannot change entity binding',
+    };
+    const draft: ReleaseRejectionDto = {
+      tagName: 'v0.2.0',
+      githubReleaseId: 'r3',
+      code: ReleaseRejectionCode.DRAFT,
+      detail: 'Release is a draft',
+    };
+
+    let warn: jest.SpyInstance;
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it('logs a publisher-fixable rejection so an operator can find it', async () => {
+      const s = setup({ syncedTo: 'v1', rejections: [incompatible] });
+
+      await s.service.run(PLUGIN, 'automatic');
+
+      expect(warn).toHaveBeenCalledWith(
+        'OWOX/example: v0.1.2 rejected (COLLECTIONS_INCOMPATIBLE) — Collection "dashboards" cannot change entity binding'
+      );
+    });
+
+    // Drafts and prereleases are ineligible by design and permanently; logging them
+    // daily would bury the one line that matters.
+    it('stays silent about by-design rejections', async () => {
+      const s = setup({ syncedTo: 'v1', rejections: [draft] });
+
+      await s.service.run(PLUGIN, 'automatic');
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(s.audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          afterState: expect.not.objectContaining({ rejections: expect.anything() }),
+        })
+      );
+    });
+
+    it('records publisher-fixable rejections in the audit trail, not only thrown errors', async () => {
+      const s = setup({ syncedTo: 'v1', rejections: [draft, incompatible] });
+
+      await s.service.run(PLUGIN, 'member', { projectId: 'j1', userId: 'u1' });
+
+      expect(s.audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: PluginAuditAction.UPDATE_CHECK,
+          afterState: expect.objectContaining({
+            outcome: 'up_to_date',
+            rejections: [incompatible],
+          }),
+        })
+      );
+    });
+
+    // A throttled check hands back the stored report of an earlier run; repeating its
+    // rejections would multiply the same line without a new check behind it.
+    it('does not repeat rejections from a stale throttled report', async () => {
+      const s = setup({ syncedTo: 'v1', throttled: true, rejections: [incompatible] });
+
+      await s.service.run(PLUGIN, 'member');
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(s.audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          afterState: expect.not.objectContaining({ rejections: expect.anything() }),
         })
       );
     });
