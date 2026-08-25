@@ -338,6 +338,15 @@ export const FormulaViolations = {
       `${detail ?? 'no details returned'}. Each formula passed individually — the conflict only ` +
       `appears when they run as a set.`,
   }),
+  // Says the list was CUT rather than letting it end silently: a short list of collateral reads as
+  // "and that is all of it", which is the one thing a truncated one is not.
+  otherFieldErrorsTruncated: (field: string, omitted: number): FormulaViolation => ({
+    code: 'FORMULA_OTHER_FIELD_ERRORS_TRUNCATED',
+    field,
+    message:
+      `${String(omitted)} more problem${omitted === 1 ? '' : 's'} in other calculated fields ` +
+      `${omitted === 1 ? 'is' : 'are'} not listed here. Open those fields, or save to see them all.`,
+  }),
   warehouseCheckSkipped: (fields: readonly string[]): FormulaViolation => ({
     code: 'FORMULA_WAREHOUSE_CHECK_SKIPPED',
     field: fields[0] ?? '',

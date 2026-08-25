@@ -80,6 +80,8 @@ The editor is plain SQL with autocomplete. Type any word character to open the s
 
 A recognised field is drawn as a pill and behaves as one unit: the caret never lands inside it, and `Backspace` beside it removes the whole reference in one step, which a single undo brings back. Hover a pill that names a **joined** field — in the editor or on the row — and it tells you which Data Mart that field comes from, which the join alias on its own does not.
 
+`Ctrl`/`Cmd`+`Enter` applies the formula without reaching for the mouse, and `Escape` cancels. `Tab` indents inside the editor rather than leaving it.
+
 ### Dividing one integer by another
 
 Dividing one `INTEGER` column by another is **integer division on Redshift and on Athena**: both truncate the result toward zero. `SUM(clicks) / NULLIF(SUM(impressions), 0)` over 1 click and 2 impressions returns:

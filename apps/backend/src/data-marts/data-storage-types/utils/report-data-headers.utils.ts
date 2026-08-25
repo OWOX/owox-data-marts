@@ -5,6 +5,8 @@ import { DataStorageType } from '../enums/data-storage-type.enum';
 import { computeEffectiveType, integerTypeFor } from '../field-aggregation';
 import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
 import { isAggregateLevel } from '../../calculated-fields/formula-level';
+import type { CalculatedMetricPlan } from './sql-clause-renderer';
+import type { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import {
   UNIQUE_COUNT_LABEL,
   aggregatedColumnAlias,
@@ -40,8 +42,8 @@ export function resolveReportDataHeaders(
     options?.uniqueCount === true && (options?.primaryKeyColumns?.length ?? 0) > 0;
   // A metrics-only query has no projected dimensions: the SELECT emits only the
   // synthetic metric / Unique Count / calculated-metric columns. This is the totals query, the
-  // uniqueCount-only report, and a report selecting ONLY a calculated metric (its name was
-  // already excluded from `columnFilter` by the caller, so `filter` alone cannot see it).
+  // uniqueCount-only report, and a report selecting ONLY a calculated metric — whose name a caller
+  // may have stripped from `columnFilter`, leaving it empty.
   // Without `calculatedMetrics` here, an empty `columnFilter` falls through to "every native
   // header" below — a header list the SELECT (which projects exactly the metric) does not match:
   // a silent null on BigQuery/Snowflake/Databricks, a hard `Column ... not found` on
@@ -59,16 +61,34 @@ export function resolveReportDataHeaders(
     uniqueCountSources.length > 0 ||
     calculatedMetrics.length > 0;
 
+  /**
+   * A calculated metric named by the filter is resolved HERE rather than by the caller.
+   *
+   * Its name must not reach the native/blended lookup below — there is no warehouse column behind
+   * it, so it would fall through to the `(col, col)` placeholder and publish an untyped header the
+   * SELECT never emits. Five producers of `PrepareReportDataOptions` strip it themselves to avoid
+   * that, an invariant nothing enforces and a sixth would forget; doing it here makes it
+   * unforgettable, and keeps the analyst's chosen POSITION, which a stripped filter has already
+   * thrown away.
+   */
+  const calculatedByName = new Map(calculatedMetrics.map(metric => [metric.outputName, metric]));
+  const placedCalculated = new Set<string>();
+
   let headers: ReportDataHeader[];
   if (filter && filter.length > 0) {
     const nativeByName = new Map(nativeHeaders.map(h => [h.name, h]));
     const blendedByName = new Map((options?.blendedDataHeaders ?? []).map(h => [h.name, h]));
-    headers = filter.map(col => {
+    headers = filter.flatMap(col => {
+      const metric = calculatedByName.get(col);
+      if (metric) {
+        placedCalculated.add(col);
+        return calculatedMetricHeaders(metric, aggregations, storageType);
+      }
       const native = nativeByName.get(col);
-      if (native) return native;
+      if (native) return [native];
       const blended = blendedByName.get(col);
-      if (blended) return blended;
-      return new ReportDataHeader(col, col);
+      if (blended) return [blended];
+      return [new ReportDataHeader(col, col)];
     });
   } else if (metricsOnly) {
     // No projection on a metrics-only query (empty/absent columnFilter) → emit NO dimension
@@ -86,6 +106,10 @@ export function resolveReportDataHeaders(
     // emits as output aliases. Readers bind by name, so only the labels must agree, not the
     // positions.
     headers = headers.flatMap(header => {
+      // A calculated metric's headers are already final — `calculatedMetricHeaders` applied the
+      // LEVEL rule, which withholds expansion from an aggregate-level formula even when a rule
+      // names it. Expanding again here would undo exactly that.
+      if (calculatedByName.has(header.name)) return [header];
       const fns = aggregationFunctionsForColumn(aggregations, header.name);
       if (fns.length === 0) return [header];
       return fns.map(
@@ -150,42 +174,68 @@ export function resolveReportDataHeaders(
   // `alias`/`description` are re-attached here for the same reason the type is: this list is the
   // metric's ONLY header source, and skipping them left a metric aliased "CTR, %" as the one column
   // in its own report still labelled `ctr`.
-  for (const metric of options?.calculatedMetrics ?? []) {
-    const fns =
-      isCalculatedGroupingKey(metric) || isAggregateLevel(metric.level)
-        ? []
-        : aggregationFunctionsForColumn(aggregations, metric.outputName);
-    if (fns.length === 0) {
-      headers = [
-        ...headers,
-        new ReportDataHeader(
-          metric.outputName,
-          metric.alias,
-          metric.description,
-          metric.type as StorageFieldType,
-          undefined,
-          metric.level
-        ),
-      ];
-      continue;
-    }
-    headers = [
-      ...headers,
-      ...fns.map(
-        fn =>
-          new ReportDataHeader(
-            aggregatedColumnLabel(metric.outputName, fn),
-            metric.alias ? aggregatedColumnAlias(metric.alias, fn) : undefined,
-            metric.description,
-            // The declared type describes the FORMULA's value, not the aggregate's: a
-            // COUNT_DISTINCT over it is an integer count whatever the formula was declared.
-            computeEffectiveType(metric.type as StorageFieldType, fn, storageType),
-            fn,
-            metric.level
-          )
+  // Only the ones the filter did not name: appended last, which is where a caller that stripped
+  // the name itself — or a metrics-only query with no filter at all — leaves them.
+  for (const metric of calculatedMetrics) {
+    if (placedCalculated.has(metric.outputName)) continue;
+    headers = [...headers, ...calculatedMetricHeaders(metric, aggregations, storageType)];
+  }
+
+  return headers;
+}
+
+/**
+ * A calculated metric is typed by the analyst's declaration; there is no warehouse column.
+ *
+ * `aggregateFunction` stays undefined because no single report function describes a formula, so the
+ * header carries the field's LEVEL instead. A bare `undefined` there reads as "ordinary native
+ * column", which Looker Studio maps to a re-summable SUM — the non-additive failure this feature
+ * exists to remove. The LEVEL travels rather than the fact of being calculated, because a row-level
+ * formula is a DIMENSION and must take the ordinary path.
+ *
+ * UNLESS the REPORT aggregates it: a row-level field carrying a rule is no longer a grouping key,
+ * and the renderer emits one aggregate per rule under `aggregatedColumnLabel`, so the headers expand
+ * the same way. Named `outputName` regardless, the reader binds to a column the SELECT never
+ * emitted. The grain verdict comes off the PLAN, never re-derived from the rules.
+ *
+ * `alias`/`description` are re-attached for the same reason the type is: this is the metric's ONLY
+ * header source, and skipping them left a metric aliased "CTR, %" as the one column in its own
+ * report still labelled `ctr`.
+ */
+function calculatedMetricHeaders(
+  metric: CalculatedMetricPlan,
+  aggregations: AggregationRule[],
+  storageType: DataStorageType
+): ReportDataHeader[] {
+  const fns =
+    isCalculatedGroupingKey(metric) || isAggregateLevel(metric.level)
+      ? []
+      : aggregationFunctionsForColumn(aggregations, metric.outputName);
+
+  if (fns.length === 0) {
+    return [
+      new ReportDataHeader(
+        metric.outputName,
+        metric.alias,
+        metric.description,
+        metric.type as StorageFieldType,
+        undefined,
+        metric.level
       ),
     ];
   }
 
-  return headers;
+  return fns.map(
+    fn =>
+      new ReportDataHeader(
+        aggregatedColumnLabel(metric.outputName, fn),
+        metric.alias ? aggregatedColumnAlias(metric.alias, fn) : undefined,
+        metric.description,
+        // The declared type describes the FORMULA's value, not the aggregate's: a COUNT_DISTINCT
+        // over it is an integer count whatever the formula was declared.
+        computeEffectiveType(metric.type as StorageFieldType, fn, storageType),
+        fn,
+        metric.level
+      )
+  );
 }

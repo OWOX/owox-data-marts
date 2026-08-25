@@ -68,6 +68,29 @@ interface Verdict {
 const NO_VERDICT: Verdict = { errors: [], warnings: [], otherFieldErrors: [], formula: '' };
 
 /**
+ * What the panel says once this editor has stopped asking.
+ *
+ * A WARNING rather than an error: nothing is known to be wrong with the formula — the point is that
+ * nobody looked. Left silent, the panel is byte-identical to a clean verdict, which is the reading
+ * `isTooLong` below already refuses to allow. Carries no `subject`, so it renders as text under the
+ * editor and marks up nothing.
+ */
+const haltedVerdict = (field: string, formula: string): Verdict => ({
+  errors: [],
+  warnings: [
+    {
+      code: 'FORMULA_LIVE_CHECK_UNAVAILABLE',
+      field,
+      message:
+        'Live checking is unavailable in this session, so this formula has not been checked here. ' +
+        'It is still checked when you save.',
+    },
+  ],
+  otherFieldErrors: [],
+  formula,
+});
+
+/**
  * How many consecutive 4xx answers one open editor tolerates before it stops asking.
  *
  * A 4xx says the REQUEST is unacceptable, and none of those causes fix themselves while the analyst
@@ -124,6 +147,15 @@ export function useFormulaDiagnostics({
   const [isChecking, setIsChecking] = useState(false);
   // A ref, not state: it must not re-render anything, and the effect below reads it as it runs.
   const consecutiveClientErrors = useRef(0);
+  /**
+   * That asking has been given up on — STATE, because crossing the limit has to reach the screen.
+   * Derived from the ref and the module flag rather than replacing them: the counter is per
+   * request and the session flag outlives this popover, while this is what the panel renders.
+   *
+   * Seeded from `sessionRefused` so a reopened editor does not spend one more refused request
+   * relearning what the session already knows.
+   */
+  const [checksHalted, setChecksHalted] = useState(() => sessionRefused);
   const calculatedFieldsRef = useRef(calculatedFields);
   calculatedFieldsRef.current = calculatedFields;
 
@@ -131,8 +163,7 @@ export function useFormulaDiagnostics({
   // analyst has not finished creating yet (a metric's row exists before it is named).
   const active =
     enabled &&
-    !sessionRefused &&
-    consecutiveClientErrors.current < CONSECUTIVE_CLIENT_ERROR_LIMIT &&
+    !checksHalted &&
     dataMartId !== '' &&
     name.trim() !== '' &&
     type.trim() !== '' &&
@@ -145,8 +176,10 @@ export function useFormulaDiagnostics({
 
   useEffect(() => {
     if (!active) {
-      // No formula, no verdict: whatever the last one said, it was about something else.
-      setVerdict(NO_VERDICT);
+      // Two different silences, and only one of them is honest. Nothing to check yet — no name, no
+      // type, no formula — has nothing to say. Having GIVEN UP asking is a fact about the check,
+      // and staying quiet about it puts an empty panel under an unchecked formula.
+      setVerdict(checksHalted ? haltedVerdict(name, formula) : NO_VERDICT);
       setIsChecking(false);
       return;
     }
@@ -189,6 +222,12 @@ export function useFormulaDiagnostics({
       void dataMartService
         .validateFormula(dataMartId, body, { signal: controller.signal })
         .then(response => {
+          // Reset BEFORE the superseded guard, for the same reason the catch below records before
+          // it: an answer proves the endpoint still takes this editor's requests, whichever formula
+          // it happened to be carrying. Resetting after the guard while the catch counts before it
+          // let three refusals interleaved with successes reach the limit and silence the editor
+          // for the popover's life.
+          consecutiveClientErrors.current = 0;
           if (superseded) return;
           // The service CASTS the body rather than mapping it, so the declared shape is a claim
           // about the wire and not a fact — the same reason `useBlendableSchema` normalizes its
@@ -198,7 +237,6 @@ export function useFormulaDiagnostics({
             warnings = [],
             otherFieldErrors = [],
           } = response as Partial<ValidateFormulaResponseDto>;
-          consecutiveClientErrors.current = 0;
           setVerdict({
             errors,
             warnings,
@@ -216,6 +254,9 @@ export function useFormulaDiagnostics({
           // and about this editor, not about the formula that request happened to be carrying.
           if (isSessionRefusal(error)) sessionRefused = true;
           if (isClientError(error)) consecutiveClientErrors.current += 1;
+          if (sessionRefused || consecutiveClientErrors.current >= CONSECUTIVE_CLIENT_ERROR_LIMIT) {
+            setChecksHalted(true);
+          }
           if (superseded) return;
           // Offline, 5xx, a role that cannot ask — none of that is a fact about the formula, and
           // inventing one would send the analyst hunting for a mistake they did not make. The
@@ -230,7 +271,7 @@ export function useFormulaDiagnostics({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [active, isTooLong, dataMartId, name, type, formula]);
+  }, [active, checksHalted, isTooLong, dataMartId, name, type, formula]);
 
   return {
     errors: verdict.errors,

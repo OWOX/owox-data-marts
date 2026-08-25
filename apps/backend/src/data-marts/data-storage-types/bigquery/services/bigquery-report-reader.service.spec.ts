@@ -157,18 +157,22 @@ describe('BigQueryReportReader — calculated metric header on the real read pat
     expect(description.dataHeaders.filter(h => h.name === 'ctr')).toHaveLength(1);
   });
 
-  it('double-emits ctr if a caller forgets to exclude it from columnFilter (regression guard on the exclusion contract)', async () => {
+  // This used to pin the opposite: a caller that left 'ctr' in `columnFilter` got TWO headers for
+  // it, and `excludeCalculatedMetricNames` at five call sites was all that stood between that and
+  // production. `resolveReportDataHeaders` now resolves the name itself, so the shape below is
+  // simply correct — and it keeps the analyst's position, which the exclusion threw away.
+  it('resolves a calculated name the caller left in columnFilter, once and in place', async () => {
     const reader = buildReaderWithRealHeadersGenerator();
 
-    // The wrong shape: columnFilter still carries 'ctr' alongside calculatedMetrics. This is
-    // exactly the bug excludeCalculatedMetricNames exists to prevent at every real call site —
-    // pinned here so a future caller that skips the exclusion fails loudly in review, not in prod.
     const description = await reader.prepareReportData(reportWithCtr(), {
       sqlOverride: 'SELECT 1',
-      columnFilter: ['country', 'ctr'],
+      columnFilter: ['ctr', 'country'],
       calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
     });
 
-    expect(description.dataHeaders.filter(h => h.name === 'ctr')).toHaveLength(2);
+    expect(description.dataHeaders.filter(h => h.name === 'ctr')).toHaveLength(1);
+    expect(description.dataHeaders.map(h => h.name)).toEqual(['ctr', 'country']);
+    // Its declared type, not the `(col, col)` placeholder the name used to fall through to.
+    expect(description.dataHeaders[0].storageFieldType).toBe(BigQueryFieldType.FLOAT);
   });
 });

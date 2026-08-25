@@ -75,6 +75,15 @@ export interface FormulaEditorProps {
    */
   scalarFunctionNames?: readonly string[];
   onChange: (next: { text: string; refs: ResolvedReference[] }) => void;
+  /**
+   * Commit the buffer from the keyboard — `Ctrl`/`Cmd`+`Enter`, the same binding the plain textarea
+   * this editor replaces already answers to.
+   *
+   * Without it the editor has no keyboard commit at all: Monaco takes `Tab` for indentation, so the
+   * Apply button is unreachable from inside, and `Escape` reaches Cancel — the one action that
+   * throws the work away. Omit it where there is nothing to commit to.
+   */
+  onSubmit?: () => void;
   height?: string | number;
   /** Accessible name for the editor, forwarded to Monaco's own `ariaLabel` option. */
   ariaLabel?: string;
@@ -104,6 +113,7 @@ export function FormulaEditor({
   functionNames,
   scalarFunctionNames,
   onChange,
+  onSubmit,
   height = '140px',
   ariaLabel,
   diagnostics,
@@ -129,6 +139,11 @@ export function FormulaEditor({
   const calculatedFieldsRef =
     useRef<ReadonlyMap<string, { level?: CalculatedFieldLevel }>>(calculatedFields);
   calculatedFieldsRef.current = calculatedFields;
+
+  // Through a ref for the same reason the index is: the command is registered once on mount and
+  // would otherwise commit through the first render's callback for the editor's whole life.
+  const onSubmitRef = useRef<(() => void) | undefined>(onSubmit);
+  onSubmitRef.current = onSubmit;
 
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monacoEditor | null>(null);
@@ -204,6 +219,14 @@ export function FormulaEditor({
       const stopAutoSize = autoSizeSuggestWidget(editor, overflowHost);
       editor.onDidDispose(stopAutoSize);
     }
+    // The editor's only keyboard commit. Monaco owns `Tab`, so without this the Apply button is
+    // unreachable without a pointer, and the one key that does escape the editor is `Escape` —
+    // which cancels. Registered even when nothing is passed, so the binding never lands in the
+    // model as a newline on one render and a commit on the next.
+    const keys = monacoInstance as unknown as typeof monacoEditor;
+    editor.addCommand(keys.KeyMod.CtrlCmd | keys.KeyCode.Enter, () => {
+      onSubmitRef.current?.();
+    });
     chipsRef.current = editor.createDecorationsCollection([]);
     const detachChips = attachChipInteraction(editor, () => chipsRef.current?.getRanges() ?? []);
     editor.onDidDispose(detachChips);
@@ -263,6 +286,35 @@ export function FormulaEditor({
     ),
   ];
 
+  /**
+   * Memoised because `@monaco-editor/react` diffs this by identity: a fresh literal makes it call
+   * `editor.updateOptions()` on every render, and the editor re-renders on every keystroke.
+   */
+  const editorOptions = useMemo(
+    () => ({
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap: 'on' as const,
+      automaticLayout: true,
+      overviewRulerBorder: false,
+      overviewRulerLanes: 0,
+      lineNumbers: 'off' as const,
+      folding: false,
+      glyphMargin: false,
+      // The suggest widget renders inside the editor's DOM by default, and this editor lives in an
+      // `overflow-hidden` wrapper inside a popover, so the list was drawn and clipped —
+      // indistinguishable from autocomplete not working.
+      //
+      // `fixedOverflowWidgets` alone does NOT fix it: it makes the widget `position: fixed`, and
+      // the Radix popover animates with `transform`, which turns a transformed ancestor into the
+      // containing block. The container has to leave the popover's subtree entirely.
+      fixedOverflowWidgets: true,
+      overflowWidgetsDomNode: overflowHost ?? undefined,
+      ariaLabel,
+    }),
+    [overflowHost, ariaLabel]
+  );
+
   const handleChange = (nextValue: string | undefined) => {
     const text = nextValue ?? '';
     onChange({ text, refs: resolveAll(text, indexRef.current, referencesRef.current) });
@@ -282,27 +334,7 @@ export function FormulaEditor({
           onChange={handleChange}
           onMount={handleMount}
           theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-          options={{
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: 'on',
-            automaticLayout: true,
-            overviewRulerBorder: false,
-            overviewRulerLanes: 0,
-            lineNumbers: 'off',
-            folding: false,
-            glyphMargin: false,
-            // The suggest widget renders inside the editor's DOM by default, and this editor lives
-            // in an `overflow-hidden` wrapper inside a popover, so the list was drawn and clipped —
-            // indistinguishable from autocomplete not working.
-            //
-            // `fixedOverflowWidgets` alone does NOT fix it: it makes the widget `position: fixed`,
-            // and the Radix popover animates with `transform`, which turns a transformed ancestor
-            // into the containing block. The container has to leave the popover's subtree entirely.
-            fixedOverflowWidgets: true,
-            overflowWidgetsDomNode: overflowHost ?? undefined,
-            ariaLabel,
-          }}
+          options={editorOptions}
         />
       </div>
       {/*

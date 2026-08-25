@@ -541,6 +541,116 @@ describe('resolveReportDataHeaders', () => {
   });
 
   describe('calculated metric headers', () => {
+    const nat = (name: string, type: BigQueryFieldType) =>
+      new ReportDataHeader(name, undefined, undefined, type);
+
+    // The analyst chose where the column goes. Appending it made a report configured
+    // ['ctr','clicks'] write `ctr` last, and the position was already lost before this function:
+    // five producers strip the name from `columnFilter` on their own. Resolving it HERE keeps the
+    // order, and removes an invariant that nothing but a convention was holding.
+    it('places a calculated metric where the column filter names it', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER), nat('impressions', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['ctr', 'clicks', 'impressions'],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+
+      expect(headers.map(h => h.name)).toEqual(['ctr', 'clicks', 'impressions']);
+      expect(headers[0].storageFieldType).toBe('FLOAT');
+      expect(headers[0].calculatedFieldLevel).toBe('metric');
+    });
+
+    // A name in the filter with no warehouse column behind it used to fall through to the
+    // `(col, col)` placeholder — an untyped header for a column the SELECT does emit, under a name
+    // that is right, which is why a producer forgetting to strip it went unnoticed.
+    it('does not leave a calculated name to the placeholder branch', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['ctr'],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+
+      expect(headers).toHaveLength(1);
+      expect(headers[0].storageFieldType).toBe('FLOAT');
+    });
+
+    // The stripped convention still has to work: every existing producer removes the name itself.
+    it('still appends a metric the filter does not name', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['clicks'],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+
+      expect(headers.map(h => h.name)).toEqual(['clicks', 'ctr']);
+    });
+
+    it('names it once when the filter carries it and never twice', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['ctr', 'clicks'],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+
+      expect(headers.filter(h => h.name === 'ctr')).toHaveLength(1);
+    });
+
+    // The LEVEL rule decides expansion, and it must keep deciding it from the filter position too:
+    // an aggregate-level formula is not expanded even when a rule names it.
+    it('withholds expansion from an aggregate-level metric the filter places', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['ctr', 'clicks'],
+          aggregationConfig: [
+            { column: 'ctr', function: 'SUM' },
+            { column: 'clicks', function: 'SUM' },
+          ],
+          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+        },
+        BQ
+      );
+
+      expect(headers.map(h => h.name)).toEqual(['ctr', 'clicks | SUM']);
+      expect(headers[0].aggregateFunction).toBeUndefined();
+    });
+
+    // A ROW-LEVEL formula the report aggregates DOES expand, and the expansion has to land in the
+    // filter's position rather than at the end.
+    it('expands a row-level metric in place when the report aggregates it', () => {
+      const headers = resolveReportDataHeaders(
+        [nat('clicks', BigQueryFieldType.INTEGER)],
+        {
+          columnFilter: ['session_key', 'clicks'],
+          aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+          calculatedMetrics: [
+            {
+              outputName: 'session_key',
+              type: 'STRING',
+              formula: '…',
+              level: 'column',
+              isAggregatedByReport: true,
+            },
+          ],
+        },
+        BQ
+      );
+
+      expect(headers.map(h => h.name)).toEqual(['session_key | COUNTUNIQUE', 'clicks']);
+    });
+
     it('synthesizes a header for a selected calculated metric with its declared type', () => {
       const headers = resolveReportDataHeaders(
         [],

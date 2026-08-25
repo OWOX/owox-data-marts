@@ -33,6 +33,8 @@ vi.mock('@monaco-editor/react', () => ({
           // finished loading and would otherwise leave the caret on Cancel.
           focus: () => undefined,
           onDidDispose: () => undefined,
+          // Registered once on mount; the formula editor binds Ctrl/Cmd+Enter to Apply through it.
+          addCommand: () => undefined,
           getModel: () => ({}),
           // Chip-blind: nothing here is about chips, and their own specs cover both halves.
           createDecorationsCollection: () => ({ set: () => [], getRanges: () => [] }),
@@ -50,6 +52,8 @@ vi.mock('@monaco-editor/react', () => ({
           // The formula editor annotates the model with the live check's verdict.
           editor: { setModelMarkers: () => undefined },
           MarkerSeverity: { Error: 8, Warning: 4 },
+          KeyMod: { CtrlCmd: 2048 },
+          KeyCode: { Enter: 3 },
         }
       );
       // eslint-disable-next-line react-hooks/exhaustive-deps

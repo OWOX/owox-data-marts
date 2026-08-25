@@ -238,6 +238,9 @@ export function CalculatedFieldFormulaCell({
                 setDraftRefs(next.refs);
                 ctx.setValue(next.text);
               }}
+              // `EditableText` binds Enter and Ctrl+Enter to the textarea this editor replaces, so
+              // on this path they reach nothing. Same action as the Apply button, refusal included.
+              onSubmit={ctx.apply}
             />
           </div>
         )}

@@ -631,4 +631,79 @@ describe('useFormulaDiagnostics', () => {
 
     expect(signalOf(0).aborted).toBe(true);
   });
+  // Giving up asking is a FACT ABOUT THE CHECK, and an empty panel is byte-identical to a clean
+  // verdict — the reading the too-long arm already refuses to allow. A warning, not an error:
+  // nothing is known to be wrong with the formula, only that nobody looked at it.
+  it('says it has given up asking instead of leaving the panel empty', async () => {
+    validateFormula.mockRejectedValue(apiFailure(400));
+
+    const { result, rerender } = renderHook(props => useFormulaDiagnostics(props), {
+      initialProps: options({ formula: 'SUM(' }),
+    });
+    for (let edit = 0; edit < 5; edit++) {
+      await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+      await settle();
+      rerender(options({ formula: `SUM(${String(edit)}` }));
+    }
+    await settle();
+
+    expect(validateFormula).toHaveBeenCalledTimes(3);
+    expect(result.current.warnings.map(w => w.code)).toEqual(['FORMULA_LIVE_CHECK_UNAVAILABLE']);
+    expect(result.current.errors).toEqual([]);
+    expect(result.current.isChecking).toBe(false);
+  });
+
+  it('says the same when the session itself is refused', async () => {
+    const { useFormulaDiagnostics: hook, validate } = await loadInFreshSession();
+    validate.mockRejectedValue(apiFailure(403, 'ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE'));
+
+    const { result, rerender } = renderHook(props => hook(props), { initialProps: options() });
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+    rerender(options({ formula: 'SUM(a)' }));
+    await settle();
+
+    expect(validate).toHaveBeenCalledTimes(1);
+    expect(result.current.warnings.map(w => w.code)).toEqual(['FORMULA_LIVE_CHECK_UNAVAILABLE']);
+    expect(result.current.errors).toEqual([]);
+  });
+
+  // The catch records a refusal even when its request was superseded, on the stated grounds that
+  // what it learned is about the session rather than about that formula. The success path has to
+  // answer symmetrically, or refusals interleaved with answers accumulate to the limit and silence
+  // the editor for the popover's life.
+  it('clears the tally on an answer that arrives after its request was superseded', async () => {
+    const late = deferred<ValidateFormulaResponseDto>();
+    validateFormula.mockRejectedValueOnce(apiFailure(400));
+    validateFormula.mockRejectedValueOnce(apiFailure(400));
+    validateFormula.mockReturnValueOnce(late.promise);
+    validateFormula.mockRejectedValue(apiFailure(400));
+
+    const { rerender } = renderHook(props => useFormulaDiagnostics(props), {
+      initialProps: options({ formula: 'a' }),
+    });
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+    rerender(options({ formula: 'ab' }));
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+
+    // The third request goes out and the analyst types again before it answers.
+    rerender(options({ formula: 'abc' }));
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    rerender(options({ formula: 'abcd' }));
+    await act(async () => {
+      late.resolve(verdict());
+      await Promise.resolve();
+    });
+
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+    rerender(options({ formula: 'abcde' }));
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+
+    // Five: two refusals, the superseded answer that cleared them, and two more requests after it.
+    expect(validateFormula).toHaveBeenCalledTimes(5);
+  });
 });

@@ -715,4 +715,94 @@ describe('ValidateFormulaService', () => {
     expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
     expect(validate).not.toHaveBeenCalled();
   });
+  /**
+   * This bucket is a nudge under a formula the analyst is still typing, not a report. One field
+   * contributes one violation per broken reference, so a schema of broken formulas turns a request
+   * bounded at 1 MB into an answer measured in megabytes — and nothing downstream collapses them,
+   * because each message names its own reference.
+   */
+  describe('the collateral list is bounded', () => {
+    const brokenField = (name: string, refs: number) => ({
+      name,
+      type: 'FLOAT',
+      calculated: {
+        formula: Array.from(
+          { length: refs },
+          (_, i) => `SUM({{ref field="gone_${String(i)}"}})`
+        ).join(' + '),
+        level: 'metric' as const,
+      },
+    });
+
+    it('keeps at most three problems from any one field', async () => {
+      const { service } = buildService({
+        schema: schemaWith([{ name: 'clicks', type: 'INTEGER' }, brokenField('roas', 5)]),
+      });
+
+      const result = await service.run(
+        command({ name: 'ctr', formula: 'SUM({{ref field="clicks"}})' })
+      );
+
+      // The notice below carries a field too, the way `warehouseCheckSkipped` does — count the
+      // problems themselves.
+      expect(
+        result.otherFieldErrors.filter(v => v.code === 'FORMULA_UNKNOWN_REFERENCE')
+      ).toHaveLength(3);
+      expect(result.otherFieldErrors.at(-1)).toEqual(
+        expect.objectContaining({ code: 'FORMULA_OTHER_FIELD_ERRORS_TRUNCATED' })
+      );
+      // The formula the analyst has open is judged in full, whatever the collateral did.
+      expect(result.errors).toEqual([]);
+    });
+
+    it('keeps at most fifty problems in all, and says how many it dropped', async () => {
+      const broken = Array.from({ length: 60 }, (_, i) => brokenField(`m_${String(i)}`, 1));
+      const { service } = buildService({
+        schema: schemaWith([{ name: 'clicks', type: 'INTEGER' }, ...broken]),
+      });
+
+      const result = await service.run(
+        command({ name: 'ctr', formula: 'SUM({{ref field="clicks"}})' })
+      );
+
+      // Fifty kept, plus the one line saying the list was cut.
+      expect(result.otherFieldErrors).toHaveLength(51);
+      const notice = result.otherFieldErrors.at(-1);
+      expect(notice?.code).toBe('FORMULA_OTHER_FIELD_ERRORS_TRUNCATED');
+      expect(notice?.message).toContain('10 more problems');
+    });
+
+    // Breadth beats depth: which fields this edit breaks is the useful fact, so the cap must not be
+    // spent on one field's fourth broken reference.
+    it('spends the budget on distinct fields rather than on one field', async () => {
+      const broken = Array.from({ length: 30 }, (_, i) => brokenField(`m_${String(i)}`, 10));
+      const { service } = buildService({
+        schema: schemaWith([{ name: 'clicks', type: 'INTEGER' }, ...broken]),
+      });
+
+      const result = await service.run(
+        command({ name: 'ctr', formula: 'SUM({{ref field="clicks"}})' })
+      );
+
+      const fields = new Set(
+        result.otherFieldErrors
+          .filter(v => v.code !== 'FORMULA_OTHER_FIELD_ERRORS_TRUNCATED')
+          .map(v => v.field)
+      );
+      expect(fields.size).toBeGreaterThan(10);
+    });
+
+    it('says nothing extra when the list fits', async () => {
+      const { service } = buildService({
+        schema: schemaWith([{ name: 'clicks', type: 'INTEGER' }, brokenField('roas', 1)]),
+      });
+
+      const result = await service.run(
+        command({ name: 'ctr', formula: 'SUM({{ref field="clicks"}})' })
+      );
+
+      expect(result.otherFieldErrors).toHaveLength(1);
+      expect(result.otherFieldErrors[0].code).not.toBe('FORMULA_OTHER_FIELD_ERRORS_TRUNCATED');
+    });
+  });
 });

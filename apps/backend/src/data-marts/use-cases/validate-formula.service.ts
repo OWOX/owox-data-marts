@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { CalculatedFieldValidatorService } from '../calculated-fields/calculated-field-validator.service';
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
-import { FormulaViolation } from '../calculated-fields/formula-violations';
+import { FormulaViolation, FormulaViolations } from '../calculated-fields/formula-violations';
 import { DataMartSchema, DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -116,12 +116,44 @@ export class ValidateFormulaService {
     return {
       errors: errors.filter(isSubmitted),
       warnings: warnings.filter(isSubmitted),
-      otherFieldErrors: [
+      otherFieldErrors: capOtherFieldErrors([
         ...draftTypeViolations,
         ...errors.filter(violation => !isSubmitted(violation)),
-      ],
+      ]),
     };
   }
+}
+
+/**
+ * The most collateral problems one answer carries, and the most from any single field.
+ *
+ * This bucket is a request for ATTENTION, not a report: the editor lists it under a formula the
+ * analyst is still typing. One field can contribute one violation per broken reference, and a
+ * formula may hold hundreds — 99 other fields each naming 450 missing references turns a request
+ * bounded at 1 MB into an answer measured in megabytes, and `dedupeViolations` cannot collapse them
+ * because the reference label is inside `message`.
+ *
+ * Per FIELD first, so breadth wins: which fields this edit breaks is the useful fact, and the
+ * fourth broken reference in one of them is not.
+ */
+const OTHER_FIELD_ERRORS_PER_FIELD = 3;
+const OTHER_FIELD_ERRORS_TOTAL = 50;
+
+function capOtherFieldErrors(violations: FormulaViolation[]): FormulaViolation[] {
+  const perField = new Map<string, number>();
+  const kept: FormulaViolation[] = [];
+
+  for (const violation of violations) {
+    const taken = perField.get(violation.field) ?? 0;
+    if (taken >= OTHER_FIELD_ERRORS_PER_FIELD) continue;
+    if (kept.length >= OTHER_FIELD_ERRORS_TOTAL) break;
+    perField.set(violation.field, taken + 1);
+    kept.push(violation);
+  }
+
+  const omitted = violations.length - kept.length;
+  if (omitted === 0) return kept;
+  return [...kept, FormulaViolations.otherFieldErrorsTruncated(violations[0].field, omitted)];
 }
 
 /**

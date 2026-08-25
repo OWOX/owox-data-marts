@@ -40,6 +40,7 @@ const built: Record<string, FormulaViolation> = {
   unguardedDivision: FormulaViolations.unguardedDivision('ctr'),
   warehouseRejected: FormulaViolations.warehouseRejected('ctr', 'Unrecognized name: clcks'),
   warehouseRejectedAsSet: FormulaViolations.warehouseRejectedAsSet('ctr', 'alias collision'),
+  otherFieldErrorsTruncated: FormulaViolations.otherFieldErrorsTruncated('ctr', 12),
   warehouseCheckSkipped: FormulaViolations.warehouseCheckSkipped(['ctr', 'roas']),
 };
 

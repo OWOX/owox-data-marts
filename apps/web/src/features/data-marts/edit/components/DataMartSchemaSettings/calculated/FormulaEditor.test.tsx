@@ -79,6 +79,8 @@ const mockState = vi.hoisted(() => ({
   /** How many times the editor took focus on mount — see the keyboard-entry test below. */
   focusCalls: 0,
   keyListeners: [] as ((event: unknown) => void)[],
+  /** Keybinding → handler, as registered through `editor.addCommand`. */
+  commands: new Map<number, () => void>(),
   /** What the mock model currently holds — the hover provider reads the text off it. */
   modelText: '',
   /** The mock model itself: the hover provider answers only about the editor's own. */
@@ -116,6 +118,8 @@ vi.mock('@monaco-editor/react', () => {
     },
     // Real monaco enum values, so a severity assertion below means something.
     MarkerSeverity: { Error: 8, Warning: 4, Info: 2, Hint: 1 },
+    KeyMod: { CtrlCmd: 2048 },
+    KeyCode: { Enter: 3 },
     editor: {
       setModelMarkers: (_model: unknown, owner: string, markers: MarkerLike[]) => {
         mockState.markerCalls.push({ owner, markers });
@@ -142,6 +146,12 @@ vi.mock('@monaco-editor/react', () => {
     onDidDispose: (cb: () => void) => {
       mockState.disposeCallbacks.push(cb);
       return { dispose: () => {} };
+    },
+    // Keyboard commit. Kept by keybinding so a test can fire the one the editor actually bound,
+    // rather than trusting that it bound anything.
+    addCommand: (keybinding: number, handler: () => void) => {
+      mockState.commands.set(keybinding, handler);
+      return null;
     },
     getModel: () => modelMock,
     // Monaco moves a collection's ranges through every edit; the stub only has to hand back what
@@ -265,6 +275,7 @@ describe('FormulaEditor', () => {
     mockState.chipDecorationSets = [];
     mockState.chipRanges = [];
     mockState.keyListeners = [];
+    mockState.commands = new Map();
     mockState.caretColumn = 1;
     mockState.edits = [];
   });
@@ -276,6 +287,62 @@ describe('FormulaEditor', () => {
   it('takes focus when it mounts', () => {
     render(<FormulaEditor value='' references={[]} index={index} onChange={vi.fn()} />);
     expect(mockState.focusCalls).toBeGreaterThan(0);
+  });
+
+  // The only keyboard commit this editor has. `EditableText` binds Enter and Ctrl+Enter to the
+  // textarea that `renderEditor` replaces, so on this path they reach nothing; Monaco takes Tab for
+  // indentation, which leaves the Apply button unreachable without a pointer; and the one key that
+  // does escape the editor is Escape, which CANCELS. Keyed on the binding the editor really
+  // registered, so renaming the prop cannot make this pass by accident.
+  const CTRL_CMD_ENTER = 2048 | 3;
+
+  it('commits through Ctrl/Cmd+Enter', () => {
+    const onSubmit = vi.fn();
+    render(
+      <FormulaEditor
+        value='SUM(clicks)'
+        references={[]}
+        index={index}
+        onChange={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    mockState.commands.get(CTRL_CMD_ENTER)?.();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  // Registered whether or not there is anything to commit to, so the binding cannot be a newline on
+  // one render and a commit on the next.
+  it('registers the binding even with nothing to commit to, and does not throw on it', () => {
+    render(<FormulaEditor value='' references={[]} index={index} onChange={vi.fn()} />);
+
+    const command = mockState.commands.get(CTRL_CMD_ENTER);
+    expect(command).toBeDefined();
+    expect(() => command?.()).not.toThrow();
+  });
+
+  // The command is registered once, on mount, so a handler captured then would commit through the
+  // first render's callback for the editor's whole life.
+  it('commits through the latest callback, not the one it mounted with', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(
+      <FormulaEditor value='a' references={[]} index={index} onChange={vi.fn()} onSubmit={first} />
+    );
+    rerender(
+      <FormulaEditor
+        value='ab'
+        references={[]}
+        index={index}
+        onChange={vi.fn()}
+        onSubmit={second}
+      />
+    );
+
+    mockState.commands.get(CTRL_CMD_ENTER)?.();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it('turns a completed field name into a resolved reference', async () => {
