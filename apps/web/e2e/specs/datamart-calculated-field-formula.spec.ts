@@ -100,10 +100,16 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
     // Monaco attaches its input asynchronously, so its node is on screen and clickable before it
     // can receive a keystroke. Characters typed into that gap are dropped, and nothing retriggers
     // the suggest widget once they are — the wait below then times out on a symptom two steps from
-    // its cause. Waiting on the editor's own textarea makes the failure say what actually broke.
-    await expect(formulaPopover(page).locator('textarea.inputarea')).toBeFocused({
-      timeout: 15000,
-    });
+    // its cause. Waiting on the editor's own input makes the failure say what actually broke.
+    //
+    // Two selectors because Monaco 0.56 ships two input implementations and renders exactly one:
+    // `div.native-edit-context` where the browser has the EditContext API (Chromium, so this is
+    // the one that runs here) and `textarea.inputarea` otherwise. Both carry the editor's tabindex
+    // and its focus tracker; the native path's other textarea is `.ime-text-area`, so neither
+    // selector can match twice.
+    await expect(
+      formulaPopover(page).locator('div.native-edit-context, textarea.inputarea')
+    ).toBeFocused({ timeout: 15000 });
     await page.keyboard.type('users');
 
     const suggestWidget = page.locator(SUGGEST_WIDGET);
