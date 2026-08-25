@@ -2,7 +2,7 @@
 
 **Destination** is an interface or application used by business users to access the data.
 
-Supported destinations include **Google Sheets**, **Data Studio**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Excel, Tableau, and Power BI.
+Supported destinations include **Google Sheets**, **Data Studio**, **Microsoft Excel**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Tableau and Power BI.
 
 ## List of Destinations
 

@@ -38,10 +38,12 @@ export function ReportEditSheet({
   useIntercomLauncher(isOpen);
 
   // The sheet serves every destination whose report is configured the same way, so it names the
-  // one in hand rather than assuming Google Sheets.
-  const destinationName = preSelectedDestination
-    ? DataDestinationTypeModel.getInfo(preSelectedDestination.type).displayName
-    : 'report';
+  // one in hand rather than assuming Google Sheets. The trailing space belongs to the name, not
+  // to the sentence: without a destination the line has to read "a new report", not "a new
+  // report report" — and not "a new  report" either.
+  const destinationPrefix = preSelectedDestination
+    ? `${DataDestinationTypeModel.getInfo(preSelectedDestination.type).displayName} `
+    : '';
 
   return (
     <Sheet
@@ -59,8 +61,8 @@ export function ReportEditSheet({
           </SheetTitle>
           <ReportSheetDescription mode={mode} report={initialReport}>
             {mode === ReportFormMode.CREATE
-              ? `Fill in the details to create a new ${destinationName} report`
-              : `Update details of an existing ${destinationName} report`}
+              ? `Fill in the details to create a new ${destinationPrefix}report`
+              : `Update details of an existing ${destinationPrefix}report`}
           </ReportSheetDescription>
         </SheetHeader>
 

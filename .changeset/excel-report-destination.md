@@ -1,4 +1,5 @@
 ---
+'@owox/api-client': minor
 'owox': minor
 ---
 

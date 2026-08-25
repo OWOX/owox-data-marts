@@ -27,6 +27,17 @@ const EXCEL_DESTINATION_TITLE = 'Microsoft Excel';
  * project member SEE and USE, so one row usually serves everyone; but a row that exists and is
  * *not* reachable by this caller must not be handed back, or they would get a 403 with no way
  * out — the destination they cannot use would keep blocking the creation of one they can.
+ *
+ * Convergent, not exclusive, and that is the intended shape. Nothing serializes the
+ * find-then-create — a plain SELECT takes no lock against another transaction's insert — so two
+ * members opening the add-in for the first time at the same moment each end up with one of
+ * their own. A destination per user is a perfectly good outcome here; from the second call
+ * onwards everyone converges on the oldest row they can use anyway.
+ *
+ * Do not reach for a unique index over (projectId, type) to make it exclusive. Destinations are
+ * soft-deleted, so a deleted row would keep the slot and dead-end every later resolve — and a
+ * second Excel destination is meant to become legal once one can point at a particular OneDrive
+ * account.
  */
 @Injectable()
 export class ResolveExcelDestinationService {

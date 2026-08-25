@@ -31,6 +31,7 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBillingService } from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotalsService } from '../services/report-totals.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
@@ -199,6 +200,7 @@ describe('StreamHttpDataService', () => {
   let errorMapperResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
   let reportTotals: jest.Mocked<ReportTotalsService>;
   let reportService: jest.Mocked<ReportService>;
+  let reportAccess: jest.Mocked<ReportAccessService>;
   let service: StreamHttpDataService;
 
   beforeEach(() => {
@@ -351,6 +353,10 @@ describe('StreamHttpDataService', () => {
       updateRunStatus: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<ReportService>;
 
+    reportAccess = {
+      checkOperateAccessForReport: jest.fn(async () => undefined),
+    } as unknown as jest.Mocked<ReportAccessService>;
+
     service = new StreamHttpDataService(
       requestValidator,
       columnResolver,
@@ -369,6 +375,7 @@ describe('StreamHttpDataService', () => {
       errorMapperResolver,
       reportTotals,
       reportService,
+      reportAccess,
       sourceDataLastUpdated as never
     );
   });
@@ -1275,6 +1282,16 @@ describe('StreamHttpDataService', () => {
       );
     });
 
+    it('leaves a plain report read authorized by the Data Mart alone', async () => {
+      // The default report here is Google Sheets: reading it over this endpoint is a read, not
+      // its run — the server still writes the spreadsheet elsewhere. Requiring the destination's
+      // USE here would revoke HTTP access to reports whose destination the caller was never
+      // meant to operate.
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(reportAccess.checkOperateAccessForReport).not.toHaveBeenCalled();
+    });
+
     it('does not carry the report destination into the read plan (joined labels follow this surface)', async () => {
       // Joined-field labels belong to the surface that renders them, not to the place the report
       // also writes to. A Google Sheets report suffixes them (`revenue (Orders)`) to survive a
@@ -1654,6 +1671,26 @@ describe('StreamHttpDataService', () => {
         expect(projectBilling.registerExcelReportRunConsumption).toHaveBeenCalledTimes(1);
         // One unit per run, never two.
         expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+      });
+
+      it('refuses the pull when the caller cannot use the destination', async () => {
+        // The pull IS the run: it stamps the report's status and charges the project, so it has
+        // to clear the same bar as starting one. USE on the destination is what turning
+        // availableForUse off withdraws, and the Data Mart check alone never sees it.
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        reportAccess.checkOperateAccessForReport.mockRejectedValueOnce(
+          new ForbiddenException('Destination is not usable')
+        );
+
+        await expect(
+          service.streamReport(fakeReportCommand(), mockResponse())
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        // Refused before the read starts, so there is no run to show and nothing to charge —
+        // not even a failed one nobody was allowed to begin.
+        expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+        expect(reportService.updateRunStatus).not.toHaveBeenCalled();
+        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
       });
 
       it('authorizes the read as an Excel report run, not as a generic HTTP read', async () => {

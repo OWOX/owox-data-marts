@@ -86,6 +86,15 @@ describe('ReportEditSheet', () => {
     });
   });
 
+  it('names no destination rather than naming the word "report" twice', () => {
+    // This is the path the sheet takes with no preSelectedDestination. The name is a prefix
+    // with its own trailing space, so its absence has to leave "a new report" — not "a new
+    // report report", and not a double space where the name would have been.
+    renderSheet(ReportFormMode.CREATE);
+
+    expect(screen.getByText('Fill in the details to create a new report')).toBeTruthy();
+  });
+
   it('hides the copy link button in create mode', () => {
     renderSheet(ReportFormMode.CREATE);
 

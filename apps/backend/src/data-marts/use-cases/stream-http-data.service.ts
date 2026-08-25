@@ -42,6 +42,7 @@ import {
   RunKind,
 } from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
@@ -188,6 +189,7 @@ export class StreamHttpDataService {
     private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
     private readonly reportTotalsService: ReportTotalsService,
     private readonly reportService: ReportService,
+    private readonly reportAccessService: ReportAccessService,
     private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
   ) {}
 
@@ -281,6 +283,22 @@ export class StreamHttpDataService {
     );
     const dataMart = await this.loadAccessibleDataMart(report.dataMart.id, ctx);
 
+    // Reading a report over this endpoint stays a plain read, authorized by the Data Mart alone.
+    // When the read IS the report's run it does what starting one does — stamps lastRunAt and
+    // lastRunStatus, records a run against the destination, and charges the project for it — so
+    // it has to clear the same bar: the destination's own USE, which is what turning
+    // availableForUse off withdraws. Asserted before executeStream, so a refusal leaves no run
+    // behind at all rather than a failed one nobody was allowed to start.
+    const excelReportRun = asExcelReportRun(report);
+    if (excelReportRun) {
+      await this.reportAccessService.checkOperateAccessForReport(
+        ctx.userId,
+        ctx.roles ?? [],
+        excelReportRun,
+        ctx.projectId
+      );
+    }
+
     await this.executeStream({
       dataMart,
       accessor,
@@ -289,7 +307,7 @@ export class StreamHttpDataService {
       runId: randomUUID(),
       startedAt: this.systemTimeService.now(),
       reportId: report.id,
-      excelReportRun: asExcelReportRun(report),
+      excelReportRun,
       initialMetadata: {
         format: HTTP_DATA_FORMAT,
         columns: report.columnConfig ?? [],

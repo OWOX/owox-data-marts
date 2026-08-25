@@ -35,8 +35,6 @@ export class HttpDataController {
     @Param('reportId') reportId: string,
     @Query() rawQuery: Record<string, unknown>,
     @AuthContext() ctx: AuthorizationContext,
-    // Only a report run is placed somewhere by its caller; a data-mart read has no destination
-    // to describe.
     @Headers(RUN_CONTEXT_HEADER) runContextHeader: string | undefined,
     @Res() res: Response
   ): Promise<void> {

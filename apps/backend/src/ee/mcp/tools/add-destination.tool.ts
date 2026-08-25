@@ -6,7 +6,10 @@ import {
   MCP_DATA_DESTINATIONS_FACADE,
   type McpDataDestinationsFacade,
 } from '../../../data-marts/facades/mcp-data-destinations.facade';
-import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
+import {
+  MCP_DESTINATION_TYPES,
+  MCP_NON_CREATABLE_DESTINATION_TYPES,
+} from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataDestinationsUiPath } from './data-mart-ui-path';
@@ -32,7 +35,10 @@ function toDisplayLabel(type: string): string {
 const inputSchema = z
   .object({
     destination_type: z
+      // Subtracted rather than listed out, so the creatable set follows the vocabulary instead
+      // of being a second copy of it that drifts when a type is added.
       .enum(MCP_DESTINATION_TYPES)
+      .exclude(MCP_NON_CREATABLE_DESTINATION_TYPES)
       .describe(
         'The type of destination to connect/create (e.g. google_sheets, looker_studio, email, slack, teams, google_chat).'
       ),
@@ -228,9 +234,10 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
       });
     }
 
-    // Unreachable for the current MCP_DESTINATION_TYPES (email-based, looker_studio, and
-    // google_sheets above already cover all of them exhaustively) — guards against a
-    // future destination type being added to the enum without a matching branch here.
+    // Unreachable for everything this tool offers: email-based, looker_studio and
+    // google_sheets above cover the vocabulary minus MCP_NON_CREATABLE_DESTINATION_TYPES, and
+    // an excluded type is refused by the schema before it ever reaches here. Guards against a
+    // future destination type being added to the enum without a matching branch.
     throw new BadRequestException(
       `No creation flow is implemented for destination type '${destinationType}'.`
     );
