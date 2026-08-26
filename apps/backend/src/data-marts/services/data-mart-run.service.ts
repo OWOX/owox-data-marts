@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
@@ -149,6 +149,8 @@ export interface ListVisibleProjectRunsOptions {
  */
 @Injectable()
 export class DataMartRunService {
+  private readonly logger = new Logger(DataMartRunService.name);
+
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
@@ -614,15 +616,32 @@ export class DataMartRunService {
     // user ran a report — the live step and the history-based recovery would both miss it, so it
     // would not heal later either. Gated on `report`, not on `reportId`: a plain HTTP read of
     // someone's report carries the id but is not that report's run.
+    //
+    // Emitted immediately, not on commit: this method is terminal and runs outside any
+    // transaction, and `publishLocalOnCommit` throws outright when there is none to hook into —
+    // after the row is already saved. The save above is the commit this announces.
+    //
+    // Contained, because the local bus is synchronous: a listener that throws would come back
+    // out of `emit()` and reach the caller, which reads any throw from here as "the run was not
+    // recorded" and skips billing. The rows are already delivered and the run is already
+    // persisted by this point — an onboarding step failing must not cost the project's unit.
     if (record.status === DataMartRunStatus.SUCCESS && record.report && record.createdById) {
-      this.eventDispatcher.publishLocalOnCommit(
-        new ReportRunCompletedSuccessfullyEvent(
-          run.id,
-          record.dataMart.id,
-          record.createdById,
-          run.type
-        )
-      );
+      try {
+        this.eventDispatcher.publishLocal(
+          new ReportRunCompletedSuccessfullyEvent(
+            run.id,
+            record.dataMart.id,
+            record.createdById,
+            run.type
+          )
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Report run ${run.id} was recorded, but announcing it failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
     }
   }
 

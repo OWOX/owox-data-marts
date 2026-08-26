@@ -1,6 +1,7 @@
 import { In, Repository } from 'typeorm';
 import { RunType } from '../../common/scheduler/shared/types';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataMartRun } from '../entities/data-mart-run.entity';
@@ -9,6 +10,7 @@ import { Report } from '../entities/report.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { RoleScope } from '../enums/role-scope.enum';
 import {
   DataMartRunService,
@@ -71,6 +73,7 @@ function createService() {
   } as unknown as jest.Mocked<SystemTimeService>;
 
   const eventDispatcher = {
+    publishLocal: jest.fn(),
     publishLocalOnCommit: jest.fn(),
   } as unknown as jest.Mocked<OwoxEventDispatcher>;
 
@@ -421,8 +424,8 @@ describe('DataMartRunService', () => {
         })
       );
 
-      expect(eventDispatcher.publishLocalOnCommit).toHaveBeenCalledTimes(1);
-      const event = (eventDispatcher.publishLocalOnCommit as jest.Mock).mock.calls[0][0];
+      expect(eventDispatcher.publishLocal).toHaveBeenCalledTimes(1);
+      const event = (eventDispatcher.publishLocal as jest.Mock).mock.calls[0][0];
       expect(event.payload).toMatchObject({
         dataMartRunId: 'run-http-1',
         dataMartId: 'dm-1',
@@ -438,7 +441,77 @@ describe('DataMartRunService', () => {
 
       await service.recordHttpDataRun(httpRecord({ reportId: 'report-1' }));
 
-      expect(eventDispatcher.publishLocalOnCommit).not.toHaveBeenCalled();
+      expect(eventDispatcher.publishLocal).not.toHaveBeenCalled();
+    });
+
+    it('survives the real dispatcher outside a transaction', async () => {
+      // The mocked dispatcher above proves the call happens; it cannot prove the call works.
+      // `publishLocalOnCommit` asks typeorm-transactional for a commit hook and throws
+      // "No hook manager found in context" when there is none — and this method is terminal and
+      // never transactional. The throw landed after the row was saved, so the caller's error
+      // path skipped billing for every successful Excel pull.
+      const { dataMartRunRepository, systemClock } = createService();
+      const emitter = new EventEmitter2();
+      const heard: ReportRunCompletedSuccessfullyEvent[] = [];
+      emitter.on(
+        'report-run.completed.successfully',
+        (event: ReportRunCompletedSuccessfullyEvent) => heard.push(event)
+      );
+
+      const withRealDispatcher = new DataMartRunService(
+        dataMartRunRepository,
+        systemClock,
+        new OwoxEventDispatcher(
+          { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
+          emitter
+        )
+      );
+
+      await expect(
+        withRealDispatcher.recordHttpDataRun(
+          httpRecord({
+            type: DataMartRunType.EXCEL,
+            reportId: 'report-1',
+            report: fakeReport({
+              dataDestination: fakeDataDestination(DataDestinationType.EXCEL),
+            }),
+          })
+        )
+      ).resolves.toBeUndefined();
+
+      expect(heard).toHaveLength(1);
+    });
+
+    it('is not broken by a listener that throws', async () => {
+      // The run is saved by the time this announces itself, and the caller treats any throw from
+      // here as "the run was not recorded" and skips billing. An onboarding step failing must
+      // never cost the project's Excel unit, so the emit is contained.
+      const { dataMartRunRepository, systemClock } = createService();
+      const emitter = new EventEmitter2();
+      emitter.on('report-run.completed.successfully', () => {
+        throw new Error('onboarding write failed');
+      });
+
+      const withRealDispatcher = new DataMartRunService(
+        dataMartRunRepository,
+        systemClock,
+        new OwoxEventDispatcher(
+          { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
+          emitter
+        )
+      );
+
+      await expect(
+        withRealDispatcher.recordHttpDataRun(
+          httpRecord({
+            type: DataMartRunType.EXCEL,
+            reportId: 'report-1',
+            report: fakeReport({
+              dataDestination: fakeDataDestination(DataDestinationType.EXCEL),
+            }),
+          })
+        )
+      ).resolves.toBeUndefined();
     });
 
     it('stays silent when the pulled run failed', async () => {
@@ -453,7 +526,7 @@ describe('DataMartRunService', () => {
         })
       );
 
-      expect(eventDispatcher.publishLocalOnCommit).not.toHaveBeenCalled();
+      expect(eventDispatcher.publishLocal).not.toHaveBeenCalled();
     });
   });
 

@@ -1693,6 +1693,20 @@ describe('StreamHttpDataService', () => {
         expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
       });
 
+      it('skips billing when the run cannot be recorded, and says so', async () => {
+        // Recording and charging are coupled: anything thrown while persisting the run costs the
+        // project's Excel unit, silently. That is the right call for a run nobody can see — but
+        // it is why a throw introduced *after* the row is saved is expensive, and why this is
+        // pinned rather than left to be rediscovered.
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        dataMartRunService.recordHttpDataRun.mockRejectedValueOnce(new Error('write failed'));
+
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
+        expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+      });
+
       it('authorizes the read as an Excel report run, not as a generic HTTP read', async () => {
         reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
 
