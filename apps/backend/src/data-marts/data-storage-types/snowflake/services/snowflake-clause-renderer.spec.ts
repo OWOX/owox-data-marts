@@ -104,12 +104,14 @@ describe('SnowflakeClauseRenderer', () => {
     );
   });
 
-  it('is_blank / is_not_blank are type-aware: TRIM form on strings, NULL-only elsewhere', () => {
+  it('is_blank / is_not_blank are type-aware: explicit-set TRIM on strings, NULL-only elsewhere', () => {
+    // TRIM with the explicit set: Snowflake's one-argument TRIM strips only the blank
+    // space, which would leave tab/newline-only cells "not blank" — unlike the docs promise.
     expect(where(r, { column: 's', operator: 'is_blank' }, 'VARCHAR')).toBe(
-      `\nWHERE ("s" IS NULL OR TRIM("s") = '')`
+      `\nWHERE ("s" IS NULL OR TRIM("s", ' \\t\\n\\r') = '')`
     );
     expect(where(r, { column: 's', operator: 'is_not_blank' }, 'VARCHAR')).toBe(
-      `\nWHERE ("s" IS NOT NULL AND TRIM("s") <> '')`
+      `\nWHERE ("s" IS NOT NULL AND TRIM("s", ' \\t\\n\\r') <> '')`
     );
     expect(where(r, { column: 'n', operator: 'is_blank' }, 'INTEGER')).toBe('\nWHERE "n" IS NULL');
     // Unknown column type: the NULL-only form is the one that is valid SQL on any type.

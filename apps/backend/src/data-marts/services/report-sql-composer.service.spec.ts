@@ -492,7 +492,7 @@ describe('ReportSqlComposerService', () => {
     });
   });
 
-  it('throws BLANK_FILTER_REQUIRES_ACTUALIZED_SCHEMA when a blank filter runs with no schema types', async () => {
+  it('throws BLANK_FILTER_COLUMN_TYPE_UNRESOLVED when a blank filter runs with no schema types', async () => {
     // With no actualized schema there is no column type to branch on, and the
     // renderer would silently degrade a string is_blank to the NULL-only form —
     // wrong rows instead of an error (#6779). The composer refuses instead.
@@ -509,7 +509,42 @@ describe('ReportSqlComposerService', () => {
     ).rejects.toMatchObject({
       response: {
         details: {
-          errors: [{ code: 'BLANK_FILTER_REQUIRES_ACTUALIZED_SCHEMA', column: 'name' }],
+          errors: [{ code: 'BLANK_FILTER_COLUMN_TYPE_UNRESOLVED', column: 'name' }],
+        },
+      },
+    });
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+  });
+
+  it('throws BLANK_FILTER_COLUMN_TYPE_UNRESOLVED when every schema field is hidden (non-empty schema, empty type map)', async () => {
+    // schemaFields.length > 0 but collectSchemaFieldPathTypes drops hidden fields, so
+    // the type map is empty — a map-existence-only guard would let a string is_blank
+    // silently render as bare IS NULL. The guard must resolve each blank column.
+    const { service, queryBuilderFacade } = createService({
+      needsBlending: false,
+      columnFilter: ['name'],
+    });
+    const report = buildReport({
+      dataMart: {
+        id: 'dm-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        schema: {
+          type: 'bigquery-data-mart-schema',
+          fields: [
+            { name: 'name', type: 'STRING', status: 'CONNECTED', isHiddenForReporting: true },
+          ],
+        },
+      },
+      columnConfig: ['name'],
+      filterConfig: [{ column: 'name', operator: 'is_blank' }],
+    } as never);
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          errors: [{ code: 'BLANK_FILTER_COLUMN_TYPE_UNRESOLVED', column: 'name' }],
         },
       },
     });

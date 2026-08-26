@@ -153,29 +153,32 @@ export class ReportSqlComposerService {
       ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
-    // is_blank / is_not_blank branch on the column's type; with no actualized schema
+    // is_blank / is_not_blank branch on the column's type; without a resolved type
     // there is nothing to branch on, and silently degrading a string column to the
-    // NULL-only form would return wrong rows (#6779). Refuse loudly instead — the
-    // paths that can reach here without types (MCP queries, the generated-SQL
-    // preview) actualize the schema and retry; run/stream actualize beforehand.
-    if (!columnTypes) {
-      const blankColumns = (report.filterConfig ?? [])
-        .filter(r => r.operator === 'is_blank' || r.operator === 'is_not_blank')
-        .map(r => r.column);
-      if (blankColumns.length > 0) {
-        throw new BadRequestException({
-          message:
-            'The "is blank" / "is not blank" filters need column types to resolve their SQL, ' +
-            "and this Data Mart has no actualized schema. Actualize the Data Mart's schema and retry.",
-          details: {
-            // One entry per column — the MCP error mapper names `column` in its output.
-            errors: blankColumns.map(column => ({
-              code: 'BLANK_FILTER_REQUIRES_ACTUALIZED_SCHEMA',
-              column,
-            })),
-          },
-        });
-      }
+    // NULL-only form would return wrong rows (#6779). Refuse loudly instead, checking
+    // EVERY blank-filter column — a never-actualized schema yields no map at all, and
+    // an all-hidden schema yields an empty map while `schemaFields` is non-empty; both
+    // also skip the validator's filter pass, so this is the last stop before the SQL.
+    // Paths that can get here untyped (MCP queries, the generated-SQL preview)
+    // actualize the schema / unhide the column and retry; run/stream actualize first.
+    const unresolvedBlankColumns = (report.filterConfig ?? [])
+      .filter(r => r.operator === 'is_blank' || r.operator === 'is_not_blank')
+      .map(r => r.column)
+      .filter(column => !columnTypes?.get(column));
+    if (unresolvedBlankColumns.length > 0) {
+      throw new BadRequestException({
+        message:
+          'The "is blank" / "is not blank" filters need the filtered column\'s schema type ' +
+          `to resolve their SQL, and no type is available for: ${unresolvedBlankColumns.join(', ')}. ` +
+          "Actualize the Data Mart's schema (and make sure the column is present and visible in it), then retry.",
+        details: {
+          // One entry per column — the MCP error mapper names `column` in its output.
+          errors: unresolvedBlankColumns.map(column => ({
+            code: 'BLANK_FILTER_COLUMN_TYPE_UNRESOLVED',
+            column,
+          })),
+        },
+      });
     }
 
     const pkFields = getMainUniqueCountKeyFields(schemaFields);

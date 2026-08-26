@@ -87,6 +87,13 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return `DATE_TRUNC('${unit}', ${expr})`;
   }
 
+  // Snowflake's one-argument TRIM strips only the blank space by default; the explicit
+  // set makes tab/CR/LF-only cells blank too, matching the other dialects (#6779).
+  // Snowflake string literals interpret the \t/\n/\r escapes.
+  protected override blankTrimmedExpression(columnRef: string): string {
+    return `TRIM(${columnRef}, ' \\t\\n\\r')`;
+  }
+
   protected renderFilterFragment(
     rule: FilterRule,
     _paramName: string,

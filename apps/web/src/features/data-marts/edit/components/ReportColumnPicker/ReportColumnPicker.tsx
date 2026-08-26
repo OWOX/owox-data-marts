@@ -62,7 +62,7 @@ import {
 import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
-import { isFilterableType } from './output-controls-operators';
+import { effectiveComparisonType, isFilterableType } from './output-controls-operators';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
 import type { AggregationDraft } from './AggregationEditorPopover';
 import {
@@ -84,7 +84,9 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     result.push({
       name: fullName,
-      type: field.type,
+      // A REPEATED field's element type is not its comparison type — mark it as
+      // ARRAY<T> so the operator menus mirror the backend validator (#6779).
+      type: field.type ? effectiveComparisonType(field.type, field.mode) : field.type,
       alias: field.alias,
       description: field.description,
       isPrimaryKey: field.isPrimaryKey,

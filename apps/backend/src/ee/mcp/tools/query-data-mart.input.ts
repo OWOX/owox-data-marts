@@ -66,12 +66,55 @@ export const LEGACY_MCP_OPERATORS = ['is_empty', 'is_not_empty', 'is_null', 'is_
 
 export const McpOperatorEnum = z.enum(MCP_OPERATORS);
 
+type McpOperator = (typeof MCP_OPERATORS)[number];
+
+/**
+ * The operators the tools ADVERTISE — in the machine-readable JSON Schema, the tool
+ * descriptions, and the field-type matrix: everything accepted minus the legacy
+ * null/empty cluster, which only stays parseable for pre-merge callers (#6779).
+ * Error messages list these — steering a failed call to is_blank, never back to a
+ * legacy name.
+ */
+export const ADVERTISED_MCP_OPERATORS = MCP_OPERATORS.filter(
+  op => !(LEGACY_MCP_OPERATORS as readonly string[]).includes(op)
+) as unknown as readonly [McpOperator, ...McpOperator[]];
+
+/**
+ * Accepts every SUPPORTED operator while the serialized JSON Schema advertises only
+ * the ADVERTISED ones (#6779): the legacy null/empty cluster must keep parsing for
+ * pre-merge callers WITH its original semantics, but the input contract the tools
+ * publish must not offer it. zod-to-json-schema renders ZodEffects (input strategy)
+ * and ZodCatch as their inner type, so this field serializes as the advertised enum
+ * alone; at parse time a non-advertised value falls into the catch and is re-judged
+ * by the superRefine — legacy names pass through unchanged, a missing operator stays
+ * required, and anything else is rejected with the operator-guidance message.
+ * Fresh enum instance per use — a shared one becomes a JSON-Schema $ref across
+ * filters/slices that OpenAI can't resolve. Pinned by the JSON-Schema contract spec
+ * (mcp-operator-advertising.spec.ts).
+ */
+const makeMcpOperatorSchema = () =>
+  z
+    .enum(ADVERTISED_MCP_OPERATORS as [McpOperator, ...McpOperator[]])
+    .catch(ctx => ctx.input as McpOperator)
+    .superRefine((op, ctx) => {
+      if (op === undefined || op === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'operator is required' });
+        return;
+      }
+      if (!(SUPPORTED_MCP_OPERATORS as readonly string[]).includes(op as string)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: unsupportedOperatorMessage(String(op)),
+        });
+      }
+    });
+
 // Fresh instance per use — a shared one becomes a JSON-Schema $ref that OpenAI can't resolve (filters → any[]).
 // Also reused by add_report/update_report so report filters speak the exact same vocabulary as query filters.
 export const makeMcpFilterSchema = () =>
   z.object({
     field: z.string().min(1),
-    operator: z.enum(MCP_OPERATORS),
+    operator: makeMcpOperatorSchema(),
     value: z
       .union([
         z.string(),
@@ -182,16 +225,6 @@ export { DEFAULT_LIMIT, MAX_LIMIT };
 
 // Every ACCEPTED operator maps to the internal FilterRule.
 export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
-
-/**
- * The operators the tool descriptions and the field-type matrix advertise: everything
- * accepted minus the legacy null/empty cluster, which only stays parseable for
- * pre-merge callers (#6779). Error messages list these — steering a failed call to
- * is_blank, never back to a legacy name.
- */
-export const ADVERTISED_MCP_OPERATORS = SUPPORTED_MCP_OPERATORS.filter(
-  op => !(LEGACY_MCP_OPERATORS as readonly string[]).includes(op)
-);
 
 /**
  * The full operator menu for boolean fields. eq/neq appear here because mapOne

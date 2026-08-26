@@ -159,6 +159,8 @@ export interface BlendedGroup {
 export interface NativeField {
   name: string;
   type?: string;
+  /** BigQuery field mode; 'REPEATED' marks an ARRAY column (other storages omit it). */
+  mode?: string;
   alias?: string;
   description?: string;
   isHiddenForReporting?: boolean;

@@ -34,13 +34,15 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 
 ### Supported operators by column type
 
-| Column type | Available operators |
-|---|---|
-| String | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null |
-| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null |
-| Time | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null |
-| Boolean | is true, is false, is null, is not null |
+| Column type                 | Available operators                                                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| String                      | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is blank, is not blank, matches regex, does not match regex |
+| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is blank, is not blank                                                                           |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is blank, is not blank                             |
+| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is blank, is not blank                                       |
+| Boolean                     | is true, is false, is blank, is not blank                                                                                                          |
+
+**Is blank / is not blank** match by what a rendered cell shows: a string column is blank when it is `NULL`, an empty string, or whitespace-only; every other type is blank only when it is `NULL`. These replace the former `is empty` / `is not empty` / `is null` / `is not null` operators — rules saved with those keep working and keep their original labels, but new rules use the blank pair.
 
 **Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule. Wrap a value in double quotes if it contains a comma — for example `"Acme, Inc."`. Use `""` for a literal quote.
 
@@ -67,7 +69,7 @@ Use it so rolling reports stay current without touching filter values manually. 
 
 Multiple filters use `AND` logic — every condition must match for a row to appear. OR logic between filters is not supported.
 
-**NULL values and negative operators.** Negative operators **include** rows where the column is `NULL` — a missing value is treated as "not equal to X" rather than being dropped. This covers the "not equal" operator under every type label (`is not`, `≠` / `not equals`, `not on`, `not at`), `is none of`, `does not contain`, and `does not match regex`. The same applies to slices. To also remove missing values, add a separate **filter** on the same column (`is not null` or `is not empty`) — for a joined column this must be a filter, not a slice, because a slice runs before the join and cannot drop rows that arrive with `NULL` from an unmatched join.
+**NULL values and negative operators.** Negative operators **include** rows where the column is `NULL` — a missing value is treated as "not equal to X" rather than being dropped. This covers the "not equal" operator under every type label (`is not`, `≠` / `not equals`, `not on`, `not at`), `is none of`, `does not contain`, and `does not match regex`. The same applies to slices. To also remove missing values, add a separate **filter** on the same column (`is not blank`) — for a joined column this must be a filter, not a slice, because a slice runs before the join and cannot drop rows that arrive with `NULL` from an unmatched join.
 
 To edit an existing filter, click the pencil icon on its row. To remove one, click the **×**.
 
@@ -88,7 +90,7 @@ The join between a source Data Mart and a joined Data Mart is a `LEFT JOIN`.
 - A **filter** on a joined column acts on the fully-assembled result. It drops source rows with no matching joined value.
 - A **slice** removes rows from the joined subquery before the join runs. Source rows with no match still pass through — with `NULL` on the joined columns.
 
-To also drop source rows with no match, add a **filter** on the same column (`is not null`).
+To also drop source rows with no match, add a **filter** on the same column (`is not blank`).
 
 ### When to use slices
 
