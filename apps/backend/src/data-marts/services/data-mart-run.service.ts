@@ -609,6 +609,21 @@ export class DataMartRunService {
     });
 
     await this.dataMartRunRepository.save(run);
+
+    // A pulled report run has to announce itself like any other, or onboarding never learns the
+    // user ran a report — the live step and the history-based recovery would both miss it, so it
+    // would not heal later either. Gated on `report`, not on `reportId`: a plain HTTP read of
+    // someone's report carries the id but is not that report's run.
+    if (record.status === DataMartRunStatus.SUCCESS && record.report && record.createdById) {
+      this.eventDispatcher.publishLocalOnCommit(
+        new ReportRunCompletedSuccessfullyEvent(
+          run.id,
+          record.dataMart.id,
+          record.createdById,
+          run.type
+        )
+      );
+    }
   }
 
   // Terminal-only: persisted once at the end; id is caller-provided to match the run UUID.

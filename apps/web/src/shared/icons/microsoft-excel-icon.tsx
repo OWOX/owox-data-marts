@@ -8,11 +8,6 @@ interface MicrosoftExcelIconProps {
 /**
  * The Microsoft Excel application icon.
  *
- * Trademark clearance is still open. Microsoft treats its app icons as functional launchers
- * rather than logos, and asks third parties to either obtain a licence or use a generic
- * spreadsheet icon. Kept here pending that decision — if it goes the other way, point
- * DataDestinationTypeModel back at a neutral mark; nothing else refers to this file.
- *
  * Gradient ids are namespaced per instance: the icon renders once per row in destination
  * lists, and shared ids would put several identical definitions into the document at once.
  */

@@ -10,7 +10,12 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
-import { DataMartRunService, McpQueryRunRecord, ReportRunContext } from './data-mart-run.service';
+import {
+  DataMartRunService,
+  HttpDataRunRecord,
+  McpQueryRunRecord,
+  ReportRunContext,
+} from './data-mart-run.service';
 
 function fakeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -389,6 +394,66 @@ describe('DataMartRunService', () => {
       expect(outputConfig).toBeDefined();
       expect(outputConfig['filterConfig']).toEqual(filterConfig);
       expect(runArg.status).toBe(DataMartRunStatus.RUNNING);
+    });
+  });
+
+  describe('recordHttpDataRun', () => {
+    const httpRecord = (overrides: Partial<HttpDataRunRecord> = {}): HttpDataRunRecord => ({
+      runId: 'run-http-1',
+      dataMart: fakeDataMart(),
+      createdById: 'user-42',
+      startedAt: new Date('2026-07-01T10:00:00.000Z'),
+      status: DataMartRunStatus.SUCCESS,
+      metadata: { format: 'ndjson', columns: ['a'] },
+      ...overrides,
+    });
+
+    it('announces a successful pulled report run so onboarding can see it', async () => {
+      // Without the event neither the live step nor the history-based recovery marks
+      // hasReportRun, so a user whose first report is Excel would stay incomplete for good.
+      const { service, eventDispatcher } = createService();
+
+      await service.recordHttpDataRun(
+        httpRecord({
+          type: DataMartRunType.EXCEL,
+          reportId: 'report-1',
+          report: fakeReport({ dataDestination: fakeDataDestination(DataDestinationType.EXCEL) }),
+        })
+      );
+
+      expect(eventDispatcher.publishLocalOnCommit).toHaveBeenCalledTimes(1);
+      const event = (eventDispatcher.publishLocalOnCommit as jest.Mock).mock.calls[0][0];
+      expect(event.payload).toMatchObject({
+        dataMartRunId: 'run-http-1',
+        dataMartId: 'dm-1',
+        userId: 'user-42',
+        runType: DataMartRunType.EXCEL,
+      });
+    });
+
+    it('stays silent for a plain HTTP read of a report', async () => {
+      // `reportId` is set here too, but the read is not that report's run — the server delivers
+      // its data elsewhere, and ticking the onboarding step off this would be a lie.
+      const { service, eventDispatcher } = createService();
+
+      await service.recordHttpDataRun(httpRecord({ reportId: 'report-1' }));
+
+      expect(eventDispatcher.publishLocalOnCommit).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the pulled run failed', async () => {
+      const { service, eventDispatcher } = createService();
+
+      await service.recordHttpDataRun(
+        httpRecord({
+          status: DataMartRunStatus.FAILED,
+          type: DataMartRunType.EXCEL,
+          reportId: 'report-1',
+          report: fakeReport(),
+        })
+      );
+
+      expect(eventDispatcher.publishLocalOnCommit).not.toHaveBeenCalled();
     });
   });
 

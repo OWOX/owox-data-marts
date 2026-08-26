@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { ResolveExcelDestinationCommand } from '../dto/domain/resolve-excel-destination.command';
-import { DataDestination } from '../entities/data-destination.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DataDestinationService } from '../services/data-destination.service';
 import { CreateDataDestinationService } from './create-data-destination.service';
 import { GetDataDestinationService } from './get-data-destination.service';
 
@@ -42,8 +40,7 @@ const EXCEL_DESTINATION_TITLE = 'Microsoft Excel';
 @Injectable()
 export class ResolveExcelDestinationService {
   constructor(
-    @InjectRepository(DataDestination)
-    private readonly repository: Repository<DataDestination>,
+    private readonly dataDestinationService: DataDestinationService,
     private readonly createService: CreateDataDestinationService,
     private readonly getService: GetDataDestinationService,
     private readonly accessDecisionService: AccessDecisionService
@@ -52,10 +49,10 @@ export class ResolveExcelDestinationService {
   @Transactional()
   async run(command: ResolveExcelDestinationCommand): Promise<DataDestinationDto> {
     // Oldest first, so repeated calls keep returning the same destination once one exists.
-    const candidates = await this.repository.find({
-      where: { projectId: command.projectId, type: DataDestinationType.EXCEL },
-      order: { createdAt: 'ASC' },
-    });
+    const candidates = await this.dataDestinationService.listByProjectIdAndType(
+      command.projectId,
+      DataDestinationType.EXCEL
+    );
 
     for (const candidate of candidates) {
       const canUse = await this.accessDecisionService.canAccess(

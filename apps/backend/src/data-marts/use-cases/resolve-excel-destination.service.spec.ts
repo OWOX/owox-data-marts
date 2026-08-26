@@ -9,19 +9,21 @@ import { ResolveExcelDestinationService } from './resolve-excel-destination.serv
 
 describe('ResolveExcelDestinationService', () => {
   function setup(existing: { id: string }[], canUse = true) {
-    const repository = { find: jest.fn().mockResolvedValue(existing) };
+    const dataDestinationService = {
+      listByProjectIdAndType: jest.fn().mockResolvedValue(existing),
+    };
     const createService = { run: jest.fn().mockResolvedValue({ id: 'created-1' }) };
     const getService = { run: jest.fn().mockResolvedValue({ id: 'existing-1' }) };
     const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(canUse) };
 
     const service = new ResolveExcelDestinationService(
-      repository as never,
+      dataDestinationService as never,
       createService as never,
       getService as never,
       accessDecisionService as never
     );
 
-    return { service, repository, createService, getService, accessDecisionService };
+    return { service, dataDestinationService, createService, getService, accessDecisionService };
   }
 
   const command = new ResolveExcelDestinationCommand('project-1', 'user-1', ['viewer']);
@@ -57,14 +59,13 @@ describe('ResolveExcelDestinationService', () => {
   it('looks across the whole project, not only the caller’s own destinations', async () => {
     // A destination shared for use already gives every project member SEE and USE, so a copy
     // per user would only clutter the project with identical rows.
-    const { service, repository } = setup([]);
+    const { service, dataDestinationService } = setup([]);
 
     await service.run(command);
 
-    expect(repository.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { projectId: 'project-1', type: DataDestinationType.EXCEL },
-      })
+    expect(dataDestinationService.listByProjectIdAndType).toHaveBeenCalledWith(
+      'project-1',
+      DataDestinationType.EXCEL
     );
   });
 

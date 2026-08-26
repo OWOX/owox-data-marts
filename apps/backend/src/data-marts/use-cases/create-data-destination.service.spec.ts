@@ -40,6 +40,7 @@ jest.mock('../utils/resolve-owner-users', () => ({
 
 import { CreateDataDestinationService } from './create-data-destination.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
+import { BadRequestException } from '@nestjs/common';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { syncOwners } from '../utils/sync-owners';
 
@@ -227,6 +228,50 @@ describe('CreateDataDestinationService', () => {
       expect.anything(),
       expect.any(Function)
     );
+  });
+
+  describe('credentialless destination types', () => {
+    // requiresCredentials(EXCEL) is false, and the guard has to run before every
+    // credential-bearing branch: inline credentials would otherwise reach a validator that does
+    // not exist for the type — a plain Error, surfaced as HTTP 500 — and a credentialId would
+    // link an unrelated OAuth grant to a destination whose whole point is that it stores nothing.
+    it('rejects inline credentials rather than resolving a validator that does not exist', async () => {
+      const { service } = createService();
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Excel with credentials',
+        type: DataDestinationType.EXCEL,
+        userId: 'user-0',
+        credentials: { type: 'google-sheets-credentials' } as never,
+      });
+
+      await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a pre-created credentialId', async () => {
+      const { service } = createService();
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Excel with OAuth credential',
+        type: DataDestinationType.EXCEL,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
+
+      await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('still creates one when nothing credential-bearing is supplied', async () => {
+      const { service } = createService();
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Microsoft Excel',
+        type: DataDestinationType.EXCEL,
+        userId: 'user-0',
+      });
+
+      await expect(service.run(command)).resolves.toBeDefined();
+    });
   });
 
   describe('credentialId ownership check', () => {

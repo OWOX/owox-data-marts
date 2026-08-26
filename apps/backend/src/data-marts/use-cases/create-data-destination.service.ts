@@ -1,4 +1,7 @@
-import { requiresCredentials } from '../data-destination-types/enums/data-destination-type.enum';
+import {
+  requiresCredentials,
+  toHumanReadable,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -57,6 +60,20 @@ export class CreateDataDestinationService {
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     const availableForUse = command.availableForUse ?? true;
+
+    // A type that holds no secret has nothing to attach one to. Refused before the three
+    // credential-bearing branches below, because each of them fails badly rather than clearly:
+    // inline credentials reach a validator that does not exist for such a type (a plain Error,
+    // surfaced as HTTP 500), and a credentialId would link someone else's OAuth grant to a
+    // destination whose whole point is that it stores nothing.
+    if (
+      !requiresCredentials(command.type) &&
+      (command.hasCredentials() || command.credentialId || command.sourceDestinationId)
+    ) {
+      throw new BadRequestException(
+        `${toHumanReadable(command.type)} destinations do not use credentials`
+      );
+    }
 
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId
     if (command.sourceDestinationId && command.hasCredentials()) {

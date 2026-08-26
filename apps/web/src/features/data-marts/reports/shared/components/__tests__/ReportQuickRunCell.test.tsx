@@ -118,6 +118,35 @@ describe('ReportQuickRunCell', () => {
     ).toBeDisabled();
   });
 
+  it('shows the hint on hover even though the button is disabled', async () => {
+    // The shared Button carries `disabled:pointer-events-none`, so a tooltip anchored on the
+    // button itself never opens for mouse users — the half of the audience the aria-label above
+    // does not serve. The wrapping span is what keeps the hover target alive.
+    render(
+      <ReportQuickRunCell
+        report={makeReport({
+          canRun: false,
+          dataDestination: { type: DataDestinationType.EXCEL },
+        } as Partial<DataMartReport>)}
+      />
+    );
+
+    const trigger = screen
+      .getByRole('button', { name: 'Refresh it from the OWOX add-in in Excel' })
+      .closest('span');
+    expect(trigger).not.toBeNull();
+
+    fireEvent.pointerEnter(trigger!);
+    fireEvent.mouseEnter(trigger!);
+    fireEvent.focus(trigger!);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('Refresh it from the OWOX add-in in Excel').length
+      ).toBeGreaterThan(0);
+    });
+  });
+
   it('does not call toast.custom if Run is clicked while already pending', () => {
     render(<ReportQuickRunCell report={makeReport()} />);
 

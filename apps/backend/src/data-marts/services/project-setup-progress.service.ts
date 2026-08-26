@@ -27,6 +27,9 @@ const OPTIMISTIC_LOCK_MAX_ATTEMPTS = 5;
 const REPORT_RUN_TYPES = [
   DataMartRunType.GOOGLE_SHEETS_EXPORT,
   DataMartRunType.LOOKER_STUDIO,
+  // A pulled Excel run is the report running, so it counts here like any other report run.
+  // HTTP_DATA and MCP_QUERY stay out: those are reads, not runs of a report.
+  DataMartRunType.EXCEL,
   DataMartRunType.EMAIL,
   DataMartRunType.SLACK,
   DataMartRunType.MS_TEAMS,
