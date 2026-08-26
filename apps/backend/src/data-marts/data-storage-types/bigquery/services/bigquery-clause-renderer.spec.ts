@@ -1,5 +1,5 @@
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
-import { CalculatedMetricPlan, ColumnRefResolver } from '../../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, ColumnRefResolver } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 describe('BigQueryClauseRenderer', () => {
@@ -565,7 +565,7 @@ describe('BigQueryClauseRenderer', () => {
   // carries the declaration, so one predicate is emitted for both and the driver infers nothing.
   describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
-    const numericText: CalculatedMetricPlan = {
+    const numericText: CalculatedFieldPlan = {
       outputName: 'probe',
       formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
       level: 'column',

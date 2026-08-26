@@ -19,7 +19,7 @@ import {
   buildFilterTypeResolver,
   composePlainSelectBody,
   composeSelectFromClause,
-  hasAggregateCalculatedMetric,
+  hasAggregateCalculatedField,
 } from '../../utils/sql-clause-renderer';
 
 @Injectable()
@@ -32,7 +32,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
     const uniqueCount = queryOptions?.uniqueCount === true;
-    const calculatedMetrics = queryOptions?.calculatedMetrics ?? [];
+    const calculatedFields = queryOptions?.calculatedFields ?? [];
     const calculatedFilterMetrics = queryOptions?.calculatedFilterMetrics ?? [];
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
@@ -40,7 +40,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
       uniqueCount ||
-      calculatedMetrics.length > 0 ||
+      calculatedFields.length > 0 ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -73,14 +73,14 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     const orderBy = this.clauseRenderer.renderOrderBy(
       queryOptions?.sort ?? [],
       this.clauseRenderer.buildPlainSelectAliasResolver(
-        calculatedMetrics,
+        calculatedFields,
         undefined,
         // The plain branch carries no report aggregations by construction: an aggregation is what
         // sends the query down the aggregated branch instead.
         // No opts, matching `buildCalculatedPredicateExpressions` above: this dialect qualifies
         // nothing, so the sort and the filter render the same unqualified expression.
         this.clauseRenderer.buildCalculatedSortExpressions(
-          calculatedMetrics,
+          calculatedFields,
           calculatedPredicateExpressions,
           [],
           {}
@@ -95,7 +95,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
       uniqueCount ||
-      hasAggregateCalculatedMetric([...calculatedMetrics, ...calculatedFilterMetrics])
+      hasAggregateCalculatedField([...calculatedFields, ...calculatedFilterMetrics])
     ) {
       const built = this.clauseRenderer.renderAggregatedQuery({
         fromClause,
@@ -114,7 +114,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
         qualifyProjection: undefined,
         typeByColumn: queryOptions?.columnTypes,
         resolveColumnType,
-        calculatedMetrics,
+        calculatedFields,
         calculatedPredicateExpressions,
       });
       this.assertNoParams(built.params.length);
@@ -126,7 +126,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     assertNoHavingRules(queryOptions?.filters ?? [], 'RedshiftQueryBuilder plain query');
     const plainSelect = composePlainSelectBody(
       selectList,
-      this.clauseRenderer.renderCalculatedSelectItems(calculatedMetrics)
+      this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)
     );
     return `${composeSelectFromClause(plainSelect, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
   }

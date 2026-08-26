@@ -11,7 +11,7 @@ export type CalculatedFieldLevel = (typeof CALCULATED_FIELD_LEVELS)[number];
 /**
  * Whether a level AGGREGATES. The ONE seat for that rule: it is asked while DERIVING a schema
  * field's level (`calculatedFieldLevelOf`, which asks the formula text first and this of the
- * recorded level second), of a composed plan (`hasAggregateCalculatedMetric`) and of a Totals
+ * recorded level second), of a composed plan (`hasAggregateCalculatedField`) and of a Totals
  * restriction dimension — on paths that differ from each other by a GROUP BY rather than by an
  * error, so a second copy would not fail, it would return a plausible wrong number.
  *

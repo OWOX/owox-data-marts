@@ -40,10 +40,10 @@ const AGG_NOT_ALLOWED_CODES = new Set([
  * carries no `level` at all, because it is a boundary about WHOSE formula it is rather than about
  * what the formula does — refused identically at both levels.
  */
-const CALCULATED_METRIC_CODES = [
-  'AGGREGATION_ON_CALCULATED_METRIC',
-  'CALCULATED_METRIC_AS_DIMENSION',
-  'CALCULATED_METRIC_BROKEN_REFERENCES',
+const CALCULATED_FIELD_CODES = [
+  'AGGREGATION_ON_CALCULATED_FIELD',
+  'CALCULATED_FIELD_AS_DIMENSION',
+  'CALCULATED_FIELD_BROKEN_REFERENCES',
   'JOINED_CALCULATED_FIELD_UNSUPPORTED',
 ] as const;
 
@@ -57,7 +57,7 @@ const RECOGNIZED_CODES = new Set([
   'FILTER_COLUMN_UNKNOWN',
   'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
   'AGGREGATION_REQUIRES_COLUMN_CONFIG',
-  'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG',
+  'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG',
   'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG',
   'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE',
   'UNIQUE_COUNT_FILTER_UNSUPPORTED',
@@ -67,12 +67,12 @@ const RECOGNIZED_CODES = new Set([
   'HAVING_FILTER_NOT_AGGREGATED',
   'HAVING_FILTER_INVALID_PLACEMENT',
   'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
-  'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+  'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED',
   'INVALID_OPERATOR_FOR_TYPE',
   ...NOT_SELECTED_CODES,
   ...AGG_NOT_ALLOWED_CODES,
   ...DATE_BUCKET_ERROR_CODES,
-  ...CALCULATED_METRIC_CODES,
+  ...CALCULATED_FIELD_CODES,
 ]);
 
 interface ValidatorErrorEntry {
@@ -138,7 +138,7 @@ export function translateOutputControlsError(
     });
   }
 
-  // Calculated Metric misuse. Every one of these is a 400 the agent would otherwise see
+  // Calculated Field misuse. Every one of these is a 400 the agent would otherwise see
   // as an opaque code, and the schema tool advertises an AGGREGATE-level field with an EMPTY
   // allowedAggregations set (a row-level one now carries its real menu) — so reaching the
   // aggregation code means the agent treated an already-aggregated value as an ordinary column.
@@ -156,11 +156,11 @@ export function translateOutputControlsError(
   // FILTER loop (drop the rule's function). An entry from the second told to "list it in fields"
   // is advice for a request it did not make, and the agent has no other move to try.
   const metricAggregations =
-    errors?.filter(e => e.code === 'AGGREGATION_ON_CALCULATED_METRIC') ?? [];
+    errors?.filter(e => e.code === 'AGGREGATION_ON_CALCULATED_FIELD') ?? [];
   if (metricAggregations.length > 0) {
     const cols = namesOf(metricAggregations);
     sections.push({
-      code: 'aggregation_on_calculated_metric',
+      code: 'aggregation_on_calculated_field',
       message: `${cols || 'This field'} is a Calculated Field — a formula that is ALREADY aggregated, so it cannot be aggregated again. If the aggregation is in "aggregations", drop it and just list the field in "fields"; if it is on a filter, drop that filter's function and compare the field itself. Either way it is recomputed correctly at whatever grain your query asks for. The field name is correct, so do not re-fetch the schema.`,
     });
   }
@@ -171,11 +171,11 @@ export function translateOutputControlsError(
   // level — this code is in RECOGNIZED_CODES, so an entry no branch claims is subtracted from the
   // informative fallback too, and a lone one makes this function return null: the agent then gets
   // the bare 400 with no guidance at all, which is worse than a sentence with a stale reason.
-  const metricDimensions = errors?.filter(e => e.code === 'CALCULATED_METRIC_AS_DIMENSION') ?? [];
+  const metricDimensions = errors?.filter(e => e.code === 'CALCULATED_FIELD_AS_DIMENSION') ?? [];
   if (metricDimensions.length > 0) {
     const cols = namesOf(metricDimensions);
     sections.push({
-      code: 'calculated_metric_as_dimension',
+      code: 'calculated_field_as_dimension',
       message: `${cols || 'This field'} is a Calculated Field and can never be a grouping dimension, so it cannot carry a date bucket. Remove that date_bucket and bucket a real date field instead. The field name is correct, so do not re-fetch the schema.`,
     });
   }
@@ -184,13 +184,13 @@ export function translateOutputControlsError(
   // column that is gone, or (formulas may read formulas) another Calculated Field
   // further down the chain that is itself broken. Nothing the agent can change fixes either, so
   // name the one move that exists: a human edits the formula.
-  const brokenMetrics = errors?.filter(e => e.code === 'CALCULATED_METRIC_BROKEN_REFERENCES') ?? [];
+  const brokenMetrics = errors?.filter(e => e.code === 'CALCULATED_FIELD_BROKEN_REFERENCES') ?? [];
   if (brokenMetrics.length > 0) {
     const detail = [...new Set(brokenMetrics.map(e => e.message ?? e.column).filter(Boolean))].join(
       ' '
     );
     sections.push({
-      code: 'calculated_metric_broken',
+      code: 'calculated_field_broken',
       message: `${detail} This Calculated Field's formula reads something the Data Mart can no longer compute — a column it has lost, or another Calculated Field that is itself broken — so retrying will not help. Drop it from "fields" to get the rest of the answer, and tell the user to open the Data Mart's Output Schema in OWOX and fix the formula.`,
     });
   }
@@ -223,18 +223,18 @@ export function translateOutputControlsError(
     });
   }
 
-  // The same requirement an agent is much likelier to hit: filtering on a calculated metric while
+  // The same requirement an agent is much likelier to hit: filtering on a calculated field while
   // leaving fields ['*']. The filter groups the report on its own, so the projection cannot stay
   // implicit — and the agent needs to be told which field caused it, since nothing in its own
   // request mentions an aggregation.
   {
     const filterColumns = (errors ?? [])
-      .filter(e => e.code === 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG')
+      .filter(e => e.code === 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG')
       .map(e => (e as { column?: string }).column)
       .filter((column): column is string => typeof column === 'string');
     if (filterColumns.length > 0) {
       sections.push({
-        code: 'fields_required_for_calculated_metric_filter',
+        code: 'fields_required_for_calculated_field_filter',
         message:
           `Filtering on the calculated field(s) ${filterColumns.map(c => `"${c}"`).join(', ')} ` +
           "groups the report, so it requires an explicit column selection: replace fields ['*'] " +
@@ -387,7 +387,7 @@ export function translateOutputControlsError(
     errors?.filter(
       e =>
         e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED' ||
-        e.code === 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED'
+        e.code === 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED'
     ) ?? [];
   if (sleeveHaving.length > 0) {
     const rules = sleeveHaving

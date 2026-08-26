@@ -24,7 +24,7 @@ import { SnowflakeBlendedQueryBuilder } from '../snowflake/services/snowflake-bl
 import { SnowflakeClauseRenderer } from '../snowflake/services/snowflake-clause-renderer';
 import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
 import { ResolvedRelationshipChain } from './blended-query-builder.interface';
-import { CalculatedMetricPlan } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan } from '../utils/sql-clause-renderer';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 import { buildFormulaOwnerPlan } from '../../calculated-fields/formula-owner-plan';
 import { createFormulaFunctionDialectRegistry } from '../../calculated-fields/formula-function-dialect';
@@ -38,7 +38,7 @@ import type { FilterRule } from '../../dto/schemas/filter-config.schema';
 
 /** Arithmetic, not a named function: what is under test is the qualifier, not the SQL vocabulary. */
 const MARGIN_FORMULA = '({{ref field="revenue"}} - {{ref field="cost"}})';
-const marginPlan = (): CalculatedMetricPlan => ({
+const marginPlan = (): CalculatedFieldPlan => ({
   outputName: 'margin',
   type: 'FLOAT',
   formula: MARGIN_FORMULA,
@@ -47,7 +47,7 @@ const marginPlan = (): CalculatedMetricPlan => ({
 
 /** DATE-declared, because the report may bucket exactly that. */
 const VISIT_DAY_FORMULA = 'COALESCE({{ref field="visit_ts"}}, {{ref field="created_ts"}})';
-const visitDayPlan = (): CalculatedMetricPlan => ({
+const visitDayPlan = (): CalculatedFieldPlan => ({
   outputName: 'visit_day',
   type: 'DATE',
   formula: VISIT_DAY_FORMULA,
@@ -201,7 +201,7 @@ const twoSourceFieldIndex = buildBlendedFieldIndex({
 const ROI_FORMULA = 'SUM({{ref path="spend" field="cost"}}) * 2';
 const formulaDialects = createFormulaFunctionDialectRegistry();
 
-async function roiPlan(builder: AbstractBlendedQueryBuilder): Promise<CalculatedMetricPlan> {
+async function roiPlan(builder: AbstractBlendedQueryBuilder): Promise<CalculatedFieldPlan> {
   // The storage's REAL aggregate vocabulary decides whether the call is lifted at all.
   const dialect = await formulaDialects.resolve(builder.type);
   return {
@@ -234,7 +234,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [marginPlan()],
+        calculatedFields: [marginPlan()],
       });
       const outer = sql.slice(sql.lastIndexOf('\n\nSELECT\n'));
 
@@ -265,7 +265,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
         // The dialect's OWN float spelling: `marginPlan`'s literal 'FLOAT' is not a Redshift
         // declared type at all, so that dialect emitted no cast and this test passed there for
         // the wrong reason.
-        calculatedMetrics: [{ ...marginPlan(), type: d.declaredFloat }],
+        calculatedFields: [{ ...marginPlan(), type: d.declaredFloat }],
         sort: [{ column: 'margin', direction: 'desc' }],
       });
 
@@ -280,7 +280,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [marginPlan()],
+        calculatedFields: [marginPlan()],
         aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
       });
 
@@ -301,7 +301,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [visitDayPlan()],
+        calculatedFields: [visitDayPlan()],
         aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
         dateTruncs: [{ column: 'visit_day', unit: 'MONTH' }],
       });
@@ -330,7 +330,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
     // SELECT alias no warehouse column may own. Both halves are derived from the main CTE's
     // projection, which is where either mistake surfaces: `Unrecognized name`, on every dialect.
     it('projects a dependency’s columns, and not its name, into the main CTE', () => {
-      const grossMargin: CalculatedMetricPlan = {
+      const grossMargin: CalculatedFieldPlan = {
         outputName: 'gross_margin',
         type: 'FLOAT',
         formula: MARGIN_FORMULA,
@@ -339,7 +339,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'margin_rate',
             type: 'FLOAT',
@@ -373,7 +373,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = builder.buildBlendedQuery({
         ...buildContext([spendChain()], ['channel']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [marginPlan(), await roiPlan(builder)],
+        calculatedFields: [marginPlan(), await roiPlan(builder)],
       });
 
       // The joined call really was lifted, or the composition under test never happened.
@@ -394,7 +394,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
           ['channel', 'spend__cost', 'orders__amount']
         ),
         fieldIndex: twoSourceFieldIndex,
-        calculatedMetrics: [marginPlan()],
+        calculatedFields: [marginPlan()],
         aggregations: [
           { column: 'spend__cost', function: 'SUM' },
           { column: 'orders__amount', function: 'SUM' },
@@ -417,7 +417,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [{ ...marginPlan(), type: d.declaredFloat }],
+        calculatedFields: [{ ...marginPlan(), type: d.declaredFloat }],
         aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
         sort: [{ column: 'margin', direction: 'desc' }],
       });
@@ -470,7 +470,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
     // so a mutation to the cast rule fails the projection and the restriction together, and a
     // restriction that derives its own spelling fails alone.
     it('compares the same aggregate argument in the kept-groups CTE as in the report', () => {
-      const aggregated: CalculatedMetricPlan = {
+      const aggregated: CalculatedFieldPlan = {
         ...marginPlan(),
         type: d.declaredFloat,
         isAggregatedByReport: true,
@@ -487,7 +487,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const report = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [aggregated],
+        calculatedFields: [aggregated],
         calculatedFilterMetrics: [aggregated],
         aggregations: [
           { column: 'spend__cost', function: 'SUM' },
@@ -529,7 +529,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [filtered],
+        calculatedFields: [filtered],
         calculatedFilterMetrics: [filtered],
         aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
         filters: [{ column: 'margin', operator: 'gt', value: 1, clause: 'where' }],
@@ -574,7 +574,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [{ ...marginPlan(), isAggregatedByReport: true }],
+        calculatedFields: [{ ...marginPlan(), isAggregatedByReport: true }],
         aggregations: [
           { column: 'spend__cost', function: 'SUM' },
           { column: 'margin', function: 'COUNT_DISTINCT' },
@@ -596,7 +596,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       const { sql } = d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [{ ...marginPlan(), isAggregatedByReport: true }],
+        calculatedFields: [{ ...marginPlan(), isAggregatedByReport: true }],
         aggregations: [{ column: 'margin', function: 'COUNT_DISTINCT' }] as AggregationRule[],
       });
 
@@ -617,7 +617,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       d.builder().buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
-        calculatedMetrics: [{ ...marginPlan(), type: declaredType, isAggregatedByReport: true }],
+        calculatedFields: [{ ...marginPlan(), type: declaredType, isAggregatedByReport: true }],
         aggregations: [
           { column: 'spend__cost', function: 'SUM' },
           { column: 'margin', function: 'SUM' },
@@ -626,7 +626,7 @@ describe('a row-level calculated field on a joined report — every dialect', ()
 
     // Both assertions are scoped to the OUTER SELECT, as the sibling above is. Matching against
     // the whole query would pass on the same string appearing in any CTE — which cannot happen
-    // today (a calculated metric is never sleeve-routed, so `margin | SUM` occurs once), but the
+    // today (a calculated field is never sleeve-routed, so `margin | SUM` occurs once), but the
     // name of the test would stop being what it checks the moment a slice projects a labelled
     // metric into a CTE.
     it('casts the aggregated expression to the declared float in the outer SELECT', () => {

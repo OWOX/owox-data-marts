@@ -10,7 +10,7 @@ import {
 import { buildJoinedUniqueCountColumnName } from '../../services/blended-field-name';
 import type { JoinedUniqueCountHeaderSource } from '../interfaces/blended-query-builder.interface';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
-import type { CalculatedMetricPlan } from './sql-clause-renderer';
+import type { CalculatedFieldPlan } from './sql-clause-renderer';
 
 const BQ = DataStorageType.GOOGLE_BIGQUERY;
 
@@ -540,7 +540,7 @@ describe('resolveReportDataHeaders', () => {
     });
   });
 
-  describe('calculated metric headers', () => {
+  describe('calculated field headers', () => {
     const nat = (name: string, type: BigQueryFieldType) =>
       new ReportDataHeader(name, undefined, undefined, type);
 
@@ -548,12 +548,12 @@ describe('resolveReportDataHeaders', () => {
     // ['ctr','clicks'] write `ctr` last, and the position was already lost before this function:
     // five producers strip the name from `columnFilter` on their own. Resolving it HERE keeps the
     // order, and removes an invariant that nothing but a convention was holding.
-    it('places a calculated metric where the column filter names it', () => {
+    it('places a calculated field where the column filter names it', () => {
       const headers = resolveReportDataHeaders(
         [nat('clicks', BigQueryFieldType.INTEGER), nat('impressions', BigQueryFieldType.INTEGER)],
         {
           columnFilter: ['ctr', 'clicks', 'impressions'],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -571,7 +571,7 @@ describe('resolveReportDataHeaders', () => {
         [nat('clicks', BigQueryFieldType.INTEGER)],
         {
           columnFilter: ['ctr'],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -586,7 +586,7 @@ describe('resolveReportDataHeaders', () => {
         [nat('clicks', BigQueryFieldType.INTEGER)],
         {
           columnFilter: ['clicks'],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -599,7 +599,7 @@ describe('resolveReportDataHeaders', () => {
         [nat('clicks', BigQueryFieldType.INTEGER)],
         {
           columnFilter: ['ctr', 'clicks'],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -618,7 +618,7 @@ describe('resolveReportDataHeaders', () => {
             { column: 'ctr', function: 'SUM' },
             { column: 'clicks', function: 'SUM' },
           ],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -635,7 +635,7 @@ describe('resolveReportDataHeaders', () => {
         {
           columnFilter: ['session_key', 'clicks'],
           aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'session_key',
               type: 'STRING',
@@ -651,11 +651,11 @@ describe('resolveReportDataHeaders', () => {
       expect(headers.map(h => h.name)).toEqual(['session_key | COUNTUNIQUE', 'clicks']);
     });
 
-    it('synthesizes a header for a selected calculated metric with its declared type', () => {
+    it('synthesizes a header for a selected calculated field with its declared type', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -672,7 +672,7 @@ describe('resolveReportDataHeaders', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -689,7 +689,7 @@ describe('resolveReportDataHeaders', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
           ],
         },
@@ -710,22 +710,22 @@ describe('resolveReportDataHeaders', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
       expect(headers[0].calculatedFieldLevel).toBe('metric');
-      expect(headers[0]).not.toHaveProperty('isCalculatedMetric');
+      expect(headers[0]).not.toHaveProperty('isCalculatedField');
     });
 
-    it('appends the calculated metric header last, after Unique Count', () => {
+    it('appends the calculated field header last, after Unique Count', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
           columnFilter: ['country'],
           uniqueCount: true,
           primaryKeyColumns: ['id'],
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -736,11 +736,11 @@ describe('resolveReportDataHeaders', () => {
     // dropping the analyst's own label here left a metric aliased "CTR, %" as the single column in
     // its own report still labelled `ctr` — in the Google Sheet, in Looker Studio's field label
     // (`alias || name`), in MCP's `displayName`, and as an HTTP Data `title: undefined`.
-    it("carries the analyst's alias and description onto the calculated metric header", () => {
+    it("carries the analyst's alias and description onto the calculated field header", () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'ctr',
               type: 'FLOAT',
@@ -761,7 +761,7 @@ describe('resolveReportDataHeaders', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+          calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
         },
         BQ
       );
@@ -769,11 +769,11 @@ describe('resolveReportDataHeaders', () => {
       expect(headers[0].description).toBeUndefined();
     });
 
-    it('emits one header per calculated metric, in list order', () => {
+    it('emits one header per calculated field, in list order', () => {
       const headers = resolveReportDataHeaders(
         [],
         {
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
             { outputName: 'roas', type: 'FLOAT', formula: '…', level: 'metric' },
           ],
@@ -783,7 +783,7 @@ describe('resolveReportDataHeaders', () => {
       expect(headers.map(h => h.name)).toEqual(['ctr', 'roas']);
     });
 
-    it('no calculatedMetrics option → no calculated-metric headers (legacy shape untouched)', () => {
+    it('no calculatedFields option → no calculated-metric headers (legacy shape untouched)', () => {
       const native = [
         new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
       ];
@@ -791,29 +791,29 @@ describe('resolveReportDataHeaders', () => {
       expect(headers.map(h => h.name)).toEqual(['channel']);
     });
 
-    // A report selecting ONLY a calculated metric has its metric's name already excluded from
+    // A report selecting ONLY a calculated field has its metric's name already excluded from
     // `columnFilter` by the caller (the metric renders through its own channel, not the plain
     // projection) — so `columnFilter` alone cannot signal "this is a metrics-only query" the way
-    // it does for a dimension. Without `calculatedMetrics` in `metricsOnly`, an empty/absent
+    // it does for a dimension. Without `calculatedFields` in `metricsOnly`, an empty/absent
     // filter here falls back to EVERY native header (the "SELECT *" default) even though the SQL
     // projects exactly the metric — a silent null on BigQuery/Snowflake/Databricks, a hard
     // `Column ... not found in query results` on Athena/Redshift. Same failure class already
     // fixed for Unique Count above ('uniqueCount-only with no/empty columnFilter').
-    it('calculatedMetrics-only with no/empty columnFilter → ONLY the metric header (no phantom native headers)', () => {
+    it('calculatedFields-only with no/empty columnFilter → ONLY the metric header (no phantom native headers)', () => {
       const native = [
         new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
         new ReportDataHeader('revenue', undefined, undefined, BigQueryFieldType.INTEGER),
       ];
-      const calculatedMetrics: CalculatedMetricPlan[] = [
+      const calculatedFields: CalculatedFieldPlan[] = [
         { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
       ];
 
-      const undefinedFilter = resolveReportDataHeaders(native, { calculatedMetrics }, BQ);
+      const undefinedFilter = resolveReportDataHeaders(native, { calculatedFields }, BQ);
       expect(undefinedFilter.map(h => h.name)).toEqual(['ctr']);
 
       const emptyFilter = resolveReportDataHeaders(
         native,
-        { columnFilter: [], calculatedMetrics },
+        { columnFilter: [], calculatedFields },
         BQ
       );
       expect(emptyFilter.map(h => h.name)).toEqual(['ctr']);
@@ -832,16 +832,16 @@ describe('resolveReportDataHeaders', () => {
         new ReportDataHeader('session_id', undefined, undefined, BigQueryFieldType.STRING),
         new ReportDataHeader('user_id', undefined, undefined, BigQueryFieldType.STRING),
       ];
-      const calculatedMetrics: CalculatedMetricPlan[] = [
+      const calculatedFields: CalculatedFieldPlan[] = [
         { outputName: 'session_key', type: 'STRING', formula: '…', level: 'column' },
       ];
 
-      const undefinedFilter = resolveReportDataHeaders(native, { calculatedMetrics }, BQ);
+      const undefinedFilter = resolveReportDataHeaders(native, { calculatedFields }, BQ);
       expect(undefinedFilter.map(h => h.name)).toEqual(['session_key']);
 
       const emptyFilter = resolveReportDataHeaders(
         native,
-        { columnFilter: [], calculatedMetrics },
+        { columnFilter: [], calculatedFields },
         BQ
       );
       expect(emptyFilter.map(h => h.name)).toEqual(['session_key']);
@@ -854,10 +854,10 @@ describe('resolveReportDataHeaders', () => {
     // `Column ... not found in query results` on Athena/Redshift. The SAME expansion an ordinary
     // aggregated column already gets above, through the SAME label helper, because the alias the
     // renderer emits comes from that helper too.
-    describe('once the REPORT aggregates a row-level calculated metric', () => {
+    describe('once the REPORT aggregates a row-level calculated field', () => {
       const COUNT_UNIQUE = aggregatedColumnLabel('session_key', 'COUNT_DISTINCT');
       const COUNT = aggregatedColumnLabel('session_key', 'COUNT');
-      const aggregated: CalculatedMetricPlan = {
+      const aggregated: CalculatedFieldPlan = {
         outputName: 'session_key',
         type: BigQueryFieldType.STRING,
         formula: '…',
@@ -869,7 +869,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [aggregated],
+            calculatedFields: [aggregated],
             aggregationConfig: [
               { column: 'session_key', function: 'COUNT_DISTINCT' },
               { column: 'session_key', function: 'COUNT' },
@@ -890,7 +890,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [aggregated],
+            calculatedFields: [aggregated],
             aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
             rowCount: false,
           },
@@ -908,7 +908,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [aggregated],
+            calculatedFields: [aggregated],
             aggregationConfig: [
               { column: 'session_key', function: 'COUNT_DISTINCT' },
               { column: 'session_key', function: 'ANY_VALUE' },
@@ -930,7 +930,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [
+            calculatedFields: [
               { ...aggregated, alias: 'Session Key', description: 'Session identity.' },
             ],
             aggregationConfig: [
@@ -957,7 +957,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [{ ...aggregated, isAggregatedByReport: undefined }],
+            calculatedFields: [{ ...aggregated, isAggregatedByReport: undefined }],
             aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
             rowCount: false,
           },
@@ -976,9 +976,7 @@ describe('resolveReportDataHeaders', () => {
         const headers = resolveReportDataHeaders(
           [],
           {
-            calculatedMetrics: [
-              { outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' },
-            ],
+            calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
             aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
             rowCount: false,
           },

@@ -44,10 +44,10 @@ describe('HttpDataColumnResolver', () => {
     ).toThrow(BusinessViolationException);
   });
 
-  describe('a calculated metric — named selection only', () => {
+  describe('a calculated field — named selection only', () => {
     // `native` still carries it (existence-checking authority for HttpDataColumnValidator);
     // `implicitAllNative` does not (what a wildcard actually resolves to).
-    const withCalculatedMetric: ReportingColumns = {
+    const withCalculatedField: ReportingColumns = {
       native: ['date', 'revenue', 'ctr'],
       implicitAllNative: ['date', 'revenue'],
       blended: [],
@@ -55,14 +55,14 @@ describe('HttpDataColumnResolver', () => {
     };
 
     it('is absent from "*"', () => {
-      expect(resolver.resolve({ mode: 'allNative', explicit: [] }, withCalculatedMetric)).toEqual([
+      expect(resolver.resolve({ mode: 'allNative', explicit: [] }, withCalculatedField)).toEqual([
         'date',
         'revenue',
       ]);
     });
 
     it('is absent from "**"', () => {
-      expect(resolver.resolve({ mode: 'allBlendable' }, withCalculatedMetric)).toEqual([
+      expect(resolver.resolve({ mode: 'allBlendable' }, withCalculatedField)).toEqual([
         'date',
         'revenue',
       ]);
@@ -70,12 +70,12 @@ describe('HttpDataColumnResolver', () => {
 
     it('is present when named explicitly, even combined with "*"', () => {
       const selector: ColumnSelector = { mode: 'allNative', explicit: ['ctr'] };
-      expect(resolver.resolve(selector, withCalculatedMetric)).toEqual(['date', 'revenue', 'ctr']);
+      expect(resolver.resolve(selector, withCalculatedField)).toEqual(['date', 'revenue', 'ctr']);
     });
 
     it('is present under plain explicit selection', () => {
       const selector: ColumnSelector = { mode: 'explicit', explicit: ['ctr'] };
-      expect(resolver.resolve(selector, withCalculatedMetric)).toEqual(['ctr']);
+      expect(resolver.resolve(selector, withCalculatedField)).toEqual(['ctr']);
     });
   });
 

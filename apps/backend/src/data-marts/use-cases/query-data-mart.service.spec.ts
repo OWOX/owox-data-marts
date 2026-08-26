@@ -285,12 +285,12 @@ describe('QueryDataMartService', () => {
     );
   });
 
-  // The MCP read path gained two lines for calculated metrics — forwarding the composed
+  // The MCP read path gained two lines for calculated fields — forwarding the composed
   // plans, and stripping their names out of `columnFilter` — and both could be deleted without a
   // single test noticing. Deleting the forward drops the metric's column from the response
   // entirely (its header has no other source); deleting the strip double-emits it, once correctly
   // and once as a bare reference to a column the warehouse does not have.
-  describe('calculated metrics', () => {
+  describe('calculated fields', () => {
     const ctrPlan = {
       outputName: 'ctr',
       type: 'FLOAT',
@@ -299,12 +299,12 @@ describe('QueryDataMartService', () => {
       description: 'Clicks per impression.',
     };
 
-    it('forwards the composed calculatedMetrics and strips their names from columnFilter', async () => {
+    it('forwards the composed calculatedFields and strips their names from columnFilter', async () => {
       const { service, composer, reader } = createService();
       composer.compose.mockResolvedValue({
         sql: 'SELECT 1',
         params: [],
-        calculatedMetrics: [ctrPlan],
+        calculatedFields: [ctrPlan],
       });
 
       await service.run(
@@ -321,7 +321,7 @@ describe('QueryDataMartService', () => {
       expect(reader.prepareReportData).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          calculatedMetrics: [ctrPlan],
+          calculatedFields: [ctrPlan],
           // 'ctr' renders through its own formula channel, never as a plain projected column.
           columnFilter: ['channel'],
         })
@@ -347,7 +347,7 @@ describe('QueryDataMartService', () => {
       composer.compose.mockResolvedValue({
         sql: 'SELECT 1',
         params: [],
-        calculatedMetrics: [ctrPlan],
+        calculatedFields: [ctrPlan],
       });
 
       const result = await service.run(

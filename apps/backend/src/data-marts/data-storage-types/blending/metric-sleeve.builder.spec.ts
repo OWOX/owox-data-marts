@@ -11,7 +11,7 @@ import {
 } from '../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { BlendedQueryContext } from '../interfaces/blended-query-builder.interface';
 import type { FormulaSleeveGroup, SleeveFilterOptions, SleeveResult } from './blended-query.types';
-import type { CalculatedMetricPlan } from '../utils/sql-clause-renderer';
+import type { CalculatedFieldPlan } from '../utils/sql-clause-renderer';
 import type { MetricSleeveBuilder } from './metric-sleeve.builder';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 import { PK_TUPLE_SEPARATOR } from '../utils/primary-key-identity.utils';
@@ -1334,7 +1334,7 @@ describe('MetricSleeveBuilder', () => {
     });
   });
 
-  // A calculated metric may aggregate over a JOINED Data Mart —
+  // A calculated field may aggregate over a JOINED Data Mart —
   // `SUM({{ref path="orders" field="amount"}} * {{ref path="orders" field="rate"}})`. That call
   // cannot be computed in the outer SELECT (the joined source is already collapsed to one row per
   // join key there), so it takes a sleeve — but its argument is an arbitrary row-level EXPRESSION,
@@ -1428,7 +1428,7 @@ describe('MetricSleeveBuilder', () => {
       ]);
     });
 
-    it('feeds exactly ONE pull, named by the calculated metric’s own alias', () => {
+    it('feeds exactly ONE pull, named by the calculated field’s own alias', () => {
       expect(build(weightedAmount()).pulls).toEqual([
         { alias: 'Weighted Amount', coalesceEmptyToZero: false },
       ]);
@@ -2981,7 +2981,7 @@ describe('MetricSleeveBuilder — a row-level calculated field in the grain', ()
   const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
 
-  const rowLevelPlan = (outputName: string): CalculatedMetricPlan => ({
+  const rowLevelPlan = (outputName: string): CalculatedFieldPlan => ({
     outputName,
     type: 'STRING',
     formula: SESSION_KEY_FORMULA,
@@ -2989,7 +2989,7 @@ describe('MetricSleeveBuilder — a row-level calculated field in the grain', ()
   });
 
   function buildSleeves(
-    plans: CalculatedMetricPlan[],
+    plans: CalculatedFieldPlan[],
     fn: AggregationRule['function'] = 'COUNT_DISTINCT'
   ): SleeveResult[] {
     const builder = new TestBlendedWithRenderer();

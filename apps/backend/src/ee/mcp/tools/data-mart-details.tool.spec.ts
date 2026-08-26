@@ -231,13 +231,13 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });
 
-  // A Calculated Metric carries neither `aggregationRole` nor `allowedAggregations` — the
+  // A Calculated Field carries neither `aggregationRole` nor `allowedAggregations` — the
   // dialog that creates one deliberately sets neither — so governance falls back to the TYPE
   // defaults and a FLOAT metric was published as SUM/AVG/MIN/MAX-able under a description reading
   // "Use only these". The agent did the advertised thing and got a 400
-  // AGGREGATION_ON_CALCULATED_METRIC. The web picker has always forced the empty set; this is the
+  // AGGREGATION_ON_CALCULATED_FIELD. The web picker has always forced the empty set; this is the
   // same rule on the MCP surface.
-  it('publishes a calculated metric as non-aggregatable, and never ships its formula', async () => {
+  it('publishes a calculated field as non-aggregatable, and never ships its formula', async () => {
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue({
         id: 'dm_1',
@@ -369,7 +369,7 @@ describe('GetDataMartDetailsTool', () => {
       // so the lift must not have leaked across the split.
       expect(aggregateHalf).toContain('or given a date_bucket');
       expect(aggregateHalf).not.toContain('DATE or TIMESTAMP');
-      // A calculated metric works on a joined report as of this branch, and only the row-level
+      // A calculated field works on a joined report as of this branch, and only the row-level
       // half said so; silence on this half reads to an agent as "not supported here".
       expect(aggregateHalf).toContain('including in a query that reads a joined Data Mart');
     });

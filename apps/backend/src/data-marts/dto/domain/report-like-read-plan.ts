@@ -71,16 +71,16 @@ export function usesSuffixedJoinedFieldNames(report: ReportLike): boolean {
 
 /**
  * True when the report carries any output control — a filter, sort, limit,
- * aggregation, date-trunc bucket, or a selected calculated metric. Single source for this
+ * aggregation, date-trunc bucket, or a selected calculated field. Single source for this
  * predicate (run / cache / compose / run-record paths) so the copies cannot drift.
  *
- * A calculated metric IS an aggregate, so selecting one must flip a plan to the
+ * A calculated field has no warehouse column behind it, so selecting one must flip a plan to the
  * output-controls path even when nothing else does — otherwise a report like
  * `columnConfig: ['clicks', 'ctr']` with no other control passes this predicate as `false` at
  * every one of its callers (`RunReportService`, `ReportDataCacheService`,
  * `StreamHttpDataService`), never reaches `ReportSqlComposerService.compose`, and the reader
  * falls back to its own bare `buildQuery(definition, { columns })` call — which has no
- * `calculatedMetrics` to render the formula from and emits the metric's name as a plain,
+ * `calculatedFields` to render the formula from and emits the metric's name as a plain,
  * nonexistent column. Failing at the warehouse ("Unrecognized name") is a WARNING sign, not
  * this predicate's job to prevent — but it exists precisely so this predicate routes the
  * report through the renderer that knows how, instead of the bypass.
@@ -93,7 +93,7 @@ export function hasOutputControls(report: ReportLike): boolean {
     (report.dateTruncConfig?.length ?? 0) > 0 ||
     report.limitConfig != null ||
     normalizeUniqueCountSources(report.uniqueCountConfig).length > 0 ||
-    hasSelectedCalculatedMetric(report)
+    hasSelectedCalculatedField(report)
   );
 }
 
@@ -104,12 +104,12 @@ export function hasOutputControls(report: ReportLike): boolean {
  * Data ad-hoc path, `HttpDataColumnResolver.resolve` expands `*` / an absent `columns` param
  * before `readPlan.columnConfig` is ever built. Decision 10 wants explicit-only, and
  * that is enforced UPSTREAM of this predicate rather than here: `nativeColumnNames`
- * (`http-data-column-sets.util.ts`) excludes a calculated metric from the implicit-all field list
+ * (`http-data-column-sets.util.ts`) excludes a calculated field from the implicit-all field list
  * the resolver expands a wildcard into, so a `?columns=` caller who never named the metric never
  * sees it in `columnConfig` in the first place — this predicate just reports what `columnConfig`
  * says, and by the time it runs that already reflects explicit-only selection.
  */
-function hasSelectedCalculatedMetric(report: ReportLike): boolean {
+function hasSelectedCalculatedField(report: ReportLike): boolean {
   const columns = report.columnConfig;
   if (!columns?.length) return false;
   const schemaFields = report.dataMart.schema?.fields;

@@ -19,7 +19,7 @@ import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportSqlComposerService } from './report-sql-composer.service';
-import { columnFilterWithoutCalculatedMetrics } from '../calculated-fields/calculated-field.utils';
+import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -53,8 +53,7 @@ export class ReportDataCacheService {
 
     let sqlOverride = decision.needsBlending ? decision.blendedSql : undefined;
     let sqlOverrideParams = decision.needsBlending ? decision.params : undefined;
-    let calculatedMetrics: PrepareReportDataOptions['calculatedMetrics'] =
-      decision.calculatedMetrics;
+    let calculatedFields: PrepareReportDataOptions['calculatedFields'] = decision.calculatedFields;
 
     // Non-blended reports with output controls must compose their filter/sort/limit
     // SQL + bound params here, exactly as RunReportService does — otherwise this
@@ -64,12 +63,12 @@ export class ReportDataCacheService {
       const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
-      calculatedMetrics = composed.calculatedMetrics;
+      calculatedFields = composed.calculatedFields;
     }
 
-    const columnFilter = columnFilterWithoutCalculatedMetrics(
+    const columnFilter = columnFilterWithoutCalculatedFields(
       decision.columnFilter,
-      calculatedMetrics
+      calculatedFields
     );
 
     return {
@@ -82,7 +81,7 @@ export class ReportDataCacheService {
         uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
-        calculatedMetrics,
+        calculatedFields,
       },
       decision,
     };

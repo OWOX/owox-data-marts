@@ -1,6 +1,6 @@
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import {
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   ColumnRefResolver,
   RenderedClause,
 } from '../../utils/sql-clause-renderer';
@@ -347,7 +347,7 @@ describe('RedshiftClauseRenderer', () => {
     // Redshift's CONCAT is binary-only, so the probe's formula says `||` here — the operator that
     // makes the parentheses around the substituted expression load-bearing.
     const NUM_EXPR = '"n_prefix" || "n_suffix"';
-    const numericText: CalculatedMetricPlan = {
+    const numericText: CalculatedFieldPlan = {
       outputName: 'probe',
       formula: '{{ref field="n_prefix"}} || {{ref field="n_suffix"}}',
       level: 'column',
@@ -488,7 +488,7 @@ describe('RedshiftClauseRenderer', () => {
     // The other clause, same imposition: an AGGREGATE-level field's rule carries no function and
     // its formula is the HAVING left-hand side.
     it('imposes the declaration in HAVING too, for an aggregate-level field', () => {
-      const roas: CalculatedMetricPlan = {
+      const roas: CalculatedFieldPlan = {
         outputName: 'roas',
         formula: 'SUM({{ref field="revenue"}}) / NULLIF(SUM({{ref field="cost"}}), 0)',
         level: 'metric',

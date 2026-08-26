@@ -2391,7 +2391,7 @@ describe('BlendedReportDataService', () => {
       });
     });
 
-    describe('resolveBlendingDecision — calculated metric on a blended report', () => {
+    describe('resolveBlendingDecision — calculated field on a blended report', () => {
       function makeMainSchema(fields: object[]): DataMart['schema'] {
         return {
           type: 'bigquery-data-mart-schema',
@@ -2413,8 +2413,8 @@ describe('BlendedReportDataService', () => {
         blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
       }
 
-      it('routes a selected calculated metric through the builder channel, out of the column list', async () => {
-        // The metric renders from its stored formula (`calculatedMetrics`), never as a plain
+      it('routes a selected calculated field through the builder channel, out of the column list', async () => {
+        // The metric renders from its stored formula (`calculatedFields`), never as a plain
         // projected column — leaving `ctr` in `columns` would make the main raw CTE project it
         // and fail with `Unrecognized name: ctr`. `assertNoOrphanedColumnReferences` cannot catch
         // that: a calculated field IS a native schema path.
@@ -2446,7 +2446,7 @@ describe('BlendedReportDataService', () => {
 
         expect(result.needsBlending).toBe(true);
         expect(result.columnFilter).toEqual(['blended_field']);
-        expect(result.calculatedMetrics).toEqual([
+        expect(result.calculatedFields).toEqual([
           {
             outputName: 'ctr',
             type: 'FLOAT',
@@ -2466,7 +2466,7 @@ describe('BlendedReportDataService', () => {
           expect.anything(),
           expect.objectContaining({
             columns: ['blended_field'],
-            calculatedMetrics: result.calculatedMetrics,
+            calculatedFields: result.calculatedFields,
           })
         );
       });
@@ -2503,8 +2503,8 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        expect(result.calculatedMetrics?.map(m => m.outputName)).toEqual(['roas']);
-        expect(result.calculatedMetrics?.[0].dependencies).toEqual([
+        expect(result.calculatedFields?.map(m => m.outputName)).toEqual(['roas']);
+        expect(result.calculatedFields?.[0].dependencies).toEqual([
           { outputName: 'net_revenue', type: 'FLOAT', formula: REVENUE, level: 'metric' },
         ]);
         // A dependency is not a column — it must not reach the raw CTE's projection either.
@@ -2539,7 +2539,7 @@ describe('BlendedReportDataService', () => {
             userId: 'user-1',
             roles: ['admin'],
           });
-          return result.calculatedMetrics;
+          return result.calculatedFields;
         };
 
         it('carries level "column" for a row-level formula', async () => {
@@ -2644,12 +2644,12 @@ describe('BlendedReportDataService', () => {
           const result = await resolve([rowLevel('session_key')]);
 
           expect(result.needsBlending).toBe(true);
-          expect(result.calculatedMetrics).toEqual([
+          expect(result.calculatedFields).toEqual([
             expect.objectContaining({ outputName: 'session_key', level: 'column' }),
           ]);
           expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
             expect.anything(),
-            expect.objectContaining({ calculatedMetrics: result.calculatedMetrics })
+            expect.objectContaining({ calculatedFields: result.calculatedFields })
           );
         });
 
@@ -2668,7 +2668,7 @@ describe('BlendedReportDataService', () => {
         it('carries every row-level field of the selection, not just the first', async () => {
           const result = await resolve([rowLevel('session_key'), rowLevel('visit_key')]);
 
-          expect(result.calculatedMetrics?.map(m => m.outputName)).toEqual([
+          expect(result.calculatedFields?.map(m => m.outputName)).toEqual([
             'session_key',
             'visit_key',
           ]);
@@ -2687,7 +2687,7 @@ describe('BlendedReportDataService', () => {
             },
           ]);
 
-          expect(result.calculatedMetrics).toEqual([
+          expect(result.calculatedFields).toEqual([
             expect.objectContaining({ outputName: 'session_key', level: 'column' }),
             expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
           ]);
@@ -2705,12 +2705,12 @@ describe('BlendedReportDataService', () => {
           ]);
 
           expect(result.needsBlending).toBe(true);
-          expect(result.calculatedMetrics).toEqual([
+          expect(result.calculatedFields).toEqual([
             expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
           ]);
           expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
             expect.anything(),
-            expect.objectContaining({ calculatedMetrics: result.calculatedMetrics })
+            expect.objectContaining({ calculatedFields: result.calculatedFields })
           );
         });
 
@@ -2741,10 +2741,10 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        expect(result.calculatedMetrics).toBeUndefined();
+        expect(result.calculatedFields).toBeUndefined();
         expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
           expect.anything(),
-          expect.objectContaining({ calculatedMetrics: undefined })
+          expect.objectContaining({ calculatedFields: undefined })
         );
       });
 
@@ -2786,7 +2786,7 @@ describe('BlendedReportDataService', () => {
     });
 
     // A JOINED Data Mart's calculated field is a formula this path cannot render:
-    // only the main mart's formulas become `CalculatedMetricPlan`s, so a joined one is mapped to
+    // only the main mart's formulas become `CalculatedFieldPlan`s, so a joined one is mapped to
     // `targetFieldName: originalFieldName` and projected from the joined mart's PHYSICAL table.
     // `BlendedFieldDto.isCalculated` documents the refusal ("It cannot be selected as an ordinary
     // report column either"); nothing enforced it on any report surface.
@@ -2911,7 +2911,7 @@ describe('BlendedReportDataService', () => {
       });
 
       // The refusal keys off the JOINED field, not off calculated-ness: the main Data Mart's own
-      // formula still renders through the `calculatedMetrics` channel on the same report.
+      // formula still renders through the `calculatedFields` channel on the same report.
       it("leaves the main Data Mart's own formula and an ordinary joined column alone", async () => {
         const report = makeReport({ columnConfig: ['ctr', 'blended_field'] });
         report.dataMart.schema = makeMainSchema([
@@ -2930,7 +2930,7 @@ describe('BlendedReportDataService', () => {
         const result = await service.resolveBlendingDecision(report, accessor);
 
         expect(result.needsBlending).toBe(true);
-        expect(result.calculatedMetrics?.map(m => m.outputName)).toEqual(['ctr']);
+        expect(result.calculatedFields?.map(m => m.outputName)).toEqual(['ctr']);
         expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
       });
 
@@ -3077,7 +3077,7 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        const ownership = result.calculatedMetrics?.[0].formulaOwnership;
+        const ownership = result.calculatedFields?.[0].formulaOwnership;
         expect(ownership?.violations).toEqual([]);
         expect(ownership?.plan.hasJoinedCall).toBe(true);
         expect(ownership?.plan.calls.map(c => ({ fn: c.fn, owner: c.owner }))).toEqual([
@@ -3086,7 +3086,7 @@ describe('BlendedReportDataService', () => {
         ]);
         expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
           expect.anything(),
-          expect.objectContaining({ calculatedMetrics: result.calculatedMetrics })
+          expect.objectContaining({ calculatedFields: result.calculatedFields })
         );
       });
 
@@ -3105,7 +3105,7 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        expect(result.calculatedMetrics?.[0].formulaOwnership?.violations).toEqual([
+        expect(result.calculatedFields?.[0].formulaOwnership?.violations).toEqual([
           { kind: 'mixed-owner-call', fn: 'SUM', paths: ['', 'orders'] },
         ]);
       });
@@ -3168,7 +3168,7 @@ describe('BlendedReportDataService', () => {
       });
 
       // A formula persisted before validation existed can be unparseable. Reading it here must
-      // degrade to "not analysed" — the state `CalculatedMetricPlan` already defines, and which
+      // degrade to "not analysed" — the state `CalculatedFieldPlan` already defines, and which
       // makes the blended builder refuse the metric — instead of throwing a
       // FormulaReferenceSyntaxError out of a blending decision as a 500.
       it('does not throw out of the decision for an unparseable stored formula', async () => {
@@ -3182,7 +3182,7 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        expect(result.calculatedMetrics?.[0].formulaOwnership).toBeUndefined();
+        expect(result.calculatedFields?.[0].formulaOwnership).toBeUndefined();
       });
 
       // Harmless today, but a seventh DataStorageType added without a dialect entry would

@@ -145,7 +145,7 @@ export type ValidationError =
   // be filtered on — so with no projection the aggregated branch has nothing to put in the SELECT
   // list. `AGGREGATION_REQUIRES_COLUMN_CONFIG` cannot catch it: that one keys on aggregations and
   // date truncs, and this shape carries neither.
-  | { code: 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG'; column: string; message: string }
+  | { code: 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG'; column: string; message: string }
   // A joined Data Mart's Unique Count is rendered by the blended builder, which rejects a
   // null ("all native columns") projection outright — so saving that combination produces a
   // report that fails every run, scheduled run and Generated SQL preview.
@@ -185,7 +185,7 @@ export type ValidationError =
   // field is no longer an error at all. `level` therefore always reads
   // 'metric' here now, and is kept because it is what makes that fact visible on the wire.
   | {
-      code: 'AGGREGATION_ON_CALCULATED_METRIC';
+      code: 'AGGREGATION_ON_CALCULATED_FIELD';
       column: string;
       message: string;
       level: CalculatedFieldLevel;
@@ -194,15 +194,15 @@ export type ValidationError =
   // is checked against its DECLARED type by `validateDateTruncs`, like any column. `level`
   // therefore always reads 'metric', and is kept because it makes that visible on the wire.
   | {
-      code: 'CALCULATED_METRIC_AS_DIMENSION';
+      code: 'CALCULATED_FIELD_AS_DIMENSION';
       column: string;
       message: string;
       level: CalculatedFieldLevel;
     }
-  // A calculated metric selected/filtered/sorted by this composition references a schema field
+  // A calculated field selected/filtered/sorted by this composition references a schema field
   // that no longer resolves (see `brokenReferencesOf`) — fails the query explicitly rather than
   // returning NULL.
-  | { code: 'CALCULATED_METRIC_BROKEN_REFERENCES'; column: string; message: string }
+  | { code: 'CALCULATED_FIELD_BROKEN_REFERENCES'; column: string; message: string }
   // A filter names an AGGREGATE-level Calculated Field whose formula aggregates a JOINED Data
   // Mart. Exactly its ordinary-metric twin above, one shape further out: that
   // aggregate is lifted into a metric sleeve — recomputed at the report's grain from the raw,
@@ -210,7 +210,7 @@ export type ValidationError =
   // on a different value than the SELECT prints. Not expressible through the twin: the twin is
   // keyed on the (column, function) pair, and this rule carries no function and never can.
   | {
-      code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED';
+      code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED';
       column: string;
       message: string;
     }
@@ -336,7 +336,7 @@ export class OutputControlsValidatorService {
         continue;
       }
       // NOT asked of a function-less rule: an aggregate-level Calculated Field can never appear in
-      // `aggregationConfig` (AGGREGATION_ON_CALCULATED_METRIC refuses it outright), so this check
+      // `aggregationConfig` (AGGREGATION_ON_CALCULATED_FIELD refuses it outright), so this check
       // would fail on a `<column>/undefined` key and answer "add the matching aggregation", the
       // one repair the field forbids.
       if (rule.function && !aggregatedPairs.has(`${rule.column}\u241F${rule.function}`)) {
@@ -640,7 +640,7 @@ export class OutputControlsValidatorService {
     accessor: BlendableSchemaAccessor;
     /**
      * The Data Mart's OWN schema fields, NOT the reporting-filtered `nativeFields` of the blendable
-     * schema. Two jobs: answering "could this report carry a calculated metric at all?" without a
+     * schema. Two jobs: answering "could this report carry a calculated field at all?" without a
      * schema fetch, and being the list a formula's references resolve against.
      *
      * `nativeFields` has had `isHiddenForReporting` fields stripped, and a hidden field is still
@@ -681,7 +681,7 @@ export class OutputControlsValidatorService {
         column => column.endsWith(JOINED_UNIQUE_COUNT_NAME_SUFFIX) || column === UNIQUE_COUNT_LABEL
       ) && this.capabilityService.isSupported(args.storageType);
 
-    // Whether a bare projection carries a calculated metric is answered from the Data Mart's own
+    // Whether a bare projection carries a calculated field is answered from the Data Mart's own
     // schema fields, which every caller already holds. Inferring it from "it projects something, so
     // it might" was true of every report with a projection and made each one resolve a blendable
     // schema it did not need.
@@ -694,14 +694,14 @@ export class OutputControlsValidatorService {
     // `dataMart.schema` without running the validator, so a formula can silently outlive a column
     // it depends on, and the first sign would be a warehouse error on a scheduled run.
     const selectedColumns = new Set(args.columnConfig ?? []);
-    const mayCarryCalculatedMetric =
+    const mayCarryCalculatedField =
       hasColumnConfig &&
       this.capabilityService.isSupported(args.storageType) &&
       calculatedFieldsOf(args.dataMartSchemaFields ?? []).some(field =>
         selectedColumns.has(field.name)
       );
 
-    if (!hasOutputControls && !mayProjectUniqueCountColumn && !mayCarryCalculatedMetric) {
+    if (!hasOutputControls && !mayProjectUniqueCountColumn && !mayCarryCalculatedField) {
       // Output-name uniqueness is a property of the projection alone, so it is checked even
       // though a plain selection carries no output control — Redshift folds identifiers at read
       // time, and a case-only pair used to persist and fail there.
@@ -815,7 +815,7 @@ export class OutputControlsValidatorService {
       if (rule.function) {
         refusedCalculatedFilterColumns.add(rule.column);
         errors.push({
-          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          code: 'AGGREGATION_ON_CALCULATED_FIELD',
           column: rule.column,
           level: 'metric',
           message: `\`${rule.column}\` is a calculated field and is already aggregated.`,
@@ -828,7 +828,7 @@ export class OutputControlsValidatorService {
       if (!readsJoinedDataMart(field)) continue;
       refusedCalculatedFilterColumns.add(rule.column);
       errors.push({
-        code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+        code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED',
         column: rule.column,
         message:
           `Filter on the calculated field "${rule.column}", whose formula aggregates a joined ` +
@@ -861,7 +861,7 @@ export class OutputControlsValidatorService {
       });
       if (forcing) {
         errors.push({
-          code: 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG',
+          code: 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG',
           column: forcing.column,
           message:
             `Filtering on the calculated field "${forcing.column}" groups the report, so the ` +
@@ -877,7 +877,7 @@ export class OutputControlsValidatorService {
       parsedAggregations.length > 0 ||
       parsedDateTruncs.length > 0 ||
       mayProjectUniqueCountColumn ||
-      mayCarryCalculatedMetric ||
+      mayCarryCalculatedField ||
       normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
     if (needsSchema) {
       const blendableSchema =
@@ -951,14 +951,14 @@ export class OutputControlsValidatorService {
             const level = calculatedFieldLevelOf(field, metricSchemaFields);
             if (!isAggregateLevel(level)) continue;
             errors.push({
-              code: 'AGGREGATION_ON_CALCULATED_METRIC',
+              code: 'AGGREGATION_ON_CALCULATED_FIELD',
               column: rule.column,
               level,
               message: `\`${rule.column}\` is a calculated field and is already aggregated.`,
             });
           }
 
-          // A calculated metric among selected columns is NOT an error: it is projected into SELECT
+          // A calculated field among selected columns is NOT an error: it is projected into SELECT
           // and excluded from GROUP BY, since it already IS an aggregate. The one shape that can
           // explicitly ask to group BY one is a dateTrunc rule naming it, and only at
           // AGGREGATE level.
@@ -973,7 +973,7 @@ export class OutputControlsValidatorService {
             const level = calculatedFieldLevelOf(field, metricSchemaFields);
             if (!isAggregateLevel(level)) continue;
             errors.push({
-              code: 'CALCULATED_METRIC_AS_DIMENSION',
+              code: 'CALCULATED_FIELD_AS_DIMENSION',
               column: rule.column,
               level,
               message: `\`${rule.column}\` is a calculated field and cannot be used as a dimension.`,
@@ -1009,7 +1009,7 @@ export class OutputControlsValidatorService {
               // them is gone, and telling an analyst to restore a field they can see sends them
               // after the wrong repair.
               errors.push({
-                code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+                code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
                 column: name,
                 message:
                   `\`${name}\` cannot be computed: it reads ` +

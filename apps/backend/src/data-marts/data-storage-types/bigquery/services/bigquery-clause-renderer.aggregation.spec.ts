@@ -258,7 +258,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
         ['channel', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
         undefined,
-        { calculatedMetrics: [rowLevel] }
+        { calculatedFields: [rowLevel] }
       );
 
       expect(out.selectSql).toContain(`${EXPR} AS \`session_key\``);
@@ -289,7 +289,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
           ['channel'],
           [],
           new Map([['visit_day', 'MONTH' as const]]),
-          { calculatedMetrics: [visitDay] }
+          { calculatedFields: [visitDay] }
         );
 
         expect(out.selectSql).toBe(
@@ -300,7 +300,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
 
       it('converts to the rule time zone first on a TIMESTAMP declaration', () => {
         const out = r.renderAggregatedSelect([], [], new Map([['visit_day', 'DAY' as const]]), {
-          calculatedMetrics: [{ ...visitDay, type: 'TIMESTAMP' }],
+          calculatedFields: [{ ...visitDay, type: 'TIMESTAMP' }],
           timeZoneByColumn: new Map([['visit_day', 'America/New_York']]),
         });
 
@@ -315,7 +315,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       // this dialect a type read from anywhere else is a visibly different string, not a subtle one.
       it('reaches the same key through the two public seats the sleeve calls', () => {
         const out = r.renderAggregatedSelect([], [], new Map([['visit_day', 'MONTH' as const]]), {
-          calculatedMetrics: [visitDay],
+          calculatedFields: [visitDay],
         });
 
         expect(out.groupByParts[0]).toBe(
@@ -333,7 +333,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       it('adds no CAST, whatever the declared type', () => {
         for (const type of ['DATE', 'TIMESTAMP', 'STRING', 'FLOAT']) {
           const out = r.renderAggregatedSelect([], [], new Map([['visit_day', 'MONTH' as const]]), {
-            calculatedMetrics: [{ ...visitDay, type }],
+            calculatedFields: [{ ...visitDay, type }],
           });
           expect(out.selectSql).not.toMatch(/CAST/);
         }
@@ -351,7 +351,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
           { column: 'session_key', function: 'STRING_AGG' },
         ],
         undefined,
-        { calculatedMetrics: [{ ...rowLevel, isAggregatedByReport: true }] }
+        { calculatedFields: [{ ...rowLevel, isAggregatedByReport: true }] }
       );
 
       expect(out.selectSql).toContain(`COUNT(DISTINCT (${EXPR})) AS \`session_key | COUNTUNIQUE\``);
@@ -380,7 +380,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       };
       const selectFor = (fn: ReportAggregateFunction, type: string): string =>
         r.renderAggregatedSelect([], [{ column: 'amount', function: fn }], undefined, {
-          calculatedMetrics: [{ ...numericText, type }],
+          calculatedFields: [{ ...numericText, type }],
         }).selectSql;
 
       it('SUM over a numeric-looking string STARTS WORKING: the declared FLOAT becomes FLOAT64', () => {

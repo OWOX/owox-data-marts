@@ -93,7 +93,7 @@ describe('partitionBlendedFilters — pre/post-join split', () => {
       level: 'metric' as const,
     };
     const contextWithCalculated = (
-      key: 'calculatedMetrics' | 'calculatedFilterMetrics'
+      key: 'calculatedFields' | 'calculatedFilterMetrics'
     ): BlendedQueryContext =>
       ({
         chains: [{ cteName: 'users' }],
@@ -104,7 +104,7 @@ describe('partitionBlendedFilters — pre/post-join split', () => {
       }) as unknown as BlendedQueryContext;
 
     it('answers a filtered calculated field its declaration, from either plan list', () => {
-      for (const key of ['calculatedMetrics', 'calculatedFilterMetrics'] as const) {
+      for (const key of ['calculatedFields', 'calculatedFilterMetrics'] as const) {
         const { resolveColumnType } = partitionBlendedFilters(
           contextWithCalculated(key),
           DataStorageType.GOOGLE_BIGQUERY

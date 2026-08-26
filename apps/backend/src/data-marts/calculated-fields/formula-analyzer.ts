@@ -281,7 +281,7 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
       // make that arm reject it — the feature's headline formula, `revenue / cost`, condemned by the
       // rule that exists to allow it.
       if (covered) {
-        errors.push(FormulaViolations.calculatedMetricOnAggregate(fieldName, refLabel(ref)));
+        errors.push(FormulaViolations.calculatedFieldOnAggregate(fieldName, refLabel(ref)));
       }
     } else if (level === 'metric' && !covered) {
       // 'ok' and 'calculated-column' both land here, and deliberately share one arm: a row-level

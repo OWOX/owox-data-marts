@@ -78,7 +78,7 @@ export function partitionBlendedFilters(
   // reaches the filter path through this same resolver rather than a parallel one.
   // Both lists, because a filter may name a field the report also selects.
   const declaredCalculatedTypes = declaredTypeByCalculatedField(
-    context.calculatedMetrics,
+    context.calculatedFields,
     context.calculatedFilterMetrics
   );
 

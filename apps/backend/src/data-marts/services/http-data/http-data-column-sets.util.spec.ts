@@ -50,7 +50,7 @@ describe('nativeColumnNames', () => {
     expect(nativeColumnNames(schema)).toEqual(['date']);
   });
 
-  it('includes a calculated metric — it is a real, selectable field', () => {
+  it('includes a calculated field — it is a real, selectable field', () => {
     const schema = schemaOf({
       nativeFields: [
         { name: 'clicks' },
@@ -62,7 +62,7 @@ describe('nativeColumnNames', () => {
 });
 
 describe('implicitAllNativeColumnNames', () => {
-  it('excludes a calculated metric — composed only when asked for by name', () => {
+  it('excludes a calculated field — composed only when asked for by name', () => {
     const schema = schemaOf({
       nativeFields: [
         { name: 'clicks' },

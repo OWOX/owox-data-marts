@@ -8,7 +8,7 @@ import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
 import { QueryBuildResult } from './data-mart-query-builder.interface';
 import { GroupRestriction, RoutedGroupRestriction } from '../../dto/domain/group-restriction';
 import { RoutedFilterRule } from '../../dto/domain/filter-clause';
-import { CalculatedMetricPlan } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan } from '../utils/sql-clause-renderer';
 
 export interface BlendedFieldConfig {
   targetFieldName: string;
@@ -128,7 +128,7 @@ export interface BlendedQueryContext {
   uniqueCountSources?: JoinedUniqueCountSleeve[];
   columnTypes?: BlendedColumnTypes;
   /**
-   * Calculated metrics this query projects. Their names must NOT appear in `columns` — a metric
+   * Calculated fields this query projects. Their names must NOT appear in `columns` — a metric
    * renders through this channel only (same contract as the flat builders).
    *
    * A formula may aggregate a JOINED source. Each such call is lifted into its own metric
@@ -136,16 +136,16 @@ export interface BlendedQueryContext {
    * metric's `formulaOwnership`; without it a joined reference is refused rather than qualified
    * against `main`.
    */
-  calculatedMetrics?: readonly CalculatedMetricPlan[];
+  calculatedFields?: readonly CalculatedFieldPlan[];
   /**
    * Calculated fields a FILTER (or the Totals restriction's HAVING) names, whether or not this
    * query projects them. A predicate on one compares the field's FORMULA — its
    * name is a SELECT alias with no column behind it — so the plan must reach the renderer even
-   * when the field is not selected. Deliberately not folded into `calculatedMetrics`: that list is
+   * when the field is not selected. Deliberately not folded into `calculatedFields`: that list is
    * the PROJECTION, and a filter-only field added to it would appear in the SELECT and in the
    * headers under a name nobody asked for.
    */
-  calculatedFilterMetrics?: readonly CalculatedMetricPlan[];
+  calculatedFilterMetrics?: readonly CalculatedFieldPlan[];
   fieldIndex?: ReadonlyMap<string, BlendedFieldEntry>;
   /**
    * Restricts this query to the rows of the GROUPS that survive the report's metric (HAVING)

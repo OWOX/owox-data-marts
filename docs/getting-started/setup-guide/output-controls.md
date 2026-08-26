@@ -30,17 +30,17 @@ Each section — Filters, Slices, Sort, and Limit — expands independently.
 
 ## Filters
 
-A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report — except when the filter names an **aggregated** column or a **calculated metric**, which is compared after the grouping and therefore drops **groups** rather than rows. See [Filtering by a calculated field](calculated-fields.md#filtering-by-a-calculated-field).
+A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report — except when the filter names an **aggregated** column or a **calculated field**, which is compared after the grouping and therefore drops **groups** rather than rows. See [Filtering by a calculated field](calculated-fields.md#filtering-by-a-calculated-field).
 
 ### Supported operators by column type
 
-| Column type | Available operators |
-|---|---|
-| String | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null |
-| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null |
-| Time | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null |
-| Boolean | is true, is false, is null, is not null |
+| Column type                 | Available operators                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| String                      | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
+| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null                                                                                                   |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null                                                     |
+| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null                                                               |
+| Boolean                     | is true, is false, is null, is not null                                                                                                                                  |
 
 **Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule. Wrap a value in double quotes if it contains a comma — for example `"Acme, Inc."`. Use `""` for a literal quote.
 

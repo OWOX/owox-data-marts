@@ -1088,7 +1088,7 @@ describe('ReportSqlComposerService', () => {
   // E2E: wires the *real* BigQueryQueryBuilder + BigQueryClauseRenderer behind a stub facade
   // (mirrors the "E2E SQL + parameter binding" suites above) to prove a main-owner calculated
   // metric reaches actual generated SQL, not just a mocked options object.
-  describe('calculated metrics — main-owner', () => {
+  describe('calculated fields — main-owner', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const HIDDEN_RATIO_FORMULA =
       'SUM({{ref field="internal_clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
@@ -1159,7 +1159,7 @@ describe('ReportSqlComposerService', () => {
       );
     }
 
-    it('composes an aggregated query when a calculated metric is selected without any aggregation', async () => {
+    it('composes an aggregated query when a calculated field is selected without any aggregation', async () => {
       const composer = makeComposer(['clicks', 'ctr']);
       const report = { columnConfig: ['clicks', 'ctr'], dataMart: dataMartWithCtr } as never;
 
@@ -1249,7 +1249,7 @@ describe('ReportSqlComposerService', () => {
       expect(sql).toMatch(/GROUP BY\s+`country`/);
     });
 
-    it('composes a single grand-total row when only the calculated metric is selected', async () => {
+    it('composes a single grand-total row when only the calculated field is selected', async () => {
       const composer = makeComposer(['ctr']);
       const report = { columnConfig: ['ctr'], dataMart: dataMartWithCtr } as never;
 
@@ -1267,7 +1267,7 @@ describe('ReportSqlComposerService', () => {
     // also makes its sort a COMPARISON, so the declared type reaches ORDER BY the same way it
     // reaches a filter, extended to the sort. Ordering the bare alias sorted the formula's
     // text; under a LIMIT that returns a different ROW SET, measured on four dialects.
-    it('renders ORDER BY on the calculated metric as its cast expression', async () => {
+    it('renders ORDER BY on the calculated field as its cast expression', async () => {
       const composer = makeComposer(['country', 'ctr']);
       const report = {
         columnConfig: ['country', 'ctr'],
@@ -1294,12 +1294,12 @@ describe('ReportSqlComposerService', () => {
       const composer = makeComposer(['country', 'ctr']);
       const report = { columnConfig: ['country', 'ctr'], dataMart: dataMartWithCtr } as never;
 
-      const { calculatedMetrics } = await composer.compose(report, {
+      const { calculatedFields } = await composer.compose(report, {
         userId: 'u1',
         roles: ['admin'],
       });
 
-      expect(calculatedMetrics).toEqual([
+      expect(calculatedFields).toEqual([
         {
           outputName: 'ctr',
           type: 'FLOAT',
@@ -1318,13 +1318,13 @@ describe('ReportSqlComposerService', () => {
         dataMart: dataMartWithCtr,
       } as never;
 
-      const { calculatedMetrics } = await composer.compose(report, {
+      const { calculatedFields } = await composer.compose(report, {
         userId: 'u1',
         roles: ['admin'],
       });
 
-      expect(calculatedMetrics![0].alias).toBeUndefined();
-      expect(calculatedMetrics![0].description).toBeUndefined();
+      expect(calculatedFields![0].alias).toBeUndefined();
+      expect(calculatedFields![0].description).toBeUndefined();
     });
 
     // `roas = revenue / cost` over two aggregate-level Calculated Fields — the headline
@@ -1384,12 +1384,12 @@ describe('ReportSqlComposerService', () => {
         const composer = makeComposer(['country', 'roas']);
         const report = { columnConfig: ['country', 'roas'], dataMart: dataMartWithRoas } as never;
 
-        const { sql, calculatedMetrics } = await composer.compose(report, {
+        const { sql, calculatedFields } = await composer.compose(report, {
           userId: 'u1',
           roles: ['admin'],
         });
 
-        expect(calculatedMetrics!.map(m => m.outputName)).toEqual(['roas']);
+        expect(calculatedFields!.map(m => m.outputName)).toEqual(['roas']);
         expect(sql).not.toContain('AS `net_revenue`');
         expect(sql).not.toContain('AS `media_cost`');
       });
@@ -1404,7 +1404,7 @@ describe('ReportSqlComposerService', () => {
 
         const totals = await composer.composeTotals(report, { userId: 'u1', roles: ['admin'] });
 
-        expect(totals!.calculatedMetrics?.map(m => m.outputName)).toEqual(['roas']);
+        expect(totals!.calculatedFields?.map(m => m.outputName)).toEqual(['roas']);
         // Already an aggregate — never given a SUM/AVG/MIN/MAX of its own making.
         expect(totals!.aggregations).toEqual([]);
         expect(totals!.sql).toContain('(SUM(`amount`)) / NULLIF((SUM(`spend`)), 0) AS `roas`');
@@ -1416,12 +1416,12 @@ describe('ReportSqlComposerService', () => {
         const composer = makeComposer([]);
         const report = { columnConfig: null, dataMart: dataMartWithRoas } as never;
 
-        const { calculatedMetrics } = await composer.compose(report, {
+        const { calculatedFields } = await composer.compose(report, {
           userId: 'u1',
           roles: ['admin'],
         });
 
-        expect(calculatedMetrics).toBeUndefined();
+        expect(calculatedFields).toBeUndefined();
       });
     });
 
@@ -1440,10 +1440,10 @@ describe('ReportSqlComposerService', () => {
         // so it must never gain a stray SUM/AVG/MIN/MAX rule; 'revenue' still gets its normal set.
         expect(totals!.aggregations.some(a => a.column === 'ctr')).toBe(false);
         expect(totals!.aggregations.some(a => a.column === 'revenue')).toBe(true);
-        // It IS still a projected totals column — carried through its own calculatedMetrics
+        // It IS still a projected totals column — carried through its own calculatedFields
         // channel, exactly like the main report.
         expect(totals!.columns).toContain('ctr');
-        expect(totals!.calculatedMetrics).toEqual([
+        expect(totals!.calculatedFields).toEqual([
           expect.objectContaining({ outputName: 'ctr', formula: CTR_FORMULA }),
         ]);
         // The SQL renders the metric's own formula exactly once — never wrapped in AVG/MIN/MAX.
@@ -1454,7 +1454,7 @@ describe('ReportSqlComposerService', () => {
       it('excludes the metric from the legacy no-columnConfig fallback', async () => {
         const composer = makeComposer(['clicks', 'impressions', 'country', 'revenue', 'date']);
         // A legacy report predating both aggregations and columnConfig: null selection means
-        // "every native column" — but never a calculated metric, which is composed only when
+        // "every native column" — but never a calculated field, which is composed only when
         // asked for by name (same rule HttpDataColumnResolver's implicit-all resolution follows).
         const report = { columnConfig: null, dataMart: dataMartWithCtr } as never;
 
@@ -1464,7 +1464,7 @@ describe('ReportSqlComposerService', () => {
         expect(totals!.columns).not.toContain('ctr');
         expect(totals!.columns).not.toContain('hidden_ratio');
         expect(totals!.aggregations.some(a => a.column === 'ctr')).toBe(false);
-        expect(totals!.calculatedMetrics ?? []).toEqual([]);
+        expect(totals!.calculatedFields ?? []).toEqual([]);
       });
     });
 

@@ -79,8 +79,8 @@ describe('LegacyBigQueryQueryBuilder', () => {
     expect(preprocessor.prepare).not.toHaveBeenCalled();
   });
 
-  // A calculated metric is an output control like any other: the parent builder renders it into
-  // the SELECT from `calculatedMetrics`, and this gate is the only thing that routes the request
+  // A calculated field is an output control like any other: the parent builder renders it into
+  // the SELECT from `calculatedFields`, and this gate is the only thing that routes the request
   // there. Missed here, the legacy path emits SQL WITHOUT the metric while the reader still
   // synthesizes its header — a permanently `null` column on every surface, on every run.
   it('delegates to the output-controls path for a calculated-metric-only report', async () => {
@@ -88,7 +88,7 @@ describe('LegacyBigQueryQueryBuilder', () => {
     const result = await builder.buildQuery(sqlDefinition, {
       columns: ['id'],
       mainTableReference: viewRef,
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'ctr',
           type: 'FLOAT',
@@ -115,7 +115,7 @@ describe('LegacyBigQueryQueryBuilder', () => {
     const result = await builder.buildQuery(sqlDefinition, {
       columns: ['id'],
       mainTableReference: viewRef,
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'session_key',
           type: 'STRING',

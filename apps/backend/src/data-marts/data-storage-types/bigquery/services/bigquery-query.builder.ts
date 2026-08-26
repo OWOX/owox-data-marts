@@ -20,7 +20,7 @@ import {
   buildFilterTypeResolver,
   composePlainSelectBody,
   composeSelectFromClause,
-  hasAggregateCalculatedMetric,
+  hasAggregateCalculatedField,
 } from '../../utils/sql-clause-renderer';
 
 @Injectable()
@@ -46,7 +46,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
     const uniqueCount = queryOptions?.uniqueCount === true;
-    const calculatedMetrics = queryOptions?.calculatedMetrics ?? [];
+    const calculatedFields = queryOptions?.calculatedFields ?? [];
     const calculatedFilterMetrics = queryOptions?.calculatedFilterMetrics ?? [];
     const hasExplicitProjection = (queryOptions?.columns?.length ?? 0) > 0;
     const hasOutputControls =
@@ -55,7 +55,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
       uniqueCount ||
-      calculatedMetrics.length > 0 ||
+      calculatedFields.length > 0 ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -109,12 +109,12 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     const orderBy = this.clauseRenderer.renderOrderBy(
       queryOptions?.sort ?? [],
       this.clauseRenderer.buildPlainSelectAliasResolver(
-        calculatedMetrics,
+        calculatedFields,
         qualifyColumn,
         // The plain branch carries no report aggregations by construction: an aggregation is what
         // sends the query down the aggregated branch instead.
         this.clauseRenderer.buildCalculatedSortExpressions(
-          calculatedMetrics,
+          calculatedFields,
           calculatedPredicateExpressions,
           [],
           { qualifyColumn }
@@ -131,7 +131,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
       uniqueCount ||
-      hasAggregateCalculatedMetric([...calculatedMetrics, ...calculatedFilterMetrics])
+      hasAggregateCalculatedField([...calculatedFields, ...calculatedFilterMetrics])
     ) {
       return this.clauseRenderer.renderAggregatedQuery({
         fromClause,
@@ -150,7 +150,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
         qualifyProjection: undefined,
         typeByColumn: columnTypes,
         resolveColumnType,
-        calculatedMetrics,
+        calculatedFields,
         calculatedPredicateExpressions,
       });
     }
@@ -160,7 +160,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     assertNoHavingRules(queryOptions?.filters ?? [], 'BigQueryQueryBuilder plain query');
     const plainSelect = composePlainSelectBody(
       selectList,
-      this.clauseRenderer.renderCalculatedSelectItems(calculatedMetrics)
+      this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)
     );
     const sql = `${composeSelectFromClause(plainSelect, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
     return hasOutputControls

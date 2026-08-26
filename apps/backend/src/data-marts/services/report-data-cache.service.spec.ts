@@ -232,9 +232,9 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
   });
 
   // Looker Studio reads this cached description and nothing else, so the two lines that
-  // wire a calculated metric through here decide whether the connector sees the metric at all —
+  // wire a calculated field through here decide whether the connector sees the metric at all —
   // and both could be deleted without a single test noticing.
-  describe('calculated metrics', () => {
+  describe('calculated fields', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const ctrPlan = {
       outputName: 'ctr',
@@ -261,10 +261,10 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
         },
       } as never);
 
-    it('forwards the composed calculatedMetrics to the reader, with the analyst label', async () => {
+    it('forwards the composed calculatedFields to the reader, with the analyst label', async () => {
       const { service, reader, reportSqlComposerService } = setup(
         { needsBlending: false, columnFilter: ['country', 'ctr'] },
-        { sql: 'SELECT …', calculatedMetrics: [ctrPlan] } as never
+        { sql: 'SELECT …', calculatedFields: [ctrPlan] } as never
       );
 
       await service.getOrCreateCachedReader(reportSelectingCtr(), {
@@ -273,7 +273,7 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       } as never);
 
       expect(reportSqlComposerService.compose).toHaveBeenCalledTimes(1);
-      expect(optionsPassedToReader(reader).calculatedMetrics).toEqual([ctrPlan]);
+      expect(optionsPassedToReader(reader).calculatedFields).toEqual([ctrPlan]);
     });
 
     // The metric renders through its own formula channel; leaving its name in `columnFilter` too
@@ -282,7 +282,7 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     it('strips the metric name out of the columnFilter it hands the reader', async () => {
       const { service, reader } = setup(
         { needsBlending: false, columnFilter: ['country', 'ctr'] },
-        { sql: 'SELECT …', calculatedMetrics: [ctrPlan] } as never
+        { sql: 'SELECT …', calculatedFields: [ctrPlan] } as never
       );
 
       await service.getOrCreateCachedReader(reportSelectingCtr(), {
@@ -296,12 +296,12 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     // The blended twin of the two tests above: `compose` never runs on that branch, so the
     // decision is the metric's ONLY plan source. Without forwarding it, the blended SQL emits
     // `ctr` while no header names it — Looker Studio reads a silent null for every row.
-    it("forwards the decision's calculatedMetrics on the blended branch", async () => {
+    it("forwards the decision's calculatedFields on the blended branch", async () => {
       const { service, reader, reportSqlComposerService } = setup({
         needsBlending: true,
         blendedSql: 'WITH main AS (...) SELECT SUM(main.clicks) AS `ctr`, main.country',
         columnFilter: ['country'],
-        calculatedMetrics: [ctrPlan],
+        calculatedFields: [ctrPlan],
       } as BlendingDecision);
 
       await service.getOrCreateCachedReader(reportSelectingCtr(), {
@@ -311,11 +311,11 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
 
       expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
       const opts = optionsPassedToReader(reader);
-      expect(opts.calculatedMetrics).toEqual([ctrPlan]);
+      expect(opts.calculatedFields).toEqual([ctrPlan]);
       expect(opts.columnFilter).toEqual(['country']);
     });
 
-    it('leaves calculatedMetrics undefined for a report that selects none', async () => {
+    it('leaves calculatedFields undefined for a report that selects none', async () => {
       const { service, reader } = setup(
         { needsBlending: false, columnFilter: ['a'] },
         { sql: 'SELECT a FROM t WHERE a = ?' }
@@ -330,7 +330,7 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       } as never);
 
       const opts = optionsPassedToReader(reader);
-      expect(opts.calculatedMetrics).toBeUndefined();
+      expect(opts.calculatedFields).toBeUndefined();
       expect(opts.columnFilter).toEqual(['a']);
     });
   });

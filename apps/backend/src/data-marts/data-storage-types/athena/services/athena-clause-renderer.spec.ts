@@ -1,6 +1,6 @@
 import { AthenaClauseRenderer, countPositionalPlaceholders } from './athena-clause-renderer';
 import {
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   ColumnRefResolver,
   RenderedClause,
 } from '../../utils/sql-clause-renderer';
@@ -489,7 +489,7 @@ describe('AthenaClauseRenderer', () => {
   // placeholder now carries the declaration and one predicate serves both.
   describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT("n_prefix", "n_suffix")';
-    const numericText: CalculatedMetricPlan = {
+    const numericText: CalculatedFieldPlan = {
       outputName: 'probe',
       formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
       level: 'column',

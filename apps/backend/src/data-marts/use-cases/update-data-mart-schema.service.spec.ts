@@ -381,7 +381,7 @@ describe('UpdateDataMartSchemaService', () => {
     // `composeMetricsOnly`) is invoked — so these tests snapshot it synchronously inside a
     // `mockImplementation`, deep-cloned so later mutation on the shared object can't retroactively
     // "fix" an already-captured, stale read.
-    it('lets a brand-new calculated metric validate cleanly, even though it is absent from the OLD persisted schema', async () => {
+    it('lets a brand-new calculated field validate cleanly, even though it is absent from the OLD persisted schema', async () => {
       let capturedSchemaAtCallTime: unknown;
       const validate = jest.fn().mockImplementation(async (_schema, _type, ctx) => {
         capturedSchemaAtCallTime = ctx ? JSON.parse(JSON.stringify(ctx.dataMart.schema)) : ctx;

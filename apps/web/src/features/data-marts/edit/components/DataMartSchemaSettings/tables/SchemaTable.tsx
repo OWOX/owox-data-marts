@@ -72,7 +72,7 @@ export interface RowCellSpan<T extends BaseSchemaField> {
    * next one rather than dropping the span.
    *
    * Row-derived rather than one band for the whole table, because the band ENDS at a different
-   * column per row: a calculated metric's formula runs through "Σ available", while a row-level
+   * column per row: a calculated field's formula runs through "Σ available", while a row-level
    * field's stops before it — that column carries a control the row-level field owns.
    */
   bandFor: (row: Row<T>) => readonly string[];

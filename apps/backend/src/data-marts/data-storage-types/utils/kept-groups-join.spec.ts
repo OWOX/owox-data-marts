@@ -14,7 +14,7 @@ import { RedshiftClauseRenderer } from '../redshift/services/redshift-clause-ren
 import { SnowflakeClauseRenderer } from '../snowflake/services/snowflake-clause-renderer';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { GroupRestriction } from '../../dto/domain/group-restriction';
-import { CalculatedMetricPlan, SqlClauseRenderer } from './sql-clause-renderer';
+import { CalculatedFieldPlan, SqlClauseRenderer } from './sql-clause-renderer';
 import { buildKeptGroupsJoinPairs, buildKeptGroupsProjection } from './kept-groups.utils';
 import { AthenaQueryBuilder } from '../athena/services/athena-query.builder';
 import { BigQueryQueryBuilder } from '../bigquery/services/bigquery-query.builder';
@@ -38,7 +38,7 @@ const HAVING_RULE = {
 } as unknown as FilterRule;
 
 /** A ROW-LEVEL calculated field: a real grouping key of the report, with no column behind it. */
-const SESSION_KEY_PLAN: CalculatedMetricPlan = {
+const SESSION_KEY_PLAN: CalculatedFieldPlan = {
   outputName: 'session_key',
   type: 'STRING',
   level: 'column',
@@ -46,7 +46,7 @@ const SESSION_KEY_PLAN: CalculatedMetricPlan = {
 };
 
 /** The same, declared DATE — the shape a report may bucket by month. */
-const VISIT_DAY_PLAN: CalculatedMetricPlan = {
+const VISIT_DAY_PLAN: CalculatedFieldPlan = {
   outputName: 'visit_day',
   type: 'DATE',
   level: 'column',
@@ -368,7 +368,7 @@ describe('kept-groups restriction', () => {
    */
   describe('the positional pairing survives a mixed-level plan list', () => {
     const bq = () => new BigQueryClauseRenderer();
-    const CTR_PLAN: CalculatedMetricPlan = {
+    const CTR_PLAN: CalculatedFieldPlan = {
       outputName: 'ctr',
       type: 'FLOAT',
       level: 'metric',

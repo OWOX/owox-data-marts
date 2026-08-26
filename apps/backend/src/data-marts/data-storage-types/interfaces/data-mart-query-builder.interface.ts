@@ -6,7 +6,7 @@ import { RoutedFilterRule } from '../../dto/domain/filter-clause';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
-import { CalculatedMetricPlan, SqlParameter } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../utils/sql-clause-renderer';
 
 export interface DataMartQueryOptions {
   /**
@@ -86,21 +86,21 @@ export interface DataMartQueryOptions {
   columnTypes?: ReadonlyMap<string, string>;
 
   /**
-   * Calculated metrics selected in `columns` (main-owner only). A calculated metric
+   * Calculated fields selected in `columns` (main-owner only). A calculated field
    * IS an aggregate, so its presence forces the aggregated path even with an otherwise-empty
    * `aggregations`/`dateTruncs` — the remaining projected columns become its grouping keys.
    */
-  calculatedMetrics?: CalculatedMetricPlan[];
+  calculatedFields?: CalculatedFieldPlan[];
 
   /**
    * Calculated fields a FILTER (or a Totals restriction's HAVING) names, whether or not the report
    * SELECTS them. A predicate on one compares the field's FORMULA — its name is a
    * SELECT alias with no warehouse column behind it — so the plan has to reach the renderer even
-   * when the field is not projected. Kept separate from `calculatedMetrics` precisely because that
+   * when the field is not projected. Kept separate from `calculatedFields` precisely because that
    * list is the PROJECTION: a filter-only field added to it would appear in the SELECT, in the
    * headers, and in the Google Sheet, under a name nobody asked for.
    */
-  calculatedFilterMetrics?: CalculatedMetricPlan[];
+  calculatedFilterMetrics?: CalculatedFieldPlan[];
 }
 
 /**

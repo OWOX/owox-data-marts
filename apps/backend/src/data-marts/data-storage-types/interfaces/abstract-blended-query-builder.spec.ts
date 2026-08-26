@@ -13,7 +13,7 @@ import {
   makeRelationship,
 } from './__fixtures__/blended-query-builder-fixtures';
 import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-builder.interface';
-import { CalculatedMetricPlan, SqlParameter } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../utils/sql-clause-renderer';
 import { buildFormulaOwnerPlan } from '../../calculated-fields/formula-owner-plan';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
@@ -2249,7 +2249,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       });
 
       // The half that bites. `referencedColumns` takes the restriction's dimension NAMES, and the
-      // loop that strips calculated names knew only about `context.calculatedMetrics` — from which
+      // loop that strips calculated names knew only about `context.calculatedFields` — from which
       // a Totals plan deliberately excludes every row-level field. Left alone the main CTE emitted
       // `SELECT session_key FROM <main table>`: `Unrecognized name`.
       it('projects the columns the formula reads into the main CTE, and not its name', () => {
@@ -2303,7 +2303,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       /**
        * The THIRD channel of the bug class the selected and the filtered plans just closed, and the
        * one the Totals path opens by design: a Totals plan projects no dimensions, so its row-level
-       * fields are deliberately absent from `calculatedMetrics` and travel here instead — where the
+       * fields are deliberately absent from `calculatedFields` and travel here instead — where the
        * two ownership guards, which walked those two lists, never saw them.
        *
        * A row-level formula reads its own Data Mart only. One that names a joined field
@@ -2315,7 +2315,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
        * set than the report shows, with nothing anywhere to say so.
        *
        * Latent in production today only because the report query beside this one carries the same
-       * field in `calculatedMetrics` and refuses first. That is protection by call order — the
+       * field in `calculatedFields` and refuses first. That is protection by call order — the
        * composer's own comment says the precondition holds "by call order alone" — and this branch
        * has had two guards expire on exactly that reasoning.
        */
@@ -2868,16 +2868,16 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
 });
 
 /**
- * A main-owner calculated metric on a report that ALSO spans a joined Data Mart. The
+ * A main-owner calculated field on a report that ALSO spans a joined Data Mart. The
  * bottom-up join leaves at most one row per main-mart row, so `SUM(clicks)` inside a formula is
  * the same grain — and the same render site — as the already-shipped `SUM(spend__cost)`.
  */
-describe('AbstractBlendedQueryBuilder — calculated metric', () => {
+describe('AbstractBlendedQueryBuilder — calculated field', () => {
   let builder: TestBlendedWithRenderer;
   const buildContext = createBuildContext('main_table');
 
   const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
-  const ctrMetric: CalculatedMetricPlan = {
+  const ctrMetric: CalculatedFieldPlan = {
     outputName: 'ctr',
     type: 'FLOAT',
     formula: CTR_FORMULA,
@@ -2913,7 +2913,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('substitutes the formula in the outer SELECT and projects the columns it reads', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [ctrMetric],
+      calculatedFields: [ctrMetric],
     });
 
     expect(sql).toContain(CTR_SELECT_ITEM);
@@ -2930,7 +2930,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('makes the query aggregated on its own, with no aggregation rules at all', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['channel', 'orders__country']),
-      calculatedMetrics: [ctrMetric],
+      calculatedFields: [ctrMetric],
     });
 
     expect(sql).toContain(CTR_SELECT_ITEM);
@@ -2940,19 +2940,19 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   // A formula that reads another formula. The main CTE's projection is derived from the
   // formulas this query RENDERS, and a dependency is one of them — so both halves of that
   // derivation have to walk the closure, not just the top-level plans.
-  const revenueMetric: CalculatedMetricPlan = {
+  const revenueMetric: CalculatedFieldPlan = {
     outputName: 'revenue_metric',
     type: 'FLOAT',
     formula: 'SUM({{ref field="amount"}})',
     level: 'metric',
   };
-  const costMetric: CalculatedMetricPlan = {
+  const costMetric: CalculatedFieldPlan = {
     outputName: 'cost_metric',
     type: 'FLOAT',
     formula: 'SUM({{ref field="spend"}})',
     level: 'metric',
   };
-  const roasMetric: CalculatedMetricPlan = {
+  const roasMetric: CalculatedFieldPlan = {
     outputName: 'roas',
     type: 'FLOAT',
     formula: '{{ref field="revenue_metric"}} / NULLIF({{ref field="cost_metric"}}, 0)',
@@ -2966,7 +2966,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('projects the columns a DEPENDENCY reads into the main CTE', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [roasMetric],
+      calculatedFields: [roasMetric],
     });
 
     expect(sql).toContain('(SUM(main.amount)) / NULLIF((SUM(main.spend)), 0) AS `roas`');
@@ -2983,7 +2983,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('keeps a DEPENDENCY’s name out of the main CTE', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [roasMetric],
+      calculatedFields: [roasMetric],
     });
 
     const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
@@ -2995,7 +2995,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   // The row-level shape fails identically, and it is the one the metric sleeve also reads: the
   // outer GROUP BY and `_owox_dim_1` both render `CONCAT(CONCAT(main.first_name, …), …)`.
   it('projects a row-level dependency’s columns, and not its name, into the main CTE', () => {
-    const initials: CalculatedMetricPlan = {
+    const initials: CalculatedFieldPlan = {
       outputName: 'initials',
       type: 'STRING',
       formula: 'CONCAT({{ref field="first_name"}}, {{ref field="last_name"}})',
@@ -3003,7 +3003,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
     };
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'session_key',
           type: 'STRING',
@@ -3031,7 +3031,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('does not force the grouped shape when the only calculated field is row-level', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['channel', 'orders__country']),
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'session_key',
           type: 'STRING',
@@ -3063,7 +3063,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['channel']),
       fieldIndex,
-      calculatedMetrics: [ctrMetric],
+      calculatedFields: [ctrMetric],
       uniqueCountSources: [
         {
           aliasPath: 'orders',
@@ -3087,7 +3087,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
     expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
   });
 
-  // Sorting by a calculated metric is SUPPORTED and `validateSort` only checks the column is
+  // Sorting by a calculated field is SUPPORTED and `validateSort` only checks the column is
   // selected — so this saves as a 200 and
   // then has to run. The metric's name is an outer-SELECT alias, never a warehouse column: leaving
   // it in `referencedColumns` put it in the main raw CTE's projection and every run, Looker fetch
@@ -3095,7 +3095,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('sorts by the metric without projecting its name into the main raw CTE', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [ctrMetric],
+      calculatedFields: [ctrMetric],
       sort: [{ column: 'ctr', direction: 'desc' }],
     });
 
@@ -3154,7 +3154,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
   it('keeps a COMMENTED-OUT own reference out of the main raw CTE', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([ordersChain()], ['orders__country']),
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'clicks_total',
           type: 'FLOAT',
@@ -3181,7 +3181,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric', () => {
 describe('AbstractBlendedQueryBuilder — a row-level calculated field on a joined report', () => {
   const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
-  const sessionKey: CalculatedMetricPlan = {
+  const sessionKey: CalculatedFieldPlan = {
     outputName: 'session_key',
     type: 'STRING',
     formula: SESSION_KEY_FORMULA,
@@ -3217,7 +3217,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
   const joinedContext = (): BlendedQueryContext => ({
     ...buildContext([costChain()], ['channel', 'spend__cost']),
     fieldIndex: costFieldIndex,
-    calculatedMetrics: [sessionKey],
+    calculatedFields: [sessionKey],
     aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
   });
 
@@ -3275,7 +3275,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     const MARGIN_SQL = '(main.revenue - main.discount)';
     const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
       ...joinedContext(),
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'margin',
           type: 'FLOAT',
@@ -3320,7 +3320,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
   describe('once the report aggregates it', () => {
     const aggregatedContext = (): BlendedQueryContext => ({
       ...joinedContext(),
-      calculatedMetrics: [{ ...sessionKey, isAggregatedByReport: true }],
+      calculatedFields: [{ ...sessionKey, isAggregatedByReport: true }],
       aggregations: [
         { column: 'spend__cost', function: 'SUM' },
         { column: 'session_key', function: 'COUNT_DISTINCT' },
@@ -3349,7 +3349,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
       const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
         ...buildContext([costChain()], ['channel']),
         fieldIndex: costFieldIndex,
-        calculatedMetrics: [{ ...sessionKey, isAggregatedByReport: true }],
+        calculatedFields: [{ ...sessionKey, isAggregatedByReport: true }],
         aggregations: [{ column: 'session_key', function: 'COUNT_DISTINCT' }] as AggregationRule[],
       });
 
@@ -3366,7 +3366,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     // `1.75` for a group and then dropped it for failing `> 1.5`, having truncated the uncast
     // value to `1`. Read out of one rendered query, so the relationship is what is asserted.
     it('compares the metric filter against the aggregate the outer SELECT prints', () => {
-      const numericText: CalculatedMetricPlan = {
+      const numericText: CalculatedFieldPlan = {
         ...sessionKey,
         // Declared FLOAT over a text formula: legal (a declaration is never validated against the
         // formula) and the shape that makes the cast observable.
@@ -3375,7 +3375,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
       };
       const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
         ...joinedContext(),
-        calculatedMetrics: [numericText],
+        calculatedFields: [numericText],
         aggregations: [
           { column: 'spend__cost', function: 'SUM' },
           { column: 'session_key', function: 'SUM' },
@@ -3421,7 +3421,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     const VISIT_DAY_SQL = 'COALESCE(main.visit_ts, main.created_ts)';
     // DATE-declared, which is what makes the type argument observable: BigQuery's renderer wraps a
     // non-DATE expression in `DATE(...)` and leaves a DATE one bare.
-    const visitDay: CalculatedMetricPlan = {
+    const visitDay: CalculatedFieldPlan = {
       outputName: 'visit_day',
       type: 'DATE',
       formula: VISIT_DAY_FORMULA,
@@ -3431,7 +3431,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
 
     const bucketedContext = (): BlendedQueryContext => ({
       ...joinedContext(),
-      calculatedMetrics: [visitDay],
+      calculatedFields: [visitDay],
       dateTruncs: [{ column: 'visit_day', unit: 'MONTH' }],
     });
 
@@ -3543,7 +3543,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     it('reproduces it when the field is filtered but not selected', () => {
       const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
         ...filteredContext(),
-        calculatedMetrics: undefined,
+        calculatedFields: undefined,
       });
 
       expect(extractCteBody(sql, 'sleeve_spend__cost')).toContain(
@@ -3591,7 +3591,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
  */
 describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNGROUPED joined report', () => {
   const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
-  const sessionKey: CalculatedMetricPlan = {
+  const sessionKey: CalculatedFieldPlan = {
     outputName: 'session_key',
     type: 'STRING',
     formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
@@ -3618,7 +3618,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
 
   const plainContext = (): BlendedQueryContext => ({
     ...buildContext([ordersChain()], ['channel', 'orders__country']),
-    calculatedMetrics: [sessionKey],
+    calculatedFields: [sessionKey],
   });
 
   const outerSelect = (sql: string): string => sql.slice(sql.lastIndexOf('\n\nSELECT\n'));
@@ -3666,7 +3666,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
     expect(() =>
       new TestBlendedWithRenderer().buildBlendedQuery({
         ...plainContext(),
-        calculatedMetrics: [
+        calculatedFields: [
           { ...sessionKey, formula: 'CONCAT({{ref path="orders" field="country"}})' },
         ],
       })
@@ -3680,7 +3680,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
     expect(() =>
       new TestBlendedWithRenderer().buildBlendedQuery({
         ...plainContext(),
-        calculatedMetrics: undefined,
+        calculatedFields: undefined,
         calculatedFilterMetrics: [
           { ...sessionKey, formula: 'CONCAT({{ref path="orders" field="country"}})' },
         ],
@@ -3698,7 +3698,7 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
  * re-aggregating that collapsed CTE over- or under-counts on a fanning join — so it is lifted into
  * its own metric sleeve and its call site is replaced by that sleeve's pull.
  */
-describe('AbstractBlendedQueryBuilder — calculated metric across joined Data Marts', () => {
+describe('AbstractBlendedQueryBuilder — calculated field across joined Data Marts', () => {
   let builder: TestBlendedWithRenderer;
 
   // Enough of a warehouse's aggregate vocabulary for the owner analysis to split these formulas.
@@ -3707,7 +3707,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
       name.trim().toUpperCase()
     );
 
-  const metricPlan = (outputName: string, formula: string): CalculatedMetricPlan => ({
+  const metricPlan = (outputName: string, formula: string): CalculatedFieldPlan => ({
     outputName,
     type: 'FLOAT',
     formula,
@@ -3764,7 +3764,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
   }
 
   function joinedContext(
-    metrics: CalculatedMetricPlan[],
+    metrics: CalculatedFieldPlan[],
     columns = ['channel']
   ): BlendedQueryContext {
     return {
@@ -3794,7 +3794,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
         ],
         availableSources: [{ aliasPath: 'orders', isIncluded: true }],
       } as never),
-      calculatedMetrics: metrics,
+      calculatedFields: metrics,
     };
   }
 
@@ -3822,7 +3822,8 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
       'LEFT JOIN sleeve_fx_roi_1 ON ((main.channel) = (sleeve_fx_roi_1._owox_dim_0) ' +
         'OR ((main.channel) IS NULL AND (sleeve_fx_roi_1._owox_dim_0) IS NULL))'
     );
-    // A calculated metric IS an aggregate: grouped by the report's dimension only.
+    // An aggregate-level calculated field is already an aggregate: grouped by the report's
+    // dimension only.
     expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
   });
 
@@ -3964,11 +3965,11 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
     ).toThrow(/metric sleeve 'sleeve_fx_roi_1' groups by 0 dimension\(s\)/);
   });
 
-  // Formula sleeves are appended LAST so selecting a calculated metric cannot rename another
+  // Formula sleeves are appended LAST so selecting a calculated field cannot rename another
   // sleeve's CTE or shift its `slv<i>p` bound-parameter prefix — which would silently re-bind a
   // filter value to a different placeholder on a positional dialect.
   it('leaves an existing sleeve’s CTE and bound-parameter names untouched', () => {
-    const withUniqueCount = (metrics: CalculatedMetricPlan[]): BlendedQueryContext => ({
+    const withUniqueCount = (metrics: CalculatedFieldPlan[]): BlendedQueryContext => ({
       ...joinedContext(metrics),
       filters: [{ column: 'channel', operator: 'eq', value: 'paid' }],
       uniqueCountSources: [
@@ -4003,7 +4004,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
       const shared = joinedContext([], ['channel']);
       const formulaSql = builder.buildBlendedQuery({
         ...shared,
-        calculatedMetrics: [metricPlan('total', SESSIONS_FORMULA)],
+        calculatedFields: [metricPlan('total', SESSIONS_FORMULA)],
       }).sql;
       const reportSql = new TestBlendedWithRenderer().buildBlendedQuery({
         ...shared,
@@ -4148,7 +4149,7 @@ describe('AbstractBlendedQueryBuilder — calculated metric across joined Data M
       const shared = joinedContext([], ['channel']);
       const formulaSql = builder.buildBlendedQuery({
         ...shared,
-        calculatedMetrics: [metricPlan('lines', COUNT_FORMULA)],
+        calculatedFields: [metricPlan('lines', COUNT_FORMULA)],
       }).sql;
       const reportSql = new TestBlendedWithRenderer().buildBlendedQuery({
         ...shared,

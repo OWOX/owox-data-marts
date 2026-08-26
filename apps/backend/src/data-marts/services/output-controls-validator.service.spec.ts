@@ -538,8 +538,8 @@ describe('OutputControlsValidatorService', () => {
       ).rejects.toThrow(BadRequestException);
 
       // A non-empty columnConfig now checks capability up front too — deciding whether it MIGHT
-      // carry a calculated metric needs the same gate `compose()` applies before rendering one
-      // (see `mayCarryCalculatedMetric`). The storage is unsupported, so that stays `false` and
+      // carry a calculated field needs the same gate `compose()` applies before rendering one
+      // (see `mayCarryCalculatedField`). The storage is unsupported, so that stays `false` and
       // the schema is still never fetched for a plain projection.
       expect(capabilitySvc.isSupported).toHaveBeenCalledWith(unsupportedStorageType);
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
@@ -1276,7 +1276,7 @@ describe('OutputControlsValidatorService', () => {
     // native projection came out with an empty SELECT list: a syntax error on every dialect, and
     // the projection the analyst asked for silently discarded. AGGREGATION_REQUIRES_COLUMN_CONFIG
     // cannot see it, because this shape carries neither an aggregation nor a date trunc.
-    it('throws CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG when a calculated-metric filter has no projection', async () => {
+    it('throws CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG when a calculated-metric filter has no projection', async () => {
       const capabilitySvc = makeCapabilityService(true);
       // `ctr` has to be in the reporting schema too, or the disconnected-column check answers
       // first and this shape is never reached.
@@ -1324,7 +1324,7 @@ describe('OutputControlsValidatorService', () => {
         details: { errors: { code: string; column?: string }[] };
       };
       const error = response.details.errors.find(
-        e => e.code === 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG'
+        e => e.code === 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG'
       );
       expect(error).toBeDefined();
       // Naming the field is the whole point: without it the analyst meets this as a warehouse
@@ -5064,7 +5064,7 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
-  describe('validateForReport — calculated metrics', () => {
+  describe('validateForReport — calculated fields', () => {
     const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
 
@@ -5106,7 +5106,7 @@ describe('OutputControlsValidatorService', () => {
       { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
     ];
 
-    type CalculatedMetricOverrides = {
+    type CalculatedFieldOverrides = {
       columnConfig?: string[] | null;
       filterConfig?:
         | {
@@ -5139,7 +5139,7 @@ describe('OutputControlsValidatorService', () => {
     // construction site so they cannot drift into testing different wirings.
     async function validateCatching(
       nativeFields: Record<string, unknown>[],
-      overrides: CalculatedMetricOverrides
+      overrides: CalculatedFieldOverrides
     ): Promise<unknown> {
       const validator = new OutputControlsValidatorService(
         makeCapabilityService(true) as never,
@@ -5172,7 +5172,7 @@ describe('OutputControlsValidatorService', () => {
 
     async function validate(
       nativeFields: Record<string, unknown>[],
-      overrides: CalculatedMetricOverrides
+      overrides: CalculatedFieldOverrides
     ): Promise<{ code: string; message?: string; column?: string; level?: string }[]> {
       const caught = (await validateCatching(nativeFields, overrides)) as
         | BadRequestException
@@ -5182,23 +5182,23 @@ describe('OutputControlsValidatorService', () => {
       return response.details.errors as { code: string; message?: string }[];
     }
 
-    it('rejects an aggregation applied to a calculated metric', async () => {
+    it('rejects an aggregation applied to a calculated field', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['ctr'],
         aggregationConfig: [{ column: 'ctr', function: 'SUM' }],
       });
 
       expect(errors[0]).toMatchObject({
-        code: 'AGGREGATION_ON_CALCULATED_METRIC',
+        code: 'AGGREGATION_ON_CALCULATED_FIELD',
         message: expect.stringContaining('ctr'),
       });
     });
 
-    // A calculated metric is NEVER a group-by key by omission: `excludeCalculatedMetricNames`
+    // A calculated field is NEVER a group-by key by omission: `excludeCalculatedFieldNames`
     // keeps it out of the plain `columns` list `compose()` hands to the query builder, regardless
     // of what else in the report is aggregated — so it must validate cleanly here,
     // with or without a genuine dimension alongside it.
-    it('accepts a calculated metric selected alongside a real aggregation on another column, with no other dimension', async () => {
+    it('accepts a calculated field selected alongside a real aggregation on another column, with no other dimension', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['ctr', 'clicks'],
         aggregationConfig: [{ column: 'clicks', function: 'SUM' }],
@@ -5207,7 +5207,7 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
-    it('accepts a calculated metric selected alongside a real aggregation AND a genuine dimension (breakdown-with-a-ratio shape)', async () => {
+    it('accepts a calculated field selected alongside a real aggregation AND a genuine dimension (breakdown-with-a-ratio shape)', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['country', 'clicks', 'ctr'],
         aggregationConfig: [{ column: 'clicks', function: 'SUM' }],
@@ -5216,19 +5216,19 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
-    it('rejects a dateTrunc rule naming a calculated metric — the one shape that explicitly asks to group BY it', async () => {
+    it('rejects a dateTrunc rule naming a calculated field — the one shape that explicitly asks to group BY it', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['clicks'],
         dateTruncConfig: [{ column: 'ctr', unit: 'MONTH' }],
       });
 
       expect(errors[0]).toMatchObject({
-        code: 'CALCULATED_METRIC_AS_DIMENSION',
+        code: 'CALCULATED_FIELD_AS_DIMENSION',
         message: expect.stringContaining('ctr'),
       });
     });
 
-    it('still validates a plain columnConfig-only report when it carries a calculated metric', async () => {
+    it('still validates a plain columnConfig-only report when it carries a calculated field', async () => {
       // Today this shape takes the validator's early-return branch and is checked for nothing at
       // all — no filter/sort/aggregation/dateTrunc/uniqueCount is set, so a bare projection used
       // to skip schema-aware validation entirely.
@@ -5236,7 +5236,7 @@ describe('OutputControlsValidatorService', () => {
         columnConfig: ['clicks', 'ctr'],
       });
 
-      expect(errors[0].code).toBe('CALCULATED_METRIC_BROKEN_REFERENCES');
+      expect(errors[0].code).toBe('CALCULATED_FIELD_BROKEN_REFERENCES');
     });
 
     // A joined reference that no longer resolves is worse than an own one — nothing routes
@@ -5277,7 +5277,7 @@ describe('OutputControlsValidatorService', () => {
         const errors = await validate(JOINED_METRIC, { columnConfig: ['roi'] });
 
         expect(errors[0]).toMatchObject({
-          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
           column: 'roi',
           message: expect.stringContaining('orders.amount'),
         });
@@ -5291,7 +5291,7 @@ describe('OutputControlsValidatorService', () => {
         });
 
         expect(errors[0]).toMatchObject({
-          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
           message: expect.stringContaining('orders.amount'),
         });
       });
@@ -5319,7 +5319,7 @@ describe('OutputControlsValidatorService', () => {
 
           expect(errors).toEqual([
             expect.objectContaining({
-              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED',
               column: 'roi',
               message: expect.stringContaining('roi'),
             }),
@@ -5357,7 +5357,7 @@ describe('OutputControlsValidatorService', () => {
 
           expect(errors).toEqual([
             expect.objectContaining({
-              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED',
+              code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED',
               column: 'roi',
             }),
           ]);
@@ -5392,7 +5392,7 @@ describe('OutputControlsValidatorService', () => {
       // object, which turns excess-property checking off — so a typo'd `isCalculated` would leave
       // every negative leak-guard below green for the wrong reason (the flag never set at all)
       // rather than because the refusal held.
-      const ordersTree: Pick<CalculatedMetricOverrides, 'blendedFields' | 'availableSources'> = {
+      const ordersTree: Pick<CalculatedFieldOverrides, 'blendedFields' | 'availableSources'> = {
         blendedFields: [
           {
             name: 'orders__ctr',
@@ -5592,7 +5592,7 @@ describe('OutputControlsValidatorService', () => {
       for (const config of configs) {
         const errors = await validate(dataMartWithBrokenCtr, config);
         expect(errors[0]).toMatchObject({
-          code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+          code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
           // Not "gone from the Data Mart": `brokenReferencesOf` is transitive, so what
           // it names can be a calculated field that is right there in the schema and merely
           // uncomputable — and telling an analyst to restore a field they can see is a wrong repair.
@@ -5649,7 +5649,7 @@ describe('OutputControlsValidatorService', () => {
     // The trap review named: swapping `validateHavingFilters`' skip for the clause seat
     // and stopping there drops this rule through to `aggregatedPairs.has('ctr␟undefined')`, which
     // answers "add the matching aggregation" — the very aggregation
-    // AGGREGATION_ON_CALCULATED_METRIC forbids. The level has to be read BEFORE that check.
+    // AGGREGATION_ON_CALCULATED_FIELD forbids. The level has to be read BEFORE that check.
     it('does not ask for an aggregation an aggregate-level field can never carry', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['country', 'ctr'],
@@ -5670,7 +5670,7 @@ describe('OutputControlsValidatorService', () => {
 
       expect(errors).toEqual([
         expect.objectContaining({
-          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          code: 'AGGREGATION_ON_CALCULATED_FIELD',
           column: 'ctr',
           level: 'metric',
         }),
@@ -5727,7 +5727,7 @@ describe('OutputControlsValidatorService', () => {
     // report saved silently, and every run emitted `SELECT * … ORDER BY src.ctr` for a name the
     // warehouse has never had. Aggregations and filters each close this hole with a refusal of
     // their own; sort had neither.
-    describe('a sort on a calculated metric under an implicit-all projection', () => {
+    describe('a sort on a calculated field under an implicit-all projection', () => {
       it('refuses it — the metric is not projected by SELECT *', async () => {
         const errors = await validate(dataMartWithCtr, {
           columnConfig: null,
@@ -5886,7 +5886,7 @@ describe('OutputControlsValidatorService', () => {
         });
 
         expect(errors[0]).toMatchObject({
-          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          code: 'AGGREGATION_ON_CALCULATED_FIELD',
           level: 'metric',
           message: '`ctr` is a calculated field and is already aggregated.',
         });
@@ -5925,7 +5925,7 @@ describe('OutputControlsValidatorService', () => {
         });
 
         expect(errors[0]).toMatchObject({
-          code: 'CALCULATED_METRIC_AS_DIMENSION',
+          code: 'CALCULATED_FIELD_AS_DIMENSION',
           level: 'metric',
           message: '`ctr` is a calculated field and cannot be used as a dimension.',
         });
@@ -6064,7 +6064,7 @@ describe('OutputControlsValidatorService', () => {
 
         expect(errors).toEqual([
           expect.objectContaining({
-            code: 'CALCULATED_METRIC_AS_DIMENSION',
+            code: 'CALCULATED_FIELD_AS_DIMENSION',
             column: 'last_visit',
             level: 'metric',
             message: '`last_visit` is a calculated field and cannot be used as a dimension.',
@@ -6325,7 +6325,7 @@ describe('OutputControlsValidatorService', () => {
         });
 
         expect(errors[0]).toMatchObject({
-          code: 'AGGREGATION_ON_CALCULATED_METRIC',
+          code: 'AGGREGATION_ON_CALCULATED_FIELD',
           column: 'ctr',
           level: 'metric',
           message: '`ctr` is a calculated field and is already aggregated.',
@@ -6336,7 +6336,7 @@ describe('OutputControlsValidatorService', () => {
     // The blended builder renders a main-owner metric through its own formula-substitution
     // channel, at the same grain and the same site as the joined aggregates beside it — so this
     // combination saves like any other.
-    it('accepts a calculated metric selected alongside a joined field', async () => {
+    it('accepts a calculated field selected alongside a joined field', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['country', 'ctr', 'orders__amount'],
         blendedFields: [{ name: 'orders__amount', type: 'INTEGER' }],
@@ -6345,7 +6345,7 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
-    it('accepts a calculated metric on a report carrying a joined Unique Count', async () => {
+    it('accepts a calculated field on a report carrying a joined Unique Count', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['country', 'ctr'],
         uniqueCountConfig: ['orders'],
@@ -6356,7 +6356,7 @@ describe('OutputControlsValidatorService', () => {
 
     // The mart HAS joined fields available; the report just doesn't touch them. That report runs
     // on the flat path, where the metric renders correctly — refusing it would be a false alarm.
-    it('accepts a calculated metric when no joined field is actually referenced', async () => {
+    it('accepts a calculated field when no joined field is actually referenced', async () => {
       const errors = await validate(dataMartWithCtr, {
         columnConfig: ['country', 'ctr'],
         blendedFields: [{ name: 'orders__amount', type: 'INTEGER' }],
@@ -6365,7 +6365,7 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
-    it('does not check a calculated metric on a storage that does not support output controls', async () => {
+    it('does not check a calculated field on a storage that does not support output controls', async () => {
       // A plain columnConfig-only report on an unsupported storage must keep taking the fast,
       // schema-free early-return path — `compose()` itself would reject a selected metric there
       // with OUTPUT_CONTROLS_NOT_SUPPORTED, so this validator does not need to look at the schema

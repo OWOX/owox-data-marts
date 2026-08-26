@@ -299,11 +299,11 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         needsBlending: false,
         columnFilter: ['channel', 'computed'],
       });
-      const { calculatedMetrics } = await service.compose(
+      const { calculatedFields } = await service.compose(
         buildCalculatedReport(calculated, aggregationConfig),
         {} as never
       );
-      return calculatedMetrics;
+      return calculatedFields;
     };
 
     it('carries level "column" for a row-level formula', async () => {
@@ -381,7 +381,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       });
 
       // An aggregate-level field already IS an aggregate, so it is never a grouping key and never
-      // becomes one — no rule may even name it (AGGREGATION_ON_CALCULATED_METRIC).
+      // becomes one — no rule may even name it (AGGREGATION_ON_CALCULATED_FIELD).
       it('an aggregate-level field is never a grouping key', async () => {
         const plain = await planFor({ formula: CTR_FORMULA, level: 'metric' });
         expect(isCalculatedGroupingKey(plain)).toBe(false);
@@ -700,11 +700,11 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
     // `reportDimensions` (the restriction's `dimensions`) is built from "selected column with no
     // aggregation of its own" — true for a real dimension like `channel`, but ALSO trivially true
-    // for a calculated metric (it can never legally appear in aggregationConfig). Left unfiltered,
+    // for a calculated field (it can never legally appear in aggregationConfig). Left unfiltered,
     // `ctr` would reach `renderKeptGroupsJoin`, which hands `restriction.dimensions` to
     // `renderAggregatedSelect` with NO calculated-metric exclusion — a bare, nonexistent `ctr`
     // column reference and a guaranteed `Unrecognized name` on every dialect.
-    it('never leaks the calculated metric into the kept-groups restriction dimensions', async () => {
+    it('never leaks the calculated field into the kept-groups restriction dimensions', async () => {
       const ctrFormula =
         'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
       const { service } = makeBqTotalsComposer(['revenue', 'ctr']);
@@ -736,20 +736,20 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(keptGroupsBlock).not.toMatch(/`ctr`/);
       // The metric still renders through its own formula channel in the OUTER select, unaffected.
       expect(result!.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
-      expect(result!.calculatedMetrics).toEqual([
+      expect(result!.calculatedFields).toEqual([
         expect.objectContaining({ outputName: 'ctr', formula: ctrFormula }),
       ]);
     });
 
     // THE case the whole feature is ordered for: "CTR by country" — a breakdown whose ONLY
-    // aggregate is the calculated metric. `deriveTotalsAggregations` correctly invents no
+    // aggregate is the calculated field. `deriveTotalsAggregations` correctly invents no
     // SUM/AVG/MIN/MAX rule for it (it already IS an aggregate), so `aggregations` is empty, and
     // reading that as "nothing to total" returned null → the consumer is told `not_available` and
     // computes the overall CTR itself as the AVERAGE of the per-country ratios: exactly the
     // non-additive re-aggregation this feature exists to remove. Every other calculated-metric
     // totals test above selects `revenue` alongside `ctr`, which supplies a non-zero
     // `aggregations` and hides this.
-    it('composes Totals for a report whose ONLY aggregate is a calculated metric', async () => {
+    it('composes Totals for a report whose ONLY aggregate is a calculated field', async () => {
       const ctrFormula =
         'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
       const { service } = makeBqTotalsComposer(['ctr']);
@@ -770,7 +770,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(result).not.toBeNull();
       expect(result!.aggregations).toEqual([]);
       expect(result!.columns).toEqual(['ctr']);
-      expect(result!.calculatedMetrics).toEqual([
+      expect(result!.calculatedFields).toEqual([
         expect.objectContaining({ outputName: 'ctr', formula: ctrFormula }),
       ]);
       // The true ratio of the sums over the whole filtered dataset — one row, no GROUP BY.
@@ -874,7 +874,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         const result = await service.composeTotals(report, {} as never);
 
         expect(result!.columns).toEqual(['revenue']);
-        expect(result!.calculatedMetrics).toBeUndefined();
+        expect(result!.calculatedFields).toBeUndefined();
         expect(result!.sql).toContain('SUM(`revenue`) AS `revenue | SUM`');
         expect(result!.sql).not.toContain('session_key');
         expect(result!.sql).not.toMatch(/GROUP BY/);
@@ -892,7 +892,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         const result = await service.composeTotals(report, {} as never);
 
         expect(result!.columns).toEqual(['ctr']);
-        expect(result!.calculatedMetrics).toEqual([
+        expect(result!.calculatedFields).toEqual([
           expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
         ]);
         expect(result!.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
@@ -967,7 +967,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
           expect(result!.columns).toEqual(['revenue']);
           expect(result!.aggregations.map(rule => rule.column)).not.toContain('session_key');
-          expect(result!.calculatedMetrics).toBeUndefined();
+          expect(result!.calculatedFields).toBeUndefined();
           expect(result!.sql).not.toContain('session_key');
           expect(result!.sql).not.toContain('COUNTUNIQUE');
         });
@@ -1032,7 +1032,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     // The clause a predicate belongs in is decided ONCE, from the rule AND the
     // field's level, and carried on the rule. `rule.function` cannot express this case — an
     // aggregate-level Calculated Field's aggregation lives inside the formula, so its rule carries
-    // no function and, by AGGREGATION_ON_CALCULATED_METRIC, never can. Split on `rule.function`
+    // no function and, by AGGREGATION_ON_CALCULATED_FIELD, never can. Split on `rule.function`
     // here and such a report builds NO restriction at all (`renderKeptGroupsJoin` early-returns on
     // an empty `having`), so Totals summarise rows the report hides — with no error.
     describe('a filter on a calculated field routes to the clause its level asks for', () => {
@@ -1349,7 +1349,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
      * Totals + a metric filter + a ROW-LEVEL calculated field, on a report that JOINS — the shape where composer and builder have to agree. `composeTotals` keeps the
      * field out of the totals metrics (it is a dimension) and puts its plan on the restriction, so
      * the builder is the only thing that can render it: the field's NAME is in the restriction's
-     * dimension list while `calculatedMetrics` deliberately excludes it.
+     * dimension list while `calculatedFields` deliberately excludes it.
      */
     it('restricts blended Totals at the report own grain, row-level expression included', async () => {
       const fields = [blendedField('partner__cost', 'FLOAT', ['SUM'])];

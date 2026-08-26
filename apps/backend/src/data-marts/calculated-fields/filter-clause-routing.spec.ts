@@ -39,7 +39,7 @@ describe('the one seat that decides a filter rule clause', () => {
     });
 
     // The case `rule.function` cannot express: the aggregation lives INSIDE the formula, so the
-    // rule carries no function and never can (AGGREGATION_ON_CALCULATED_METRIC).
+    // rule carries no function and never can (AGGREGATION_ON_CALCULATED_FIELD).
     it('routes a function-less rule on an AGGREGATE-level calculated field to HAVING', () => {
       expect(clauseFor({ column: 'ctr', operator: 'gt', value: 0.5 })).toBe('having');
     });

@@ -22,11 +22,11 @@ describe('translateOutputControlsError', () => {
 
   // An agent hits this far more often than the aggregation twin: nothing in its own request
   // mentions an aggregation, so the field that grouped the report has to be named back to it.
-  it('translates CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG into a fields-list fix naming the field', () => {
+  it('translates CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG into a fields-list fix naming the field', () => {
     const result = translateOutputControlsError(
       validatorError([
         {
-          code: 'CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG',
+          code: 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG',
           column: 'ctr',
           message: 'unused',
         },
@@ -35,10 +35,10 @@ describe('translateOutputControlsError', () => {
 
     expect(result).not.toBeNull();
     const text = JSON.stringify(result);
-    expect(text).toContain('fields_required_for_calculated_metric_filter');
+    expect(text).toContain('fields_required_for_calculated_field_filter');
     expect(text).toContain('ctr');
     // The code is in RECOGNIZED_CODES, so the generic fallback must not repeat it.
-    expect(text).not.toContain('CALCULATED_METRIC_FILTER_REQUIRES_COLUMN_CONFIG');
+    expect(text).not.toContain('CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG');
   });
 
   it('translates AGGREGATION_REQUIRES_COLUMN_CONFIG into a fields-list fix', () => {
@@ -276,62 +276,62 @@ describe('translateOutputControlsError', () => {
     expect(translated?.message).toContain('missing from "fields"');
   });
 
-  // The schema tool now publishes a Calculated Metric with an EMPTY allowedAggregations
+  // The schema tool now publishes a Calculated Field with an EMPTY allowedAggregations
   // set, so reaching any of these means the agent still treated an already-aggregated value as an
   // ordinary column. Untranslated, each one surfaced as a bare code with no way out.
-  describe('calculated metrics', () => {
-    it('translates AGGREGATION_ON_CALCULATED_METRIC into "it is already aggregated"', () => {
+  describe('calculated fields', () => {
+    it('translates AGGREGATION_ON_CALCULATED_FIELD into "it is already aggregated"', () => {
       const translated = translateOutputControlsError(
         validatorError([
           {
-            code: 'AGGREGATION_ON_CALCULATED_METRIC',
+            code: 'AGGREGATION_ON_CALCULATED_FIELD',
             column: 'ctr',
             message: '`ctr` is a calculated field and is already aggregated.',
           },
         ])
       );
-      expect(translated).toMatchObject({ code: 'aggregation_on_calculated_metric' });
+      expect(translated).toMatchObject({ code: 'aggregation_on_calculated_field' });
       expect(translated?.message).toContain('ctr');
       expect(translated?.message).toContain('ALREADY aggregated');
       expect(translated?.message).toContain('do not re-fetch the schema');
       // Claimed by a branch, so the generic fallback must not repeat the raw code.
-      expect(translated?.message).not.toContain('AGGREGATION_ON_CALCULATED_METRIC');
+      expect(translated?.message).not.toContain('AGGREGATION_ON_CALCULATED_FIELD');
     });
 
-    it('translates CALCULATED_METRIC_AS_DIMENSION into "drop the date bucket"', () => {
+    it('translates CALCULATED_FIELD_AS_DIMENSION into "drop the date bucket"', () => {
       const translated = translateOutputControlsError(
-        validatorError([{ code: 'CALCULATED_METRIC_AS_DIMENSION', column: 'ctr' }])
+        validatorError([{ code: 'CALCULATED_FIELD_AS_DIMENSION', column: 'ctr' }])
       );
-      expect(translated).toMatchObject({ code: 'calculated_metric_as_dimension' });
+      expect(translated).toMatchObject({ code: 'calculated_field_as_dimension' });
       expect(translated?.message).toContain('date_bucket');
-      expect(translated?.message).not.toContain('CALCULATED_METRIC_AS_DIMENSION');
+      expect(translated?.message).not.toContain('CALCULATED_FIELD_AS_DIMENSION');
     });
 
     // Nothing the agent can change fixes a formula reading a column the Data Mart lost — the
     // guidance must name the human move, not send it round the retry loop.
-    it('translates CALCULATED_METRIC_BROKEN_REFERENCES into a human-fix instruction', () => {
+    it('translates CALCULATED_FIELD_BROKEN_REFERENCES into a human-fix instruction', () => {
       const translated = translateOutputControlsError(
         validatorError([
           {
-            code: 'CALCULATED_METRIC_BROKEN_REFERENCES',
+            code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
             column: 'ctr',
             message: '`ctr` references `impressions`, which is gone from the Data Mart.',
           },
         ])
       );
-      expect(translated).toMatchObject({ code: 'calculated_metric_broken' });
+      expect(translated).toMatchObject({ code: 'calculated_field_broken' });
       expect(translated?.message).toContain('impressions');
       expect(translated?.message).toContain('retrying will not help');
-      expect(translated?.message).not.toContain('CALCULATED_METRIC_BROKEN_REFERENCES');
+      expect(translated?.message).not.toContain('CALCULATED_FIELD_BROKEN_REFERENCES');
     });
 
     // The one filter shape still refused, and it shares its section with the ordinary joined
     // metric's — same sleeve, same reason. Two sections would hand an agent that hit both two
     // explanations of one rule. It carries no `function`, so the rule is named by column alone.
-    it('translates HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED as the joined-metric rule', () => {
+    it('translates HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED as the joined-metric rule', () => {
       const translated = translateOutputControlsError(
         validatorError([
-          { code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED', column: 'roi' },
+          { code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED', column: 'roi' },
         ])
       );
       expect(translated).toMatchObject({ code: 'having_on_joined_metric_not_supported' });
@@ -340,7 +340,7 @@ describe('translateOutputControlsError', () => {
       // The mutation this catches: leaving the code out of RECOGNIZED_CODES and the branch, which
       // makes the informative fallback claim it and print the bare code — or, alone, return null.
       expect(translated?.message).not.toContain(
-        'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED'
+        'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED'
       );
     });
 
@@ -377,7 +377,7 @@ describe('translateOutputControlsError', () => {
             column: 'orders__amount',
             function: 'SUM',
           },
-          { code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_METRIC_NOT_SUPPORTED', column: 'roi' },
+          { code: 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED', column: 'roi' },
         ])
       );
       expect(translated?.message).not.toContain('ALSO:');
@@ -448,14 +448,14 @@ describe('translateOutputControlsError', () => {
       it('never says a row-level aggregation is unsupported, and never drops the entry', () => {
         const translated = translateOutputControlsError(
           validatorError([
-            { code: 'AGGREGATION_ON_CALCULATED_METRIC', column: 'session_key', level: 'column' },
+            { code: 'AGGREGATION_ON_CALCULATED_FIELD', column: 'session_key', level: 'column' },
           ])
         );
         expect(translated).not.toBeNull();
         expect(translated?.code).not.toBe('calculated_field_aggregation_unsupported');
         expect(translated?.message).toContain('session_key');
         expect(translated?.message).not.toContain('not supported yet');
-        expect(translated?.message).not.toContain('AGGREGATION_ON_CALCULATED_METRIC');
+        expect(translated?.message).not.toContain('AGGREGATION_ON_CALCULATED_FIELD');
       });
 
       // The row-level date-bucket refusal is GONE from the validator too, so the arm that
@@ -468,23 +468,23 @@ describe('translateOutputControlsError', () => {
       it('never says a row-level date bucket is unsupported, and never drops the entry', () => {
         const translated = translateOutputControlsError(
           validatorError([
-            { code: 'CALCULATED_METRIC_AS_DIMENSION', column: 'session_key', level: 'column' },
+            { code: 'CALCULATED_FIELD_AS_DIMENSION', column: 'session_key', level: 'column' },
           ])
         );
         expect(translated).not.toBeNull();
         expect(translated?.code).not.toBe('calculated_field_date_bucket_unsupported');
         expect(translated?.message).toContain('session_key');
         expect(translated?.message).not.toContain('not supported yet');
-        expect(translated?.message).not.toContain('CALCULATED_METRIC_AS_DIMENSION');
+        expect(translated?.message).not.toContain('CALCULATED_FIELD_AS_DIMENSION');
       });
 
       // An entry carrying no level at all is the older wire shape, and aggregating is the
       // behaviour every such field had — same fallback `isAggregateLevel` gives everywhere else.
       it('reads an absent level as an aggregate', () => {
         const translated = translateOutputControlsError(
-          validatorError([{ code: 'AGGREGATION_ON_CALCULATED_METRIC', column: 'ctr' }])
+          validatorError([{ code: 'AGGREGATION_ON_CALCULATED_FIELD', column: 'ctr' }])
         );
-        expect(translated).toMatchObject({ code: 'aggregation_on_calculated_metric' });
+        expect(translated).toMatchObject({ code: 'aggregation_on_calculated_field' });
         expect(translated?.message).toContain('ALREADY aggregated');
       });
 
@@ -496,9 +496,9 @@ describe('translateOutputControlsError', () => {
       it('claims an entry whatever level it carries, in one section', () => {
         const translated = translateOutputControlsError(
           validatorError([
-            { code: 'CALCULATED_METRIC_AS_DIMENSION', column: 'ctr', level: 'metric' },
+            { code: 'CALCULATED_FIELD_AS_DIMENSION', column: 'ctr', level: 'metric' },
             {
-              code: 'CALCULATED_METRIC_AS_DIMENSION',
+              code: 'CALCULATED_FIELD_AS_DIMENSION',
               column: 'session_key',
               level: 'column',
             },
@@ -508,7 +508,7 @@ describe('translateOutputControlsError', () => {
         expect(message).toContain('ctr');
         expect(message).toContain('session_key');
         expect(message.split(' ALSO: ')).toHaveLength(1);
-        expect(message).not.toContain('CALCULATED_METRIC_AS_DIMENSION');
+        expect(message).not.toContain('CALCULATED_FIELD_AS_DIMENSION');
       });
     });
   });

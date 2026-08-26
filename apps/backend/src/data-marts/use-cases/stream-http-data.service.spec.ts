@@ -958,11 +958,12 @@ describe('StreamHttpDataService', () => {
     expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300}\n']);
   });
 
-  // A selected calculated metric IS an aggregate even with no `aggregation=` param, so the
+  // A selected aggregate-level calculated field is already an aggregate even with no
+  // `aggregation=` param, so the
   // ad-hoc path has to treat it like one: compose the SQL, forward the plans to the reader, strip
   // the metric's name out of `columnFilter`, and project rows by the RESOLVED header names. The
   // whole feature had zero coverage in this file.
-  describe('calculated metrics', () => {
+  describe('calculated fields', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     const ctrPlan = {
       outputName: 'ctr',
@@ -1005,7 +1006,7 @@ describe('StreamHttpDataService', () => {
       blended.resolveBlendingDecision.mockResolvedValueOnce(decision as never);
       sqlComposer.compose.mockResolvedValueOnce({
         sql: 'SELECT `country`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr` FROM t',
-        calculatedMetrics: [ctrPlan],
+        calculatedFields: [ctrPlan],
       } as never);
       reader.prepareReportData.mockResolvedValueOnce(
         new ReportDataDescription([
@@ -1018,7 +1019,7 @@ describe('StreamHttpDataService', () => {
     };
 
     // Pins the `outputColumns` gate in stream-http-data.service.ts: without the
-    // `calculatedMetrics` term, `aggregationConfig` alone is empty here and rows are projected by
+    // `calculatedFields` term, `aggregationConfig` alone is empty here and rows are projected by
     // the RAW request order instead of the resolved headers — the same mismatch that, on any
     // request where the two lists differ by more than order, streams a column as a silent `null`.
     it('projects rows by the RESOLVED header names, not the raw request order', async () => {
@@ -1030,7 +1031,7 @@ describe('StreamHttpDataService', () => {
       expect(res._writes).toEqual(['{"country":"PL","ctr":0.25}\n']);
     });
 
-    it('composes the SQL, forwards calculatedMetrics, and strips the metric from columnFilter', async () => {
+    it('composes the SQL, forwards calculatedFields, and strips the metric from columnFilter', async () => {
       const command = requestCtrThenCountry();
       const res = mockResponse();
 
@@ -1038,7 +1039,7 @@ describe('StreamHttpDataService', () => {
 
       expect(sqlComposer.compose).toHaveBeenCalledTimes(1);
       const options = reader.prepareReportData.mock.calls[0][1];
-      expect(options?.calculatedMetrics).toEqual([ctrPlan]);
+      expect(options?.calculatedFields).toEqual([ctrPlan]);
       // 'ctr' renders through its own formula channel, never as a plain projected column.
       expect(options?.columnFilter).toEqual(['country']);
     });
@@ -1046,12 +1047,12 @@ describe('StreamHttpDataService', () => {
     // The blended twin of the test above: `compose` never runs on that branch, so the decision is
     // the metric's ONLY plan source. Without forwarding it the NDJSON stream emits `ctr` from the
     // SQL with no header naming it, and every row carries a silent null.
-    it("forwards the decision's calculatedMetrics on the blended branch", async () => {
+    it("forwards the decision's calculatedFields on the blended branch", async () => {
       const command = requestCtrThenCountry({
         needsBlending: true,
         blendedSql: 'WITH main AS (...) SELECT main.country, SUM(main.clicks) AS `ctr`',
         columnFilter: ['country'],
-        calculatedMetrics: [ctrPlan],
+        calculatedFields: [ctrPlan],
       });
       const res = mockResponse();
 
@@ -1059,7 +1060,7 @@ describe('StreamHttpDataService', () => {
 
       expect(sqlComposer.compose).not.toHaveBeenCalled();
       const options = reader.prepareReportData.mock.calls[0][1];
-      expect(options?.calculatedMetrics).toEqual([ctrPlan]);
+      expect(options?.calculatedFields).toEqual([ctrPlan]);
       expect(options?.columnFilter).toEqual(['country']);
     });
 

@@ -1,5 +1,5 @@
 import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
-import type { CalculatedMetricPlan } from '../data-storage-types/utils/sql-clause-renderer';
+import type { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import {
   brokenReferencesOf,
@@ -7,7 +7,7 @@ import {
   calculatedFieldLevelOf,
   CalculatedSchemaField,
   collectCollidingCalculatedFieldNames,
-  columnFilterWithoutCalculatedMetrics,
+  columnFilterWithoutCalculatedFields,
   isAggregateCalculatedField,
   isRowLevelCalculatedField,
 } from './calculated-field.utils';
@@ -470,8 +470,8 @@ describe('brokenReferencesOf', () => {
   });
 });
 
-describe('columnFilterWithoutCalculatedMetrics', () => {
-  const plan = (outputName: string): CalculatedMetricPlan => ({
+describe('columnFilterWithoutCalculatedFields', () => {
+  const plan = (outputName: string): CalculatedFieldPlan => ({
     outputName,
     type: 'FLOAT',
     formula: '…',
@@ -480,7 +480,7 @@ describe('columnFilterWithoutCalculatedMetrics', () => {
 
   it('drops every selected metric name from the filter, in place', () => {
     expect(
-      columnFilterWithoutCalculatedMetrics(
+      columnFilterWithoutCalculatedFields(
         ['country', 'ctr', 'clicks', 'roas'],
         [plan('ctr'), plan('roas')]
       )
@@ -490,16 +490,16 @@ describe('columnFilterWithoutCalculatedMetrics', () => {
   it('returns the filter untouched when the plan carries no metric', () => {
     const filter = ['country', 'clicks'];
 
-    expect(columnFilterWithoutCalculatedMetrics(filter, [])).toBe(filter);
-    expect(columnFilterWithoutCalculatedMetrics(filter, undefined)).toBe(filter);
+    expect(columnFilterWithoutCalculatedFields(filter, [])).toBe(filter);
+    expect(columnFilterWithoutCalculatedFields(filter, undefined)).toBe(filter);
   });
 
   // "No projection" and "an empty projection" are DIFFERENT to the header resolver — undefined
   // falls back to every native header, `[]` means metrics-only — so the distinction has to
   // survive this helper untouched.
   it('preserves the undefined / empty distinction of the filter itself', () => {
-    expect(columnFilterWithoutCalculatedMetrics(undefined, [plan('ctr')])).toBeUndefined();
-    expect(columnFilterWithoutCalculatedMetrics([], [plan('ctr')])).toEqual([]);
+    expect(columnFilterWithoutCalculatedFields(undefined, [plan('ctr')])).toBeUndefined();
+    expect(columnFilterWithoutCalculatedFields([], [plan('ctr')])).toEqual([]);
   });
 });
 

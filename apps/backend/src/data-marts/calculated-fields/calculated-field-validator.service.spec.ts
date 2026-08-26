@@ -433,7 +433,7 @@ describe('CalculatedFieldValidatorService', () => {
     // The SAME rule, and the same code, as a reference to the metric's own Data Mart's calculated
     // field: a formula cannot read another formula. Until the blendable payload carried the flag,
     // this saved cleanly and failed at report time instead.
-    it("refuses a joined Data Mart's OWN calculated metric, with the same code as a local one", async () => {
+    it("refuses a joined Data Mart's OWN calculated field, with the same code as a local one", async () => {
       const { validator: v, dryRun } = buildValidator(
         blendable({
           sources: [{ aliasPath: 'orders' }],
@@ -1398,7 +1398,7 @@ describe('CalculatedFieldValidatorService', () => {
       const { validator: v, composer } = buildValidator();
       const rejection = new BadRequestException({
         message: 'Output controls validation failed',
-        details: { errors: [{ code: 'CALCULATED_METRIC_BROKEN_REFERENCES', column: 'a' }] },
+        details: { errors: [{ code: 'CALCULATED_FIELD_BROKEN_REFERENCES', column: 'a' }] },
       });
       composer.composeMetricsOnly.mockRejectedValue(rejection);
 

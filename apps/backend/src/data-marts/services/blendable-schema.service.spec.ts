@@ -987,11 +987,11 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[0].originalFieldName).toBe('visible');
     });
 
-    // A calculated metric of the JOINED Data Mart is a formula, with no warehouse column behind
+    // A calculated field of the JOINED Data Mart is a formula, with no warehouse column behind
     // it. It stays in the payload — a client that only saw it vanish could not explain why — and
     // the flag is what lets the formula validator and the report column picker refuse it by name
     // instead of calling it unknown.
-    it('marks a joined Data Mart’s own calculated metric with isCalculated', async () => {
+    it('marks a joined Data Mart’s own calculated field with isCalculated', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
       relationshipService.findByStorageId.mockResolvedValue([
         makeRelationship({
@@ -1221,7 +1221,7 @@ describe('BlendableSchemaService', () => {
         return result.calculatedFieldIssues;
       }
 
-      it('reports a calculated metric whose formula references a field the schema no longer has', async () => {
+      it('reports a calculated field whose formula references a field the schema no longer has', async () => {
         const fields = [
           { name: 'clicks', type: 'INTEGER' },
           {
@@ -1239,7 +1239,7 @@ describe('BlendableSchemaService', () => {
         ]);
       });
 
-      it('omits a calculated metric whose references all resolve', async () => {
+      it('omits a calculated field whose references all resolve', async () => {
         const fields = [
           { name: 'clicks', type: 'INTEGER' },
           {
@@ -1287,7 +1287,7 @@ describe('BlendableSchemaService', () => {
         await expect(computeIssues(fields)).resolves.toEqual([]);
       });
 
-      it('reports every calculated metric that has an issue, not just the first', async () => {
+      it('reports every calculated field that has an issue, not just the first', async () => {
         const fields = [
           {
             name: 'ctr',
@@ -1402,9 +1402,9 @@ describe('BlendableSchemaService', () => {
           await expect(computeJoinedIssues(JOINED, { excluded: true })).resolves.toEqual([]);
         });
 
-        // A formula may not read another formula — the joined Data Mart's own calculated metric is
+        // A formula may not read another formula — the joined Data Mart's own calculated field is
         // no more readable than a local one, and it has no warehouse column behind it at all.
-        it('reports a joined reference to the source’s OWN calculated metric', async () => {
+        it('reports a joined reference to the source’s OWN calculated field', async () => {
           await expect(computeJoinedIssues(JOINED, { calculated: true })).resolves.toEqual([
             { field: 'roi', missing: ['orders.amount'] },
           ]);

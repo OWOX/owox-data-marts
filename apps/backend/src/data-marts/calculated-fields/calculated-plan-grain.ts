@@ -1,4 +1,4 @@
-import type { CalculatedMetricPlan } from '../data-storage-types/utils/sql-clause-renderer';
+import type { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 import type { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { aggregationFunctionsForColumn } from '../dto/schemas/aggregation-labels';
 import { isAggregateLevel } from './formula-level';
@@ -17,17 +17,17 @@ import { isAggregateLevel } from './formula-level';
  * `renderKeptGroupsJoin` is why — it renders the grouping from an EMPTY rule list on purpose, and
  * re-deriving there would put an aggregated row-level field back among the restriction's keys.
  */
-export function isCalculatedGroupingKey(plan: CalculatedMetricPlan): boolean {
+export function isCalculatedGroupingKey(plan: CalculatedFieldPlan): boolean {
   return !isAggregateLevel(plan.level) && !plan.isAggregatedByReport;
 }
 
 export interface PartitionedCalculatedPlans {
   /** Every plan, in the order given, each carrying the verdict below. */
-  all: CalculatedMetricPlan[];
+  all: CalculatedFieldPlan[];
   /** The plans that are grouping keys of the report. */
-  dimensions: CalculatedMetricPlan[];
+  dimensions: CalculatedFieldPlan[];
   /** The plans that are not: aggregate-level ones, and row-level ones the report aggregates. */
-  metrics: CalculatedMetricPlan[];
+  metrics: CalculatedFieldPlan[];
 }
 
 /**
@@ -47,7 +47,7 @@ export interface PartitionedCalculatedPlans {
  * marking it aggregated-by-report would claim an aggregation that does not exist.
  */
 export function partitionCalculatedPlans(
-  plans: readonly CalculatedMetricPlan[],
+  plans: readonly CalculatedFieldPlan[],
   aggregations: AggregationRule[] | undefined
 ): PartitionedCalculatedPlans {
   const rules = aggregations ?? [];

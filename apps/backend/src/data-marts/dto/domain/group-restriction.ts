@@ -1,7 +1,7 @@
 import { DateTruncRule } from '../schemas/date-trunc-config.schema';
 import { FilterRule } from '../schemas/filter-config.schema';
 import type { RoutedFilterRule } from './filter-clause';
-import type { CalculatedMetricPlan } from '../../data-storage-types/utils/sql-clause-renderer';
+import type { CalculatedFieldPlan } from '../../data-storage-types/utils/sql-clause-renderer';
 
 /**
  * Restricts a Totals query to the rows of the GROUPS its report keeps.
@@ -37,13 +37,13 @@ export interface GroupRestriction {
    * emitted keys are a FILTERED SUBSEQUENCE of this list — the renderer derives the positional
    * dimension list from the same filter, never from this array's own indices.
    */
-  calculatedDimensions?: CalculatedMetricPlan[];
+  calculatedDimensions?: CalculatedFieldPlan[];
   /**
    * The rules whose predicate belongs AFTER the GROUP BY; the WHERE rules stay in `filters`.
    *
    * NOT "the rules carrying a `function`" — that reading is what made this the silent seat.
    * An AGGREGATE-level Calculated Field aggregates inside its formula, so its rule carries no
-   * function and never can (`AGGREGATION_ON_CALCULATED_METRIC`); read that way, a report whose only
+   * function and never can (`AGGREGATION_ON_CALCULATED_FIELD`); read that way, a report whose only
    * metric filter is one built NO restriction at all — `renderKeptGroupsJoin` early-returns on an
    * empty `having` — and Totals summarised rows the report hides, with no error. The producer
    * (`composeTotals`) fills this from the clause `routeFilterClauses` stamped on each rule, and the
@@ -70,7 +70,7 @@ export interface GroupRestriction {
    * `SUM("ctr")` over a FROM that has no `ctr`: the report itself stayed correct and the Totals row
    * silently vanished, since both Totals callers swallow the warehouse error.
    */
-  calculatedHavingMetrics?: CalculatedMetricPlan[];
+  calculatedHavingMetrics?: CalculatedFieldPlan[];
   /**
    * The report's own date buckets for those dimensions. REQUIRED for correctness, not an
    * optimisation: a Totals query carries no `dateTruncs` of its own (it has no GROUP BY), so

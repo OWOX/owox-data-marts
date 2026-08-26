@@ -51,7 +51,7 @@ import {
   calculatedDependencyPlans,
   calculatedFieldLevelOf,
   calculatedFieldsOf,
-  columnFilterWithoutCalculatedMetrics,
+  columnFilterWithoutCalculatedFields,
   joinedCalculatedFieldRefusals,
   type CalculatedSchemaField,
 } from '../calculated-fields/calculated-field.utils';
@@ -68,7 +68,7 @@ import {
   FormulaFunctionDialect,
 } from '../calculated-fields/formula-function-dialect';
 import { TypeResolver } from '../../common/resolver/type-resolver';
-import { CalculatedMetricPlan } from '../data-storage-types/utils/sql-clause-renderer';
+import { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -207,7 +207,7 @@ export class BlendedReportDataService {
     );
     this.assertNoOrphanedColumnReferences(dataMart, columnConfig, blendedFieldsByName);
 
-    // A calculated metric renders through the builder's `calculatedMetrics` channel — its stored
+    // A calculated field renders through the builder's `calculatedFields` channel — its stored
     // formula, substituted and qualified against `main` — never as a plain projected column. Built
     // exactly as `ReportSqlComposerService.compose` builds it on the flat path, and its name is
     // stripped out of every column list below by the helper that binds the two together.
@@ -238,7 +238,7 @@ export class BlendedReportDataService {
     const planOf = (
       f: CalculatedSchemaField,
       dialect: FormulaFunctionDialect
-    ): CalculatedMetricPlan => ({
+    ): CalculatedFieldPlan => ({
       outputName: f.name,
       type: String(f.type),
       formula: f.calculated.formula,
@@ -258,18 +258,18 @@ export class BlendedReportDataService {
       // degrades to it instead of leaving a blending decision as a 500.
       formulaOwnership: this.analyseFormulaOwnership(f.calculated.formula, dialect),
     });
-    const plansFor = (fields: readonly CalculatedSchemaField[]): CalculatedMetricPlan[] =>
+    const plansFor = (fields: readonly CalculatedSchemaField[]): CalculatedFieldPlan[] =>
       formulaDialect
         ? partitionCalculatedPlans(
             fields.map(f => planOf(f, formulaDialect)),
             report.aggregationConfig ?? undefined
           ).all
         : [];
-    const calculatedMetrics = plansFor(selectedCalculated);
+    const calculatedFields = plansFor(selectedCalculated);
     const calculatedFilterMetrics = plansFor(filteredCalculated);
     // Non-null: the helper only returns `undefined` for an undefined `columnFilter`, and the
     // null/undefined `columnConfig` branch above has already returned.
-    const nonMetricColumns = columnFilterWithoutCalculatedMetrics(columnConfig, calculatedMetrics)!;
+    const nonMetricColumns = columnFilterWithoutCalculatedFields(columnConfig, calculatedFields)!;
 
     const referencedColumns = new Set<string>([
       ...nonMetricColumns,
@@ -288,7 +288,7 @@ export class BlendedReportDataService {
       // column list at all. Every consequence of this set follows from it being here: the source
       // is access-checked, the report routes to the blended builder instead of the flat one, and
       // the chain projects the column the metric sleeve reads.
-      ...this.formulaJoinedFieldNames(calculatedMetrics, blendableSchema.blendedFields),
+      ...this.formulaJoinedFieldNames(calculatedFields, blendableSchema.blendedFields),
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
@@ -407,7 +407,7 @@ export class BlendedReportDataService {
         mainDataMartUrl,
         chains: liveChains,
         columns: nonMetricColumns,
-        calculatedMetrics: calculatedMetrics.length > 0 ? calculatedMetrics : undefined,
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
         calculatedFilterMetrics:
           calculatedFilterMetrics.length > 0 ? calculatedFilterMetrics : undefined,
         // The clause each predicate belongs in is decided here, from the rule and the field's
@@ -435,7 +435,7 @@ export class BlendedReportDataService {
       blendedSql,
       params,
       columnFilter: nonMetricColumns,
-      calculatedMetrics: calculatedMetrics.length > 0 ? calculatedMetrics : undefined,
+      calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
       blendedDataHeaders,
       chains: liveChains,
       aggregations: normalizedAggregations,
@@ -459,15 +459,15 @@ export class BlendedReportDataService {
    * here; the composition-time validator reports it as a broken metric.
    */
   private formulaJoinedFieldNames(
-    calculatedMetrics: readonly CalculatedMetricPlan[],
+    calculatedFields: readonly CalculatedFieldPlan[],
     blendedFields: BlendedFieldDto[]
   ): string[] {
-    if (calculatedMetrics.length === 0) return [];
+    if (calculatedFields.length === 0) return [];
     const nameByIdentity = new Map(
       blendedFields.map(f => [`${f.aliasPath}\u241F${f.originalFieldName}`, f.name])
     );
     const names: string[] = [];
-    for (const metric of calculatedMetrics) {
+    for (const metric of calculatedFields) {
       for (const ref of this.liveReferencesOrNone(metric.formula)) {
         if (ref.path === '') continue;
         const name = nameByIdentity.get(`${ref.path}\u241F${ref.field}`);
@@ -805,7 +805,7 @@ export class BlendedReportDataService {
 
   /**
    * A joined Data Mart's calculated field cannot be a projected column. No formula of a joined mart
-   * is ever rendered here — only the main mart's become `CalculatedMetricPlan`s — so the field is
+   * is ever rendered here — only the main mart's become `CalculatedFieldPlan`s — so the field is
    * mapped to `targetFieldName: originalFieldName` and projected from the joined mart's PHYSICAL
    * table, which either fails with an unrecognised name or, where that table still carries a column
    * of that name, silently serves that column's dedup value in place of the formula.

@@ -872,12 +872,12 @@ describe('RunReportService', () => {
   });
 
   // Orchestrator-level pin for hasOutputControls' calculated-metric branch: a report with NO
-  // filter/sort/aggregation/dateTrunc/limit/uniqueCount — only a calculated metric selected in
+  // filter/sort/aggregation/dateTrunc/limit/uniqueCount — only a calculated field selected in
   // columnConfig — must still reach ReportSqlComposerService.compose. Before that predicate was
   // widened, this exact shape returned false, compose() was never called, sqlOverride stayed
   // undefined, and the reader would have fallen back to a bare buildQuery(definition, { columns })
   // call that emits 'ctr' as a plain, nonexistent column.
-  it('composes SQL and forwards calculatedMetrics for a report selecting only a calculated metric', async () => {
+  it('composes SQL and forwards calculatedFields for a report selecting only a calculated field', async () => {
     const {
       service,
       reportReaderResolver,
@@ -909,7 +909,7 @@ describe('RunReportService', () => {
       needsBlending: false,
       columnFilter: ['clicks', 'ctr'],
     });
-    const calculatedMetric = {
+    const calculatedField = {
       outputName: 'ctr',
       type: 'FLOAT',
       formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
@@ -919,7 +919,7 @@ describe('RunReportService', () => {
         'SELECT `clicks`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr` ' +
         'FROM t GROUP BY `clicks`',
       params: [],
-      calculatedMetrics: [calculatedMetric],
+      calculatedFields: [calculatedField],
     });
 
     const reader = createReader();
@@ -958,9 +958,9 @@ describe('RunReportService', () => {
       report,
       expect.objectContaining({
         sqlOverride: expect.stringContaining('ctr'),
-        calculatedMetrics: [calculatedMetric],
+        calculatedFields: [calculatedField],
         // The metric's own name is excluded from columnFilter — it renders through
-        // calculatedMetrics, not the plain projection (or the reader double-emits its header).
+        // calculatedFields, not the plain projection (or the reader double-emits its header).
         columnFilter: ['clicks'],
       })
     );
@@ -969,12 +969,12 @@ describe('RunReportService', () => {
   // The blended twin of the test above: `compose` never runs on that branch, so the decision is
   // the metric's ONLY plan source. Without forwarding it, the blended SQL emits `ctr` while the
   // header list has no entry naming it — the reader streams a silent null for every row.
-  it("forwards the decision's calculatedMetrics on the blended branch", async () => {
+  it("forwards the decision's calculatedFields on the blended branch", async () => {
     const { service, reportReaderResolver, reportWriterResolver, blendedReportDataService } =
       createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     report.columnConfig = ['ctr', 'orders__amount'] as never;
-    const calculatedMetric = {
+    const calculatedField = {
       outputName: 'ctr',
       type: 'FLOAT',
       formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
@@ -983,7 +983,7 @@ describe('RunReportService', () => {
       needsBlending: true,
       blendedSql: 'WITH main AS (...) SELECT SUM(main.clicks) AS `ctr`, orders.orders__amount',
       columnFilter: ['orders__amount'],
-      calculatedMetrics: [calculatedMetric],
+      calculatedFields: [calculatedField],
     });
 
     const reader = createReader();
@@ -1004,7 +1004,7 @@ describe('RunReportService', () => {
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       report,
       expect.objectContaining({
-        calculatedMetrics: [calculatedMetric],
+        calculatedFields: [calculatedField],
         columnFilter: ['orders__amount'],
       })
     );

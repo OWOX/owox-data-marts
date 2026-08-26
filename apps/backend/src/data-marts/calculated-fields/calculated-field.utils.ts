@@ -1,5 +1,5 @@
 import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
-import type { CalculatedMetricPlan } from '../data-storage-types/utils/sql-clause-renderer';
+import type { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 import { liveFormulaReferences } from './formula-live-reference';
 import type { FormulaReference } from './formula-reference';
 import { isAggregateLevel, type CalculatedFieldLevel } from './formula-level';
@@ -94,7 +94,7 @@ export function readsJoinedDataMart(field: Pick<DataMartSchemaField, 'calculated
 }
 
 /**
- * The level to put on a field's `CalculatedMetricPlan` — the ONE seat that decides whether a
+ * The level to put on a field's `CalculatedFieldPlan` — the ONE seat that decides whether a
  * calculated field is a GROUP BY key.
  *
  * Re-derives rather than trusting the persisted level, which is a CACHE:
@@ -145,7 +145,7 @@ function formulaAggregatesUniversally(formula: string): boolean {
  * reads, flat and de-duplicated.
  *
  * A dependency is NOT a column, so it is carried inside the plan that needs it rather than beside it
- * in `calculatedMetrics`, which every downstream surface derives a projection and a header from.
+ * in `calculatedFields`, which every downstream surface derives a projection and a header from.
  *
  * FLAT, not nested: a cyclic schema would otherwise build a cyclic object graph out of plans that
  * travel through DTOs and a cache. The field that CLOSES a loop is kept in the closure — dropped,
@@ -156,9 +156,9 @@ function formulaAggregatesUniversally(formula: string): boolean {
 export function calculatedDependencyPlans(
   field: CalculatedSchemaField,
   schemaFields: readonly DataMartSchemaField[]
-): CalculatedMetricPlan[] | undefined {
+): CalculatedFieldPlan[] | undefined {
   const substitutable = substitutableFieldsByName(schemaFields);
-  const plans: CalculatedMetricPlan[] = [];
+  const plans: CalculatedFieldPlan[] = [];
   const planned = new Set<string>();
   const collect = (formula: string): void => {
     for (const ref of ownLiveReferences(formula)) {
@@ -183,26 +183,26 @@ export function calculatedDependencyPlans(
  * own channel, so leaving its name in a plain projection list double-handles it: once correctly,
  * once as a stray reference the header fallback does not know is already spoken for.
  */
-export function excludeCalculatedMetricNames(
+export function excludeCalculatedFieldNames(
   columnFilter: readonly string[] | undefined,
-  calculatedMetricNames: ReadonlySet<string>
+  calculatedFieldNames: ReadonlySet<string>
 ): string[] | undefined {
-  if (calculatedMetricNames.size === 0) return columnFilter as string[] | undefined;
-  return columnFilter?.filter(name => !calculatedMetricNames.has(name));
+  if (calculatedFieldNames.size === 0) return columnFilter as string[] | undefined;
+  return columnFilter?.filter(name => !calculatedFieldNames.has(name));
 }
 
 /**
- * The `columnFilter` to hand a reader alongside a composed plan's `calculatedMetrics`. Binding the
+ * The `columnFilter` to hand a reader alongside a composed plan's `calculatedFields`. Binding the
  * two in one function is what stops a caller forwarding the metrics while forgetting to strip their
  * names.
  */
-export function columnFilterWithoutCalculatedMetrics(
+export function columnFilterWithoutCalculatedFields(
   columnFilter: readonly string[] | undefined,
-  calculatedMetrics: readonly CalculatedMetricPlan[] | undefined
+  calculatedFields: readonly CalculatedFieldPlan[] | undefined
 ): string[] | undefined {
-  return excludeCalculatedMetricNames(
+  return excludeCalculatedFieldNames(
     columnFilter,
-    new Set((calculatedMetrics ?? []).map(metric => metric.outputName))
+    new Set((calculatedFields ?? []).map(metric => metric.outputName))
   );
 }
 
@@ -445,7 +445,7 @@ function joinedFieldState(
   ambiguousNames: ReadonlySet<string>
 ): JoinedFieldState {
   // Calculated first: it is the most specific thing true about the field, and it is the one a
-  // hidden calculated metric would otherwise be reported as merely hidden.
+  // hidden calculated field would otherwise be reported as merely hidden.
   if (field.isCalculated) return 'calculated';
   if (field.isHidden) return 'hidden';
   return ambiguousNames.has(buildBlendedFieldUnifiedName(field.aliasPath, field.originalFieldName))

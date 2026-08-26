@@ -134,12 +134,12 @@ describe('ReportTotalsService', () => {
   });
 
   // Defence-in-depth against a composeTotals result shaped like this (a stray SUM/AVG/MIN/MAX
-  // rule alongside the correct calculatedMetrics entry — the real deriveTotalsAggregations no
-  // longer produces one, since a calculated field is already an aggregate). ReportTotalsService
+  // rule alongside the correct calculatedFields entry — the real deriveTotalsAggregations no
+  // longer produces one, since an aggregate-level calculated field is already an aggregate). ReportTotalsService
   // must not let such rules reach the header list even so: the metric's name must be stripped
   // from columnFilter (or the aggregation-expansion loop turns one SQL column into four headers)
-  // and calculatedMetrics must be forwarded so the ONE correct, typed header is synthesized.
-  it('excludes a calculated metric from columnFilter and forwards calculatedMetrics for header synthesis', async () => {
+  // and calculatedFields must be forwarded so the ONE correct, typed header is synthesized.
+  it('excludes a calculated field from columnFilter and forwards calculatedFields for header synthesis', async () => {
     const composeTotals = jest.fn().mockResolvedValue({
       sql: 'SELECT SUM(`revenue`) AS `revenue | SUM`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`',
       params: [],
@@ -151,7 +151,7 @@ describe('ReportTotalsService', () => {
         { column: 'ctr', function: 'MIN' },
         { column: 'ctr', function: 'MAX' },
       ],
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'ctr',
           type: 'FLOAT',
@@ -166,9 +166,9 @@ describe('ReportTotalsService', () => {
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        // 'ctr' removed — it renders through calculatedMetrics, not the plain projection.
+        // 'ctr' removed — it renders through calculatedFields, not the plain projection.
         columnFilter: ['revenue'],
-        calculatedMetrics: [expect.objectContaining({ outputName: 'ctr', type: 'FLOAT' })],
+        calculatedFields: [expect.objectContaining({ outputName: 'ctr', type: 'FLOAT' })],
       })
     );
   });

@@ -20,11 +20,8 @@ import {
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
-import {
-  CalculatedMetricPlan,
-  SqlParameter,
-} from '../data-storage-types/utils/sql-clause-renderer';
-import { columnFilterWithoutCalculatedMetrics } from '../calculated-fields/calculated-field.utils';
+import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
@@ -351,16 +348,16 @@ export class StreamHttpDataService {
 
       let sqlOverride: string | undefined = decision.blendedSql;
       let sqlOverrideParams = decision.params;
-      let calculatedMetrics: CalculatedMetricPlan[] | undefined = decision.calculatedMetrics;
+      let calculatedFields: CalculatedFieldPlan[] | undefined = decision.calculatedFields;
       if (!decision.needsBlending && hasOutputControls(readPlan)) {
         const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
-        calculatedMetrics = composed.calculatedMetrics;
+        calculatedFields = composed.calculatedFields;
       }
-      const columnFilter = columnFilterWithoutCalculatedMetrics(
+      const columnFilter = columnFilterWithoutCalculatedFields(
         decision.columnFilter,
-        calculatedMetrics
+        calculatedFields
       );
 
       const executionSqlQuery = captureExecutionSql
@@ -381,7 +378,7 @@ export class StreamHttpDataService {
         uniqueCount: hasMainUniqueCount(readPlan.uniqueCountConfig),
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
-        calculatedMetrics,
+        calculatedFields,
       });
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
@@ -417,7 +414,7 @@ export class StreamHttpDataService {
       // the resolved header names. A report always projects by resolved headers — correct for both
       // an explicit columnConfig and a null (all-columns) config.
       //
-      // A selected calculated metric is the same class of case: it IS an aggregate
+      // A selected calculated field is the same class of case: it IS an aggregate
       // even when `aggregationConfig` itself is empty, so `aggregated` alone is a separate axis
       // from `hasOutputControls`'s own calculated-metric flip above — that one governs
       // header SYNTHESIS, this one governs which column NAMES `streamRows` looks each row value
@@ -425,7 +422,7 @@ export class StreamHttpDataService {
       // by NAME, so a name absent from `dataHeaders` resolves to index -1 and streams as a
       // silent `null` — the metric's own name and any header this composition renamed alike.
       const aggregated =
-        (readPlan.aggregationConfig?.length ?? 0) > 0 || (calculatedMetrics?.length ?? 0) > 0;
+        (readPlan.aggregationConfig?.length ?? 0) > 0 || (calculatedFields?.length ?? 0) > 0;
       const outputColumns =
         projectsByResolvedHeaders || aggregated
           ? description.dataHeaders.map(header => header.name)

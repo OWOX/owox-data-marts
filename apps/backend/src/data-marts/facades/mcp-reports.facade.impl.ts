@@ -707,11 +707,11 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * data mart's reportable columns instead, exactly as the web picker does when a joined
    * source's Unique Count is toggled on while the selection is still implicit (#6792).
    *
-   * A CALCULATED METRIC is excluded from that materialization: a metric enters a
-   * query only when someone selects it BY NAME, so `['*']` must never turn into one. This path is
+   * A CALCULATED FIELD is excluded from that materialization: one enters a query only when
+   * someone selects it BY NAME, so `['*']` must never turn into one. This path is
    * reached exactly when the report has a joined Unique Count — i.e. exactly when it is blended,
-   * where a selected metric is refused — so an agent's otherwise innocuous "keep all fields"
-   * update would persist a metric that fails every later run. The sibling create path maps
+   * where a selected calculated field is refused — so an agent's otherwise innocuous "keep all
+   * fields" update would persist one that fails every later run. The sibling create path maps
    * `['*']` to `null` and so cannot select one at all; this keeps the two in agreement.
    */
   private toUpdatedColumnConfig(fields: string[], current: ReportDto): ReportColumnConfig {

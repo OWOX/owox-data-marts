@@ -1,6 +1,6 @@
 import { DatabricksClauseRenderer } from './databricks-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
-import { CalculatedMetricPlan } from '../../utils/sql-clause-renderer';
+import { CalculatedFieldPlan } from '../../utils/sql-clause-renderer';
 
 function where(renderer: DatabricksClauseRenderer, rule: FilterRule, type?: string) {
   return renderer.renderWhere([rule], undefined, 'p', type ? () => type : undefined).sql;
@@ -212,7 +212,7 @@ describe('DatabricksClauseRenderer', () => {
   // this dialect, because Spark's `CAST(1.5 AS INT)` TRUNCATES where the other four round.
   describe('a Calculated Field comparison imposes the declared type', () => {
     const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
-    const numericText: CalculatedMetricPlan = {
+    const numericText: CalculatedFieldPlan = {
       outputName: 'probe',
       formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
       level: 'column',

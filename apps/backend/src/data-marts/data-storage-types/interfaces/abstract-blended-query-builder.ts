@@ -12,12 +12,12 @@ import {
 } from '../../dto/schemas/aggregate-function.schema';
 import {
   CalculatedFieldRenderOptions,
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   SqlClauseRenderer,
   SqlParameter,
   assertNoHavingRules,
   composePlainSelectBody,
-  hasAggregateCalculatedMetric,
+  hasAggregateCalculatedField,
 } from '../utils/sql-clause-renderer';
 import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
 import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
@@ -179,7 +179,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         qualifyColumn,
         timeZoneByColumn: buildTimeZoneMap(restrictionDateTruncs),
         typeByColumn: context.columnTypes?.postJoin,
-        calculatedMetrics: calculatedDimensions.length > 0 ? calculatedDimensions : undefined,
+        calculatedFields: calculatedDimensions.length > 0 ? calculatedDimensions : undefined,
         // The SAME object the outer SELECT and every sleeve render their formulas with: this
         // join clause is reused verbatim inside each sleeve, whose FROM is `main`, so the
         // expression must resolve there to the identical string.
@@ -330,7 +330,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    */
   private renderFormulaSleeveValue(
     plan: FormulaSleevePlan,
-    metric: CalculatedMetricPlan,
+    metric: CalculatedFieldPlan,
     context: BlendedQueryContext,
     aliasByJoinedField: ReadonlyMap<string, string>
   ): { valueSql: string; isIdentity: boolean } {
@@ -382,7 +382,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   }
 
   /**
-   * How ONE reference of a calculated metric's formula becomes SQL in the OUTER SELECT — the site
+   * How ONE reference of a calculated field's formula becomes SQL in the OUTER SELECT — the site
    * that renders every call this query did not lift into a sleeve.
    *
    * A joined reference resolves through its unified blended name, so it qualifies to
@@ -403,7 +403,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   }
 
   /**
-   * Refuses a calculated metric whose formula cannot be routed across Data Marts, before anything
+   * Refuses a calculated field whose formula cannot be routed across Data Marts, before anything
    * is emitted.
    *
    * `buildFormulaOwnerPlan` hands a mixed-owner call back as own-owner — there is no single grain at
@@ -416,7 +416,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    * `renderFormulaWithReplacements` as two overlapping spans and surfaces as a bare `Error` — a 500
    * whose body carries nothing the analyst can act on.
    */
-  private assertFormulaOwnershipIsRoutable(metrics: readonly CalculatedMetricPlan[]): void {
+  private assertFormulaOwnershipIsRoutable(metrics: readonly CalculatedFieldPlan[]): void {
     for (const metric of metrics) {
       const mixed = (metric.formulaOwnership?.violations ?? []).filter(
         v => v.kind === 'mixed-owner-call'
@@ -474,7 +474,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    * not against the plan.
    */
   private assertJoinedReferencesRouted(
-    metric: CalculatedMetricPlan,
+    metric: CalculatedFieldPlan,
     replacements: readonly FormulaSpanReplacement[],
     aliasByJoinedField: ReadonlyMap<string, string>,
     outputAliasToRoot: ReadonlyMap<string, string>
@@ -509,7 +509,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
     const uniqueCountSources = context.uniqueCountSources ?? [];
-    const calculatedMetrics = context.calculatedMetrics ?? [];
+    const calculatedFields = context.calculatedFields ?? [];
     const aggregated =
       (context.aggregations?.length ?? 0) > 0 ||
       (context.dateTruncs?.length ?? 0) > 0 ||
@@ -521,8 +521,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // the same and for the same reason: the field is the only thing that would have made the
       // query aggregated, so without this a report that filters on one without selecting it takes
       // the ungrouped branch, where its predicate belongs to no clause at all.
-      hasAggregateCalculatedMetric([
-        ...calculatedMetrics,
+      hasAggregateCalculatedField([
+        ...calculatedFields,
         ...(context.calculatedFilterMetrics ?? []),
       ]);
 
@@ -534,7 +534,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       aggregated ||
       // A ROW-LEVEL field leaves `aggregated` false, and only the renderer can spell its formula —
       // without this the column would be silently dropped rather than refused.
-      calculatedMetrics.length > 0;
+      calculatedFields.length > 0;
     if (hasOutputControls && this.clauseRenderer === null) {
       throw new NotImplementedException(
         `Output controls not yet supported for storage type ${this.type}`
@@ -549,7 +549,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
     // Every formula this query renders ANYWHERE, which is three things, not one:
-    //  - a Totals plan's row-level fields, absent from `calculatedMetrics` and travelling on the
+    //  - a Totals plan's row-level fields, absent from `calculatedFields` and travelling on the
     //    group restriction, but rendered by the kept-groups CTE;
     //  - a DEPENDENCY, since the outer SELECT emits the SUBSTITUTED text, so the columns behind it
     //    are the dependency's, not the reading field's;
@@ -558,7 +558,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // Miss any of them and the main raw CTE projects a formula's NAME, which no warehouse column
     // owns, and omits the columns the query actually reads: `Unrecognized name`, twice over.
     const renderedFormulas = [
-      ...calculatedMetrics,
+      ...calculatedFields,
       ...(context.calculatedFilterMetrics ?? []),
       ...(context.groupRestriction?.calculatedDimensions ?? []),
     ].flatMap(plan => [plan, ...(plan.dependencies ?? [])]);
@@ -606,7 +606,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // `buildAggregatedAliasResolver`'s bare-alias fallback), and unconditionally so — no warehouse
     // column can own a calculated field's name, so it must never reach the main raw CTE. The
     // restriction's own row-level fields are included: their NAMES arrive above with
-    // `groupRestriction.dimensions`, and stripping only `calculatedMetrics` left a Totals query
+    // `groupRestriction.dimensions`, and stripping only `calculatedFields` left a Totals query
     // emitting `SELECT session_key FROM <main table>` — `Unrecognized name`.
     for (const metric of renderedFormulas) referencedColumns.delete(metric.outputName);
 
@@ -653,20 +653,20 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // name; and a joined reference in a restriction dimension resolves to the joined mart's DEDUP
     // CTE, so Totals cover a different row set than the report shows.
     const routableFormulas = [
-      ...calculatedMetrics,
+      ...calculatedFields,
       ...(context.calculatedFilterMetrics ?? []),
       ...(context.groupRestriction?.calculatedDimensions ?? []),
     ];
 
-    // One sleeve per JOINED aggregate call of a calculated metric's formula. Planned and
+    // One sleeve per JOINED aggregate call of a calculated field's formula. Planned and
     // RENDERED here, ahead of the raw CTEs: a sleeve reading the owner's raw rows needs the row
     // identity projected into `<alias>_raw`, no aggregation rule mentions that chain, and only the
     // rendered classification says which sleeves those are.
     this.assertFormulaOwnershipIsRoutable(routableFormulas);
     const aliasByJoinedField = this.buildJoinedFieldAliasIndex(context.fieldIndex);
-    const metricByOutputName = new Map(calculatedMetrics.map(m => [m.outputName, m]));
+    const metricByOutputName = new Map(calculatedFields.map(m => [m.outputName, m]));
     const formulaSleeveInputs = planFormulaSleeves(
-      calculatedMetrics
+      calculatedFields
         .filter(metric => metric.formulaOwnership !== undefined)
         .map(metric => ({
           outputName: metric.outputName,
@@ -725,11 +725,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const formulaReplacements = new Map<string, FormulaSpanReplacement[]>();
     const calculatedFieldRenderOptions: CalculatedFieldRenderOptions = {
       qualifyColumn,
-      calculatedMetricReplacements: formulaReplacements,
+      calculatedFieldReplacements: formulaReplacements,
       // A joined call this query did not lift into a sleeve — a `COUNT`, which the report path
       // also computes here — still renders at this site, and its references must resolve to the
       // dedup CTE rather than to `main`.
-      resolveCalculatedMetricReference: ref =>
+      resolveCalculatedFieldReference: ref =>
         this.resolveFormulaReference(ref, aliasByJoinedField, qualifyColumn),
     };
 
@@ -786,7 +786,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // grain. Read off the plan, never re-derived from the level — a row-level field the report
       // aggregates is no longer a key, and leaving it here would put one more key in every sleeve
       // than the outer query has. The grain list stays names-only — see `SleeveCalculatedDimensions`.
-      const groupingKeyPlans = calculatedMetrics.filter(isCalculatedGroupingKey);
+      const groupingKeyPlans = calculatedFields.filter(isCalculatedGroupingKey);
       const calculatedDimensions =
         groupingKeyPlans.length > 0
           ? {
@@ -902,7 +902,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           // its rendered expression into `groupByParts` — which is why the sleeves above are handed
           // exactly those plans, and why the grain assertions counting that array hold either way.
           // Every plan travels here, key or not: the ones that are not still have to be PROJECTED.
-          calculatedMetrics: context.calculatedMetrics,
+          calculatedFields: context.calculatedFields,
           // The SAME object every sleeve rendered its calculated dimensions with, spread rather
           // than rebuilt: `qualifyColumn`, the replacement spans and the reference resolver.
           ...calculatedFieldRenderOptions,
@@ -1035,7 +1035,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         renderer.buildAggregatedAliasResolver(
           aliasByColumnWithSleeves,
           renderer.buildCalculatedSortExpressions(
-            calculatedMetrics,
+            calculatedFields,
             calculatedPredicateExpressions,
             context.aggregations ?? [],
             calculatedFieldRenderOptions
@@ -1065,7 +1065,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // sleeve, so a joined reference has nowhere to be routed and must be refused rather than
     // qualified against `main`.
     const calculatedSelectItems = renderer
-      ? renderer.renderCalculatedSelectItems(calculatedMetrics, calculatedFieldRenderOptions)
+      ? renderer.renderCalculatedSelectItems(calculatedFields, calculatedFieldRenderOptions)
       : [];
     for (const metric of routableFormulas) {
       this.assertJoinedReferencesRouted(metric, [], aliasByJoinedField, outputAliasToRoot);
@@ -1101,12 +1101,12 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           // A calculated field's name is a SELECT alias, never a column of any CTE: the qualifier
           // would emit `main.<name>` — an unrecognized name on every dialect.
           renderer.buildPlainSelectAliasResolver(
-            calculatedMetrics,
+            calculatedFields,
             qualifyColumn,
             // The ungrouped blended path has no report aggregations, same as a dialect's plain
             // branch.
             renderer.buildCalculatedSortExpressions(
-              calculatedMetrics,
+              calculatedFields,
               calculatedPredicateExpressions,
               [],
               calculatedFieldRenderOptions

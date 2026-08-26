@@ -5,7 +5,7 @@ import { DataStorageType } from '../enums/data-storage-type.enum';
 import { computeEffectiveType, integerTypeFor } from '../field-aggregation';
 import { isCalculatedGroupingKey } from '../../calculated-fields/calculated-plan-grain';
 import { isAggregateLevel } from '../../calculated-fields/formula-level';
-import type { CalculatedMetricPlan } from './sql-clause-renderer';
+import type { CalculatedFieldPlan } from './sql-clause-renderer';
 import type { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import {
   UNIQUE_COUNT_LABEL,
@@ -24,7 +24,7 @@ import {
  * A filtered name present in neither the native nor the blended headers still gets a placeholder
  * header, so an SQL override returning unknown columns still emits them.
  *
- * `calculatedMetrics` headers carry the analyst's DECLARED type — there is no warehouse column to
+ * `calculatedFields` headers carry the analyst's DECLARED type — there is no warehouse column to
  * derive one from.
  */
 export function resolveReportDataHeaders(
@@ -35,16 +35,16 @@ export function resolveReportDataHeaders(
   const filter = options?.columnFilter;
   const aggregations = options?.aggregationConfig ?? [];
   const uniqueCountSources = options?.uniqueCountSources ?? [];
-  const calculatedMetrics = options?.calculatedMetrics ?? [];
+  const calculatedFields = options?.calculatedFields ?? [];
   // The SAME predicate the SQL builder uses to emit `COUNT(DISTINCT pk)`: a primary key removed
   // after the report was saved drops the column, so it must drop the header too (F4).
   const mainUniqueCount =
     options?.uniqueCount === true && (options?.primaryKeyColumns?.length ?? 0) > 0;
   // A metrics-only query has no projected dimensions: the SELECT emits only the
   // synthetic metric / Unique Count / calculated-metric columns. This is the totals query, the
-  // uniqueCount-only report, and a report selecting ONLY a calculated metric — whose name a caller
+  // uniqueCount-only report, and a report selecting ONLY a calculated field — whose name a caller
   // may have stripped from `columnFilter`, leaving it empty.
-  // Without `calculatedMetrics` here, an empty `columnFilter` falls through to "every native
+  // Without `calculatedFields` here, an empty `columnFilter` falls through to "every native
   // header" below — a header list the SELECT (which projects exactly the metric) does not match:
   // a silent null on BigQuery/Snowflake/Databricks, a hard `Column ... not found` on
   // Athena/Redshift. It reads the GATED `mainUniqueCount`, not the raw flag: with the key gone
@@ -59,10 +59,10 @@ export function resolveReportDataHeaders(
     aggregations.length > 0 ||
     mainUniqueCount ||
     uniqueCountSources.length > 0 ||
-    calculatedMetrics.length > 0;
+    calculatedFields.length > 0;
 
   /**
-   * A calculated metric named by the filter is resolved HERE rather than by the caller.
+   * A calculated field named by the filter is resolved HERE rather than by the caller.
    *
    * Its name must not reach the native/blended lookup below — there is no warehouse column behind
    * it, so it would fall through to the `(col, col)` placeholder and publish an untyped header the
@@ -71,7 +71,7 @@ export function resolveReportDataHeaders(
    * unforgettable, and keeps the analyst's chosen POSITION, which a stripped filter has already
    * thrown away.
    */
-  const calculatedByName = new Map(calculatedMetrics.map(metric => [metric.outputName, metric]));
+  const calculatedByName = new Map(calculatedFields.map(metric => [metric.outputName, metric]));
   const placedCalculated = new Set<string>();
 
   let headers: ReportDataHeader[];
@@ -82,7 +82,7 @@ export function resolveReportDataHeaders(
       const metric = calculatedByName.get(col);
       if (metric) {
         placedCalculated.add(col);
-        return calculatedMetricHeaders(metric, aggregations, storageType);
+        return calculatedFieldHeaders(metric, aggregations, storageType);
       }
       const native = nativeByName.get(col);
       if (native) return [native];
@@ -106,7 +106,7 @@ export function resolveReportDataHeaders(
     // emits as output aliases. Readers bind by name, so only the labels must agree, not the
     // positions.
     headers = headers.flatMap(header => {
-      // A calculated metric's headers are already final — `calculatedMetricHeaders` applied the
+      // A calculated field's headers are already final — `calculatedFieldHeaders` applied the
       // LEVEL rule, which withholds expansion from an aggregate-level formula even when a rule
       // names it. Expanding again here would undo exactly that.
       if (calculatedByName.has(header.name)) return [header];
@@ -158,7 +158,7 @@ export function resolveReportDataHeaders(
     ];
   }
 
-  // A calculated metric is typed by the analyst's declaration; there is no warehouse column.
+  // A calculated field is typed by the analyst's declaration; there is no warehouse column.
   //
   // `aggregateFunction` stays undefined because no single report function describes a formula, so
   // the header carries the field's LEVEL instead. A bare `undefined` there reads as "ordinary
@@ -176,16 +176,16 @@ export function resolveReportDataHeaders(
   // in its own report still labelled `ctr`.
   // Only the ones the filter did not name: appended last, which is where a caller that stripped
   // the name itself — or a metrics-only query with no filter at all — leaves them.
-  for (const metric of calculatedMetrics) {
+  for (const metric of calculatedFields) {
     if (placedCalculated.has(metric.outputName)) continue;
-    headers = [...headers, ...calculatedMetricHeaders(metric, aggregations, storageType)];
+    headers = [...headers, ...calculatedFieldHeaders(metric, aggregations, storageType)];
   }
 
   return headers;
 }
 
 /**
- * A calculated metric is typed by the analyst's declaration; there is no warehouse column.
+ * A calculated field is typed by the analyst's declaration; there is no warehouse column.
  *
  * `aggregateFunction` stays undefined because no single report function describes a formula, so the
  * header carries the field's LEVEL instead. A bare `undefined` there reads as "ordinary native
@@ -202,8 +202,8 @@ export function resolveReportDataHeaders(
  * header source, and skipping them left a metric aliased "CTR, %" as the one column in its own
  * report still labelled `ctr`.
  */
-function calculatedMetricHeaders(
-  metric: CalculatedMetricPlan,
+function calculatedFieldHeaders(
+  metric: CalculatedFieldPlan,
   aggregations: AggregationRule[],
   storageType: DataStorageType
 ): ReportDataHeader[] {

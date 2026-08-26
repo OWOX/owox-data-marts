@@ -174,7 +174,7 @@ export function uniqueCountSleeveCteName(source: JoinedUniqueCountSleeve): strin
 }
 
 /**
- * One aggregate call of a calculated metric's formula that reads a JOINED Data Mart, and therefore
+ * One aggregate call of a calculated field's formula that reads a JOINED Data Mart, and therefore
  * needs its own sleeve: the blended query aggregates each joined source by its join key BEFORE
  * joining it in, so the outer SELECT cannot recompute `SUM(orders.amount)` from that collapsed CTE
  * without over- or under-counting on a fanning join.
@@ -183,7 +183,7 @@ export function uniqueCountSleeveCteName(source: JoinedUniqueCountSleeve): strin
  * `groupValueSleeveMetrics`' multi-column hazard entirely: the key is the call, not a column.
  */
 export interface FormulaSleevePlan {
-  /** Output name of the calculated metric whose formula this call belongs to. */
+  /** Output name of the calculated field whose formula this call belongs to. */
   metricOutputName: string;
   /** Index of the call in that metric's own `FormulaOwnerPlan.calls` — own-owner calls included. */
   callIndex: number;

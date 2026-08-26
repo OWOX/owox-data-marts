@@ -1,6 +1,6 @@
 import {
   CalculatedFieldRenderOptions,
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   ColumnRefResolver,
   SqlClauseRenderer,
   RenderedClause,
@@ -375,13 +375,13 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  describe('renderAggregatedSelect — calculated metrics (main-owner)', () => {
+  describe('renderAggregatedSelect — calculated fields (main-owner)', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
 
-    it('projects a main-owner calculated metric in the outer SELECT', () => {
+    it('projects a main-owner calculated field in the outer SELECT', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
         qualifyColumn: c => `main.${c}`,
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
         ],
       });
@@ -392,13 +392,13 @@ describe('SqlClauseRenderer', () => {
       expect(out.groupBySql).not.toContain('ctr');
     });
 
-    it('projects a calculated metric alongside a real aggregation on another column', () => {
+    it('projects a calculated field alongside a real aggregation on another column', () => {
       const out = r.renderAggregatedSelect(
         ['country', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
         undefined,
         {
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
           ],
         }
@@ -411,9 +411,9 @@ describe('SqlClauseRenderer', () => {
       expect(out.groupBySql).toBe('\nGROUP BY\n  "country"');
     });
 
-    it('projects a calculated metric alongside a date-trunc dimension', () => {
+    it('projects a calculated field alongside a date-trunc dimension', () => {
       const out = r.renderAggregatedSelect(['date'], [], new Map([['date', 'MONTH']]), {
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
         ],
       });
@@ -426,7 +426,7 @@ describe('SqlClauseRenderer', () => {
 
     it('renders a formula referencing a field the reporting menu hides — hidden is legal inside a formula', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'hidden_ratio',
             type: 'FLOAT',
@@ -443,7 +443,7 @@ describe('SqlClauseRenderer', () => {
 
     it('supports a metric with no dimensions at all — a single grand-total row, no GROUP BY', () => {
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
         ],
       });
@@ -451,7 +451,7 @@ describe('SqlClauseRenderer', () => {
       expect(out.groupBySql).toBe('');
     });
 
-    it('no calculatedMetrics option → legacy shape untouched', () => {
+    it('no calculatedFields option → legacy shape untouched', () => {
       const out = r.renderAggregatedSelect(['channel'], [{ column: 'channel', function: 'COUNT' }]);
       expect(out.selectSql).toBe('COUNT("channel") AS "channel | COUNT"');
     });
@@ -477,7 +477,7 @@ describe('SqlClauseRenderer', () => {
         ['country', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
         undefined,
-        { calculatedMetrics: [rowLevel] }
+        { calculatedFields: [rowLevel] }
       );
 
       expect(out.selectSql).toBe(
@@ -493,13 +493,13 @@ describe('SqlClauseRenderer', () => {
     // parallel `dimensions` list has to match this order, so state it rather than imply it.
     it('emits the row-level key LAST, after every column key', () => {
       const out = r.renderAggregatedSelect(['country', 'date'], [], new Map([['date', 'MONTH']]), {
-        calculatedMetrics: [rowLevel],
+        calculatedFields: [rowLevel],
       });
 
       expect(out.groupByParts).toEqual(['"country"', 'DATE_TRUNC("date", MONTH)', SESSION_KEY_SQL]);
     });
 
-    // `calculatedMetrics` is NOT the key order. An AGGREGATE-level plan contributes no key at all,
+    // `calculatedFields` is NOT the key order. An AGGREGATE-level plan contributes no key at all,
     // so the row-level keys are a FILTERED SUBSEQUENCE of that array — a caller pairing
     // `dimensions[i]` against the unfiltered list shifts every later key onto the wrong dimension,
     // and the kept-groups join is exactly such a caller (`buildKeptGroupsJoinPairs`).
@@ -511,7 +511,7 @@ describe('SqlClauseRenderer', () => {
         level: 'column' as const,
       };
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
           rowLevel,
           userKey,
@@ -533,7 +533,7 @@ describe('SqlClauseRenderer', () => {
     it('registers its output alias so ORDER BY resolves through the alias map', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
         qualifyColumn: c => `main.${c}`,
-        calculatedMetrics: [rowLevel],
+        calculatedFields: [rowLevel],
       });
 
       expect(out.aliasByColumn.get('session_key')).toBe('"session_key"');
@@ -542,7 +542,7 @@ describe('SqlClauseRenderer', () => {
     // An AGGREGATING formula keeps the shipped behaviour: projected, never a grouping key.
     it('leaves an aggregating calculated field out of the grouping keys', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
         ],
       });
@@ -560,7 +560,7 @@ describe('SqlClauseRenderer', () => {
       // The blended builder's own resolver shape (`resolveFormulaReference`): it resolves a
       // reference through the blend's unified names, INSTEAD of the plain column qualifier — spelled
       // differently here so a channel silently dropped shows up as a different string.
-      const resolveCalculatedMetricReference = (ref: FormulaReference): string =>
+      const resolveCalculatedFieldReference = (ref: FormulaReference): string =>
         `unified.${ref.path === '' ? ref.field : `${ref.path}__${ref.field}`}`;
       const USER_ID_TAG = '{{ref field="user_id"}}';
       const replacements: ReadonlyMap<string, readonly FormulaSpanReplacement[]> = new Map([
@@ -585,14 +585,14 @@ describe('SqlClauseRenderer', () => {
         ['a column qualifier', { qualifyColumn }, 'CONCAT(main.session_id, main.user_id)'],
         [
           'a caller-supplied reference resolver',
-          { qualifyColumn, resolveCalculatedMetricReference },
+          { qualifyColumn, resolveCalculatedFieldReference },
           'CONCAT(unified.session_id, unified.user_id)',
         ],
         // Empty for a row-level plan today — a formula with no aggregate call has no call to lift —
         // but nothing enforces that, so the method must honour the map rather than assume it away.
         [
           'a span replacement recorded for this plan',
-          { qualifyColumn, calculatedMetricReplacements: replacements },
+          { qualifyColumn, calculatedFieldReplacements: replacements },
           'CONCAT(main.session_id, sleeve_1._val)',
         ],
       ];
@@ -602,7 +602,7 @@ describe('SqlClauseRenderer', () => {
         (_label, opts, expected) => {
           const out = r.renderAggregatedSelect(['country'], [], undefined, {
             ...opts,
-            calculatedMetrics: [rowLevel],
+            calculatedFields: [rowLevel],
           });
           const outerKey = out.groupByParts[out.groupByParts.length - 1];
 
@@ -648,7 +648,7 @@ describe('SqlClauseRenderer', () => {
 
       it('projects and groups by the truncated expression, byte-identical', () => {
         const out = r.renderAggregatedSelect(['country'], [], MONTH, {
-          calculatedMetrics: [rowLevel],
+          calculatedFields: [rowLevel],
         });
 
         expect(out.selectSql).toBe(`"country",\n  ${BUCKETED} AS "session_key"`);
@@ -671,7 +671,7 @@ describe('SqlClauseRenderer', () => {
         ['FLOAT', 'the one the stub states a cast target for'],
       ])('adds no CAST around the expression, declared %s (%s)', type => {
         const out = r.renderAggregatedSelect([], [], MONTH, {
-          calculatedMetrics: [{ ...rowLevel, type }],
+          calculatedFields: [{ ...rowLevel, type }],
         });
 
         expect(out.groupByParts).toEqual([BUCKETED]);
@@ -686,7 +686,7 @@ describe('SqlClauseRenderer', () => {
           ['country'],
           [{ column: 'session_key', function: 'COUNT_DISTINCT' }] as AggregationRule[],
           MONTH,
-          { calculatedMetrics: [{ ...rowLevel, isAggregatedByReport: true }] }
+          { calculatedFields: [{ ...rowLevel, isAggregatedByReport: true }] }
         );
 
         expect(out.selectSql).not.toContain('DATE_TRUNC');
@@ -697,7 +697,7 @@ describe('SqlClauseRenderer', () => {
       // untouched by a bucket rule that should never have reached here.
       it('ignores a bucket on an aggregate-level field', () => {
         const out = r.renderAggregatedSelect(['country'], [], new Map([['ctr', 'MONTH']]), {
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' },
           ],
         });
@@ -711,7 +711,7 @@ describe('SqlClauseRenderer', () => {
       // the plan's own declared type as the type argument — a sleeve reading the type from
       // somewhere else is exactly the drift the join-back cannot survive.
       it('renders the bucketed key identically through the public seats', () => {
-        const out = r.renderAggregatedSelect([], [], MONTH, { calculatedMetrics: [rowLevel] });
+        const out = r.renderAggregatedSelect([], [], MONTH, { calculatedFields: [rowLevel] });
 
         expect(out.groupByParts[0]).toBe(
           r.renderDateTruncExpression(
@@ -736,7 +736,7 @@ describe('SqlClauseRenderer', () => {
 
       it('renders the aggregate over the expression and drops it from the grouping keys', () => {
         const out = r.renderAggregatedSelect(['country'], COUNT_UNIQUE, undefined, {
-          calculatedMetrics: [aggregated],
+          calculatedFields: [aggregated],
         });
 
         expect(out.selectSql).toBe(
@@ -758,7 +758,7 @@ describe('SqlClauseRenderer', () => {
             { column: 'session_key', function: 'COUNT' },
           ] as AggregationRule[],
           undefined,
-          { calculatedMetrics: [aggregated] }
+          { calculatedFields: [aggregated] }
         );
 
         expect(out.selectSql).toBe(
@@ -773,7 +773,7 @@ describe('SqlClauseRenderer', () => {
       // already fixed once in exactly this shape, on the other side of the same join-back.
       it('parenthesises the substituted expression', () => {
         const out = r.renderAggregatedSelect([], COUNT_UNIQUE, undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               ...aggregated,
               formula: `{{ref field="session_id"}} || '-' || {{ref field="user_id"}}`,
@@ -793,7 +793,7 @@ describe('SqlClauseRenderer', () => {
           ['country', 'revenue'],
           [{ column: 'revenue', function: 'SUM' }] as AggregationRule[],
           undefined,
-          { calculatedMetrics: [rowLevel] }
+          { calculatedFields: [rowLevel] }
         );
 
         expect(out.groupByParts).toEqual(['"country"', SESSION_KEY_SQL]);
@@ -808,7 +808,7 @@ describe('SqlClauseRenderer', () => {
           [{ column: 'ctr', function: 'SUM' }] as AggregationRule[],
           undefined,
           {
-            calculatedMetrics: [
+            calculatedFields: [
               { outputName: 'ctr', type: 'FLOAT', formula: CTR_FORMULA, level: 'metric' as const },
             ],
           }
@@ -826,7 +826,7 @@ describe('SqlClauseRenderer', () => {
       // then groups one key coarser than the report and Totals come back plausibly wrong.
       it('refuses a plan the report aggregates when this call carries no rule for it', () => {
         expect(() =>
-          r.renderAggregatedSelect(['country'], [], undefined, { calculatedMetrics: [aggregated] })
+          r.renderAggregatedSelect(['country'], [], undefined, { calculatedFields: [aggregated] })
         ).toThrow(/session_key/);
       });
 
@@ -839,7 +839,7 @@ describe('SqlClauseRenderer', () => {
       it('refuses an unstamped plan when this call DOES carry a rule for it', () => {
         expect(() =>
           r.renderAggregatedSelect(['country'], COUNT_UNIQUE, undefined, {
-            calculatedMetrics: [rowLevel],
+            calculatedFields: [rowLevel],
           })
         ).toThrow(/session_key/);
       });
@@ -888,7 +888,7 @@ describe('SqlClauseRenderer', () => {
         const havingLeftHandSide = (sql: string, param: string): string =>
           new RegExp(`\\nHAVING ([^\\n]+) = @${param}`).exec(sql)?.[1] ??
           `no HAVING bound to @${param} in:\n${sql}`;
-        const rate: CalculatedMetricPlan = {
+        const rate: CalculatedFieldPlan = {
           outputName: 'clicks_rate',
           type: 'FLOAT',
           formula: '{{ref field="clicks"}} * 1.0',
@@ -916,7 +916,7 @@ describe('SqlClauseRenderer', () => {
           columns: ['country'],
           aggregations: [{ column: 'clicks_rate', function: 'SUM' }] as AggregationRule[],
           filters: metricFilter,
-          calculatedMetrics: [rate],
+          calculatedFields: [rate],
         });
         // A calculated field stays out of the Totals plan's own metrics, so this query never
         // renders the aggregate itself — the restriction is the only place it can appear.
@@ -961,7 +961,7 @@ describe('SqlClauseRenderer', () => {
       // The probe's own fixture: two string columns concatenated to '10.5' and '2.25', on a field
       // the analyst declared a number. The true SUM is 12.75.
       const NUMERIC_TEXT_SQL = 'CONCAT("num_prefix", "num_suffix")';
-      const numericText: CalculatedMetricPlan = {
+      const numericText: CalculatedFieldPlan = {
         outputName: 'amount',
         type: 'FLOAT',
         formula: 'CONCAT({{ref field="num_prefix"}}, {{ref field="num_suffix"}})',
@@ -970,7 +970,7 @@ describe('SqlClauseRenderer', () => {
       };
       const selectFor = (fn: ReportAggregateFunction, type = 'FLOAT'): string =>
         rf.renderAggregatedSelect([], [{ column: 'amount', function: fn }], undefined, {
-          calculatedMetrics: [{ ...numericText, type }],
+          calculatedFields: [{ ...numericText, type }],
         }).selectSql;
 
       it('wraps the parenthesised expression in a cast, inside the aggregate', () => {
@@ -1046,7 +1046,7 @@ describe('SqlClauseRenderer', () => {
       it('never reaches the grouping key or the plain projection of the same field', () => {
         const key = { ...numericText, isAggregatedByReport: false };
         const out = rf.renderAggregatedSelect(['country'], [], undefined, {
-          calculatedMetrics: [key],
+          calculatedFields: [key],
         });
 
         expect(out.groupByParts).toEqual(['"country"', NUMERIC_TEXT_SQL]);
@@ -1059,7 +1059,7 @@ describe('SqlClauseRenderer', () => {
       // at all, so there is no arithmetic of ours to impose a type on.
       it('never casts an aggregate-level formula, which no aggregation wraps', () => {
         const out = rf.renderAggregatedSelect(['country'], [], undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'ctr',
               type: 'FLOAT',
@@ -1128,7 +1128,7 @@ describe('SqlClauseRenderer', () => {
   // SQL over the WRONG column when main happens to own one of that name. The second shape is what
   // let a save-time dry run go green and stamp `warehouseValidation: 'passed'` for a query the
   // warehouse never saw.
-  describe('renderAggregatedSelect — a calculated metric that reads a JOINED Data Mart', () => {
+  describe('renderAggregatedSelect — a calculated field that reads a JOINED Data Mart', () => {
     const JOINED_FORMULA =
       'SUM({{ref field="clicks"}}) * SUM({{ref path="orders" field="amount"}})';
 
@@ -1136,7 +1136,7 @@ describe('SqlClauseRenderer', () => {
       expect(() =>
         r.renderAggregatedSelect(['country'], [], undefined, {
           qualifyColumn: c => `main.${c}`,
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'rpc', type: 'FLOAT', formula: JOINED_FORMULA, level: 'metric' },
           ],
         })
@@ -1150,7 +1150,7 @@ describe('SqlClauseRenderer', () => {
       expect(() =>
         r.renderAggregatedSelect(['amount'], [{ column: 'amount', function: 'SUM' }], undefined, {
           qualifyColumn: c => `main.${c}`,
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'rpc', type: 'FLOAT', formula: JOINED_FORMULA, level: 'metric' },
           ],
         })
@@ -1162,7 +1162,7 @@ describe('SqlClauseRenderer', () => {
     it('renders a metric whose only joined reference is commented out', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
         qualifyColumn: c => `main.${c}`,
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'rpc',
             type: 'FLOAT',
@@ -1182,7 +1182,7 @@ describe('SqlClauseRenderer', () => {
       let caught: unknown;
       try {
         r.renderAggregatedSelect(['country'], [], undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'roi',
               type: 'FLOAT',
@@ -1208,10 +1208,10 @@ describe('SqlClauseRenderer', () => {
       ];
       expect(() =>
         r.renderAggregatedSelect(['country'], [], undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             { outputName: 'rpc', type: 'FLOAT', formula: JOINED_FORMULA, level: 'metric' },
           ],
-          calculatedMetricReplacements: new Map([['rpc', spans]]),
+          calculatedFieldReplacements: new Map([['rpc', spans]]),
         })
       ).toThrow(/Overlapping formula span replacements/);
     });
@@ -1222,10 +1222,10 @@ describe('SqlClauseRenderer', () => {
       const start = JOINED_FORMULA.indexOf('SUM({{ref path=');
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
         qualifyColumn: c => `main.${c}`,
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'rpc', type: 'FLOAT', formula: JOINED_FORMULA, level: 'metric' },
         ],
-        calculatedMetricReplacements: new Map([
+        calculatedFieldReplacements: new Map([
           ['rpc', [{ start, end: JOINED_FORMULA.length, sql: 'sleeve_1._val' }]],
         ]),
       });
@@ -1237,19 +1237,19 @@ describe('SqlClauseRenderer', () => {
   // field's plan travels inside `dependencies` and is substituted here, at compose time — never
   // persisted, so editing the referenced formula reaches every formula that reads it.
   describe('renderAggregatedSelect — a formula referencing another formula', () => {
-    const revenue: CalculatedMetricPlan = {
+    const revenue: CalculatedFieldPlan = {
       outputName: 'revenue',
       type: 'FLOAT',
       formula: 'SUM({{ref field="amount"}})',
       level: 'metric',
     };
-    const cost: CalculatedMetricPlan = {
+    const cost: CalculatedFieldPlan = {
       outputName: 'cost',
       type: 'FLOAT',
       formula: 'SUM({{ref field="spend"}})',
       level: 'metric',
     };
-    const roas: CalculatedMetricPlan = {
+    const roas: CalculatedFieldPlan = {
       outputName: 'roas',
       type: 'FLOAT',
       formula: '{{ref field="revenue"}} / NULLIF({{ref field="cost"}}, 0)',
@@ -1262,7 +1262,7 @@ describe('SqlClauseRenderer', () => {
     // column exists, and a valid read of the WRONG column if one does.
     it('substitutes each referenced formula and projects the metric alone', () => {
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
-        calculatedMetrics: [roas],
+        calculatedFields: [roas],
       });
 
       expect(out.selectSql).toBe(
@@ -1277,14 +1277,14 @@ describe('SqlClauseRenderer', () => {
     // warehouse and a DIFFERENT number from `x / (a + b)` — no error, no signal. Same class as the
     // Redshift `||` re-binding this branch already had to fix once.
     it('parenthesises a substituted expression so its top-level operator cannot re-bind', () => {
-      const totalCost: CalculatedMetricPlan = {
+      const totalCost: CalculatedFieldPlan = {
         outputName: 'total_cost',
         type: 'FLOAT',
         formula: 'SUM({{ref field="media"}}) + SUM({{ref field="fees"}})',
         level: 'metric',
       };
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'roi',
             type: 'FLOAT',
@@ -1300,20 +1300,20 @@ describe('SqlClauseRenderer', () => {
 
     // The closure is transitive, and every level looks names up in the SAME flat list.
     it('substitutes a chain of dependencies, not just the first hop', () => {
-      const base: CalculatedMetricPlan = {
+      const base: CalculatedFieldPlan = {
         outputName: 'base',
         type: 'FLOAT',
         formula: 'SUM({{ref field="amount"}})',
         level: 'metric',
       };
-      const middle: CalculatedMetricPlan = {
+      const middle: CalculatedFieldPlan = {
         outputName: 'middle',
         type: 'FLOAT',
         formula: '{{ref field="base"}} * 2',
         level: 'metric',
       };
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'top',
             type: 'FLOAT',
@@ -1330,26 +1330,26 @@ describe('SqlClauseRenderer', () => {
     // A diamond is LEGAL — two formulas may read the same third one. This is what a visited set
     // that never unwinds gets wrong, and the only test standing there for the renderer's guard.
     it('expands the same dependency on two branches without calling it a cycle', () => {
-      const shared: CalculatedMetricPlan = {
+      const shared: CalculatedFieldPlan = {
         outputName: 'shared',
         type: 'FLOAT',
         formula: 'SUM({{ref field="amount"}})',
         level: 'metric',
       };
-      const left: CalculatedMetricPlan = {
+      const left: CalculatedFieldPlan = {
         outputName: 'left',
         type: 'FLOAT',
         formula: '{{ref field="shared"}} + 1',
         level: 'metric',
       };
-      const right: CalculatedMetricPlan = {
+      const right: CalculatedFieldPlan = {
         outputName: 'right',
         type: 'FLOAT',
         formula: '{{ref field="shared"}} + 2',
         level: 'metric',
       };
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'top',
             type: 'FLOAT',
@@ -1367,13 +1367,13 @@ describe('SqlClauseRenderer', () => {
     // validation. Unguarded, the substitution recurses for ever: a stack overflow, i.e. a
     // 500 carrying no field name at all. Kills "expand without the guard".
     it('refuses a cycle by name instead of overflowing the stack', () => {
-      const a: CalculatedMetricPlan = {
+      const a: CalculatedFieldPlan = {
         outputName: 'a',
         type: 'FLOAT',
         formula: '{{ref field="b"}} + 1',
         level: 'metric',
       };
-      const b: CalculatedMetricPlan = {
+      const b: CalculatedFieldPlan = {
         outputName: 'b',
         type: 'FLOAT',
         formula: '{{ref field="a"}} * 2',
@@ -1382,7 +1382,7 @@ describe('SqlClauseRenderer', () => {
       let caught: unknown;
       try {
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [{ ...a, dependencies: [b, a] }],
+          calculatedFields: [{ ...a, dependencies: [b, a] }],
         });
       } catch (e) {
         caught = e;
@@ -1394,7 +1394,7 @@ describe('SqlClauseRenderer', () => {
 
     // The self-reference guard the own-mart refusal used to provide incidentally.
     it('refuses a formula that references itself', () => {
-      const self: CalculatedMetricPlan = {
+      const self: CalculatedFieldPlan = {
         outputName: 'a',
         type: 'FLOAT',
         formula: '{{ref field="a"}} + 1',
@@ -1402,7 +1402,7 @@ describe('SqlClauseRenderer', () => {
       };
       expect(() =>
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [{ ...self, dependencies: [self] }],
+          calculatedFields: [{ ...self, dependencies: [self] }],
         })
       ).toThrow(/a → a/);
     });
@@ -1414,7 +1414,7 @@ describe('SqlClauseRenderer', () => {
     // re-fires on every report run, Looker refresh, MCP query and HTTP Data stream, not just at
     // save. No cycle is involved, so the guard above never sees it.
     it('refuses an expansion that doubles at every level instead of building it', () => {
-      const chain: CalculatedMetricPlan[] = [
+      const chain: CalculatedFieldPlan[] = [
         { outputName: 'a0', type: 'FLOAT', formula: `'${'x'.repeat(200)}'`, level: 'metric' },
       ];
       for (let i = 1; i <= 20; i++) {
@@ -1429,7 +1429,7 @@ describe('SqlClauseRenderer', () => {
 
       expect(() =>
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [{ ...top, dependencies: chain.slice(0, -1) }],
+          calculatedFields: [{ ...top, dependencies: chain.slice(0, -1) }],
         })
       ).toThrow(/cannot be computed: expanding its formula/);
     });
@@ -1437,7 +1437,7 @@ describe('SqlClauseRenderer', () => {
     // The budget must not fire on an ordinary chain. Twenty formulas deep, each referencing the
     // previous ONCE, is linear and stays far below it.
     it('expands a long linear chain without tripping the budget', () => {
-      const chain: CalculatedMetricPlan[] = [
+      const chain: CalculatedFieldPlan[] = [
         { outputName: 'b0', type: 'FLOAT', formula: `'${'x'.repeat(200)}'`, level: 'metric' },
       ];
       for (let i = 1; i <= 20; i++) {
@@ -1452,7 +1452,7 @@ describe('SqlClauseRenderer', () => {
 
       expect(() =>
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [{ ...top, dependencies: chain.slice(0, -1) }],
+          calculatedFields: [{ ...top, dependencies: chain.slice(0, -1) }],
         })
       ).not.toThrow();
     });
@@ -1463,7 +1463,7 @@ describe('SqlClauseRenderer', () => {
     // must therefore never see a dependency's references — even though, as here, it would happily
     // resolve them. Kills "pass the whole render options down into the dependency".
     it('refuses a joined reference reached through a substituted dependency', () => {
-      const joinedRevenue: CalculatedMetricPlan = {
+      const joinedRevenue: CalculatedFieldPlan = {
         outputName: 'joined_revenue',
         type: 'FLOAT',
         formula: 'SUM({{ref path="orders" field="amount"}})',
@@ -1473,9 +1473,9 @@ describe('SqlClauseRenderer', () => {
       try {
         r.renderAggregatedSelect([], [], undefined, {
           qualifyColumn: c => `main."${c}"`,
-          resolveCalculatedMetricReference: ref =>
+          resolveCalculatedFieldReference: ref =>
             ref.path ? `orders_cte."${ref.field}"` : `main."${ref.field}"`,
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'roas',
               type: 'FLOAT',
@@ -1503,13 +1503,13 @@ describe('SqlClauseRenderer', () => {
     // Three hops: the refusal still names the SELECTED field, not the intermediate one it was
     // reached through. Kills "name the field one level up".
     it('names the selected field for a joined reference two dependencies down', () => {
-      const leaf: CalculatedMetricPlan = {
+      const leaf: CalculatedFieldPlan = {
         outputName: 'leaf',
         type: 'FLOAT',
         formula: 'SUM({{ref path="orders" field="amount"}})',
         level: 'metric',
       };
-      const middle: CalculatedMetricPlan = {
+      const middle: CalculatedFieldPlan = {
         outputName: 'middle',
         type: 'FLOAT',
         formula: '{{ref field="leaf"}} * 2',
@@ -1518,7 +1518,7 @@ describe('SqlClauseRenderer', () => {
       let caught: unknown;
       try {
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'roas',
               type: 'FLOAT',
@@ -1545,7 +1545,7 @@ describe('SqlClauseRenderer', () => {
       let caught: unknown;
       try {
         r.renderAggregatedSelect([], [], undefined, {
-          calculatedMetrics: [
+          calculatedFields: [
             {
               outputName: 'rpc',
               type: 'FLOAT',
@@ -1564,7 +1564,7 @@ describe('SqlClauseRenderer', () => {
     it("qualifies a dependency's own references exactly as the outer formula's", () => {
       const out = r.renderAggregatedSelect([], [], undefined, {
         qualifyColumn: c => `main.${c}`,
-        calculatedMetrics: [roas],
+        calculatedFields: [roas],
       });
 
       expect(out.selectSql).toBe('(SUM(main.amount)) / NULLIF((SUM(main.spend)), 0) AS "roas"');
@@ -1573,14 +1573,14 @@ describe('SqlClauseRenderer', () => {
     // A row-level formula over another row-level formula stays a grouping key, and the report
     // groups by ITS OWN whole expression — the dependency contributes no key of its own.
     it('groups a row-level formula by its whole substituted expression, and by nothing else', () => {
-      const initials: CalculatedMetricPlan = {
+      const initials: CalculatedFieldPlan = {
         outputName: 'initials',
         type: 'STRING',
         formula: 'CONCAT({{ref field="first"}}, {{ref field="last"}})',
         level: 'column',
       };
       const out = r.renderAggregatedSelect(['country'], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'session_key',
             type: 'STRING',
@@ -1602,14 +1602,14 @@ describe('SqlClauseRenderer', () => {
     // `b` for a tag inside `b`'s own comment and refuses `b → b`: a legal, saved schema made
     // permanently unrunnable, named after a loop that is not in the SQL.
     it('does not substitute a reference that sits inside a SQL comment', () => {
-      const b: CalculatedMetricPlan = {
+      const b: CalculatedFieldPlan = {
         outputName: 'b',
         type: 'FLOAT',
         formula: 'SUM({{ref field="x"}})\n-- was {{ref field="b"}}',
         level: 'metric',
       };
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'a',
             type: 'FLOAT',
@@ -1628,7 +1628,7 @@ describe('SqlClauseRenderer', () => {
     // by a dependency's multi-line expression puts that expression's later lines on LIVE lines,
     // escaping the comment. Kills "substitute every parsed reference".
     it('leaves a commented-out reference in the outer formula as a single token', () => {
-      const b: CalculatedMetricPlan = {
+      const b: CalculatedFieldPlan = {
         outputName: 'b',
         type: 'STRING',
         formula: 'CASE WHEN {{ref field="x"}} > 0\n THEN 1 ELSE 0 END',
@@ -1652,14 +1652,14 @@ describe('SqlClauseRenderer', () => {
     // dangerous: spliced inline, `(SUM("x") -- note)` puts the closing parenthesis, and everything
     // the outer formula writes after it, inside the comment. Kills the inline `(${expression})`.
     it('closes a substituted expression on its own line when the expression ends in a comment', () => {
-      const b: CalculatedMetricPlan = {
+      const b: CalculatedFieldPlan = {
         outputName: 'b',
         type: 'FLOAT',
         formula: 'SUM({{ref field="x"}}) -- net of refunds',
         level: 'metric',
       };
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'a',
             type: 'FLOAT',
@@ -1676,7 +1676,7 @@ describe('SqlClauseRenderer', () => {
     // The PLAIN (non-aggregated) shape shares one render step with the grouped one, so a report
     // whose only calculated field is row-level must substitute identically.
     it('substitutes in the plain SELECT shape too', () => {
-      const initials: CalculatedMetricPlan = {
+      const initials: CalculatedFieldPlan = {
         outputName: 'initials',
         type: 'STRING',
         formula: 'CONCAT({{ref field="first"}}, {{ref field="last"}})',
@@ -1712,7 +1712,7 @@ describe('SqlClauseRenderer', () => {
     // is asserted as well as the swallowed alias.
     it('keeps a metric’s own alias and the next select item out of its trailing comment', () => {
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'a',
             type: 'FLOAT',
@@ -1732,7 +1732,7 @@ describe('SqlClauseRenderer', () => {
     // that dropped one instead of restoring the comma fails here too.
     it('keeps the next grouping key out of a row-level formula’s trailing comment', () => {
       const out = r.renderAggregatedSelect([], [], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'k1',
             type: 'STRING',
@@ -1762,7 +1762,7 @@ describe('SqlClauseRenderer', () => {
     // through — which is exactly the invariant the last test in this block pins.
     it('closes the report’s aggregate wrapper and its cast outside the trailing comment', () => {
       const out = r.renderAggregatedSelect([], [{ column: 'a', function: 'SUM' }], undefined, {
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'a',
             type: 'FLOAT',
@@ -1831,7 +1831,7 @@ describe('SqlClauseRenderer', () => {
     // sleeve joins back on that key. Terminating the comment at each CALL SITE instead of at the
     // one render step they share passes every other test in this repo and fails only this one.
     it('renders a grouping key identically through both seats, comment and all', () => {
-      const plan: CalculatedMetricPlan = {
+      const plan: CalculatedFieldPlan = {
         outputName: 'k',
         type: 'STRING',
         formula: 'CONCAT({{ref field="x"}}) -- tail',
@@ -1839,7 +1839,7 @@ describe('SqlClauseRenderer', () => {
       };
 
       expect(
-        r.renderAggregatedSelect([], [], undefined, { calculatedMetrics: [plan] }).groupByParts[0]
+        r.renderAggregatedSelect([], [], undefined, { calculatedFields: [plan] }).groupByParts[0]
       ).toBe(r.renderRowLevelDimensionExpression(plan, {}));
     });
   });
@@ -2035,7 +2035,7 @@ describe('SqlClauseRenderer', () => {
       ['Redshift', new RedshiftClauseRenderer(), 'DOUBLE PRECISION'],
       ['Databricks', new DatabricksClauseRenderer(), 'DOUBLE'],
     ];
-    const planFor = (declaredType: string): CalculatedMetricPlan => ({
+    const planFor = (declaredType: string): CalculatedFieldPlan => ({
       outputName: 'probe',
       formula: '{{ref field="a"}}',
       level: 'column',
@@ -2086,7 +2086,7 @@ describe('SqlClauseRenderer', () => {
   // value's JS type then decided the comparison, measured flipping BigQuery and Athena between a
   // hard error and the right answer for `= 10` versus `= '10'` over one field.
   describe('buildFilterTypeResolver', () => {
-    const ctr: CalculatedMetricPlan = {
+    const ctr: CalculatedFieldPlan = {
       outputName: 'ctr',
       formula: 'SUM({{ref field="clicks"}})',
       level: 'metric',
@@ -2228,13 +2228,13 @@ describe('SqlClauseRenderer', () => {
     const CTR_SQL = 'SUM("clicks") / NULLIF(SUM("impressions"), 0)';
     const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
     const SESSION_KEY_SQL = 'CONCAT("session_id", "user_id")';
-    const ctr: CalculatedMetricPlan = {
+    const ctr: CalculatedFieldPlan = {
       outputName: 'ctr',
       type: 'FLOAT',
       formula: CTR_FORMULA,
       level: 'metric',
     };
-    const sessionKey: CalculatedMetricPlan = {
+    const sessionKey: CalculatedFieldPlan = {
       outputName: 'session_key',
       type: 'STRING',
       formula: SESSION_KEY_FORMULA,
@@ -2580,7 +2580,7 @@ describe('renderAggregatedQuery — a metric filter compares the aggregate the S
       qualifyProjection: undefined,
       typeByColumn: undefined,
       resolveColumnType: undefined,
-      calculatedMetrics:
+      calculatedFields:
         column === METRIC
           ? [
               {

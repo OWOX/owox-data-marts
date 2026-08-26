@@ -66,7 +66,7 @@ export const FormulaViolations = {
   // new outcome — but deliberately NOT the same sentence: told only "already an
   // aggregate", an analyst looking at a Unique Count measure has nothing to change, while one
   // looking at a calculated field has another formula to open. The wording is what carries that.
-  calculatedMetricOnAggregate: (field: string, ref: string): FormulaViolation => ({
+  calculatedFieldOnAggregate: (field: string, ref: string): FormulaViolation => ({
     code: 'FORMULA_AGGREGATE_ON_AGGREGATE',
     field,
     subject: ref,

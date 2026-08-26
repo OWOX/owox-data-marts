@@ -67,12 +67,12 @@ describe('BigQueryReportReader queryTimeoutMs threading (Phase 3)', () => {
 });
 
 // Real-execution-path pin (not just resolveReportDataHeaders in isolation): a report selecting a
-// native dimension AND a calculated metric must come back with BOTH headers, in selection order,
+// native dimension AND a calculated field must come back with BOTH headers, in selection order,
 // with no duplicate — the "silently blank column in Sheets / Looker Studio" failure class the
 // header work exists to prevent. Uses the REAL BigQueryReportHeadersGenerator (which already
 // excludes calculated fields from the native list — see its own isCalculatedField check) so this
 // proves the two mechanisms compose correctly, not just that each is individually correct.
-describe('BigQueryReportReader — calculated metric header on the real read path', () => {
+describe('BigQueryReportReader — calculated field header on the real read path', () => {
   const buildReaderWithRealHeadersGenerator = () => {
     const adapter = {
       executeQuery: jest.fn().mockResolvedValue({ jobId: 'job-1' }),
@@ -133,14 +133,14 @@ describe('BigQueryReportReader — calculated metric header on the real read pat
     // Mirrors what every real caller of prepareReportData now does (RunReportService,
     // ReportDataCacheService, StreamHttpDataService, QueryDataMartService): the composed SQL is
     // passed as sqlOverride, the metric's own name is EXCLUDED from columnFilter (it renders
-    // through calculatedMetrics, not the plain projection), and calculatedMetrics is forwarded
+    // through calculatedFields, not the plain projection), and calculatedFields is forwarded
     // for header synthesis.
     const description = await reader.prepareReportData(reportWithCtr(), {
       sqlOverride:
         'SELECT `country`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr` ' +
         'FROM `p`.`d`.`t` GROUP BY `country`',
       columnFilter: ['country'],
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'ctr',
           type: 'FLOAT',
@@ -158,7 +158,7 @@ describe('BigQueryReportReader — calculated metric header on the real read pat
   });
 
   // This used to pin the opposite: a caller that left 'ctr' in `columnFilter` got TWO headers for
-  // it, and `excludeCalculatedMetricNames` at five call sites was all that stood between that and
+  // it, and `excludeCalculatedFieldNames` at five call sites was all that stood between that and
   // production. `resolveReportDataHeaders` now resolves the name itself, so the shape below is
   // simply correct — and it keeps the analyst's position, which the exclusion threw away.
   it('resolves a calculated name the caller left in columnFilter, once and in place', async () => {
@@ -167,7 +167,7 @@ describe('BigQueryReportReader — calculated metric header on the real read pat
     const description = await reader.prepareReportData(reportWithCtr(), {
       sqlOverride: 'SELECT 1',
       columnFilter: ['ctr', 'country'],
-      calculatedMetrics: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
+      calculatedFields: [{ outputName: 'ctr', type: 'FLOAT', formula: '…', level: 'metric' }],
     });
 
     expect(description.dataHeaders.filter(h => h.name === 'ctr')).toHaveLength(1);

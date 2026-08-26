@@ -68,12 +68,12 @@ describe('SnowflakeQueryBuilder', () => {
 
   // The calculated-metric flip is a per-dialect copy of the same two gates (output-controls
   // path, then aggregated path), and a copy is not self-verifying: the legacy BigQuery builder
-  // shipped with `calculatedMetrics` missing from its own gate, emitting SQL without the metric
+  // shipped with `calculatedFields` missing from its own gate, emitting SQL without the metric
   // while the header was still synthesized. Pinned per dialect so the next copy cannot repeat it.
   it('routes a calculated-metric-only request onto the aggregated path', () => {
     const sql = build().buildQuery(tableDef, {
       columns: ['country'],
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'ctr',
           type: 'FLOAT',
@@ -95,7 +95,7 @@ describe('SnowflakeQueryBuilder', () => {
     const sql = build().buildQuery(tableDef, {
       columns: ['country'],
       sort: [{ column: 'session_key', direction: 'asc' }],
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'session_key',
           type: 'VARCHAR',
@@ -116,7 +116,7 @@ describe('SnowflakeQueryBuilder', () => {
   it('projects a row-level calculated field alone, without a wildcard', () => {
     const sql = build().buildQuery(tableDef, {
       columns: [],
-      calculatedMetrics: [
+      calculatedFields: [
         {
           outputName: 'session_key',
           type: 'VARCHAR',
@@ -130,7 +130,7 @@ describe('SnowflakeQueryBuilder', () => {
   });
 
   // Ported from bigquery-query.builder.spec.ts. All five builders carry the same line —
-  // `hasAggregateCalculatedMetric([...calculatedMetrics, ...calculatedFilterMetrics])` — and it was
+  // `hasAggregateCalculatedField([...calculatedFields, ...calculatedFilterMetrics])` — and it was
   // asserted on two of them. Drop `calculatedFilterMetrics` from the spread here and this dialect
   // takes the PLAIN branch, where `assertNoHavingRules` throws a bare Error: a 500 for an ordinary
   // report ("countries where CTR > 0.5, without showing CTR").

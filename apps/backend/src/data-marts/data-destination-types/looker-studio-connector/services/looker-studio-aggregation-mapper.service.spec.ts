@@ -291,7 +291,7 @@ describe('LookerStudioAggregationMapperService', () => {
   });
 
   // A ROW-LEVEL formula is a dimension: the SQL always makes it a GROUP BY key,
-  // so it arrives in Looker under Dimensions — which is what `.changeset/6732-calculated-metrics.md`
+  // so it arrives in Looker under Dimensions — which is what `.changeset/6732-calculated-fields.md`
   // and the setup guide both promise. The level has to ARRIVE here for that: deriving it from
   // `dataType` is what the METRIC branch above deliberately refuses to do, and the declared type is
   // the analyst's own free choice, so it cannot stand in for the level.
@@ -387,7 +387,7 @@ describe('LookerStudioAggregationMapperService', () => {
 
     // An AGGREGATING formula is non-additive whatever function reaches here, so its arm stays
     // FIRST and never falls through to the switch. No rule may legally name such a field
-    // (AGGREGATION_ON_CALCULATED_METRIC), and a stray one must not turn a ratio into a summable
+    // (AGGREGATION_ON_CALCULATED_FIELD), and a stray one must not turn a ratio into a summable
     // metric.
     it("leaves level 'metric' on its own answer even when a function arrives", () => {
       expect(

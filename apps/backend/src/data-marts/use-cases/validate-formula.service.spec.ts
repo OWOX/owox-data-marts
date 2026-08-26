@@ -604,7 +604,7 @@ describe('ValidateFormulaService', () => {
   });
 
   // The regression itself, spelled out rather than left implicit in the loop above: the type the
-  // Snowflake table hands a brand-new Calculated Metric row is one this enum does not carry, and
+  // Snowflake table hands a brand-new Calculated Field row is one this enum does not carry, and
   // the analyst has to be TOLD that rather than shown an empty panel.
   it('answers, rather than throws, for the type a new Snowflake metric row is born with', async () => {
     const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });

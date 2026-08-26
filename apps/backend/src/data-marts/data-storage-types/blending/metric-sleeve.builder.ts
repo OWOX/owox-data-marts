@@ -131,7 +131,7 @@ export class MetricSleeveBuilder {
       resolveColumnType?: ColumnTypeResolver;
       keptGroups?: { join: string; dimensions: string[] };
       /**
-       * One entry per JOINED aggregate call of a calculated metric's formula, planned by
+       * One entry per JOINED aggregate call of a calculated field's formula, planned by
        * `planFormulaSleeves`. `valueSql` is that call's argument already rendered against the owner
        * — the caller owns ref resolution and the classification `isIdentity` records, because only
        * it can see which fields the expression reads.
@@ -299,7 +299,7 @@ export class MetricSleeveBuilder {
             calculatedDimensions
           ),
       })),
-      // Formula sleeves come after even those, for the same reason: selecting a calculated metric
+      // Formula sleeves come after even those, for the same reason: selecting a calculated field
       // must not rename another sleeve's CTE or shift its bound-parameter prefix.
       ...(opts.formulaSleeves ?? []).map(({ plan, valueSql, isIdentity }) => ({
         baseName: plan.baseCteName,
@@ -576,7 +576,7 @@ export class MetricSleeveBuilder {
   }
 
   /**
-   * One aggregate call of a calculated metric's formula, computed by its OWN sleeve: `fn(<valueSql>)`
+   * One aggregate call of a calculated field's formula, computed by its OWN sleeve: `fn(<valueSql>)`
    * recomputed at the report's dimension grain over the owner's RAW rows. Same shape as a value
    * sleeve, except the inner slot holds a rendered EXPRESSION rather than a column reference.
    *

@@ -230,12 +230,12 @@ describe('BigQueryQueryBuilder', () => {
 
     // The calculated-metric flip is a per-dialect copy of the same two gates (output-controls
     // path, then aggregated path), and a copy is not self-verifying: the legacy BigQuery builder
-    // shipped with `calculatedMetrics` missing from its own gate, emitting SQL without the metric
+    // shipped with `calculatedFields` missing from its own gate, emitting SQL without the metric
     // while the header was still synthesized. Pinned per dialect so a copy cannot repeat it.
     it('routes a calculated-metric-only request onto the aggregated path', async () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['country'],
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'ctr',
             type: 'FLOAT',
@@ -262,7 +262,7 @@ describe('BigQueryQueryBuilder', () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['country'],
         sort: [{ column: 'session_key', direction: 'asc' }],
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'session_key',
             type: 'STRING',
@@ -294,7 +294,7 @@ describe('BigQueryQueryBuilder', () => {
         columns: ['country'],
         sort: [{ column: 'ratio', direction: 'desc' }],
         limit: 2,
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'ratio',
             type: 'FLOAT',
@@ -316,7 +316,7 @@ describe('BigQueryQueryBuilder', () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['country'],
         sort: [{ column: 'n', direction: 'desc' }],
-        calculatedMetrics: [
+        calculatedFields: [
           { outputName: 'n', type: 'INTEGER', formula: '{{ref field="a"}}', level: 'column' },
         ],
       });
@@ -330,7 +330,7 @@ describe('BigQueryQueryBuilder', () => {
     it('projects a row-level calculated field alone, without a wildcard', async () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: [],
-        calculatedMetrics: [
+        calculatedFields: [
           {
             outputName: 'session_key',
             type: 'STRING',
@@ -396,7 +396,7 @@ describe('BigQueryQueryBuilder', () => {
         const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
           columns: ['country'],
           filters,
-          calculatedMetrics: [CTR_PLAN],
+          calculatedFields: [CTR_PLAN],
           calculatedFilterMetrics: [CTR_PLAN],
         });
         if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
@@ -459,7 +459,7 @@ describe('BigQueryQueryBuilder', () => {
           builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
             columns: ['country'],
             filters,
-            calculatedMetrics: [CTR_PLAN],
+            calculatedFields: [CTR_PLAN],
           })
         ).rejects.toThrow(/ctr/);
       });

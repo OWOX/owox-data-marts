@@ -1266,11 +1266,11 @@ describe('McpReportsFacadeImpl.updateReport', () => {
       );
     });
 
-    // Decision 10: a calculated metric enters a query only when it is selected BY NAME.
+    // Decision 10: a calculated field enters a query only when it is selected BY NAME.
     // This expansion runs exactly when the report carries a joined Unique Count — i.e. exactly
     // when it is blended, where a selected metric is refused outright — so writing one in here
     // would turn an agent's "keep all fields" update into a report that 400s on every later run.
-    it('excludes a calculated metric from the materialized list', async () => {
+    it('excludes a calculated field from the materialized list', async () => {
       const built = buildUpdateFacade();
       built.getReportService.run.mockResolvedValue({
         ...reportWithJoinedUniqueCount,

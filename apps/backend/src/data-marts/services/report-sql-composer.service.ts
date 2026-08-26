@@ -17,15 +17,12 @@ import {
   DataMartTableReferenceService,
   type TableReferenceMemo,
 } from './data-mart-table-reference.service';
-import {
-  CalculatedMetricPlan,
-  SqlParameter,
-} from '../data-storage-types/utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import {
   calculatedDependencyPlans,
   calculatedFieldLevelOf,
   calculatedFieldsOf,
-  excludeCalculatedMetricNames,
+  excludeCalculatedFieldNames,
   isCalculatedField,
 } from '../calculated-fields/calculated-field.utils';
 import { isAggregateLevel } from '../calculated-fields/formula-level';
@@ -98,11 +95,11 @@ export class ReportSqlComposerService {
     /** The joined sources whose `<source>__unique_count` sleeve this SQL actually renders. Callers
      * that resolve headers themselves MUST forward it, or the column is computed and then dropped. */
     uniqueCountSources?: JoinedUniqueCountSource[];
-    /** Calculated metrics this SQL actually projects (main-owner only). Callers that
+    /** Calculated fields this SQL actually projects (main-owner only). Callers that
      * resolve headers themselves MUST forward it to `resolveReportDataHeaders`, and MUST strip
      * these names out of any `columnFilter` they pass alongside it — the metric already has its
      * own header source, and leaving its name in `columnFilter` too double-emits it. */
-    calculatedMetrics?: CalculatedMetricPlan[];
+    calculatedFields?: CalculatedFieldPlan[];
   }> {
     const decision =
       precomputedDecision ??
@@ -124,7 +121,7 @@ export class ReportSqlComposerService {
         aggregations: decision.aggregations,
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
-        calculatedMetrics: decision.calculatedMetrics,
+        calculatedFields: decision.calculatedFields,
       };
     }
 
@@ -165,25 +162,25 @@ export class ReportSqlComposerService {
     // persisted schema (same native fields the validator types against).
     const schemaFields = dataMart.schema?.fields ?? [];
 
-    // A calculated metric IS an aggregate, so selecting one makes the query
-    // aggregated even when the report carries no aggregationConfig — the remaining selected
+    // An AGGREGATE-LEVEL calculated field is already an aggregate, so selecting one makes the
+    // query aggregated even when the report carries no aggregationConfig — the remaining selected
     // columns become its grouping keys. Explicit selection only: a metric absent from the
     // projection is not composed, so a wildcard caller's output cannot change the day an analyst
     // adds a formula.
     const selectedColumns = decision.columnFilter ?? [];
-    const calculatedMetrics = this.buildCalculatedMetricPlans(
+    const calculatedFields = this.buildCalculatedFieldPlans(
       schemaFields,
       selectedColumns,
       report.aggregationConfig ?? undefined
     );
-    // A metric renders through its own `calculatedMetrics` channel, never as a plain projected
+    // A metric renders through its own `calculatedFields` channel, never as a plain projected
     // column — leaving its name in `columns` too would double-emit it (once via the formula
     // substitution, once as a bare reference to a column the warehouse does not have).
-    const calculatedMetricNames = new Set(calculatedMetrics.map(m => m.outputName));
+    const calculatedFieldNames = new Set(calculatedFields.map(m => m.outputName));
     const nonMetricColumns =
-      excludeCalculatedMetricNames(selectedColumns, calculatedMetricNames) ?? [];
+      excludeCalculatedFieldNames(selectedColumns, calculatedFieldNames) ?? [];
 
-    const needsOutputControlsHandling = hasOutputControls(report) || calculatedMetrics.length > 0;
+    const needsOutputControlsHandling = hasOutputControls(report) || calculatedFields.length > 0;
 
     if (needsOutputControlsHandling && !this.capabilityService.isSupported(dataMart.storage.type)) {
       throw new BadRequestException({
@@ -217,7 +214,7 @@ export class ReportSqlComposerService {
     // above is selection-only by design. The restriction's HAVING counts: on the Totals path the
     // report's metric filters are lifted out of `filterConfig` and travel there instead.
     const restriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
-    const filterMetrics = this.buildCalculatedMetricPlans(
+    const filterMetrics = this.buildCalculatedFieldPlans(
       schemaFields,
       [
         ...(report.filterConfig ?? []).map(rule => rule.column),
@@ -255,27 +252,27 @@ export class ReportSqlComposerService {
         columnTypes,
         // Totals only — a report itself groups, so its HAVING applies directly there.
         groupRestriction: restriction,
-        calculatedMetrics: calculatedMetrics.length > 0 ? calculatedMetrics : undefined,
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
         calculatedFilterMetrics: filterMetrics.length > 0 ? filterMetrics : undefined,
       }
     );
 
     const primaryKeyColumns = pkFields.map(f => f.name);
-    const calculatedMetricsResult = calculatedMetrics.length > 0 ? calculatedMetrics : undefined;
+    const calculatedFieldsResult = calculatedFields.length > 0 ? calculatedFields : undefined;
     if (isQueryBuildResult(queryResult)) {
       return {
         sql: queryResult.sql,
         params: queryResult.params,
         needsBlending: false,
         primaryKeyColumns,
-        calculatedMetrics: calculatedMetricsResult,
+        calculatedFields: calculatedFieldsResult,
       };
     }
     return {
       sql: queryResult,
       needsBlending: false,
       primaryKeyColumns,
-      calculatedMetrics: calculatedMetricsResult,
+      calculatedFields: calculatedFieldsResult,
     };
   }
 
@@ -303,22 +300,22 @@ export class ReportSqlComposerService {
     aggregations: AggregationRule[];
     columns: string[];
     blendedDataHeaders?: ReportDataHeader[];
-    /** Calculated metrics this SQL actually projects (main-owner only). Callers MUST
+    /** Calculated fields this SQL actually projects (main-owner only). Callers MUST
      * strip these names out of `columns` before using it as a reader's `columnFilter`, and MUST
      * forward this alongside it — the metric already has its own header source (this list) and
      * its own SQL channel; `deriveTotalsAggregations` never invents a SUM/AVG/MIN/MAX rule for it
      * (it is already an aggregate), so a bare, unqualified reference to its name is the only
      * double-handling left to guard against. */
-    calculatedMetrics?: CalculatedMetricPlan[];
+    calculatedFields?: CalculatedFieldPlan[];
   } | null> {
-    const { columns, aggregations, calculatedMetricColumns, blendableSchema } =
+    const { columns, aggregations, calculatedFieldColumns, blendableSchema } =
       await this.deriveTotalsAggregations(report, accessor);
-    // A calculated metric carries NO aggregation rule by design — it already IS an aggregate — so
+    // A calculated field carries NO aggregation rule by design — it already IS an aggregate — so
     // `aggregations.length === 0` does not mean "nothing to total" once one is selected. Reading
     // it that way cost a "CTR by country" report its Totals block outright, and a consumer handed
     // `not_available` falls back to computing the overall ratio itself: the average of the
     // per-country ratios, i.e. precisely the non-additive re-aggregation this feature removes.
-    if (aggregations.length === 0 && calculatedMetricColumns.length === 0) {
+    if (aggregations.length === 0 && calculatedFieldColumns.length === 0) {
       return null;
     }
 
@@ -374,7 +371,7 @@ export class ReportSqlComposerService {
     // same rules also decide the grain, so a row-level field the report AGGREGATES is dropped here
     // exactly as an aggregate-level one is — the report stopped grouping by it, and a restriction
     // one key finer keeps a different row set than the report shows.
-    const calculatedDimensions = this.buildCalculatedMetricPlans(
+    const calculatedDimensions = this.buildCalculatedFieldPlans(
       reportSchemaFields,
       reportColumns,
       report.aggregationConfig ?? undefined
@@ -389,7 +386,7 @@ export class ReportSqlComposerService {
     // a row-level field the report AGGREGATES is no longer a dimension, yet the restriction's
     // HAVING still compares its aggregate and needs the formula and the declared type to build the
     // same argument the report's projection was given.
-    const calculatedHavingMetrics = this.buildCalculatedMetricPlans(
+    const calculatedHavingMetrics = this.buildCalculatedFieldPlans(
       reportSchemaFields,
       havingFilters.map(rule => rule.column),
       report.aggregationConfig ?? undefined
@@ -426,7 +423,7 @@ export class ReportSqlComposerService {
 
     // Reuse the schema resolved while deriving the aggregations (when blended) so the decision
     // and the save-time validator don't recompute it.
-    const { sql, params, calculatedMetrics } = await this.compose(
+    const { sql, params, calculatedFields } = await this.compose(
       totalsPlan,
       accessor,
       undefined,
@@ -439,11 +436,11 @@ export class ReportSqlComposerService {
       ? this.buildBlendedTotalsHeaders(columns, blendableSchema)
       : undefined;
 
-    return { sql, params, aggregations, columns, blendedDataHeaders, calculatedMetrics };
+    return { sql, params, aggregations, columns, blendedDataHeaders, calculatedFields };
   }
 
   /**
-   * The `CalculatedMetricPlan` for each calculated field `names` mentions, in schema order.
+   * The `CalculatedFieldPlan` for each calculated field `names` mentions, in schema order.
    *
    * Shared by three callers — the report projection, the Totals group restriction and the predicate
    * channel — because a second construction would be a second place for the level fallback to be
@@ -453,11 +450,11 @@ export class ReportSqlComposerService {
    * them for the grain question: a row-level field the report aggregates stops being a grouping
    * key, and every site downstream reads that off the plan.
    */
-  private buildCalculatedMetricPlans(
+  private buildCalculatedFieldPlans(
     schemaFields: readonly DataMartSchemaField[],
     names: readonly string[],
     aggregations: AggregationRule[] | undefined
-  ): CalculatedMetricPlan[] {
+  ): CalculatedFieldPlan[] {
     const plans = calculatedFieldsOf(schemaFields)
       .filter(f => names.includes(f.name))
       .map(f => ({
@@ -469,7 +466,7 @@ export class ReportSqlComposerService {
         // `undefined` rather than `[]` when there are none, so a plan is byte-identical to what it
         // was before this feature for every formula that reads only columns.
         dependencies: calculatedDependencyPlans(f, schemaFields),
-        // The metric's own header source — see CalculatedMetricPlan. Empty strings normalize to
+        // The metric's own header source — see CalculatedFieldPlan. Empty strings normalize to
         // undefined so `alias || name` fallbacks downstream behave as they do for every other field.
         alias: f.alias?.trim() || undefined,
         description: f.description?.trim() || undefined,
@@ -516,13 +513,13 @@ export class ReportSqlComposerService {
     columns: string[];
     aggregations: AggregationRule[];
     /**
-     * The subset of `columns` that are calculated metrics — the ones deliberately carrying NO
+     * The subset of `columns` that are calculated fields — the ones deliberately carrying NO
      * aggregation rule. Returned separately because `aggregations.length === 0` is otherwise
      * indistinguishable from "nothing to total", and a report whose only aggregate is a calculated
      * metric would lose its Totals block — leaving the consumer to average the per-group ratios,
      * which is the re-aggregation this feature exists to remove.
      */
-    calculatedMetricColumns: string[];
+    calculatedFieldColumns: string[];
     // Present only when blended columns forced a schema resolution — reused downstream.
     blendableSchema?: BlendableSchemaDto;
   }> {
@@ -558,7 +555,7 @@ export class ReportSqlComposerService {
       ? this.collectBlendedAllowedSets(blendableSchema, aggregatedColumns)
       : new Map<string, ReportAggregateFunction[]>();
 
-    // A calculated metric is excluded from the legacy (no explicit columnConfig) fallback the
+    // A calculated field is excluded from the legacy (no explicit columnConfig) fallback the
     // same way `HttpDataColumnResolver`'s implicit-all resolution excludes it:
     // composed only when asked for by name, so a pre-existing legacy report's Totals block cannot
     // change shape the day an analyst adds a formula to the schema.
@@ -568,7 +565,7 @@ export class ReportSqlComposerService {
 
     const columns: string[] = [];
     const aggregations: AggregationRule[] = [];
-    const calculatedMetricColumns: string[] = [];
+    const calculatedFieldColumns: string[] = [];
     for (const name of projected) {
       const descriptor = byName.get(name);
       if (
@@ -594,13 +591,13 @@ export class ReportSqlComposerService {
       }
       if (descriptor && isCalculatedField(descriptor.field)) {
         // Already an aggregate: Totals renders it through the SAME formula-
-        // substitution channel as the main report (`compose()`'s `calculatedMetrics`, keyed off
+        // substitution channel as the main report (`compose()`'s `calculatedFields`, keyed off
         // this very `columns` list), never through an invented SUM/AVG/MIN/MAX — that would both
         // double-count an already-aggregated value and desync the header list from the SQL (one
         // output column expanding into four). It reaches `projected` only via EXPLICIT selection;
         // the legacy fallback just above already leaves it out.
         columns.push(name);
-        calculatedMetricColumns.push(name);
+        calculatedFieldColumns.push(name);
         continue;
       }
       const allowed = this.resolveTotalsAllowedForColumn(
@@ -617,7 +614,7 @@ export class ReportSqlComposerService {
         aggregations.push({ column: name, function: fn });
       }
     }
-    return { columns, aggregations, calculatedMetricColumns, blendableSchema };
+    return { columns, aggregations, calculatedFieldColumns, blendableSchema };
   }
 
   // The load-bearing totals metric rule, shared by the native and joined paths so they cannot

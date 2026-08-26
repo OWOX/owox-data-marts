@@ -285,7 +285,7 @@ describe('LookerStudioTypeMapperService', () => {
       expect(field.semantics?.isReaggregatable).toBeUndefined();
     });
 
-    // The numeric case, which is where the promise in `.changeset/6732-calculated-metrics.md` and
+    // The numeric case, which is where the promise in `.changeset/6732-calculated-fields.md` and
     // in the setup guide was actually broken: a FLOAT-declared `price * quantity` reached Looker as
     // METRIC + defaultAggregationType SUM + re-aggregatable, and Looker summed it over group keys
     // the report's own GROUP BY had already deduplicated.
@@ -470,7 +470,7 @@ describe('LookerStudioTypeMapperService', () => {
     // End-to-end: the flag `resolveReportDataHeaders` puts on a calculated-metric
     // header has to survive into the Looker schema field, or the connector still advertises a
     // ratio as a summable metric.
-    it('calculated metric — METRIC, isReaggregatable false, and NO defaultAggregationType', () => {
+    it('calculated field — METRIC, isReaggregatable false, and NO defaultAggregationType', () => {
       const header = new ReportDataHeader(
         'ctr',
         undefined,

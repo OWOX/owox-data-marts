@@ -3,12 +3,12 @@ import { collectSchemaFieldPaths } from '../../data-storage-types/data-mart-sche
 import { calculatedFieldsOf } from '../../calculated-fields/calculated-field.utils';
 
 export interface ReportingColumns {
-  /** Every reporting-visible native field name, INCLUDING a calculated metric — the existence
+  /** Every reporting-visible native field name, INCLUDING a calculated field — the existence
    * authority `HttpDataColumnValidator` binds an explicitly named column against. A calculated
    * metric is a real, selectable field; it must read as "known" the moment it is asked for by
    * name, same as any other column. */
   native: string[];
-  /** `native` minus any calculated metric — what an implicit-all / wildcard selection (`columns`
+  /** `native` minus any calculated field — what an implicit-all / wildcard selection (`columns`
    * omitted, `columns=*`, `columns=**`) actually resolves to. Decision 10: a calculated
    * metric is composed only when asked for by name, so adding one to the schema must not change
    * what an existing wildcard caller receives. */

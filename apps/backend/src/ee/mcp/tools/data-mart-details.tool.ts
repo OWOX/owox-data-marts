@@ -287,11 +287,11 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       const category = categorizeFieldType(out.type);
       categories.add(category);
       out.category = category;
-      // A Calculated Metric already IS an aggregate, and the dialog that creates one
+      // A Calculated Field already IS an aggregate, and the dialog that creates one
       // deliberately sets neither `aggregationRole` nor `allowedAggregations` — so left to
       // governance it falls through to the TYPE defaults and a FLOAT metric is advertised as
       // SUM/AVG/MIN/MAX-able under a description reading "Use only these". The agent then does the
-      // advertised thing and gets a 400 AGGREGATION_ON_CALCULATED_METRIC. Publish the empty set
+      // advertised thing and gets a 400 AGGREGATION_ON_CALCULATED_FIELD. Publish the empty set
       // instead — the same thing the web picker forces (`ReportColumnPicker.tsx`).
       //
       // AGGREGATE level only. A row-level field is a dimension the report may now aggregate,

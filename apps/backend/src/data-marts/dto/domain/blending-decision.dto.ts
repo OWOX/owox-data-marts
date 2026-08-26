@@ -1,6 +1,6 @@
 import { ReportDataHeader } from './report-data-header.dto';
 import {
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   SqlParameter,
 } from '../../data-storage-types/utils/sql-clause-renderer';
 import {
@@ -36,9 +36,9 @@ export interface BlendingDecision {
    */
   uniqueCountSources?: JoinedUniqueCountSource[];
   /**
-   * Calculated metrics the blended SQL projects through its own formula-substitution channel.
+   * Calculated fields the blended SQL projects through its own formula-substitution channel.
    * Their names are already stripped out of `columnFilter` — a reader must forward BOTH, or the
    * metric is emitted by the SQL with no header naming it.
    */
-  calculatedMetrics?: CalculatedMetricPlan[];
+  calculatedFields?: CalculatedFieldPlan[];
 }

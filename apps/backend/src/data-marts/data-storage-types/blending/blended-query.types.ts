@@ -4,7 +4,7 @@ import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { ResolvedRelationshipChain } from '../interfaces/blended-query-builder.interface';
 import {
   CalculatedFieldRenderOptions,
-  CalculatedMetricPlan,
+  CalculatedFieldPlan,
   CalculatedPredicateOperand,
   ColumnTypeResolver,
   SqlParameter,
@@ -45,7 +45,7 @@ export interface ValueSleeveGroup {
 }
 
 /**
- * One aggregate call lifted out of a calculated metric's formula. `valueSql` is the call's
+ * One aggregate call lifted out of a calculated field's formula. `valueSql` is the call's
  * ARGUMENT rendered against the owner's raw columns; the sleeve dedups it per owner row and
  * aggregates it with `fn`.
  *
@@ -129,7 +129,7 @@ export interface SleeveCalculatedDimensions {
    * report aggregates is not a key, and one left in here gives every sleeve a finer grain than the
    * outer query — `MetricSleeveBuilder.buildAll` refuses that rather than emitting it.
    */
-  plans: ReadonlyMap<string, CalculatedMetricPlan>;
+  plans: ReadonlyMap<string, CalculatedFieldPlan>;
   renderOptions: CalculatedFieldRenderOptions;
 }
 
@@ -143,7 +143,7 @@ export interface SleeveResult {
   pulls: SleevePull[];
   dimRefs: { column: string; outer: string; sleeve: string }[];
   /**
-   * Set when this sleeve computes ONE aggregate call of a calculated metric's formula. Its pull is
+   * Set when this sleeve computes ONE aggregate call of a calculated field's formula. Its pull is
    * SPLICED into that metric's own expression at the call's site, so the caller must not emit it as
    * an outer SELECT item of its own — that would project half a metric under a name no header
    * claims. Everything else about it (the join-back, the grain assertions) is identical.

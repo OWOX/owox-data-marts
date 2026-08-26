@@ -13,7 +13,7 @@ const built: Record<string, FormulaViolation> = {
   aggregateMixesOwners: FormulaViolations.aggregateMixesOwners('ctr', FN, [REF, 'clicks']),
   nestedAggregate: FormulaViolations.nestedAggregate('ctr', FN),
   aggregateOnAggregate: FormulaViolations.aggregateOnAggregate('ctr', REF),
-  calculatedMetricOnAggregate: FormulaViolations.calculatedMetricOnAggregate('ctr', REF),
+  calculatedFieldOnAggregate: FormulaViolations.calculatedFieldOnAggregate('ctr', REF),
   unbalancedParenthesis: FormulaViolations.unbalancedParenthesis('ctr', FN),
   aggregateWithoutField: FormulaViolations.aggregateWithoutField('ctr', FN),
   subquery: FormulaViolations.subquery('ctr'),
@@ -50,7 +50,7 @@ describe('FormulaViolations', () => {
   // A change detector, deliberately: a violation added without a row in the table above would make
   // every invariant below pass by simply not covering it. Four constructor pairs share a code
   // (joinedFieldHidden/joinedFieldUnknown, warehouseRejected/warehouseRejectedAsSet,
-  // aggregateOnAggregate/calculatedMetricOnAggregate, selfReference/circularReference), which is why
+  // aggregateOnAggregate/calculatedFieldOnAggregate, selfReference/circularReference), which is why
   // distinct codes run four behind the constructor count.
   it('exercises every constructor in the catalogue', () => {
     const distinctCodes = new Set(entries.map(([, violation]) => violation.code));
@@ -97,7 +97,7 @@ describe('FormulaViolations', () => {
         'aggregateMixesOwners',
         'aggregateOnAggregate',
         'aggregateWithoutField',
-        'calculatedMetricOnAggregate',
+        'calculatedFieldOnAggregate',
         'calculatedReference',
         'circularReference',
         'dialectAmbiguousMarker',
@@ -133,8 +133,8 @@ describe('FormulaViolations', () => {
   // measure has nothing to go and change, while one told it about a calculated field has another
   // formula to open. Losing that distinction is exactly what reusing the 'aggregate' state would do.
   it('says a wrapped calculated field is a calculated field, not just an aggregate', () => {
-    expect(built.calculatedMetricOnAggregate.code).toBe(built.aggregateOnAggregate.code);
-    expect(built.calculatedMetricOnAggregate.message).toContain('calculated field');
+    expect(built.calculatedFieldOnAggregate.code).toBe(built.aggregateOnAggregate.code);
+    expect(built.calculatedFieldOnAggregate.message).toContain('calculated field');
     expect(built.aggregateOnAggregate.message).not.toContain('calculated field');
   });
 

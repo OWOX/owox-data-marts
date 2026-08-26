@@ -73,10 +73,10 @@ export type ColumnTypeResolver = (rule: FilterRule) => string | undefined;
  */
 export function buildFilterTypeResolver(
   columnTypes: ReadonlyMap<string, string> | undefined,
-  calculatedMetrics: readonly CalculatedMetricPlan[] | undefined,
+  calculatedFields: readonly CalculatedFieldPlan[] | undefined,
   storageType: DataStorageType
 ): ColumnTypeResolver | undefined {
-  const declaredTypes = declaredTypeByCalculatedField(calculatedMetrics);
+  const declaredTypes = declaredTypeByCalculatedField(calculatedFields);
   if (!columnTypes && declaredTypes.size === 0) return undefined;
   return rule =>
     effectiveComparisonType(
@@ -120,7 +120,7 @@ const COMPARISON_OPERATORS: ReadonlySet<FilterRule['operator']> = new Set([
  * {@link buildFilterTypeResolver} and the blended filter partition.
  */
 export function declaredTypeByCalculatedField(
-  ...groups: readonly (readonly CalculatedMetricPlan[] | undefined)[]
+  ...groups: readonly (readonly CalculatedFieldPlan[] | undefined)[]
 ): ReadonlyMap<string, string> {
   const types = new Map<string, string>();
   for (const group of groups) {
@@ -130,11 +130,11 @@ export function declaredTypeByCalculatedField(
 }
 
 /**
- * A calculated metric selected in this query. `formula` is the STORED form — dialect SQL with
+ * A calculated field selected in this query. `formula` is the STORED form — dialect SQL with
  * `{{ref}}` tags, substituted at render time. `type` is the analyst's declaration; there is no
  * warehouse column to derive one from.
  */
-export interface CalculatedMetricPlan {
+export interface CalculatedFieldPlan {
   outputName: string;
   formula: string;
   type: string;
@@ -159,7 +159,7 @@ export interface CalculatedMetricPlan {
   formulaOwnership?: FormulaOwnerAnalysis;
   /**
    * The analyst's display label and description. Neither reaches the SQL, but this plan is the only
-   * header source a calculated metric has: without them a metric aliased "CTR, %" is the one column
+   * header source a calculated field has: without them a metric aliased "CTR, %" is the one column
    * in its own report still headed `ctr`.
    */
   alias?: string;
@@ -169,13 +169,13 @@ export interface CalculatedMetricPlan {
    * the calculated fields it reads, flat and de-duplicated.
    *
    * A dependency is NOT a column: it lives inside the plan that needs it, never beside it in
-   * `calculatedMetrics`, which every downstream surface derives a projection and a header from.
+   * `calculatedFields`, which every downstream surface derives a projection and a header from.
    * A report selecting `roas` must not gain `revenue` and `cost` as columns.
    *
    * Flat rather than nested so a cyclic schema cannot build a cyclic object graph. The field that
    * CLOSES a loop stays in the list, so the renderer refuses it by name.
    */
-  dependencies?: readonly CalculatedMetricPlan[];
+  dependencies?: readonly CalculatedFieldPlan[];
 }
 
 /**
@@ -185,8 +185,8 @@ export interface CalculatedMetricPlan {
  */
 export interface CalculatedFieldRenderOptions {
   qualifyColumn?: ColumnRefResolver;
-  calculatedMetricReplacements?: ReadonlyMap<string, readonly FormulaSpanReplacement[]>;
-  resolveCalculatedMetricReference?: (ref: FormulaReference) => string;
+  calculatedFieldReplacements?: ReadonlyMap<string, readonly FormulaSpanReplacement[]>;
+  resolveCalculatedFieldReference?: (ref: FormulaReference) => string;
 }
 
 /**
@@ -199,8 +199,8 @@ export interface CalculatedFieldRenderOptions {
  * forces the shape just as selecting one does, and a report that filters on one without selecting
  * it would otherwise take the plain branch and have its predicate refused as homeless.
  */
-export function hasAggregateCalculatedMetric(
-  metrics: readonly CalculatedMetricPlan[] | undefined
+export function hasAggregateCalculatedField(
+  metrics: readonly CalculatedFieldPlan[] | undefined
 ): boolean {
   return (metrics ?? []).some(metric => isAggregateLevel(metric.level));
 }
@@ -330,7 +330,7 @@ export abstract class SqlClauseRenderer {
    * lexicographically and returns `9` out of `9, 10, 100`, with no error.
    */
   buildCalculatedPredicateExpressions(
-    metrics: readonly CalculatedMetricPlan[] | undefined,
+    metrics: readonly CalculatedFieldPlan[] | undefined,
     opts: CalculatedFieldRenderOptions = {}
   ): ReadonlyMap<string, CalculatedPredicateOperand> {
     const operands = new Map<string, CalculatedPredicateOperand>();
@@ -356,7 +356,7 @@ export abstract class SqlClauseRenderer {
    * aggregate argument is cast per FUNCTION, so `MIN` would gain a cast the projection lacks.
    */
   buildCalculatedAggregateArguments(
-    metrics: readonly CalculatedMetricPlan[] | undefined,
+    metrics: readonly CalculatedFieldPlan[] | undefined,
     rules: readonly FilterRule[],
     opts: CalculatedFieldRenderOptions = {}
   ): ReadonlyMap<string, string> {
@@ -575,14 +575,14 @@ export abstract class SqlClauseRenderer {
       // (e.g. BigQuery must treat a tz-naive DATETIME differently from a TIMESTAMP).
       typeByColumn?: ReadonlyMap<string, string>;
       // Only a GROUPING KEY groups by its own rendered expression, appended after every column key.
-      calculatedMetrics?: readonly CalculatedMetricPlan[];
+      calculatedFields?: readonly CalculatedFieldPlan[];
       // Spans of a STORED formula already rendered elsewhere and swapped in verbatim — a joined
       // aggregate call replaced by its metric sleeve's pull. References inside one are not
       // resolved here; the sleeve resolved them against its own owner.
-      calculatedMetricReplacements?: ReadonlyMap<string, readonly FormulaSpanReplacement[]>;
+      calculatedFieldReplacements?: ReadonlyMap<string, readonly FormulaSpanReplacement[]>;
       // How ONE reference becomes SQL. Defaults to `qualifyColumn` over the field name; the blended
       // builder supplies one that also resolves a JOINED reference, since it knows the join tree.
-      resolveCalculatedMetricReference?: (ref: FormulaReference) => string;
+      resolveCalculatedFieldReference?: (ref: FormulaReference) => string;
     }
   ): {
     selectSql: string;
@@ -645,11 +645,11 @@ export abstract class SqlClauseRenderer {
         `${this.renderCountDistinctPrimaryKey(opts.primaryKeyColumns, qualify)} AS ${this.quoteIdentifier(UNIQUE_COUNT_LABEL)}`
       );
     }
-    for (const metric of opts?.calculatedMetrics ?? []) {
+    for (const metric of opts?.calculatedFields ?? []) {
       const renderOptions: CalculatedFieldRenderOptions = {
         qualifyColumn: qualify,
-        calculatedMetricReplacements: opts?.calculatedMetricReplacements,
-        resolveCalculatedMetricReference: opts?.resolveCalculatedMetricReference,
+        calculatedFieldReplacements: opts?.calculatedFieldReplacements,
+        resolveCalculatedFieldReference: opts?.resolveCalculatedFieldReference,
       };
       const outputAlias = this.quoteIdentifier(metric.outputName);
       // Grouped by its own rendered expression, the same string it projects. Grouping by the
@@ -759,7 +759,7 @@ export abstract class SqlClauseRenderer {
    * does — so the same input gives the same SQL whether or not the report carries an aggregation.
    */
   renderCalculatedSelectItems(
-    metrics: readonly CalculatedMetricPlan[] | undefined,
+    metrics: readonly CalculatedFieldPlan[] | undefined,
     opts: CalculatedFieldRenderOptions = {}
   ): string[] {
     return (metrics ?? []).map(
@@ -775,7 +775,7 @@ export abstract class SqlClauseRenderer {
    * `src.session_key` is an unrecognized name on BigQuery, the one dialect that aliases its FROM.
    */
   buildPlainSelectAliasResolver(
-    metrics: readonly CalculatedMetricPlan[] | undefined,
+    metrics: readonly CalculatedFieldPlan[] | undefined,
     qualifyColumn: ColumnRefResolver | undefined,
     /**
      * From {@link buildCalculatedSortExpressions}. Required — `undefined` must be a decision, not
@@ -808,7 +808,7 @@ export abstract class SqlClauseRenderer {
    * field's, and the bare row-level expression would be a non-grouping-key in an aggregated query.
    */
   buildCalculatedSortExpressions(
-    metrics: readonly CalculatedMetricPlan[] | undefined,
+    metrics: readonly CalculatedFieldPlan[] | undefined,
     operands: ReadonlyMap<string, CalculatedPredicateOperand> | undefined,
     aggregations: AggregationRule[],
     opts: CalculatedFieldRenderOptions
@@ -837,7 +837,7 @@ export abstract class SqlClauseRenderer {
    * `renderRowLevelDimensionExpression` instead.
    */
   private renderCalculatedFieldExpression(
-    metric: CalculatedMetricPlan,
+    metric: CalculatedFieldPlan,
     opts: CalculatedFieldRenderOptions
   ): string {
     try {
@@ -900,34 +900,34 @@ export abstract class SqlClauseRenderer {
    * metric's text, so a source reachable only through a dependency would be joined unchecked.
    */
   private expandCalculatedFormula(
-    metric: CalculatedMetricPlan,
+    metric: CalculatedFieldPlan,
     opts: CalculatedFieldRenderOptions,
-    closure: ReadonlyMap<string, CalculatedMetricPlan>,
+    closure: ReadonlyMap<string, CalculatedFieldPlan>,
     guard: FormulaExpansionGuard,
     /**
      * The field the REPORT selected, when `metric` is being substituted into it. No rendering
      * consequence: it exists so a refusal raised several hops down still names the field the
      * analyst put on the report.
      */
-    selected: CalculatedMetricPlan | undefined
+    selected: CalculatedFieldPlan | undefined
   ): string {
     const isDependency = selected !== undefined;
     // `ref.path` means nothing to THIS renderer — resolving it needs the join tree. The FLAT
     // renderer supplies neither channel, so it REFUSES a joined reference rather than guessing.
     const resolveReference =
-      isDependency || !opts.resolveCalculatedMetricReference
+      isDependency || !opts.resolveCalculatedFieldReference
         ? this.flatMetricReferenceResolver(metric, opts.qualifyColumn, selected)
-        : opts.resolveCalculatedMetricReference;
+        : opts.resolveCalculatedFieldReference;
     const replacements = isDependency
       ? []
-      : (opts.calculatedMetricReplacements?.get(metric.outputName) ?? []);
+      : (opts.calculatedFieldReplacements?.get(metric.outputName) ?? []);
 
     // LIVE references only. Substituting a commented-out tag splices a whole expression into a
     // comment, where its later lines escape onto live ones; and a commented tag naming the field it
     // sits in would refuse `b → b`, making a legal saved schema unrunnable by a loop that is not in
     // the SQL.
     let tokens: readonly SqlToken[] | undefined;
-    const dependencyFor = (ref: FormulaReference): CalculatedMetricPlan | undefined => {
+    const dependencyFor = (ref: FormulaReference): CalculatedFieldPlan | undefined => {
       if (ref.path !== '') return undefined;
       const candidate = closure.get(ref.field);
       if (!candidate) return undefined;
@@ -991,7 +991,7 @@ export abstract class SqlClauseRenderer {
    * `renderDateTruncExpression` with the plan's declared type, in that order.
    */
   renderRowLevelDimensionExpression(
-    plan: CalculatedMetricPlan,
+    plan: CalculatedFieldPlan,
     opts: CalculatedFieldRenderOptions = {}
   ): string {
     if (isAggregateLevel(plan.level)) {
@@ -1020,9 +1020,9 @@ export abstract class SqlClauseRenderer {
    * source is never joined for it however the report is built.
    */
   private flatMetricReferenceResolver(
-    metric: CalculatedMetricPlan,
+    metric: CalculatedFieldPlan,
     qualify: ColumnRefResolver | undefined,
-    selected?: CalculatedMetricPlan
+    selected?: CalculatedFieldPlan
   ): (ref: FormulaReference) => string {
     let tokens: readonly SqlToken[] | undefined;
     return ref => {
@@ -1205,8 +1205,8 @@ export abstract class SqlClauseRenderer {
     typeByColumn: ReadonlyMap<string, string> | undefined;
     /** Explicit `undefined` when the dialect inlines literals and needs no cast resolution. */
     resolveColumnType: ColumnTypeResolver | undefined;
-    /** Calculated metrics selected alongside `columns`; main-owner only. */
-    calculatedMetrics?: readonly CalculatedMetricPlan[];
+    /** Calculated fields selected alongside `columns`; main-owner only. */
+    calculatedFields?: readonly CalculatedFieldPlan[];
     /**
      * `buildCalculatedPredicateExpressions` over every Calculated Field a FILTER may name, selected
      * or not. Built by the dialect builder, whose plain branch needs the same map.
@@ -1224,7 +1224,7 @@ export abstract class SqlClauseRenderer {
         qualifyColumn: opts.qualifyProjection,
         timeZoneByColumn: buildTimeZoneMap(opts.dateTruncs),
         typeByColumn,
-        calculatedMetrics: opts.calculatedMetrics,
+        calculatedFields: opts.calculatedFields,
       }
     );
     // Totals under a metric filter: restrict this query to the rows of the groups the report
@@ -1264,7 +1264,7 @@ export abstract class SqlClauseRenderer {
       this.buildAggregatedAliasResolver(
         agg.aliasByColumn,
         this.buildCalculatedSortExpressions(
-          opts.calculatedMetrics,
+          opts.calculatedFields,
           opts.calculatedPredicateExpressions,
           opts.aggregations,
           { qualifyColumn }
@@ -1344,7 +1344,7 @@ export abstract class SqlClauseRenderer {
         qualifyColumn: opts.qualifyColumn,
         timeZoneByColumn: buildTimeZoneMap(dateTruncs),
         typeByColumn: opts.typeByColumn,
-        calculatedMetrics: calculatedDimensions.length > 0 ? calculatedDimensions : undefined,
+        calculatedFields: calculatedDimensions.length > 0 ? calculatedDimensions : undefined,
       }
     );
     const projection = buildKeptGroupsProjection(grouped.groupByParts, dimensions, name =>
