@@ -11,6 +11,7 @@ import { GoogleSheetsOauthRender } from './impl/GoogleSheetsOauthRender';
 import { LinkedInOauthRender } from './impl/LinkedInOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
+  OAuthCallbackResponseDto,
   OAuthStatusResponseDto,
   OAuthSettingsResponseDto,
 } from '../../../../../../shared/api/types/response/oauth.response.dto';
@@ -39,7 +40,9 @@ export interface OauthRenderComponentProps {
   isLoading: boolean;
   status: OAuthStatusResponseDto | null;
   settings: OAuthSettingsResponseDto | null;
-  onOAuthSuccess: (credentials: Record<string, unknown>) => Promise<boolean>;
+  onOAuthSuccess: (
+    credentials: Record<string, unknown>
+  ) => Promise<OAuthCallbackResponseDto | null>;
 }
 
 export function OauthRenderFactory({
@@ -181,12 +184,12 @@ export function OauthRenderFactory({
           [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
         });
       }
-      return true;
+      return exchanged;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
       console.error('Failed to exchange OAuth credentials:', err);
       setError(message);
-      return false;
+      return null;
     } finally {
       setIsLoading(false);
     }

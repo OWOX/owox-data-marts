@@ -49,6 +49,22 @@ describe('ConnectorPreviewCredentialsService', () => {
     );
   });
 
+  it('rejects Data-Mart-scoped records used as OAuth credentials', async () => {
+    const { service, credentials } = createService();
+    const config = { AuthType: { oauth2: { _source_credential_id: 'oauth-1' } } };
+    (credentials.getCredentialsById as jest.Mock).mockResolvedValue({
+      id: 'oauth-1',
+      projectId: 'proj-1',
+      connectorName: 'GoogleSheets',
+      dataMartId: 'dm-1',
+      configId: 'config-1',
+    });
+
+    await expect(service.inject('GoogleSheets', config, context)).rejects.toThrow(
+      'The selected credentials cannot be used for this preview'
+    );
+  });
+
   it('allows copied service-account secrets only when the source Data Mart is editable', async () => {
     const { service, credentials, access } = createService();
     const config = {

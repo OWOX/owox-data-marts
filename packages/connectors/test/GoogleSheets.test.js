@@ -26,6 +26,7 @@ class ConnectorConfigurationException extends Error {}
 class OauthFlowException extends Error {
   constructor({ message, payload }) {
     super(message);
+    this.name = 'OauthFlowException';
     this.payload = payload;
   }
 }
@@ -181,7 +182,10 @@ test('rejects OAuth authorization when required Google Sheets permissions were n
           RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
         }
       ),
-      /authorization is missing required permissions/
+      error =>
+        error instanceof OauthFlowException &&
+        error.name === 'OauthFlowException' &&
+        /authorization is missing required permissions/.test(error.message)
     );
   } finally {
     HttpUtils.fetch = originalFetch;
@@ -216,11 +220,26 @@ test('stores the verified Google account used by Google Picker', async () => {
     assert.deepEqual(plain(credentials.user), {
       id: 'google-user-1',
       name: 'analyst@example.com',
+      email: 'analyst@example.com',
     });
     assert.equal(credentials.expiresIn, null);
   } finally {
     HttpUtils.fetch = originalFetch;
   }
+});
+
+test('gives OAuth users Picker-specific guidance for access errors', () => {
+  const source = createSource();
+  source.config.AuthType = { value: 'oauth2', items: {} };
+
+  assert.match(
+    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
+    /choose the spreadsheet with Google Picker/
+  );
+  assert.doesNotMatch(
+    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
+    /service account/
+  );
 });
 
 test('rejects OAuth authorization when Google does not return an email address', async () => {

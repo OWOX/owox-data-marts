@@ -243,7 +243,7 @@ describe('ConfigurationStep Google Sheets OAuth fields', () => {
     });
     oauthMocks.checkStatus.mockResolvedValue({
       valid: true,
-      user: { id: 'user-1', email: 'analyst@example.com' },
+      user: { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' },
     });
 
     render(

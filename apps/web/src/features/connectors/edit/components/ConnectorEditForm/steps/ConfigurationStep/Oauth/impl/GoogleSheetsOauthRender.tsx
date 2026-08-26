@@ -3,7 +3,7 @@ import {
   type GoogleSheetsLoginResponse,
 } from '../../../../../../../shared/components/GoogleSheetsLoginButton';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
-import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth/hooks/useGoogleDrivePicker';
+import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { FileSpreadsheet } from 'lucide-react';
@@ -21,10 +21,23 @@ export function GoogleSheetsOauthRender({
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
 
+  const connectedEmail = status?.user?.email ?? status?.user?.name;
+
   const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
-    const connected = await onOAuthSuccess({ code: response.code });
-    if (connected) {
+    const result = await onOAuthSuccess({ code: response.code });
+    const nextEmail = result?.user.email ?? result?.user.name;
+
+    if (
+      result &&
+      connectedEmail &&
+      nextEmail &&
+      nextEmail.toLowerCase() !== connectedEmail.toLowerCase() &&
+      configuration.SpreadsheetId
+    ) {
       onValueChange('SpreadsheetId', '');
+    }
+    if (result) {
+      setPickerError(null);
     }
   };
 
@@ -34,8 +47,6 @@ export function GoogleSheetsOauthRender({
   const spreadsheetUrl =
     typeof configuration.SpreadsheetId === 'string' ? configuration.SpreadsheetId.trim() : '';
   const spreadsheetSelected = spreadsheetUrl !== '';
-  const connectedEmail = status?.user?.email ?? status?.user?.name;
-
   const handlePickSpreadsheet = () => {
     if (!clientId || !pickerApiKey || !projectNumber) {
       setPickerError('Google Picker configuration is incomplete');

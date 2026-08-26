@@ -284,7 +284,11 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         });
       }
 
-      const userData = { id: userInfo.id || userInfo.email, name: userInfo.email };
+      const userData = {
+        id: userInfo.id || userInfo.email,
+        name: userInfo.email,
+        email: userInfo.email,
+      };
 
       return OauthCredentialsDto.builder()
         .withUser(userData)
@@ -597,6 +601,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const message = error instanceof Error ? error.message : String(error);
 
     if (statusCode === 403) {
+      if (this.config.AuthType?.value === 'oauth2') {
+        return (
+          `Google Sheets access denied: ${message}. ` +
+          'Reconnect Google Sheets and choose the spreadsheet with Google Picker.'
+        );
+      }
+
       const serviceAccountEmail = this._getConfiguredServiceAccountEmail();
       const accessHint = serviceAccountEmail
         ? ` Share the spreadsheet with ${serviceAccountEmail}, or use OAuth if the sheet should be read from a user account.`

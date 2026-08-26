@@ -59,7 +59,9 @@ describe('verifyGooglePickerAccount', () => {
 describe('useGoogleSheetsPicker', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     delete (window as unknown as { gapi?: unknown }).gapi;
+    delete (window as unknown as { google?: unknown }).google;
   });
 
   it('reports when the Picker module does not initialize', async () => {
@@ -82,5 +84,114 @@ describe('useGoogleSheetsPicker', () => {
     await opening;
 
     expect(onError).toHaveBeenCalledWith('Google Picker failed to initialize. Please try again.');
+  });
+
+  it('closes the active Picker when the component unmounts', async () => {
+    const setVisible = vi.fn();
+    const dispose = vi.fn();
+    const onPicked = vi.fn();
+    let pickerCallback: ((response: { action: string; docs?: unknown[] }) => void) | undefined;
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn(
+      (config: { callback: (response: Record<string, unknown>) => void }) => {
+        requestAccessToken.mockImplementation(() => {
+          config.callback({
+            access_token: 'access-token',
+            scope: `${DRIVE_FILE_SCOPE} ${USERINFO_EMAIL_SCOPE}`,
+          });
+        });
+        return { requestAccessToken };
+      }
+    );
+
+    class DocsView {
+      setMimeTypes() {
+        return this;
+      }
+      setMode() {
+        return this;
+      }
+    }
+
+    class PickerBuilder {
+      setOAuthToken() {
+        return this;
+      }
+      setDeveloperKey() {
+        return this;
+      }
+      setAppId() {
+        return this;
+      }
+      addView() {
+        return this;
+      }
+      enableFeature() {
+        return this;
+      }
+      setCallback(callback: (response: { action: string; docs?: unknown[] }) => void) {
+        pickerCallback = callback;
+        return this;
+      }
+      build() {
+        return { setVisible, dispose };
+      }
+    }
+
+    (window as unknown as { gapi: { load: (_api: string, callback: () => void) => void } }).gapi = {
+      load: (_api, callback) => {
+        callback();
+      },
+    };
+    (
+      window as unknown as {
+        google: {
+          accounts: { oauth2: { initTokenClient: typeof initTokenClient } };
+          picker: Record<string, unknown>;
+        };
+      }
+    ).google = {
+      accounts: { oauth2: { initTokenClient } },
+      picker: {
+        PickerBuilder,
+        DocsView,
+        ViewId: { SPREADSHEETS: 'spreadsheets' },
+        DocsViewMode: { LIST: 'list' },
+        Action: { PICKED: 'picked', CANCEL: 'cancel' },
+        Feature: { SUPPORT_DRIVES: 'support-drives' },
+      },
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ email: 'analyst@example.com' }), { status: 200 })
+    );
+
+    const { result, unmount } = renderHook(() => useGoogleSheetsPicker());
+    const opening = result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      clientId: 'client-id',
+      hintEmail: 'analyst@example.com',
+      onPicked,
+    });
+
+    await vi.waitFor(() => {
+      expect(setVisible).toHaveBeenCalledWith(true);
+    });
+    expect(initTokenClient).toHaveBeenCalledWith(
+      expect.objectContaining({ login_hint: 'analyst@example.com' })
+    );
+    expect(requestAccessToken).toHaveBeenCalledWith({ login_hint: 'analyst@example.com' });
+
+    unmount();
+    await opening;
+
+    expect(setVisible).toHaveBeenLastCalledWith(false);
+    expect(dispose).toHaveBeenCalledOnce();
+
+    pickerCallback?.({
+      action: 'picked',
+      docs: [{ id: 'sheet-id', name: 'Sheet', url: 'https://example.com' }],
+    });
+    expect(onPicked).not.toHaveBeenCalled();
   });
 });

@@ -71,6 +71,9 @@ export class ConnectorPreviewCredentialsService {
       }
 
       if (reference.type === 'oauth') {
+        // Managed OAuth credentials are project-scoped and intentionally match
+        // the access boundary used by connector runs. Data-Mart-scoped secret
+        // records must not be accepted as OAuth credentials for a preview.
         if (credential.dataMartId || credential.configId) {
           throw this.invalidCredentials();
         }

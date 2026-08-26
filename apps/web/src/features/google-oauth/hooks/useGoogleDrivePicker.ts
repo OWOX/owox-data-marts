@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const USERINFO_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
@@ -47,7 +47,12 @@ interface PickerBuilderLike {
   addView(view: DocsViewLike): PickerBuilderLike;
   enableFeature(feature: unknown): PickerBuilderLike;
   setCallback(callback: (response: PickerResponse) => void): PickerBuilderLike;
-  build(): { setVisible(visible: boolean): void };
+  build(): PickerInstanceLike;
+}
+
+interface PickerInstanceLike {
+  setVisible(visible: boolean): void;
+  dispose?: () => void;
 }
 
 interface GooglePicker {
@@ -237,47 +242,103 @@ function buildItemUrl(doc: PickerDoc): string {
 }
 
 export function useGoogleSheetsPicker() {
-  const openPicker = useCallback(async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
-    const { apiKey, appId, clientId, hintEmail, onPicked, onError } = options;
+  const activePickerRef = useRef<PickerInstanceLike | null>(null);
+  const pendingPickerResolveRef = useRef<(() => void) | null>(null);
+  const isMountedRef = useRef(true);
 
-    try {
-      await loadPicker();
-      const token = await requestAccessToken(clientId, hintEmail);
-      await verifyGooglePickerAccount(token, hintEmail);
-      const picker = googleWindow.google?.picker;
-      if (!picker) {
-        throw new Error('Google Picker failed to initialize');
-      }
+  const closeActivePicker = useCallback(() => {
+    const picker = activePickerRef.current;
+    activePickerRef.current = null;
+    picker?.setVisible(false);
+    picker?.dispose?.();
 
-      await new Promise<void>(resolve => {
-        const builder = new picker.PickerBuilder()
-          .setOAuthToken(token)
-          .setDeveloperKey(apiKey)
-          .setAppId(appId)
-          .addView(buildPickerView(picker))
-          .enableFeature(picker.Feature.SUPPORT_DRIVES)
-          .setCallback(response => {
-            if (response.action === picker.Action.PICKED) {
-              const doc = response.docs?.[0];
-              if (doc) {
-                onPicked({
-                  id: doc.id,
-                  name: doc.name,
-                  url: buildItemUrl(doc),
-                });
-              }
-              resolve();
-            } else if (response.action === picker.Action.CANCEL) {
-              resolve();
-            }
-          });
-
-        builder.build().setVisible(true);
-      });
-    } catch (error) {
-      onError?.(error instanceof Error ? error.message : 'Failed to open the Google Sheets picker');
-    }
+    const resolve = pendingPickerResolveRef.current;
+    pendingPickerResolveRef.current = null;
+    resolve?.();
   }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      closeActivePicker();
+    };
+  }, [closeActivePicker]);
+
+  const openPicker = useCallback(
+    async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
+      const { apiKey, appId, clientId, hintEmail, onPicked, onError } = options;
+
+      try {
+        closeActivePicker();
+        await loadPicker();
+        const token = await requestAccessToken(clientId, hintEmail);
+        await verifyGooglePickerAccount(token, hintEmail);
+        if (!isMountedRef.current) return;
+
+        const picker = googleWindow.google?.picker;
+        if (!picker) {
+          throw new Error('Google Picker failed to initialize');
+        }
+
+        await new Promise<void>(resolve => {
+          const settle = () => {
+            if (pendingPickerResolveRef.current === settle) {
+              pendingPickerResolveRef.current = null;
+            }
+            resolve();
+          };
+          const finish = () => {
+            if (activePickerRef.current === builtPicker) {
+              activePickerRef.current = null;
+            }
+            builtPicker.setVisible(false);
+            builtPicker.dispose?.();
+            settle();
+          };
+
+          const builtPicker = new picker.PickerBuilder()
+            .setOAuthToken(token)
+            .setDeveloperKey(apiKey)
+            .setAppId(appId)
+            .addView(buildPickerView(picker))
+            .enableFeature(picker.Feature.SUPPORT_DRIVES)
+            .setCallback(response => {
+              if (!isMountedRef.current || activePickerRef.current !== builtPicker) {
+                return;
+              }
+
+              if (response.action === picker.Action.PICKED) {
+                const doc = response.docs?.[0];
+                if (doc) {
+                  onPicked({
+                    id: doc.id,
+                    name: doc.name,
+                    url: buildItemUrl(doc),
+                  });
+                }
+                finish();
+              } else if (response.action === picker.Action.CANCEL) {
+                finish();
+              }
+            })
+            .build();
+
+          activePickerRef.current = builtPicker;
+          pendingPickerResolveRef.current = settle;
+          builtPicker.setVisible(true);
+        });
+      } catch (error) {
+        closeActivePicker();
+        if (isMountedRef.current) {
+          onError?.(
+            error instanceof Error ? error.message : 'Failed to open the Google Sheets picker'
+          );
+        }
+      }
+    },
+    [closeActivePicker]
+  );
 
   return { openPicker };
 }

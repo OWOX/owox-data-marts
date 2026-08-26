@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../google-oauth/hooks/useGoogleDrivePicker';
+import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../google-oauth';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { GoogleSheetsOauthRender } from './GoogleSheetsOauthRender';
 
@@ -8,7 +8,7 @@ const { openPicker } = vi.hoisted(() => ({
   openPicker: vi.fn<(options: OpenGoogleSheetsPickerOptions) => Promise<void>>(),
 }));
 
-vi.mock('../../../../../../../../google-oauth/hooks/useGoogleDrivePicker', () => ({
+vi.mock('../../../../../../../../google-oauth', () => ({
   useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 
@@ -41,7 +41,7 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
     isLoading: false,
     status: {
       valid: true,
-      user: { id: 'user-1', email: 'analyst@example.com' },
+      user: { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' },
     },
     settings: {
       isEnabled: true,
@@ -52,7 +52,12 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
         ProjectNumber: '123456789',
       },
     },
-    onOAuthSuccess: vi.fn().mockResolvedValue(true),
+    onOAuthSuccess: vi.fn().mockResolvedValue({
+      success: true,
+      credentialId: 'credential-1',
+      user: { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' },
+      additional: {},
+    }),
     ...overrides,
   } as OauthRenderComponentProps;
 
@@ -131,6 +136,12 @@ describe('GoogleSheetsOauthRender', () => {
       configuration: {
         SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
       },
+      onOAuthSuccess: vi.fn().mockResolvedValue({
+        success: true,
+        credentialId: 'credential-2',
+        user: { id: 'user-2', name: 'other@example.com', email: 'other@example.com' },
+        additional: {},
+      }),
     });
 
     fireEvent.click(screen.getByTestId('google-login'));
@@ -141,12 +152,43 @@ describe('GoogleSheetsOauthRender', () => {
     });
   });
 
+  it('keeps the selected spreadsheet after reconnecting the same account', async () => {
+    const props = renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' });
+    });
+    expect(props.onValueChange).not.toHaveBeenCalledWith('SpreadsheetId', '');
+  });
+
   it('keeps the selected spreadsheet when reconnection fails', async () => {
     const props = renderGoogleSheetsOAuth({
       configuration: {
         SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
       },
-      onOAuthSuccess: vi.fn().mockResolvedValue(false),
+      onOAuthSuccess: vi.fn().mockResolvedValue(null),
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' });
+    });
+    expect(props.onValueChange).not.toHaveBeenCalledWith('SpreadsheetId', '');
+  });
+
+  it('keeps the selected spreadsheet when the previous account identity is unavailable', async () => {
+    const props = renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+      status: { valid: false },
     });
 
     fireEvent.click(screen.getByTestId('google-login'));

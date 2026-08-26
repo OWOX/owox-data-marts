@@ -108,6 +108,11 @@ describe('Connector OAuth Settings (e2e)', () => {
           }
         });
 
+        if (connectorName === 'GoogleSheets') {
+          expect(res.body.vars).toHaveProperty('PickerApiKey');
+          expect(res.body.vars).toHaveProperty('ProjectNumber');
+        }
+
         // isEnabled is a boolean (false in test env because OAuth env vars are not set)
         expect(typeof res.body.isEnabled).toBe('boolean');
       }
