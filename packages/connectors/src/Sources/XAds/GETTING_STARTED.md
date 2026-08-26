@@ -116,7 +116,6 @@ Your X account lacks permission for this endpoint. Re-check your account's acces
 
 For anything else:
 
-- Join the [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to ask questions and get help from other users.
 - Browse the [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) — your question might already be answered.
 - Found a bug? [Open an issue](https://github.com/OWOX/owox-data-marts/issues).
 - Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements.

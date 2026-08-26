@@ -1,6 +1,5 @@
 import type { HelpMenuItem } from './types';
 import { Info, Clapperboard, MessagesSquare, Rocket, Airplay, ListTodo } from 'lucide-react';
-import { SlackIconDesaturated } from '../../../shared';
 import { openIntercom } from '../../../app/intercom/intercomUtils';
 
 export function helpMenuItems(
@@ -92,13 +91,6 @@ export function helpMenuItems(
       },
     },
     { type: 'separator' },
-    {
-      type: 'menu-item',
-      title: 'Slack Community',
-      href: 'https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA',
-      icon: SlackIconDesaturated,
-      visible: true,
-    },
     {
       type: 'menu-item',
       title: 'Online Chat',

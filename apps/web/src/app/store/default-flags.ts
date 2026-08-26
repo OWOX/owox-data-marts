@@ -11,5 +11,4 @@ export const DEFAULT_FLAGS: Record<string, unknown> = {
   MENU_ISSUES_VISIBLE: 'true',
   MENU_LICENSE_VISIBLE: 'true',
   MENU_DOCUMENTATION_COMMUNITY_EDITION_VISIBLE: 'true',
-  MENU_SLACK_COMMUNITY_VISIBLE: 'true',
 };

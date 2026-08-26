@@ -34,7 +34,6 @@ If you create your first connector, read the OWOX guide to [create a connector-b
 - Search [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) for existing answers.
 - Open an [**issue**](https://github.com/OWOX/owox-data-marts/issues) to report a bug.
 - Submit a [**feature request**](https://github.com/OWOX/owox-data-marts/discussions) to request a change.
-- Join the [**OWOX Slack community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to discuss the connector.
 
 ## Other Data Sources
 

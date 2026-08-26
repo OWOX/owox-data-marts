@@ -33,7 +33,6 @@ To obtain your API credentials, see the [**Credentials Guide**](CREDENTIALS.md).
 
 ## Support
 
-- Join the [**Slack Community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to ask questions and connect with other users
 - Check the [**Q&A section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) for answers to common questions
 - Found a bug? [**Open an issue**](https://github.com/OWOX/owox-data-marts/issues)
 - Have a feature request or new integration idea? [**Start a discussion**](https://github.com/OWOX/owox-data-marts/discussions)
