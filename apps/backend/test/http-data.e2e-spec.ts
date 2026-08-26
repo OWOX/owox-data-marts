@@ -63,15 +63,15 @@ let capturedPrepareOptions: Record<string, unknown> | null = null;
 // metric] positional row, matching the [date, "revenue | SUM"] header set.
 const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999]];
 
-// Deterministic value the mock reader emits for every projected calculated metric, so a test can
+// Deterministic value the mock reader emits for every projected calculated field, so a test can
 // assert it is a NUMBER (streamed correctly) rather than `null` (the outputColumns-gate bug).
-const MOCK_CALCULATED_METRIC_VALUE = 0.42;
+const MOCK_CALCULATED_FIELD_VALUE = 0.42;
 
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
   // Simulate the real reader's aggregated-header resolution: an aggregation renames each aggregated
   // column to "<column> | <FN>" (see resolveReportDataHeaders; no automatic Row Count), so the
   // stream must project rows by those resolved names, not the raw requested columns. A selected
-  // calculated metric is simulated the same way, one level up: it is ALWAYS appended as its own
+  // calculated field is simulated the same way, one level up: it is ALWAYS appended as its own
   // header + value (resolveReportDataHeaders synthesizes it last, on every branch), regardless of
   // whether the request also carries an aggregation.
   let currentRows: unknown[][] = rows;
@@ -81,10 +81,10 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
       capturedPrepareOptions = options as Record<string, unknown>;
       const opts = options as {
         aggregationConfig?: Array<{ column: string; function: string }>;
-        calculatedMetrics?: Array<{ outputName: string }>;
+        calculatedFields?: Array<{ outputName: string }>;
       };
       const aggregations = opts?.aggregationConfig ?? [];
-      const calculatedMetrics = opts?.calculatedMetrics ?? [];
+      const calculatedFields = opts?.calculatedFields ?? [];
       const aggregated = aggregations.length > 0;
 
       let resultHeaders = headers;
@@ -99,14 +99,14 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
         currentRows = MOCK_AGGREGATED_ROWS;
       }
 
-      if (calculatedMetrics.length > 0) {
+      if (calculatedFields.length > 0) {
         resultHeaders = [
           ...resultHeaders,
-          ...calculatedMetrics.map(metric => new ReportDataHeader(metric.outputName)),
+          ...calculatedFields.map(metric => new ReportDataHeader(metric.outputName)),
         ];
         currentRows = currentRows.map(row => [
           ...row,
-          ...calculatedMetrics.map(() => MOCK_CALCULATED_METRIC_VALUE),
+          ...calculatedFields.map(() => MOCK_CALCULATED_FIELD_VALUE),
         ]);
       }
 
@@ -892,7 +892,7 @@ describe('HTTP Data API (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Calculated metrics — composition-time guards
+  // Calculated fields — composition-time guards
   // ---------------------------------------------------------------------------
   // A dedicated Data Mart + schema (not the shared `dataMartId`, whose schema every earlier test
   // in this file relies on staying `date`/`revenue`-shaped): `country`/`clicks`/`impressions` plus
@@ -901,7 +901,7 @@ describe('HTTP Data API (e2e)', () => {
   // so the composition and header-synthesis pipeline that decides whether `ctr` is a "known"
   // column runs for real; only the SQL's actual EXECUTION is faked.
   // ---------------------------------------------------------------------------
-  describe('Calculated metrics — composition-time guards', () => {
+  describe('Calculated fields — composition-time guards', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     let dataMartWithCtrId: string;
     let restoreBlendableSchema: (() => void) | undefined;
@@ -981,7 +981,7 @@ describe('HTTP Data API (e2e)', () => {
       restoreBlendableSchema?.();
     });
 
-    it('does not include a calculated metric in an implicit-all projection', async () => {
+    it('does not include a calculated field in an implicit-all projection', async () => {
       for (const query of ['', '?columns=*', '?columns=**']) {
         const res = await agent
           .get(`/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson${query}`)
@@ -1003,7 +1003,7 @@ describe('HTTP Data API (e2e)', () => {
 
     // Pins the `outputColumns` gate in stream-http-data.service.ts: a selected metric
     // IS an aggregate even with no `aggregation=` param, so the gate that decides whether to
-    // project by resolved headers or the raw request must recognize `calculatedMetrics`, not only
+    // project by resolved headers or the raw request must recognize `calculatedFields`, not only
     // `aggregationConfig` — else a column it does not recognise streams as a silent `null`.
     //
     // `typeof row.ctr === 'number'` ALONE cannot see the gate: `buildFieldIndexMap` binds by NAME,
@@ -1011,7 +1011,7 @@ describe('HTTP Data API (e2e)', () => {
     // What the gate actually decides is WHICH list names the emitted columns — the resolved
     // headers, or the raw `?column=` request. Assert the whole key set: the reader resolves
     // headers independently of request order (here `date, revenue, ctr`), so dropping the
-    // `calculatedMetrics` term makes the stream emit the request's `ctr, country` instead — with
+    // `calculatedFields` term makes the stream emit the request's `ctr, country` instead — with
     // `country` as the silent `null` this gate exists to prevent.
     it('streams the metric as a number, and names columns by the resolved headers', async () => {
       const res = await agent
@@ -1029,7 +1029,7 @@ describe('HTTP Data API (e2e)', () => {
       }
     });
 
-    it('rejects an aggregation applied to the calculated metric', async () => {
+    it('rejects an aggregation applied to the calculated field', async () => {
       const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
       const aggregation = b64([{ column: 'ctr', function: 'SUM' }]);
 
@@ -1043,7 +1043,7 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.body).toMatchObject({
         details: {
           errors: expect.arrayContaining([
-            expect.objectContaining({ code: 'AGGREGATION_ON_CALCULATED_METRIC' }),
+            expect.objectContaining({ code: 'AGGREGATION_ON_CALCULATED_FIELD' }),
           ]),
         },
       });

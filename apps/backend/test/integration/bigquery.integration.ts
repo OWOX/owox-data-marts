@@ -14,7 +14,7 @@ import { DataMartRelationship } from 'src/data-marts/entities/data-mart-relation
 import { DataStorageCredentialsResolver } from 'src/data-marts/data-storage-types/data-storage-credentials-resolver.service';
 import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/table-definition.schema';
 import { buildBlendedFieldIndex } from 'src/data-marts/services/blended-field-index';
-import { CalculatedMetricPlan } from 'src/data-marts/data-storage-types/utils/sql-clause-renderer';
+import { CalculatedFieldPlan } from 'src/data-marts/data-storage-types/utils/sql-clause-renderer';
 import { ReportSqlComposerService } from 'src/data-marts/services/report-sql-composer.service';
 import { Report } from 'src/data-marts/entities/report.entity';
 import { BlendedFieldDto } from 'src/data-marts/dto/domain/blendable-schema.dto';
@@ -4393,13 +4393,13 @@ describeIfCredentials(
   }
 );
 
-// Calculated Metrics — main-owner grain correctness and the zero-denominator promise.
+// Calculated Fields — main-owner grain correctness and the zero-denominator promise.
 //
 // This is the ONE place in the whole suite that can prove the feature's actual arithmetic: every
 // other calculated-metric test (output-controls.e2e-spec.ts, http-data.e2e-spec.ts) runs against a
 // mocked reader that returns a canned value regardless of the SQL, which proves the metric is
 // WIRED — never that it COMPUTES correctly. Runs the exact production entry point a main-owner
-// metric renders through (`BigQueryQueryBuilder.buildQuery` with `calculatedMetrics`), executed for
+// metric renders through (`BigQueryQueryBuilder.buildQuery` with `calculatedFields`), executed for
 // real via the same executeQuery -> getJob -> destinationTable -> getRows path as every other case
 // in this file.
 //
@@ -4420,13 +4420,13 @@ describeIfCredentials(
 // 0/0 row). A "compute the average instead of the ratio of the sums" implementation — the exact
 // defect this feature exists to prevent — fails this assertion under either flavor of that mistake.
 describeIfCredentials(
-  'Calculated metric — grain correctness and zero-denominator (real BigQuery)',
+  'Calculated field — grain correctness and zero-denominator (real BigQuery)',
   () => {
     let adapter: BigQueryApiAdapter;
     let fqName: string;
 
     const builder = new BigQueryQueryBuilder(new BigQueryClauseRenderer());
-    const CTR: CalculatedMetricPlan = {
+    const CTR: CalculatedFieldPlan = {
       outputName: 'ctr',
       formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
       type: 'FLOAT',
@@ -4494,7 +4494,7 @@ describeIfCredentials(
         const byDay = await runQuery({
           columns: ['event_date'],
           dateTruncs: [{ column: 'event_date', unit: 'DAY' }],
-          calculatedMetrics: [CTR],
+          calculatedFields: [CTR],
         });
         expect(byDay).toHaveLength(3);
 
@@ -4503,7 +4503,7 @@ describeIfCredentials(
         expect(ctrByDay.get('2026-01-02')).toBeCloseTo(1.0, 6);
         expect(ctrByDay.get('2026-01-03')).toBeNull();
 
-        const overall = await runQuery({ columns: [], calculatedMetrics: [CTR] });
+        const overall = await runQuery({ columns: [], calculatedFields: [CTR] });
         expect(overall).toHaveLength(1);
         expect(Number(overall[0].ctr)).toBeCloseTo(0.6, 6);
         // The averages a wrong implementation would produce instead — neither is 0.6, so this
@@ -4518,7 +4518,7 @@ describeIfCredentials(
       const filtered = await runQuery({
         columns: [],
         filters: [{ column: 'impressions', operator: 'eq', value: 0 }],
-        calculatedMetrics: [CTR],
+        calculatedFields: [CTR],
       });
       expect(filtered).toHaveLength(1);
       expect(filtered[0].ctr == null).toBe(true);
@@ -4526,7 +4526,7 @@ describeIfCredentials(
   }
 );
 
-// Calculated metric whose formula aggregates a JOINED Data Mart — grain correctness through a
+// Calculated field whose formula aggregates a JOINED Data Mart — grain correctness through a
 // FANNING join.
 //
 // The blend aggregates each joined source by its join key BEFORE joining it in, so re-aggregating
@@ -4587,7 +4587,7 @@ describeIfCredentials(
 // per-group values: the per-group products sum to 18176, the per-group joined sums to 344 (o3
 // counted in both `organic` and `shared`), and the per-group counts to 13.
 describeIfCredentials(
-  'Calculated metric over a JOINED Data Mart — fan-out grain (real BigQuery)',
+  'Calculated field over a JOINED Data Mart — fan-out grain (real BigQuery)',
   () => {
     let adapter: BigQueryApiAdapter;
     let visitsFQN: string;
@@ -4602,7 +4602,7 @@ describeIfCredentials(
 
     // The production analysis, not a hand-built plan: `formulaOwnership` is what decides which
     // calls become sleeves, so a test that fabricated it would prove nothing about routing.
-    function metric(outputName: string, formula: string): CalculatedMetricPlan {
+    function metric(outputName: string, formula: string): CalculatedFieldPlan {
       return {
         outputName,
         formula,
@@ -4614,7 +4614,7 @@ describeIfCredentials(
       };
     }
 
-    const metrics = (): CalculatedMetricPlan[] => [
+    const metrics = (): CalculatedFieldPlan[] => [
       metric('product', `SUM(${COST}) * 2 * SUM(${AMOUNT})`),
       // The joined half on its own — compared row by row against `orders__amount | SUM`, which the
       // report-metric value sleeve computes through entirely different code.
@@ -4684,7 +4684,7 @@ describeIfCredentials(
         // ruling rests on cannot be an artefact of two different executions.
         columns: [...dimensions, 'orders__amount'],
         aggregations: [{ column: 'orders__amount', function: 'SUM' }],
-        calculatedMetrics: metrics(),
+        calculatedFields: metrics(),
         fieldIndex,
       };
     }

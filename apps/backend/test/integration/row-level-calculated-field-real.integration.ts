@@ -16,7 +16,7 @@ import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-st
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from 'src/data-marts/data-storage-types/data-storage-providers';
 import { DataStorageReportReader } from 'src/data-marts/data-storage-types/interfaces/data-storage-report-reader.interface';
 import { DataMartSchemaField } from 'src/data-marts/data-storage-types/data-mart-schema.type';
-import { columnFilterWithoutCalculatedMetrics } from 'src/data-marts/calculated-fields/calculated-field.utils';
+import { columnFilterWithoutCalculatedFields } from 'src/data-marts/calculated-fields/calculated-field.utils';
 import { ReportLikeReadPlan } from 'src/data-marts/dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from 'src/data-marts/services/blendable-schema.service';
 import { BlendedReportDataService } from 'src/data-marts/services/blended-report-data.service';
@@ -2133,13 +2133,13 @@ async function readReportRows(
     const description = await reader.prepareReportData(report, {
       sqlOverride: composed.sql,
       sqlOverrideParams: composed.params,
-      columnFilter: columnFilterWithoutCalculatedMetrics(
+      columnFilter: columnFilterWithoutCalculatedFields(
         decision.columnFilter,
-        composed.calculatedMetrics
+        composed.calculatedFields
       ),
       blendedDataHeaders: decision.blendedDataHeaders,
       aggregationConfig: decision.aggregations ?? report.aggregationConfig ?? undefined,
-      calculatedMetrics: composed.calculatedMetrics,
+      calculatedFields: composed.calculatedFields,
     });
     const headerNames = description.dataHeaders.map(h => h.name);
 
@@ -2191,11 +2191,11 @@ async function readTotals(
     const description = await reader.prepareReportData(report, {
       sqlOverride: totals.sql,
       sqlOverrideParams: totals.params,
-      columnFilter: columnFilterWithoutCalculatedMetrics(totals.columns, totals.calculatedMetrics),
+      columnFilter: columnFilterWithoutCalculatedFields(totals.columns, totals.calculatedFields),
       aggregationConfig: totals.aggregations,
       blendedDataHeaders: totals.blendedDataHeaders,
       rowCount: false,
-      calculatedMetrics: totals.calculatedMetrics,
+      calculatedFields: totals.calculatedFields,
     });
     const batch = await reader.readReportDataBatch(undefined, 1);
     const row = batch.dataRows[0];
@@ -3494,7 +3494,7 @@ function registerSuite(storage: StorageCase): void {
       });
 
       // The seat this slice lifted is a SAVE-time refusal, and no returned row can show that it is
-      // gone: this exact configuration used to be rejected with CALCULATED_METRIC_AS_DIMENSION
+      // gone: this exact configuration used to be rejected with CALCULATED_FIELD_AS_DIMENSION
       // and the report could not be created at all.
       expect(await validationCodesOf(bucketed)).toEqual([]);
 

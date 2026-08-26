@@ -464,8 +464,8 @@ describe('Output controls API (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
-  // Calculated metrics. What http-data.e2e-spec.ts already covers (implicit-all
-  // exclusion, explicit selection, AGGREGATION_ON_CALCULATED_METRIC) is not repeated here — this
+  // Calculated fields. What http-data.e2e-spec.ts already covers (implicit-all
+  // exclusion, explicit selection, AGGREGATION_ON_CALCULATED_FIELD) is not repeated here — this
   // block fills the gaps: the schema-save validation contract itself (§6.2's `{ errors, warnings }`
   // channel, the joined-reference gate) and the composition guards that only a report's own save
   // / read path can exercise. No live warehouse call is needed for any of it: a formula is rejected
@@ -473,7 +473,7 @@ describe('Output controls API (e2e)', () => {
   // the warehouse once the parser pass is clean), and the tests that compose go through the
   // file-wide CreateViewService stub (see the file-level comment above), so they assert SQL shape
   // rather than BigQuery execution.
-  describe('Calculated metric — save and composition guards', () => {
+  describe('Calculated field — save and composition guards', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     let cmDataMartId: string;
     let cmDataDestinationId: string;
@@ -614,7 +614,7 @@ describe('Output controls API (e2e)', () => {
       expect(ctrField.calculated.formula).toBe(CTR_FORMULA);
     });
 
-    it('PUT report rejects a date-trunc naming the calculated metric with CALCULATED_METRIC_AS_DIMENSION', async () => {
+    it('PUT report rejects a date-trunc naming the calculated field with CALCULATED_FIELD_AS_DIMENSION', async () => {
       const res = await agent
         .put(`/api/reports/${cmReportId}`)
         .set(AUTH_HEADER)
@@ -629,16 +629,16 @@ describe('Output controls API (e2e)', () => {
       expect(res.status).toBe(400);
       expect(res.body.details.errors).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ code: 'CALCULATED_METRIC_AS_DIMENSION', column: 'ctr' }),
+          expect.objectContaining({ code: 'CALCULATED_FIELD_AS_DIMENSION', column: 'ctr' }),
         ])
       );
     });
   });
 
-  // A main-owner calculated metric on a report that ALSO spans a joined Data Mart. Forced onto
+  // A main-owner calculated field on a report that ALSO spans a joined Data Mart. Forced onto
   // the blended path here via a joined Unique Count, mirroring the `uniqueCountConfig persistence
   // round trip` block above.
-  describe('Calculated metric — on a blended report', () => {
+  describe('Calculated field — on a blended report', () => {
     const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
     let blendMainDataMartId: string;
     let blendDestinationId: string;
@@ -696,7 +696,7 @@ describe('Output controls API (e2e)', () => {
         .set(AUTH_HEADER)
         .send(
           new DataDestinationBuilder()
-            .withTitle('Calculated metric on blended')
+            .withTitle('Calculated field on blended')
             .withType(DataDestinationType.LOOKER_STUDIO)
             .withCredentials({ type: 'looker-studio-credentials' })
             .build()
@@ -809,7 +809,7 @@ describe('Output controls API (e2e)', () => {
     // Asserted on the BLENDED shape (the joined Unique Count) because that is the path where the
     // plan has furthest to travel: the rule reaches `renderHaving` through the blended builder,
     // and without the plan the builder refuses by name rather than emitting a wrong predicate.
-    it('PUT report accepts a filter on the calculated metric, and HAVING compares the formula', async () => {
+    it('PUT report accepts a filter on the calculated field, and HAVING compares the formula', async () => {
       const putRes = await agent
         .put(`/api/reports/${blendReportId}`)
         .set(AUTH_HEADER)

@@ -657,7 +657,7 @@ the outer query groups by 1`), while **test 12 passes with correct numbers**: wi
   neither of them.
 
 - **The bucket tests ask the VALIDATOR as well as the warehouse.** What slice 3b lifted is a
-  save-time refusal (`CALCULATED_METRIC_AS_DIMENSION`), and no returned row can show that it is gone,
+  save-time refusal (`CALCULATED_FIELD_AS_DIMENSION`), and no returned row can show that it is gone,
   so tests 18 and 19 call `OutputControlsValidatorService.validateForReport` against the same real,
   actualized Data Mart and assert it returns no codes at all.
 
