@@ -16,7 +16,11 @@ import {
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../../dto/schemas/aggregation-labels';
-import { categorizeFieldType, isFloatingPointType, isIntegerType } from '../../dto/schemas/field-type-category';
+import {
+  categorizeFieldType,
+  isFloatingPointType,
+  isIntegerType,
+} from '../../dto/schemas/field-type-category';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { effectiveComparisonType } from '../field-aggregation';
 import { GroupRestriction } from '../../dto/domain/group-restriction';

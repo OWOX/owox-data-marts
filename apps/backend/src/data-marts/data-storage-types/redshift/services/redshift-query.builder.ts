@@ -21,8 +21,6 @@ import {
   composeSelectFromClause,
   hasAggregateCalculatedField,
 } from '../../utils/sql-clause-renderer';
-import { effectiveComparisonType } from '../../field-aggregation';
-import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 @Injectable()
 export class RedshiftQueryBuilder implements DataMartQueryBuilder {
@@ -54,8 +52,8 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
     // This dialect passed `resolveColumnType: undefined` and its fragments read nothing, so the
     // cast seam had no consumer at either end — measured returning `9` where `9, 10, 100` is
-    // correct. It resolves types now; only a Calculated Field's declaration
-    // reaches a cast from here, since no fragment below acts on an ordinary column's type.
+    // correct. It resolves types now: a Calculated Field's declaration reaches a cast
+    // from here, and is_blank / is_not_blank branch on an ordinary column's type (#6779).
     const resolveColumnType = buildFilterTypeResolver(
       queryOptions?.columnTypes,
       calculatedFilterMetrics,

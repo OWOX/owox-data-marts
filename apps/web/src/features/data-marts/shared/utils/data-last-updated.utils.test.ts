@@ -29,7 +29,6 @@ describe('formatRelativeTime', () => {
 });
 
 describe('formatDataLastUpdatedLabel', () => {
-
   // formatDataLastUpdatedLabel reads the real clock, so the fixture's distance from
   // "now" grows every day — 30 days after the fixture date, the day step gives way
   // to the month step and numeric:'auto' renders "last month", which has no "ago"
