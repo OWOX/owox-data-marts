@@ -22,8 +22,17 @@ import { ReportSqlComposerService } from '../services/report-sql-composer.servic
 
 /**
  * The columns a report's rows will carry. Headers come from the stored schema plus the report
- * config — the same `resolveReportDataHeaders` path a run uses — and must not open a storage
- * reader: `prepareReportData` starts a warehouse query on some storages.
+ * config — the same `resolveReportDataHeaders` path a run uses — and opens no storage reader:
+ * `prepareReportData` starts a warehouse query on some storages, and describing a report is a read
+ * under `Role.viewer`.
+ *
+ * `ReportSqlComposerService.compose` is avoided for the same reason: it resolves the main table
+ * reference, which for a SQL-defined Data Mart runs `CREATE OR REPLACE VIEW`. That leaves ONE
+ * warehouse write still reachable from here — a BLENDED report, where
+ * `resolveBlendingDecision` resolves table references itself on its way to the joined SQL, which
+ * this service needs for `blendedDataHeaders` and `uniqueCountSources`. Closing that one needs a
+ * headers-only mode on `resolveBlendingDecision`; until then a blended report on a SQL-defined
+ * Data Mart still refreshes its view when its schema is described.
  */
 @Injectable()
 export class GetReportOutputSchemaService {
@@ -72,17 +81,28 @@ export class GetReportOutputSchemaService {
     const accessor = { userId: command.userId, roles: command.roles };
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
 
+    if (!report.dataMart.schema) {
+      throw new BusinessViolationException('Data mart schema must be provided');
+    }
+
     // Calculated fields are named by their formula and exist only in the plan that built them.
+    //
+    // Built directly rather than through `compose`: composing resolves the main table reference,
+    // and for a SQL-defined Data Mart that runs `CREATE OR REPLACE VIEW` against the customer's
+    // warehouse — DDL a describe endpoint under `Role.viewer` must not issue. The plans are the
+    // same ones `compose` derives before it ever reaches that step, so nothing about the headers
+    // changes; what goes away is the warehouse write, a second `resolveBlendingDecision`, and the
+    // SQL-composition errors that used to fail a request that only ever needed to name columns.
     let calculatedFields: CalculatedFieldPlan[] | undefined;
     if (decision.needsBlending) {
       calculatedFields = decision.calculatedFields;
     } else if (hasOutputControls(report)) {
-      calculatedFields = (await this.reportSqlComposerService.compose(report, accessor))
-        .calculatedFields;
-    }
-
-    if (!report.dataMart.schema) {
-      throw new BusinessViolationException('Data mart schema must be provided');
+      const plans = this.reportSqlComposerService.buildCalculatedFieldPlans(
+        report.dataMart.schema.fields ?? [],
+        decision.columnFilter ?? [],
+        report.aggregationConfig ?? undefined
+      );
+      calculatedFields = plans.length > 0 ? plans : undefined;
     }
 
     const nativeHeaders = await this.reportHeadersGeneratorFacade.generateHeadersFromSchema(
