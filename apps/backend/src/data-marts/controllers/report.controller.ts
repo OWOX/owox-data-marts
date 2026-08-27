@@ -6,6 +6,7 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportRequestApiDto } from '../dto/presentation/create-report-request-api.dto';
 import { UpdateReportRequestApiDto } from '../dto/presentation/update-report-request-api.dto';
 import { ReportResponseApiDto } from '../dto/presentation/report-response-api.dto';
+import { ReportOutputSchemaFieldApiDto } from '../dto/presentation/report-output-schema-field-api.dto';
 import { CreateReportService } from '../use-cases/create-report.service';
 import { GetReportService } from '../use-cases/get-report.service';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
@@ -14,6 +15,7 @@ import { DeleteReportService } from '../use-cases/delete-report.service';
 import { RunReportService } from '../use-cases/run-report.service';
 import { UpdateReportService } from '../use-cases/update-report.service';
 import { GetReportGeneratedSqlService } from '../use-cases/get-report-generated-sql.service';
+import { GetReportOutputSchemaService } from '../use-cases/get-report-output-schema.service';
 import { CopyReportAsDataMartService } from '../use-cases/copy-report-as-data-mart.service';
 import { ReconnectGoogleSheetService } from '../use-cases/google-sheets/reconnect-google-sheet.service';
 import { ReconnectGoogleSheetResponseDto } from '../dto/presentation/google-sheets/reconnect-google-sheet-response.dto';
@@ -27,6 +29,7 @@ import {
   UpdateReportSpec,
   ListReportsByInsightTemplateSpec,
   GetReportGeneratedSqlSpec,
+  GetReportOutputSchemaSpec,
   CopyReportAsDataMartSpec,
 } from './spec/report.api';
 
@@ -42,6 +45,7 @@ export class ReportController {
     private readonly runReportService: RunReportService,
     private readonly updateReportService: UpdateReportService,
     private readonly getReportGeneratedSqlService: GetReportGeneratedSqlService,
+    private readonly getReportOutputSchemaService: GetReportOutputSchemaService,
     private readonly copyReportAsDataMartService: CopyReportAsDataMartService,
     private readonly reconnectGoogleSheetService: ReconnectGoogleSheetService,
     private readonly mapper: ReportMapper
@@ -144,6 +148,18 @@ export class ReportController {
   ): Promise<ReconnectGoogleSheetResponseDto> {
     const command = this.mapper.toReconnectGoogleSheetCommand(id, context);
     return this.reconnectGoogleSheetService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/output-schema')
+  @GetReportOutputSchemaSpec()
+  async getOutputSchema(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<ReportOutputSchemaFieldApiDto[]> {
+    const command = this.mapper.toGetOutputSchemaCommand(id, context);
+    const headers = await this.getReportOutputSchemaService.run(command);
+    return this.mapper.toOutputSchemaResponse(headers);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

@@ -15,7 +15,10 @@ import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-
 import { ManualRunReportCommand } from '../dto/domain/run-report.command';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { ReconnectGoogleSheetCommand } from '../dto/domain/google-sheets/reconnect-google-sheet.command';
+import { GetReportOutputSchemaCommand } from '../dto/domain/get-report-output-schema.command';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
+import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { ReportOutputSchemaFieldApiDto } from '../dto/presentation/report-output-schema-field-api.dto';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
@@ -250,6 +253,27 @@ export class ReportMapper {
       context.projectId,
       context.roles ?? []
     );
+  }
+
+  toGetOutputSchemaCommand(
+    reportId: string,
+    context: AuthorizationContext
+  ): GetReportOutputSchemaCommand {
+    return new GetReportOutputSchemaCommand(
+      reportId,
+      context.userId,
+      context.projectId,
+      context.roles ?? []
+    );
+  }
+
+  toOutputSchemaResponse(headers: ReportDataHeader[]): ReportOutputSchemaFieldApiDto[] {
+    return headers.map(header => ({
+      name: header.name,
+      title: header.alias,
+      description: header.description,
+      type: header.storageFieldType,
+    }));
   }
 
   toGetGeneratedSqlCommand(

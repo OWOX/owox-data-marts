@@ -382,6 +382,7 @@ import { ListRelationshipsByStorageService } from './use-cases/list-relationship
 import { GetDataMartRelationshipGraphService } from './use-cases/get-data-mart-relationship-graph.service';
 import { GetBlendableSchemaService } from './use-cases/get-blendable-schema.service';
 import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
+import { GetReportOutputSchemaService } from './use-cases/get-report-output-schema.service';
 import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
 import { DataMartRelationshipController } from './controllers/data-mart-relationship.controller';
 import { DataStorageRelationshipController } from './controllers/data-storage-relationship.controller';
@@ -884,6 +885,7 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     GetDataMartRelationshipGraphService,
     GetBlendableSchemaService,
     GetReportGeneratedSqlService,
+    GetReportOutputSchemaService,
     CopyReportAsDataMartService,
     ContextService,
     ContextAccessService,

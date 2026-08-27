@@ -8,6 +8,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { ReportResponseApiDto } from '../../dto/presentation/report-response-api.dto';
+import { ReportOutputSchemaFieldApiDto } from '../../dto/presentation/report-output-schema-field-api.dto';
 import { ReconnectGoogleSheetResponseDto } from '../../dto/presentation/google-sheets/reconnect-google-sheet-response.dto';
 import {
   createReportRequestBodySchema,
@@ -107,6 +108,18 @@ export function ListReportsByInsightTemplateSpec() {
     ApiOkResponse({
       description: 'List of email reports that use the insight template as their template source',
       type: [ReportResponseApiDto],
+    })
+  );
+}
+
+export function GetReportOutputSchemaSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: "Get the resolved column schema of a report's output" }),
+    ApiParam({ name: 'id', description: 'Report ID' }),
+    ApiOkResponse({
+      description:
+        "The columns the report's rows will carry, in the order they are projected. `name` is the key each row is keyed by; `title` is the alias configured for it, absent when there is none. Columns the report synthesises — aggregated (`<column> | <FN>`), Unique Count, calculated fields — appear here and nowhere in the Data Mart schema.",
+      type: [ReportOutputSchemaFieldApiDto],
     })
   );
 }
