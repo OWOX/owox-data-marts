@@ -21,6 +21,7 @@ import { CopyReportAsDataMartService } from '../../use-cases/copy-report-as-data
 import { CreateReportService } from '../../use-cases/create-report.service';
 import { DeleteReportService } from '../../use-cases/delete-report.service';
 import { GetReportGeneratedSqlService } from '../../use-cases/get-report-generated-sql.service';
+import { GetReportOutputSchemaService } from '../../use-cases/get-report-output-schema.service';
 import { GetReportService } from '../../use-cases/get-report.service';
 import { ListReportsByDataMartService } from '../../use-cases/list-reports-by-data-mart.service';
 import { ListReportsByInsightTemplateService } from '../../use-cases/list-reports-by-insight-template.service';
@@ -40,6 +41,7 @@ describe('ReportController OpenAPI', () => {
       CreateReportService,
       DeleteReportService,
       GetReportGeneratedSqlService,
+      GetReportOutputSchemaService,
       GetReportService,
       ListReportsByDataMartService,
       ListReportsByInsightTemplateService,
@@ -287,6 +289,16 @@ describe('ReportController OpenAPI', () => {
   });
 
   it('documents small object responses', () => {
+    expect(document.paths['/api/reports/{id}/output-schema']?.get?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            type: 'array',
+            items: { $ref: expect.stringContaining('ReportOutputSchemaFieldApiDto') },
+          },
+        },
+      },
+    });
     expect(document.paths['/api/reports/{id}/generated-sql']?.get?.responses['200']).toMatchObject({
       content: {
         'application/json': {
