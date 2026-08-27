@@ -67,10 +67,13 @@ export function requiresCredentials(type: DataDestinationType): boolean {
  * Destinations that render a field from a joined Data Mart as `Field name (Data Mart name)`.
  * Everywhere else the Data Mart name stays a prefix: `Data Mart name Field name`.
  *
- * Google Sheets writes the label into a spreadsheet header cell, which is narrow and not resizable
- * per column by the reader — a leading Data Mart name pushes the field name out of view on every
- * column at once. The other destinations render the label with enough room that the prefix reads
- * fine, so they keep it.
+ * Both spreadsheet destinations write the label into a header cell, which is narrow and not
+ * resizable per column by the reader — a leading Data Mart name pushes the field name out of view
+ * on every column at once. The other destinations render the label with enough room that the
+ * prefix reads fine, so they keep it.
+ *
+ * Excel qualifies on that same ground. Left out here, a run's recorded label disagreed with the
+ * header written into the worksheet.
  *
  * What this pins is the POSITION of the Data Mart name, not a byte-exact label: every surface
  * still normalizes whitespace (see `formatBlendedFieldDisplayName`), and no consumer keys on the
@@ -80,5 +83,5 @@ export function requiresCredentials(type: DataDestinationType): boolean {
  * New destination types default to the prefix; opt in here deliberately.
  */
 export function usesSuffixedJoinedFieldNames(type: DataDestinationType): boolean {
-  return type === DataDestinationType.GOOGLE_SHEETS;
+  return type === DataDestinationType.GOOGLE_SHEETS || type === DataDestinationType.EXCEL;
 }

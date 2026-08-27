@@ -124,6 +124,14 @@ describe('usesSuffixedJoinedFieldNames', () => {
     ).toBe(true);
   });
 
+  it('is enabled for a report writing to Excel', () => {
+    // Same ground as Google Sheets: the label lands in a header cell the reader cannot widen for
+    // one column alone.
+    expect(
+      usesSuffixedJoinedFieldNames(reportWithDestination({ type: DataDestinationType.EXCEL }))
+    ).toBe(true);
+  });
+
   it('is disabled for a report writing to any other destination', () => {
     expect(
       usesSuffixedJoinedFieldNames(
