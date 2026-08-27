@@ -7,6 +7,11 @@ export type FilterOperator =
   | 'ends_with'
   | 'in'
   | 'not_in'
+  // "The cell looks empty": NULL, '' or whitespace-only on strings, NULL elsewhere.
+  | 'is_blank'
+  | 'is_not_blank'
+  // Legacy null/empty cluster (#6779): saved rules still carry these; the picker
+  // no longer offers them.
   | 'is_empty'
   | 'is_not_empty'
   | 'is_null'
@@ -68,10 +73,8 @@ const STRING_OPERATORS: OperatorMeta[] = [
   { value: 'not_contains', label: "doesn't contain", shortLabel: '⊅' },
   { value: 'starts_with', label: 'starts with', shortLabel: '↦' },
   { value: 'ends_with', label: 'ends with', shortLabel: '↤' },
-  { value: 'is_empty', label: 'is empty', shortLabel: '∅' },
-  { value: 'is_not_empty', label: 'is not empty', shortLabel: '¬∅' },
-  { value: 'is_null', label: 'is null', shortLabel: '∅?' },
-  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅?' },
+  { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
+  { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
   { value: 'regex', label: 'matches regex', shortLabel: '/.../' },
   { value: 'not_regex', label: "doesn't match regex", shortLabel: '!/.../' },
 ];
@@ -86,8 +89,8 @@ const NUMBER_OPERATORS: OperatorMeta[] = [
   { value: 'gte', label: 'greater than or equal', shortLabel: '≥' },
   { value: 'lte', label: 'less than or equal', shortLabel: '≤' },
   { value: 'between', label: 'between', shortLabel: 'X..Y' },
-  { value: 'is_null', label: 'is null', shortLabel: '∅' },
-  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
+  { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
+  { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
 ];
 
 const DATE_OPERATORS: OperatorMeta[] = [
@@ -101,15 +104,15 @@ const DATE_OPERATORS: OperatorMeta[] = [
   { value: 'lte', label: 'on or before', shortLabel: '≤' },
   { value: 'between', label: 'between', shortLabel: 'X..Y' },
   { value: 'relative_date', label: 'relative', shortLabel: '⏱' },
-  { value: 'is_null', label: 'is null', shortLabel: '∅' },
-  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
+  { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
+  { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
 ];
 
 const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_true', label: 'is true', shortLabel: '✓' },
   { value: 'is_false', label: 'is false', shortLabel: '✗' },
-  { value: 'is_null', label: 'is null', shortLabel: '∅' },
-  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
+  { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
+  { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
 ];
 
 const FALLBACK_OPERATOR_LABELS: Record<FilterOperator, string> = {
@@ -121,6 +124,9 @@ const FALLBACK_OPERATOR_LABELS: Record<FilterOperator, string> = {
   ends_with: 'ends with',
   in: 'is any of',
   not_in: 'is none of',
+  is_blank: 'is blank',
+  is_not_blank: 'is not blank',
+  // Legacy labels: saved rules keep rendering with the name they were created under.
   is_empty: 'is empty',
   is_not_empty: 'is not empty',
   is_null: 'is null',
@@ -153,17 +159,37 @@ const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'r
   }
 );
 
+// Any type outside the known category sets — ARRAY<...>, MAP, STRUCT, JSON,
+// VARBINARY, GEOGRAPHY, … — still supports the type-agnostic blank pair: "the cell
+// looks empty" is meaningful on every column, the backend accepts is_blank on every
+// type (TYPE_AGNOSTIC_OPS), and the renderers emit the NULL-only form for it (#6779).
+const OTHER_OPERATORS: OperatorMeta[] = [
+  { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
+  { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
+];
+
 export function operatorsForType(fieldType: string): OperatorMeta[] {
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPERATORS;
   if (DATE_TYPES.has(fieldType)) return DATE_OPERATORS;
   if (TIME_TYPES.has(fieldType)) return TIME_OPERATORS;
   if (BOOL_TYPES.has(fieldType)) return BOOLEAN_OPERATORS;
-  return [];
+  return OTHER_OPERATORS;
 }
 
 export function isFilterableType(fieldType: string): boolean {
   return operatorsForType(fieldType).length > 0;
+}
+
+/**
+ * Mirror of the backend comparison type (data-mart-schema.utils.ts): a BigQuery
+ * REPEATED field stores its ELEMENT type ('STRING' + mode 'REPEATED'), but the
+ * column is an ARRAY<STRING> — string operators are type errors on it, and only the
+ * blank pair applies. Marking the type here files it under OTHER_OPERATORS above,
+ * so the picker offers exactly what the backend validator accepts.
+ */
+export function effectiveComparisonType(fieldType: string, mode?: string): string {
+  return mode === 'REPEATED' ? `ARRAY<${fieldType}>` : fieldType;
 }
 
 // Shared so FilterValueEditor parses values with the SAME type sets — a number

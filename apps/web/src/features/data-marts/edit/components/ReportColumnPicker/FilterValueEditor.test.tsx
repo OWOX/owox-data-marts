@@ -118,7 +118,7 @@ describe('FilterValueEditor — onChange on mount', () => {
     expect(lastCall(onChange)).toEqual(initialRule);
   });
 
-  it('emits a no-value rule on mount when initialRule has a no-value operator', () => {
+  it('emits a no-value rule on mount when initialRule has a (legacy) no-value operator', () => {
     const initialRule: FilterRule = { column: COL, operator: 'is_empty' };
     const onChange = vi.fn();
     act(() => {
@@ -248,23 +248,43 @@ describe('FilterValueEditor — no-value operators', () => {
     vi.clearAllMocks();
   });
 
-  it('switching to is_empty emits { column, operator: "is_empty" } (no value) and hides value input', () => {
+  it('switching to is_blank emits { column, operator: "is_blank" } (no value) and hides value input', () => {
     const { onChange } = renderEditor({ fieldType: STRING_TYPE });
 
-    fireEvent.change(getConditionSelect(), { target: { value: 'is_empty' } });
+    fireEvent.change(getConditionSelect(), { target: { value: 'is_blank' } });
 
-    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_empty' });
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_blank' });
     // Value input should be hidden
     expect(screen.queryByPlaceholderText('')).toBeNull();
   });
 
-  it('switching to is_null emits { column, operator: "is_null" } and hides value input', () => {
+  it('switching to is_not_blank emits { column, operator: "is_not_blank" } and hides value input', () => {
     const { onChange } = renderEditor({ fieldType: STRING_TYPE });
 
-    fireEvent.change(getConditionSelect(), { target: { value: 'is_null' } });
+    fireEvent.change(getConditionSelect(), { target: { value: 'is_not_blank' } });
 
-    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_null' });
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_not_blank' });
     expect(screen.queryByPlaceholderText('')).toBeNull();
+  });
+
+  it('the picker menus no longer offer the legacy null/empty operators', () => {
+    renderEditor({ fieldType: STRING_TYPE });
+    const options = [...getConditionSelect().querySelectorAll('option')].map(o => o.value);
+    expect(options).toEqual(expect.arrayContaining(['is_blank', 'is_not_blank']));
+    for (const legacy of ['is_empty', 'is_not_empty', 'is_null', 'is_not_null']) {
+      expect(options).not.toContain(legacy);
+    }
+  });
+
+  it('a saved rule with a legacy operator still renders: the operator is appended to the menu', () => {
+    renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'is_null' },
+    });
+    const select = getConditionSelect() as HTMLSelectElement;
+    expect(select.value).toBe('is_null');
+    const legacyOption = [...select.querySelectorAll('option')].find(o => o.value === 'is_null');
+    expect(legacyOption?.textContent).toBe('is null');
   });
 
   it('switching to is_true emits { column, operator: "is_true" } and hides value input (BOOLEAN)', () => {
@@ -821,9 +841,9 @@ describe('FilterValueEditor — switching operator clears invalid state', () => 
     // Initially: scalar op, empty value → null
     expect(lastCall(onChange)).toBeNull();
 
-    // Switch to is_empty — immediately valid
-    fireEvent.change(getConditionSelect(), { target: { value: 'is_empty' } });
-    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_empty' });
+    // Switch to is_blank — immediately valid
+    fireEvent.change(getConditionSelect(), { target: { value: 'is_blank' } });
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_blank' });
   });
 });
 

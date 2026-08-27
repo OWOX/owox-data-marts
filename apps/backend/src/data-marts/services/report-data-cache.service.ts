@@ -19,6 +19,7 @@ import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportSqlComposerService } from './report-sql-composer.service';
+import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -52,6 +53,7 @@ export class ReportDataCacheService {
 
     let sqlOverride = decision.needsBlending ? decision.blendedSql : undefined;
     let sqlOverrideParams = decision.needsBlending ? decision.params : undefined;
+    let calculatedFields: PrepareReportDataOptions['calculatedFields'] = decision.calculatedFields;
 
     // Non-blended reports with output controls must compose their filter/sort/limit
     // SQL + bound params here, exactly as RunReportService does — otherwise this
@@ -61,18 +63,25 @@ export class ReportDataCacheService {
       const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
+      calculatedFields = composed.calculatedFields;
     }
+
+    const columnFilter = columnFilterWithoutCalculatedFields(
+      decision.columnFilter,
+      calculatedFields
+    );
 
     return {
       options: {
         sqlOverride,
         sqlOverrideParams,
-        columnFilter: decision.columnFilter,
+        columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregationConfig: decision.aggregations ?? report.aggregationConfig ?? undefined,
         uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
+        calculatedFields,
       },
       decision,
     };

@@ -1102,7 +1102,7 @@ describeIfCredentials(
 );
 
 // ---------------------------------------------------------------------------
-// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix (, real
+// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix, on a real
 // Databricks). This proves the N-hop NESTED-bridge variant: a 2-hop chain
 // events -> users -> organizations, where `organizations` is a CHILD of
 // `users` (org_id lives on users), NOT a sibling of it. Main = events

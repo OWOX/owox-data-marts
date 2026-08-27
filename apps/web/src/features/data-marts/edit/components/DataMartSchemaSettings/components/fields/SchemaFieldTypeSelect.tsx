@@ -15,31 +15,56 @@ import {
 } from '../../../../../shared/types/data-mart-schema.types';
 
 /**
- * Define storage types
+ * The storage types a Data Mart schema can actually be edited for — the only ones
+ * `SchemaContent.tsx` ever renders a schema table for, and so the only ones this component (or
+ * anything reusing its type list) is ever asked about.
  */
-type StorageType =
+export type SchemaCapableStorageType =
   | DataStorageType.GOOGLE_BIGQUERY
   | DataStorageType.AWS_ATHENA
   | DataStorageType.SNOWFLAKE
   | DataStorageType.AWS_REDSHIFT
   | DataStorageType.DATABRICKS;
-type FieldType =
-  | BigQueryFieldType
-  | AthenaFieldType
-  | SnowflakeFieldType
-  | RedshiftFieldType
-  | DatabricksFieldType;
 
 /**
  * Props for the SchemaFieldTypeSelect component
  */
 interface SchemaFieldTypeSelectProps {
   /** The current type of the field */
-  type: FieldType;
-  /** The storage type ('bigquery' or 'athena') */
-  storageType: StorageType;
+  type: string;
+  /** The storage type this field belongs to — picks which type list to offer */
+  storageType: SchemaCapableStorageType;
   /** Callback function to call when the type changes */
-  onTypeChange?: (newType: FieldType) => void;
+  onTypeChange?: (newType: string) => void;
+  /** Accessible name for the trigger; defaults to none (relies on surrounding context) */
+  ariaLabel?: string;
+}
+
+/**
+ * The type list a given storage's schema fields offer. A plain switch with a `never` default —
+ * not the old if/else chain falling through to Databricks — so a `SchemaCapableStorageType` that
+ * gains a member without a corresponding case here fails to COMPILE instead of silently reusing
+ * another storage's type list.
+ */
+function fieldTypesFor(storageType: SchemaCapableStorageType): readonly string[] {
+  switch (storageType) {
+    case DataStorageType.GOOGLE_BIGQUERY:
+      return Object.values(BigQueryFieldType);
+    case DataStorageType.AWS_ATHENA:
+      return Object.values(AthenaFieldType);
+    case DataStorageType.SNOWFLAKE:
+      return Object.values(SnowflakeFieldType);
+    case DataStorageType.AWS_REDSHIFT:
+      return Object.values(RedshiftFieldType);
+    case DataStorageType.DATABRICKS:
+      return Object.values(DatabricksFieldType);
+    default: {
+      const exhaustive: never = storageType;
+      throw new Error(
+        `SchemaFieldTypeSelect: no field type list for storage type "${String(exhaustive)}"`
+      );
+    }
+  }
 }
 
 /**
@@ -49,40 +74,13 @@ export function SchemaFieldTypeSelect({
   type,
   storageType,
   onTypeChange,
+  ariaLabel,
 }: SchemaFieldTypeSelectProps) {
-  // Get the appropriate field types based on storage type
-  const fieldTypes =
-    storageType === DataStorageType.GOOGLE_BIGQUERY
-      ? Object.values(BigQueryFieldType)
-      : storageType === DataStorageType.AWS_ATHENA
-        ? Object.values(AthenaFieldType)
-        : storageType === DataStorageType.SNOWFLAKE
-          ? Object.values(SnowflakeFieldType)
-          : storageType === DataStorageType.AWS_REDSHIFT
-            ? Object.values(RedshiftFieldType)
-            : Object.values(DatabricksFieldType);
-
-  // Handle type change
-  const handleValueChange = (value: string) => {
-    if (onTypeChange) {
-      // Cast the string value to the appropriate field type
-      if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
-        onTypeChange(value as BigQueryFieldType);
-      } else if (storageType === DataStorageType.AWS_ATHENA) {
-        onTypeChange(value as AthenaFieldType);
-      } else if (storageType === DataStorageType.SNOWFLAKE) {
-        onTypeChange(value as SnowflakeFieldType);
-      } else if (storageType === DataStorageType.AWS_REDSHIFT) {
-        onTypeChange(value as RedshiftFieldType);
-      } else {
-        onTypeChange(value as DatabricksFieldType);
-      }
-    }
-  };
+  const fieldTypes = fieldTypesFor(storageType);
 
   return (
-    <Select value={type as string} onValueChange={handleValueChange}>
-      <SelectTrigger className='cursor-pointer' size='sm'>
+    <Select value={type} onValueChange={onTypeChange}>
+      <SelectTrigger className='cursor-pointer' size='sm' aria-label={ariaLabel}>
         <SelectValue placeholder='Select field type' />
       </SelectTrigger>
       <SelectContent className='max-h-[300px]'>

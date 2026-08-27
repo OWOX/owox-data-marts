@@ -35,18 +35,18 @@ So selecting `date`, `source`, and `sessionId` with `COUNT_DISTINCT` on `session
 
 On the Data Mart's schema, each field carries a **role** and an **allowed-aggregations** set that govern what report builders may do with it:
 
-- **Role (dimension or metric)** is derived from the field type by default — numeric fields default to *metric*, everything else to *dimension*. A field is either a grouping key or an aggregated metric in any given report.
+- **Role (dimension or metric)** is derived from the field type by default — numeric fields default to _metric_, everything else to _dimension_. A field is either a grouping key or an aggregated metric in any given report.
 - **Allowed aggregations** is the set of functions a report may apply to the field. The **Allowed aggregations** selector on the field row offers only the functions **supported** for that field type, with a sensible **default** subset pre-selected; you can **narrow the set per field, or turn aggregation off entirely**.
 
 The supported menu and on-by-default subset per type:
 
-| Field type      | Default (on)            | Also available                                  |
-| --------------- | ----------------------- | ----------------------------------------------- |
-| Numeric         | `SUM`, `AVG`, `MIN`, `MAX` | percentiles (`P25`/`P50`/`P75`/`P95`), `ANY_VALUE` |
-| Date / time     | `MIN`, `MAX`            | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` |
-| Text            | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` | `MIN`, `MAX`               |
-| Boolean         | `COUNT`, `COUNT_DISTINCT` | `ANY_VALUE`                                    |
-| Other (JSON, geography, array, struct, …) | `COUNT` | `ANY_VALUE`                                    |
+| Field type                                | Default (on)                                         | Also available                                       |
+| ----------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| Numeric                                   | `SUM`, `AVG`, `MIN`, `MAX`                           | percentiles (`P25`/`P50`/`P75`/`P95`), `ANY_VALUE`   |
+| Date / time                               | `MIN`, `MAX`                                         | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` |
+| Text                                      | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` | `MIN`, `MAX`                                         |
+| Boolean                                   | `COUNT`, `COUNT_DISTINCT`                            | `ANY_VALUE`                                          |
+| Other (JSON, geography, array, struct, …) | `COUNT`                                              | `ANY_VALUE`                                          |
 
 Note that `COUNT` / `COUNT_DISTINCT` are not offered for numeric fields, and `SUM` / `AVG` / percentiles are not offered for non-numeric fields. A report can only request a function the field allows.
 
@@ -64,16 +64,16 @@ In the report's **Columns** picker, each eligible field shows a Σ (aggregation)
 
 The **Output label** is the function's display name in the UI; the **Column token** is the uppercase suffix in the output column name (`<column> | <TOKEN>`).
 
-| Function         | Output label          | Column token        | Returns       | Use when                                                   |
-| ---------------- | --------------------- | ------------------- | ------------- | ---------------------------------------------------------- |
-| `SUM`            | Sum                   | `SUM`               | numeric       | Total a numeric metric (revenue, spend).                   |
-| `AVG`            | Average               | `AVG`               | float         | Average a numeric metric.                                  |
-| `MIN` / `MAX`    | Min / Max             | `MIN` / `MAX`       | original type | Smallest/largest value, or earliest/latest date.          |
-| `COUNT`          | Count                 | `COUNT`             | integer       | Number of rows in the group.                               |
-| `COUNT_DISTINCT` | Count Unique          | `COUNTUNIQUE`       | integer       | Number of unique values (e.g., distinct sessions).         |
-| `STRING_AGG`     | Combined              | `STRINGAGG`         | string        | Concatenate text values into one comma-separated list.     |
-| `ANY_VALUE`      | Sample                | `ANYVALUE`          | original type | A single representative value (cheaper than `STRING_AGG`). |
-| `P25` / `P50` / `P75` / `P95` | 25th Percentile / Median / 75th Percentile / 95th Percentile | `P25` / `MEDIAN` / `P75` / `P95` | float | Distribution percentiles of a numeric metric. |
+| Function                      | Output label                                                 | Column token                     | Returns       | Use when                                                   |
+| ----------------------------- | ------------------------------------------------------------ | -------------------------------- | ------------- | ---------------------------------------------------------- |
+| `SUM`                         | Sum                                                          | `SUM`                            | numeric       | Total a numeric metric (revenue, spend).                   |
+| `AVG`                         | Average                                                      | `AVG`                            | float         | Average a numeric metric.                                  |
+| `MIN` / `MAX`                 | Min / Max                                                    | `MIN` / `MAX`                    | original type | Smallest/largest value, or earliest/latest date.           |
+| `COUNT`                       | Count                                                        | `COUNT`                          | integer       | Number of rows in the group.                               |
+| `COUNT_DISTINCT`              | Count Unique                                                 | `COUNTUNIQUE`                    | integer       | Number of unique values (e.g., distinct sessions).         |
+| `STRING_AGG`                  | Combined                                                     | `STRINGAGG`                      | string        | Concatenate text values into one comma-separated list.     |
+| `ANY_VALUE`                   | Sample                                                       | `ANYVALUE`                       | original type | A single representative value (cheaper than `STRING_AGG`). |
+| `P25` / `P50` / `P75` / `P95` | 25th Percentile / Median / 75th Percentile / 95th Percentile | `P25` / `MEDIAN` / `P75` / `P95` | float         | Distribution percentiles of a numeric metric.              |
 
 Which functions appear depends on the field type and the Data Mart's **allowed aggregations** for that field.
 
@@ -89,7 +89,7 @@ Grouping is implicit: every selected column that has **no** aggregation becomes 
 
 ## Date Bucketing
 
-To answer questions like *"revenue by month"* or *"sessions by week"*, bucket a date or timestamp dimension instead of grouping by the raw (daily) value. Choose a granularity — **Day, Week, Month, Quarter, or Year** — for the date column. For **timestamp/datetime** columns you can optionally set an **IANA time zone** (for example, `America/New_York`) so values are converted to that zone before truncation; without one, no conversion is applied. (Pure `DATE` columns have no time-of-day, so no time zone applies.)
+To answer questions like _"revenue by month"_ or _"sessions by week"_, bucket a date or timestamp dimension instead of grouping by the raw (daily) value. Choose a granularity — **Day, Week, Month, Quarter, or Year** — for the date column. For **timestamp/datetime** columns you can optionally set an **IANA time zone** (for example, `America/New_York`) so values are converted to that zone before truncation; without one, no conversion is applied. (Pure `DATE` columns have no time-of-day, so no time zone applies.)
 
 ![Edit report panel with a popover open on the order_timestamp column. "Group by bucket" is set to WEEK and "Time zone (optional)" to America/New_York, with "Or aggregate by" Min/Max checkboxes below. An arrow points to the Group by bucket dropdown.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3230bcf4-f40a-478e-b174-be28be8d6a00/public)
 
@@ -109,18 +109,18 @@ The **Unique Count** row (at the bottom of the Data Mart's field list) adds a `C
 
 Every [joined Data Mart](./joinable-data-marts.md) offers a Unique Count of its own, at the bottom of that Data Mart's group in the **Columns** picker. In the picker it is simply `Unique Count` — the group heading above already names the Data Mart — with a tooltip naming that Data Mart and the key columns being counted. In the produced file it carries the Data Mart's name like any other joined field: `Unique Count (Orders)` in Google Sheets, `Orders Unique Count` everywhere else. It counts distinct records of **that** Data Mart by **its** primary key, composite keys included.
 
-This answers questions the join alone cannot: *"how many orders per customer"*, or *"how many unique products across a customer's orders"* — without adding the order or product key to the report as a column. Select as many as you need; each joined Data Mart contributes its own column — and each one its own `SELECT DISTINCT` pass over that Data Mart, so on a pay-per-scan warehouse a report that ticks several costs more to run.
+This answers questions the join alone cannot: _"how many orders per customer"_, or _"how many unique products across a customer's orders"_ — without adding the order or product key to the report as a column. Select as many as you need; each joined Data Mart contributes its own column — and each one its own `SELECT DISTINCT` pass over that Data Mart, so on a pay-per-scan warehouse a report that ticks several costs more to run.
 
 > ⚠️ A joined Unique Count can be **selected** and **sorted by**, like the report's own Data Mart's Unique Count. It cannot be filtered or aggregated on.
 
 When a joined Data Mart cannot offer the metric, the row is still shown, disabled, with a tooltip naming that Data Mart and explaining why. The primary key is defined on that Data Mart's **Data Setup** page:
 
-| Why it is disabled                                        | What to fix                                                                  |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| No primary key is set on that Data Mart                   | Mark the key field(s) as **PK** in that Data Mart's output schema.           |
-| Part of the primary key is disconnected                   | Reconnect the missing key field, or actualize that Data Mart's schema.       |
-| The primary key is a nested field (for example `user.id`) | Unique Count cannot key on a nested field — declare a top-level key instead. |
-| The primary key is nested **and** part of it is disconnected | Both need fixing — a top-level key, all of whose fields are connected. |
+| Why it is disabled                                           | What to fix                                                                  |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| No primary key is set on that Data Mart                      | Mark the key field(s) as **PK** in that Data Mart's output schema.           |
+| Part of the primary key is disconnected                      | Reconnect the missing key field, or actualize that Data Mart's schema.       |
+| The primary key is a nested field (for example `user.id`)    | Unique Count cannot key on a nested field — declare a top-level key instead. |
+| The primary key is nested **and** part of it is disconnected | Both need fixing — a top-level key, all of whose fields are connected.       |
 
 ## Counting rows in a group
 
@@ -128,7 +128,7 @@ An aggregated report contains only the columns you select — no `Row Count` col
 
 ## Totals
 
-**Totals** are a per-column summary over the full filtered dataset, with no grouping. Totals cover every selected **numeric** field — aggregated by **all of its allowed functions** (for example `Sum`, `Average`, `Min`, and `Max` of `revenue`) — plus any **non-numeric field the report aggregates as a metric** (for example `Count Unique` on a text `country` column, giving its distinct count). `Sample` (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are **never** part of Totals: a single representative value or a full-column concatenation is not a meaningful grand total. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows.
+**Totals** are a per-column summary over the full filtered dataset, with no grouping. Totals cover every selected **numeric** field — aggregated by **all of its allowed functions** (for example `Sum`, `Average`, `Min`, and `Max` of `revenue`) — plus any **non-numeric field the report aggregates as a metric** (for example `Count Unique` on a text `country` column, giving its distinct count). `Sample` (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are **never** part of Totals: a single representative value or a full-column concatenation is not a meaningful grand total. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows. [Calculated fields](./calculated-fields.md) are the one exception to the rule above: OWOX never invents a Totals aggregation for a formula, so a calculated field appears in Totals as its own formula recomputed over the whole dataset, and a calculated dimension the report aggregates carries no Totals value at all.
 
 Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Unique Count` is not part of Totals.
 

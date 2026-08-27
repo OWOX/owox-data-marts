@@ -40,6 +40,7 @@ import { RedshiftFieldType } from '../src/data-marts/data-storage-types/redshift
 const HEADERS: ReportDataHeader[] = [
   new ReportDataHeader('id', 'id', undefined, RedshiftFieldType.INTEGER),
   new ReportDataHeader('created_at', 'created_at', undefined, RedshiftFieldType.TIMESTAMP),
+  new ReportDataHeader('name', 'name', undefined, RedshiftFieldType.VARCHAR),
 ];
 
 // Real ReportDataCacheService → spyReader.prepareReportData(report, options).
@@ -122,6 +123,7 @@ describe('Output controls — Redshift SQL emission (e2e)', () => {
           fields: [
             { name: 'id', type: 'INTEGER', status: 'CONNECTED', isPrimaryKey: false },
             { name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED', isPrimaryKey: false },
+            { name: 'name', type: 'VARCHAR', status: 'CONNECTED', isPrimaryKey: false },
           ],
         },
       });
@@ -203,8 +205,13 @@ describe('Output controls — Redshift SQL emission (e2e)', () => {
         title: 'Looker Redshift date filter',
         dataDestinationId: destinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-        columnConfig: ['id', 'created_at'],
-        filterConfig: [{ column: 'created_at', operator: 'gte', value: '2024-01-01' }],
+        columnConfig: ['id', 'created_at', 'name'],
+        filterConfig: [
+          { column: 'created_at', operator: 'gte', value: '2024-01-01' },
+          // is_blank must resolve the column's schema type (VARCHAR -> TRIM form),
+          // which only works if the Redshift builder threads the type resolver.
+          { column: 'name', operator: 'is_blank' },
+        ],
       });
     expect(putRes.status).toBe(200);
   }, 120_000);
@@ -220,6 +227,11 @@ describe('Output controls — Redshift SQL emission (e2e)', () => {
     // Redshift renderer inlines all values as bare literals — no bound params, no CAST.
     // Postgres unknown-literal coercion handles TIMESTAMP comparison transparently.
     expect(res.body.sql).toContain(`"created_at" >= '2024-01-01'`);
+    // String is_blank is type-aware: NULL or whitespace-only, via the schema type map.
+    // BTRIM with an explicit set — Redshift's bare TRIM strips only spaces.
+    expect(res.body.sql).toContain(
+      `("name" IS NULL OR BTRIM("name", ' ' || CHR(9) || CHR(10) || CHR(13)) = '')`
+    );
     expect(res.body.sql).not.toContain('?');
     expect(res.body.sql).not.toContain('CAST(');
   });

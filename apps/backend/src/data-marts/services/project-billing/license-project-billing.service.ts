@@ -89,6 +89,13 @@ export class LicenseProjectBillingService extends ProjectBillingService {
     );
   }
 
+  public async registerExcelReportRunConsumption(report: Report, runId: string): Promise<void> {
+    await this.sendConsumption(
+      RunKind.EXCEL_REPORT_RUN,
+      this.excelReportConsumptionPayload(report, runId)
+    );
+  }
+
   public async registerHttpDataRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
     await this.sendConsumption(
       RunKind.HTTP_DATA_RUN,

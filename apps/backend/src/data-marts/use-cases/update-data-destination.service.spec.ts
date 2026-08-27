@@ -320,6 +320,46 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     );
   });
 
+  // requiresCredentials(EXCEL) is false. The same bar as creating one applies to an existing
+  // destination: without the guard, inline credentials reach a validator that does not exist for
+  // the type (a plain Error, surfaced as HTTP 500) and a credentialId links an unrelated OAuth
+  // grant to a destination that stores nothing.
+  it('rejects inline credentials on a credentialless destination type', async () => {
+    const { service, dataDestinationService, credentialsValidator } = createService();
+
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue(
+      makeTargetDestination({ type: DataDestinationType.EXCEL })
+    );
+
+    const command = makeCommand({ credentials: { type: 'google-sheets-credentials' } });
+
+    await expect(service.run(command)).rejects.toThrow(/do not use credentials/);
+    expect(credentialsValidator.checkCredentials).not.toHaveBeenCalled();
+  });
+
+  it('rejects a credentialId on a credentialless destination type', async () => {
+    const { service, dataDestinationService } = createService();
+
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue(
+      makeTargetDestination({ type: DataDestinationType.EXCEL })
+    );
+
+    const command = makeCommand({ credentialId: 'cred-1' });
+
+    await expect(service.run(command)).rejects.toThrow(/do not use credentials/);
+  });
+
+  it('still allows a plain rename of a credentialless destination', async () => {
+    // `credentialId: null` is the disconnect signal, not a credential — it must stay allowed.
+    const { service, dataDestinationService, dataDestinationRepository } = createService();
+
+    const target = makeTargetDestination({ type: DataDestinationType.EXCEL });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue(target);
+    dataDestinationRepository.save.mockResolvedValue(target);
+
+    await expect(service.run(makeCommand({ credentialId: null }))).resolves.toBeDefined();
+  });
+
   it('throws BadRequestException when both sourceDestinationId and credentials are provided', async () => {
     const { service, dataDestinationService } = createService();
 

@@ -94,6 +94,7 @@ export function DatabricksSchemaTable({
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.DATABRICKS}
       />
     </DndContext>
   );

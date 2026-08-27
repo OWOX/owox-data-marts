@@ -8,21 +8,16 @@ import {
 } from '@owox/ui/components/select';
 import { useEffect } from 'react';
 import { useDataMartContext } from '../../../../edit/model';
-import { DataDestinationType, DataDestinationTypeModel } from '../../../../../data-destination';
+import {
+  DataDestinationTypeModel,
+  SCHEDULABLE_REPORT_DESTINATION_TYPES,
+} from '../../../../../data-destination';
 
 interface ReportSelectorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
 }
-
-const allowedReportTypes = [
-  DataDestinationType.GOOGLE_SHEETS,
-  DataDestinationType.EMAIL,
-  DataDestinationType.SLACK,
-  DataDestinationType.MS_TEAMS,
-  DataDestinationType.GOOGLE_CHAT,
-];
 
 export function ReportSelector({ value, onChange, disabled }: ReportSelectorProps) {
   const { reports, fetchReportsByDataMartId } = useReport();
@@ -33,8 +28,10 @@ export function ReportSelector({ value, onChange, disabled }: ReportSelectorProp
     void fetchReportsByDataMartId(dataMart.id);
   }, [fetchReportsByDataMartId, dataMart]);
 
+  // Only reports the server can run: a pull-based one has no run to put on a timer, and the
+  // backend refuses the trigger anyway.
   const filteredReports = reports.filter(report =>
-    allowedReportTypes.includes(report.dataDestination.type)
+    SCHEDULABLE_REPORT_DESTINATION_TYPES.includes(report.dataDestination.type)
   );
 
   return (

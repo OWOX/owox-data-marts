@@ -16,6 +16,13 @@ import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { DataMart } from '../entities/data-mart.entity';
+import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import {
+  parseFormulaReferences,
+  renderFormula,
+  serializeFormulaReference,
+} from '../calculated-fields/formula-reference';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -119,16 +126,33 @@ export class UpdateDataMartRelationshipService {
     return this.mapper.toDomainDto(updated, createdByUser, accessByDataMartId);
   }
 
+  /**
+   * Routed through `rewriteSchemaPaths` rather than load-mutate-save: that helper re-reads the row
+   * under a write lock and updates only the two columns this rename owns, so a formula an analyst
+   * saved earlier in this request is renamed rather than discarded. See its docblock for what the
+   * guard does and does not buy.
+   */
   private async cascadeAliasRename(
     sourceDataMartId: string,
     oldAlias: string,
     newAlias: string
   ): Promise<void> {
-    const sourceDm = await this.dataMartService.findById(sourceDataMartId);
-    if (!sourceDm?.blendedFieldsConfig) return;
+    await this.dataMartService.rewriteSchemaPaths(sourceDataMartId, sourceDm => {
+      const configChanged = this.renameBlendedConfigPaths(sourceDm, oldAlias, newAlias);
+      const formulasChanged = this.renameFormulaPaths(sourceDm, oldAlias, newAlias);
+      return configChanged || formulasChanged;
+    });
+  }
+
+  private renameBlendedConfigPaths(
+    dataMart: DataMart,
+    oldAlias: string,
+    newAlias: string
+  ): boolean {
+    if (!dataMart.blendedFieldsConfig) return false;
 
     let changed = false;
-    const updatedSources = sourceDm.blendedFieldsConfig.sources.map(source => {
+    const updatedSources = dataMart.blendedFieldsConfig.sources.map(source => {
       const updatedPath = this.replaceFirstSegment(source.path, oldAlias, newAlias);
       if (updatedPath !== source.path) {
         changed = true;
@@ -138,12 +162,53 @@ export class UpdateDataMartRelationshipService {
     });
 
     if (changed) {
-      sourceDm.blendedFieldsConfig = {
-        ...sourceDm.blendedFieldsConfig,
+      dataMart.blendedFieldsConfig = {
+        ...dataMart.blendedFieldsConfig,
         sources: updatedSources,
       };
-      await this.dataMartService.save(sourceDm);
     }
+    return changed;
+  }
+
+  /**
+   * Rewrites the alias inside every stored formula that reads the renamed source
+   * (`{{ref path="orders" field="amount"}}`). A formula's `path` is the same structural
+   * alias path a blended-fields config carries, so a rename that reaches one and not the other
+   * turns a working metric into a broken one at the next read.
+   *
+   * Only the FIRST segment is replaced, exactly as the config's own path is: this cascade runs on
+   * the relationship's SOURCE Data Mart, where the renamed alias is by construction the first
+   * segment. A Data Mart further up the tree names the same relationship as a LATER segment
+   * (`orders.items`) and is never visited, so its formula degrades to broken-with-reason — reported
+   * through `calculatedFieldIssues` rather than failing silently. That gap is the cascade's
+   * pre-existing shape, inherited here rather than introduced.
+   */
+  private renameFormulaPaths(dataMart: DataMart, oldAlias: string, newAlias: string): boolean {
+    let changed = false;
+    for (const field of calculatedFieldsOf(dataMart.schema?.fields ?? [])) {
+      const stored = field.calculated.formula;
+      try {
+        const refs = parseFormulaReferences(stored);
+        if (!refs.some(r => this.replaceFirstSegment(r.path, oldAlias, newAlias) !== r.path)) {
+          continue;
+        }
+        field.calculated.formula = renderFormula(stored, ref =>
+          serializeFormulaReference({
+            path: this.replaceFirstSegment(ref.path, oldAlias, newAlias),
+            field: ref.field,
+          })
+        );
+        changed = true;
+      } catch {
+        // A formula that cannot be parsed or re-serialized is already broken, and blocking the
+        // rename over it would leave the analyst no way to repair either.
+        this.logger.warn(
+          `Data Mart ${dataMart.id}: could not rewrite the joined path of calculated field ` +
+            `"${field.name}" while renaming "${oldAlias}" to "${newAlias}"`
+        );
+      }
+    }
+    return changed;
   }
 
   private replaceFirstSegment(path: string, oldSegment: string, newSegment: string): string {

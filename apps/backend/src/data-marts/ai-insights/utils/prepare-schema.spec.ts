@@ -100,6 +100,38 @@ describe('prepareSchema', () => {
     });
   });
 
+  it("strips a calculated field's stored formula but keeps the metric marker", () => {
+    const input = {
+      fields: [
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          description: 'Clicks per impression.',
+          calculated: {
+            formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+            level: 'metric',
+            warehouseValidation: 'passed',
+          },
+        },
+      ],
+    };
+
+    const prepared = prepareSchema(input);
+
+    expect(JSON.stringify(prepared)).not.toContain('{{ref');
+    expect(prepared).toEqual({
+      fields: [
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          description: 'Clicks per impression.',
+          calculated: { level: 'metric', warehouseValidation: 'passed' },
+        },
+      ],
+    });
+    expect(input.fields[0].calculated.formula).toContain('{{ref');
+  });
+
   it('keeps primitives and nullable values unchanged', () => {
     expect(prepareSchema(undefined)).toBeUndefined();
     expect(prepareSchema(null)).toBeNull();

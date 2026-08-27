@@ -110,6 +110,7 @@ export class CreateReportService {
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: foldEmptyUniqueCountConfig(command.uniqueCountConfig),
       accessor: { userId: command.userId, roles: command.roles },
+      dataMartSchemaFields: dataMart.schema?.fields,
       rejectUnavailableUniqueCountSources: true,
     });
 

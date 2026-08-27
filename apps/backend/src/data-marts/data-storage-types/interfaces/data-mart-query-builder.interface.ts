@@ -1,11 +1,12 @@
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
-import { GroupRestriction } from '../../dto/domain/group-restriction';
+import { GroupRestriction, RoutedGroupRestriction } from '../../dto/domain/group-restriction';
+import { RoutedFilterRule } from '../../dto/domain/filter-clause';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
-import { SqlParameter } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../utils/sql-clause-renderer';
 
 export interface DataMartQueryOptions {
   /**
@@ -16,7 +17,17 @@ export interface DataMartQueryOptions {
    */
   columns?: string[];
 
-  /** Output filters (Task 7+) — applied as WHERE on the final SELECT. */
+  /**
+   * Output filters — WHERE on the final SELECT, or HAVING once the query is aggregated. Which one
+   * is the clause each rule CARRIES, read through `filterClauseOf`; a builder never
+   * re-derives it from `rule.function`.
+   *
+   * Typed as the plain rule because the dialect builders and their specs are also driven with
+   * hand-built rules, for which `filterClauseOf`'s fallback is the answer. The
+   * requirement to ROUTE is enforced one level up, on {@link RoutedDataMartQueryOptions}, which is
+   * what `DataMartQueryBuilderFacade` takes — and the facade is the only way production code
+   * reaches a builder.
+   */
   filters?: FilterRule[];
 
   /**
@@ -47,7 +58,7 @@ export interface DataMartQueryOptions {
    */
   primaryKeyColumns?: string[];
 
-  /** Output sort (Task 7+) — applied as ORDER BY on the final SELECT. */
+  /** Output sort — applied as ORDER BY on the final SELECT. */
   sort?: SortRule[];
 
   /** Output row limit (no offset). */
@@ -73,7 +84,44 @@ export interface DataMartQueryOptions {
    * DATE/TIMESTAMP column. Optional; dialects that bind typed params ignore it.
    */
   columnTypes?: ReadonlyMap<string, string>;
+
+  /**
+   * Calculated fields selected in `columns` (main-owner only). A calculated field
+   * IS an aggregate, so its presence forces the aggregated path even with an otherwise-empty
+   * `aggregations`/`dateTruncs` — the remaining projected columns become its grouping keys.
+   */
+  calculatedFields?: CalculatedFieldPlan[];
+
+  /**
+   * Calculated fields a FILTER (or a Totals restriction's HAVING) names, whether or not the report
+   * SELECTS them. A predicate on one compares the field's FORMULA — its name is a
+   * SELECT alias with no warehouse column behind it — so the plan has to reach the renderer even
+   * when the field is not projected. Kept separate from `calculatedFields` precisely because that
+   * list is the PROJECTION: a filter-only field added to it would appear in the SELECT, in the
+   * headers, and in the Google Sheet, under a name nobody asked for.
+   */
+  calculatedFilterMetrics?: CalculatedFieldPlan[];
 }
+
+/**
+ * What `DataMartQueryBuilderFacade` takes — the same options with every filter's clause already
+ * DECIDED.
+ *
+ * This is the guard, and it is placed here rather than on `DataMartQueryOptions` deliberately. The
+ * hole it closes is a NEW PRODUCER forwarding `report.filterConfig` straight through: that is a
+ * `FilterRule[]`, it satisfies an optional stamp perfectly, and its blast radius is an
+ * aggregate-level Calculated Field's predicate landing in `WHERE`. Every producer reaches a builder
+ * through this facade — nothing outside `data-storage-types/` so much as names
+ * `DataMartQueryOptions` — so the compiler now refuses an unrouted list at exactly the boundary the
+ * mistake crosses, while the builders and their five dialect specs keep taking plain rules.
+ */
+export type RoutedDataMartQueryOptions = Omit<
+  DataMartQueryOptions,
+  'filters' | 'groupRestriction'
+> & {
+  filters?: RoutedFilterRule[];
+  groupRestriction?: RoutedGroupRestriction;
+};
 
 export interface QueryBuildResult {
   sql: string;

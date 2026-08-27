@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
+import { DataMart } from '../entities/data-mart.entity';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import {
   ReportLike,
@@ -12,8 +13,27 @@ import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-sch
 import { BlendedReportDataService } from './blended-report-data.service';
 import { formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
-import { DataMartTableReferenceService } from './data-mart-table-reference.service';
-import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import {
+  DataMartTableReferenceService,
+  type TableReferenceMemo,
+} from './data-mart-table-reference.service';
+import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import {
+  calculatedDependencyPlans,
+  calculatedFieldLevelOf,
+  calculatedFieldsOf,
+  excludeCalculatedFieldNames,
+  isCalculatedField,
+} from '../calculated-fields/calculated-field.utils';
+import { isAggregateLevel } from '../calculated-fields/formula-level';
+import { hasLiveJoinedReference } from '../calculated-fields/formula-live-reference';
+import {
+  isCalculatedGroupingKey,
+  partitionCalculatedPlans,
+} from '../calculated-fields/calculated-plan-grain';
+import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
+import { isHavingFilterRule, isWhereFilterRule } from '../dto/domain/filter-clause';
+import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -58,7 +78,9 @@ export class ReportSqlComposerService {
     accessor: BlendableSchemaAccessor,
     precomputedDecision?: BlendingDecision,
     // Reuse an already-resolved schema (totals path) so the decision isn't recomputed.
-    precomputedBlendableSchema?: BlendableSchemaDto
+    precomputedBlendableSchema?: BlendableSchemaDto,
+    // Shared across the several compositions one save-time dry run makes — see TableReferenceMemo.
+    tableReferences?: TableReferenceMemo
   ): Promise<{
     sql: string;
     params?: SqlParameter[];
@@ -73,13 +95,19 @@ export class ReportSqlComposerService {
     /** The joined sources whose `<source>__unique_count` sleeve this SQL actually renders. Callers
      * that resolve headers themselves MUST forward it, or the column is computed and then dropped. */
     uniqueCountSources?: JoinedUniqueCountSource[];
+    /** Calculated fields this SQL actually projects (main-owner only). Callers that
+     * resolve headers themselves MUST forward it to `resolveReportDataHeaders`, and MUST strip
+     * these names out of any `columnFilter` they pass alongside it — the metric already has its
+     * own header source, and leaving its name in `columnFilter` too double-emits it. */
+    calculatedFields?: CalculatedFieldPlan[];
   }> {
     const decision =
       precomputedDecision ??
       (await this.blendedReportDataService.resolveBlendingDecision(
         report,
         accessor,
-        precomputedBlendableSchema
+        precomputedBlendableSchema,
+        tableReferences
       ));
 
     // Post-join aggregation is built into the blended SQL by BlendedReportDataService,
@@ -93,6 +121,7 @@ export class ReportSqlComposerService {
         aggregations: decision.aggregations,
         primaryKeyColumns: decision.primaryKeyColumns,
         uniqueCountSources: decision.uniqueCountSources,
+        calculatedFields: decision.calculatedFields,
       };
     }
 
@@ -129,7 +158,31 @@ export class ReportSqlComposerService {
       throw new Error('Data Mart definition is not set.');
     }
 
-    if (hasOutputControls(report) && !this.capabilityService.isSupported(dataMart.storage.type)) {
+    // Column types let Athena cast date/time filter placeholders. Sourced from the
+    // persisted schema (same native fields the validator types against).
+    const schemaFields = dataMart.schema?.fields ?? [];
+
+    // An AGGREGATE-LEVEL calculated field is already an aggregate, so selecting one makes the
+    // query aggregated even when the report carries no aggregationConfig — the remaining selected
+    // columns become its grouping keys. Explicit selection only: a metric absent from the
+    // projection is not composed, so a wildcard caller's output cannot change the day an analyst
+    // adds a formula.
+    const selectedColumns = decision.columnFilter ?? [];
+    const calculatedFields = this.buildCalculatedFieldPlans(
+      schemaFields,
+      selectedColumns,
+      report.aggregationConfig ?? undefined
+    );
+    // A metric renders through its own `calculatedFields` channel, never as a plain projected
+    // column — leaving its name in `columns` too would double-emit it (once via the formula
+    // substitution, once as a bare reference to a column the warehouse does not have).
+    const calculatedFieldNames = new Set(calculatedFields.map(m => m.outputName));
+    const nonMetricColumns =
+      excludeCalculatedFieldNames(selectedColumns, calculatedFieldNames) ?? [];
+
+    const needsOutputControlsHandling = hasOutputControls(report) || calculatedFields.length > 0;
+
+    if (needsOutputControlsHandling && !this.capabilityService.isSupported(dataMart.storage.type)) {
       throw new BadRequestException({
         message: 'Output controls not yet supported for this storage type',
         details: {
@@ -139,30 +192,73 @@ export class ReportSqlComposerService {
     }
 
     let mainTableReference: string | undefined;
-    if (hasOutputControls(report)) {
+    if (needsOutputControlsHandling) {
       mainTableReference = await this.tableReferenceService.resolveTableName(
         dataMart.id,
-        dataMart.projectId
+        dataMart.projectId,
+        tableReferences
       );
     }
 
-    // Column types let Athena cast date/time filter placeholders. Sourced from the
-    // persisted schema (same native fields the validator types against).
-    const schemaFields = dataMart.schema?.fields ?? [];
     const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
       ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
+    // The clause each predicate belongs in is decided here, from the rule and the field's level,
+    // and carried on the rule — the builders read it and never re-derive it.
+    const routed = routeFilterClauses(report.filterConfig ?? undefined, schemaFields);
+    const routedFilters = routed.length > 0 ? routed : undefined;
+
+    // A predicate on a Calculated Field compares its FORMULA, so the plan has to
+    // reach the builder even when the report does not SELECT the field — the projection channel
+    // above is selection-only by design. The restriction's HAVING counts: on the Totals path the
+    // report's metric filters are lifted out of `filterConfig` and travel there instead.
+    const restriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
+    const filterMetrics = this.buildCalculatedFieldPlans(
+      schemaFields,
+      [
+        ...(report.filterConfig ?? []).map(rule => rule.column),
+        ...(restriction?.having ?? []).map(rule => rule.column),
+      ],
+      report.aggregationConfig ?? undefined
+    );
+
+    // is_blank / is_not_blank branch on the column's type; without a resolved type
+    // there is nothing to branch on, and silently degrading a string column to the
+    // NULL-only form would return wrong rows (#6779). Refuse loudly instead, checking
+    // EVERY blank-filter column — a never-actualized schema yields no map at all, and
+    // an all-hidden schema yields an empty map while `schemaFields` is non-empty; both
+    // also skip the validator's filter pass, so this is the last stop before the SQL.
+    // Paths that can get here untyped (MCP queries, the generated-SQL preview)
+    // actualize the schema / unhide the column and retry; run/stream actualize first.
+    const unresolvedBlankColumns = (report.filterConfig ?? [])
+      .filter(r => r.operator === 'is_blank' || r.operator === 'is_not_blank')
+      .map(r => r.column)
+      .filter(column => !columnTypes?.get(column));
+    if (unresolvedBlankColumns.length > 0) {
+      throw new BadRequestException({
+        message:
+          'The "is blank" / "is not blank" filters need the filtered column\'s schema type ' +
+          `to resolve their SQL, and no type is available for: ${unresolvedBlankColumns.join(', ')}. ` +
+          "Actualize the Data Mart's schema (and make sure the column is present and visible in it), then retry.",
+        details: {
+          // One entry per column — the MCP error mapper names `column` in its output.
+          errors: unresolvedBlankColumns.map(column => ({
+            code: 'BLANK_FILTER_COLUMN_TYPE_UNRESOLVED',
+            column,
+          })),
+        },
+      });
+    }
+
     const pkFields = getMainUniqueCountKeyFields(schemaFields);
     const uniqueCount = hasMainUniqueCount(report.uniqueCountConfig);
 
-    // `primaryKeyColumns` comes from the CURRENT schema while `uniqueCountConfig` comes from the
-    // STORED report, so removing the mart's PK after saving leaves them disagreeing. The renderer
-    // then silently omits the Unique Count metric (no PK to COUNT DISTINCT), but a stored sort on
-    // that label would still render `ORDER BY "Unique Count"` against a SELECT that no longer has
-    // it — a hard warehouse error on every run, scheduled run, and Generated SQL preview. Drop
-    // those sort rules alongside the metric so the report degrades the same way the SELECT does.
-    // The editor prunes this on open, but scheduled runs never load the editor.
+    // `primaryKeyColumns` comes from the CURRENT schema and `uniqueCountConfig` from the STORED
+    // report, so removing the mart's PK after saving leaves them disagreeing: the renderer omits
+    // the Unique Count metric, while a stored sort on that label still emits
+    // `ORDER BY "Unique Count"` against a SELECT that no longer has it. Dropped together — the
+    // editor prunes this on open, but scheduled runs never load the editor.
     const sortConfig =
       uniqueCount && pkFields.length === 0
         ? (report.sortConfig ?? []).filter(rule => rule.column !== UNIQUE_COUNT_LABEL)
@@ -172,8 +268,8 @@ export class ReportSqlComposerService {
       dataMart.storage.type,
       dataMart.definition,
       {
-        columns: decision.columnFilter,
-        filters: report.filterConfig ?? undefined,
+        columns: nonMetricColumns,
+        filters: routedFilters,
         sort: sortConfig ?? undefined,
         aggregations: report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
@@ -183,63 +279,45 @@ export class ReportSqlComposerService {
         mainTableReference,
         columnTypes,
         // Totals only — a report itself groups, so its HAVING applies directly there.
-        groupRestriction: 'groupRestriction' in report ? report.groupRestriction : undefined,
+        groupRestriction: restriction,
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
+        calculatedFilterMetrics: filterMetrics.length > 0 ? filterMetrics : undefined,
       }
     );
 
     const primaryKeyColumns = pkFields.map(f => f.name);
+    const calculatedFieldsResult = calculatedFields.length > 0 ? calculatedFields : undefined;
     if (isQueryBuildResult(queryResult)) {
       return {
         sql: queryResult.sql,
         params: queryResult.params,
         needsBlending: false,
         primaryKeyColumns,
+        calculatedFields: calculatedFieldsResult,
       };
     }
-    return { sql: queryResult, needsBlending: false, primaryKeyColumns };
+    return {
+      sql: queryResult,
+      needsBlending: false,
+      primaryKeyColumns,
+      calculatedFields: calculatedFieldsResult,
+    };
   }
 
   /**
-   * Composes the report's "Totals" query: a per-column summary computed as a SEPARATE
-   * query with NO grouping. A selected column is a totals metric when it is NUMERIC (an auto
-   * per-column summary, computed even if the report does not aggregate it) OR the report
-   * aggregates it as a metric (the only non-numeric metric signal). Each metric contributes
-   * ALL of its governance-allowed aggregations (per-field override, else the type-default) —
-   * so a numeric `costs` yields SUM/AVG/MIN/MAX and a text `country` the report aggregates
-   * yields COUNT/COUNT_DISTINCT. `ANY_VALUE` and `STRING_AGG` are always excluded (see
-   * {@link NON_SUMMARIZABLE_AGGREGATIONS}), so a value can be a number OR a string (MIN/MAX of
-   * a text metric). Selected JOINED (blended) fields follow the same rule; a blended metric
-   * drives `compose` onto the blended path (still NO GROUP BY). Returns `null` (totals skipped)
-   * when no selected column is a totals metric with a summarizable function.
+   * Composes the report's "Totals" query: a per-column summary computed as a SEPARATE query with NO
+   * grouping. Returns `null` when no selected column qualifies.
    *
-   * Joined `COUNT_DISTINCT`, `SUM`, and `AVG` totals are each computed CORRECTLY at the
-   * grand-total grain by a dedicated metric sleeve — `COUNT_DISTINCT` re-joins the raw path
-   * and counts distinct across ALL rows; `SUM`/`AVG` carry `DISTINCT (owner, value)` across
-   * ALL rows before aggregating (the value-carrying sleeve,) — neither is the
-   * pre-join roll-up.
+   * A symmetric aggregate is NON-ADDITIVE across the report's GROUP BY: an entity reachable under
+   * two dimension values counts once in each grouped row and once in the grand total, both
+   * correctly. Per-row values not summing to Totals is EXPECTED, not a discrepancy.
    *
-   * (deliberately NOT calling this "EXACT"): a symmetric aggregate is
-   * NON-ADDITIVE across the report's own GROUP BY — an entity reachable under two DIFFERENT
-   * dimension values is counted once in EACH of those grouped rows (correctly, per-group) but
-   * only once in the grand total (also correctly, at the total's own grain). The displayed
-   * per-row values summing to something other than the Totals value is therefore EXPECTED for
-   * a joined/blended metric with fan-out, not a discrepancy to chase — rows and Totals are each
-   * independently correct at their own grain, they just don't add up to each other. A
-   * non-blended (main-native) aggregate has no fan-out and stays additive as before. Joined
-   * percentile totals go through the same value sleeve, so they are computed over the
-   * de-duplicated distribution rather than the fanned one.
+   * HAVING filters cannot apply to a query with no GROUP BY, so they travel as a `GroupRestriction`
+   * and the builder restricts Totals to the ROWS of the surviving groups — restricting rows rather
+   * than adding up per-group values is what keeps a symmetric aggregate right.
    *
-   * Totals are otherwise INDEPENDENT of the report's own display aggregation functions — the
-   * numeric auto-summary is computed even for a non-aggregated report. Unique
-   * Count is NOT part of totals. WHERE filters are respected. HAVING (function-carrying) filters
-   * are HONOURED, not dropped: they cannot apply directly to a query with no GROUP BY, so they
-   * travel as a `GroupRestriction` and the builder restricts Totals to the ROWS of the groups
-   * that survive them (restricting rows, rather than adding up per-group values, is what keeps a
-   * symmetric aggregate right). The blending decision is resolved FRESH
-   * from this metrics-only plan — never inherited from the full report (which carries dimension
-   * columns / the grouped main SQL and would emit GROUP BY, collapsing the grand total to the
-   * first group's row). The returned `aggregations`/`columns` let the totals reader resolve
-   * headers that match the SQL output columns. The input `report` is never mutated.
+   * The blending decision is resolved FRESH; inheriting the report's would carry dimension columns
+   * and emit a GROUP BY that collapses the grand total to the first group's row.
    */
   async composeTotals(
     report: ReportLike,
@@ -250,34 +328,42 @@ export class ReportSqlComposerService {
     aggregations: AggregationRule[];
     columns: string[];
     blendedDataHeaders?: ReportDataHeader[];
+    /** Calculated fields this SQL actually projects (main-owner only). Callers MUST
+     * strip these names out of `columns` before using it as a reader's `columnFilter`, and MUST
+     * forward this alongside it — the metric already has its own header source (this list) and
+     * its own SQL channel; `deriveTotalsAggregations` never invents a SUM/AVG/MIN/MAX rule for it
+     * (it is already an aggregate), so a bare, unqualified reference to its name is the only
+     * double-handling left to guard against. */
+    calculatedFields?: CalculatedFieldPlan[];
   } | null> {
-    const { columns, aggregations, blendableSchema } = await this.deriveTotalsAggregations(
-      report,
-      accessor
-    );
-    if (aggregations.length === 0) {
+    const { columns, aggregations, calculatedFieldColumns, blendableSchema } =
+      await this.deriveTotalsAggregations(report, accessor);
+    // A calculated field carries NO aggregation rule by design — it already IS an aggregate — so
+    // `aggregations.length === 0` does not mean "nothing to total" once one is selected. Reading
+    // it that way cost a "CTR by country" report its Totals block outright, and a consumer handed
+    // `not_available` falls back to computing the overall ratio itself: the average of the
+    // per-country ratios, i.e. precisely the non-additive re-aggregation this feature removes.
+    if (aggregations.length === 0 && calculatedFieldColumns.length === 0) {
       return null;
     }
 
-    // HAVING rules filter per-GROUP, and a Totals query has no GROUP BY — one grand-total
-    // group — so they cannot apply here directly. Dropping them would make Totals summarise
-    // rows the report itself hides, so they travel as a `groupRestriction` instead: the builder
-    // recomputes the surviving groups and restricts Totals to THEIR ROWS. Restricting rows (not
-    // adding up per-group values) is what keeps a symmetric aggregate right — an entity in two
-    // surviving groups still counts once in a joined COUNT DISTINCT.
-    const allFilters = report.filterConfig ?? [];
-    const whereFilters = allFilters.filter(rule => !rule.function);
-    const havingFilters = allFilters.filter(rule => rule.function);
+    // Split on the clause each rule CARRIES, never on `rule.function`: an aggregate-level
+    // Calculated Field's rule has none and never can, so a `function` split leaves it in the Totals
+    // plan's WHERE and builds no restriction — Totals then summarise rows the report hides. Quiet
+    // either way, since Totals errors are swallowed.
+    const allFilters = routeFilterClauses(
+      report.filterConfig ?? undefined,
+      report.dataMart.schema?.fields ?? []
+    );
+    const whereFilters = allFilters.filter(isWhereFilterRule);
+    const havingFilters = allFilters.filter(isHavingFilterRule);
 
-    // A restriction is only as sound as the HAVING it is derived from, and this method derives it
-    // from the REPORT's rules — which are validated on the report's own path, not on this one
-    // (they are lifted out of `filterConfig` here, so the totals plan's own validation never sees
-    // them). Today that holds by call order alone: `compose` always runs before `computeTotals`.
-    // But `ReportTotalsService.computeTotals` is public with no such precondition declared, and a
-    // report saved before the HAVING-on-sleeve gate existed would otherwise have its metric filter
-    // rendered from the dedup CTE — the OLD, wrong value — with nothing to say so. Validate the
-    // report's own config against the schema already resolved above: no extra I/O, and a failure
-    // costs the caller its totals with a reason rather than handing back a plausible wrong number.
+    // The restriction is derived from the REPORT's rules, which are validated on the report's path
+    // and not on this one — they are lifted out of `filterConfig` here, so the totals plan's own
+    // validation never sees them. `computeTotals` is public with no precondition declared, so a
+    // report saved before the HAVING-on-sleeve gate would render its metric filter from the dedup
+    // CTE, the wrong value, with nothing to say so. Validated here against the schema already
+    // resolved above: no extra I/O.
     if (havingFilters.length > 0) {
       await this.outputControlsValidator.validateForReport({
         storageType: report.dataMart.storage.type,
@@ -291,11 +377,47 @@ export class ReportSqlComposerService {
         dateTruncConfig: report.dateTruncConfig ?? null,
         uniqueCountConfig: report.uniqueCountConfig ?? null,
         accessor,
+        dataMartSchemaFields: report.dataMart.schema?.fields,
         precomputedBlendableSchema: blendableSchema,
       });
     }
-    const reportDimensions = (report.columnConfig ?? []).filter(
-      column => !(report.aggregationConfig ?? []).some(rule => rule.column === column)
+    // NOT "every selected column without an aggregation of its own is a dimension": an
+    // AGGREGATE-level metric always satisfies that without being a GROUP BY key, and reaches
+    // `renderKeptGroupsJoin` as a bare nonexistent column. A calculated field the report GROUPS BY
+    // is the opposite case — the report groups by its expression, so a restriction reproducing the
+    // plain dimensions alone is coarser and keeps a different row set.
+    const reportSchemaFields = report.dataMart.schema?.fields ?? [];
+    const reportColumns = report.columnConfig ?? [];
+    const calculatedNames = new Set(calculatedFieldsOf(reportSchemaFields).map(f => f.name));
+    const columnDimensions = reportColumns.filter(
+      column =>
+        !calculatedNames.has(column) &&
+        !(report.aggregationConfig ?? []).some(rule => rule.column === column)
+    );
+    // The REPORT's rules, never the Totals ones derived above: this restriction reproduces the
+    // report's own grouping, and a Totals plan makes every selected numeric column a metric. Those
+    // same rules also decide the grain, so a row-level field the report AGGREGATES is dropped here
+    // exactly as an aggregate-level one is — the report stopped grouping by it, and a restriction
+    // one key finer keeps a different row set than the report shows.
+    const calculatedDimensions = this.buildCalculatedFieldPlans(
+      reportSchemaFields,
+      reportColumns,
+      report.aggregationConfig ?? undefined
+    ).filter(isCalculatedGroupingKey);
+    // Column keys first, calculated ones last — the order `renderAggregatedSelect` emits its
+    // grouping keys in, which `buildKeptGroupsJoinPairs` then pairs against positionally.
+    const reportDimensions = [
+      ...columnDimensions,
+      ...calculatedDimensions.map(plan => plan.outputName),
+    ];
+    // The plans behind the metric filters themselves, which the keys above deliberately exclude:
+    // a row-level field the report AGGREGATES is no longer a dimension, yet the restriction's
+    // HAVING still compares its aggregate and needs the formula and the declared type to build the
+    // same argument the report's projection was given.
+    const calculatedHavingMetrics = this.buildCalculatedFieldPlans(
+      reportSchemaFields,
+      havingFilters.map(rule => rule.column),
+      report.aggregationConfig ?? undefined
     );
 
     const totalsPlan: ReportLikeReadPlan = {
@@ -312,7 +434,11 @@ export class ReportSqlComposerService {
         havingFilters.length > 0
           ? {
               dimensions: reportDimensions,
+              calculatedDimensions:
+                calculatedDimensions.length > 0 ? calculatedDimensions : undefined,
               having: havingFilters,
+              calculatedHavingMetrics:
+                calculatedHavingMetrics.length > 0 ? calculatedHavingMetrics : undefined,
               // The report's own buckets travel WITH the restriction — `dateTruncConfig` above
               // is null (Totals have no GROUP BY of their own), so without this the surviving
               // groups would be recomputed by raw date where the report grouped by month.
@@ -325,7 +451,12 @@ export class ReportSqlComposerService {
 
     // Reuse the schema resolved while deriving the aggregations (when blended) so the decision
     // and the save-time validator don't recompute it.
-    const { sql, params } = await this.compose(totalsPlan, accessor, undefined, blendableSchema);
+    const { sql, params, calculatedFields } = await this.compose(
+      totalsPlan,
+      accessor,
+      undefined,
+      blendableSchema
+    );
 
     // A joined numeric column is absent from the native headers, so its base type must travel
     // with the totals plan; the header path widens it per aggregation function.
@@ -333,7 +464,42 @@ export class ReportSqlComposerService {
       ? this.buildBlendedTotalsHeaders(columns, blendableSchema)
       : undefined;
 
-    return { sql, params, aggregations, columns, blendedDataHeaders };
+    return { sql, params, aggregations, columns, blendedDataHeaders, calculatedFields };
+  }
+
+  /**
+   * The `CalculatedFieldPlan` for each calculated field `names` mentions, in schema order.
+   *
+   * Shared by three callers — the report projection, the Totals group restriction and the predicate
+   * channel — because a second construction would be a second place for the level fallback to be
+   * spelled, and those paths differ by a GROUP BY.
+   *
+   * `aggregations` are the REPORT's own rules, and this is one of the two seats allowed to read
+   * them for the grain question: a row-level field the report aggregates stops being a grouping
+   * key, and every site downstream reads that off the plan.
+   */
+  private buildCalculatedFieldPlans(
+    schemaFields: readonly DataMartSchemaField[],
+    names: readonly string[],
+    aggregations: AggregationRule[] | undefined
+  ): CalculatedFieldPlan[] {
+    const plans = calculatedFieldsOf(schemaFields)
+      .filter(f => names.includes(f.name))
+      .map(f => ({
+        outputName: f.name,
+        type: String(f.type),
+        formula: f.calculated.formula,
+        level: calculatedFieldLevelOf(f, schemaFields),
+        // The formulas this one reads, carried so the renderer can substitute them — and
+        // `undefined` rather than `[]` when there are none, so a plan is byte-identical to what it
+        // was before this feature for every formula that reads only columns.
+        dependencies: calculatedDependencyPlans(f, schemaFields),
+        // The metric's own header source — see CalculatedFieldPlan. Empty strings normalize to
+        // undefined so `alias || name` fallbacks downstream behave as they do for every other field.
+        alias: f.alias?.trim() || undefined,
+        description: f.description?.trim() || undefined,
+      }));
+    return partitionCalculatedPlans(plans, aggregations).all;
   }
 
   // One base-typed header per selected JOINED column, so the totals reader can resolve a
@@ -360,16 +526,13 @@ export class ReportSqlComposerService {
   }
 
   /**
-   * For each TOTALS-METRIC field among the report's selected columns, emit one aggregation rule
-   * per governance-allowed function (see {@link isTotalsEligible} for the metric rule). Field
-   * order follows the selection; function order follows the field's allowed set. The function
-   * set comes from the field's governance (per-field allowed set else the type-default) with
-   * {@link NON_SUMMARIZABLE_AGGREGATIONS} removed, so a STRING metric contributes
-   * COUNT/COUNT_DISTINCT and a numeric one SUM/AVG/MIN/MAX — never a function the type cannot
-   * run. Plain non-numeric dimensions (not aggregated by the report) and unresolved columns are
-   * skipped. Selected JOINED (blended) fields follow the same rule via
-   * {@link collectBlendedAllowedSets}; a blended metric drives `compose` onto the blended path,
-   * whose metrics-only SELECT carries no GROUP BY (every column is an aggregated metric).
+   * For each TOTALS-METRIC field among the report's selected columns, one aggregation rule per
+   * governance-allowed function, minus {@link NON_SUMMARIZABLE_AGGREGATIONS} — so a STRING metric
+   * contributes COUNT/COUNT_DISTINCT and a numeric one SUM/AVG/MIN/MAX, never a function the type
+   * cannot run.
+   *
+   * Skipped: plain non-numeric dimensions, unresolved columns, and ROW-LEVEL calculated fields —
+   * a dimension whatever its declared type, and out of Totals even once the report aggregates it.
    */
   private async deriveTotalsAggregations(
     report: ReportLike,
@@ -377,10 +540,19 @@ export class ReportSqlComposerService {
   ): Promise<{
     columns: string[];
     aggregations: AggregationRule[];
+    /**
+     * The subset of `columns` that are calculated fields — the ones deliberately carrying NO
+     * aggregation rule. Returned separately because `aggregations.length === 0` is otherwise
+     * indistinguishable from "nothing to total", and a report whose only aggregate is a calculated
+     * metric would lose its Totals block — leaving the consumer to average the per-group ratios,
+     * which is the re-aggregation this feature exists to remove.
+     */
+    calculatedFieldColumns: string[];
     // Present only when blended columns forced a schema resolution — reused downstream.
     blendableSchema?: BlendableSchemaDto;
   }> {
-    const descriptors = collectSchemaFieldPathDescriptors(report.dataMart.schema?.fields ?? []);
+    const totalsSchemaFields = report.dataMart.schema?.fields ?? [];
+    const descriptors = collectSchemaFieldPathDescriptors(totalsSchemaFields);
     const byName = new Map(descriptors.map(d => [d.name, d]));
     // The columns the report aggregates — the metric signal for non-numeric fields (WI
     // §D: totals are over the SELECTED metrics; §C: Unique-by-PK is a normal COUNT_DISTINCT
@@ -391,14 +563,10 @@ export class ReportSqlComposerService {
     // Only consult the blendable schema when the selection references columns the main
     // schema doesn't own — otherwise a non-blended report pays no schema-resolution cost
     // and stays byte-identical.
-    // An EMPTY projection is "the caller selected no dimensions" (a Unique-Count-only MCP
-    // request), NOT "project everything" — totalling every numeric column would bill a second
-    // warehouse query for numbers nobody asked for. That reading holds only for a METRICS-ONLY
-    // plan, exactly as in resolveReportDataHeaders: `[]` is also what PERSISTED legacy rows carry
-    // (report-column-config.schema.ts). Such a row predates both aggregations and Unique Count, so
-    // it is NOT metrics-only and keeps projecting every native column — a report that has been
-    // totalling those for months does not lose its Totals to this. A metrics-only `[]` emits no
-    // dimension columns at all, so an empty Totals block there is the report's own shape.
+    // An EMPTY projection means "the caller selected no dimensions", NOT "project everything" —
+    // totalling every numeric column would bill a second warehouse query for numbers nobody asked
+    // for. Only for a METRICS-ONLY plan, though: `[]` is also what PERSISTED legacy rows carry, and
+    // those predate aggregations, so they keep projecting every native column.
     const metricsOnly = isMetricsOnlyProjection(report.aggregationConfig, report.uniqueCountConfig);
     const projectedExplicit =
       report.columnConfig != null && (report.columnConfig.length > 0 || metricsOnly);
@@ -415,11 +583,51 @@ export class ReportSqlComposerService {
       ? this.collectBlendedAllowedSets(blendableSchema, aggregatedColumns)
       : new Map<string, ReportAggregateFunction[]>();
 
-    const projected = projectedExplicit ? report.columnConfig! : descriptors.map(d => d.name);
+    // A calculated field is excluded from the legacy (no explicit columnConfig) fallback the
+    // same way `HttpDataColumnResolver`'s implicit-all resolution excludes it:
+    // composed only when asked for by name, so a pre-existing legacy report's Totals block cannot
+    // change shape the day an analyst adds a formula to the schema.
+    const projected = projectedExplicit
+      ? report.columnConfig!
+      : descriptors.filter(d => !isCalculatedField(d.field)).map(d => d.name);
 
     const columns: string[] = [];
     const aggregations: AggregationRule[] = [];
+    const calculatedFieldColumns: string[] = [];
     for (const name of projected) {
+      const descriptor = byName.get(name);
+      if (
+        descriptor &&
+        isCalculatedField(descriptor.field) &&
+        // Through the seat, never `isRowLevelCalculatedField`: the persisted level is a cache, and
+        // reading it here would drop `roas = revenue / cost` from Totals as if it were a dimension
+        // — silently absent, with the report's own SQL treating it as the metric it is.
+        !isAggregateLevel(calculatedFieldLevelOf(descriptor.field, totalsSchemaFields))
+      ) {
+        // A ROW-LEVEL Calculated Field never gets a Totals aggregation, whatever the report does
+        // with it. Keyed on the LEVEL, never on the declared type, which is the analyst's free
+        // choice.
+        //
+        // Left in while NOT aggregated, it lands in `columns` and the aggregated renderer GROUPS BY
+        // its expression, so the Totals query returns one row per group and `computeTotals`
+        // publishes `dataRows[0]` — an arbitrary group's value — as the report-wide total, with no
+        // exception and no log line.
+        //
+        // AGGREGATED by the report it is a metric of THAT REPORT, so the Totals cell is
+        // deliberately EMPTY: a visible absence rather than a number at a grain nobody asked for.
+        continue;
+      }
+      if (descriptor && isCalculatedField(descriptor.field)) {
+        // Already an aggregate: Totals renders it through the SAME formula-
+        // substitution channel as the main report (`compose()`'s `calculatedFields`, keyed off
+        // this very `columns` list), never through an invented SUM/AVG/MIN/MAX — that would both
+        // double-count an already-aggregated value and desync the header list from the SQL (one
+        // output column expanding into four). It reaches `projected` only via EXPLICIT selection;
+        // the legacy fallback just above already leaves it out.
+        columns.push(name);
+        calculatedFieldColumns.push(name);
+        continue;
+      }
       const allowed = this.resolveTotalsAllowedForColumn(
         name,
         byName,
@@ -434,7 +642,7 @@ export class ReportSqlComposerService {
         aggregations.push({ column: name, function: fn });
       }
     }
-    return { columns, aggregations, blendableSchema };
+    return { columns, aggregations, calculatedFieldColumns, blendableSchema };
   }
 
   // The load-bearing totals metric rule, shared by the native and joined paths so they cannot
@@ -477,19 +685,14 @@ export class ReportSqlComposerService {
     return allowed.filter(fn => !NON_SUMMARIZABLE_AGGREGATIONS.has(fn));
   }
 
-  // Joined fields that are totals metrics (same rule as the native path — see isTotalsEligible),
-  // mapped to their post-join allowed set. The per-field `postJoinAggregations` override (else
-  // the type-default) is CLAMPED through resolveFieldGovernance to the functions the type
-  // actually supports — mirroring the native path — so a stale override (e.g. a SUM saved before
-  // the field became STRING) cannot inject SQL the warehouse rejects and silently null the whole
-  // totals block. ANY_VALUE / STRING_AGG are stripped later in resolveTotalsAllowedForColumn.
+  // Joined fields that are totals metrics, mapped to their post-join allowed set. The per-field
+  // override is CLAMPED to the functions the type supports, so a stale one — a SUM saved before the
+  // field became STRING — cannot inject SQL the warehouse rejects and silently null the whole
+  // totals block.
   //
-  // A joined COUNT_DISTINCT, SUM, or AVG total is computed CORRECTLY at the grand-total grain
-  // by a dedicated metric sleeve (COUNT_DISTINCT re-joins the raw path and counts distinct
-  // across all rows; SUM/AVG carry DISTINCT (owner, value) across all rows first,),
-  // not by the pre-join roll-up. this is NOT "exact" in the sense of summing
-  // to the report's own per-group row values — a symmetric aggregate is non-additive across
-  // GROUP BY (see composeTotals' doc comment).
+  // A joined COUNT_DISTINCT, SUM or AVG total is computed at the grand-total grain by a metric
+  // sleeve, not by the pre-join roll-up. That is not "exact" in the sense of summing to the
+  // report's own per-group values — see `composeTotals`.
   private collectBlendedAllowedSets(
     blendableSchema: BlendableSchemaDto,
     aggregatedColumns: ReadonlySet<string>
@@ -526,12 +729,88 @@ export class ReportSqlComposerService {
   async composeStatic(
     report: ReportLike,
     accessor: BlendableSchemaAccessor,
-    precomputedDecision?: BlendingDecision
+    precomputedDecision?: BlendingDecision,
+    precomputedBlendableSchema?: BlendableSchemaDto,
+    tableReferences?: TableReferenceMemo
   ): Promise<{ sql: string }> {
-    const composed = await this.compose(report, accessor, precomputedDecision);
+    const composed = await this.compose(
+      report,
+      accessor,
+      precomputedDecision,
+      precomputedBlendableSchema,
+      tableReferences
+    );
     return {
       sql: this.inlineStaticSql(report.dataMart.storage.type, composed.sql, composed.params),
     };
+  }
+
+  /**
+   * A metrics-only plan for the warehouse dry run at schema-save time: the given metric names, no
+   * dimensions, this Data Mart as main.
+   *
+   * Which builder it composes through depends on what the formulas READ, and it must: dry-running a
+   * joined formula on the flat path renders the reference as `main."amount"` — "Unrecognized name"
+   * when main has no such column, a read of a DIFFERENT column when it does, stamping
+   * `warehouseValidation: 'passed'` for a query nobody ran.
+   *
+   * A live joined reference makes the decision resolve as for a report, which needs the SAVING
+   * user's identity: `computeBlendableSchema` UPSERTS a default role scope for whatever user id it
+   * is handed. Without an identity the dry run is refused rather than falling back to the flat path.
+   *
+   * PRECONDITION, silent: `dataMart.schema` is read AS GIVEN — from a stale one, an edited formula's
+   * OLD text is dry-run while the new one is saved as `passed`.
+   */
+  async composeMetricsOnly(
+    dataMart: DataMart,
+    metricNames: string[],
+    accessor?: BlendableSchemaAccessor,
+    precomputedBlendableSchema?: BlendableSchemaDto,
+    tableReferences?: TableReferenceMemo
+  ): Promise<{ sql: string }> {
+    const plan: ReportLikeReadPlan = {
+      dataMart,
+      columnConfig: metricNames,
+    };
+
+    const joinedMetrics = calculatedFieldsOf(dataMart.schema?.fields ?? []).filter(
+      f => metricNames.includes(f.name) && hasLiveJoinedReference(f.calculated.formula)
+    );
+
+    if (joinedMetrics.length === 0) {
+      const flatDecision: BlendingDecision = {
+        needsBlending: false,
+        columnFilter: metricNames,
+      };
+      // The fallback is never actually consulted — resolveBlendingDecision is skipped whenever a
+      // decision is precomputed, and that is the accessor's only consumer on this branch — but a
+      // real accessor is preferred over it so that inertness stops being a property of another
+      // file's control flow.
+      return this.composeStatic(
+        plan,
+        accessor ?? { userId: '', roles: [] },
+        flatDecision,
+        undefined,
+        tableReferences
+      );
+    }
+
+    if (!accessor?.userId) {
+      throw new BusinessViolationException(
+        `The calculated field${joinedMetrics.length > 1 ? 's' : ''} ` +
+          `[${joinedMetrics.map(f => f.name).join(', ')}] read from a joined Data Mart, which ` +
+          `cannot be validated without the saving user's identity`,
+        { calculatedFields: joinedMetrics.map(f => f.name) }
+      );
+    }
+
+    return this.composeStatic(
+      plan,
+      accessor,
+      undefined,
+      precomputedBlendableSchema,
+      tableReferences
+    );
   }
 
   /**

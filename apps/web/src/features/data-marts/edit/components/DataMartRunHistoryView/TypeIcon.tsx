@@ -27,6 +27,10 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
       const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.LOOKER_STUDIO).icon;
       return <Icon size={iconSize} />;
     }
+    case DataMartRunType.EXCEL: {
+      const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.EXCEL).icon;
+      return <Icon size={iconSize} />;
+    }
     case DataMartRunType.EMAIL: {
       const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.EMAIL).icon;
       return <Icon size={iconSize} />;

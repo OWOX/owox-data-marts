@@ -17,11 +17,17 @@ import {
   BlendableSchemaDto,
   BlendedFieldDto,
 } from '../dto/domain/blendable-schema.dto';
+import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { isCalculatedGroupingKey } from '../calculated-fields/calculated-plan-grain';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { BigQueryBlendedQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-blended-query-builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
+import {
+  createFormulaFunctionDialectRegistry,
+  FORMULA_FUNCTION_DIALECT_RESOLVER,
+} from '../calculated-fields/formula-function-dialect';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
@@ -83,6 +89,7 @@ describe('BlendedReportDataService', () => {
   let blendedQueryBuilderFacade: jest.Mocked<BlendedQueryBuilderFacade>;
   let userProjectionsFetcher: jest.Mocked<UserProjectionsFetcherService>;
   let outputControlsValidator: jest.Mocked<OutputControlsValidatorService>;
+  let formulaDialects: { resolve: (type: DataStorageType) => Promise<unknown> };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -136,6 +143,12 @@ describe('BlendedReportDataService', () => {
             fetchUserProjection: jest.fn().mockResolvedValue(undefined),
           },
         },
+        // The REAL registry, not a stub: which names are aggregates is what decides a formula's
+        // call boundaries, so a stub here would let the owner plan agree with a fiction.
+        {
+          provide: FORMULA_FUNCTION_DIALECT_RESOLVER,
+          useFactory: () => createFormulaFunctionDialectRegistry(),
+        },
       ],
     }).compile();
 
@@ -146,6 +159,7 @@ describe('BlendedReportDataService', () => {
     blendedQueryBuilderFacade = module.get(BlendedQueryBuilderFacade);
     userProjectionsFetcher = module.get(UserProjectionsFetcherService);
     outputControlsValidator = module.get(OutputControlsValidatorService);
+    formulaDialects = module.get(FORMULA_FUNCTION_DIALECT_RESOLVER);
   });
 
   describe('resolveBlendingDecision', () => {
@@ -2010,6 +2024,82 @@ describe('BlendedReportDataService', () => {
         expect(context!.groupRestriction?.dimensions).toEqual(['blended_b']);
       });
 
+      // A ROW-LEVEL calculated field is a restriction dimension under its own NAME, and
+      // that name belongs to no Data Mart. It must travel to the builder verbatim — the builder
+      // renders its formula and strips the name out of the CTE projections — while resolving here
+      // to no blended field and therefore no join chain of its own.
+      it('passes a row-level calculated restriction dimension through without resolving it', async () => {
+        const sessionKey = {
+          outputName: 'session_key',
+          type: 'STRING',
+          level: 'column',
+          formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+        };
+        const report = {
+          ...makeReport({ columnConfig: ['main_a'] }),
+          groupRestriction: {
+            dimensions: ['blended_b', 'session_key'],
+            calculatedDimensions: [sessionKey],
+            having: [{ column: 'main_a', function: 'SUM', operator: 'gt', value: 1 }],
+          },
+        } as unknown as Report;
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_b';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'b';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'target_alias',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Target DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName
+          .mockResolvedValueOnce('`project.dataset.main_table`')
+          .mockResolvedValueOnce('`project.dataset.target_table`');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.groupRestriction?.dimensions).toEqual(['blended_b', 'session_key']);
+        expect(context!.groupRestriction?.calculatedDimensions).toEqual([sessionKey]);
+        // One chain, for the blended dimension alone: the calculated name names no source.
+        expect(context!.chains).toHaveLength(1);
+        expect(context!.chains[0].blendedFields.map(f => f.outputAlias)).toEqual(['blended_b']);
+      });
+
       it('does not include blended chain if filterConfig references only a native column', async () => {
         const columnConfig = ['main_a'];
         const report = makeReport({
@@ -2298,6 +2388,815 @@ describe('BlendedReportDataService', () => {
         });
 
         expect(result.needsBlending).toBe(true);
+      });
+    });
+
+    describe('resolveBlendingDecision — calculated field on a blended report', () => {
+      function makeMainSchema(fields: object[]): DataMart['schema'] {
+        return {
+          type: 'bigquery-data-mart-schema',
+          fields,
+        } as unknown as DataMart['schema'];
+      }
+
+      function mockChains(): void {
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-0',
+            targetAlias: 'alias_0',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-0', title: 'Target DM 0' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      }
+
+      it('routes a selected calculated field through the builder channel, out of the column list', async () => {
+        // The metric renders from its stored formula (`calculatedFields`), never as a plain
+        // projected column — leaving `ctr` in `columns` would make the main raw CTE project it
+        // and fail with `Unrecognized name: ctr`. `assertNoOrphanedColumnReferences` cannot catch
+        // that: a calculated field IS a native schema path.
+        const report = makeReport({ columnConfig: ['ctr', 'blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            alias: 'CTR, %',
+            status: 'CONNECTED',
+            calculated: {
+              formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+              level: 'metric',
+            },
+          },
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.columnFilter).toEqual(['blended_field']);
+        expect(result.calculatedFields).toEqual([
+          {
+            outputName: 'ctr',
+            type: 'FLOAT',
+            formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+            level: 'metric',
+            alias: 'CTR, %',
+            description: undefined,
+            // Analysed even with no joined path: "absent" tells the builder "not analysed", and it
+            // then refuses any joined formula rather than qualifying it against `main`.
+            formulaOwnership: {
+              plan: { calls: expect.any(Array), hasJoinedCall: false },
+              violations: [],
+            },
+          },
+        ]);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            columns: ['blended_field'],
+            calculatedFields: result.calculatedFields,
+          })
+        );
+      });
+
+      // The BLENDED path builds its own plans, so the dependency closure has to be built
+      // here too — without it the renderer resolves `{{ref field="net_revenue"}}` as a plain column
+      // of `main`, which is an unrecognised name (or, worse, a real column of the same name).
+      it('carries the formulas a selected metric reads, without projecting them', async () => {
+        const REVENUE = 'SUM({{ref field="amount"}})';
+        const report = makeReport({ columnConfig: ['roas', 'blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'amount', type: 'FLOAT', status: 'CONNECTED' },
+          {
+            name: 'net_revenue',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: { formula: REVENUE, level: 'metric' },
+          },
+          {
+            name: 'roas',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: { formula: '{{ref field="net_revenue"}} / 2', level: 'metric' },
+          },
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.calculatedFields?.map(m => m.outputName)).toEqual(['roas']);
+        expect(result.calculatedFields?.[0].dependencies).toEqual([
+          { outputName: 'net_revenue', type: 'FLOAT', formula: REVENUE, level: 'metric' },
+        ]);
+        // A dependency is not a column — it must not reach the raw CTE's projection either.
+        expect(result.columnFilter).toEqual(['blended_field']);
+      });
+
+      // The blended path builds its OWN plan, so the level has to be populated here too.
+      // A level carried only by the flat builder leaves every blended report reading a row-level
+      // field as a metric: a wrong GROUP BY and a wrong number, with nothing to notice.
+      describe('the calculated field level travels on the plan', () => {
+        const CTR = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+        const SESSION_KEY = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+
+        const resolveLevel = async (calculated: object, aggregationConfig?: AggregationRule[]) => {
+          const report = makeReport({
+            columnConfig: ['computed', 'blended_field'],
+            aggregationConfig,
+          });
+          report.dataMart.schema = makeMainSchema([
+            { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+            { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+            { name: 'session_id', type: 'STRING', status: 'CONNECTED' },
+            { name: 'user_id', type: 'STRING', status: 'CONNECTED' },
+            { name: 'computed', type: 'STRING', status: 'CONNECTED', calculated },
+          ]);
+          blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+            makeBlendableSchema(['blended_field'])
+          );
+          mockChains();
+
+          const result = await service.resolveBlendingDecision(report, {
+            userId: 'user-1',
+            roles: ['admin'],
+          });
+          return result.calculatedFields;
+        };
+
+        it('carries level "column" for a row-level formula', async () => {
+          expect(await resolveLevel({ formula: SESSION_KEY, level: 'column' })).toEqual([
+            expect.objectContaining({ outputName: 'computed', level: 'column' }),
+          ]);
+        });
+
+        it('carries level "metric" for a formula that aggregates', async () => {
+          expect(await resolveLevel({ formula: CTR, level: 'metric' })).toEqual([
+            expect.objectContaining({ outputName: 'computed', level: 'metric' }),
+          ]);
+        });
+
+        it('reads a field persisted with no level as a metric', async () => {
+          expect(await resolveLevel({ formula: CTR })).toEqual([
+            expect.objectContaining({ outputName: 'computed', level: 'metric' }),
+          ]);
+        });
+
+        // The blended path builds its OWN plan, so the grain has to be decided here too — the
+        // level alone stops answering it once a report may aggregate a row-level field.
+        // Hardcoding either factory's answer leaves the other one wrong, and the blended half is
+        // where a stale grouping key also desyncs every metric sleeve's join-back.
+        describe('an aggregation rule on a row-level field takes it off the grouping keys', () => {
+          const planFor = async (calculated: object, aggregationConfig?: AggregationRule[]) =>
+            (await resolveLevel(calculated, aggregationConfig))![0];
+
+          it('is a grouping key when no rule names it', async () => {
+            const plan = await planFor({ formula: SESSION_KEY, level: 'column' });
+            expect(isCalculatedGroupingKey(plan)).toBe(true);
+          });
+
+          it('is NOT a grouping key when the report aggregates it, and stays row-level', async () => {
+            const plan = await planFor({ formula: SESSION_KEY, level: 'column' }, [
+              { column: 'computed', function: 'COUNT_DISTINCT' },
+            ]);
+            // The formula did not change, so neither did its level — only the grain did.
+            expect(plan.level).toBe('column');
+            expect(isCalculatedGroupingKey(plan)).toBe(false);
+          });
+
+          it('a rule naming another column leaves it a grouping key', async () => {
+            const plan = await planFor({ formula: SESSION_KEY, level: 'column' }, [
+              { column: 'blended_field', function: 'COUNT' },
+            ]);
+            expect(isCalculatedGroupingKey(plan)).toBe(true);
+          });
+
+          // An aggregate-level field already IS an aggregate: never a grouping key, rule or no rule.
+          it('an aggregate-level field is never a grouping key', async () => {
+            const plain = await planFor({ formula: CTR, level: 'metric' });
+            expect(isCalculatedGroupingKey(plain)).toBe(false);
+            const aggregated = await planFor({ formula: CTR, level: 'metric' }, [
+              { column: 'computed', function: 'SUM' },
+            ]);
+            expect(aggregated.level).toBe('metric');
+            expect(isCalculatedGroupingKey(aggregated)).toBe(false);
+          });
+        });
+      });
+
+      // The joined deliverable: a row-level formula behaves on a joined report exactly as it does
+      // on a plain one. It reaches the builder as a plan of level `column`, which projects its
+      // expression, makes that expression a GROUP BY key, and gives every metric sleeve the same
+      // key to join back on — the grain the sleeve builder now carries.
+      describe('a row-level calculated field on a report that joins', () => {
+        const SESSION_KEY = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+        const CTR = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+
+        function resolve(
+          calculatedFields: object[],
+          columnConfig = [
+            ...calculatedFields.map(f => (f as { name: string }).name),
+            'blended_field',
+          ]
+        ) {
+          const report = makeReport({ columnConfig });
+          report.dataMart.schema = makeMainSchema([
+            { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+            { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+            { name: 'session_id', type: 'STRING', status: 'CONNECTED' },
+            { name: 'user_id', type: 'STRING', status: 'CONNECTED' },
+            ...calculatedFields,
+          ]);
+          blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+            makeBlendableSchema(['blended_field'])
+          );
+          mockChains();
+
+          return service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+        }
+
+        const rowLevel = (name: string) => ({
+          name,
+          type: 'STRING',
+          status: 'CONNECTED',
+          calculated: { formula: SESSION_KEY, level: 'column' },
+        });
+
+        it('composes the report and hands the field to the builder as a dimension', async () => {
+          const result = await resolve([rowLevel('session_key')]);
+
+          expect(result.needsBlending).toBe(true);
+          expect(result.calculatedFields).toEqual([
+            expect.objectContaining({ outputName: 'session_key', level: 'column' }),
+          ]);
+          expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ calculatedFields: result.calculatedFields })
+          );
+        });
+
+        // The field's own name is never a projected column: it renders through the builder's
+        // calculated channel, so the column list handed over must not carry it.
+        it('keeps the field out of the plain column list', async () => {
+          const result = await resolve([rowLevel('session_key')]);
+
+          expect(result.columnFilter).toEqual(['blended_field']);
+          expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ columns: ['blended_field'] })
+          );
+        });
+
+        it('carries every row-level field of the selection, not just the first', async () => {
+          const result = await resolve([rowLevel('session_key'), rowLevel('visit_key')]);
+
+          expect(result.calculatedFields?.map(m => m.outputName)).toEqual([
+            'session_key',
+            'visit_key',
+          ]);
+        });
+
+        // Both levels on one report is the shape that made the sleeve grain matter: the aggregate
+        // one is a metric the sleeve computes, the row-level one a key it has to group by.
+        it('composes both levels together on the same joined report', async () => {
+          const result = await resolve([
+            rowLevel('session_key'),
+            {
+              name: 'ctr',
+              type: 'FLOAT',
+              status: 'CONNECTED',
+              calculated: { formula: CTR, level: 'metric' },
+            },
+          ]);
+
+          expect(result.calculatedFields).toEqual([
+            expect.objectContaining({ outputName: 'session_key', level: 'column' }),
+            expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
+          ]);
+        });
+
+        // The capability the previous slice shipped, still intact.
+        it('still composes the same report when the formula aggregates', async () => {
+          const result = await resolve([
+            {
+              name: 'ctr',
+              type: 'FLOAT',
+              status: 'CONNECTED',
+              calculated: { formula: CTR, level: 'metric' },
+            },
+          ]);
+
+          expect(result.needsBlending).toBe(true);
+          expect(result.calculatedFields).toEqual([
+            expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
+          ]);
+          expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ calculatedFields: result.calculatedFields })
+          );
+        });
+
+        // The flat path's actual deliverable. The Data Mart HAS a joined source available; this report
+        // just never references it, so the row-level field renders on the flat path as designed.
+        it('leaves the flat path alone when the report references no joined source', async () => {
+          const result = await resolve([rowLevel('session_key')], ['session_key', 'clicks']);
+
+          expect(result.needsBlending).toBe(false);
+          expect(result.columnFilter).toEqual(['session_key', 'clicks']);
+          expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+        });
+      });
+
+      it('leaves a decision without metrics untouched', async () => {
+        const report = makeReport({ columnConfig: ['blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.calculatedFields).toBeUndefined();
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ calculatedFields: undefined })
+        );
+      });
+
+      it('still renders on the flat path when the metric is selected but nothing else needs blending', async () => {
+        // A Data Mart HAVING joins configured must not be conflated with THIS report needing
+        // blending — the metric is selected alongside no blended reference, filter, sort, or
+        // Unique Count source, so the report never leaves the flat path and the metric renders
+        // fine there. Gating any earlier would refuse a request that was never going to
+        // fail.
+        const report = makeReport({ columnConfig: ['ctr', 'clicks'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: {
+              formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+              level: 'metric',
+            },
+          },
+        ]);
+
+        // The Data Mart DOES have a joined source available, but this report never references it.
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(false);
+        expect(result.columnFilter).toEqual(['ctr', 'clicks']);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+    });
+
+    // A JOINED Data Mart's calculated field is a formula this path cannot render:
+    // only the main mart's formulas become `CalculatedFieldPlan`s, so a joined one is mapped to
+    // `targetFieldName: originalFieldName` and projected from the joined mart's PHYSICAL table.
+    // `BlendedFieldDto.isCalculated` documents the refusal ("It cannot be selected as an ordinary
+    // report column either"); nothing enforced it on any report surface.
+    describe('resolveBlendingDecision — a joined Data Mart calculated field', () => {
+      const CTR = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+      const accessor = { userId: 'user-1', roles: ['admin'] };
+
+      function makeMainSchema(fields: object[]): DataMart['schema'] {
+        return {
+          type: 'bigquery-data-mart-schema',
+          fields,
+        } as unknown as DataMart['schema'];
+      }
+
+      // Both relationships resolvable, so a chain IS built for the joined formula's source unless
+      // something refuses it — otherwise the field would drop out for the unrelated reason that no
+      // relationship backs it, and the test would pass at base.
+      function mockChains(): void {
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-0',
+            targetAlias: 'alias_0',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-0', title: 'Target DM 0' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+          {
+            id: 'rel-1',
+            targetAlias: 'alias_1',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Target DM 1' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      }
+
+      // `blended_field` is an ordinary joined column; `alias_1__ctr` is the joined mart's formula.
+      function schemaWithJoinedFormula(): BlendableSchemaDto {
+        const schema = makeBlendableSchema(['blended_field', 'alias_1__ctr']);
+        schema.blendedFields[1].originalFieldName = 'ctr';
+        schema.blendedFields[1].isCalculated = true;
+        return schema;
+      }
+
+      async function refusalOf(report: Report): Promise<Error & { errorDetails?: unknown }> {
+        try {
+          await service.resolveBlendingDecision(report, accessor);
+        } catch (e) {
+          return e as Error & { errorDetails?: unknown };
+        }
+        throw new Error('expected a refusal, but the report composed');
+      }
+
+      it('refuses a selected joined calculated field, naming it and the Data Mart it belongs to', async () => {
+        const report = makeReport({ columnConfig: ['date', 'blended_field', 'alias_1__ctr'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'date', type: 'STRING', status: 'CONNECTED' },
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schemaWithJoinedFormula());
+        mockChains();
+
+        const error = await refusalOf(report);
+
+        expect(error.message).toContain('`alias_1__ctr`');
+        expect(error.message).toContain('Target DM 1');
+        expect(error.errorDetails).toMatchObject({
+          dataMartId: 'dm-1',
+          joinedCalculatedColumns: ['alias_1__ctr'],
+        });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      // A HIDDEN joined formula is the quiet case's own shape: the review's example is a formula
+      // named after a column that was since dropped or hidden, which is where the joined mart's
+      // table still carries a real `ctr` and the emitted SQL is VALID and wrong. Hidden also makes
+      // the field refusable for two different reasons, and the calculated one is the accurate one —
+      // the same precedence `joinedFieldState` applies to the same field inside a formula. Fails if
+      // the orphan check runs first, which would answer "repair this schema link" about a formula.
+      it('refuses a hidden joined calculated field as calculated, not as a broken schema link', async () => {
+        const report = makeReport({ columnConfig: ['date', 'alias_1__ctr'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'date', type: 'STRING', status: 'CONNECTED' },
+        ]);
+        const schema = schemaWithJoinedFormula();
+        schema.blendedFields[1].isHidden = true;
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schema);
+        mockChains();
+
+        const error = await refusalOf(report);
+
+        expect(error.message).toContain('`alias_1__ctr`');
+        expect(error.errorDetails).toMatchObject({ joinedCalculatedColumns: ['alias_1__ctr'] });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      // A Totals plan carries its dimensions and metric filters in `groupRestriction`, not in
+      // `columnConfig` — and `referencedColumns` folds them in, so the chain projects them exactly
+      // as a selected column's. At base this composed, with the chain projecting
+      // `{ targetFieldName: 'ctr', outputAlias: 'alias_1__ctr' }`: the same quiet shape one door
+      // over. Unreachable through `composeTotals` today only by call order, which its own comment
+      // says out loud.
+      it('refuses one named only by a Totals plan’s group restriction', async () => {
+        const report = {
+          ...makeReport({ columnConfig: ['date'] }),
+          groupRestriction: {
+            dimensions: ['alias_1__ctr'],
+            having: [{ column: 'date', function: 'COUNT', operator: 'gt', value: 1 }],
+          },
+        } as unknown as Report;
+        report.dataMart.schema = makeMainSchema([
+          { name: 'date', type: 'STRING', status: 'CONNECTED' },
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schemaWithJoinedFormula());
+        mockChains();
+
+        const error = await refusalOf(report);
+
+        expect(error.errorDetails).toMatchObject({ joinedCalculatedColumns: ['alias_1__ctr'] });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      // The refusal keys off the JOINED field, not off calculated-ness: the main Data Mart's own
+      // formula still renders through the `calculatedFields` channel on the same report.
+      it("leaves the main Data Mart's own formula and an ordinary joined column alone", async () => {
+        const report = makeReport({ columnConfig: ['ctr', 'blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: { formula: CTR, level: 'metric' },
+          },
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schemaWithJoinedFormula());
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, accessor);
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.calculatedFields?.map(m => m.outputName)).toEqual(['ctr']);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+
+      // A native column may legitimately own the name a unified blended name folds to, and the
+      // projection resolves it natively (`assertNoOrphanedColumnReferences` checks the native set
+      // first). Refusing it would take a column the report is entitled to project.
+      it('does not refuse a MAIN column that happens to share the blended name', async () => {
+        const report = makeReport({ columnConfig: ['alias_1__ctr', 'blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          { name: 'alias_1__ctr', type: 'FLOAT', status: 'CONNECTED' },
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schemaWithJoinedFormula());
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, accessor);
+
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+    });
+
+    describe('resolveBlendingDecision — a joined reference inside a formula', () => {
+      const JOINED_FORMULA =
+        'SUM({{ref field="cost"}}) * SUM({{ref path="orders" field="amount"}})';
+
+      function makeMetricSchema(formula: string): DataMart['schema'] {
+        return {
+          type: 'bigquery-data-mart-schema',
+          fields: [
+            { name: 'cost', type: 'FLOAT', status: 'CONNECTED' },
+            { name: 'channel', type: 'STRING', status: 'CONNECTED' },
+            {
+              name: 'roi',
+              type: 'FLOAT',
+              status: 'CONNECTED',
+              calculated: { formula, level: 'metric' },
+            },
+          ],
+        } as unknown as DataMart['schema'];
+      }
+
+      function makeOrdersSchema(
+        opts: { accessible?: boolean; included?: boolean; hidden?: boolean } = {}
+      ): BlendableSchemaDto {
+        const amount = new BlendedFieldDto();
+        amount.name = 'orders__amount';
+        amount.sourceRelationshipId = 'rel-orders';
+        amount.sourceDataMartId = 'dm-orders';
+        amount.sourceDataMartTitle = 'Orders';
+        amount.targetAlias = 'orders';
+        amount.originalFieldName = 'amount';
+        amount.type = 'FLOAT';
+        amount.isHidden = opts.hidden ?? false;
+        amount.aggregateFunction = 'SUM';
+        amount.transitiveDepth = 1;
+        amount.aliasPath = 'orders';
+        amount.outputPrefix = 'orders';
+
+        const source = new AvailableSourceDto();
+        source.aliasPath = 'orders';
+        source.title = 'Orders';
+        source.defaultAlias = 'orders';
+        source.depth = 1;
+        source.fieldCount = 1;
+        source.isIncluded = opts.included ?? true;
+        source.isAccessibleForReporting = opts.accessible ?? true;
+        source.relationshipId = 'rel-orders';
+        source.dataMartId = 'dm-orders';
+
+        return {
+          nativeFields: [],
+          availableSources: [source],
+          blendedFields: [amount],
+        } as unknown as BlendableSchemaDto;
+      }
+
+      function mockOrdersChain(): void {
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-orders',
+            targetAlias: 'orders',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-orders', title: 'Orders' },
+            joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      }
+
+      // THE security requirement. A joined reference lives only inside the formula, so before this
+      // it reached neither `referencedColumns` nor `assertAllRequestedSourcesAccessible` — and a
+      // user with no grant on Orders read Orders data through the metric.
+      it('refuses the report when the formula reads a source the user cannot access', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeOrdersSchema({ accessible: false })
+        );
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue({
+          email: 'analyst@example.com',
+        } as UserProjectionDto);
+        mockOrdersChain();
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['viewer'] })
+        ).rejects.toThrow(/missing access to data marts: "Orders"/);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('routes to the blended builder when the ONLY joined reference is inside a formula', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeOrdersSchema());
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        // The metric's own name never becomes a projected column; the joined field it reads is not
+        // one either — it is projected by its chain and hidden from the final SELECT.
+        expect(result.columnFilter).toEqual(['channel']);
+        expect(result.chains?.map(c => c.cteName)).toEqual(['orders']);
+        expect(result.chains?.[0].blendedFields).toEqual([
+          expect.objectContaining({
+            targetFieldName: 'amount',
+            outputAlias: 'orders__amount',
+            isHidden: true,
+          }),
+        ]);
+      });
+
+      it('forwards the owner analysis the builder needs to route the joined call', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeOrdersSchema());
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const ownership = result.calculatedFields?.[0].formulaOwnership;
+        expect(ownership?.violations).toEqual([]);
+        expect(ownership?.plan.hasJoinedCall).toBe(true);
+        expect(ownership?.plan.calls.map(c => ({ fn: c.fn, owner: c.owner }))).toEqual([
+          { fn: 'SUM', owner: { kind: 'own' } },
+          { fn: 'SUM', owner: { kind: 'joined', aliasPath: 'orders' } },
+        ]);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ calculatedFields: result.calculatedFields })
+        );
+      });
+
+      // `buildFormulaOwnerPlan` hands a mixed-owner call back as own-owner, so the routing verdict
+      // lives in `violations` — the service must forward it rather than flatten it away.
+      it('forwards a mixed-owner violation instead of dropping it', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(
+          'SUM({{ref field="cost"}} * {{ref path="orders" field="amount"}})'
+        );
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeOrdersSchema());
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.calculatedFields?.[0].formulaOwnership?.violations).toEqual([
+          { kind: 'mixed-owner-call', fn: 'SUM', paths: ['', 'orders'] },
+        ]);
+      });
+
+      // A hidden joined field is refused at save time, but a formula persisted before the field was
+      // hidden still reads it — and reading it is still reading that source.
+      it('access-checks a source a formula reaches through a HIDDEN joined field', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeOrdersSchema({ accessible: false, hidden: true })
+        );
+        mockOrdersChain();
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['viewer'] })
+        ).rejects.toThrow(/missing access to data marts: "Orders"/);
+      });
+
+      // The bug class: a commented-out reference is not SQL, so it must neither force blending
+      // nor make an inaccessible source the reason a report fails.
+      it('ignores a joined reference that is commented out', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(
+          'SUM({{ref field="cost"}})\n-- was: SUM({{ref path="orders" field="amount"}})\n'
+        );
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeOrdersSchema({ accessible: false })
+        );
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['viewer'],
+        });
+
+        expect(result.needsBlending).toBe(false);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      // Excluding a source from reporting is a curation choice, not an access decision
+      // (`isAccessibleForReporting` is the access one) — and `buildRelationshipChains` deliberately
+      // ignores `isIncluded`, so a formula over an excluded source keeps rendering, as a stored
+      // column reference to one does.
+      it('still renders a formula over a source excluded from reporting', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeOrdersSchema({ included: false })
+        );
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.chains?.map(c => c.cteName)).toEqual(['orders']);
+      });
+
+      // A formula persisted before validation existed can be unparseable. Reading it here must
+      // degrade to "not analysed" — the state `CalculatedFieldPlan` already defines, and which
+      // makes the blended builder refuse the metric — instead of throwing a
+      // FormulaReferenceSyntaxError out of a blending decision as a 500.
+      it('does not throw out of the decision for an unparseable stored formula', async () => {
+        const report = makeReport({ columnConfig: ['channel', 'roi'] });
+        report.dataMart.schema = makeMetricSchema('SUM({{ref field=cost}})');
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeOrdersSchema());
+        mockOrdersChain();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.calculatedFields?.[0].formulaOwnership).toBeUndefined();
+      });
+
+      // Harmless today, but a seventh DataStorageType added without a dialect entry would
+      // otherwise break every report on that storage rather than only the formula ones.
+      it('resolves the formula dialect only for a report that actually selects a metric', async () => {
+        const resolveSpy = jest.spyOn(formulaDialects, 'resolve');
+        const report = makeReport({ columnConfig: ['channel'] });
+        report.dataMart.schema = makeMetricSchema(JOINED_FORMULA);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeOrdersSchema());
+        mockOrdersChain();
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(resolveSpy).not.toHaveBeenCalled();
       });
     });
 

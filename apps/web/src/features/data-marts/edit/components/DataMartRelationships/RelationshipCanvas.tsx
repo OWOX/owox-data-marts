@@ -83,9 +83,10 @@ import {
 } from './relationship-warning-state';
 import {
   GRAPH_ZOOM_MAX,
+  GRAPH_ZOOM_MIN,
+  getFittedGraphZoom,
   getGraphZoomRange,
   getNextGraphZoom,
-  type GraphZoomRange,
 } from './relationship-canvas-zoom';
 import type { RelationshipStatusFilter } from './relationship-filters';
 
@@ -134,7 +135,6 @@ const SRC_H = 48;
 const TGT_H = 92;
 const FIT_VIEW_SCALE = 0.85;
 const FIT_VIEW_PADDING = 1 / FIT_VIEW_SCALE - 1;
-const GRAPH_ZOOM_MIN = 0.05;
 const GRAPH_PAN_PADDING = 150;
 // Functional "attention" (e.g. missing PK) — corporate yellow, distinct from the
 // non-functional (orange) WARNING_COLOR.
@@ -836,10 +836,6 @@ function RelationshipCanvasInner({
   const paneHeight = useStore(s => s.height);
   const hasFitRef = useRef(false);
   const userInteractedRef = useRef(false);
-  const [zoomRange, setZoomRange] = useState<GraphZoomRange>({
-    min: GRAPH_ZOOM_MIN,
-    max: GRAPH_ZOOM_MAX,
-  });
 
   const graphResult = useMemo(
     () =>
@@ -893,6 +889,17 @@ function RelationshipCanvasInner({
   const graphIdentity = useMemo(() => getRelationshipFlowGraphIdentity(graphResult), [graphResult]);
   const graphBounds = useMemo(() => getCanvasGraphBounds(graphResult.nodes), [graphResult.nodes]);
   const previousGraphIdentityRef = useRef(graphIdentity);
+
+  // Derived from the live geometry (not captured after a fit): a fit that ran
+  // against a half-loaded graph or a still-settling pane used to freeze the
+  // range in a state where both zoom buttons were dead until "Fit to view"
+  // recomputed it — the exact "zoom stops working after opening the page via
+  // search" bug.
+  const zoomRange = useMemo(
+    () =>
+      getGraphZoomRange(getFittedGraphZoom(graphBounds, paneWidth, paneHeight, FIT_VIEW_PADDING)),
+    [graphBounds, paneWidth, paneHeight]
+  );
 
   useEffect(() => {
     if (previousGraphIdentityRef.current === graphIdentity) return;
@@ -983,15 +990,11 @@ function RelationshipCanvasInner({
   }, [reactFlow]);
 
   const fitFull = useCallback(() => {
-    return reactFlow
-      .fitView({
-        minZoom: GRAPH_ZOOM_MIN,
-        maxZoom: GRAPH_ZOOM_MAX,
-        padding: FIT_VIEW_PADDING,
-      })
-      .then(() => {
-        setZoomRange(getGraphZoomRange(reactFlow.getZoom()));
-      });
+    return reactFlow.fitView({
+      minZoom: GRAPH_ZOOM_MIN,
+      maxZoom: GRAPH_ZOOM_MAX,
+      padding: FIT_VIEW_PADDING,
+    });
   }, [reactFlow]);
 
   const markUserInteracted = useCallback(() => {
@@ -1017,16 +1020,27 @@ function RelationshipCanvasInner({
   const handleZoom = useCallback(
     (delta: number) => {
       markUserInteracted();
-      const next = getNextGraphZoom(reactFlow.getZoom(), delta, zoomRange);
+      const currentZoom = reactFlow.getZoom();
+      if (!Number.isFinite(currentZoom) || currentZoom <= 0) {
+        // A corrupted viewport (an interrupted init can leave a non-finite
+        // transform behind) would make every zoom step a silent no-op —
+        // recover with a full fit instead of ignoring the click.
+        void fitFull();
+        return;
+      }
+      const next = getNextGraphZoom(currentZoom, delta, zoomRange);
       if (!next) return;
       void reactFlow.zoomTo(next.zoom, { duration: 150 });
     },
-    [markUserInteracted, reactFlow, zoomRange]
+    [fitFull, markUserInteracted, reactFlow, zoomRange]
   );
 
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
       if (paneWidth === 0 || paneHeight === 0) return;
+      // A non-finite zoom would poison the clamp math and push a NaN viewport
+      // into React Flow, killing pan and zoom until a full fit.
+      if (!Number.isFinite(viewport.zoom)) return;
 
       const clampedViewport = clampCanvasViewport(
         viewport,

@@ -35,6 +35,15 @@ const lookerStudioDestinationSchema = baseDataDestinationSchema.extend({
   credentials: lookerStudioCredentialsSchema.optional(),
 });
 
+// Excel carries no credentials; the add-in resolves the destination and there is nothing
+// type-specific to fill in. Only the shared fields apply.
+const excelDestinationSchema = baseDataDestinationSchema.extend({
+  type: z.literal(DataDestinationType.EXCEL),
+  // Always empty, but declared so the field stays present across the union — every mapper
+  // and the form itself read `credentials` off the shared form-data type.
+  credentials: z.object({}).optional(),
+});
+
 // schema for email based destinations
 const emailLikeBase = baseDataDestinationSchema.extend({
   credentials: emailCredentialsSchema.optional(),
@@ -61,6 +70,7 @@ const googleChatDestinationSchema = baseDataDestinationSchema.extend({
 export const dataDestinationSchema = z.discriminatedUnion('type', [
   googleSheetsDestinationSchema,
   lookerStudioDestinationSchema,
+  excelDestinationSchema,
   emailDestinationSchema,
   slackDestinationSchema,
   msTeamsDestinationSchema,

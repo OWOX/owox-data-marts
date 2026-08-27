@@ -9,7 +9,7 @@ import { DataDestinationType, DataDestinationTypeModel } from '../../../features
 import { DataMartContext } from '../../../features/data-marts/edit/model/context/context';
 import {
   EmailActionsCell,
-  GoogleSheetsActionsCell,
+  ReportActionsCell,
   StatusIcon,
 } from '../../../features/data-marts/reports/list/components';
 import { ReportEditSheetRenderer } from '../../../features/data-marts/reports/list/components/DestinationCard/ReportEditSheetRenderer';
@@ -134,8 +134,11 @@ function buildProjectReportFilters(
 function ProjectReportTitleCell({ report }: { report: DataMartReport }) {
   let quickActions: ReactNode = null;
 
+  // The open-document action hides itself for a config that names no document, so an Excel
+  // report gets the SQL action and nothing else without needing a branch of its own.
   switch (report.dataDestination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
       quickActions = (
         <>
           <ReportOpenDocumentAction
@@ -189,7 +192,8 @@ function ProjectReportActionsCell({
 
   switch (report.dataDestination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
-      actionsCell = <GoogleSheetsActionsCell {...actionProps} />;
+    case DataDestinationType.EXCEL:
+      actionsCell = <ReportActionsCell {...actionProps} />;
       break;
     case DataDestinationType.EMAIL:
     case DataDestinationType.SLACK:

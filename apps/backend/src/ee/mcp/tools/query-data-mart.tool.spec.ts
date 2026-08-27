@@ -998,6 +998,54 @@ describe('QueryDataMartTool', () => {
       expect(text).not.toContain('SUM(revenue)');
     });
 
+    // A calculated-field refusal raised outside the output-controls validator must not fall
+    // to the generic fallback — "Verify the field names, filters, and aggregations… then retry" —
+    // which names nothing, is unactionable, and actively misdirects, since the field names are
+    // right and re-fetching the schema only keeps confirming them.
+    //
+    // Parametrized over the payload each REAL producer writes. The branch once read only the
+    // plural key, whose sole producer is a guard on the schema-save dry-run path — so at query
+    // time it matched nothing and every case below took the fallback.
+    it.each([
+      [
+        'a renderer/sleeve refusal (singular key — the common one)',
+        { calculatedField: 'session_key' },
+      ],
+      [
+        'a joined Data Mart’s calculated column, reachable with a bare projection',
+        { dataMartId: 'dm1', joinedCalculatedColumns: ['session_key'] },
+      ],
+      ['composeMetricsOnly’s no-userId guard (plural key)', { calculatedFields: ['session_key'] }],
+    ])(
+      'maps %s to its own refusal, not the generic fallback',
+      async (_case, errorDetails: Record<string, unknown>) => {
+        const err = new BusinessViolationException(
+          'The calculated field [session_key] is a row-level formula, which is not yet supported ' +
+            'on a report that joins another Data Mart. Remove it from this report, or wrap its ' +
+            'formula in an aggregation',
+          errorDetails
+        );
+        facade.queryDataMart.mockRejectedValue(err);
+
+        const result = await tool.handler(
+          { data_mart_id: 'dm1', fields: ['session_key', 'orders__amount'] },
+          AUTH_CTX as never
+        );
+
+        expect(result.isError).toBe(true);
+        expect(result.structuredContent).toMatchObject({
+          error_code: 'calculated_field_not_supported',
+        });
+        const msg = (result.structuredContent as { message?: string }).message ?? '';
+        // The refusal's own reason survives — it is the only text that says WHY.
+        expect(msg).toContain('row-level formula');
+        // Unnameable = unfixable: the offending field must be named for the agent to act.
+        expect(msg).toContain('session_key');
+        expect(msg).toContain('do not re-fetch the schema');
+        expect(msg).not.toContain('Verify the field names');
+      }
+    );
+
     it('maps BadRequestException with FILTER_COLUMN_UNKNOWN → field_not_found', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',

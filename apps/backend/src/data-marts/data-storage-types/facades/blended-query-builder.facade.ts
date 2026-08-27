@@ -4,7 +4,7 @@ import { BLENDED_QUERY_BUILDER_RESOLVER } from '../data-storage-providers';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import {
   BlendedQueryBuilder,
-  BlendedQueryContext,
+  RoutedBlendedQueryContext,
 } from '../interfaces/blended-query-builder.interface';
 import { QueryBuildResult } from '../interfaces/data-mart-query-builder.interface';
 
@@ -15,9 +15,13 @@ export class BlendedQueryBuilderFacade {
     private readonly resolver: TypeResolver<DataStorageType, BlendedQueryBuilder>
   ) {}
 
+  /**
+   * `RoutedBlendedQueryContext`, not `BlendedQueryContext`: the only way production code reaches a
+   * blended builder, so the clause verdict is required here.
+   */
   async buildBlendedQuery(
     storageType: DataStorageType,
-    context: BlendedQueryContext
+    context: RoutedBlendedQueryContext
   ): Promise<string | QueryBuildResult> {
     const builder = await this.resolver.resolve(storageType);
     return builder.buildBlendedQuery(context);

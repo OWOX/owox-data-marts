@@ -871,6 +871,145 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBe('SELECT * FROM t WHERE a = 1');
   });
 
+  // Orchestrator-level pin for hasOutputControls' calculated-metric branch: a report with NO
+  // filter/sort/aggregation/dateTrunc/limit/uniqueCount — only a calculated field selected in
+  // columnConfig — must still reach ReportSqlComposerService.compose. Before that predicate was
+  // widened, this exact shape returned false, compose() was never called, sqlOverride stayed
+  // undefined, and the reader would have fallen back to a bare buildQuery(definition, { columns })
+  // call that emits 'ctr' as a plain, nonexistent column.
+  it('composes SQL and forwards calculatedFields for a report selecting only a calculated field', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.columnConfig = ['clicks', 'ctr'] as never;
+    report.dataMart = {
+      ...report.dataMart,
+      schema: {
+        fields: [
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: {
+              formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+              level: 'metric',
+            },
+          },
+        ],
+      },
+    } as never;
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: false,
+      columnFilter: ['clicks', 'ctr'],
+    });
+    const calculatedField = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+    };
+    reportSqlComposerService.compose.mockResolvedValue({
+      sql:
+        'SELECT `clicks`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr` ' +
+        'FROM t GROUP BY `clicks`',
+      params: [],
+      calculatedFields: [calculatedField],
+    });
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    // The metric alone flipped hasOutputControls — compose() was reached with no other control set.
+    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(report, {
+      userId: 'user-1',
+      roles: ['admin'],
+    });
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.objectContaining({
+        sqlOverride: expect.stringContaining('ctr'),
+        calculatedFields: [calculatedField],
+        // The metric's own name is excluded from columnFilter — it renders through
+        // calculatedFields, not the plain projection (or the reader double-emits its header).
+        columnFilter: ['clicks'],
+      })
+    );
+  });
+
+  // The blended twin of the test above: `compose` never runs on that branch, so the decision is
+  // the metric's ONLY plan source. Without forwarding it, the blended SQL emits `ctr` while the
+  // header list has no entry naming it — the reader streams a silent null for every row.
+  it("forwards the decision's calculatedFields on the blended branch", async () => {
+    const { service, reportReaderResolver, reportWriterResolver, blendedReportDataService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.columnConfig = ['ctr', 'orders__amount'] as never;
+    const calculatedField = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+    };
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: true,
+      blendedSql: 'WITH main AS (...) SELECT SUM(main.clicks) AS `ctr`, orders.orders__amount',
+      columnFilter: ['orders__amount'],
+      calculatedFields: [calculatedField],
+    });
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.objectContaining({
+        calculatedFields: [calculatedField],
+        columnFilter: ['orders__amount'],
+      })
+    );
+  });
+
   it('does not abort the run when recording executionSqlQuery throws (best-effort metadata)', async () => {
     const {
       service,

@@ -12,8 +12,10 @@ commands. Before reviewing or changing code, resolve the affected surface:
 For every review, read [`docs/review-rules.md`](docs/review-rules.md). For backend
 architecture, use [`apps/backend/README.md`](apps/backend/README.md) and
 [`apps/backend/MODULAR_CONVENTIONS.md`](apps/backend/MODULAR_CONVENTIONS.md) as
-the sources of truth. Repository structure and test commands live under
-[`docs/contributing/`](docs/contributing/).
+the sources of truth. Use
+[`docs/contributing/repository/repository-structure.md`](docs/contributing/repository/repository-structure.md)
+for repository structure and
+[`docs/contributing/testing.md`](docs/contributing/testing.md) for test commands.
 
 Before completing an implementation, determine whether it needs a changeset by
 following the policy in

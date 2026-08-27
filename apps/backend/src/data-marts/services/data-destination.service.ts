@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataDestination } from '../entities/data-destination.entity';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 
 @Injectable()
 export class DataDestinationService {
@@ -23,5 +24,22 @@ export class DataDestinationService {
     }
 
     return entity;
+  }
+
+  /**
+   * Every destination of one type in a project, oldest first — so a caller resolving a shared
+   * destination keeps being handed the same one once it exists.
+   *
+   * No relations: callers pick by id afterwards, and loading owners and contexts for a list that
+   * is only scanned would pay for what nothing reads.
+   */
+  async listByProjectIdAndType(
+    projectId: string,
+    type: DataDestinationType
+  ): Promise<DataDestination[]> {
+    return this.dataDestinationRepository.find({
+      where: { projectId, type },
+      order: { createdAt: 'ASC' },
+    });
   }
 }

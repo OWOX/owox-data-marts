@@ -1,5 +1,5 @@
 import { DataDestinationType } from '../../../../../data-destination';
-import { GoogleSheetsReportsTable } from '../GoogleSheetsReportsTable';
+import { ReportsTable } from '../ReportsTable';
 import { EmailReportsTable } from '../EmailReportsTable';
 import { LookerStudioReportCard } from '../LookerStudioReportCard';
 import type { DataDestination } from '../../../../../data-destination';
@@ -18,8 +18,9 @@ export function ReportListRenderer({
 }: ReportListRendererProps) {
   switch (destination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
       return (
-        <GoogleSheetsReportsTable
+        <ReportsTable
           destination={destination}
           onEditReport={onEditReport}
           onAddReport={onAddReport}

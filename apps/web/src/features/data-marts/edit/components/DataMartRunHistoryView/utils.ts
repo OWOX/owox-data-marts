@@ -174,6 +174,7 @@ export const getRunSummaryParts = (
       runType = 'report';
       break;
     case DataMartRunType.GOOGLE_SHEETS_EXPORT:
+    case DataMartRunType.EXCEL:
     case DataMartRunType.EMAIL:
     case DataMartRunType.SLACK:
     case DataMartRunType.MS_TEAMS:

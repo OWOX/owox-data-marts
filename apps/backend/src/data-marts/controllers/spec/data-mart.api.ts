@@ -18,7 +18,14 @@ import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-ma
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  UpdateDataMartSchemaApiDto,
+  UpdateDataMartSchemaResponseApiDto,
+} from '../../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  ValidateFormulaApiDto,
+  ValidateFormulaResponseApiDto,
+} from '../../dto/presentation/validate-formula.api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartInputSourceChangeImpactResponseApiDto } from '../../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
@@ -203,7 +210,25 @@ export function UpdateDataMartSchemaSpec() {
     ApiOperation({ summary: 'Update DataMart schema' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartSchemaApiDto }),
-    ApiOkResponse({ type: DataMartResponseApiDto })
+    ApiOkResponse({ type: UpdateDataMartSchemaResponseApiDto })
+  );
+}
+
+export function ValidateFormulaSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Validate one calculated-field formula',
+      description:
+        'Checks a single formula against the Data Mart it belongs to and returns every violation ' +
+        'and advisory the schema save would raise for it — minus the warehouse dry run, which ' +
+        'this endpoint never performs. Edit access to the Data Mart is required: this answers ' +
+        'whether a save would be accepted, so it is available to whoever can make that save.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: ValidateFormulaApiDto }),
+    ApiOkResponse({ type: ValidateFormulaResponseApiDto }),
+    ApiResponse({ status: 403, description: 'No access to this Data Mart' }),
+    ApiResponse({ status: 404, description: 'Data Mart not found' })
   );
 }
 

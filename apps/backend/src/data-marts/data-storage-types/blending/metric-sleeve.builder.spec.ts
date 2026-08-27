@@ -10,6 +10,9 @@ import {
   makeRelationship,
 } from '../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { BlendedQueryContext } from '../interfaces/blended-query-builder.interface';
+import type { FormulaSleeveGroup, SleeveFilterOptions, SleeveResult } from './blended-query.types';
+import type { CalculatedFieldPlan } from '../utils/sql-clause-renderer';
+import type { MetricSleeveBuilder } from './metric-sleeve.builder';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 import { PK_TUPLE_SEPARATOR } from '../utils/primary-key-identity.utils';
 import { AbstractBlendedQueryBuilder } from '../interfaces/abstract-blended-query-builder';
@@ -308,7 +311,7 @@ describe('MetricSleeveBuilder', () => {
       .buildSleeveCte(orgNameMetric, ['users__country'], context, outputAliasToRoot);
 
     // Both source from the SAME chain ('organizations'); if the CTE name were keyed by
-    // chain, Task 4 would emit two `sleeve_organizations` CTEs in one WITH → SQL error.
+    // chain, the builder would emit two `sleeve_organizations` CTEs in one WITH → SQL error.
     expect(orgIdSleeve.cteName).not.toBe(orgNameSleeve.cteName);
     expect(orgIdSleeve.cteName).toBe('sleeve_organizations__orgId');
     expect(orgNameSleeve.cteName).toBe('sleeve_organizations__name');
@@ -319,7 +322,7 @@ describe('MetricSleeveBuilder', () => {
 
   it('walks the FULL ancestor chain for a 2+-hop nested metric (main -> users -> organizations)', () => {
     // Unlike fixtureEventsUsersOrgs (both chains are ROOT siblings of main), here
-    // `organizations` is nested UNDER `users` — mirrors the Task 5 integration topology
+    // `organizations` is nested UNDER `users` — mirrors the live integration topology
     // (events -> users -> organizations bridge). addWithAncestors must walk the FULL
     // parentAlias chain (organizations -> users -> main), not just the metric's own chain.
     const builder = new TestBlendedQueryBuilder();
@@ -1002,6 +1005,29 @@ describe('MetricSleeveBuilder', () => {
       expect(sql).not.toMatch(/GROUP BY DATE_TRUNC/);
     });
 
+    // The sibling above cannot catch a DROPPED time zone: `dimRefs.outer` and the inner DISTINCT
+    // both come from `renderDimensionExpr`, so a sleeve that stopped passing `zones` would still
+    // agree with itself. The ZONE has to be asserted literally. Falsified by replacing
+    // `zones?.get(dimension)` with `undefined` in `renderDimensionExpr` — the whole backend suite
+    // stayed green (8510/8510) before this test, and this is the assertion that goes red.
+    it('carries the bucket TIME ZONE into the sleeve, not just the unit', () => {
+      const builder = new TestBlendedWithRenderer();
+      const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+      const metric = { column: 'organizations__orgId', function: 'SUM' } as AggregationRule;
+      const ctx: BlendedQueryContext = {
+        ...context,
+        dateTruncs: [{ column: 'users__country', unit: 'MONTH', timeZone: 'America/New_York' }],
+      };
+
+      const sleeve = builder
+        .sleeves()
+        .buildSleeveCte(metric, ['users__country'], ctx, outputAliasToRoot);
+      const zoned = "DATE_TRUNC(DATE(users.users__country, 'America/New_York'), MONTH)";
+
+      expect(sleeve.dimRefs[0].outer).toBe(zoned);
+      expect(normalizeSql(sleeve.sql)).toContain(`SELECT DISTINCT ${zoned} AS _owox_dim_0`);
+    });
+
     // the reserved-alias guard compared EXACT case. `quoteIdentifier` leaves these
     // safe identifiers UNQUOTED, and Athena/Redshift then fold them to lower case while Spark
     // resolves identifiers case-insensitively — so a dimension named `_OID` slipped past the
@@ -1305,6 +1331,356 @@ describe('MetricSleeveBuilder', () => {
           });
         }
       });
+    });
+  });
+
+  // A calculated field may aggregate over a JOINED Data Mart —
+  // `SUM({{ref path="orders" field="amount"}} * {{ref path="orders" field="rate"}})`. That call
+  // cannot be computed in the outer SELECT (the joined source is already collapsed to one row per
+  // join key there), so it takes a sleeve — but its argument is an arbitrary row-level EXPRESSION,
+  // which the column-valued slot could not hold.
+  describe('formula sleeve (expression-valued slot)', () => {
+    const ordersFixture = (): {
+      context: BlendedQueryContext;
+      outputAliasToRoot: ReadonlyMap<string, string>;
+    } => {
+      const ordersChain = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-orders',
+          targetAlias: 'orders',
+          joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+        }),
+        targetTableReference: 'orders_table',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'orders__amount',
+            isHidden: false,
+            aggregateFunction: 'ANY_VALUE',
+          },
+          {
+            targetFieldName: 'rate',
+            outputAlias: 'orders__rate',
+            isHidden: false,
+            aggregateFunction: 'ANY_VALUE',
+          },
+        ],
+      });
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'orders__amount',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            type: 'NUMBER',
+          },
+          { name: 'orders__rate', aliasPath: 'orders', originalFieldName: 'rate', type: 'NUMBER' },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      } as never);
+      return {
+        context: { ...buildContext([ordersChain], ['country']), fieldIndex },
+        outputAliasToRoot: new Map([
+          ['orders__amount', 'orders'],
+          ['orders__rate', 'orders'],
+        ]),
+      };
+    };
+
+    // The stored formula's two refs, already rendered against the owner's RAW columns — what
+    // `renderFormulaWithReplacements` hands this builder.
+    const weightedAmount = (overrides: Partial<FormulaSleeveGroup> = {}): FormulaSleeveGroup => ({
+      ownerCteName: 'orders',
+      dimensions: ['country'],
+      fn: 'SUM',
+      valueSql: '(orders_raw.amount * orders_raw.rate)',
+      alias: 'Weighted Amount',
+      ...overrides,
+    });
+
+    const build = (group: FormulaSleeveGroup, filterOpts?: SleeveFilterOptions): SleeveResult => {
+      const { context, outputAliasToRoot } = ordersFixture();
+      return new TestBlendedWithRenderer()
+        .sleeves()
+        .buildFormulaSleeveCte(group, context, outputAliasToRoot, 'sleeve_cm_0', filterOpts);
+    };
+
+    it('dedups the rendered EXPRESSION per owner row and wraps it in the call’s aggregate', () => {
+      const sleeve = build(weightedAmount());
+      const sql = normalizeSql(sleeve.sql);
+
+      // The slot's right-hand side is the rendered expression — the whole point of this shape.
+      expect(sql).toContain('(orders_raw.amount * orders_raw.rate) AS _val');
+      // Everything around it is the value sleeve's own shape, unchanged: dims + owner identity
+      // in one inner DISTINCT over the RAW (pre-dedup) path, the aggregate outside it.
+      expect(sql).toContain('SELECT DISTINCT main.country AS _owox_dim_0');
+      expect(sql).toContain('orders_raw.__owox_rid AS _oid');
+      expect(sql).toContain('orders_raw.order_id AS _oid_key_0');
+      expect(sql).toContain(
+        'FROM main LEFT JOIN orders_raw ON main.order_id = orders_raw.order_id'
+      );
+      expect(sql).toContain('SUM(_val) AS `Weighted Amount`');
+      expect(sql).toContain('GROUP BY _owox_dim_0');
+      expect(sleeve.cteName).toBe('sleeve_cm_0');
+      expect(sleeve.dimRefs).toEqual([
+        { column: 'country', outer: 'main.country', sleeve: 'sleeve_cm_0._owox_dim_0' },
+      ]);
+    });
+
+    it('feeds exactly ONE pull, named by the calculated field’s own alias', () => {
+      expect(build(weightedAmount()).pulls).toEqual([
+        { alias: 'Weighted Amount', coalesceEmptyToZero: false },
+      ]);
+    });
+
+    // Same rule and the same reason `SleevePull` documents: the outer ANY_VALUE over an empty
+    // join-back reads NULL, which is right for SUM/AVG/MIN/MAX and wrong for a count. The counting
+    // side is EVERY name a formula dialect actually spells — a first cut listed the report
+    // picklist's `COUNT_DISTINCT`, which no warehouse has, and covered none of these.
+    it.each([
+      ['COUNT', true],
+      ['COUNTIF', true],
+      ['COUNT_IF', true],
+      ['APPROX_COUNT_DISTINCT', true],
+      ['APPROX_DISTINCT', true],
+      ['HLL', true],
+      ['SUM', false],
+      ['AVG', false],
+      ['MIN', false],
+      ['MAX', false],
+      ['STRING_AGG', false],
+    ])('coalesces an empty join-back to zero for %s: %s', (fn, coalesceEmptyToZero) => {
+      const sleeve = build(weightedAmount({ fn: fn as string }));
+
+      expect(sleeve.pulls[0].coalesceEmptyToZero).toBe(coalesceEmptyToZero);
+    });
+
+    // A formula may spell any aggregate ITS warehouse offers, not the report builder's closed
+    // picklist, so an unknown name has to survive to the SQL unchanged.
+    it('spells a dialect-only aggregate verbatim', () => {
+      expect(normalizeSql(build(weightedAmount({ fn: 'COUNTIF' })).sql)).toContain(
+        'COUNTIF(_val) AS `Weighted Amount`'
+      );
+    });
+
+    // The quantifier of `COUNT(DISTINCT x)` belongs OUT here: in the slot it is a syntax error, and
+    // the inner `DISTINCT (dims, identity, value)` pass does not already imply it — that pass keeps
+    // one row per owner ROW, while this counts distinct VALUES across them.
+    it('spells a lifted DISTINCT on the outer aggregate, not in the slot', () => {
+      const sql = normalizeSql(
+        build(weightedAmount({ fn: 'COUNT', distinct: true, valueSql: 'orders_raw.amount' })).sql
+      );
+
+      expect(sql).toContain('COUNT(DISTINCT _val) AS `Weighted Amount`');
+      expect(sql).toContain('orders_raw.amount AS _val');
+      expect(sql).not.toContain('DISTINCT orders_raw.amount AS _val');
+    });
+
+    // Only COUNT has an outer spelling for it. `planFormulaSleeves` refuses the rest, so reaching
+    // here means a caller built the group by hand — say so instead of emitting a wrong aggregate.
+    it('refuses a DISTINCT lifted onto any other aggregate', () => {
+      expect(() => build(weightedAmount({ fn: 'SUM', distinct: true }))).toThrow(
+        /only COUNT has an outer spelling for it/
+      );
+    });
+
+    // A field defined by a real pre-join roll-up MEANS that roll-up once blended, so a formula
+    // naming it must read the same column a report metric on it reads — the dedup CTE's, keyed by
+    // the join key it was rolled up per, not the raw rows the roll-up exists to collapse.
+    it('reads the owner’s dedup CTE when the caller classifies the value as a roll-up', () => {
+      const sql = normalizeSql(
+        build(weightedAmount({ isIdentity: false, valueSql: 'orders.orders__amount', fn: 'SUM' }))
+          .sql
+      );
+
+      expect(sql).toContain('orders.orders__amount AS _val');
+      expect(sql).toContain('orders.order_id AS _oid');
+      expect(sql).toContain('FROM main LEFT JOIN orders ON main.order_id = orders.order_id');
+      expect(sql).not.toContain('orders_raw');
+    });
+
+    // The owner-only whitelist follows the branch: on the roll-up side `orders_raw` is the foreign
+    // qualifier, and reading it there would silently mix two grains in one dedup pass.
+    it('refuses a raw qualifier once the value is classified as a roll-up', () => {
+      expect(() =>
+        build(weightedAmount({ isIdentity: false, valueSql: 'orders_raw.amount' }))
+      ).toThrow(BusinessViolationException);
+    });
+
+    // ...while a name the DIALECT rewrites still gets rewritten — which is why the outer wrapper
+    // goes through `buildAggregation` rather than interpolating `<fn>(<slot>)`. Trino has no
+    // guaranteed ANY_VALUE, so Athena spells it `arbitrary()`.
+    it('lets the dialect rewrite an aggregate it spells differently', () => {
+      const { context, outputAliasToRoot } = ordersFixture();
+      const athena = new (class extends AthenaBlendedQueryBuilder {
+        sleeves(): MetricSleeveBuilder {
+          return this.createSleeveBuilder();
+        }
+      })(new AthenaClauseRenderer());
+
+      const sleeve = athena
+        .sleeves()
+        .buildFormulaSleeveCte(
+          weightedAmount({ fn: 'ANY_VALUE' }),
+          context,
+          outputAliasToRoot,
+          'sleeve_cm_0'
+        );
+
+      expect(normalizeSql(sleeve.sql)).toContain('arbitrary(_val) AS "Weighted Amount"');
+    });
+
+    // The counting lookup and the dialect's own branches both match on the exact spelling, so an
+    // un-normalised name would coalesce nothing and emit ` countif (_val)`.
+    it('normalises the function name before spelling and classifying it', () => {
+      const sleeve = build(weightedAmount({ fn: ' countif ' }));
+
+      expect(normalizeSql(sleeve.sql)).toContain('COUNTIF(_val) AS `Weighted Amount`');
+      expect(sleeve.pulls[0].coalesceEmptyToZero).toBe(true);
+    });
+
+    it('reproduces the report’s post-join WHERE inside the dedup subquery, under its own prefix', () => {
+      const sleeve = build(weightedAmount(), {
+        filters: [{ column: 'main_region', operator: 'eq', value: 'US' } as FilterRule],
+        whereParamPrefix: 'slv0p',
+      });
+      const sql = normalizeSql(sleeve.sql);
+
+      expect(sql).toContain('WHERE main.main_region = @slv0p0');
+      expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('_dedup'));
+      expect(sleeve.params).toEqual([{ name: 'slv0p0', value: 'US' }]);
+    });
+
+    it('joins the kept-groups restriction so a Totals row ignores hidden groups', () => {
+      const sql = normalizeSql(
+        build(weightedAmount({ dimensions: [] }), {
+          filters: [],
+          whereParamPrefix: 'slv0p',
+          keptGroups: {
+            join: 'JOIN `_kept_groups` ON (main.channel = `_kept_groups`.d0)',
+            dimensions: ['channel'],
+          },
+        }).sql
+      );
+
+      expect(sql).toContain('JOIN `_kept_groups` ON (main.channel = `_kept_groups`.d0)');
+    });
+
+    it('grand total (no dimensions): one global row, no GROUP BY at either level', () => {
+      const sleeve = build(weightedAmount({ dimensions: [] }));
+      const sql = normalizeSql(sleeve.sql);
+
+      expect(sql).not.toContain('GROUP BY');
+      expect(sleeve.dimRefs).toEqual([]);
+      expect(sql).toContain('SUM(_val) AS `Weighted Amount`');
+    });
+
+    // The guard is the value sleeve's own, not a second copy: a dimension named `_val` would
+    // otherwise be projected twice under one name inside the inner DISTINCT.
+    it('reuses the reserved-inner-alias guard, with the colliding column in errorDetails', () => {
+      const collide = (): unknown => build(weightedAmount({ dimensions: ['_VAL'] }));
+
+      expect(collide).toThrow(BusinessViolationException);
+      expect(collide).toThrow(/_VAL/);
+      try {
+        collide();
+      } catch (err) {
+        expect((err as BusinessViolationException).errorDetails).toEqual({
+          reservedNameColumns: ['_VAL'],
+        });
+      }
+    });
+
+    // `buildSleeveAncestorJoins` puts `main` and the whole ancestor closure in scope, while the
+    // inner DISTINCT keys on the OWNER's identity alone. A call reading a second source therefore
+    // keeps N rows apart per owner row and multiplies the aggregate by N — the exact silent wrong
+    // number sleeves exist to prevent, and the one the save-time gate cannot catch for a formula
+    // saved before it existed.
+    describe('the expression may read the owner only', () => {
+      const refuse =
+        (valueSql: string): (() => unknown) =>
+        () =>
+          build(weightedAmount({ valueSql }));
+
+      it('refuses a main column mixed into the joined call', () => {
+        expect(refuse('(orders_raw.amount * main.fx_rate)')).toThrow(BusinessViolationException);
+        expect(refuse('(orders_raw.amount * main.fx_rate)')).toThrow(/\[main\]/);
+      });
+
+      it('refuses another joined source’s column', () => {
+        expect(refuse('(orders_raw.amount * users_raw.weight)')).toThrow(/\[users_raw\]/);
+      });
+
+      // A comment BETWEEN the qualifier and its dot would hide the reference from a check that
+      // read raw adjacency instead of the token stream.
+      it('sees through a comment spliced into the reference', () => {
+        expect(refuse('(orders_raw.amount * main /* here */ .fx_rate)')).toThrow(/\[main\]/);
+      });
+
+      it('names the offending qualifiers in errorDetails, for callers that cannot forward the message', () => {
+        try {
+          refuse('(main.a + users_raw.b + orders_raw.amount)')();
+          throw new Error('expected a BusinessViolationException');
+        } catch (err) {
+          expect(err).toBeInstanceOf(BusinessViolationException);
+          expect((err as BusinessViolationException).errorDetails).toEqual({
+            // The key every sibling refusal carries, so the MCP and web error paths that point at
+            // a field have something to point at here too.
+            calculatedField: 'Weighted Amount',
+            foreignQualifiers: ['main', 'users_raw'],
+          });
+        }
+      });
+
+      // Through `buildAll` — the only path a real report takes — `alias` is the synthetic pull name
+      // `_fx_<metric>_<i>`, an identifier that appears nowhere in the analyst's schema. The refusal
+      // has to name the field they wrote.
+      it('names the calculated field rather than the synthetic pull alias', () => {
+        const group = weightedAmount({
+          valueSql: '(orders_raw.amount * main.fx_rate)',
+          alias: '_fx_roas_0',
+          metricOutputName: 'roas',
+        });
+        expect(() => build(group)).toThrow(/'roas'/);
+        expect(() => build(group)).not.toThrow(/_fx_roas_0/);
+      });
+
+      it.each([
+        ['bare owner refs', '(orders_raw.amount * orders_raw.rate)'],
+        ['quoted owner refs', '(`orders_raw`.`amount` * `orders_raw`.`rate`)'],
+        ['a double-quoted owner ref', '("orders_raw"."amount" * 2)'],
+        ['a case-different owner ref', '(ORDERS_RAW.amount * 2)'],
+        ['a struct path, whose MIDDLE segment names no table', 'orders_raw.address.zip'],
+        // The guarded-division form this feature's own formula autocomplete suggests.
+        ['a namespaced function call', 'SAFE.DIVIDE(orders_raw.amount, orders_raw.rate)'],
+        ['a dot inside a string literal', `CASE WHEN orders_raw.sku = 'a.b' THEN 1 ELSE 0 END`],
+        ['a dot inside a comment', 'orders_raw.amount /* main.fx_rate */'],
+        ['a decimal literal', '(orders_raw.amount * 1.5)'],
+        ['a qualified star', 'COALESCE(orders_raw.amount, 0)'],
+      ])('accepts %s', (_case, valueSql) => {
+        expect(() => build(weightedAmount({ valueSql }))).not.toThrow();
+      });
+    });
+
+    it('names the calculation in a comment above the CTE', () => {
+      expect(normalizeSql(build(weightedAmount()).sql)).toContain(
+        '-- calculation: SUM((orders_raw.amount * orders_raw.rate)) de-duplicated before aggregating,'
+      );
+    });
+
+    // An empty piece would emit `AS _val` with nothing before it — a warehouse syntax error whose
+    // message names nothing the caller can act on.
+    it('refuses a formula sleeve with an empty fn, valueSql or alias', () => {
+      expect(() => build(weightedAmount({ valueSql: '  ' }))).toThrow(/empty/i);
+      expect(() => build(weightedAmount({ fn: '' }))).toThrow(/empty/i);
+      expect(() => build(weightedAmount({ alias: '' }))).toThrow(/empty/i);
+    });
+
+    it('refuses an owner that is not among this query’s resolved joins', () => {
+      const ghost = weightedAmount({ ownerCteName: 'ghost', valueSql: 'ghost_raw.amount' });
+
+      expect(() => build(ghost)).toThrow(/no chain found for owner cteName='ghost'/);
     });
   });
 
@@ -2588,5 +2964,119 @@ describe('value-sleeve identity across dialects', () => {
   it('the CONCAT arity scanner counts only top-level arguments', () => {
     expect(concatArities("CONCAT('K', CONCAT(CAST(a AS T), '_', CAST(b AS T)))")).toEqual([2, 3]);
     expect(concatArities('SELECT 1')).toEqual([]);
+  });
+});
+
+/**
+ * A ROW-LEVEL calculated field is a DIMENSION, so every sleeve on a report that selects
+ * one has to group by it too — otherwise the sleeve stays at a COARSER grain than the outer GROUP
+ * BY and its `ANY_VALUE` join-back hands each of several outer rows a value computed over all of
+ * them: a plausible number, no NULL, no error.
+ *
+ * The grain list stays `string[]`: the field contributes its output NAME and the formula arrives
+ * on a parallel channel, because the value-sleeve merge key joins that list into a
+ * string and an object element would collapse two different grains into one sleeve.
+ */
+describe('MetricSleeveBuilder — a row-level calculated field in the grain', () => {
+  const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+  const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
+
+  const rowLevelPlan = (outputName: string): CalculatedFieldPlan => ({
+    outputName,
+    type: 'STRING',
+    formula: SESSION_KEY_FORMULA,
+    level: 'column',
+  });
+
+  function buildSleeves(
+    plans: CalculatedFieldPlan[],
+    fn: AggregationRule['function'] = 'COUNT_DISTINCT'
+  ): SleeveResult[] {
+    const builder = new TestBlendedWithRenderer();
+    const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+    const aggregations = [{ column: 'organizations__orgId', function: fn }] as AggregationRule[];
+    return builder.sleeves().buildAll(
+      aggregations,
+      { ...context, aggregations },
+      {
+        outputAliasToRoot,
+        filters: [],
+        calculatedDimensions:
+          plans.length > 0
+            ? {
+                plans: new Map(plans.map(plan => [plan.outputName, plan])),
+                renderOptions: { qualifyColumn: builder.qualifier(outputAliasToRoot) },
+              }
+            : undefined,
+      }
+    );
+  }
+
+  it('projects the formula as the LAST grain slot, after the column dimensions', () => {
+    const [sleeve] = buildSleeves([rowLevelPlan('session_key')]);
+    const sql = normalizeSql(sleeve.sql);
+
+    expect(sleeve.dimRefs.map(d => d.column)).toEqual(['users__country', 'session_key']);
+    expect(sql).toContain('users.users__country AS _owox_dim_0');
+    expect(sql).toContain(`${SESSION_KEY_SQL} AS _owox_dim_1`);
+    // The counting sleeve's flat form groups by the expressions themselves.
+    expect(sql).toContain(`GROUP BY users.users__country, ${SESSION_KEY_SQL}`);
+  });
+
+  // `dimRefs.outer` is the left-hand side of the join-back, so it must be the expression rather
+  // than the field's name — which resolves to nothing at all outside the sleeve.
+  it('joins back on the rendered expression, not on the calculated field’s name', () => {
+    const [sleeve] = buildSleeves([rowLevelPlan('session_key')]);
+
+    expect(sleeve.dimRefs[1]).toEqual({
+      column: 'session_key',
+      outer: SESSION_KEY_SQL,
+      sleeve: 'sleeve_organizations__orgId._owox_dim_1',
+    });
+  });
+
+  // The value-sleeve shape nests a dedup pass inside an outer wrapper, and the wrapper can only
+  // see the inner SELECT list — so there the expression is projected inside and grouped by its
+  // positional alias outside.
+  it('carries the formula into the value sleeve’s dedup pass and groups the wrapper by its alias', () => {
+    const [sleeve] = buildSleeves([rowLevelPlan('session_key')], 'SUM');
+    const sql = normalizeSql(sleeve.sql);
+
+    expect(sql).toContain(`${SESSION_KEY_SQL} AS _owox_dim_1`);
+    expect(sql).toContain('GROUP BY _owox_dim_0, _owox_dim_1');
+  });
+
+  it('renders two row-level fields as two grain slots, in plan order', () => {
+    const [sleeve] = buildSleeves([rowLevelPlan('session_key'), rowLevelPlan('visit_key')]);
+
+    expect(sleeve.dimRefs.map(d => d.column)).toEqual([
+      'users__country',
+      'session_key',
+      'visit_key',
+    ]);
+  });
+
+  /**
+   * Three consequences of the name-plus-side-channel design that each LOOK like a bug. Pinned so
+   * a later reader does not "fix" one of them.
+   */
+  describe('consequences that are correct, not defects', () => {
+    // `outputAliasToRoot` holds blended columns only, so a calculated name misses and
+    // `buildSleeveDedupRootJoins` adds no dedup CTE for it. Correct: a row-level formula reads its
+    // own Data Mart's columns only (permanently) and `main` is always the sleeve's FROM.
+    it('joins no extra CTE for the calculated dimension', () => {
+      const withField = normalizeSql(buildSleeves([rowLevelPlan('session_key')])[0].sql);
+      const without = normalizeSql(buildSleeves([])[0].sql);
+
+      expect(withField.match(/LEFT JOIN/g)).toEqual(without.match(/LEFT JOIN/g));
+      expect(withField).toContain('FROM main');
+    });
+
+    // The guard reads the grain as strings, so it still sees a real name — and a calculated field
+    // an analyst named `_oid` would still collide with the sleeve's own identity slot.
+    it('still catches a calculated field named after a reserved inner alias', () => {
+      expect(() => buildSleeves([rowLevelPlan('_oid')], 'SUM')).toThrow(BusinessViolationException);
+      expect(() => buildSleeves([rowLevelPlan('_oid')], 'SUM')).toThrow(/reserved internal alias/);
+    });
   });
 });

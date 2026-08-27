@@ -32,7 +32,8 @@ if (!hasFileArguments) {
   ];
 
   if (process.env.MDLINT_CONTEXT === 'root') {
-    options.globs.push('!packages/**', '!apps/**'); // Exclude workspaces folders
+    // Exclude workspaces and the Claude Code import file from root Markdown lint.
+    options.globs.push('!packages/**', '!apps/**', '!CLAUDE.md');
   }
 }
 

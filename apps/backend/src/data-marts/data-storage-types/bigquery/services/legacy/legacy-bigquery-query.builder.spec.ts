@@ -79,6 +79,57 @@ describe('LegacyBigQueryQueryBuilder', () => {
     expect(preprocessor.prepare).not.toHaveBeenCalled();
   });
 
+  // A calculated field is an output control like any other: the parent builder renders it into
+  // the SELECT from `calculatedFields`, and this gate is the only thing that routes the request
+  // there. Missed here, the legacy path emits SQL WITHOUT the metric while the reader still
+  // synthesizes its header — a permanently `null` column on every surface, on every run.
+  it('delegates to the output-controls path for a calculated-metric-only report', async () => {
+    const { builder, preprocessor } = makeBuilder();
+    const result = await builder.buildQuery(sqlDefinition, {
+      columns: ['id'],
+      mainTableReference: viewRef,
+      calculatedFields: [
+        {
+          outputName: 'ctr',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+          level: 'metric',
+        },
+      ],
+    });
+    expect(isQueryBuildResult(result)).toBe(true);
+    if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+    expect(result.sql).toContain(viewRef);
+    expect(result.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
+    // The metric is projected, never grouped — it already IS an aggregate.
+    expect(result.sql).toContain('GROUP BY\n  `id`');
+    expect(preprocessor.prepare).not.toHaveBeenCalled();
+  });
+
+  // This gate is the parent's `hasOutputControls`, NOT its aggregated flip: a row-level formula
+  // is a dimension and does not group, but it still needs the substitution channel that lives
+  // beyond this gate. Narrowing it to aggregating formulas would send the report down the
+  // preprocessor path and bring the permanently `null` column above straight back.
+  it('delegates to the output-controls path for a ROW-LEVEL-only calculated field too', async () => {
+    const { builder, preprocessor } = makeBuilder();
+    const result = await builder.buildQuery(sqlDefinition, {
+      columns: ['id'],
+      mainTableReference: viewRef,
+      calculatedFields: [
+        {
+          outputName: 'session_key',
+          type: 'STRING',
+          formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+          level: 'column',
+        },
+      ],
+    });
+    expect(isQueryBuildResult(result)).toBe(true);
+    if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+    expect(result.sql).toContain(viewRef);
+    expect(preprocessor.prepare).not.toHaveBeenCalled();
+  });
+
   it('projects a column subset over the preprocessed SQL when no output controls are present', async () => {
     const { builder, preprocessor } = makeBuilder();
     const result = await builder.buildQuery(sqlDefinition, { columns: ['id', 'created_at'] });

@@ -56,6 +56,23 @@ Controller -> Mapper -> Use case -> Entity/Domain services -> Mapper -> DTO/Even
 Intentional deviations are acceptable only when the affected module has a clear
 existing pattern and responsibilities remain unambiguous.
 
+## Types, Parsing, and Shared Helpers
+
+- Define outward-facing DTO and metadata types explicitly. Do not derive them
+  from persistence entities with `Omit`, `Pick`, or similar utility types:
+  entity changes must not silently expose secret or internal fields.
+- Use the repository's `zod` schemas for structured runtime parsing when a
+  schema can express the contract; do not add a private object-shape parser for
+  the same responsibility.
+- Normalize unknown errors with `castError` from `@owox/internal-helpers`
+  instead of repeating ad hoc `instanceof Error` or `String(error)` branches.
+- Search for the existing shared helper before adding local cross-cutting
+  logic. For TypeORM unique-constraint handling, use or extend
+  `apps/backend/src/common/typeorm/query-error.utils.ts`.
+- Do not add speculative retry loops for collisions of cryptographically random
+  identifiers unless the product or persistence contract requires retry
+  behavior. Keep database uniqueness as the final collision guard.
+
 ## Authentication and Cross-Repository Contracts
 
 - Browser UI calls the ODM backend; it does not bypass ODM to call IB or legacy

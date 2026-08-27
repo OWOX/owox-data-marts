@@ -44,7 +44,12 @@ const ScalarOperatorEnum = z.enum([
   'not_regex',
 ]);
 
+// is_blank/is_not_blank are the only null/empty operators the picker offers;
+// the is_empty/is_not_empty/is_null/is_not_null cluster stays parseable for
+// configs saved before the merge (#6779). Mirror of the backend enum.
 const NoValueOperatorEnum = z.enum([
+  'is_blank',
+  'is_not_blank',
   'is_empty',
   'is_not_empty',
   'is_null',

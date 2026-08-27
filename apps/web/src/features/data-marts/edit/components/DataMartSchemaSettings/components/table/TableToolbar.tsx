@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { FunctionSquare, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { SearchInput } from '@owox/ui/components/common/search-input';
 import type { Table } from '@tanstack/react-table';
@@ -19,6 +19,8 @@ interface TableToolbarProps<TData extends BaseSchemaField> {
   searchInputId: string;
   /** Callback function to call when the add field button is clicked */
   onAddField: () => void;
+  /** Callback for the second toolbar action, beside Add Field. Omit to hide it. */
+  onAddCalculatedField?: () => void;
   /** Current filter value */
   filterValue: string;
   /** Callback function to call when the filter value changes */
@@ -38,6 +40,7 @@ interface TableToolbarProps<TData extends BaseSchemaField> {
 export function TableToolbar<TData extends BaseSchemaField>({
   searchInputId,
   onAddField,
+  onAddCalculatedField,
   filterValue,
   onFilterChange,
   statusCounts,
@@ -105,6 +108,24 @@ export function TableToolbar<TData extends BaseSchemaField>({
           </TooltipTrigger>
           <TooltipContent>Refresh schema</TooltipContent>
         </Tooltip>
+
+        {onAddCalculatedField && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={onAddCalculatedField}
+                disabled={disabled}
+                aria-label='Add calculated field'
+              >
+                <FunctionSquare className='h-4 w-4' aria-hidden='true' />
+                <span className='hidden 2xl:inline'>Add Calculated Field</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add calculated field</TooltipContent>
+          </Tooltip>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>

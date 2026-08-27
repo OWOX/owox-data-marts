@@ -15,6 +15,10 @@ import {
   type FieldTypeCategory,
 } from '../../../data-marts/dto/schemas/field-type-category';
 import type { AggregationRole } from '../../../data-marts/dto/schemas/field-aggregation-governance';
+import {
+  isAggregateLevel,
+  type CalculatedFieldLevel,
+} from '../../../data-marts/calculated-fields/formula-level';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import { effectiveMcpAggregations, mcpOperatorsForCategory } from './field-type-matrix';
 
@@ -51,6 +55,30 @@ const makeAllowedAggregationsField = () =>
       'The aggregation functions query_data_mart may apply to THIS field (type defaults narrowed by per-field settings). Use only these; an empty array means the field cannot be aggregated.'
     );
 
+// A Calculated Field is published like any other field, but what the agent may DO with it is
+// decided by its `level` — and the two answers are opposites, so the level, not
+// the marker, carries the behaviour. The stored formula never travels (`prepareSchema` strips it);
+// the level does, which is what makes describing it here worth anything.
+//
+// `level` stays a bare string rather than z.enum(CALCULATED_FIELD_LEVELS): this is an OUTPUT
+// schema over a value the facade forwards from persisted JSON, and a stricter type buys the agent
+// nothing the description does not already say.
+const makeCalculatedField = () =>
+  z
+    .object({
+      level: z
+        .string()
+        .optional()
+        .describe(
+          '"metric" — the formula is ALREADY aggregated: select it by name and it is recomputed correctly at whatever grain your query asks for, including in a query that reads a joined Data Mart; it cannot be aggregated again (its allowedAggregations is empty), used as a group-by dimension, or given a date_bucket. This is also the meaning when the property is absent. "column" — the formula is row-level, so the field IS an ordinary dimension: select it by name and group by it exactly like a real column, including in a query that reads a joined Data Mart; it also accepts any aggregation listed in its own allowedAggregations (e.g. COUNT_DISTINCT), and applying one makes it a metric of that query rather than one of its grouping keys; when its declared type is DATE or TIMESTAMP it also takes a date_bucket, on the same rule a real date column follows. Filtering works at BOTH levels: a row-level field filters on its computed value like an ordinary column, and a metric filters on its aggregated value — but a metric filter needs the query to name its fields explicitly rather than relying on the default all-columns projection.'
+        ),
+    })
+    .passthrough()
+    .optional()
+    .describe(
+      'Present when this field is a Calculated Field: a value the Data Mart computes from a formula instead of reading it from a warehouse column. Its "level" says whether it behaves as a metric or as a dimension — read that before using the field. When "level" is absent the field is a metric; nothing backfills it, so every field defined before levels existed arrives without one.'
+    );
+
 const DataMartFieldSchema = z
   .object({
     name: z.string(),
@@ -60,6 +88,7 @@ const DataMartFieldSchema = z
     displayName: z.string().optional(),
     category: makeCategoryField(),
     allowedAggregations: makeAllowedAggregationsField(),
+    calculated: makeCalculatedField(),
   })
   .passthrough();
 
@@ -119,6 +148,37 @@ const JoinSchema = z
   .passthrough();
 
 type RawField = Record<string, unknown>;
+
+/**
+ * Whether this published field carries a formula — at EITHER level. The `RawField` spelling of
+ * `calculated-field.utils.ts`'s `isCalculatedField`, which it cannot call: what arrives here is a
+ * `Record<string, unknown>` off the facade, not a `DataMartSchemaField`.
+ *
+ * Read off the `calculated` marker the facade forwards (`prepareSchema` keeps the object and
+ * strips only its `formula`) rather than off a governance flag: the create/edit dialog sets
+ * neither `aggregationRole` nor `allowedAggregations` on a calculated field, by design, so
+ * governance alone cannot tell one apart from an ordinary FLOAT.
+ *
+ * Deliberately level-BLIND: it answers "has a formula", which every consumer of the marker asks.
+ * What may be DONE with the field is `isAggregateLevelCalculatedField` below.
+ */
+function isCalculatedField(field: RawField): boolean {
+  const calculated = field.calculated;
+  return calculated !== null && typeof calculated === 'object';
+}
+
+/**
+ * Whether this published field is a calculated field whose formula AGGREGATES — the one that may
+ * never be aggregated again. The `RawField` spelling of `isAggregateCalculatedField`, answering
+ * through the same `isAggregateLevel` seat, so "absent level reads as an aggregate" is spelled
+ * once for the whole codebase. An unrecognised level reads as an aggregate too, which keeps the
+ * published set empty rather than advertising an aggregation nothing downstream would honour.
+ */
+function isAggregateLevelCalculatedField(field: RawField): boolean {
+  if (!isCalculatedField(field)) return false;
+  const level = (field.calculated as Record<string, unknown>).level;
+  return isAggregateLevel(level as CalculatedFieldLevel | undefined);
+}
 
 @Injectable()
 export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDetailsInput> {
@@ -227,10 +287,23 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       const category = categorizeFieldType(out.type);
       categories.add(category);
       out.category = category;
-      out.allowedAggregations = effectiveMcpAggregations(out.type, {
-        aggregationRole: out.aggregationRole as AggregationRole | undefined,
-        allowedAggregations: out.allowedAggregations as ReportAggregateFunction[] | undefined,
-      });
+      // A Calculated Field already IS an aggregate, and the dialog that creates one
+      // deliberately sets neither `aggregationRole` nor `allowedAggregations` — so left to
+      // governance it falls through to the TYPE defaults and a FLOAT metric is advertised as
+      // SUM/AVG/MIN/MAX-able under a description reading "Use only these". The agent then does the
+      // advertised thing and gets a 400 AGGREGATION_ON_CALCULATED_FIELD. Publish the empty set
+      // instead — the same thing the web picker forces (`ReportColumnPicker.tsx`).
+      //
+      // AGGREGATE level only. A row-level field is a dimension the report may now aggregate,
+      // and the validator resolves what it may be aggregated BY from exactly this
+      // governance call — so forcing the empty set here would advertise a refusal the validator
+      // does not make, which is the same drift in the opposite direction.
+      out.allowedAggregations = isAggregateLevelCalculatedField(out)
+        ? []
+        : effectiveMcpAggregations(out.type, {
+            aggregationRole: out.aggregationRole as AggregationRole | undefined,
+            allowedAggregations: out.allowedAggregations as ReportAggregateFunction[] | undefined,
+          });
     }
     // sliceType is present only when a type-changing dedup makes the pre-join type
     // differ from the blended "type". Slices run on the PRE-join value, so give the

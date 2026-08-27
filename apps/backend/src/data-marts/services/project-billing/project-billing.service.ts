@@ -12,6 +12,7 @@ export enum RunKind {
   SHEETS_REPORT_RUN = 'SHEETS_REPORT_RUN',
   LOOKER_REPORT_RUN = 'LOOKER_REPORT_RUN',
   EMAIL_BASED_REPORT_RUN = 'EMAIL_BASED_REPORT_RUN',
+  EXCEL_REPORT_RUN = 'EXCEL_REPORT_RUN',
   HTTP_DATA_RUN = 'HTTP_DATA_RUN',
   MCP_QUERY_RUN = 'MCP_QUERY_RUN',
 }
@@ -20,6 +21,7 @@ export const REPORT_RUN_KINDS: readonly RunKind[] = [
   RunKind.SHEETS_REPORT_RUN,
   RunKind.LOOKER_REPORT_RUN,
   RunKind.EMAIL_BASED_REPORT_RUN,
+  RunKind.EXCEL_REPORT_RUN,
   RunKind.HTTP_DATA_RUN,
   RunKind.MCP_QUERY_RUN,
 ];
@@ -64,6 +66,17 @@ export abstract class ProjectBillingService {
 
   abstract registerEmailBasedReportRunConsumption(report: Report): Promise<void>;
 
+  /**
+   * An Excel report is pulled by the workbook, so its run arrives over the same endpoint as a
+   * plain HTTP read. It is charged as a report run all the same: the unit describes what the
+   * customer did, not which transport carried it, and the HTTP Data payload names neither the
+   * report nor the destination it was read for.
+   *
+   * Takes the DataMartRun id rather than synthesising one, so a consumption record and the run
+   * it was charged for can be matched afterwards.
+   */
+  abstract registerExcelReportRunConsumption(report: Report, runId: string): Promise<void>;
+
   abstract registerHttpDataRunConsumption(dataMart: DataMart, runId: string): Promise<void>;
 
   abstract registerMcpQueryRunConsumption(dataMart: DataMart, runId: string): Promise<void>;
@@ -100,6 +113,13 @@ export abstract class ProjectBillingService {
       googleSheetsDocumentTitle: sheetsDetails.googleSheetsDocumentTitle,
       googleSheetsListId: reportConfig.sheetId,
       googleSheetsListTitle: sheetsDetails.googleSheetsListTitle,
+    };
+  }
+
+  protected excelReportConsumptionPayload(report: Report, runId: string) {
+    return {
+      ...this.baseReportConsumptionPayload(report),
+      reportRunId: runId,
     };
   }
 

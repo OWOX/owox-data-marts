@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
 import { HttpDataMapper } from '../../mappers/http-data.mapper';
+import { RUN_CONTEXT_HEADER } from '../../services/http-data/run-context.parser';
 import { StreamHttpDataService } from '../../use-cases/stream-http-data.service';
 import { StreamHttpDataSpec, StreamHttpReportDataSpec } from '../spec/external/http-data.api';
 
@@ -34,9 +35,15 @@ export class HttpDataController {
     @Param('reportId') reportId: string,
     @Query() rawQuery: Record<string, unknown>,
     @AuthContext() ctx: AuthorizationContext,
+    @Headers(RUN_CONTEXT_HEADER) runContextHeader: string | undefined,
     @Res() res: Response
   ): Promise<void> {
-    const command = this.mapper.toStreamHttpReportDataCommand(reportId, ctx, rawQuery);
+    const command = this.mapper.toStreamHttpReportDataCommand(
+      reportId,
+      ctx,
+      rawQuery,
+      runContextHeader
+    );
     await this.streamHttpDataService.streamReport(command, res);
   }
 }

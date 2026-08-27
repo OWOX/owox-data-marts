@@ -103,6 +103,19 @@ describe('DestinationCard report creation', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Report form');
   });
 
+  it('offers no creation for a destination that makes its own reports', () => {
+    // An Excel report is bound to a worksheet by the add-in; one created here would be a report
+    // no workbook refers to.
+    render(
+      <DestinationCard
+        destination={{ ...destination, type: DataDestinationType.EXCEL } as DataDestination}
+        dataMartStatus={publishedStatus}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'New Report' })).not.toBeInTheDocument();
+  });
+
   it('shows the setup dialog for a draft Data Mart that cannot be published', () => {
     const onReviewDataSetup = vi.fn();
     render(

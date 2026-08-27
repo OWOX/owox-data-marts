@@ -35,6 +35,7 @@ import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
 import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
+import { ValidateFormulaCommand } from '../dto/domain/validate-formula.command';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusItemApiDto } from '../dto/presentation/batch-data-mart-health-status-item-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
@@ -56,7 +57,16 @@ import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-respons
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  ValidateFormulaApiDto,
+  ValidateFormulaResponseApiDto,
+} from '../dto/presentation/validate-formula.api.dto';
+import { ValidateFormulaResult } from '../use-cases/validate-formula.service';
+import {
+  UpdateDataMartSchemaApiDto,
+  UpdateDataMartSchemaResponseApiDto,
+} from '../dto/presentation/update-data-mart-schema-api.dto';
+import { UpdateDataMartSchemaResult } from '../dto/domain/update-data-mart-schema-result.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -65,7 +75,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartRunType, usesHttpDataRunShape } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
@@ -540,6 +550,38 @@ export class DataMartMapper {
     );
   }
 
+  toValidateFormulaCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: ValidateFormulaApiDto
+  ): ValidateFormulaCommand {
+    return new ValidateFormulaCommand(
+      id,
+      context.projectId,
+      dto.name,
+      dto.type,
+      dto.formula,
+      context.userId,
+      context.roles ?? [],
+      dto.calculatedFields
+    );
+  }
+
+  toValidateFormulaResponse(result: ValidateFormulaResult): ValidateFormulaResponseApiDto {
+    return {
+      errors: result.errors,
+      warnings: result.warnings,
+      otherFieldErrors: result.otherFieldErrors,
+    };
+  }
+
+  async toUpdateSchemaResponse(
+    result: UpdateDataMartSchemaResult
+  ): Promise<UpdateDataMartSchemaResponseApiDto> {
+    const base = await this.toResponse(result);
+    return { ...base, warnings: result.warnings };
+  }
+
   toSqlDryRunCommand(
     dataMartId: string,
     context: AuthorizationContext,
@@ -764,11 +806,11 @@ export class DataMartMapper {
   private maskAdditionalParams(run: DataMartRunDto): Record<string, unknown> | null {
     // Whitelist only what is safe to expose; every other key (internal run params) is
     // dropped. `totals` are surfaced at the TOP LEVEL of the response (see extractTotals),
-    // so they are removed here: HTTP_DATA runs expose their `httpData` subtree minus totals;
-    // MCP_QUERY runs expose their `mcpQuery` subtree (response summary + request config,
+    // so they are removed here: runs recorded in the httpData shape expose that subtree minus
+    // totals; MCP_QUERY runs expose their `mcpQuery` subtree (response summary + request config,
     // no result-row values); report runs expose nothing (their only safe-to-expose key
     // was `totals`).
-    if (run.type === DataMartRunType.HTTP_DATA) {
+    if (usesHttpDataRunShape(run.type)) {
       const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as
         | Record<string, unknown>
         | undefined;
@@ -792,16 +834,16 @@ export class DataMartMapper {
 
   /**
    * Grand-totals summary, surfaced at the top level of the run response. Report runs persist
-   * it as `additionalParams.totals`; HTTP_DATA runs nest it inside the `httpData` subtree.
+   * it as `additionalParams.totals`; runs recorded in the httpData shape nest it inside the
+   * `httpData` subtree.
    */
   private extractTotals(
     run: DataMartRunDto
   ): Record<string, number | string | boolean | null> | null {
-    const totals =
-      run.type === DataMartRunType.HTTP_DATA
-        ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
-            ?.totals
-        : run.additionalParams?.totals;
+    const totals = usesHttpDataRunShape(run.type)
+      ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
+          ?.totals
+      : run.additionalParams?.totals;
     return (totals as Record<string, number | string | boolean | null> | undefined) ?? null;
   }
 }

@@ -81,6 +81,34 @@ export function integerTypeFor(storageType: DataStorageType): StorageFieldType {
   }
 }
 
+/**
+ * Every field type a schema of this storage may spell. Derived from the SAME enums the storages'
+ * zod schemas wrap in `z.nativeEnum(...)`, so a caller checking a type against this set cannot
+ * accept what the schema save would reject (or the reverse) — it is one vocabulary, read twice,
+ * not two lists to keep in step.
+ */
+export function storageFieldTypesFor(storageType: DataStorageType): ReadonlySet<string> {
+  switch (storageType) {
+    case DataStorageType.GOOGLE_BIGQUERY:
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+      return new Set(Object.values(BigQueryFieldType));
+    case DataStorageType.AWS_ATHENA:
+      return new Set(Object.values(AthenaFieldType));
+    case DataStorageType.SNOWFLAKE:
+      return new Set(Object.values(SnowflakeFieldType));
+    case DataStorageType.AWS_REDSHIFT:
+      return new Set(Object.values(RedshiftFieldType));
+    case DataStorageType.DATABRICKS:
+      return new Set(Object.values(DatabricksFieldType));
+    default: {
+      // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
+      // never silently return undefined.
+      const _exhaustive: never = storageType;
+      throw new Error(`storageFieldTypesFor: unhandled storage type ${String(_exhaustive)}`);
+    }
+  }
+}
+
 function getFloatType(storageType: DataStorageType): StorageFieldType {
   switch (storageType) {
     case DataStorageType.GOOGLE_BIGQUERY:

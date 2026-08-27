@@ -13,6 +13,7 @@ describe('CORS configuration', () => {
         'content-type',
         'authorization',
         'x-owox-authorization',
+        'x-owox-run-context',
       ]);
     });
 
@@ -21,6 +22,7 @@ describe('CORS configuration', () => {
         'content-type',
         'authorization',
         'x-owox-authorization',
+        'x-owox-run-context',
         'ngrok-skip-browser-warning',
         'x-custom-header',
       ]);
@@ -29,7 +31,13 @@ describe('CORS configuration', () => {
     it('normalizes and de-duplicates extra headers', () => {
       expect(
         buildCorsAllowedHeaders(' X-Custom-Header, x-custom-header, AUTHORIZATION ')
-      ).to.deep.equal(['content-type', 'authorization', 'x-owox-authorization', 'x-custom-header']);
+      ).to.deep.equal([
+        'content-type',
+        'authorization',
+        'x-owox-authorization',
+        'x-owox-run-context',
+        'x-custom-header',
+      ]);
     });
 
     it('ignores invalid extra header names', () => {
@@ -104,7 +112,12 @@ describe('CORS configuration', () => {
 
       const config = buildCorsConfig();
       expect(config).to.deep.equal({
-        allowedHeaders: ['content-type', 'authorization', 'x-owox-authorization'],
+        allowedHeaders: [
+          'content-type',
+          'authorization',
+          'x-owox-authorization',
+          'x-owox-run-context',
+        ],
         credentials: true,
         maxAge: 86_400,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -125,6 +138,7 @@ describe('CORS configuration', () => {
         'content-type',
         'authorization',
         'x-owox-authorization',
+        'x-owox-run-context',
         'ngrok-skip-browser-warning',
         'x-custom-header',
       ]);

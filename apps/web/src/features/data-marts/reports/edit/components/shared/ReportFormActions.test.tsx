@@ -124,3 +124,43 @@ describe('ReportFormActions', () => {
     expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ReportFormActions without a server-side run', () => {
+  it('offers plain creation, with no run to choose between', () => {
+    render(
+      <ReportFormActions
+        mode={ReportFormMode.CREATE}
+        isSubmitting={false}
+        isDirty={false}
+        triggersDirty={false}
+        runAfterSaveRef={{ current: false }}
+        canRunAfterSave={false}
+        onSubmit={() => undefined}
+      />
+    );
+
+    expect(screen.getByText('Create report')).toBeInTheDocument();
+    expect(screen.queryByText('Create & Run report')).not.toBeInTheDocument();
+    // The menu holds nothing but run variations, so it disappears with them.
+    expect(screen.queryByLabelText('More actions')).not.toBeInTheDocument();
+  });
+
+  it('never arms run-after-save, even from the primary button', () => {
+    const runAfterSaveRef = { current: false };
+    render(
+      <ReportFormActions
+        mode={ReportFormMode.CREATE}
+        isSubmitting={false}
+        isDirty={false}
+        triggersDirty={false}
+        runAfterSaveRef={runAfterSaveRef}
+        canRunAfterSave={false}
+        onSubmit={() => undefined}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Create report'));
+
+    expect(runAfterSaveRef.current).toBe(false);
+  });
+});

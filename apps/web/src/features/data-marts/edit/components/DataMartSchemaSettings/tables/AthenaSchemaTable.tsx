@@ -94,6 +94,7 @@ export function AthenaSchemaTable({
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.AWS_ATHENA}
       />
     </DndContext>
   );

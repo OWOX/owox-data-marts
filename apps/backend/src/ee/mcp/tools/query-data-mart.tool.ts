@@ -87,7 +87,7 @@ When building the query:
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
 - aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
 - For “how many” questions, use COUNT or COUNT_DISTINCT (when the business meaning is unique entities) instead of returning raw rows and counting them yourself. Keep only dimensions the user asked to break the count by.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE).
+- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE), and never to a Calculated Field, whose bucket must be requested without one.
 
 Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
 ${buildFieldTypeMatrixSection()}
@@ -95,11 +95,11 @@ A data mart can narrow a field's aggregations further ("only where enabled on th
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
-Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation — neither can threshold an aggregated total; there is no HAVING):
+Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation, so neither can threshold a total you asked for via "aggregations" — the one exception is a Calculated Field whose level is "metric", whose formula is already aggregated and whose filter therefore compares the aggregated value):
 - slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join. A slice runs on the field's ORIGINAL value, so when get_data_mart_details lists a "sliceType" for the field, use operators valid for that pre-join type (not the field's blended-result "type").
 - filters (post-join): row-level criteria on the blended result — use for anything on the MAIN data mart's fields or on a joined field. A filter on a field you also aggregate restricts which raw rows feed the aggregate (e.g. filter revenue > 0 → SUM over positive rows), NOT the group total.
 - Rule: pre-narrowing a joined data mart's rows → slices; any other raw-row criterion → filters.
-- Filtering by an aggregated total (e.g. "groups whose SUM(revenue) > 100") is NOT supported — return all groups with their totals and let the caller compare.
+- Filtering by a total you asked for via "aggregations" (e.g. "groups whose SUM(revenue) > 100") is NOT supported — return all groups with their totals and let the caller compare. If the data mart already defines that quantity as a Calculated Field with level "metric", filter on THAT field instead and the threshold is applied to the aggregated value; list it in "fields" when you do.
 - Example — "orders in the last 3 months" where orders is a joined data mart: the date range narrows the joined orders before the join → slices.
 
 Using the results:
@@ -483,6 +483,45 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         'permission_denied',
         'This query references one or more data marts you do not have reporting access to. Remove the joined/blended field(s) you cannot access, or ask an admin to grant access.'
       );
+    }
+
+    // A calculated-field refusal raised OUTSIDE the output-controls validator. These
+    // hand-write their reason and name only fields of the caller's own Data Mart, so the message
+    // is forwarded rather than reworded. Without this branch they fall to the generic
+    // `query_failed` below, which names no field and tells the agent to check field names that are
+    // correct — a loop it cannot escape, since re-fetching the schema keeps confirming them. Kept
+    // BELOW the denial branch so that an exception ever carrying both keys is answered by the one
+    // that leaks nothing.
+    //
+    // Three payload spellings, because three different producers reach here and the singular one
+    // is by far the most common:
+    //   `calculatedField`        — every renderer, sleeve and planner refusal (report-shape
+    //                              dependent, so these fire on a schema that saved clean);
+    //   `joinedCalculatedColumns`— `assertNoJoinedCalculatedColumns`, reachable with nothing more
+    //                              than a projection and a limit;
+    //   `calculatedFields`       — `composeMetricsOnly`'s no-userId guard.
+    // Reading only the last of those made this branch dead at query time.
+    if (err instanceof BusinessViolationException) {
+      const details = err.errorDetails ?? {};
+      const asList = (value: unknown): string[] =>
+        typeof value === 'string'
+          ? [value]
+          : Array.isArray(value)
+            ? value.filter((v): v is string => typeof v === 'string')
+            : [];
+      const named = [
+        ...new Set([
+          ...asList(details['calculatedField']),
+          ...asList(details['joinedCalculatedColumns']),
+          ...asList(details['calculatedFields']),
+        ]),
+      ];
+      if (named.length) {
+        return toStructuredToolError(
+          'calculated_field_not_supported',
+          `${err.message}. Drop ${named.join(', ')} from "fields" and retry to get the rest of the answer — the field name(s) are correct, so do not re-fetch the schema. Changing the formula itself takes a person editing the Data Mart in OWOX.`
+        );
+      }
     }
 
     if (err instanceof BadRequestException) {

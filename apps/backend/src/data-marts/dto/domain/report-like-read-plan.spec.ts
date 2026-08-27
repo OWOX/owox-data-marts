@@ -66,6 +66,50 @@ describe('hasOutputControls', () => {
   it('returns false when uniqueCountConfig is an empty array', () => {
     expect(hasOutputControls({ ...basePlan, uniqueCountConfig: [] })).toBe(false);
   });
+
+  // A calculated field has no warehouse column: selecting one must flip a plan to the
+  // output-controls path even with no filter/sort/aggregation/dateTrunc/limit/uniqueCount set —
+  // otherwise RunReportService, ReportDataCacheService and StreamHttpDataService never call
+  // ReportSqlComposerService.compose for a metric-only report, and their reader falls back to a
+  // bare buildQuery(definition, { columns }) call that emits the metric's name as a plain,
+  // nonexistent column. `basePlan.dataMart` carries no schema, so every OTHER case in this
+  // describe block would stay green even if `hasSelectedCalculatedField` were deleted entirely —
+  // these cases are the only ones that actually exercise it.
+  describe('a selected calculated field', () => {
+    const dataMartWithCtr = {
+      schema: {
+        fields: [
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+          },
+        ],
+      },
+    } as unknown as DataMart;
+
+    it('returns true when columnConfig selects the metric and nothing else is set', () => {
+      expect(
+        hasOutputControls({ dataMart: dataMartWithCtr, columnConfig: ['clicks', 'ctr'] })
+      ).toBe(true);
+    });
+
+    it('returns false when the metric exists on the schema but is not selected', () => {
+      expect(hasOutputControls({ dataMart: dataMartWithCtr, columnConfig: ['clicks'] })).toBe(
+        false
+      );
+    });
+
+    it('returns false when columnConfig is absent, even though the schema has a calculated field', () => {
+      expect(hasOutputControls({ dataMart: dataMartWithCtr })).toBe(false);
+    });
+
+    it('returns false for a plain field selection on a Data Mart with no calculated fields', () => {
+      expect(hasOutputControls({ ...basePlan, columnConfig: ['clicks'] })).toBe(false);
+    });
+  });
 });
 
 describe('usesSuffixedJoinedFieldNames', () => {

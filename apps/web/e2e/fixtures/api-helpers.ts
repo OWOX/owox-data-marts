@@ -103,6 +103,36 @@ export class ApiHelpers {
     expect(res.ok()).toBeTruthy();
   }
 
+  /**
+   * Writes the output schema directly. `fields` is the storage-specific field list — BigQuery's
+   * shape here, matching the `bigquery-data-mart-schema` type the default test storage uses.
+   */
+  async setSchema(dataMartId: string, fields: Record<string, unknown>[]): Promise<void> {
+    const res = await this.page.request.put(`/api/data-marts/${dataMartId}/schema`, {
+      data: { schema: { type: 'bigquery-data-mart-schema', fields } },
+    });
+    expect(res.ok()).toBeTruthy();
+  }
+
+  /**
+   * Joins `targetDataMartId` onto `sourceDataMartId` under `targetAlias`. Both must live in the
+   * same storage, and the target must be PUBLISHED before its fields reach the blendable schema.
+   */
+  async createRelationship(
+    sourceDataMartId: string,
+    targetDataMartId: string,
+    targetAlias: string,
+    joinConditions: { sourceFieldName: string; targetFieldName: string }[] = [
+      { sourceFieldName: 'id', targetFieldName: 'id' },
+    ]
+  ): Promise<{ id: string }> {
+    const res = await this.page.request.post(`/api/data-marts/${sourceDataMartId}/relationships`, {
+      data: { targetDataMartId, targetAlias, joinConditions },
+    });
+    expect(res.ok()).toBeTruthy();
+    return res.json();
+  }
+
   async publish(dataMartId: string): Promise<void> {
     const res = await this.page.request.put(`/api/data-marts/${dataMartId}/publish`);
     expect(res.ok()).toBeTruthy();

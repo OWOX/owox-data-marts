@@ -8,6 +8,7 @@ describe('toMcpDestinationType', () => {
     expect(mapped).toEqual([
       'google_sheets',
       'looker_studio',
+      'excel',
       'email',
       'slack',
       'teams',

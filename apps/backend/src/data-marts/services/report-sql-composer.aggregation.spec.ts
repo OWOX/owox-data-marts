@@ -15,6 +15,10 @@ import {
   ReportAggregateFunction,
 } from '../dto/schemas/aggregate-function.schema';
 import { buildBlendedFieldIndex } from './blended-field-index';
+import { GroupRestriction } from '../dto/domain/group-restriction';
+import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { FilterRule } from '../dto/schemas/filter-config.schema';
+import { isCalculatedGroupingKey } from '../calculated-fields/calculated-plan-grain';
 
 describe('ReportSqlComposerService — aggregations wiring', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -252,6 +256,142 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     const result = await service.compose(report, {} as never);
     expect(result.sql).toBe('WITH cte AS (...) SELECT DATE_TRUNC(...) ... GROUP BY ...');
     expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+  });
+
+  // Every query builder and every reader consumes the PLAN, never the schema field it was built
+  // from, so the field's level has to travel on it. Missed, a row-level field reads as a
+  // metric — which is a wrong GROUP BY and a wrong number, not an error anyone sees.
+  describe('the calculated field level travels on the composed plan', () => {
+    const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+    const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+
+    const buildCalculatedReport = (
+      calculated: Record<string, unknown>,
+      aggregationConfig?: AggregationRule[]
+    ) =>
+      buildReport({
+        columnConfig: ['channel', 'computed'],
+        aggregationConfig,
+        dataMart: {
+          id: 'dm-1',
+          projectId: 'proj-1',
+          definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+          storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'channel', type: 'STRING', status: 'CONNECTED' },
+              { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+              { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+              { name: 'session_id', type: 'STRING', status: 'CONNECTED' },
+              { name: 'user_id', type: 'STRING', status: 'CONNECTED' },
+              { name: 'computed', type: 'STRING', status: 'CONNECTED', calculated },
+            ],
+          },
+        },
+      } as unknown as Partial<Report>);
+
+    const composePlan = async (
+      calculated: Record<string, unknown>,
+      aggregationConfig?: AggregationRule[]
+    ) => {
+      const { service } = createService({
+        needsBlending: false,
+        columnFilter: ['channel', 'computed'],
+      });
+      const { calculatedFields } = await service.compose(
+        buildCalculatedReport(calculated, aggregationConfig),
+        {} as never
+      );
+      return calculatedFields;
+    };
+
+    it('carries level "column" for a row-level formula', async () => {
+      expect(await composePlan({ formula: SESSION_KEY_FORMULA, level: 'column' })).toEqual([
+        expect.objectContaining({ outputName: 'computed', level: 'column' }),
+      ]);
+    });
+
+    it('carries level "metric" for a formula that aggregates', async () => {
+      expect(await composePlan({ formula: CTR_FORMULA, level: 'metric' })).toEqual([
+        expect.objectContaining({ outputName: 'computed', level: 'metric' }),
+      ]);
+    });
+
+    // A field persisted before the level was derived carries none. It aggregated then and must
+    // keep aggregating now — the fallback stays in `isRowLevelCalculatedField`, not here.
+    it('reads a field persisted with no level as a metric', async () => {
+      expect(await composePlan({ formula: CTR_FORMULA })).toEqual([
+        expect.objectContaining({ outputName: 'computed', level: 'metric' }),
+      ]);
+    });
+
+    // "Needs the output-controls path" and "is aggregated" are two questions that shared one
+    // expression here. Only the SECOND one reads the level: the formula substitution
+    // channel lives on the output-controls path, so a row-level-only selection must still cross
+    // it — otherwise no `mainTableReference` is resolved, and on a SQL-defined mart the builder
+    // has no source to select the formula's columns from.
+    it('still takes the output-controls path when the only calculated field is row-level', async () => {
+      const { service, queryBuilderFacade } = createService({
+        needsBlending: false,
+        columnFilter: ['channel', 'computed'],
+      });
+
+      await service.compose(
+        buildCalculatedReport({ formula: SESSION_KEY_FORMULA, level: 'column' }),
+        {} as never
+      );
+
+      expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+        'GOOGLE_BIGQUERY',
+        expect.anything(),
+        expect.objectContaining({ mainTableReference: 'p.d.t' })
+      );
+    });
+
+    // `level` answers "does the formula aggregate?", and it once also answered "is the
+    // field a grouping key?". A report aggregating a row-level field is where they diverge, and
+    // the answer is decided HERE, at the plan factory — kept off the level, every downstream site
+    // would re-derive it, and a field both grouped by and counted distinct returns 1 on every row.
+    describe('an aggregation rule on a row-level field takes it off the grouping keys', () => {
+      const planFor = async (
+        calculated: Record<string, unknown>,
+        aggregationConfig?: AggregationRule[]
+      ) => (await composePlan(calculated, aggregationConfig))![0];
+
+      it('is a grouping key when no rule names it', async () => {
+        const plan = await planFor({ formula: SESSION_KEY_FORMULA, level: 'column' });
+        expect(isCalculatedGroupingKey(plan)).toBe(true);
+      });
+
+      it('is NOT a grouping key when the report aggregates it, and stays row-level', async () => {
+        const plan = await planFor({ formula: SESSION_KEY_FORMULA, level: 'column' }, [
+          { column: 'computed', function: 'COUNT_DISTINCT' },
+        ]);
+        // The formula did not change, so neither did its level — only the grain did.
+        expect(plan.level).toBe('column');
+        expect(isCalculatedGroupingKey(plan)).toBe(false);
+      });
+
+      it('a rule naming another column leaves it a grouping key', async () => {
+        const plan = await planFor({ formula: SESSION_KEY_FORMULA, level: 'column' }, [
+          { column: 'channel', function: 'COUNT' },
+        ]);
+        expect(isCalculatedGroupingKey(plan)).toBe(true);
+      });
+
+      // An aggregate-level field already IS an aggregate, so it is never a grouping key and never
+      // becomes one — no rule may even name it (AGGREGATION_ON_CALCULATED_FIELD).
+      it('an aggregate-level field is never a grouping key', async () => {
+        const plain = await planFor({ formula: CTR_FORMULA, level: 'metric' });
+        expect(isCalculatedGroupingKey(plain)).toBe(false);
+        const aggregated = await planFor({ formula: CTR_FORMULA, level: 'metric' }, [
+          { column: 'computed', function: 'SUM' },
+        ]);
+        expect(aggregated.level).toBe('metric');
+        expect(isCalculatedGroupingKey(aggregated)).toBe(false);
+      });
+    });
   });
 
   describe('composeTotals', () => {
@@ -553,9 +693,92 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
       const bucket = 'DATE_TRUNC(src.`order_date`, MONTH)';
       expect(result!.sql).toContain(`GROUP BY\n  ${bucket}`);
-      expect(result!.sql).toContain(`ON (${bucket} = `);
+      expect(result!.sql).toContain(`ON ((${bucket}) = `);
       // The bare column must never become the grouping key.
       expect(result!.sql).not.toMatch(/GROUP BY\n {2}src\.`order_date`\n/);
+    });
+
+    // `reportDimensions` (the restriction's `dimensions`) is built from "selected column with no
+    // aggregation of its own" — true for a real dimension like `channel`, but ALSO trivially true
+    // for a calculated field (it can never legally appear in aggregationConfig). Left unfiltered,
+    // `ctr` would reach `renderKeptGroupsJoin`, which hands `restriction.dimensions` to
+    // `renderAggregatedSelect` with NO calculated-metric exclusion — a bare, nonexistent `ctr`
+    // column reference and a guaranteed `Unrecognized name` on every dialect.
+    it('never leaks the calculated field into the kept-groups restriction dimensions', async () => {
+      const ctrFormula =
+        'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+      const { service } = makeBqTotalsComposer(['revenue', 'ctr']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['channel', 'revenue', 'ctr'],
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+        } as Partial<Report>,
+        [
+          field('channel', 'STRING'),
+          field('revenue', 'INTEGER'),
+          field('clicks', 'INTEGER'),
+          field('impressions', 'INTEGER'),
+          field('ctr', 'FLOAT', { calculated: { formula: ctrFormula, level: 'metric' } }),
+        ]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      // The restriction's own grouped subquery — from its opening JOIN to its closing alias —
+      // must group by the REAL dimension only and never reference the metric as a bare column.
+      const keptGroupsBlock = result!.sql.slice(
+        result!.sql.indexOf('JOIN ('),
+        result!.sql.indexOf(') AS `_kept_groups`')
+      );
+      expect(keptGroupsBlock).toMatch(/`channel`/);
+      expect(keptGroupsBlock).not.toMatch(/`ctr`/);
+      // The metric still renders through its own formula channel in the OUTER select, unaffected.
+      expect(result!.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
+      expect(result!.calculatedFields).toEqual([
+        expect.objectContaining({ outputName: 'ctr', formula: ctrFormula }),
+      ]);
+    });
+
+    // THE case the whole feature is ordered for: "CTR by country" — a breakdown whose ONLY
+    // aggregate is the calculated field. `deriveTotalsAggregations` correctly invents no
+    // SUM/AVG/MIN/MAX rule for it (it already IS an aggregate), so `aggregations` is empty, and
+    // reading that as "nothing to total" returned null → the consumer is told `not_available` and
+    // computes the overall CTR itself as the AVERAGE of the per-country ratios: exactly the
+    // non-additive re-aggregation this feature exists to remove. Every other calculated-metric
+    // totals test above selects `revenue` alongside `ctr`, which supplies a non-zero
+    // `aggregations` and hides this.
+    it('composes Totals for a report whose ONLY aggregate is a calculated field', async () => {
+      const ctrFormula =
+        'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+      const { service } = makeBqTotalsComposer(['ctr']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['country', 'ctr'],
+        } as Partial<Report>,
+        [
+          field('country', 'STRING'),
+          field('clicks', 'INTEGER'),
+          field('impressions', 'INTEGER'),
+          field('ctr', 'FLOAT', { calculated: { formula: ctrFormula, level: 'metric' } }),
+        ]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.aggregations).toEqual([]);
+      expect(result!.columns).toEqual(['ctr']);
+      expect(result!.calculatedFields).toEqual([
+        expect.objectContaining({ outputName: 'ctr', formula: ctrFormula }),
+      ]);
+      // The true ratio of the sums over the whole filtered dataset — one row, no GROUP BY.
+      expect(result!.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
+      expect(result!.sql).not.toMatch(/GROUP BY/);
+      expect(result!.sql).not.toContain('Row Count');
+      // `country` is a dimension of the REPORT, not of its grand total.
+      expect(result!.sql).not.toContain('`country`');
     });
 
     // A metrics-only report ("total revenue, only if above 1000") has no dimensions at all, so
@@ -574,6 +797,386 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(result!.sql).toMatch(/SELECT\n {2}1 AS /);
       expect(result!.sql).not.toMatch(/SELECT\s*\n\s*FROM/);
       expect(result!.sql).toContain('HAVING SUM(src.`revenue`) > @kgh0');
+    });
+
+    // A ROW-LEVEL calculated field is a DIMENSION, and Totals is the one surface that must keep it
+    // out. `deriveTotalsAggregations` admitted EVERY calculated field, so a selected row-level one
+    // reached the totals `columns` and came back from `compose` as a plan with `level: 'column'` —
+    // which the aggregated renderer then GROUPS BY. The Totals query returned one row per
+    // row-level group and `ReportTotalsService.computeTotals` publishes `dataRows[0]` as the grand
+    // total: an arbitrary group's SUM, labelled `calculated_by_owox`, with no exception, no log
+    // line, and no degradation signal.
+    describe('a ROW-LEVEL calculated field is never a totals metric', () => {
+      const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+      // Declared FLOAT deliberately: the declared type is the analyst's free choice, so this field
+      // PASSES `isTotalsEligible`'s numeric test. Only the level rules it out.
+      const REVENUE_PER_CLICK_FORMULA =
+        '{{ref field="revenue"}} / NULLIF({{ref field="clicks"}}, 0)';
+      const CTR_FORMULA =
+        'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+
+      const FIELDS = [
+        field('country', 'STRING'),
+        field('revenue', 'INTEGER'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('session_id', 'STRING'),
+        field('user_id', 'STRING'),
+        field('session_key', 'STRING', {
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        }),
+        field('revenue_per_click', 'FLOAT', {
+          calculated: { formula: REVENUE_PER_CLICK_FORMULA, level: 'column' },
+        }),
+        field('ctr', 'FLOAT', { calculated: { formula: CTR_FORMULA, level: 'metric' } }),
+      ];
+
+      // The stock fixture PINS `columnFilter`, which would then decide the composed SQL instead of
+      // the totals plan — asserting the gate against a mock rather than against the composer. The
+      // real `resolveBlendingDecision` echoes a non-blended plan's own projection back, so echo it.
+      const makeEchoingComposer = () => {
+        const bundle = makeBqTotalsComposer([]);
+        bundle.blendedReportDataService.resolveBlendingDecision.mockImplementation(
+          (plan: { columnConfig?: string[] }) => ({
+            needsBlending: false,
+            columnFilter: plan.columnConfig,
+          })
+        );
+        return bundle;
+      };
+
+      // The silent case: with no other totals column the query is VALID, returns N rows, and the
+      // first one is published as the report-wide total.
+      it('produces NO Totals block when the only selected calculated field is row-level', async () => {
+        const { service, facade } = makeEchoingComposer();
+        const report = buildTotalsReport(
+          { columnConfig: ['country', 'revenue_per_click'] } as Partial<Report>,
+          FIELDS
+        );
+
+        expect(await service.composeTotals(report, {} as never)).toBeNull();
+        expect(facade.buildQuery).not.toHaveBeenCalled();
+      });
+
+      // The feature's own headline example: `country` + a row-level `session_key` + a numeric
+      // column. Before Tasks 4/5 this emitted a bare non-grouped column beside an aggregate — a
+      // hard warehouse error; after them it emits a GROUP BY and a plausible wrong number.
+      it('totals the numeric column beside it and nothing for the row-level field', async () => {
+        const { service } = makeEchoingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'session_key', 'revenue'],
+            aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          } as Partial<Report>,
+          FIELDS
+        );
+
+        const result = await service.composeTotals(report, {} as never);
+
+        expect(result!.columns).toEqual(['revenue']);
+        expect(result!.calculatedFields).toBeUndefined();
+        expect(result!.sql).toContain('SUM(`revenue`) AS `revenue | SUM`');
+        expect(result!.sql).not.toContain('session_key');
+        expect(result!.sql).not.toMatch(/GROUP BY/);
+      });
+
+      // The gate is on LEVEL, not on "is calculated": an aggregating formula is already a
+      // grand-total-safe aggregate and keeps its Totals through its own formula channel.
+      it('still totals an AGGREGATING calculated field selected beside a row-level one', async () => {
+        const { service } = makeEchoingComposer();
+        const report = buildTotalsReport(
+          { columnConfig: ['country', 'session_key', 'ctr'] } as Partial<Report>,
+          FIELDS
+        );
+
+        const result = await service.composeTotals(report, {} as never);
+
+        expect(result!.columns).toEqual(['ctr']);
+        expect(result!.calculatedFields).toEqual([
+          expect.objectContaining({ outputName: 'ctr', level: 'metric' }),
+        ]);
+        expect(result!.sql).toContain('SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`');
+        expect(result!.sql).not.toContain('session_key');
+        expect(result!.sql).not.toMatch(/GROUP BY/);
+      });
+
+      // Kept OUT of the totals metrics, but it must stay IN the kept-groups restriction: the
+      // report groups by `country` AND the expression, so a restriction reproducing `country`
+      // alone is coarser than the report and the metric filter keeps a different row set than the
+      // report shows — which compounds the gate above rather than being fixed by it.
+      it('reproduces the report grain in the kept groups, row-level expression included', async () => {
+        const { service } = makeEchoingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'session_key', 'revenue'],
+            aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+            filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+          } as unknown as Partial<Report>,
+          FIELDS
+        );
+
+        const result = await service.composeTotals(report, {} as never);
+
+        const expr = 'CONCAT(src.`session_id`, src.`user_id`)';
+        const keptGroups = result!.sql.slice(
+          result!.sql.indexOf('JOIN ('),
+          result!.sql.indexOf(') AS `_kept_groups`')
+        );
+        expect(keptGroups).toContain(`GROUP BY\n  src.\`country\`,\n  ${expr}`);
+        expect(keptGroups).toContain(`${expr} AS \`_owox_kg_1\``);
+        expect(keptGroups).toContain('HAVING SUM(src.`revenue`) > @kgh0');
+        // Both keys bind, or the restriction is coarser than the report it reproduces.
+        expect(result!.sql).toContain('(src.`country`) = (`_kept_groups`.`_owox_kg_0`)');
+        expect(result!.sql).toContain(`(${expr}) = (\`_kept_groups\`.\`_owox_kg_1\`)`);
+        // The Totals query itself still has no grouping of its own.
+        const outerTail = result!.sql.slice(result!.sql.indexOf(') AS `_kept_groups`'));
+        expect(outerTail).not.toMatch(/GROUP BY/);
+      });
+
+      // A report may apply an aggregation to a row-level field, and the field then stops
+      // being a grouping key. Both halves above have to follow it there.
+      describe('once the REPORT aggregates it', () => {
+        const COUNT_SESSIONS: AggregationRule[] = [
+          { column: 'session_key', function: 'COUNT_DISTINCT' },
+          { column: 'revenue', function: 'SUM' },
+        ];
+
+        /**
+         * A Calculated Field is NEVER a Totals metric, whatever the report does
+         * with it. The analyst sees a `COUNT_DISTINCT` column with no Totals value: a visible
+         * absence rather than a wrong number.
+         *
+         * Pinned because `deriveTotalsAggregations` reaches that outcome by the wrong ROUTE. The
+         * row-level skip fires BEFORE `isTotalsEligible` can see the field, and that rule reads
+         * "the report aggregates it" as the metric signal for a non-numeric field — so the skip is
+         * the only thing keeping an aggregated `session_key` out. Delete it as an oversight and
+         * Totals silently gains a `session_key | COUNTUNIQUE` grand total. A later slice that wants
+         * that has to change this rule, not stumble into the code.
+         */
+        it('an aggregation rule on it still does not make it a totals metric', async () => {
+          const { service } = makeEchoingComposer();
+          const report = buildTotalsReport(
+            {
+              columnConfig: ['country', 'session_key', 'revenue'],
+              aggregationConfig: COUNT_SESSIONS,
+            } as Partial<Report>,
+            FIELDS
+          );
+
+          const result = await service.composeTotals(report, {} as never);
+
+          expect(result!.columns).toEqual(['revenue']);
+          expect(result!.aggregations.map(rule => rule.column)).not.toContain('session_key');
+          expect(result!.calculatedFields).toBeUndefined();
+          expect(result!.sql).not.toContain('session_key');
+          expect(result!.sql).not.toContain('COUNTUNIQUE');
+        });
+
+        // The other half, and the one that breaks: the restriction reproduces the REPORT's
+        // grouping, and the report stopped grouping by this field the moment it aggregated it.
+        // Reproduced as a key the restriction is one key FINER than the report, so the HAVING keeps
+        // a different row set and Totals summarise rows the report does not show. Since that refusal it
+        // does not even get that far — the restriction renders from an EMPTY rule list, so the
+        // renderer refuses a plan it has no function for and the whole Totals block 500s.
+        it('drops it from the kept-groups restriction, which the report no longer groups by', async () => {
+          const { service } = makeEchoingComposer();
+          const report = buildTotalsReport(
+            {
+              columnConfig: ['country', 'session_key', 'revenue'],
+              aggregationConfig: COUNT_SESSIONS,
+              filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+            } as unknown as Partial<Report>,
+            FIELDS
+          );
+
+          const result = await service.composeTotals(report, {} as never);
+
+          const keptGroups = result!.sql.slice(
+            result!.sql.indexOf('JOIN ('),
+            result!.sql.indexOf(') AS `_kept_groups`')
+          );
+          expect(keptGroups).toContain('GROUP BY\n  src.`country`');
+          expect(keptGroups).not.toContain('CONCAT(');
+          expect(keptGroups).toContain('HAVING SUM(src.`revenue`) > @kgh0');
+          // `country` is the only key the report has left, so it is the only join pair.
+          expect(result!.sql).toContain('(src.`country`) = (`_kept_groups`.`_owox_kg_0`)');
+          expect(result!.sql).not.toContain('_owox_kg_1');
+        });
+
+        // The discriminator for reading the PLAN rather than the rules in hand: a rule naming
+        // another column says nothing about this field, so it is still a grouping key and the
+        // restriction must still reproduce its expression.
+        it('a rule on another column leaves it in the restriction, expression and all', async () => {
+          const { service } = makeEchoingComposer();
+          const report = buildTotalsReport(
+            {
+              columnConfig: ['country', 'session_key', 'revenue'],
+              aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+              filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+            } as unknown as Partial<Report>,
+            FIELDS
+          );
+
+          const result = await service.composeTotals(report, {} as never);
+
+          const keptGroups = result!.sql.slice(
+            result!.sql.indexOf('JOIN ('),
+            result!.sql.indexOf(') AS `_kept_groups`')
+          );
+          expect(keptGroups).toContain('CONCAT(src.`session_id`, src.`user_id`)');
+          expect(result!.sql).toContain('_owox_kg_1');
+        });
+      });
+    });
+
+    // The clause a predicate belongs in is decided ONCE, from the rule AND the
+    // field's level, and carried on the rule. `rule.function` cannot express this case — an
+    // aggregate-level Calculated Field's aggregation lives inside the formula, so its rule carries
+    // no function and, by AGGREGATION_ON_CALCULATED_FIELD, never can. Split on `rule.function`
+    // here and such a report builds NO restriction at all (`renderKeptGroupsJoin` early-returns on
+    // an empty `having`), so Totals summarise rows the report hides — with no error.
+    describe('a filter on a calculated field routes to the clause its level asks for', () => {
+      const CTR_FORMULA =
+        'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+      const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+
+      const CLAUSE_FIELDS = [
+        field('country', 'STRING'),
+        field('revenue', 'INTEGER'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('session_id', 'STRING'),
+        field('user_id', 'STRING'),
+        field('ctr', 'FLOAT', { calculated: { formula: CTR_FORMULA, level: 'metric' } }),
+        field('session_key', 'STRING', {
+          calculated: { formula: SESSION_KEY_FORMULA, level: 'column' },
+        }),
+      ];
+
+      // A recording stub in place of the dialect builder: this task decides the CLAUSE and renders
+      // nothing new, so the claim is about the options the builder is handed, not about SQL.
+      const makeRecordingComposer = () => {
+        const facade = { buildQuery: jest.fn().mockResolvedValue('SELECT built') };
+        const blendedReportDataService = {
+          resolveBlendingDecision: jest.fn(async (plan: { columnConfig?: string[] }) => ({
+            needsBlending: false,
+            columnFilter: plan.columnConfig,
+          })),
+        };
+        const validator = { validateForReport: jest.fn().mockResolvedValue(undefined) };
+        const service = new ReportSqlComposerService(
+          blendedReportDataService as never,
+          facade as never,
+          { resolveTableName: jest.fn().mockResolvedValue('p.d.t') } as never,
+          { isSupported: jest.fn().mockReturnValue(true) } as never,
+          {
+            computeBlendableSchema: jest
+              .fn()
+              .mockResolvedValue({ nativeFields: [], blendedFields: [] }),
+          } as never,
+          validator as never
+        );
+        return { service, facade };
+      };
+
+      type BuiltOptions = {
+        filters?: FilterRule[];
+        groupRestriction?: GroupRestriction;
+      };
+      const optionsOf = (facade: { buildQuery: jest.Mock }): BuiltOptions =>
+        facade.buildQuery.mock.calls[0][2] as BuiltOptions;
+
+      it('routes an AGGREGATE-level calculated filter into a non-empty restriction', async () => {
+        const { service, facade } = makeRecordingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'revenue', 'ctr'],
+            filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }],
+          } as unknown as Partial<Report>,
+          CLAUSE_FIELDS
+        );
+
+        await service.composeTotals(report, {} as never);
+
+        const options = optionsOf(facade);
+        expect(options.groupRestriction?.having).toEqual([
+          expect.objectContaining({ column: 'ctr', clause: 'having' }),
+        ]);
+        // The report groups by its plain dimensions; the metric is never one of them.
+        expect(options.groupRestriction?.dimensions).toEqual(['country', 'revenue']);
+        // ...and the rule is NOT left in the Totals plan's WHERE, where it would compare an
+        // aggregate in a query that has no GROUP BY at all.
+        expect(options.filters ?? []).toEqual([]);
+      });
+
+      it('leaves a ROW-LEVEL calculated filter in WHERE and builds no restriction', async () => {
+        const { service, facade } = makeRecordingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'session_key', 'revenue'],
+            filterConfig: [{ column: 'session_key', operator: 'eq', value: 'u1-s1' }],
+          } as unknown as Partial<Report>,
+          CLAUSE_FIELDS
+        );
+
+        await service.composeTotals(report, {} as never);
+
+        const options = optionsOf(facade);
+        expect(options.groupRestriction).toBeUndefined();
+        expect(options.filters).toEqual([
+          expect.objectContaining({ column: 'session_key', clause: 'where' }),
+        ]);
+      });
+
+      it('routes each level to its own clause when a report carries both', async () => {
+        const { service, facade } = makeRecordingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'session_key', 'revenue', 'ctr'],
+            filterConfig: [
+              { column: 'session_key', operator: 'eq', value: 'u1-s1' },
+              { column: 'ctr', operator: 'gt', value: 0.5 },
+              { column: 'country', operator: 'eq', value: 'US' },
+            ],
+          } as unknown as Partial<Report>,
+          CLAUSE_FIELDS
+        );
+
+        await service.composeTotals(report, {} as never);
+
+        const options = optionsOf(facade);
+        expect(options.filters?.map(rule => rule.column)).toEqual(['session_key', 'country']);
+        expect(options.groupRestriction?.having?.map(rule => rule.column)).toEqual(['ctr']);
+      });
+
+      // The plan the restriction renders its own HAVING from. `calculatedDimensions` deliberately
+      // drops a field the report AGGREGATES — it stopped being a grouping key — so without a
+      // channel of its own the subquery compared the field's NAME: `COUNT(DISTINCT "session_key")`
+      // over a FROM that has no such column, and the Totals row vanished from a correctly filtered
+      // report with the reason only in the server log.
+      it('carries the plan behind a filter on an aggregated row-level field', async () => {
+        const { service, facade } = makeRecordingComposer();
+        const report = buildTotalsReport(
+          {
+            columnConfig: ['country', 'session_key', 'revenue'],
+            aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+            filterConfig: [
+              { column: 'session_key', function: 'COUNT_DISTINCT', operator: 'gt', value: 2 },
+            ],
+          } as unknown as Partial<Report>,
+          CLAUSE_FIELDS
+        );
+
+        await service.composeTotals(report, {} as never);
+
+        const options = optionsOf(facade);
+        expect(options.groupRestriction?.calculatedHavingMetrics).toEqual([
+          expect.objectContaining({ outputName: 'session_key', formula: SESSION_KEY_FORMULA }),
+        ]);
+        // …and it is still not a grouping key, which is what makes the second channel necessary
+        // rather than a duplicate of the first.
+        expect(options.groupRestriction?.calculatedDimensions).toBeUndefined();
+      });
     });
 
     // The restriction is derived from the REPORT's HAVING rules, which are lifted OUT of
@@ -676,48 +1279,53 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     const makeBlendedTotalsComposer = (blendedFields: BlendedFieldDto[]) => {
       const realBlendedBuilder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
       const blendedReportDataService = {
-        resolveBlendingDecision: jest.fn(async (plan: Partial<Report>) => {
-          const relationship = {
-            id: 'rel-1',
-            joinConditions: [{ sourceFieldName: 'partner_id', targetFieldName: 'id' }],
-          };
-          const requested = blendedFields.filter(f => (plan.columnConfig ?? []).includes(f.name));
-          const built = realBlendedBuilder.buildBlendedQuery({
-            mainTableReference: 'p.d.main',
-            mainDataMartTitle: 'Main',
-            mainDataMartUrl: 'http://x',
-            chains: [
-              {
-                relationship: relationship as never,
-                targetTableReference: 'p.d.partner',
-                parentAlias: 'main',
-                cteName: 'partner',
-                blendedFields: requested.map(f => ({
-                  targetFieldName: f.originalFieldName,
-                  outputAlias: f.name,
-                  isHidden: false,
-                  aggregateFunction: f.aggregateFunction,
-                })),
-                targetDataMartTitle: 'Partner',
-                targetDataMartUrl: 'http://y',
-              },
-            ],
-            columns: plan.columnConfig ?? [],
-            aggregations: plan.aggregationConfig ?? undefined,
-            columnTypes: { postJoin: new Map(blendedFields.map(f => [f.name, f.type])) },
-            // Mirror the real BlendedReportDataService.resolveBlendingDecision, which always
-            // builds and passes a fieldIndex before invoking buildBlendedQuery — a joined
-            // COUNT_DISTINCT metric routes through a sleeve CTE that resolves the metric's raw
-            // column via context.fieldIndex.
-            fieldIndex: buildBlendedFieldIndex({
-              blendedFields,
-              availableSources: [...new Set(blendedFields.map(f => f.aliasPath))].map(
-                aliasPath => ({ aliasPath, isIncluded: true })
-              ),
-            } as never),
-          });
-          return { needsBlending: true, blendedSql: built.sql, params: built.params };
-        }),
+        resolveBlendingDecision: jest.fn(
+          async (plan: Partial<Report> & { groupRestriction?: GroupRestriction }) => {
+            const relationship = {
+              id: 'rel-1',
+              joinConditions: [{ sourceFieldName: 'partner_id', targetFieldName: 'id' }],
+            };
+            const requested = blendedFields.filter(f => (plan.columnConfig ?? []).includes(f.name));
+            const built = realBlendedBuilder.buildBlendedQuery({
+              mainTableReference: 'p.d.main',
+              mainDataMartTitle: 'Main',
+              mainDataMartUrl: 'http://x',
+              chains: [
+                {
+                  relationship: relationship as never,
+                  targetTableReference: 'p.d.partner',
+                  parentAlias: 'main',
+                  cteName: 'partner',
+                  blendedFields: requested.map(f => ({
+                    targetFieldName: f.originalFieldName,
+                    outputAlias: f.name,
+                    isHidden: false,
+                    aggregateFunction: f.aggregateFunction,
+                  })),
+                  targetDataMartTitle: 'Partner',
+                  targetDataMartUrl: 'http://y',
+                },
+              ],
+              columns: plan.columnConfig ?? [],
+              aggregations: plan.aggregationConfig ?? undefined,
+              // Totals under a metric filter travel as a restriction rather than a HAVING, so a
+              // fixture that drops it composes a query the real service never would.
+              groupRestriction: plan.groupRestriction,
+              columnTypes: { postJoin: new Map(blendedFields.map(f => [f.name, f.type])) },
+              // Mirror the real BlendedReportDataService.resolveBlendingDecision, which always
+              // builds and passes a fieldIndex before invoking buildBlendedQuery — a joined
+              // COUNT_DISTINCT metric routes through a sleeve CTE that resolves the metric's raw
+              // column via context.fieldIndex.
+              fieldIndex: buildBlendedFieldIndex({
+                blendedFields,
+                availableSources: [...new Set(blendedFields.map(f => f.aliasPath))].map(
+                  aliasPath => ({ aliasPath, isIncluded: true })
+                ),
+              } as never),
+            });
+            return { needsBlending: true, blendedSql: built.sql, params: built.params };
+          }
+        ),
       };
       const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.main') };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
@@ -736,6 +1344,58 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       );
       return { service, blendedReportDataService, blendableSchemaService };
     };
+
+    /**
+     * Totals + a metric filter + a ROW-LEVEL calculated field, on a report that JOINS — the shape where composer and builder have to agree. `composeTotals` keeps the
+     * field out of the totals metrics (it is a dimension) and puts its plan on the restriction, so
+     * the builder is the only thing that can render it: the field's NAME is in the restriction's
+     * dimension list while `calculatedFields` deliberately excludes it.
+     */
+    it('restricts blended Totals at the report own grain, row-level expression included', async () => {
+      const fields = [blendedField('partner__cost', 'FLOAT', ['SUM'])];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['channel', 'session_key', 'revenue', 'partner__cost'],
+          aggregationConfig: [
+            { column: 'revenue', function: 'SUM' },
+            { column: 'partner__cost', function: 'SUM' },
+          ],
+          // On a MAIN-native metric deliberately: a HAVING on the sleeve-routed joined one is
+          // refused outright, since HAVING renders from the dedup CTE rather than the sleeve.
+          filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+        } as unknown as Partial<Report>,
+        [
+          field('channel', 'STRING'),
+          field('revenue', 'INTEGER'),
+          field('session_id', 'STRING'),
+          field('user_id', 'STRING'),
+          field('session_key', 'STRING', {
+            calculated: {
+              formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+              level: 'column',
+            },
+          }),
+        ]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      const expr = 'CONCAT(main.session_id, main.user_id)';
+      expect(result!.columns).toEqual(['revenue', 'partner__cost']);
+      // The report's own grain, reproduced: `channel` first, then the row-level expression.
+      expect(result!.sql).toContain(`${expr} AS _owox_kg_1`);
+      expect(result!.sql).toContain(`AND ((${expr}) = (_kept_groups._owox_kg_1)`);
+      // The columns the formula reads reach the main CTE; the field's NAME must not — nothing
+      // else would tell us, since `SELECT session_key FROM p.d.main` only fails in the warehouse.
+      const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(result!.sql);
+      expect(mainCte).not.toBeNull();
+      expect(mainCte![1]).toContain('session_id');
+      expect(mainCte![1]).toContain('user_id');
+      expect(mainCte![1]).not.toContain('session_key');
+      // Totals themselves stay dimensionless.
+      expect(result!.sql.slice(result!.sql.lastIndexOf('\n\nSELECT'))).not.toMatch(/GROUP BY/);
+    });
 
     it('includes JOINED numeric fields in totals (post-join allowed set), NO GROUP BY', async () => {
       const fields = [blendedField('partner__cost', 'FLOAT', ['SUM', 'AVG'])];
@@ -961,7 +1621,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        schema
+        schema,
+        undefined
       );
     });
 

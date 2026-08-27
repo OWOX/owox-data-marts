@@ -70,6 +70,11 @@ describe('AiAssistantSqlContextPrefetchService', () => {
         fields: [
           { name: 'connected_field', status: DataMartSchemaFieldStatus.CONNECTED },
           { name: 'disconnected_field', status: DataMartSchemaFieldStatus.DISCONNECTED },
+          {
+            name: 'ctr',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+          },
         ],
       },
     });

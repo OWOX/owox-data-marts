@@ -23,6 +23,37 @@ export function buildBlendedFieldUnifiedName(aliasPath: string, originalFieldNam
 }
 
 /**
+ * The unified names that MORE THAN ONE visible `(aliasPath, originalFieldName)` pair folds to.
+ *
+ * The `__` separator can appear inside an alias segment or a field name, so two distinct pairs can
+ * fold to one name — `users__archived` + `role` and `users` + `archived__role` both give
+ * `users__archived__role`. Hidden fields take no part: nothing can slice one, so it is never the
+ * column a name would resolve to (the same exemption `buildBlendedFieldIndex` makes).
+ *
+ * Lives beside the derivation because that is the only thing that decides it. `buildBlendedFieldIndex`
+ * REFUSES such a name at report time, keyed by the DTO's own `name` — which IS this derivation
+ * (blendable-schema.service.ts builds it with `buildBlendedFieldUnifiedName`), so the two agree by
+ * construction. This function is for the readers that must refuse the same thing EARLIER, at save,
+ * and that are keyed by the structural pair a `{{ref}}` tag carries rather than by the unified name.
+ */
+export function collectAmbiguousBlendedFieldNames(
+  fields: readonly { aliasPath: string; originalFieldName: string; isHidden?: boolean }[]
+): ReadonlySet<string> {
+  const seen = new Set<string>();
+  const ambiguous = new Set<string>();
+  for (const field of fields) {
+    if (field.isHidden) continue;
+    // No alias path means no joined source owns it, so nothing can name it and nothing can
+    // collide with it — and the derivation below has no prefix to build from.
+    if (!field.aliasPath) continue;
+    const name = buildBlendedFieldUnifiedName(field.aliasPath, field.originalFieldName ?? '');
+    if (seen.has(name)) ambiguous.add(name);
+    seen.add(name);
+  }
+  return ambiguous;
+}
+
+/**
  * The SQL output column for a joined source's Unique Count: `orders` → `orders__unique_count`,
  * `orders.items` → `orders_items__unique_count`.
  *

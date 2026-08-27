@@ -253,6 +253,141 @@ describe('AggregationEditorPopover — date bucket time zone', () => {
   });
 });
 
+// `allowDateBucket` is how a caller says "this column's TYPE buckets, but this COLUMN may not" —
+// today the aggregate-level calculated field, which already aggregates and is no dimension to
+// group by. The type is never misreported to get there: an aggregation menu still comes from it.
+describe('AggregationEditorPopover — allowDateBucket', () => {
+  it('drops the bucket control from a date column when the caller forbids it', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='session_day'
+        fieldType='TIMESTAMP'
+        allowedAggregations={DATE_ALLOWED}
+        allowDateBucket={false}
+        onApply={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByLabelText('Group by bucket')).toBeNull();
+    expect(screen.queryByLabelText('Time zone')).toBeNull();
+    // The aggregations are still the date type's own, and the label no longer offers them as the
+    // alternative to a bucket that is not there.
+    expect(screen.getByLabelText('MIN')).toBeInTheDocument();
+    expect(screen.getByText('Aggregate by')).toBeInTheDocument();
+    expect(screen.queryByText('Or aggregate by')).toBeNull();
+  });
+
+  it('never emits a bucket in the draft when it is forbidden', () => {
+    const onApply = vi.fn();
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='session_day'
+        fieldType='DATE'
+        allowedAggregations={DATE_ALLOWED}
+        allowDateBucket={false}
+        // A stored bucket cannot be saved on such a column, but if one ever arrived it must not
+        // survive an Apply the analyst has no control to see it in.
+        initialBucket='MONTH'
+        onApply={onApply}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('MIN'));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(lastDraft(onApply)).toEqual({ functions: ['MIN'], bucket: null, timeZone: null });
+  });
+
+  it('leaves the bucket alone by default', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.order_date'
+        fieldType='DATE'
+        allowedAggregations={DATE_ALLOWED}
+        onApply={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Group by bucket')).toBeInTheDocument();
+  });
+});
+
+// `allowBucketTimeZone` is the time-zone refusal in the UI: a Calculated Field's bucket may not
+// carry a time zone on any storage. Measured on Snowflake 2026-08-24 — `CONVERT_TIMEZONE` coerced
+// the string `05/08/2026` and bucketed the report into May where the formula meant the 5th of
+// August, with no error. The BUCKET is untouched; only the zone goes.
+describe('AggregationEditorPopover — allowBucketTimeZone', () => {
+  it('drops the time-zone control from a bucketed TIMESTAMP column when the caller forbids it', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='visit_moment'
+        fieldType='TIMESTAMP'
+        allowedAggregations={DATE_ALLOWED}
+        allowBucketTimeZone={false}
+        initialBucket='MONTH'
+        onApply={vi.fn()}
+      />
+    );
+
+    // The bucket is the feature this branch shipped and must survive the refusal beside it.
+    expect(screen.getByLabelText('Group by bucket')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Time zone')).toBeNull();
+  });
+
+  it('never emits a stored time zone when the leg is forbidden', () => {
+    const onApply = vi.fn();
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='visit_moment'
+        fieldType='TIMESTAMP'
+        allowedAggregations={DATE_ALLOWED}
+        allowBucketTimeZone={false}
+        initialBucket='MONTH'
+        // Saved before the refusal landed: the analyst has no control to see it in, so an Apply
+        // must not carry it back to a backend that now rejects the whole report because of it.
+        initialTimeZone='America/New_York'
+        onApply={onApply}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(lastDraft(onApply)).toEqual({ functions: [], bucket: 'MONTH', timeZone: null });
+  });
+
+  it('leaves the time zone alone by default', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.ordered_at'
+        fieldType='TIMESTAMP'
+        allowedAggregations={DATE_ALLOWED}
+        initialBucket='MONTH'
+        onApply={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Time zone')).toBeInTheDocument();
+  });
+});
+
 describe('AggregationEditorPopover — Apply gating', () => {
   it('disables Apply for a brand-new column until a function is chosen (no silent discard)', () => {
     render(

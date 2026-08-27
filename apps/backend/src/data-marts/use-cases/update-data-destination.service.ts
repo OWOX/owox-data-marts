@@ -11,6 +11,10 @@ import { DataDestinationCredentialsValidatorFacade } from '../data-destination-t
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import {
+  requiresCredentials,
+  toHumanReadable,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
 import {
@@ -129,6 +133,19 @@ export class UpdateDataDestinationService {
       if (!canEdit) {
         throw new ForbiddenException('You do not have permission to edit this Destination');
       }
+    }
+
+    // Same bar as creating one: a type that holds no secret has nothing to attach one to, and
+    // the credential branches below would otherwise reach a validator that does not exist for it
+    // (HTTP 500) or link an unrelated OAuth grant. `credentialId: null` is the disconnect signal
+    // and is falsy, so it stays allowed.
+    if (
+      !requiresCredentials(entity.type) &&
+      (command.hasCredentials() || command.credentialId || command.sourceDestinationId)
+    ) {
+      throw new BadRequestException(
+        `${toHumanReadable(entity.type)} destinations do not use credentials`
+      );
     }
 
     // Mutual exclusion: sourceDestinationId vs credentials

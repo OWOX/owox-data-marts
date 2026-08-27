@@ -4,7 +4,7 @@ import { BLENDED_QUERY_BUILDER_RESOLVER } from '../data-storage-providers';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import {
   BlendedQueryBuilder,
-  BlendedQueryContext,
+  RoutedBlendedQueryContext,
 } from '../interfaces/blended-query-builder.interface';
 import { BlendedQueryBuilderFacade } from './blended-query-builder.facade';
 
@@ -13,7 +13,8 @@ describe('BlendedQueryBuilderFacade', () => {
   let resolver: jest.Mocked<TypeResolver<DataStorageType, BlendedQueryBuilder>>;
   let builder: jest.Mocked<BlendedQueryBuilder>;
 
-  const context: BlendedQueryContext = {
+  // Routed, because that is what the facade takes.
+  const context: RoutedBlendedQueryContext = {
     mainTableReference: 'main_table',
     mainDataMartTitle: 'Main',
     mainDataMartUrl: 'https://example/main',

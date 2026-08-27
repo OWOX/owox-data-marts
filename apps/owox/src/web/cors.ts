@@ -1,6 +1,11 @@
 import type { CorsOptions } from 'cors';
 
-const DEFAULT_CORS_ALLOWED_HEADERS = ['content-type', 'authorization', 'x-owox-authorization'];
+const DEFAULT_CORS_ALLOWED_HEADERS = [
+  'content-type',
+  'authorization',
+  'x-owox-authorization',
+  'x-owox-run-context',
+];
 const CORS_HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9a-z]+$/i;
 
 export function parseCorsAllowedHeaders(value: string | undefined): string[] {

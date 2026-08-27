@@ -285,6 +285,94 @@ describe('QueryDataMartService', () => {
     );
   });
 
+  // The MCP read path gained two lines for calculated fields — forwarding the composed
+  // plans, and stripping their names out of `columnFilter` — and both could be deleted without a
+  // single test noticing. Deleting the forward drops the metric's column from the response
+  // entirely (its header has no other source); deleting the strip double-emits it, once correctly
+  // and once as a bare reference to a column the warehouse does not have.
+  describe('calculated fields', () => {
+    const ctrPlan = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+      alias: 'CTR, %',
+      description: 'Clicks per impression.',
+    };
+
+    it('forwards the composed calculatedFields and strips their names from columnFilter', async () => {
+      const { service, composer, reader } = createService();
+      composer.compose.mockResolvedValue({
+        sql: 'SELECT 1',
+        params: [],
+        calculatedFields: [ctrPlan],
+      });
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'ctr'],
+          limit: 100,
+        })
+      );
+
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          calculatedFields: [ctrPlan],
+          // 'ctr' renders through its own formula channel, never as a plain projected column.
+          columnFilter: ['channel'],
+        })
+      );
+    });
+
+    // The plan is the metric's only header source, so its alias/description are what an agent
+    // sees — the tool renders `displayName: header.alias ?? header.name`.
+    it("reports the metric's analyst label in column_metadata", async () => {
+      const { service, composer } = createService({
+        dataHeaders: [
+          new ReportDataHeader('channel', 'channel'),
+          new ReportDataHeader(
+            'ctr',
+            'CTR, %',
+            'Clicks per impression.',
+            'FLOAT' as ReportDataHeader['storageFieldType'],
+            undefined,
+            true
+          ),
+        ],
+      });
+      composer.compose.mockResolvedValue({
+        sql: 'SELECT 1',
+        params: [],
+        calculatedFields: [ctrPlan],
+      });
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'ctr'],
+          limit: 100,
+        })
+      );
+
+      expect(result.columns).toEqual(['channel', 'ctr']);
+      expect(result.columnMetadata).toContainEqual(
+        expect.objectContaining({
+          name: 'ctr',
+          displayName: 'CTR, %',
+          description: 'Clicks per impression.',
+          type: 'FLOAT',
+        })
+      );
+    });
+  });
+
   it('threads the request sortConfig into the composed read plan', async () => {
     const { service, composer } = createService();
 
@@ -1725,7 +1813,7 @@ describe('QueryDataMartService', () => {
     });
   });
 
-  describe('date bucketing (Task 10)', () => {
+  describe('date bucketing', () => {
     it('sets dateTruncConfig on the read plan when date_buckets are provided', async () => {
       const { service, composer } = createService();
 
@@ -1803,7 +1891,7 @@ describe('QueryDataMartService', () => {
     });
   });
 
-  describe('billing gate (Task 9)', () => {
+  describe('billing gate', () => {
     it('records RESTRICTED before query work when authorization rejects the project', async () => {
       const { service, projectBilling, dataMartRunService, composer, readerResolver } =
         createService();

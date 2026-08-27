@@ -144,7 +144,7 @@ export class ReportFilterRuleApiDto {
 
   @ApiPropertyOptional({
     description:
-      'Required for scalar, between, and relative_date operators. Omit for is_empty/is_null-style operators.',
+      'Required for scalar, between, and relative_date operators. Omit for is_blank/is_true-style operators.',
     oneOf: [
       primitiveValueSchema,
       { $ref: getSchemaPath(ReportBetweenFilterValueApiDto) },

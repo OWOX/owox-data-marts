@@ -19,6 +19,15 @@ describe('FilterConfigSchema', () => {
     expect(FilterConfigSchema.parse(input)).toEqual(input);
   });
 
+  it('accepts is_blank and is_not_blank no-value operators', () => {
+    expect(FilterConfigSchema.parse([{ column: 'email', operator: 'is_blank' }])).toEqual([
+      { column: 'email', operator: 'is_blank' },
+    ]);
+    expect(FilterConfigSchema.parse([{ column: 'email', operator: 'is_not_blank' }])).toEqual([
+      { column: 'email', operator: 'is_not_blank' },
+    ]);
+  });
+
   it('accepts is_null and is_not_null no-value operators', () => {
     expect(FilterConfigSchema.parse([{ column: 'd', operator: 'is_null' }])).toEqual([
       { column: 'd', operator: 'is_null' },

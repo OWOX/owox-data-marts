@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
@@ -89,6 +89,17 @@ export interface HttpDataRunRecord {
   metadata: HttpDataRunMetadata;
   errors?: string[];
   reportId?: string;
+  /**
+   * Defaults to HTTP_DATA. A report read by its own destination is that destination's run —
+   * recording it as a generic HTTP read would hide, in run history, which product actually
+   * pulled the data.
+   */
+  type?: DataMartRunType;
+  /**
+   * Set when this read IS the report's run. Run history takes the title and the destination
+   * from the snapshot built here; without it such a run appears with no name at all.
+   */
+  report?: Report;
 }
 
 // Terminal-only MCP_QUERY run: written once at the end (success, failure, or client-abort), no
@@ -138,6 +149,8 @@ export interface ListVisibleProjectRunsOptions {
  */
 @Injectable()
 export class DataMartRunService {
+  private readonly logger = new Logger(DataMartRunService.name);
+
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
@@ -584,11 +597,12 @@ export class DataMartRunService {
     const run = this.dataMartRunRepository.create({
       id: record.runId,
       dataMartId: record.dataMart.id,
-      type: DataMartRunType.HTTP_DATA,
+      type: record.type ?? DataMartRunType.HTTP_DATA,
       runType: RunType.manual,
       status: record.status,
       createdById: record.createdById,
       reportId: record.reportId ?? null,
+      reportDefinition: record.report ? this.buildReportDefinition(record.report) : null,
       definitionRun: record.dataMart.definition,
       additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
       startedAt: record.startedAt,
@@ -597,6 +611,38 @@ export class DataMartRunService {
     });
 
     await this.dataMartRunRepository.save(run);
+
+    // A pulled report run has to announce itself like any other, or onboarding never learns the
+    // user ran a report — the live step and the history-based recovery would both miss it, so it
+    // would not heal later either. Gated on `report`, not on `reportId`: a plain HTTP read of
+    // someone's report carries the id but is not that report's run.
+    //
+    // Emitted immediately, not on commit: this method is terminal and runs outside any
+    // transaction, and `publishLocalOnCommit` throws outright when there is none to hook into —
+    // after the row is already saved. The save above is the commit this announces.
+    //
+    // Contained, because the local bus is synchronous: a listener that throws would come back
+    // out of `emit()` and reach the caller, which reads any throw from here as "the run was not
+    // recorded" and skips billing. The rows are already delivered and the run is already
+    // persisted by this point — an onboarding step failing must not cost the project's unit.
+    if (record.status === DataMartRunStatus.SUCCESS && record.report && record.createdById) {
+      try {
+        this.eventDispatcher.publishLocal(
+          new ReportRunCompletedSuccessfullyEvent(
+            run.id,
+            record.dataMart.id,
+            record.createdById,
+            run.type
+          )
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Report run ${run.id} was recorded, but announcing it failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
   }
 
   // Terminal-only: persisted once at the end; id is caller-provided to match the run UUID.
@@ -660,7 +706,30 @@ export class DataMartRunService {
    * @returns New DataMartRun entity (not persisted)
    */
   private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
-    const { id, title, dataMart, destinationConfig, dataDestination } = report;
+    const { id, dataMart, dataDestination } = report;
+
+    const dataMartRunDraft = {
+      dataMartId: dataMart.id,
+      type: toReportRunType(dataDestination.type),
+      reportId: id,
+      definitionRun: dataMart.definition,
+      createdById: context.createdById,
+      runType: context.runType,
+      reportDefinition: this.buildReportDefinition(report),
+    };
+
+    const dataMartRun = this.dataMartRunRepository.create(dataMartRunDraft);
+
+    return dataMartRun;
+  }
+
+  /**
+   * Snapshot of what the report was when it ran: its title, the destination it belongs to, and
+   * the output controls in force. Run history reads the title from here, so a run recorded
+   * without it shows up nameless.
+   */
+  private buildReportDefinition(report: Report) {
+    const { title, destinationConfig, dataDestination } = report;
 
     const outputConfig = hasOutputControls(report)
       ? {
@@ -673,7 +742,7 @@ export class DataMartRunService {
         }
       : undefined;
 
-    const reportDefinition = {
+    return {
       title,
       destination: {
         id: dataDestination.id,
@@ -683,19 +752,5 @@ export class DataMartRunService {
       destinationConfig,
       ...(outputConfig ? { outputConfig } : {}),
     };
-
-    const dataMartRunDraft = {
-      dataMartId: dataMart.id,
-      type: toReportRunType(dataDestination.type),
-      reportId: id,
-      definitionRun: dataMart.definition,
-      createdById: context.createdById,
-      runType: context.runType,
-      reportDefinition,
-    };
-
-    const dataMartRun = this.dataMartRunRepository.create(dataMartRunDraft);
-
-    return dataMartRun;
   }
 }

@@ -68,7 +68,8 @@ const initialRunOutputSchema = z.discriminatedUnion('status', [
   }),
 ]);
 
-const inputSchema = z
+// Exported for the JSON-Schema advertising contract spec (mcp-operator-advertising.spec.ts).
+export const addReportInputSchema = z
   .object({
     data_mart_id: z.string().min(1),
     destination_id: z.string().min(1),
@@ -157,14 +158,14 @@ const inputSchema = z
   })
   .strict();
 
-type AddReportInput = z.infer<typeof inputSchema>;
+type AddReportInput = z.infer<typeof addReportInputSchema>;
 
 @Injectable()
 export class AddReportTool implements McpToolDefinition<AddReportInput> {
   readonly name = 'add_report';
   readonly description =
     'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). For push destinations, the new report runs immediately by default: this starts one billed Report Run and delivers data, then initial_run returns the run_id to poll with get_report_run_status. Set run_immediately=false only when the user explicitly wants to create configuration without delivering data, such as before adding a schedule. Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and linked to the report. Looker Studio is pull-based, never runs through this tool, and accepts no name; omit run_immediately or set it false. Email, Slack, Microsoft Teams, Google Chat: requires message; the default initial run sends it to the configured recipients or channels.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = addReportInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
     destination_type: z
@@ -224,7 +225,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
   ) {}
 
   parseInput(input: unknown): AddReportInput {
-    return inputSchema.parse(input);
+    return addReportInputSchema.parse(input);
   }
 
   async handler(input: AddReportInput, context: McpAuthContext): Promise<McpToolResult> {

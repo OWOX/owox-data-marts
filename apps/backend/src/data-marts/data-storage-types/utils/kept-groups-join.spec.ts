@@ -14,7 +14,7 @@ import { RedshiftClauseRenderer } from '../redshift/services/redshift-clause-ren
 import { SnowflakeClauseRenderer } from '../snowflake/services/snowflake-clause-renderer';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { GroupRestriction } from '../../dto/domain/group-restriction';
-import { SqlClauseRenderer } from './sql-clause-renderer';
+import { CalculatedFieldPlan, SqlClauseRenderer } from './sql-clause-renderer';
 import { buildKeptGroupsJoinPairs, buildKeptGroupsProjection } from './kept-groups.utils';
 import { AthenaQueryBuilder } from '../athena/services/athena-query.builder';
 import { BigQueryQueryBuilder } from '../bigquery/services/bigquery-query.builder';
@@ -36,6 +36,22 @@ const HAVING_RULE = {
   operator: 'gt',
   value: 1000,
 } as unknown as FilterRule;
+
+/** A ROW-LEVEL calculated field: a real grouping key of the report, with no column behind it. */
+const SESSION_KEY_PLAN: CalculatedFieldPlan = {
+  outputName: 'session_key',
+  type: 'STRING',
+  level: 'column',
+  formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+};
+
+/** The same, declared DATE — the shape a report may bucket by month. */
+const VISIT_DAY_PLAN: CalculatedFieldPlan = {
+  outputName: 'visit_day',
+  type: 'DATE',
+  level: 'column',
+  formula: 'DATE({{ref field="visit_ts"}})',
+};
 
 /**
  * Every dialect, with the quoting it actually emits and the FROM shape its builder passes.
@@ -136,7 +152,7 @@ describe('kept-groups restriction', () => {
       expect(sql).toContain(`${truncated} AS `);
       // The outer side of the join must be the SAME bucket expression — matching a raw date
       // against a month key keeps no rows at all.
-      expect(sql).toContain(`ON (${truncated} = `);
+      expect(sql).toContain(`ON ((${truncated}) = `);
     });
 
     // The defect: a report with only metrics (`revenue`, filtered by SUM(revenue) > 1000 — the
@@ -169,6 +185,65 @@ describe('kept-groups restriction', () => {
       } else {
         expect(sql).toContain("'paid'");
       }
+    });
+
+    // The defect: a ROW-LEVEL calculated field is a real grouping key of the report, but
+    // calculated names were stripped from the restriction outright — so the kept-groups CTE
+    // regrouped at a COARSER grain than the report, and the metric filter then kept a different
+    // row set than the report shows.
+    it('regroups by a row-level calculated expression, after every column key', () => {
+      const { sql } = render(d, {
+        dimensions: ['channel', 'session_key'],
+        having: [HAVING_RULE],
+        calculatedDimensions: [SESSION_KEY_PLAN],
+      });
+
+      const expr = `CONCAT(${d.ref('session_id')}, ${d.ref('user_id')})`;
+      expect(sql).toContain(`GROUP BY\n  ${d.ref('channel')},\n  ${expr}`);
+      expect(sql).toContain(`${expr} AS `);
+      expect(sql).toContain('_owox_kg_1');
+      // Its NAME is a SELECT alias of the report, never a warehouse column — a bare reference to
+      // it is the `Unrecognized name` the old strip existed to prevent.
+      expect(sql).not.toContain('session_key');
+      // The outer side of the join must be the SAME expression, or no row matches.
+      expect(sql).toContain(`ON ((${d.ref('channel')}) = `);
+      expect(sql).toContain(`AND ((${expr}) = `);
+    });
+
+    // The two shapes above combine. A report grouped by a BUCKETED calculated
+    // dimension regroups the restriction at that same bucket — regrouping at the raw formula value
+    // is the identical defect the date-bucket case above records, one grain finer, and it reads as
+    // a silent 0 in Totals rather than as an error.
+    it('regroups by the bucket of a calculated dimension, not its raw value', () => {
+      const { sql } = render(d, {
+        dimensions: ['visit_day'],
+        having: [HAVING_RULE],
+        dateTruncs: [{ column: 'visit_day', unit: 'MONTH' }],
+        calculatedDimensions: [VISIT_DAY_PLAN],
+      });
+
+      const expr = `DATE(${d.ref('visit_ts')})`;
+      const truncated = d
+        .renderer()
+        .renderDateTruncExpression(expr, 'MONTH', undefined, VISIT_DAY_PLAN.type);
+      expect(sql).toContain(`GROUP BY\n  ${truncated}`);
+      expect(sql).toContain(`${truncated} AS `);
+      expect(sql).toContain(`ON ((${truncated}) = `);
+    });
+
+    // A row-level field with no column dimension beside it still restricts by its own groups —
+    // NOT the dimensionless CROSS JOIN, which would keep every row the HAVING's grand total keeps.
+    it('joins on the row-level key alone when it is the only dimension', () => {
+      const { sql } = render(d, {
+        dimensions: ['session_key'],
+        having: [HAVING_RULE],
+        calculatedDimensions: [SESSION_KEY_PLAN],
+      });
+
+      const expr = `CONCAT(${d.ref('session_id')}, ${d.ref('user_id')})`;
+      expect(sql).not.toContain('CROSS JOIN');
+      expect(sql).toContain(`${expr} AS `);
+      expect(sql).toContain(`ON ((${expr}) = `);
     });
 
     // Float dimensions: GROUP BY buckets all NaNs together, but `NaN = NaN` is FALSE on BigQuery
@@ -281,6 +356,64 @@ describe('kept-groups restriction', () => {
         expect(sql).not.toMatch(/AS\s+["`]?channel["`]?\s*\n/);
       }
     );
+  });
+
+  /**
+   * The positional 1:1 with a FILTERED subsequence.
+   *
+   * `renderAggregatedSelect` emits a grouping key for a ROW-LEVEL plan and none at all for an
+   * aggregate-level one, so the calculated keys are a subsequence of `calculatedDimensions` — not
+   * that array. Pairing `dimensions[i]` against the unfiltered list shifts every later key onto
+   * the wrong dimension, which is a silently wrong Totals number rather than an error.
+   */
+  describe('the positional pairing survives a mixed-level plan list', () => {
+    const bq = () => new BigQueryClauseRenderer();
+    const CTR_PLAN: CalculatedFieldPlan = {
+      outputName: 'ctr',
+      type: 'FLOAT',
+      level: 'metric',
+      formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+    };
+    const EXPR = 'CONCAT(src.`session_id`, src.`user_id`)';
+
+    const renderMixed = (typeByColumn?: ReadonlyMap<string, string>) =>
+      bq().renderKeptGroupsJoin({
+        restriction: {
+          dimensions: ['channel', 'session_key'],
+          having: [HAVING_RULE],
+          calculatedDimensions: [CTR_PLAN, SESSION_KEY_PLAN],
+        },
+        fromClause: '`p.d.t` AS src',
+        filters: [],
+        qualifyColumn: c => `src.\`${c}\``,
+        typeByColumn,
+        resolveColumnType: undefined,
+      });
+
+    it('binds each key to its own dimension, and the aggregate-level plan contributes none', () => {
+      const { sql } = renderMixed();
+
+      expect(sql).toContain('src.`channel` AS `_owox_kg_0`');
+      expect(sql).toContain(`${EXPR} AS \`_owox_kg_1\``);
+      expect(sql).toContain('ON ((src.`channel`) = (`_kept_groups`.`_owox_kg_0`)');
+      expect(sql).toContain(`AND ((${EXPR}) = (\`_kept_groups\`.\`_owox_kg_1\`)`);
+      // An aggregate is not a grouping key, and the HAVING renders its own — the restriction
+      // subquery must not project it either.
+      expect(sql).not.toContain('`ctr`');
+      expect(sql).toContain('_owox_kg_1');
+      expect(sql).not.toContain('_owox_kg_2');
+    });
+
+    // The NaN-safe leg reads the type by the dimension NAME, and `columnTypes` carries a declared
+    // type for a calculated field (`isConnected` is true for one) — so a row-level formula the
+    // analyst declared FLOAT gets the same leg a float column does.
+    it('takes the NaN-safe leg from the calculated field own declared type', () => {
+      const floatKey = renderMixed(new Map([['session_key', 'FLOAT64']])).sql;
+      const stringKey = renderMixed(new Map([['session_key', 'STRING']])).sql;
+
+      expect(floatKey).toContain(`(${EXPR}) != (${EXPR})`);
+      expect(stringKey).not.toContain('!=');
+    });
   });
 
   // A restriction dimension that is ALSO an aggregated metric would stop being a GROUP BY key,
