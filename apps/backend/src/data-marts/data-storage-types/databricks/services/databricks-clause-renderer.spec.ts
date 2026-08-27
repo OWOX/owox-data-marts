@@ -1,5 +1,6 @@
 import { DatabricksClauseRenderer } from './databricks-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { CalculatedFieldPlan } from '../../utils/sql-clause-renderer';
 
 function where(renderer: DatabricksClauseRenderer, rule: FilterRule, type?: string) {
   return renderer.renderWhere([rule], undefined, 'p', type ? () => type : undefined).sql;
@@ -191,5 +192,161 @@ describe('DatabricksClauseRenderer', () => {
         } as FilterRule,
       ])
     ).toThrow(/Invalid relative_date n/);
+  });
+
+  // Spark SQL spells its own vocabulary, so most entries are identities — DECIMAL is not: a bare
+  // one is (10,0) here, and casting to it would truncate every fraction.
+  describe('castTypeForDeclaredType (declared Databricks type → Spark SQL cast target)', () => {
+    // Spark's FLOAT is 32-bit, so a declared FLOAT widens to DOUBLE: `12.75` was measured through
+    // DOUBLE here, and a formula returning a double today would silently round to ~7 significant
+    // digits under a FLOAT target.
+    it('maps every numeric declared type, giving DECIMAL an explicit scale', () => {
+      expect(r.castTypeForDeclaredType('TINYINT')).toBe('TINYINT');
+      expect(r.castTypeForDeclaredType('SMALLINT')).toBe('SMALLINT');
+      expect(r.castTypeForDeclaredType('INT')).toBe('INT');
+      expect(r.castTypeForDeclaredType('BIGINT')).toBe('BIGINT');
+      expect(r.castTypeForDeclaredType('FLOAT')).toBe('DOUBLE');
+      expect(r.castTypeForDeclaredType('DOUBLE')).toBe('DOUBLE');
+      expect(r.castTypeForDeclaredType('DECIMAL')).toBe('DECIMAL(38,18)');
+    });
+
+    it('reads a declared type case-insensitively and ignores padding', () => {
+      expect(r.castTypeForDeclaredType(' double ')).toBe('DOUBLE');
+    });
+
+    it('answers undefined for a type no aggregation casts to, rather than guessing a spelling', () => {
+      expect(r.castTypeForDeclaredType('STRING')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('DATE')).toBeUndefined();
+      expect(r.castTypeForDeclaredType('MAP')).toBeUndefined();
+    });
+  });
+
+  // Like Snowflake this dialect already coerced the probe's `> 5` correctly, so the
+  // point here is the NO-OP plus the declaration finally being stated — and the integer rule matters most on
+  // this dialect, because Spark's `CAST(1.5 AS INT)` TRUNCATES where the other four round.
+  describe('a Calculated Field comparison imposes the declared type', () => {
+    const NUM_EXPR = 'CONCAT(`n_prefix`, `n_suffix`)';
+    const numericText: CalculatedFieldPlan = {
+      outputName: 'probe',
+      formula: 'CONCAT({{ref field="n_prefix"}}, {{ref field="n_suffix"}})',
+      level: 'column',
+      type: 'FLOAT',
+    };
+    const whereFor = (declaredType: string, rule: FilterRule): string =>
+      r.renderWhere(
+        [rule],
+        undefined,
+        'p',
+        () => declaredType,
+        r.buildCalculatedPredicateExpressions([{ ...numericText, type: declaredType }])
+      ).sql;
+
+    // Spark's FLOAT is 32-bit and `12.75` was measured through DOUBLE, so a declared FLOAT widens
+    // on the value exactly as it does on the expression.
+    it('casts BOTH sides of `> 5` to the widened Spark name of the declared type', () => {
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'gt', value: 5 })).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ') AS DOUBLE) > CAST(5 AS DOUBLE)'
+      );
+    });
+
+    it('binds the literal under the declaration whether the value arrives as 10 or as "10"', () => {
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'eq', value: 10 })).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ') AS DOUBLE) = CAST(10 AS DOUBLE)'
+      );
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'eq', value: '10' })).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ") AS DOUBLE) = CAST('10' AS DOUBLE)"
+      );
+    });
+
+    // A bare DECIMAL is (10,0) in Spark, so an unqualified target on either side would truncate.
+    it('spells the scale on a DECIMAL declaration, on the value as well as the expression', () => {
+      expect(whereFor('DECIMAL', { column: 'probe', operator: 'gte', value: 1.5 })).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ') AS DECIMAL(38,18)) >= CAST(1.5 AS DECIMAL(38,18))'
+      );
+    });
+
+    it('reaches the BETWEEN bounds and every IN list member', () => {
+      expect(
+        whereFor('FLOAT', { column: 'probe', operator: 'between', value: { from: 1, to: 5 } })
+      ).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ') AS DOUBLE) BETWEEN CAST(1 AS DOUBLE) AND CAST(5 AS DOUBLE)'
+      );
+      expect(whereFor('FLOAT', { column: 'probe', operator: 'in', value: [9, 10] })).toBe(
+        '\nWHERE CAST((' + NUM_EXPR + ') AS DOUBLE) IN (CAST(9 AS DOUBLE), CAST(10 AS DOUBLE))'
+      );
+    });
+
+    // On the dialect that makes the rule non-negotiable: casting an integer declaration here
+    // truncates where the other four round, so one report would answer differently per warehouse.
+    it('never casts the integer family, which Spark truncates where the others round', () => {
+      expect(r.castTypeForDeclaredType('INT')).toBe('INT');
+      for (const declared of ['TINYINT', 'SMALLINT', 'INT', 'BIGINT']) {
+        expect(whereFor(declared, { column: 'probe', operator: 'gt', value: 5 })).toBe(
+          '\nWHERE (' + NUM_EXPR + ') > 5'
+        );
+      }
+    });
+
+    // The no-op half: SQL that already returned the right rows must not move under a declaration
+    // this dialect states no target for.
+    it('emits no cast for a declared type this dialect states no target for', () => {
+      expect(whereFor('STRING', { column: 'probe', operator: 'gt', value: '5' })).toBe(
+        '\nWHERE (' + NUM_EXPR + ") > '5'"
+      );
+    });
+
+    // `relative_date` is NOT in the comparison set: its bounds are CURRENT_DATE arithmetic this
+    // renderer inlines, so there is no bound value to impose a type on. Unlike BigQuery this
+    // dialect's preset rendering reads no type at all, so the declaration reaching the resolver
+    // cannot move it — pinned because nothing else renders this operator over a formula.
+    it('renders relative_date over the formula, uncast and unchanged by the declaration', () => {
+      for (const declared of ['DATE', 'TIMESTAMP', 'DOUBLE']) {
+        expect(
+          whereFor(declared, {
+            column: 'probe',
+            operator: 'relative_date',
+            value: { kind: 'today' },
+          })
+        ).toBe(
+          '\nWHERE (' +
+            NUM_EXPR +
+            ') >= CURRENT_DATE AND (' +
+            NUM_EXPR +
+            ') < date_add(CURRENT_DATE, 1)'
+        );
+      }
+    });
+
+    // The imposition is a COMPARISON's, and the operator decides. Casting an `IS NULL` would
+    // make ONE unparseable row fail the WHOLE query where it used to return rows — and on this
+    // dialect that is not hypothetical: the probe's own `CAST_INVALID_INPUT` names the ROW's value.
+    it('leaves IS NULL, IS NOT NULL and the text matchers uncast', () => {
+      const uncast = (rule: FilterRule): string => whereFor('FLOAT', rule);
+
+      expect(uncast({ column: 'probe', operator: 'is_null' })).toBe(
+        '\nWHERE (' + NUM_EXPR + ') IS NULL'
+      );
+      expect(uncast({ column: 'probe', operator: 'is_not_null' })).toBe(
+        '\nWHERE (' + NUM_EXPR + ') IS NOT NULL'
+      );
+      expect(uncast({ column: 'probe', operator: 'contains', value: 'x' })).toBe(
+        '\nWHERE contains((' + NUM_EXPR + "), 'x')"
+      );
+      expect(uncast({ column: 'probe', operator: 'is_empty' })).toBe(
+        '\nWHERE ((' + NUM_EXPR + ') IS NULL OR (' + NUM_EXPR + ") = '')"
+      );
+    });
+
+    it('leaves an ordinary column of the same declared type untouched on both sides', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'amount', operator: 'gt', value: 5 }],
+          undefined,
+          'p',
+          () => 'FLOAT',
+          r.buildCalculatedPredicateExpressions([numericText])
+        ).sql
+      ).toBe('\nWHERE `amount` > 5');
+    });
   });
 });

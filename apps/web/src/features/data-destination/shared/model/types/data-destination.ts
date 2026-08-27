@@ -4,6 +4,7 @@ import type { DataDestinationCredentials } from './credentials.ts';
 import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
 import type { GoogleChatCredentials } from './google-chat-credentials.ts';
+import type { ExcelCredentials } from './excel-credentials.ts';
 
 export interface BaseDataDestination<T extends DataDestinationCredentials> {
   id: string;
@@ -42,6 +43,11 @@ export interface LookerStudioDataDestination extends BaseDataDestination<LookerS
   credentials: LookerStudioCredentials;
 }
 
+export interface ExcelDataDestination extends BaseDataDestination<ExcelCredentials> {
+  type: DataDestinationType.EXCEL;
+  credentials: ExcelCredentials;
+}
+
 export interface EmailDataDestination extends BaseDataDestination<EmailCredentials> {
   type: DataDestinationType.EMAIL;
   credentials: EmailCredentials;
@@ -68,7 +74,8 @@ export type DataDestination =
   | EmailDataDestination
   | SlackDataDestination
   | MsTeamsDataDestination
-  | GoogleChatDataDestination;
+  | GoogleChatDataDestination
+  | ExcelDataDestination;
 
 export function isGoogleSheetDataDestination(dataDestination: DataDestination) {
   return dataDestination.type === DataDestinationType.GOOGLE_SHEETS;

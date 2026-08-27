@@ -3,6 +3,7 @@ import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 import { GoogleSheetsConfigSchema } from './google-sheets/schemas/google-sheets-config.schema';
 import { z } from 'zod';
 import { LookerStudioConnectorConfigSchema } from './looker-studio-connector/schemas/looker-studio-connector-config.schema';
+import { ExcelConfigSchema } from './excel/schemas/excel-config.schema';
 
 const EmailConfigWithMigrationSchema = EmailConfigSchema.or(
   LegacyEmailConfigSchema.transform(legacy => ({
@@ -22,6 +23,7 @@ export const DataDestinationConfigSchema = z.union([
   EmailConfigWithMigrationSchema,
   GoogleSheetsConfigSchema,
   LookerStudioConnectorConfigSchema,
+  ExcelConfigSchema,
 ]);
 
 export type DataDestinationConfig = z.infer<typeof DataDestinationConfigSchema>;

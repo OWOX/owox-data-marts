@@ -1,3 +1,4 @@
+import { parseRunContext } from '../services/http-data/run-context.parser';
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
@@ -22,7 +23,8 @@ export class HttpDataMapper {
   toStreamHttpReportDataCommand(
     reportId: string,
     ctx: AuthorizationContext,
-    rawQuery: Record<string, unknown>
+    rawQuery: Record<string, unknown>,
+    runContextHeader?: string
   ): StreamHttpReportDataCommand {
     return {
       reportId,
@@ -30,6 +32,7 @@ export class HttpDataMapper {
       projectId: ctx.projectId,
       roles: ctx.roles ?? [],
       rawQuery,
+      runContext: parseRunContext(runContextHeader),
     };
   }
 }

@@ -12,3 +12,5 @@ export * from './generate-data-mart-metadata.response.dto';
 export * from './ai-helper-trigger.response.dto';
 export * from './data-mart-ai-helper-availability.response.dto';
 export * from './data-mart-input-source-change-impact.response.dto';
+export * from './update-data-mart-schema.response.dto';
+export * from './validate-formula.response.dto';

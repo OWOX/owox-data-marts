@@ -3,18 +3,29 @@ import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-render
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
+import { AthenaFieldType } from '../enums/athena-field-type.enum';
+import { scanSql } from '../../../calculated-fields/sql-token-scanner';
 
 /**
- * Counts positional `?` placeholders, ignoring any `?` inside a double-quoted
- * identifier or single-quoted string literal (Athena never treats those as
- * parameter markers, e.g. a column literally named `"a?b"` or the `''` in an
- * is_empty check). Used to enforce the placeholder/param-count invariant.
+ * Counts positional `?` placeholders, ignoring any `?` that is not one: inside a double-quoted
+ * identifier, a single-quoted string literal, or a COMMENT (Athena treats none of those as a
+ * parameter marker — a column literally named `"a?b"`, the `''` in an is_empty check, or a
+ * calculated field's own `-- why not CTR?`). Used to enforce the placeholder/param-count
+ * invariant.
+ *
+ * Lexed rather than regex-stripped. A saved formula may legally carry SQL comments —
+ * `FormulaViolations` recommends the `--` form by name — and a fragment built around such a
+ * formula reaches this counter on every filtered run. Quote-stripping alone counted the `?` in
+ * that comment and threw on a formula the validator had endorsed, since the save-time dry run
+ * binds no parameters and so never reached the mismatch.
  */
 export function countPositionalPlaceholders(sql: string): number {
-  const withoutQuoted = sql.replace(/"[^"]*"|'[^']*'/g, '');
   let count = 0;
-  for (const ch of withoutQuoted) {
-    if (ch === '?') count++;
+  for (const token of scanSql(sql)) {
+    if (token.kind !== 'punct') continue;
+    for (const ch of token.value) {
+      if (ch === '?') count++;
+    }
   }
   return count;
 }
@@ -33,6 +44,36 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
 
   public override textCastType(): string {
     return 'VARCHAR';
+  }
+
+  /**
+   * A declared type is an AthenaFieldType — the Glue/DDL vocabulary — while a query is Trino, which
+   * has no FLOAT at all: Athena's own docs say to write `float` in DDL and `real` in a query.
+   *
+   * The whole float family targets DOUBLE, including the 32-bit declarations. Trino's faithful
+   * answer to a declared FLOAT is REAL, but `revenue / clicks` already returns a double today with
+   * no cast at all, and REAL would silently round it to ~7 significant digits — a changed number on
+   * a path that works. DOUBLE is what the probe measured `12.75` through here, and what
+   * `getFloatType` calls this storage's float type everywhere else. A cast may widen a declared
+   * float; it must never narrow one.
+   *
+   * DECIMAL states its scale for the same reason textCastType states VARCHAR's absence of one: a
+   * bare DECIMAL is (38,0) in Trino, and a cast to it truncates every fraction — the very defect
+   * this mapping exists to fix.
+   */
+  private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
+    [AthenaFieldType.TINYINT, 'TINYINT'],
+    [AthenaFieldType.SMALLINT, 'SMALLINT'],
+    [AthenaFieldType.INTEGER, 'INTEGER'],
+    [AthenaFieldType.BIGINT, 'BIGINT'],
+    [AthenaFieldType.FLOAT, 'DOUBLE'],
+    [AthenaFieldType.REAL, 'DOUBLE'],
+    [AthenaFieldType.DOUBLE, 'DOUBLE'],
+    [AthenaFieldType.DECIMAL, 'DECIMAL(38,18)'],
+  ]);
+
+  public override castTypeForDeclaredType(declaredType: string): string | undefined {
+    return AthenaClauseRenderer.CAST_TYPE_BY_DECLARED_TYPE.get(declaredType.trim().toUpperCase());
   }
 
   // Positional binding maps params to `?` by order, so a fragment that emits a
@@ -60,10 +101,15 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     'TIMESTAMP WITH TIME ZONE',
   ]);
 
-  private placeholder(columnType?: string): string {
-    return columnType && AthenaClauseRenderer.DATE_CAST_TYPES.has(columnType)
-      ? `CAST(? AS ${columnType})`
-      : '?';
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
+  // disjoint from the date set above, since it is only ever a numeric target. It matters most on
+  // this dialect and BigQuery: an ExecutionParameter is typed from the value it carries, so `= 10`
+  // raised `Cannot apply operator: varchar = integer` where `= '10'` returned the right row.
+  private placeholder(columnType?: string, valueCastType?: string): string {
+    const castType =
+      valueCastType ??
+      (columnType && AthenaClauseRenderer.DATE_CAST_TYPES.has(columnType) ? columnType : undefined);
+    return castType ? `CAST(? AS ${castType})` : '?';
   }
 
   // Trino's approx_percentile takes only bigint/double/real, while percentiles are offered for
@@ -84,13 +130,20 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
 
   // Trino date_trunc takes a lowercase, single-quoted unit. With a time zone, the
   // column is shifted via `AT TIME ZONE 'tz'` before truncation.
+  //
+  // The operand is PARENTHESISED because this is the one dialect that splices it into a postfix
+  // operator rather than inside a function's parentheses, and Trino binds `AT TIME ZONE` tighter
+  // than `+ - * /` and `||` — so a bare `a || b AT TIME ZONE 'tz'` would shift `b` alone. Nothing
+  // compound reaches here today (a calculated field, the only non-atomic operand, is refused a
+  // time zone by DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD), but the seat is public and takes a
+  // whole rendered expression, so lifting that refusal must not silently re-associate a formula.
   protected override renderDateTrunc(
     columnRef: string,
     unit: DateTruncUnit,
     timeZone?: string
   ): string {
     this.assertSafeDateTrunc(unit, timeZone);
-    const expr = timeZone ? `${columnRef} AT TIME ZONE '${timeZone}'` : columnRef;
+    const expr = timeZone ? `(${columnRef}) AT TIME ZONE '${timeZone}'` : columnRef;
     return `date_trunc('${unit.toLowerCase()}', ${expr})`;
   }
 
@@ -98,9 +151,10 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     rule: FilterRule,
     paramName: string,
     col: string,
-    columnType?: string
+    columnType?: string,
+    valueCastType?: string
   ): RenderedClause {
-    const ph = this.placeholder(columnType);
+    const ph = this.placeholder(columnType, valueCastType);
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };

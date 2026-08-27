@@ -5,6 +5,7 @@ import { Report } from '../entities/report.entity';
 import { ReportOwner } from '../entities/report-owner.entity';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from './access-decision';
+import { isPullBasedDataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 
 type MutateDeniedReason = 'not-owner' | 'ineffective' | 'not-found' | 'dm-invisible';
 type OperateDeniedReason = 'not-found' | 'dm-invisible' | 'destination-unusable';
@@ -330,9 +331,17 @@ export class ReportAccessService {
     ]);
 
     const canOperate = operateResult.allowed;
+    // A pull-based destination has no server-side run: the data is read by the destination
+    // itself, so there is nothing to start. This is not an access question — no one can run
+    // such a report — and it must not be confused with one. Editing the configuration stays
+    // available: the settings are still what the destination will read.
+    const isPullBased = report.dataDestination
+      ? isPullBasedDataDestinationType(report.dataDestination.type)
+      : false;
+
     return {
-      canRun: canOperate,
-      canManageTriggers: canOperate,
+      canRun: canOperate && !isPullBased,
+      canManageTriggers: canOperate && !isPullBased,
       canEditConfig: mutateResult.allowed,
     };
   }

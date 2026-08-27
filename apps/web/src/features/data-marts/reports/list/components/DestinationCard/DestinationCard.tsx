@@ -27,7 +27,11 @@ import type { DataDestination } from '../../../../../data-destination';
 import { useDataDestination, useDataDestinationVisibility } from '../../../../../data-destination';
 import { useReportSidesheet } from '../../model/hooks';
 import { AddReportButton, ReportEditSheetRenderer, ReportListRenderer } from './index';
-import { DataDestinationType } from '../../../../../data-destination';
+import {
+  canCreateReportInApp,
+  DataDestinationType,
+  REPORT_DESTINATION_TYPES,
+} from '../../../../../data-destination';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
 import { useReport } from '../../../shared';
 
@@ -39,15 +43,6 @@ interface DestinationCardProps {
   onPublishDataMart?: () => Promise<boolean>;
   onReviewDataSetup?: () => void;
 }
-
-const reportDestinationTypes = [
-  DataDestinationType.GOOGLE_SHEETS,
-  DataDestinationType.EMAIL,
-  DataDestinationType.SLACK,
-  DataDestinationType.MS_TEAMS,
-  DataDestinationType.GOOGLE_CHAT,
-];
-
 type ReportCreationDialog = 'publish' | 'setup';
 
 /**
@@ -157,10 +152,12 @@ export function DestinationCard({
 
             {/* Actions */}
             <CollapsibleCardHeaderActions>
-              {/* Render AddReportButton only for Google Sheets*/}
-              {reportDestinationTypes.includes(destination.type) && (
-                <AddReportButton onAddReport={handleAddReportRequest} />
-              )}
+              {/* Only where this app is the place a report is made: an Excel report is created
+                  by the add-in, which is the only party that can bind it to a worksheet. */}
+              {REPORT_DESTINATION_TYPES.includes(destination.type) &&
+                canCreateReportInApp(destination.type) && (
+                  <AddReportButton onAddReport={handleAddReportRequest} />
+                )}
             </CollapsibleCardHeaderActions>
           </CollapsibleCardHeader>
 

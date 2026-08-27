@@ -64,6 +64,20 @@ export interface AggregationEditorPopoverProps {
   dataMartName?: string;
   /** Functions the column may be aggregated by (already resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /**
+   * Whether THIS column may be date-bucketed, for callers whose column is of a date type but is
+   * still not bucketable — today the aggregate-level calculated field, which already aggregates
+   * and so is no dimension to group by. Defaults to true; the field type decides alone.
+   */
+  allowDateBucket?: boolean;
+  /**
+   * Whether THIS column's bucket may carry a time zone. False for a Calculated Field, on every
+   * storage: Snowflake's `CONVERT_TIMEZONE` is the one thing that coerces a formula's
+   * string into a date, and it read `05/08/2026` as May where the formula meant the 5th of August —
+   * no error, no NULL, and a month that depends on the warehouse session rather than on the data.
+   * Independent of `allowDateBucket`: the bucket itself is unaffected.
+   */
+  allowBucketTimeZone?: boolean;
   /** Functions already assigned to this column. */
   initialFunctions?: readonly ReportAggregateFunction[];
   /** Date-trunc bucket already assigned to this column (date fields only). */
@@ -75,9 +89,14 @@ export interface AggregationEditorPopoverProps {
 }
 
 export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
-  const isDate = isDateType(props.fieldType);
-  // Timezone conversion requires a sub-day type; pure DATE columns must not show it.
-  const supportsTimeZone = isTimestampType(props.fieldType);
+  // Everything downstream reads `isDate` as "this column offers a bucket", including the mutual
+  // exclusion with the functions and the bucket `handleApply` emits — so a forbidden bucket is
+  // withheld here, once, rather than only hidden from the markup.
+  const isDate = isDateType(props.fieldType) && props.allowDateBucket !== false;
+  // Timezone conversion requires a sub-day type; pure DATE columns must not show it. Read the same
+  // way `isDate` is — as "this column offers a zone" — so a forbidden one is withheld from the
+  // emitted draft too, not merely hidden from the markup.
+  const supportsTimeZone = isTimestampType(props.fieldType) && props.allowBucketTimeZone !== false;
   const [functions, setFunctions] = useState<ReportAggregateFunction[]>(() => [
     ...(props.initialFunctions ?? []),
   ]);
@@ -124,8 +143,9 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
     props.onApply({
       functions: props.allowedAggregations.filter(fn => functions.includes(fn)),
       bucket: nextBucket,
-      // Time zone only rides along with an active bucket.
-      timeZone: nextBucket !== null ? timeZone : null,
+      // Time zone only rides along with an active bucket the column may zone at all — a stored one
+      // on a column that no longer offers the control must not survive an Apply.
+      timeZone: nextBucket !== null && supportsTimeZone ? timeZone : null,
     });
     props.onOpenChange(false);
   }

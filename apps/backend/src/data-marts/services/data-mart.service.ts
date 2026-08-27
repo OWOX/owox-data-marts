@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOperator, In, Raw, Repository, SelectQueryBuilder } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
@@ -380,10 +381,21 @@ export class DataMartService {
     // Get the new schema from the provider
     const newSchema = await this.dataMartSchemaProviderFacade.getActualDataMartSchema(dataMart);
 
-    // Merge the existing schema with the actual one
+    // Merge the actual schema onto the schema as it stands NOW, not onto the copy the caller
+    // loaded: actualization is a refresh, not a redefinition, and the provider call above is a
+    // warehouse round trip that a Looker Studio getSchema reaches only after running the report
+    // query. An analyst saving a formula during that gap would otherwise be merged against a
+    // schema that predates it and written back out of existence. Same reasoning as
+    // updateDataLastUpdated below; the read-to-save window is now two statements rather than the
+    // whole request, but it is still a window.
+    const persisted = await this.dataMartRepository.findOne({
+      where: { id: dataMart.id },
+      select: { id: true, schema: true },
+    });
+
     dataMart.schema = await this.dataMartSchemaMergerFacade.mergeSchemas(
       dataMart.storage.type,
-      dataMart.schema,
+      persisted?.schema ?? dataMart.schema,
       newSchema
     );
     dataMart.schemaActualizedAt = new Date();
@@ -401,6 +413,53 @@ export class DataMartService {
 
   async save(dataMart: DataMart): Promise<DataMart> {
     return this.dataMartRepository.save(dataMart);
+  }
+
+  /**
+   * Applies a path-shaped rewrite — an alias rename cascading into stored definitions — to a Data
+   * Mart's `schema` and `blendedFieldsConfig`. A targeted two-column update, not a full entity save:
+   * the rename edits SQL an analyst authored and must not clobber the rest of a loaded Data Mart.
+   *
+   * The row is re-read here under a write lock on MySQL, so the rewrite base is the latest committed
+   * row rather than the transaction's REPEATABLE READ snapshot — without it every formula saved
+   * since the request began is written back out of existence. SQLite serializes transactions
+   * already.
+   *
+   * This NARROWS the lost-update window to the caller's transaction; it does not close it. A writer
+   * committing after this read still loses, and closing that needs a version column.
+   *
+   * @returns true when the rewrite was persisted; false when it changed nothing or the row is gone.
+   */
+  async rewriteSchemaPaths(id: string, rewrite: (dataMart: DataMart) => boolean): Promise<boolean> {
+    const query = this.dataMartRepository
+      .createQueryBuilder('dm')
+      .select(['dm.id', 'dm.schema', 'dm.blendedFieldsConfig'])
+      .where('dm.id = :id', { id });
+    if (
+      ['mysql', 'mariadb'].includes(String(this.dataMartRepository.manager.connection.options.type))
+    ) {
+      query.setLock('pessimistic_write');
+    }
+
+    const current = await query.getOne();
+    if (!current || !rewrite(current)) {
+      return false;
+    }
+
+    await this.dataMartRepository.update(
+      { id },
+      // Cast for TypeORM's inference only, and it costs no safety: `current.schema` is already a
+      // parsed `DataMartSchema` and is written back unchanged. Since the field schema became
+      // `.passthrough()` (rolling-deploy safety — see createBaseFieldSchemaForType),
+      // `QueryDeepPartialEntity` can no longer discriminate the five-member storage union: the
+      // index signature passthrough adds makes every member structurally assignable to every
+      // other, so it picks the wrong arm and rejects `type`.
+      {
+        schema: current.schema,
+        blendedFieldsConfig: current.blendedFieldsConfig,
+      } as QueryDeepPartialEntity<DataMart>
+    );
+    return true;
   }
 
   async saveActualizedSchema(dataMart: DataMart): Promise<DataMart> {

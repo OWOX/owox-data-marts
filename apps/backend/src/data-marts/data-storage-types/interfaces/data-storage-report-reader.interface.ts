@@ -5,7 +5,7 @@ import { ReportLike } from '../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { DataStorageReportReaderState } from './data-storage-report-reader-state.interface';
-import { SqlParameter } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../utils/sql-clause-renderer';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { JoinedUniqueCountHeaderSource } from './blended-query-builder.interface';
 
@@ -76,6 +76,14 @@ export interface PrepareReportDataOptions {
    * job/statement so an abandoned query stops billing compute immediately. Other storages ignore it.
    */
   signal?: AbortSignal;
+
+  /**
+   * Calculated fields selected in this report (main-owner only). Each carries no
+   * warehouse column to derive a type from, so `resolveReportDataHeaders` synthesizes its header
+   * from the analyst's declared `type` — the same precedent as Unique Count and the aggregation
+   * aliases.
+   */
+  calculatedFields?: readonly CalculatedFieldPlan[];
 }
 
 /**

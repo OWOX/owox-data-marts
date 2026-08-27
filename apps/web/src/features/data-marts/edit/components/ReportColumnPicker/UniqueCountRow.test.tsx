@@ -295,6 +295,19 @@ describe('UniqueCountRow — checked but not emitted', () => {
 // the same way. It is NOT the unavailable hint: that one replaces the row's affordance, this one
 // sits beside a fully working row.
 describe('UniqueCountRow — description', () => {
+  it('places the info affordance in the trailing action rail, outside the field label', () => {
+    const { row } = renderRow({ description: 'Counts distinct primary keys' });
+
+    const info = row.querySelector('[data-slot="unique-count-info"]');
+    const trigger = info?.querySelector('[data-slot="tooltip-trigger"]');
+    const actionRail = row.querySelector('.ml-auto');
+    expect(info).not.toBeNull();
+    expect(actionRail).toContainElement(info as HTMLElement);
+    expect(actionRail?.lastElementChild).toBe(info);
+    expect(info?.closest('label')).toBeNull();
+    expect(trigger).toHaveClass('h-6', 'w-6', 'items-center', 'justify-center');
+  });
+
   it('shows the description through the standard info tooltip', async () => {
     const description = 'Unique Orders records, counted by its Primary Key: order_id';
     const { row } = renderRow({ description });

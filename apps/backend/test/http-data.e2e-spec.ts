@@ -63,29 +63,56 @@ let capturedPrepareOptions: Record<string, unknown> | null = null;
 // metric] positional row, matching the [date, "revenue | SUM"] header set.
 const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999]];
 
+// Deterministic value the mock reader emits for every projected calculated field, so a test can
+// assert it is a NUMBER (streamed correctly) rather than `null` (the outputColumns-gate bug).
+const MOCK_CALCULATED_FIELD_VALUE = 0.42;
+
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
   // Simulate the real reader's aggregated-header resolution: an aggregation renames each aggregated
   // column to "<column> | <FN>" (see resolveReportDataHeaders; no automatic Row Count), so the
-  // stream must project rows by those resolved names, not the raw requested columns.
-  let aggregated = false;
+  // stream must project rows by those resolved names, not the raw requested columns. A selected
+  // calculated field is simulated the same way, one level up: it is ALWAYS appended as its own
+  // header + value (resolveReportDataHeaders synthesizes it last, on every branch), regardless of
+  // whether the request also carries an aggregation.
+  let currentRows: unknown[][] = rows;
   return {
     type: DataStorageType.GOOGLE_BIGQUERY,
     prepareReportData: jest.fn(async (_plan: unknown, options: unknown) => {
       capturedPrepareOptions = options as Record<string, unknown>;
-      const aggregations =
-        (options as { aggregationConfig?: Array<{ column: string; function: string }> })
-          ?.aggregationConfig ?? [];
-      aggregated = aggregations.length > 0;
-      if (!aggregated) return new ReportDataDescription(headers, rows.length);
-      const renamed = headers.map(header => {
-        const fn = aggregations.find(a => a.column === header.name)?.function;
-        return fn ? new ReportDataHeader(`${header.name} | ${fn}`) : header;
-      });
-      return new ReportDataDescription(renamed, MOCK_AGGREGATED_ROWS.length);
+      const opts = options as {
+        aggregationConfig?: Array<{ column: string; function: string }>;
+        calculatedFields?: Array<{ outputName: string }>;
+      };
+      const aggregations = opts?.aggregationConfig ?? [];
+      const calculatedFields = opts?.calculatedFields ?? [];
+      const aggregated = aggregations.length > 0;
+
+      let resultHeaders = headers;
+      currentRows = rows;
+      if (aggregated) {
+        resultHeaders = [
+          ...headers.map(header => {
+            const fn = aggregations.find(a => a.column === header.name)?.function;
+            return fn ? new ReportDataHeader(`${header.name} | ${fn}`) : header;
+          }),
+        ];
+        currentRows = MOCK_AGGREGATED_ROWS;
+      }
+
+      if (calculatedFields.length > 0) {
+        resultHeaders = [
+          ...resultHeaders,
+          ...calculatedFields.map(metric => new ReportDataHeader(metric.outputName)),
+        ];
+        currentRows = currentRows.map(row => [
+          ...row,
+          ...calculatedFields.map(() => MOCK_CALCULATED_FIELD_VALUE),
+        ]);
+      }
+
+      return new ReportDataDescription(resultHeaders, currentRows.length);
     }),
-    readReportDataBatch: jest.fn(
-      async () => new ReportDataBatch(aggregated ? MOCK_AGGREGATED_ROWS : rows, null)
-    ),
+    readReportDataBatch: jest.fn(async () => new ReportDataBatch(currentRows, null)),
     finalize: jest.fn(async () => undefined),
     getState: jest.fn(() => null),
     initFromState: jest.fn(async () => undefined),
@@ -156,6 +183,12 @@ function parseNdjson(body: string): unknown[] {
     .split('\n')
     .filter(Boolean)
     .map(line => JSON.parse(line));
+}
+
+// NDJSON carries no separate header block — each row IS the header set, as its object keys.
+function headerNamesOf(res: { text: string }): string[] {
+  const rows = parseNdjson(res.text) as Record<string, unknown>[];
+  return rows.length > 0 ? Object.keys(rows[0]) : [];
 }
 
 function buildStoragePermissionDeniedError(): Error {
@@ -855,6 +888,165 @@ describe('HTTP Data API (e2e)', () => {
       // Without output controls the service skips the composer path entirely —
       // sqlOverride is undefined (not set).
       expect(capturedPrepareOptions!['sqlOverride']).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Calculated fields — composition-time guards
+  // ---------------------------------------------------------------------------
+  // A dedicated Data Mart + schema (not the shared `dataMartId`, whose schema every earlier test
+  // in this file relies on staying `date`/`revenue`-shaped): `country`/`clicks`/`impressions` plus
+  // a calculated `ctr`. `ReportSqlComposerService` and `OutputControlsValidatorService` are REAL
+  // (not overridden) — only the DWH read (`mockReader`) and `BlendableSchemaService` are mocked —
+  // so the composition and header-synthesis pipeline that decides whether `ctr` is a "known"
+  // column runs for real; only the SQL's actual EXECUTION is faked.
+  // ---------------------------------------------------------------------------
+  describe('Calculated fields — composition-time guards', () => {
+    const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+    let dataMartWithCtrId: string;
+    let restoreBlendableSchema: (() => void) | undefined;
+
+    beforeAll(async () => {
+      const prereqs = await setupPublishedDataMart(agent);
+      dataMartWithCtrId = prereqs.dataMartId;
+
+      const schemaRes = await agent
+        .put(`/api/data-marts/${dataMartWithCtrId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'country', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+              { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              {
+                name: 'ctr',
+                type: 'FLOAT',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                calculated: { formula: CTR_FORMULA, level: 'metric' },
+              },
+            ],
+          },
+        });
+      expect(schemaRes.status).toBe(200);
+
+      // HttpDataColumnResolver / HttpDataColumnValidator / OutputControlsValidatorService all
+      // read through the mocked BlendableSchemaService, never the persisted schema directly (that
+      // is what ReportSqlComposerService reads, for the formula itself) — mirror the PUT above so
+      // the mocked and persisted schemas agree, or `brokenReferencesOf` would see `clicks`/
+      // `impressions` as missing and reject every request as a broken metric.
+      const originalBlendableImpl =
+        blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      blendableSchemaMock.computeBlendableSchema.mockImplementation(async () => ({
+        nativeFields: [
+          { name: 'country', type: 'STRING' },
+          { name: 'clicks', type: 'INTEGER' },
+          { name: 'impressions', type: 'INTEGER' },
+          { name: 'ctr', type: 'FLOAT', calculated: { formula: CTR_FORMULA, level: 'metric' } },
+        ],
+        blendedFields: [],
+        availableSources: [],
+        mainUniqueCountKeyFields: [],
+      }));
+
+      // executeStream calls actualizeSchemaInEntityIfExpired on every request, which re-merges
+      // the persisted schema against this mock's (otherwise EMPTY, per buildMockSchemaProviderFacade)
+      // "actual" warehouse fields — dropping `country`/`clicks`/`impressions` as no longer present
+      // upstream. `ctr` alone would survive that (a calculated field is carried through the merge
+      // untouched — it never comes from the warehouse), but the OTHER fields ctr's formula
+      // references would vanish, and every request would 400 as a broken metric. Mirror the real
+      // warehouse table shape here too (a calculated field is never among ITS columns either).
+      const originalSchemaProviderImpl =
+        schemaProviderFacadeMock.getActualDataMartSchema.getMockImplementation();
+      schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(async () => ({
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'country', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+        ],
+      }));
+
+      restoreBlendableSchema = () => {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalBlendableImpl!);
+        schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(
+          originalSchemaProviderImpl!
+        );
+      };
+    });
+
+    afterAll(() => {
+      restoreBlendableSchema?.();
+    });
+
+    it('does not include a calculated field in an implicit-all projection', async () => {
+      for (const query of ['', '?columns=*', '?columns=**']) {
+        const res = await agent
+          .get(`/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson${query}`)
+          .set(AUTH_HEADER);
+        expect(res.status).toBe(200);
+        expect(headerNamesOf(res)).not.toContain('ctr');
+      }
+    });
+
+    it('includes it when explicitly selected', async () => {
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson?column=ctr&column=country`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      expect(headerNamesOf(res)).toContain('ctr');
+    });
+
+    // Pins the `outputColumns` gate in stream-http-data.service.ts: a selected metric
+    // IS an aggregate even with no `aggregation=` param, so the gate that decides whether to
+    // project by resolved headers or the raw request must recognize `calculatedFields`, not only
+    // `aggregationConfig` — else a column it does not recognise streams as a silent `null`.
+    //
+    // `typeof row.ctr === 'number'` ALONE cannot see the gate: `buildFieldIndexMap` binds by NAME,
+    // and `ctr` is present in both candidate lists, so the metric's own value arrives either way.
+    // What the gate actually decides is WHICH list names the emitted columns — the resolved
+    // headers, or the raw `?column=` request. Assert the whole key set: the reader resolves
+    // headers independently of request order (here `date, revenue, ctr`), so dropping the
+    // `calculatedFields` term makes the stream emit the request's `ctr, country` instead — with
+    // `country` as the silent `null` this gate exists to prevent.
+    it('streams the metric as a number, and names columns by the resolved headers', async () => {
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson?column=ctr&column=country`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+
+      const rows = parseNdjson(res.text) as Record<string, unknown>[];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(typeof row.ctr).toBe('number');
+        expect(Object.keys(row)).toEqual(['date', 'revenue', 'ctr']);
+      }
+    });
+
+    it('rejects an aggregation applied to the calculated field', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const aggregation = b64([{ column: 'ctr', function: 'SUM' }]);
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson?column=ctr&aggregation=${aggregation}`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        details: {
+          errors: expect.arrayContaining([
+            expect.objectContaining({ code: 'AGGREGATION_ON_CALCULATED_FIELD' }),
+          ]),
+        },
+      });
     });
   });
 });

@@ -1266,6 +1266,39 @@ describe('McpReportsFacadeImpl.updateReport', () => {
       );
     });
 
+    // Decision 10: a calculated field enters a query only when it is selected BY NAME.
+    // This expansion runs exactly when the report carries a joined Unique Count — i.e. exactly
+    // when it is blended, where a selected metric is refused outright — so writing one in here
+    // would turn an agent's "keep all fields" update into a report that 400s on every later run.
+    it('excludes a calculated field from the materialized list', async () => {
+      const built = buildUpdateFacade();
+      built.getReportService.run.mockResolvedValue({
+        ...reportWithJoinedUniqueCount,
+        dataMart: {
+          id: 'dm-1',
+          schema: {
+            fields: [
+              { name: 'channel', type: 'STRING' },
+              {
+                name: 'ctr',
+                type: 'FLOAT',
+                calculated: {
+                  formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="views"}}), 0)',
+                  level: 'metric',
+                },
+              },
+            ],
+          },
+        },
+      } as unknown as ReportDto);
+
+      await built.facade.updateReport({ ...updateRequest, fields: ['*'] });
+
+      expect(built.updateReportService.run).toHaveBeenCalledWith(
+        expect.objectContaining({ columnConfig: ['channel'] })
+      );
+    });
+
     // An empty expansion is an explicit "project nothing", which the validator accepts as a
     // metrics-only selection — so "all fields" saved as "no dimensions", silently.
     it.each([

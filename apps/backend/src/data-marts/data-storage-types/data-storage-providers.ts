@@ -4,6 +4,10 @@ import {
   DATA_QUALITY_SQL_DIALECTS,
   DataQualitySqlDialect,
 } from '../data-quality/data-quality-sql-dialect';
+import {
+  createFormulaFunctionDialectRegistry,
+  FORMULA_FUNCTION_DIALECT_RESOLVER,
+} from '../calculated-fields/formula-function-dialect';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
@@ -315,6 +319,10 @@ export const dataStorageResolverProviders = [
     useFactory: (...dialects: DataQualitySqlDialect[]) =>
       new TypeResolver<DataStorageType, DataQualitySqlDialect>(dialects),
     inject: [...DATA_QUALITY_SQL_DIALECTS],
+  },
+  {
+    provide: FORMULA_FUNCTION_DIALECT_RESOLVER,
+    useFactory: () => createFormulaFunctionDialectRegistry(),
   },
   ...sourceDataLastUpdatedProviders,
   {

@@ -249,6 +249,7 @@ export const LookerStudioReportEditForm = forwardRef<
                         <div className='space-y-3' tabIndex={-1}>
                           <ReportColumnPicker
                             dataMartId={dataMart.id}
+                            dataMartTitle={dataMart.title}
                             storageType={dataMart.storage.type}
                             value={form.watch('columnConfig')}
                             onChange={(value, options) => {

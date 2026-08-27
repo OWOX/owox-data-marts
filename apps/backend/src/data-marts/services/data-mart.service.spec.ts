@@ -69,6 +69,32 @@ describe('DataMartService schema actualization', () => {
     );
   });
 
+  /**
+   * The interleaving this forces (H6): the analyst's schema save commits WHILE the warehouse
+   * round trip is in flight. Actualization is a refresh, not a redefinition, so the merge base
+   * has to be the row as it stands after that round trip — merging onto the copy the caller
+   * loaded before it writes the analyst's new formula back out of existence.
+   */
+  it('merges onto the schema as it stands after the warehouse round trip', async () => {
+    const dataMart = makeDataMart({ schema: { fields: [{ name: 'amount' }] } as never });
+    const schemaTheAnalystJustSaved = {
+      fields: [{ name: 'amount' }, { name: 'margin', calculated: { formula: 'x' } }],
+    };
+    repository.findOne.mockResolvedValue(dataMart);
+    schemaProvider.getActualDataMartSchema.mockImplementation(async () => {
+      repository.findOne.mockResolvedValue({ ...dataMart, schema: schemaTheAnalystJustSaved });
+      return { fields: [{ name: 'amount' }] };
+    });
+
+    await service.actualizeSchema('dm-1', 'proj-1');
+
+    expect(schemaMerger.mergeSchemas).toHaveBeenCalledWith(
+      DataStorageType.GOOGLE_BIGQUERY,
+      schemaTheAnalystJustSaved,
+      { fields: [{ name: 'amount' }] }
+    );
+  });
+
   it('does not save or invalidate when schema is still fresh', async () => {
     const dataMart = makeDataMart({ schemaActualizedAt: new Date() });
     repository.findOne.mockResolvedValue(dataMart);
@@ -485,6 +511,205 @@ describe('DataMartService data last updated persistence', () => {
     ).resolves.toBe(false);
 
     expect(repository.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('DataMartService schema path rewrite', () => {
+  const createService = (driver = 'mysql') => {
+    const queryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      setLock: jest.fn().mockReturnThis(),
+      getOne: jest.fn(),
+    };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      save: jest.fn(),
+      manager: { connection: { options: { type: driver } } },
+    };
+    const service = new DataMartService(repository as never, {} as never, {} as never, {} as never);
+    return { service, repository, queryBuilder };
+  };
+
+  const row = () => ({
+    id: 'dm-1',
+    schema: { fields: [{ name: 'roi', calculated: { formula: 'old' } }] },
+    blendedFieldsConfig: { sources: [{ path: 'old-alias' }] },
+  });
+
+  it('writes only the two columns the rewrite owns, and never a whole entity', async () => {
+    const { service, repository, queryBuilder } = createService();
+    queryBuilder.getOne.mockResolvedValue(row());
+
+    await expect(
+      service.rewriteSchemaPaths('dm-1', dataMart => {
+        (
+          dataMart.schema as never as { fields: Array<{ calculated: { formula: string } }> }
+        ).fields[0].calculated.formula = 'new';
+        return true;
+      })
+    ).resolves.toBe(true);
+
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1' },
+      {
+        schema: { fields: [{ name: 'roi', calculated: { formula: 'new' } }] },
+        blendedFieldsConfig: { sources: [{ path: 'old-alias' }] },
+      }
+    );
+  });
+
+  // The read has to see the latest committed row, not the transaction's REPEATABLE READ snapshot.
+  it('takes a write lock on MySQL and leaves SQLite alone', async () => {
+    const onMysql = createService('mysql');
+    onMysql.queryBuilder.getOne.mockResolvedValue(row());
+    await onMysql.service.rewriteSchemaPaths('dm-1', () => true);
+    expect(onMysql.queryBuilder.setLock).toHaveBeenCalledWith('pessimistic_write');
+
+    const onSqlite = createService('better-sqlite3');
+    onSqlite.queryBuilder.getOne.mockResolvedValue(row());
+    await onSqlite.service.rewriteSchemaPaths('dm-1', () => true);
+    expect(onSqlite.queryBuilder.setLock).not.toHaveBeenCalled();
+  });
+
+  it('issues no write when the rewrite changed nothing', async () => {
+    const { service, repository, queryBuilder } = createService();
+    queryBuilder.getOne.mockResolvedValue(row());
+
+    await expect(service.rewriteSchemaPaths('dm-1', () => false)).resolves.toBe(false);
+
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('skips silently when the row is gone', async () => {
+    const { service, repository, queryBuilder } = createService();
+    queryBuilder.getOne.mockResolvedValue(null);
+    const rewrite = jest.fn();
+
+    await expect(service.rewriteSchemaPaths('dm-1', rewrite)).resolves.toBe(false);
+
+    expect(rewrite).not.toHaveBeenCalled();
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  // Against a real driver rather than a mocked query builder: the json round trip, the soft-delete
+  // filter and the column list are the parts that decide whether the write is actually targeted.
+  it('leaves a column it does not own as another writer left it', async () => {
+    const entitySchema = new EntitySchema<{
+      id: string;
+      schema: { fields: Array<{ name: string; calculated: { formula: string } }> } | null;
+      blendedFieldsConfig: { sources: Array<{ path: string }> } | null;
+      definition: { sqlQuery: string } | null;
+      deletedAt: Date | null;
+    }>({
+      name: 'SchemaRewriteTest',
+      tableName: 'schema_rewrite_test',
+      columns: {
+        id: { type: String, primary: true },
+        schema: { type: 'json', nullable: true },
+        blendedFieldsConfig: { type: 'json', nullable: true },
+        definition: { type: 'json', nullable: true },
+        deletedAt: { type: Date, nullable: true, deleteDate: true },
+      },
+    });
+    const dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [entitySchema],
+      synchronize: true,
+    });
+
+    await dataSource.initialize();
+    try {
+      const sqliteRepository = dataSource.getRepository(entitySchema);
+      await sqliteRepository.save({
+        id: 'dm-1',
+        schema: { fields: [{ name: 'roi', calculated: { formula: 'SUM(old_alias.amount)' } }] },
+        blendedFieldsConfig: { sources: [{ path: 'old-alias' }] },
+        definition: { sqlQuery: 'SELECT 1' },
+        deletedAt: null,
+      });
+      const service = new DataMartService(
+        sqliteRepository as never,
+        {} as never,
+        {} as never,
+        {} as never
+      );
+      // Someone edits the Data Mart's definition while the rename is in flight.
+      await sqliteRepository.update({ id: 'dm-1' }, { definition: { sqlQuery: 'SELECT 2' } });
+
+      await expect(
+        service.rewriteSchemaPaths('dm-1', dataMart => {
+          const schema = dataMart.schema as unknown as {
+            fields: Array<{ calculated: { formula: string } }>;
+          };
+          schema.fields[0].calculated.formula = 'SUM(new_alias.amount)';
+          (
+            dataMart.blendedFieldsConfig as unknown as { sources: Array<{ path: string }> }
+          ).sources[0].path = 'new-alias';
+          return true;
+        })
+      ).resolves.toBe(true);
+
+      await expect(sqliteRepository.findOneByOrFail({ id: 'dm-1' })).resolves.toMatchObject({
+        schema: { fields: [{ name: 'roi', calculated: { formula: 'SUM(new_alias.amount)' } }] },
+        blendedFieldsConfig: { sources: [{ path: 'new-alias' }] },
+        definition: { sqlQuery: 'SELECT 2' },
+      });
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('does not rewrite a soft-deleted Data Mart', async () => {
+    const entitySchema = new EntitySchema<{
+      id: string;
+      schema: { fields: Array<{ name: string }> } | null;
+      blendedFieldsConfig: null;
+      deletedAt: Date | null;
+    }>({
+      name: 'SchemaRewriteDeletedTest',
+      tableName: 'schema_rewrite_deleted_test',
+      columns: {
+        id: { type: String, primary: true },
+        schema: { type: 'json', nullable: true },
+        blendedFieldsConfig: { type: 'json', nullable: true },
+        deletedAt: { type: Date, nullable: true, deleteDate: true },
+      },
+    });
+    const dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [entitySchema],
+      synchronize: true,
+    });
+
+    await dataSource.initialize();
+    try {
+      const sqliteRepository = dataSource.getRepository(entitySchema);
+      await sqliteRepository.save({
+        id: 'dm-1',
+        schema: { fields: [{ name: 'roi' }] },
+        blendedFieldsConfig: null,
+        deletedAt: null,
+      });
+      await sqliteRepository.softDelete({ id: 'dm-1' });
+      const service = new DataMartService(
+        sqliteRepository as never,
+        {} as never,
+        {} as never,
+        {} as never
+      );
+      const rewrite = jest.fn().mockReturnValue(true);
+
+      await expect(service.rewriteSchemaPaths('dm-1', rewrite)).resolves.toBe(false);
+
+      expect(rewrite).not.toHaveBeenCalled();
+    } finally {
+      await dataSource.destroy();
+    }
   });
 });
 

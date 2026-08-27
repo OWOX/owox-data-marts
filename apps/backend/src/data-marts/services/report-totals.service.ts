@@ -6,6 +6,7 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { ReportLike } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { ReportSqlComposerService } from './report-sql-composer.service';
+import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 
 export type ReportTotals = Record<string, number | string | boolean | null>;
 
@@ -52,14 +53,17 @@ export class ReportTotalsService {
       const description = await reader.prepareReportData(report, {
         sqlOverride: totals.sql,
         sqlOverrideParams: totals.params,
-        // Headers must derive from the SAME metrics aggregation plan composeTotals built,
-        // so each header name equals its SQL output alias.
-        columnFilter: totals.columns,
+        // Headers must derive from the SAME metrics aggregation plan composeTotals built, so
+        // each header name equals its SQL output alias. A calculated field is not among
+        // `aggregations` at all — it is already an aggregate, so deriveTotalsAggregations never
+        // invents a SUM/AVG/MIN/MAX for it — and travels through `calculatedFields` below.
+        columnFilter: columnFilterWithoutCalculatedFields(totals.columns, totals.calculatedFields),
         aggregationConfig: totals.aggregations,
         // Joined-numeric totals are not native columns; their base type travels here so the
         // header path can widen it per aggregation function.
         blendedDataHeaders: totals.blendedDataHeaders,
         // Unique Count is not part of the totals summary.
+        calculatedFields: totals.calculatedFields,
         // Only when supplied, so non-MCP callers stay unchanged.
         ...(queryTimeoutMs !== undefined ? { queryTimeoutMs } : {}),
         ...(signal !== undefined ? { signal } : {}),

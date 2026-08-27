@@ -69,6 +69,19 @@ export class BlendedFieldDto {
   isHidden: boolean;
 
   @ApiProperty({
+    description:
+      'Whether this field is a CALCULATED field of the joined Data Mart — a formula, with no ' +
+      'column behind it in the warehouse. It is still listed, because a client that only saw it ' +
+      'disappear could not explain why: both consumers of this payload need to tell "not there" ' +
+      'apart from "there, but not usable from here". A formula on the main Data Mart cannot ' +
+      'reference one: a formula may read another formula of its OWN Data Mart, but not one of a ' +
+      'joined Data Mart, because this payload carries no formula to substitute and the joined ' +
+      'source would not be access-checked. It cannot be selected as an ordinary report column ' +
+      'either — the blended path projects a real source column for each.',
+  })
+  isCalculated: boolean;
+
+  @ApiProperty({
     enum: AGGREGATE_FUNCTIONS,
     description:
       "Dedup (pre-join) aggregate function that collapses this source's rows to one value per join key before the join runs.",
@@ -161,6 +174,20 @@ export class AvailableSourceDto {
   uniqueCountKeyFields: string[];
 }
 
+export class CalculatedFieldIssueDto {
+  @ApiProperty({ description: 'Name of the calculated field with a broken formula reference.' })
+  field: string;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      "Names this field's formula references that no longer resolve against the Data Mart's " +
+      'schema — the same names `CALCULATED_FIELD_BROKEN_REFERENCES` reports at query ' +
+      'composition time. Never empty when this entry is present.',
+  })
+  missing: string[];
+}
+
 export class BlendableSchemaDto {
   @ApiProperty({
     type: 'array',
@@ -192,4 +219,14 @@ export class BlendableSchemaDto {
       "The main Data Mart's primary-key columns its Unique Count counts by, in schema order; empty when the metric is unavailable. Cannot be derived from `nativeFields`: a key column hidden for reporting is absent from that list but still counted, since counting does not project it.",
   })
   mainUniqueCountKeyFields: string[];
+
+  @ApiProperty({
+    type: [CalculatedFieldIssueDto],
+    description:
+      'Every calculated field of the main Data Mart whose formula references a field the schema ' +
+      'no longer has — resolved against the RAW schema (like `mainUniqueCountKeyFields` ' +
+      'above), never `nativeFields`: a formula may legally reference a field hidden for reporting, ' +
+      'and that list has already had those stripped. A field with no issue is simply absent here.',
+  })
+  calculatedFieldIssues: CalculatedFieldIssueDto[];
 }

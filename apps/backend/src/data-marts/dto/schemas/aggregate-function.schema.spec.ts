@@ -1,7 +1,9 @@
 import {
+  NUMERIC_ARGUMENT_FUNCTIONS,
   REPORT_AGGREGATE_FUNCTIONS,
   SLEEVE_ROUTED_FUNCTIONS,
   VALUE_SLEEVE_FUNCTIONS,
+  doesArithmeticOnArgument,
   isPercentileFunction,
   sleeveShapeFor,
   type ReportAggregateFunction,
@@ -63,6 +65,34 @@ describe('SLEEVE_ROUTING', () => {
   it('covers every report function — no function can be silently unclassified', () => {
     for (const fn of REPORT_AGGREGATE_FUNCTIONS) {
       expect([null, 'count-distinct', 'value']).toContain(sleeveShapeFor(fn));
+    }
+  });
+});
+
+// Which functions read their argument as a number, and therefore get the analyst's
+// declared type imposed on a Calculated Field's expression before the function is applied.
+describe('DOES_ARITHMETIC_ON_ARGUMENT', () => {
+  it('names exactly the six functions that do arithmetic on the value', () => {
+    expect([...NUMERIC_ARGUMENT_FUNCTIONS].sort()).toEqual(
+      ['AVG', 'P25', 'P50', 'P75', 'P95', 'SUM'].sort()
+    );
+  });
+
+  // The `Record<ReportAggregateFunction, boolean>` type IS enforced on a PR — `e2e-api.yml` builds
+  // every workspace on any `apps/backend/**` change, and a missing key fails `nest build` with
+  // TS2741. This assertion covers the run where that type is invisible instead: ts-jest compiles
+  // with `diagnostics: false`, so under jest alone a missing entry reads `undefined`, is treated as
+  // "does not do arithmetic", emits no cast, and every suite stays green — which is exactly what a
+  // developer sees locally. The accessor throws at module load so that run is loud too.
+  it('states an answer for every report function at RUNTIME, not only under tsc', () => {
+    for (const fn of REPORT_AGGREGATE_FUNCTIONS) {
+      expect(typeof doesArithmeticOnArgument(fn)).toBe('boolean');
+    }
+  });
+
+  it('keeps the derived set consistent with the table', () => {
+    for (const fn of REPORT_AGGREGATE_FUNCTIONS) {
+      expect(NUMERIC_ARGUMENT_FUNCTIONS.has(fn)).toBe(doesArithmeticOnArgument(fn));
     }
   });
 });

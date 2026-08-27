@@ -133,6 +133,46 @@ describe('ReportTotalsService', () => {
     );
   });
 
+  // Defence-in-depth against a composeTotals result shaped like this (a stray SUM/AVG/MIN/MAX
+  // rule alongside the correct calculatedFields entry — the real deriveTotalsAggregations no
+  // longer produces one, since an aggregate-level calculated field is already an aggregate). ReportTotalsService
+  // must not let such rules reach the header list even so: the metric's name must be stripped
+  // from columnFilter (or the aggregation-expansion loop turns one SQL column into four headers)
+  // and calculatedFields must be forwarded so the ONE correct, typed header is synthesized.
+  it('excludes a calculated field from columnFilter and forwards calculatedFields for header synthesis', async () => {
+    const composeTotals = jest.fn().mockResolvedValue({
+      sql: 'SELECT SUM(`revenue`) AS `revenue | SUM`, SUM(`clicks`) / NULLIF(SUM(`impressions`), 0) AS `ctr`',
+      params: [],
+      columns: ['revenue', 'ctr'],
+      aggregations: [
+        { column: 'revenue', function: 'SUM' },
+        { column: 'ctr', function: 'SUM' },
+        { column: 'ctr', function: 'AVG' },
+        { column: 'ctr', function: 'MIN' },
+        { column: 'ctr', function: 'MAX' },
+      ],
+      calculatedFields: [
+        {
+          outputName: 'ctr',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+        },
+      ],
+    });
+    const { service, reader } = createService({ composeTotals });
+
+    await service.computeTotals(buildReport(), {} as never, DataStorageType.GOOGLE_BIGQUERY);
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        // 'ctr' removed — it renders through calculatedFields, not the plain projection.
+        columnFilter: ['revenue'],
+        calculatedFields: [expect.objectContaining({ outputName: 'ctr', type: 'FLOAT' })],
+      })
+    );
+  });
+
   it('resolves a FRESH reader from the resolver for the report storage type', async () => {
     const { service, readerResolver } = createService();
 

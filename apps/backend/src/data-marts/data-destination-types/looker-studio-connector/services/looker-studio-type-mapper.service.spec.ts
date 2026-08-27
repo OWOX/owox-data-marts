@@ -247,6 +247,90 @@ describe('LookerStudioTypeMapperService', () => {
     });
   });
 
+  // A calculated field carries no `aggregateFunction` whatever its level, so the LEVEL is the only
+  // thing that tells the two apart here — and this is the seam it has to cross to reach the mapper.
+  // Both headers below are byte-identical but for it.
+  describe('buildSchemaField — calculated field level', () => {
+    it("level 'metric' → METRIC, not re-aggregatable, no defaultAggregationType", () => {
+      const header = new ReportDataHeader(
+        'ctr',
+        'CTR, %',
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        'metric'
+      );
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
+      expect(field.semantics?.isReaggregatable).toBe(false);
+      expect(field.defaultAggregationType).toBeUndefined();
+    });
+
+    // A STRING-typed row-level field: under the old header flag this same field came out METRIC
+    // (the flag branch ignored the declared type on purpose), which hid it from Looker's dimension
+    // list — the one place a `CONCAT(session_id, user_id)` key is meant to be used.
+    it("level 'column' → DIMENSION", () => {
+      const header = new ReportDataHeader(
+        'session_key',
+        'Session Key',
+        undefined,
+        BigQueryFieldType.STRING,
+        undefined,
+        'column'
+      );
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.semantics?.conceptType).toBe(FieldConceptType.DIMENSION);
+      expect(field.semantics?.isReaggregatable).toBeUndefined();
+    });
+
+    // The numeric case, which is where the promise in `.changeset/6732-calculated-fields.md` and
+    // in the setup guide was actually broken: a FLOAT-declared `price * quantity` reached Looker as
+    // METRIC + defaultAggregationType SUM + re-aggregatable, and Looker summed it over group keys
+    // the report's own GROUP BY had already deduplicated.
+    it("level 'column' → DIMENSION even for a NUMBER-mapped declared type", () => {
+      const header = new ReportDataHeader(
+        'line_total',
+        'Line total',
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        'column'
+      );
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.dataType).toBe(FieldDataType.NUMBER);
+      expect(field.semantics?.conceptType).toBe(FieldConceptType.DIMENSION);
+      expect(field.semantics?.isReaggregatable).toBeUndefined();
+      expect(field.defaultAggregationType).toBeUndefined();
+    });
+  });
+
+  // `ReportDataHeader[]` is persisted verbatim inside `report_data_cache.dataDescription` and
+  // nothing invalidates that cache on a deploy, so during a rolling window an OLD pod can answer
+  // getSchema from a row a NEW pod wrote. `calculatedFieldLevel` is the concept's only spelling —
+  // this branch introduced it, and no released build reads any marker — so what that old pod does
+  // with such a row is exactly this, and no key written beside the level could change it. Pinned
+  // so the accepted window stays a decision on record rather than a surprise.
+  describe('buildSchemaField — a header with no level, as an older pod sees one', () => {
+    it('maps an unmarked FLOAT to a re-summable native metric', () => {
+      const header = new ReportDataHeader(
+        'ctr',
+        'CTR, %',
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        undefined
+      );
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
+      expect(field.semantics?.isReaggregatable).toBe(true);
+      expect(field.defaultAggregationType).toBe(AggregationType.SUM);
+    });
+  });
+
   describe('buildSchemaField — blended fields (with aggregateFunction)', () => {
     it('SUM/INTEGER → METRIC, NUMBER, defaultAgg=SUM, reagg=true', () => {
       const header = new ReportDataHeader(
@@ -381,6 +465,34 @@ describe('LookerStudioTypeMapperService', () => {
 
       expect(field.dataType).toBe(FieldDataType.NUMBER);
       expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
+    });
+
+    // End-to-end: the flag `resolveReportDataHeaders` puts on a calculated-metric
+    // header has to survive into the Looker schema field, or the connector still advertises a
+    // ratio as a summable metric.
+    it('calculated field — METRIC, isReaggregatable false, and NO defaultAggregationType', () => {
+      const header = new ReportDataHeader(
+        'ctr',
+        undefined,
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        true
+      );
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.dataType).toBe(FieldDataType.NUMBER);
+      expect(field.semantics?.conceptType).toBe(FieldConceptType.METRIC);
+      expect(field.semantics?.isReaggregatable).toBe(false);
+      expect(field.defaultAggregationType).toBeUndefined();
+    });
+
+    it('a plain FLOAT column (no flag) still advertises SUM + re-aggregatable', () => {
+      const header = new ReportDataHeader('revenue', undefined, undefined, BigQueryFieldType.FLOAT);
+      const field = service.buildSchemaField(header, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(field.defaultAggregationType).toBe(AggregationType.SUM);
+      expect(field.semantics?.isReaggregatable).toBe(true);
     });
 
     it('Redshift STRING_AGG — header carries RedshiftFieldType.VARCHAR, returns DIMENSION/STRING', () => {

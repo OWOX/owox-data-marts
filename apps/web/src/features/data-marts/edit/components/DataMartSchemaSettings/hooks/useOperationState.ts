@@ -56,10 +56,27 @@ export function useOperationState(isLoading: boolean, error: unknown) {
     setOperationStatus('idle');
   };
 
+  /**
+   * Marks the in-progress save as failed, directly from the rejection the caller already holds —
+   * NOT by routing through the `error` this hook also watches. That shared `error` comes from
+   * DataMartContext and is read by other screens too (e.g. a 403 there swaps the whole Data Mart
+   * page for <NoAccess/>), so widening it to carry schema-save failures risks unmounting this
+   * very component out from under an in-progress edit. This keeps the fix local: the `isLoading`
+   * effect above still runs afterward once the save's `isLoading` flips back to false, but by
+   * then `saveInProgressRef`/`actualizeInProgressRef` are already clear, so it has nothing left
+   * to do.
+   */
+  const failSaveOperation = () => {
+    saveInProgressRef.current = false;
+    actualizeInProgressRef.current = false;
+    setOperationStatus('error');
+  };
+
   return {
     operationStatus,
     startSaveOperation,
     startActualizeOperation,
     resetOperationStatus,
+    failSaveOperation,
   };
 }

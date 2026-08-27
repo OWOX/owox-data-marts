@@ -99,19 +99,21 @@ export class AthenaReportReader implements DataStorageReportReader {
       throw new Error('Query execution ID not set');
     }
 
+    // Athena counts the header row it returns on the first page against `MaxResults`, and that row
+    // is sliced off below — so a first page must ask for one more than the caller's data-row
+    // budget, or `maxDataRows = 1` (how Totals reads) yields zero data rows.
+    const isFirstBatch = !batchId;
     const results = await this.athenaAdapter.getQueryResults(
       this.queryExecutionId,
       batchId,
-      maxDataRows
+      isFirstBatch ? maxDataRows + 1 : maxDataRows
     );
 
     if (!results.ResultSet || !results.ResultSet.Rows) {
       throw new Error('Failed to get query results');
     }
 
-    // Skip the header row if this is the first batch
-    const startIndex = !batchId ? 1 : 0;
-    const rows = results.ResultSet.Rows.slice(startIndex);
+    const rows = results.ResultSet.Rows.slice(isFirstBatch ? 1 : 0);
 
     const columnInfo = results.ResultSet.ResultSetMetadata?.ColumnInfo;
     if (!columnInfo) {

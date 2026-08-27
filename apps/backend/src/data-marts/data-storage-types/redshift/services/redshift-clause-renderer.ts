@@ -3,6 +3,7 @@ import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-render
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
+import { RedshiftFieldType } from '../enums/redshift-field-type.enum';
 
 /**
  * Formats a value as a Redshift SQL literal. This is the ONLY barrier between user
@@ -26,11 +27,20 @@ function formatRedshiftLiteral(value: string | number | boolean | null): string 
 }
 
 /**
- * Redshift (PostgreSQL-derived) renderer. Unlike Athena/BigQuery it does NOT use
- * bound parameters: every fragment returns finished SQL with `params: []`. Substring
- * matchers use STRPOS/RIGHT (never LIKE) so user `%`/`_` stay literal. Date/time
- * values are bare quoted literals — Postgres `unknown`-literal coercion handles the
- * comparison (verified live). `columnType` is kept threaded as a CAST seam.
+ * Redshift (PostgreSQL-derived) renderer. Unlike Athena/BigQuery it does NOT use bound parameters:
+ * every fragment returns finished SQL with `params: []`. Substring matchers use STRPOS/RIGHT (never
+ * LIKE) so user `%`/`_` stay literal. Date/time values are bare quoted literals — Postgres
+ * `unknown`-literal coercion handles the comparison (verified live).
+ *
+ * `renderFilterFragment` casts only where the caller states a target. Measured: `>` against a text
+ * expression is LEXICOGRAPHIC here, so a FLOAT-declared formula returning '9', '10', '100' filtered
+ * `> 5` returned `9` alone — a plausible one-row report, no error and no NULL.
+ *
+ * Two holes remain by choice. A rule carrying a FUNCTION compares the argument the SELECT printed
+ * and only SUM/AVG/percentiles are cast, so `MIN` over a mis-declared text formula is still
+ * lexicographic — casting it would change what "the minimum" MEANS. And `columnType` is accepted
+ * but NOT read: a non-ISO date string filters to an empty report with no message, which a cast does
+ * not remedy on any dialect either.
  */
 @Injectable()
 export class RedshiftClauseRenderer extends SqlClauseRenderer {
@@ -48,6 +58,30 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
    */
   public override textCastType(): string {
     return 'VARCHAR(65535)';
+  }
+
+  /**
+   * The dialect the probe caught returning `12` where `12.75` is correct: Redshift coerces a text
+   * expression to `Decimal` with SCALE 0 and truncates every row before summing. So the
+   * exact types state their scale here, exactly as `textCastType` above states its length — a bare
+   * DECIMAL/NUMERIC is (18,0) on Redshift, which is the same silent truncation wearing a CAST.
+   * DOUBLE PRECISION is the spelling `SUM(CAST(… AS DOUBLE PRECISION))` returned `12.75` for live,
+   * and a declared REAL widens to it rather than staying 32-bit: with no cast today an expression
+   * already computes in float8, so a REAL target would drop ~9 significant digits from a number
+   * that is correct. A cast may widen a declared float; it must never narrow one.
+   */
+  private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
+    [RedshiftFieldType.SMALLINT, 'SMALLINT'],
+    [RedshiftFieldType.INTEGER, 'INTEGER'],
+    [RedshiftFieldType.BIGINT, 'BIGINT'],
+    [RedshiftFieldType.REAL, 'DOUBLE PRECISION'],
+    [RedshiftFieldType.DOUBLE_PRECISION, 'DOUBLE PRECISION'],
+    [RedshiftFieldType.DECIMAL, 'DECIMAL(38,18)'],
+    [RedshiftFieldType.NUMERIC, 'NUMERIC(38,18)'],
+  ]);
+
+  public override castTypeForDeclaredType(declaredType: string): string | undefined {
+    return RedshiftClauseRenderer.CAST_TYPE_BY_DECLARED_TYPE.get(declaredType.trim().toUpperCase());
   }
 
   // This renderer inlines every value, so a fragment must never emit a bound param.
@@ -103,9 +137,16 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     rule: FilterRule,
     _paramName: string,
     col: string,
-    columnType?: string
+    columnType?: string,
+    valueCastType?: string
   ): RenderedClause {
-    const lit = (v: string | number | boolean | null): string => formatRedshiftLiteral(v);
+    const lit = (v: string | number | boolean | null): string => {
+      const l = formatRedshiftLiteral(v);
+      return valueCastType ? `CAST(${l} AS ${valueCastType})` : l;
+    };
+    // Text-only operators (validator-restricted to string columns, mirroring the other dialects'
+    // own `text` helper): a numeric target has no meaning inside STRPOS/RIGHT/`~`.
+    const text = (v: string | number | boolean | null): string => formatRedshiftLiteral(String(v));
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${lit(rule.value)}`, params: [] };
@@ -125,24 +166,24 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       // Text-only operators: coerce to a string literal so STRPOS / ~ always get text
       // (validator restricts these to string columns; mirrors the Athena renderer).
       case 'contains':
-        return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) > 0`, params: [] };
+        return { sql: `STRPOS(${col}, ${text(rule.value)}) > 0`, params: [] };
       case 'not_contains':
         // STRPOS(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
         return {
-          sql: `(${col} IS NULL OR STRPOS(${col}, ${lit(String(rule.value))}) = 0)`,
+          sql: `(${col} IS NULL OR STRPOS(${col}, ${text(rule.value)}) = 0)`,
           params: [],
         };
       case 'starts_with':
-        return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) = 1`, params: [] };
+        return { sql: `STRPOS(${col}, ${text(rule.value)}) = 1`, params: [] };
       case 'ends_with': {
-        const v = lit(String(rule.value));
+        const v = text(rule.value);
         return { sql: `RIGHT(${col}, LEN(${v})) = ${v}`, params: [] };
       }
       case 'regex':
-        return { sql: `${col} ~ ${lit(String(rule.value))}`, params: [] };
+        return { sql: `${col} ~ ${text(rule.value)}`, params: [] };
       case 'not_regex':
         return {
-          sql: `(${col} IS NULL OR ${col} !~ ${lit(String(rule.value))})`,
+          sql: `(${col} IS NULL OR ${col} !~ ${text(rule.value)})`,
           params: [],
         };
       case 'is_blank':

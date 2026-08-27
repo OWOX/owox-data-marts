@@ -231,7 +231,6 @@ Go to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
 
 ## Support
 
-- Join the [**Slack Community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to ask questions and connect with other users
 - Browse the [**Q&A section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) for common answers
 - Found a bug? [**Open an issue**](https://github.com/OWOX/owox-data-marts/issues)
 - Have a suggestion? [**Start a discussion**](https://github.com/OWOX/owox-data-marts/discussions)

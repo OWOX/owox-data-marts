@@ -8,6 +8,7 @@ import {
   LookerStudioConnectorConfig,
   LookerStudioConnectorConfigType,
 } from './looker-studio-connector/schemas/looker-studio-connector-config.schema';
+import { ExcelConfig, ExcelConfigType } from './excel/schemas/excel-config.schema';
 
 export function isValidDataDestinationConfig(
   destination: unknown
@@ -29,4 +30,8 @@ export function isLookerStudioConnectorConfig(
   definition: DataDestinationConfig
 ): definition is LookerStudioConnectorConfig {
   return definition.type === LookerStudioConnectorConfigType;
+}
+
+export function isExcelConfig(definition: DataDestinationConfig): definition is ExcelConfig {
+  return definition.type === ExcelConfigType;
 }

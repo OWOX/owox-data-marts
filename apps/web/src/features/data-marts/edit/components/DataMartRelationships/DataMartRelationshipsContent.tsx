@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDataMartContext } from '../../model/context/useDataMartContext';
 import { useDebounce } from '../../../../../hooks/useDebounce';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
+import { useBlendableSchema } from '../../../shared/hooks/useBlendableSchema';
 import { Button } from '../../../../../shared/components/Button';
 import {
   CollapsibleCard,
@@ -34,7 +35,6 @@ import {
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
   AvailableSource,
-  BlendableSchema,
   BlendedField,
   BlendedFieldOverride,
   BlendedFieldsConfig,
@@ -214,37 +214,9 @@ export function DataMartRelationshipsContent({
     void loadRelationships();
   }, [loadRelationships]);
 
-  const [blendableSchema, setBlendableSchema] = useState<BlendableSchema | null>(null);
-  const schemaRequestIdRef = useRef(0);
-
-  const fetchBlendableSchema = useCallback(
-    (showLoading = false) => {
-      if (!dataMartId) return;
-      const requestId = ++schemaRequestIdRef.current;
-      if (showLoading) setIsLoading(true);
-      dataMartRelationshipService
-        .getBlendableSchema(dataMartId, { skipLoadingIndicator: true })
-        .then(data => {
-          if (schemaRequestIdRef.current !== requestId) return;
-          setBlendableSchema(data);
-        })
-        .catch((error: unknown) => {
-          // Without the schema the Detailed canvas view falls back to compact
-          // cards with no rows — leave a trace so that state is diagnosable.
-          console.error('Failed to load blendable schema', error);
-          if (schemaRequestIdRef.current !== requestId) return;
-          setBlendableSchema(null);
-        })
-        .finally(() => {
-          if (showLoading && schemaRequestIdRef.current === requestId) setIsLoading(false);
-        });
-    },
-    [dataMartId]
-  );
-
-  useEffect(() => {
-    fetchBlendableSchema();
-  }, [fetchBlendableSchema, relationships]);
+  // Shared with the other cards on this page (the schema editor's formula autocomplete reads the
+  // same entry): one fetch, one copy, and `invalidateBlendableSchema` below refreshes all of them.
+  const { data: blendableSchema } = useBlendableSchema(dataMartId);
 
   const sourceList = useMemo(() => {
     if (!blendableSchema) return [];
@@ -443,11 +415,10 @@ export function DataMartRelationshipsContent({
         .updateBlendedFieldsConfig(dataMartId, newConfig, { skipLoadingIndicator: true })
         .then(response => {
           void syncDataMartFromResponse(response);
-          fetchBlendableSchema();
           invalidateBlendableSchema();
         });
     },
-    [dataMartId, fetchBlendableSchema, invalidateBlendableSchema, syncDataMartFromResponse]
+    [dataMartId, invalidateBlendableSchema, syncDataMartFromResponse]
   );
 
   const handleCreated = useCallback(

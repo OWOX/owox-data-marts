@@ -18,7 +18,14 @@ import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  UpdateDataMartSchemaApiDto,
+  UpdateDataMartSchemaResponseApiDto,
+} from '../dto/presentation/update-data-mart-schema-api.dto';
+import {
+  ValidateFormulaApiDto,
+  ValidateFormulaResponseApiDto,
+} from '../dto/presentation/validate-formula.api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { BatchDataMartHealthStatusService } from '../use-cases/batch-data-mart-health-status.service';
@@ -45,6 +52,7 @@ import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-ava
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { ValidateFormulaService } from '../use-cases/validate-formula.service';
 import { RefreshDataMartDataLastUpdatedService } from '../use-cases/refresh-data-mart-data-last-updated.service';
 import { BatchDataMartDataLastUpdatedResponseApiDto } from '../dto/presentation/data-mart-data-last-updated-response-api.dto';
 import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
@@ -77,6 +85,7 @@ import {
   UpdateDataMartOwnersSpec,
   UpdateDataMartTitleSpec,
   ValidateDataMartDefinitionSpec,
+  ValidateFormulaSpec,
   DataMartAiHelperAvailabilitySpec,
 } from './spec/data-mart.api';
 
@@ -97,6 +106,7 @@ export class DataMartController {
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
+    private readonly validateFormulaService: ValidateFormulaService,
     private readonly getDataMartRunsService: ListDataMartRunsService,
     private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
@@ -324,10 +334,25 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Body() dto: UpdateDataMartSchemaApiDto
-  ): Promise<DataMartResponseApiDto> {
+  ): Promise<UpdateDataMartSchemaResponseApiDto> {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
-    const dataMart = await this.updateSchemaService.run(command);
-    return this.mapper.toResponse(dataMart);
+    const result = await this.updateSchemaService.run(command);
+    return this.mapper.toUpdateSchemaResponse(result);
+  }
+
+  // POST rather than PUT because it changes nothing: the formula is checked and thrown away.
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':id/schema/validate-formula')
+  @HttpCode(200)
+  @ValidateFormulaSpec()
+  async validateFormula(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: ValidateFormulaApiDto
+  ): Promise<ValidateFormulaResponseApiDto> {
+    const command = this.mapper.toValidateFormulaCommand(id, context, dto);
+    const result = await this.validateFormulaService.run(command);
+    return this.mapper.toValidateFormulaResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

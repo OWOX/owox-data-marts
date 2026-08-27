@@ -30,17 +30,17 @@ Each section — Filters, Slices, Sort, and Limit — expands independently.
 
 ## Filters
 
-A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report.
+A filter runs against the final `SELECT`, after all joins complete. Use filters to drop rows from the delivered report — except when the filter names an **aggregated** column or a **calculated field**, which is compared after the grouping and therefore drops **groups** rather than rows. See [Filtering by a calculated field](calculated-fields.md#filtering-by-a-calculated-field).
 
 ### Supported operators by column type
 
-| Column type                 | Available operators                                                                                                                                |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| String                      | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is blank, is not blank, matches regex, does not match regex |
-| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is blank, is not blank                                                                           |
-| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is blank, is not blank                             |
-| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is blank, is not blank                                       |
-| Boolean                     | is true, is false, is blank, is not blank                                                                                                          |
+| Column type                 | Available operators                                                                                                                                 |
+| --------------------------- |-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| String                      | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
+| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null                                                                              |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null                                |
+| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null                                          |
+| Boolean                     | is true, is false, is blank, is not blank                                                                                                                                 |
 
 **Is blank / is not blank** match by what a rendered cell shows: a string column is blank when it is `NULL`, an empty string, or whitespace-only; every other type is blank only when it is `NULL`. These replace the former `is empty` / `is not empty` / `is null` / `is not null` operators — rules saved with those keep working and keep their original labels, but new rules use the blank pair.
 
@@ -96,7 +96,7 @@ To also drop source rows with no match, add a **filter** on the same column (`is
 
 Use slices to limit what you pull from a joined Data Mart. Example: fetch only records where `status = Active` from a CRM Data Mart. The source rows stay intact regardless.
 
-Use filters to drop rows from the final result — any column, regardless of join order.
+Use filters to drop rows from the final result, regardless of join order — almost any column, the exception being an aggregated value computed from a joined Data Mart, which is refused by name.
 
 ### Add a slice
 

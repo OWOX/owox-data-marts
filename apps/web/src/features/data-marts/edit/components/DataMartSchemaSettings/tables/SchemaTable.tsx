@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from '@owox/ui/components/table';
+import { cn } from '@owox/ui/lib/utils';
 import {
   type ColumnDef,
   type Row,
@@ -14,7 +15,7 @@ import {
   getFilteredRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus } from 'lucide-react';
+import { FunctionSquare, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentType } from 'react';
 import { useOutletContext } from 'react-router';
@@ -58,11 +59,34 @@ function getStickyColumnStyle(columnId: string, baseStyle: React.CSSProperties =
   };
 }
 
+/**
+ * Lets one cell take over the columns beside it on the rows it applies to — the calculated
+ * field's formula, which needs more room than a single cell and sits where a warehouse column's
+ * Mode, PK and available aggregations would be, none of which says anything about it.
+ */
+export interface RowCellSpan<T extends BaseSchemaField> {
+  /**
+   * The consecutive column ids this row's span may cover, or nothing at all for a row that has no
+   * span. The first VISIBLE id hosts the cell and covers the rest; the covered cells are not
+   * rendered. Every id must be able to host the cell, since hiding a column moves the host to the
+   * next one rather than dropping the span.
+   *
+   * Row-derived rather than one band for the whole table, because the band ENDS at a different
+   * column per row: a calculated field's formula runs through "Σ available", while a row-level
+   * field's stops before it — that column carries a control the row-level field owns.
+   */
+  bandFor: (row: Row<T>) => readonly string[];
+}
+
 interface SchemaTableProps<T extends BaseSchemaField> {
   fields: T[];
   columns: ColumnDef<T>[];
+  /** Optional cell span, applied per row. Omit for a table where every cell is its own column. */
+  rowCellSpan?: RowCellSpan<T>;
   onFieldsChange?: (fields: T[]) => void;
   onAddRow?: () => void;
+  /** Second toolbar action beside "Add Field"; omit to hide it. */
+  onAddCalculatedField?: () => void;
   fieldsForStatusCount?: T[]; // Separate array of fields used for status counting
   onSearchChange?: (searchValue: string) => void; // Callback for search value changes
   dragContext: ComponentType<SortableContextProps>; // Drag-and-drop context component
@@ -75,7 +99,9 @@ interface SchemaTableProps<T extends BaseSchemaField> {
 export function SchemaTable<T extends BaseSchemaField>({
   fields,
   columns: initialColumns,
+  rowCellSpan,
   onAddRow,
+  onAddCalculatedField,
   fieldsForStatusCount,
   onSearchChange,
   dragContext,
@@ -170,6 +196,7 @@ export function SchemaTable<T extends BaseSchemaField>({
           table={table}
           searchInputId={searchInputId}
           onAddField={onAddRow}
+          onAddCalculatedField={onAddCalculatedField}
           filterValue={filterValue}
           onFilterChange={handleFilterChange}
           statusCounts={statusCounts}
@@ -205,32 +232,60 @@ export function SchemaTable<T extends BaseSchemaField>({
           <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
-                {table.getRowModel().rows.map(row => (
-                  <RowComponent
-                    key={row.id}
-                    id={getRowId ? getRowId(row) : row.index}
-                    row={row}
-                    className={row.original.isHiddenForReporting ? 'opacity-70' : undefined}
-                  >
-                    {row.getVisibleCells().map(cell => (
-                      <TableCell
-                        key={cell.id}
-                        className='bg-background dark:bg-muted'
-                        style={getStickyColumnStyle(cell.column.id, {
-                          width: cell.column.getSize() !== 0 ? cell.column.getSize() : undefined,
-                          whiteSpace: 'pre',
-                          paddingTop: 8,
-                          paddingBottom: 8,
-                        })}
-                      >
-                        {cell.column.columnDef.cell &&
-                        typeof cell.column.columnDef.cell === 'function'
-                          ? cell.column.columnDef.cell(cell.getContext())
-                          : null}
-                      </TableCell>
-                    ))}
-                  </RowComponent>
-                ))}
+                {table.getRowModel().rows.map(row => {
+                  const cells = row.getVisibleCells();
+                  const band = rowCellSpan?.bandFor(row);
+                  const spannedIds = band?.length ? new Set(band) : undefined;
+                  // Resolved against the VISIBLE cells, not the band: a hidden column anywhere in
+                  // the band — its first, its last — shortens the span instead of running the row
+                  // one cell long or losing the spanning cell altogether.
+                  const spanStart = spannedIds
+                    ? cells.findIndex(cell => spannedIds.has(cell.column.id))
+                    : -1;
+                  let spanEnd = spanStart;
+                  while (
+                    spanEnd !== -1 &&
+                    spanEnd + 1 < cells.length &&
+                    spannedIds?.has(cells[spanEnd + 1].column.id)
+                  ) {
+                    spanEnd++;
+                  }
+
+                  return (
+                    <RowComponent
+                      key={row.id}
+                      id={getRowId ? getRowId(row) : row.index}
+                      row={row}
+                      className={row.original.isHiddenForReporting ? 'opacity-70' : undefined}
+                    >
+                      {cells.map((cell, index) => {
+                        if (spanStart !== -1 && index > spanStart && index <= spanEnd) return null;
+                        const colSpan =
+                          index === spanStart && spanEnd > spanStart ? spanEnd - spanStart + 1 : 1;
+                        const covered = cells.slice(index, index + colSpan);
+                        const size = covered.reduce((total, c) => total + c.column.getSize(), 0);
+                        return (
+                          <TableCell
+                            key={cell.id}
+                            colSpan={colSpan > 1 ? colSpan : undefined}
+                            className='bg-background dark:bg-muted'
+                            style={getStickyColumnStyle(cell.column.id, {
+                              width: size !== 0 ? size : undefined,
+                              whiteSpace: 'pre',
+                              paddingTop: 8,
+                              paddingBottom: 8,
+                            })}
+                          >
+                            {cell.column.columnDef.cell &&
+                            typeof cell.column.columnDef.cell === 'function'
+                              ? cell.column.columnDef.cell(cell.getContext())
+                              : null}
+                          </TableCell>
+                        );
+                      })}
+                    </RowComponent>
+                  );
+                })}
               </DragContext>
             ) : (
               <TableRow>
@@ -247,16 +302,40 @@ export function SchemaTable<T extends BaseSchemaField>({
         </Table>
       </div>
       {onAddRow && (
-        <Button
-          variant='outline'
-          className='bg-background dark:bg-muted w-full rounded-t-none border-0'
-          onClick={onAddRow}
-          disabled={isSchemaActualizationLoading}
-          aria-label='Add new field'
-        >
-          <Plus className='h-4 w-4' aria-hidden='true' />
-          Add Field
-        </Button>
+        // `flex-1`, not `w-full`: Button's own base class sets `shrink-0`, so two 100%-wide
+        // buttons overflowed this row by exactly its width and pushed the second one out of the
+        // card. Growing from a zero basis splits the row between them, and leaves a lone
+        // "Add Field" filling it exactly as it did before.
+        <div className='flex'>
+          <Button
+            variant='outline'
+            className={cn(
+              'bg-background dark:bg-muted flex-1 rounded-t-none border-0',
+              // The two halves are one footer, not two pills: the corner each keeps on the side
+              // they meet notched their junction. Only the INNER corner goes, and only when there
+              // is something to meet — a lone "Add Field" fills the row and keeps both.
+              onAddCalculatedField && 'rounded-br-none'
+            )}
+            onClick={onAddRow}
+            disabled={isSchemaActualizationLoading}
+            aria-label='Add new field'
+          >
+            <Plus className='h-4 w-4' aria-hidden='true' />
+            Add Field
+          </Button>
+          {onAddCalculatedField && (
+            <Button
+              variant='outline'
+              className='bg-background dark:bg-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
+              onClick={onAddCalculatedField}
+              disabled={isSchemaActualizationLoading}
+              aria-label='Add calculated field'
+            >
+              <FunctionSquare className='h-4 w-4' aria-hidden='true' />
+              Add Calculated Field
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

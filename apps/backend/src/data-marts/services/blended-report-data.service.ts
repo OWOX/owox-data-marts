@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendedFieldNameStyle, formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
-import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import {
+  DataMartTableReferenceService,
+  type TableReferenceMemo,
+} from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { ReportLike, usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
@@ -44,6 +47,28 @@ import { UserProjectionsFetcherService } from './user-projections-fetcher.servic
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { buildJoinedUniqueCountColumnName } from './blended-field-name';
+import {
+  calculatedDependencyPlans,
+  calculatedFieldLevelOf,
+  calculatedFieldsOf,
+  columnFilterWithoutCalculatedFields,
+  joinedCalculatedFieldRefusals,
+  type CalculatedSchemaField,
+} from '../calculated-fields/calculated-field.utils';
+import { partitionCalculatedPlans } from '../calculated-fields/calculated-plan-grain';
+import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
+import {
+  buildFormulaOwnerPlan,
+  type FormulaOwnerAnalysis,
+} from '../calculated-fields/formula-owner-plan';
+import type { FormulaReference } from '../calculated-fields/formula-reference';
+import { liveFormulaReferences } from '../calculated-fields/formula-live-reference';
+import {
+  FORMULA_FUNCTION_DIALECT_RESOLVER,
+  FormulaFunctionDialect,
+} from '../calculated-fields/formula-function-dialect';
+import { TypeResolver } from '../../common/resolver/type-resolver';
+import { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -56,14 +81,19 @@ export class BlendedReportDataService {
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly publicOriginService: PublicOriginService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly userProjectionsFetcher: UserProjectionsFetcherService
+    private readonly userProjectionsFetcher: UserProjectionsFetcherService,
+    @Inject(FORMULA_FUNCTION_DIALECT_RESOLVER)
+    private readonly formulaDialects: TypeResolver<DataStorageType, FormulaFunctionDialect>
   ) {}
 
   async resolveBlendingDecision(
     report: ReportLike,
     accessor: BlendableSchemaAccessor,
     // Reuse an already-resolved schema (totals path) instead of recomputing it here and in the validator.
-    precomputedBlendableSchema?: BlendableSchemaDto
+    precomputedBlendableSchema?: BlendableSchemaDto,
+    // Shared across the several compositions one save-time dry run makes, so a SQL-defined Data
+    // Mart's view is refreshed once per operation rather than once per composed query.
+    tableReferences?: TableReferenceMemo
   ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
     // Travels on EVERY decision, blended or not: the reader gates the `Unique Count` header on the
@@ -88,6 +118,7 @@ export class BlendedReportDataService {
       dateTruncConfig: report.dateTruncConfig ?? null,
       uniqueCountConfig: report.uniqueCountConfig ?? null,
       accessor,
+      dataMartSchemaFields: dataMart.schema?.fields,
       precomputedBlendableSchema,
     });
 
@@ -165,10 +196,83 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+    // The restriction's own columns count as projected: a Totals plan carries its dimensions and
+    // metric filters there instead of in `columnConfig`, and `referencedColumns` below folds them
+    // in for exactly that reason — so a joined formula named only by a restriction reaches the
+    // chain builder by the same route a selected one does.
+    this.assertNoJoinedCalculatedColumns(
+      dataMart,
+      [...columnConfig, ...restrictionColumns],
+      blendableSchema.blendedFields
+    );
     this.assertNoOrphanedColumnReferences(dataMart, columnConfig, blendedFieldsByName);
 
+    // A calculated field renders through the builder's `calculatedFields` channel — its stored
+    // formula, substituted and qualified against `main` — never as a plain projected column. Built
+    // exactly as `ReportSqlComposerService.compose` builds it on the flat path, and its name is
+    // stripped out of every column list below by the helper that binds the two together.
+    const schemaFields = dataMart.schema?.fields ?? [];
+    const selectedCalculated = calculatedFieldsOf(schemaFields).filter(f =>
+      columnConfig.includes(f.name)
+    );
+    // A predicate on a Calculated Field compares its FORMULA, so the plan must
+    // reach the builder even when the report does not SELECT the field — `selectedCalculated` is
+    // selection-only by design, and it is what the PROJECTION is built from. The restriction's
+    // HAVING counts: on the Totals path the report's metric filters travel there, not in
+    // `filterConfig`.
+    const predicateColumns = new Set([
+      ...postJoinFilterColumns,
+      ...preJoinFilterColumns,
+      ...(groupRestriction?.having ?? []).map(rule => rule.column),
+    ]);
+    const filteredCalculated = calculatedFieldsOf(schemaFields).filter(f =>
+      predicateColumns.has(f.name)
+    );
+    // The dialect is resolved only for a report that actually names a metric: a seventh
+    // DataStorageType added without a dialect entry must break formulas, not every report on that
+    // storage.
+    const formulaDialect =
+      selectedCalculated.length > 0 || filteredCalculated.length > 0
+        ? await this.formulaDialects.resolve(dataMart.storage.type)
+        : undefined;
+    const planOf = (
+      f: CalculatedSchemaField,
+      dialect: FormulaFunctionDialect
+    ): CalculatedFieldPlan => ({
+      outputName: f.name,
+      type: String(f.type),
+      formula: f.calculated.formula,
+      level: calculatedFieldLevelOf(f, schemaFields),
+      // The formulas this one reads, carried so the renderer can substitute them. A
+      // dependency's own JOINED references are refused at that substitution rather than
+      // routed: `formulaJoinedFieldNames` below reads the SELECTED metrics' formulas only, so
+      // a source reachable only through a dependency would be joined without being
+      // access-checked.
+      dependencies: calculatedDependencyPlans(f, schemaFields),
+      alias: f.alias?.trim() || undefined,
+      description: f.description?.trim() || undefined,
+      // Which Data Mart each aggregate call reads. Always analysed, not only when a
+      // joined path is present: absent means "not analysed" to the blended builder, which then
+      // refuses a joined formula outright — and that is also the right reading of a formula
+      // persisted before validation existed and no longer parseable, so the parse failure
+      // degrades to it instead of leaving a blending decision as a 500.
+      formulaOwnership: this.analyseFormulaOwnership(f.calculated.formula, dialect),
+    });
+    const plansFor = (fields: readonly CalculatedSchemaField[]): CalculatedFieldPlan[] =>
+      formulaDialect
+        ? partitionCalculatedPlans(
+            fields.map(f => planOf(f, formulaDialect)),
+            report.aggregationConfig ?? undefined
+          ).all
+        : [];
+    const calculatedFields = plansFor(selectedCalculated);
+    const calculatedFilterMetrics = plansFor(filteredCalculated);
+    // Non-null: the helper only returns `undefined` for an undefined `columnFilter`, and the
+    // null/undefined `columnConfig` branch above has already returned.
+    const nonMetricColumns = columnFilterWithoutCalculatedFields(columnConfig, calculatedFields)!;
+
     const referencedColumns = new Set<string>([
-      ...columnConfig,
+      ...nonMetricColumns,
       ...postJoinFilterColumns,
       ...sortColumns,
       // A Totals plan projects only metrics and carries no HAVING in `filterConfig` — its
@@ -179,12 +283,18 @@ export class BlendedReportDataService {
       // access-checked, and a report whose ONLY blended reference was that dimension is routed
       // to the flat builder altogether.
       ...restrictionColumns,
+      // A joined reference inside a formula (`{{ref path="orders" field="amount"}}`) names its
+      // source by alias path and its field by the source's ORIGINAL name, so it appears in no
+      // column list at all. Every consequence of this set follows from it being here: the source
+      // is access-checked, the report routes to the blended builder instead of the flat one, and
+      // the chain projects the column the metric sleeve reads.
+      ...this.formulaJoinedFieldNames(calculatedFields, blendableSchema.blendedFields),
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
     );
     const blendedDataHeaders = this.buildBlendedDataHeaders(
-      columnConfig,
+      nonMetricColumns,
       blendedFieldsByName,
       dataMart.storage.type,
       usesSuffixedJoinedFieldNames(report) ? 'suffix' : 'prefix'
@@ -210,7 +320,8 @@ export class BlendedReportDataService {
 
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
-      dataMart.projectId
+      dataMart.projectId,
+      tableReferences
     );
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
@@ -223,7 +334,7 @@ export class BlendedReportDataService {
 
     const allRelationships = await this.relationshipService.findBySourceDataMartId(dataMart.id);
     const chains = await this.buildRelationshipChains(
-      columnConfig,
+      nonMetricColumns,
       referencedColumns,
       blendableSchema.blendedFields,
       blendableSchema.availableSources,
@@ -231,7 +342,8 @@ export class BlendedReportDataService {
       dataMart.projectId,
       publicOrigin,
       preJoinAliasPaths,
-      uniqueCountAliasPaths
+      uniqueCountAliasPaths,
+      tableReferences
     );
 
     const uniqueCountSources = this.resolveUniqueCountSources(
@@ -294,8 +406,15 @@ export class BlendedReportDataService {
         mainDataMartTitle: dataMart.title,
         mainDataMartUrl,
         chains: liveChains,
-        columns: columnConfig,
-        filters: report.filterConfig ?? undefined,
+        columns: nonMetricColumns,
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
+        calculatedFilterMetrics:
+          calculatedFilterMetrics.length > 0 ? calculatedFilterMetrics : undefined,
+        // The clause each predicate belongs in is decided here, from the rule and the field's
+        // level, and carried on the rule — the builder reads it and never re-derives it.
+        filters: report.filterConfig?.length
+          ? routeFilterClauses(report.filterConfig, schemaFields)
+          : undefined,
         sort: sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,
@@ -315,7 +434,8 @@ export class BlendedReportDataService {
       needsBlending: true,
       blendedSql,
       params,
-      columnFilter: columnConfig,
+      columnFilter: nonMetricColumns,
+      calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
       blendedDataHeaders,
       chains: liveChains,
       aggregations: normalizedAggregations,
@@ -324,6 +444,64 @@ export class BlendedReportDataService {
       // second, independently-derived list, or a source dropped here still gets a header.
       uniqueCountSources,
     };
+  }
+
+  /**
+   * The blended column names a selected metric's formula reads from a joined Data Mart.
+   *
+   * A `{{ref}}` tag carries the STRUCTURAL identity, while every column list downstream speaks the
+   * unified `<path>__<field>` name, so the two are matched on `(aliasPath, originalFieldName)` and
+   * never as strings. HIDDEN fields are matched too — being hidden must not become a way past the
+   * access check.
+   *
+   * Only LIVE references count: one inside a SQL comment must neither pull a source into the access
+   * check nor route a report to the blended builder. A reference resolving to nothing is silent
+   * here; the composition-time validator reports it as a broken metric.
+   */
+  private formulaJoinedFieldNames(
+    calculatedFields: readonly CalculatedFieldPlan[],
+    blendedFields: BlendedFieldDto[]
+  ): string[] {
+    if (calculatedFields.length === 0) return [];
+    const nameByIdentity = new Map(
+      blendedFields.map(f => [`${f.aliasPath}\u241F${f.originalFieldName}`, f.name])
+    );
+    const names: string[] = [];
+    for (const metric of calculatedFields) {
+      for (const ref of this.liveReferencesOrNone(metric.formula)) {
+        if (ref.path === '') continue;
+        const name = nameByIdentity.get(`${ref.path}\u241F${ref.field}`);
+        if (name !== undefined) names.push(name);
+      }
+    }
+    return names;
+  }
+
+  /**
+   * A formula persisted before save-time validation existed can be unparseable, and a blending
+   * decision is not where that is reported: the composition-time validator names the metric
+   * (`brokenReferencesOf`) as a 400. Both readers of a stored formula here therefore degrade the
+   * same way rather than throwing `FormulaReferenceSyntaxError` out as a 500 \u2014 an unanalysable
+   * formula names no joined source, and "not analysed" is already the state the blended builder
+   * refuses a joined formula on.
+   */
+  private liveReferencesOrNone(formula: string): FormulaReference[] {
+    try {
+      return liveFormulaReferences(formula);
+    } catch {
+      return [];
+    }
+  }
+
+  private analyseFormulaOwnership(
+    formula: string,
+    dialect: FormulaFunctionDialect
+  ): FormulaOwnerAnalysis | undefined {
+    try {
+      return buildFormulaOwnerPlan(formula, name => dialect.isAggregateFunction(name));
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -380,12 +558,11 @@ export class BlendedReportDataService {
    * then dropped. `uniqueCountConfig` seeds the chain set by alias path, so such a source still had
    * its CTE built and LEFT JOINed — a paid warehouse scan feeding a column nobody reads.
    *
-   * Deliberately narrow, and it must stay that way. `buildRelationshipChains` is NOT filtered by
-   * `isIncluded`, and that is load-bearing: an excluded source's fields remain selectable,
-   * filterable and sortable, and an ordinary `ORDER BY orders__amount` on one resolves precisely
-   * BECAUSE the join is built unconditionally. So this recomputes what the chain set would have
-   * been had `uniqueCountConfig` never seeded it, then adds back the SURVIVING sources (and their
-   * ancestors, which a nested one still needs). A chain goes only when nothing else wanted it.
+   * Narrow, and it must stay that way: `buildRelationshipChains` is NOT filtered by `isIncluded`,
+   * and that is load-bearing — an excluded source's fields stay selectable, and `ORDER BY
+   * orders__amount` on one resolves precisely BECAUSE the join is built unconditionally. So this
+   * recomputes the chain set as if `uniqueCountConfig` had never seeded it, then adds back the
+   * surviving sources and their ancestors. A chain goes only when nothing else wanted it.
    */
   private withoutChainsOnlyADroppedUniqueCountNeeded(
     chains: ResolvedRelationshipChain[],
@@ -508,19 +685,14 @@ export class BlendedReportDataService {
   }
 
   /**
-   * Builds the minimal set of ResolvedRelationshipChain entries needed to satisfy
-   * the columns requested in columnConfig.
+   * The minimal set of chains needed to satisfy the requested columns.
    *
-   * Each chain's `cteName` is derived from the full `aliasPath` (dots → underscores)
-   * and `parentAlias` is the parent's `cteName` ('main' at the root). The path-prefixed
-   * `cteName` is what guarantees CTE uniqueness when two relationships in the join
-   * tree share the same `targetAlias` (allowed under the
-   * `(sourceDataMart, targetAlias)` unique constraint).
+   * Each `cteName` is derived from the full `aliasPath`, which is what guarantees uniqueness when
+   * two relationships in the tree share a `targetAlias` — allowed under the
+   * `(sourceDataMart, targetAlias)` constraint.
    *
-   * When a requested field lives at depth ≥ 2 (e.g. A→B→C, C-field requested), ALL
-   * ancestor relationships along the aliasPath are also included — otherwise the
-   * resulting SQL cannot form a valid join chain (C would try to join directly to main,
-   * using joinConditions that reference B's fields).
+   * A field at depth ≥ 2 pulls in ALL its ancestors, or the SQL cannot form a valid join chain:
+   * C would join directly to main, using conditions that reference B's fields.
    */
   private async buildRelationshipChains(
     columnConfig: string[],
@@ -531,7 +703,8 @@ export class BlendedReportDataService {
     projectId: string,
     publicOrigin: string,
     preJoinAliasPaths: ReadonlySet<string>,
-    uniqueCountAliasPaths: ReadonlySet<string>
+    uniqueCountAliasPaths: ReadonlySet<string>,
+    tableReferences?: TableReferenceMemo
   ): Promise<ResolvedRelationshipChain[]> {
     const requestedBlendedFields = blendedFields.filter(f => referencedColumns.has(f.name));
 
@@ -591,7 +764,8 @@ export class BlendedReportDataService {
 
       const targetTableReference = await this.tableReferenceService.resolveTableName(
         rel.targetDataMart.id,
-        projectId
+        projectId,
+        tableReferences
       );
       const targetDataMartUrl = buildDataMartUrl(
         publicOrigin,
@@ -627,6 +801,39 @@ export class BlendedReportDataService {
     this.assertNoChainCollisions(chains);
 
     return chains;
+  }
+
+  /**
+   * A joined Data Mart's calculated field cannot be a projected column. No formula of a joined mart
+   * is ever rendered here — only the main mart's become `CalculatedFieldPlan`s — so the field is
+   * mapped to `targetFieldName: originalFieldName` and projected from the joined mart's PHYSICAL
+   * table, which either fails with an unrecognised name or, where that table still carries a column
+   * of that name, silently serves that column's dedup value in place of the formula.
+   *
+   * The seat the validator cannot cover: it resolves a blendable schema only when `needsSchema`
+   * holds, which a bare projection — with or without a `limit` — does not, and it never sees
+   * `groupRestriction` at all. This path always holds the schema, so it answers those shapes; every
+   * rule surface is refused in the validator instead, where it also reaches report save.
+   *
+   * Runs BEFORE the orphan check, so a joined formula that is also hidden is refused for the more
+   * specific reason.
+   */
+  private assertNoJoinedCalculatedColumns(
+    dataMart: DataMart,
+    projectedColumns: string[],
+    blendedFields: BlendedFieldDto[]
+  ): void {
+    const refusals = joinedCalculatedFieldRefusals(
+      blendedFields,
+      projectedColumns,
+      new Set(collectSchemaFieldPaths(dataMart.schema?.fields ?? []))
+    );
+    if (refusals.length === 0) return;
+
+    throw new BusinessViolationException(refusals.map(r => r.message).join(' '), {
+      dataMartId: dataMart.id,
+      joinedCalculatedColumns: refusals.map(r => r.column),
+    });
   }
 
   // Blended column refs are unified names from `buildBlendedFieldUnifiedName`

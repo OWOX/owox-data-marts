@@ -61,6 +61,24 @@ export interface AggregationDropdownColumn {
   allowedAggregations?: ReportAggregateFunction[];
   /** DM-level post-join allowed aggregation set; present only on joined fields. */
   postJoinAggregations?: ReportAggregateFunction[];
+  /**
+   * True for a column that can never be a report's grouping key — so it is offered no date bucket,
+   * and a stored bucket rule on it renders as an orphan. Two cases, both permanent rules rather
+   * than missing features: an AGGREGATE-level calculated field, whose formula already aggregates
+   * and is therefore not a dimension at all; and a JOINED Data Mart's calculated field, which this
+   * report may not name on any surface, whichever level it is. A ROW-LEVEL formula of the report's
+   * OWN Data Mart is a dimension and buckets like any other column of its declared type.
+   * Gates the bucket alone; the aggregation menu comes from the allowed set as usual.
+   */
+  isAggregateLevelCalculated?: boolean;
+  /**
+   * True for ANY calculated field, at either level, which is offered no bucket TIME ZONE. Separate from the
+   * flag above and not implied by it: a row-level formula buckets like the
+   * column beside it and is still refused the zone. Snowflake's `CONVERT_TIMEZONE` is the one thing
+   * that coerces a formula's string into a date, and it read `05/08/2026` as May where the formula
+   * meant the 5th of August — no error, and a month decided by the warehouse session.
+   */
+  isCalculated?: boolean;
 }
 
 /** Resolved allowed aggregate functions for a column. */
@@ -137,7 +155,7 @@ function AggregationSection({
   }
 
   return (
-    <div>
+    <div data-slot='aggregation-settings-panel'>
       <SectionHeader title='Aggregations' info={SECTION_INFO.aggregate} />
       <div className='space-y-1'>
         {aggregations.map((rule, index) => {
@@ -148,6 +166,8 @@ function AggregationSection({
               rule={rule}
               fieldType={col?.type ?? 'STRING'}
               allowedAggregations={allowedFor(rule.column)}
+              allowDateBucket={!col?.isAggregateLevelCalculated}
+              allowBucketTimeZone={!col?.isCalculated}
               columnFunctions={functionsForColumn(rule.column, aggregations)}
               displayLabel={col?.label}
               dataMartName={col?.dataMartName}
@@ -166,8 +186,11 @@ function AggregationSection({
         })}
         {dateTrunc.map((rule, index) => {
           const col = columnByName.get(rule.column);
-          // Orphaned once the column is gone or no longer a date/timestamp type.
-          const orphaned = !col || !isDateType(col.type);
+          // Orphaned once the column is gone, no longer a date/timestamp type, or never a
+          // grouping key at all. The last is the aggregate-level formula: its rule can never be
+          // saved, and unlike an aggregation rule it has no empty allowed set to render it an
+          // orphan on its own, so the refusal has to be spelled out here.
+          const orphaned = !col || !isDateType(col.type) || !!col.isAggregateLevelCalculated;
           return (
             <DateTruncRow
               key={`bucket|${rule.column}|${index}`}
@@ -175,6 +198,7 @@ function AggregationSection({
               isOrphaned={orphaned}
               fieldType={col?.type ?? 'DATE'}
               allowedAggregations={allowedFor(rule.column)}
+              allowBucketTimeZone={!col?.isCalculated}
               displayLabel={col?.label}
               dataMartName={col?.dataMartName}
               onApplyDraft={draft => {
@@ -200,6 +224,8 @@ function AggregationSection({
             displayLabel={pendingColumn.label}
             dataMartName={pendingColumn.dataMartName}
             allowedAggregations={allowedAggregationsFor(pendingColumn)}
+            allowDateBucket={!pendingColumn.isAggregateLevelCalculated}
+            allowBucketTimeZone={!pendingColumn.isCalculated}
             activeFunctions={functionsForColumn(pendingColumn.name, aggregations)}
             activeBucket={bucketForColumn(pendingColumn.name, dateTrunc)}
             alwaysVisible

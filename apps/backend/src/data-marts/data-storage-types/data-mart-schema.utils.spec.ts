@@ -1,12 +1,16 @@
 import {
   isConnected,
   classifyJoinedUniqueCountAvailability,
+  collectFormulaReferenceableFields,
   collectPrimaryKeyRowIdentity,
+  collectSchemaFieldPathDescriptors,
   collectSchemaFieldPathTypes,
   createBaseFieldSchemaForType,
   getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
 } from './data-mart-schema.utils';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
+import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import type { DataMartSchemaField } from './data-mart-schema.type';
 import { z } from 'zod';
@@ -435,5 +439,146 @@ describe('classifyJoinedUniqueCountAvailability', () => {
       const hasRowIdentity = collectPrimaryKeyRowIdentity(fields).length > 0;
       expect(isAvailable).toBe(hasRowIdentity);
     }
+  });
+});
+
+describe('calculated fields', () => {
+  it('accepts a field carrying a formula', () => {
+    const schema = createBaseFieldSchemaForType(z.string()).parse({
+      name: 'ctr',
+      type: 'FLOAT',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+    });
+    expect(isCalculatedField(schema)).toBe(true);
+  });
+
+  it('accepts a formula at exactly the length cap (10,000 characters)', () => {
+    expect(() =>
+      createBaseFieldSchemaForType(z.string()).parse({
+        name: 'ctr',
+        type: 'FLOAT',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        calculated: { formula: 'x'.repeat(10_000), level: 'metric' },
+      })
+    ).not.toThrow();
+  });
+
+  it('rejects a formula over the length cap', () => {
+    expect(() =>
+      createBaseFieldSchemaForType(z.string()).parse({
+        name: 'ctr',
+        type: 'FLOAT',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        calculated: { formula: 'x'.repeat(10_001), level: 'metric' },
+      })
+    ).toThrow();
+  });
+
+  // The level is derived by CalculatedFieldValidatorService, so the wire schema's whole job here is
+  // to accept every shape a client can legitimately send — including none, which is what the web
+  // sends for a field it has just created — and to refuse a value that is not a level at all.
+  it.each([['metric'], ['column']])('accepts level %s on the wire', level => {
+    const parsed = createBaseFieldSchemaForType(z.string()).parse({
+      name: 'ctr',
+      type: 'FLOAT',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      calculated: { formula: 'SUM({{ref field="clicks"}})', level },
+    });
+    expect(parsed.calculated?.level).toBe(level);
+  });
+
+  it('accepts a calculated field carrying no level — the shape the web submits', () => {
+    const parsed = createBaseFieldSchemaForType(z.string()).parse({
+      name: 'ctr',
+      type: 'FLOAT',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      calculated: { formula: 'SUM({{ref field="clicks"}})' },
+    });
+    expect(parsed.calculated?.level).toBeUndefined();
+  });
+
+  it('rejects a level outside the derived vocabulary', () => {
+    expect(() =>
+      createBaseFieldSchemaForType(z.string()).parse({
+        name: 'ctr',
+        type: 'FLOAT',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'dimension' },
+      })
+    ).toThrow();
+  });
+
+  // The enum is BUILT from CALCULATED_FIELD_LEVELS, and `CalculatedFieldLevel` is derived from the
+  // same tuple — so the drift this guards against has two halves with two different defences. A
+  // level in the type but not on the wire is unrepresentable BY CONSTRUCTION (there is one list, so
+  // no test can exercise the disagreement); a level on the wire but not in the tuple is what this
+  // test catches, by failing the moment someone hand-writes a narrower list here instead.
+  it('accepts every level CALCULATED_FIELD_LEVELS declares', () => {
+    const accepted = CALCULATED_FIELD_LEVELS.filter(
+      level =>
+        createBaseFieldSchemaForType(z.string()).safeParse({
+          name: 'ctr',
+          type: 'FLOAT',
+          status: DataMartSchemaFieldStatus.CONNECTED,
+          calculated: { formula: 'SUM({{ref field="clicks"}})', level },
+        }).success
+    );
+    expect(accepted).toEqual([...CALCULATED_FIELD_LEVELS]);
+  });
+
+  it('collectSchemaFieldPathDescriptors keeps a calculated field', () => {
+    const fields = [
+      {
+        name: 'ctr',
+        type: 'FLOAT',
+        status: DataMartSchemaFieldStatus.DISCONNECTED,
+        calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+      },
+    ] as unknown as DataMartSchemaField[];
+    expect(collectSchemaFieldPathDescriptors(fields).map(d => d.name)).toEqual(['ctr']);
+  });
+});
+
+describe('collectFormulaReferenceableFields', () => {
+  const mkField = (name: string, extra: Partial<DataMartSchemaField> = {}): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  it('keeps a hidden field — unlike collectSchemaFieldPathDescriptors, a formula may reference it', () => {
+    const fields = [mkField('internal_id', { isHiddenForReporting: true }), mkField('clicks')];
+    expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual([
+      'internal_id',
+      'clicks',
+    ]);
+    expect(collectSchemaFieldPathDescriptors(fields).map(d => d.name)).toEqual(['clicks']);
+  });
+
+  it('still prunes a DISCONNECTED field and its subtree — it is genuinely gone from the source', () => {
+    const fields = [
+      mkField('gone', {
+        status: DataMartSchemaFieldStatus.DISCONNECTED,
+        fields: [mkField('child')],
+      }),
+      mkField('clicks'),
+    ];
+    expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual(['clicks']);
+  });
+
+  it('descends into nested fields under a dotted path', () => {
+    const fields = [
+      mkField('metrics', {
+        isHiddenForReporting: true,
+        fields: [mkField('ctr')],
+      }),
+    ];
+    expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual([
+      'metrics',
+      'metrics.ctr',
+    ]);
   });
 });

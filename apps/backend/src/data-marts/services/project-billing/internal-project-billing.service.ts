@@ -28,6 +28,7 @@ const TOPIC_ENV_BY_RUN_KIND: Record<Exclude<RunKind, RunKind.EMAIL_BASED_REPORT_
   [RunKind.AI_PROCESS_RUN]: 'CONSUMPTION_AI_PROCESS_RUN_TOPIC',
   [RunKind.SHEETS_REPORT_RUN]: 'CONSUMPTION_SHEETS_REPORT_RUN_TOPIC',
   [RunKind.LOOKER_REPORT_RUN]: 'CONSUMPTION_LOOKER_REPORT_RUN_TOPIC',
+  [RunKind.EXCEL_REPORT_RUN]: 'CONSUMPTION_EXCEL_REPORT_RUN_TOPIC',
   [RunKind.HTTP_DATA_RUN]: 'CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC',
   [RunKind.MCP_QUERY_RUN]: 'CONSUMPTION_MCP_QUERY_RUN_TOPIC',
 };
@@ -220,6 +221,10 @@ export class InternalProjectBillingService extends ProjectBillingService {
       this.baseReportConsumptionPayload(report),
       report.dataDestination.type
     );
+  }
+
+  public async registerExcelReportRunConsumption(report: Report, runId: string): Promise<void> {
+    await this.publish(RunKind.EXCEL_REPORT_RUN, this.excelReportConsumptionPayload(report, runId));
   }
 
   public async registerHttpDataRunConsumption(dataMart: DataMart, runId: string): Promise<void> {

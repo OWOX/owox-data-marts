@@ -29,6 +29,7 @@ describe('formatRelativeTime', () => {
 });
 
 describe('formatDataLastUpdatedLabel', () => {
+
   // formatDataLastUpdatedLabel reads the real clock, so the fixture's distance from
   // "now" grows every day — 30 days after the fixture date, the day step gives way
   // to the month step and numeric:'auto' renders "last month", which has no "ago"
@@ -64,7 +65,10 @@ describe('formatDataLastUpdatedLabel', () => {
   });
 
   it('renders a bare relative time for complete coverage', () => {
-    expect(formatDataLastUpdatedLabel(block)).toMatch(/ago$/);
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    expect(formatDataLastUpdatedLabel(block)).toBe('3 days ago');
   });
 });
 

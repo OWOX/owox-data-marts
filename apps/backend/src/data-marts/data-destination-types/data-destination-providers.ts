@@ -7,6 +7,7 @@ import {
 } from './ee/email/services/email-report-writer';
 import { GoogleChatReportWriter } from './ee/google-chat/services/google-chat-report-writer';
 import { GoogleChatWebhookClient } from './ee/google-chat/services/google-chat-webhook.client';
+import { ExcelAccessValidator } from './excel/services/excel-access-validator';
 import { DataDestinationType } from './enums/data-destination-type.enum';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { GoogleSheetsReportCreatedListener } from './google-sheets/listeners/google-sheets-report-created.listener';
@@ -68,6 +69,7 @@ export const DATA_DESTINATION_SECRET_KEY_ROTATOR_RESOLVER = Symbol(
 const accessValidatorProviders = [
   GoogleSheetsAccessValidator,
   LookerStudioConnectorAccessValidator,
+  ExcelAccessValidator,
   EmailAccessValidator,
   SlackAccessValidator,
   MsTeamsAccessValidator,

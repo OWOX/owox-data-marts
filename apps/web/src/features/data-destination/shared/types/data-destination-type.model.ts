@@ -7,6 +7,7 @@ import {
   DataStudioIcon,
   MicrosoftTeamsIcon,
   ODataIcon,
+  MicrosoftExcelIcon,
   SlackIcon,
 } from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
@@ -30,6 +31,12 @@ export const DataDestinationTypeModel = {
       type: DataDestinationType.LOOKER_STUDIO,
       displayName: 'Data Studio',
       icon: DataStudioIcon,
+      status: DataDestinationStatus.ACTIVE,
+    },
+    [DataDestinationType.EXCEL]: {
+      type: DataDestinationType.EXCEL,
+      displayName: 'Microsoft Excel',
+      icon: MicrosoftExcelIcon,
       status: DataDestinationStatus.ACTIVE,
     },
     [DataDestinationType.EMAIL]: {

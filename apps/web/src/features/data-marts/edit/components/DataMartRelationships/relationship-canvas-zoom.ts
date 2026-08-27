@@ -1,10 +1,47 @@
+import { getViewportForBounds } from '@xyflow/react';
+import type { CanvasGraphBounds } from '../../../shared/canvas/viewport';
+
 export const GRAPH_ZOOM_MAX = 3;
+export const GRAPH_ZOOM_MIN = 0.05;
 const GRAPH_ZOOM_EPSILON = 0.0001;
 const GRAPH_ZOOM_FALLBACK_MIN = 1;
 
 export interface GraphZoomRange {
   min: number;
   max: number;
+}
+
+/**
+ * The zoom a full fit lands on for the given graph bounds and pane size —
+ * computed with React Flow's own getViewportForBounds (the function fitView
+ * uses internally), so the value cannot drift from the library's padding
+ * semantics.
+ *
+ * Derived analytically (instead of reading the viewport back after a fit) so
+ * the zoom range never freezes on a value captured under transient conditions
+ * — a mid-load fit, a pane that was still settling, or a layout that changed
+ * after the fit ran.
+ */
+export function getFittedGraphZoom(
+  bounds: CanvasGraphBounds,
+  paneWidth: number,
+  paneHeight: number,
+  padding: number
+): number {
+  const boundsWidth = bounds.maxX - bounds.minX;
+  const boundsHeight = bounds.maxY - bounds.minY;
+  if (boundsWidth <= 0 || boundsHeight <= 0 || paneWidth <= 0 || paneHeight <= 0) {
+    return Number.NaN;
+  }
+
+  return getViewportForBounds(
+    { x: bounds.minX, y: bounds.minY, width: boundsWidth, height: boundsHeight },
+    paneWidth,
+    paneHeight,
+    GRAPH_ZOOM_MIN,
+    GRAPH_ZOOM_MAX,
+    padding
+  ).zoom;
 }
 
 export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {
@@ -14,7 +51,10 @@ export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {
       : GRAPH_ZOOM_FALLBACK_MIN;
 
   return {
-    min: safeFittedZoom,
+    // A small graph on a large pane fits at (or beyond) the max zoom. Keeping
+    // min == max there would turn both zoom buttons into no-ops, so fall back
+    // to the neutral 100% floor and let the user zoom between 1x and the max.
+    min: safeFittedZoom >= GRAPH_ZOOM_MAX ? GRAPH_ZOOM_FALLBACK_MIN : safeFittedZoom,
     max: GRAPH_ZOOM_MAX,
   };
 }
@@ -30,6 +70,10 @@ export function getNextGraphZoom(
   const zoom = Math.min(Math.max(requestedZoom, range.min), range.max);
 
   if (!Number.isFinite(zoom) || Math.abs(zoom - currentZoom) < GRAPH_ZOOM_EPSILON) return null;
+  // The current zoom can sit outside the range (the measured graph can be
+  // slightly larger than the layout sizes the range is derived from). Never
+  // let the clamp move the viewport opposite to what the user pressed.
+  if (delta > 0 !== zoom > currentZoom) return null;
 
   return {
     zoom,

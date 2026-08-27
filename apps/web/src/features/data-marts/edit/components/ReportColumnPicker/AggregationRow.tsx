@@ -13,6 +13,10 @@ interface AggregationRowProps {
   fieldType: string;
   /** Functions the column may be aggregated by; empty → column is orphaned/ungovernable. */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /** Passed straight to the editor: false hides the bucket on an otherwise date-typed column. */
+  allowDateBucket?: boolean;
+  /** Passed straight to the editor: false hides the bucket's time zone (a calculated field). */
+  allowBucketTimeZone?: boolean;
   /** All functions currently assigned to this column (popover edits them together). */
   columnFunctions: readonly ReportAggregateFunction[];
   /** Business-readable label; falls back to the raw column when absent. */
@@ -28,6 +32,8 @@ export function AggregationRow({
   rule,
   fieldType,
   allowedAggregations,
+  allowDateBucket,
+  allowBucketTimeZone,
   columnFunctions,
   displayLabel,
   dataMartName,
@@ -40,7 +46,7 @@ export function AggregationRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1.5 rounded px-2 py-1.5',
+        'group/control-row flex items-center gap-1.5 rounded px-2 py-1.5',
         isOrphaned ? 'bg-red-50 dark:bg-red-950/30' : 'bg-muted/40'
       )}
     >
@@ -89,7 +95,7 @@ export function AggregationRow({
               variant='ghost'
               size='sm'
               className={cn(
-                'text-muted-foreground hover:text-foreground h-6 w-6 p-0 transition-opacity group-hover:opacity-100',
+                'text-muted-foreground hover:text-foreground h-6 w-6 p-0 transition-opacity group-hover/control-row:opacity-100',
                 editing ? 'opacity-100' : 'opacity-0'
               )}
               aria-label='Edit aggregation'
@@ -102,6 +108,8 @@ export function AggregationRow({
           displayLabel={displayLabel}
           dataMartName={dataMartName}
           allowedAggregations={allowedAggregations}
+          allowDateBucket={allowDateBucket}
+          allowBucketTimeZone={allowBucketTimeZone}
           initialFunctions={columnFunctions}
           onApply={onApplyDraft}
         />

@@ -1,6 +1,7 @@
 import {
   buildBlendedFieldUnifiedName,
   buildJoinedUniqueCountColumnName,
+  collectAmbiguousBlendedFieldNames,
 } from './blended-field-name';
 
 describe('buildBlendedFieldUnifiedName', () => {
@@ -45,6 +46,42 @@ describe('buildBlendedFieldUnifiedName', () => {
     buildBlendedFieldUnifiedName('ads', 'campaign_id');
     const second = buildBlendedFieldUnifiedName('ads', 'campaign.id');
     expect(second).toBe(first);
+  });
+});
+
+describe('collectAmbiguousBlendedFieldNames', () => {
+  const field = (aliasPath: string, originalFieldName: string, isHidden = false) => ({
+    aliasPath,
+    originalFieldName,
+    isHidden,
+  });
+
+  it('finds nothing when every pair folds to its own name', () => {
+    expect(
+      collectAmbiguousBlendedFieldNames([field('orders', 'amount'), field('orders', 'id')]).size
+    ).toBe(0);
+  });
+
+  // The `__` separator is legal inside both an alias segment and a field name, so these two
+  // distinct fields fold to one blended column — which `buildBlendedFieldIndex` then refuses.
+  it('reports the name two distinct pairs fold to', () => {
+    const ambiguous = collectAmbiguousBlendedFieldNames([
+      field('users__archived', 'role'),
+      field('users', 'archived__role'),
+    ]);
+
+    expect([...ambiguous]).toEqual(['users__archived__role']);
+  });
+
+  // A hidden field can never be the column a name resolves to, so it cannot make one ambiguous —
+  // the same exemption `buildBlendedFieldIndex` makes before it checks for a collision.
+  it('ignores a hidden field on either side of the collision', () => {
+    expect(
+      collectAmbiguousBlendedFieldNames([
+        field('users__archived', 'role'),
+        field('users', 'archived__role', true),
+      ]).size
+    ).toBe(0);
   });
 });
 

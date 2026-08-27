@@ -22,6 +22,15 @@ export interface GoogleSheetsDestinationConfig {
   sheetId: string;
 }
 
+/**
+ * Names no location on purpose: the add-in reads its own data, so the workbook already knows
+ * where the rows go — and it is the only party that can, since a workbook has no
+ * server-addressable id. The report-to-sheet binding lives in the workbook itself.
+ */
+export interface ExcelDestinationConfig {
+  type: DestinationTypeConfigEnum.EXCEL_CONFIG;
+}
+
 export interface LookerStudioDestinationConfig {
   type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG;
   cacheLifetime: number; // in seconds
@@ -67,6 +76,7 @@ export interface EmailDestinationConfig {
 
 export type DestinationConfig =
   | GoogleSheetsDestinationConfig
+  | ExcelDestinationConfig
   | LookerStudioDestinationConfig
   | EmailDestinationConfig;
 

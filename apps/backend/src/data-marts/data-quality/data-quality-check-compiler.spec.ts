@@ -648,6 +648,58 @@ describe('DataQualityCheckCompiler', () => {
     expect(measurement).toContain('TO_JSON_STRING(`payload`)');
   });
 
+  it('DUPLICATE_ROWS groups by physical fields only, excluding a calculated field', async () => {
+    const withCalculated = schema(DataStorageType.GOOGLE_BIGQUERY) as unknown as {
+      fields: Array<Record<string, unknown>>;
+    };
+    withCalculated.fields.push({
+      name: 'ctr',
+      type: 'FLOAT',
+      mode: 'NULLABLE',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      isPrimaryKey: false,
+      isHiddenForReporting: false,
+      calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+    });
+
+    const plan = await createDataQualityCheckCompiler().compile({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      sourceQuery,
+      schema: withCalculated as unknown as DataMartSchema,
+      rule: tableRule(DataQualityCategory.DUPLICATE_ROWS),
+    });
+    const measurement = sql(plan);
+
+    expect(measurement).not.toContain('`ctr`');
+  });
+
+  it('resolves no field for a FIELD-scoped rule targeting a calculated field', async () => {
+    const withCalculated = schema(DataStorageType.GOOGLE_BIGQUERY) as unknown as {
+      fields: Array<Record<string, unknown>>;
+    };
+    withCalculated.fields.push({
+      name: 'ctr',
+      type: 'FLOAT',
+      mode: 'NULLABLE',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      isPrimaryKey: false,
+      isHiddenForReporting: false,
+      calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+    });
+
+    const plan = await createDataQualityCheckCompiler().compile({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      sourceQuery,
+      schema: withCalculated as unknown as DataMartSchema,
+      rule: fieldRule(DataQualityCategory.NEGATIVE_VALUES, 'ctr'),
+    });
+
+    expect(plan).toMatchObject({
+      kind: 'NOT_APPLICABLE',
+      reason: 'The field is missing from the Output Schema',
+    });
+  });
+
   it('returns not applicable when any duplicate-row field cannot be grouped safely', async () => {
     const unsupported = schema(DataStorageType.GOOGLE_BIGQUERY) as unknown as {
       fields: Array<Record<string, unknown>>;

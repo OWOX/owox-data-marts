@@ -33,6 +33,28 @@ export function isFloatingPointType(fieldType: string | undefined): boolean {
   return fieldType !== undefined && FLOATING_POINT_TYPES.has(fieldType.toUpperCase());
 }
 
+/**
+ * The WHOLE-NUMBER subset of NUMBER_TYPES, across all five dialect vocabularies. Read by the
+ * declared-type cast, which imposes a float or exact-decimal declaration on a
+ * Calculated Field's expression and REFUSES an integer one: casting to an integer is a per-row
+ * rounding the warehouse was not performing, and the dialects disagree on its direction (Spark
+ * truncates where BigQuery, Trino, Redshift and Snowflake round).
+ *
+ * These three families partition NUMBER_TYPES exactly — 5 + 4 + 3 of its 12 spellings — and a
+ * test in `sql-clause-renderer.spec.ts` asserts that against each dialect's real enum, so a
+ * numeric type added to one vocabulary cannot land in "no family" and be cast by default.
+ * Written as literal sets rather than derived from each other because FLOATING_POINT_TYPES
+ * carries `FLOAT64`, which no vocabulary DECLARES and which NUMBER_TYPES deliberately omits.
+ */
+export const INTEGER_TYPES = new Set(['TINYINT', 'SMALLINT', 'INT', 'INTEGER', 'BIGINT']);
+
+/** Fixed-point, so exact and NaN-free: the family a scale must be spelled out for. */
+export const EXACT_NUMERIC_TYPES = new Set(['NUMERIC', 'BIGNUMERIC', 'DECIMAL']);
+
+export function isIntegerType(fieldType: string | undefined): boolean {
+  return fieldType !== undefined && INTEGER_TYPES.has(fieldType.trim().toUpperCase());
+}
+
 export const DATE_TYPES = new Set([
   'DATE',
   'DATETIME',

@@ -154,8 +154,22 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
 
       const joins = await this.resolveJoins(accessibleSources);
 
-      const blendedFields = blendable.blendedFields
-        .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
+      const visibleBlendedFields = blendable.blendedFields.filter(
+        f => !f.isHidden && accessiblePaths.has(f.aliasPath)
+      );
+
+      // A joined Data Mart's CALCULATED field is OMITTED rather than published as unusable.
+      // The own-mart path publishes an aggregate-level formula and clamps its
+      // allowedAggregations to [] because that field is still selectable by name — only
+      // aggregating it is refused. This one is refused on every surface a query can name it on
+      // (projection, filter, sort, aggregation, date bucket), so a clamp would leave a name whose
+      // every use is a paid round trip to a 400; the own-mart path drops such a field instead
+      // (`filterAvailableFields`). The REST `BlendedFieldDto` still carries it under
+      // `isCalculated` for the report picker, which must explain an ALREADY-SAVED selection — MCP
+      // holds no saved selection to explain, and its contract tells the agent to copy every
+      // published name verbatim into query_data_mart.
+      const blendedFields = visibleBlendedFields
+        .filter(f => !f.isCalculated)
         .map(f => ({
           name: f.name,
           displayName: formatBlendedFieldDisplayName(f),
@@ -180,7 +194,13 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       const uniqueCountFields: McpJoinedFieldDto[] = [];
       // `orders__unique_count` is byte-identical to the unified name of a real flat field called
       // `unique_count` on the `orders` source (and to a native column of that literal name).
-      const realFieldNames = new Set([...nativeFieldNames, ...blendedFields.map(f => f.name)]);
+      // Read off the pre-omission list: a joined calculated field of that name is not published,
+      // but the blendable schema still holds it, so a query naming it is refused there — the
+      // pseudo-field must not claim a name the validator would answer with a 400.
+      const realFieldNames = new Set([
+        ...nativeFieldNames,
+        ...visibleBlendedFields.map(f => f.name),
+      ]);
       const eligibleSources = accessibleSources.filter(
         s =>
           s.uniqueCountAvailability === 'available' &&

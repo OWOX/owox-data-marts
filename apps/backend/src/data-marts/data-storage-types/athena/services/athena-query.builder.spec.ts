@@ -199,4 +199,96 @@ describe('AthenaQueryBuilder output controls', () => {
     expect(out.sql).toContain('WHERE "hidden_col" = ?');
     expect(out.params).toEqual([{ name: 'p0', value: 'secret' }]);
   });
+
+  // The calculated-metric flip is a per-dialect copy of the same two gates (output-controls
+  // path, then aggregated path), and a copy is not self-verifying: the legacy BigQuery builder
+  // shipped with `calculatedFields` missing from its own gate, emitting SQL without the metric
+  // while the header was still synthesized. Pinned per dialect so the next copy cannot repeat it.
+  it('routes a calculated-metric-only request onto the aggregated path', () => {
+    const out = builder.buildQuery(tableDefinition('db.tbl'), {
+      columns: ['country'],
+      calculatedFields: [
+        {
+          outputName: 'ctr',
+          type: 'DOUBLE',
+          formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+          level: 'metric',
+        },
+      ],
+    });
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('SUM("clicks") / NULLIF(SUM("impressions"), 0) AS "ctr"');
+    // Projected, never grouped — the metric already IS an aggregate.
+    expect(out.sql).toContain('GROUP BY\n  "country"');
+    expect(out.sql).not.toContain('GROUP BY\n  "country",\n  "ctr"');
+  });
+
+  // A row-level formula is a dimension, not an aggregate: it must not force the grouped shape,
+  // or a plain projection silently becomes an implicit DISTINCT over the report's columns. It is
+  // still projected — the plain path is where its formula gets substituted.
+  it('projects a row-level calculated field without grouping', () => {
+    const out = builder.buildQuery(tableDefinition('db.tbl'), {
+      columns: ['country'],
+      sort: [{ column: 'session_key', direction: 'asc' }],
+      calculatedFields: [
+        {
+          outputName: 'session_key',
+          type: 'VARCHAR',
+          formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+          level: 'column',
+        },
+      ],
+    });
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain(
+      'SELECT\n  "country",\n  CONCAT("session_id", "user_id") AS "session_key"'
+    );
+    expect(out.sql).toContain('ORDER BY\n  "session_key" ASC');
+    expect(out.sql).not.toContain('GROUP BY');
+  });
+
+  // The field alone: `SELECT *, <expr>` would widen the report to every warehouse column, which
+  // the aggregated sibling never does for the same selection.
+  it('projects a row-level calculated field alone, without a wildcard', () => {
+    const out = builder.buildQuery(tableDefinition('db.tbl'), {
+      columns: [],
+      calculatedFields: [
+        {
+          outputName: 'session_key',
+          type: 'VARCHAR',
+          formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+          level: 'column',
+        },
+      ],
+    });
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('SELECT\n  CONCAT("session_id", "user_id") AS "session_key"');
+    expect(out.sql).not.toContain('*');
+  });
+
+  // Ported from bigquery-query.builder.spec.ts. All five builders carry the same line —
+  // `hasAggregateCalculatedField([...calculatedFields, ...calculatedFilterMetrics])` — and it was
+  // asserted on two of them. Drop `calculatedFilterMetrics` from the spread here and this dialect
+  // takes the PLAIN branch, where `assertNoHavingRules` throws a bare Error: a 500 for an ordinary
+  // report ("countries where CTR > 0.5, without showing CTR"). Nothing else in this suite reaches
+  // the predicate, so the flip has to be asserted per dialect or it is asserted nowhere.
+  it('groups the query for an aggregate-level filter on a field it does not select', () => {
+    const out = builder.buildQuery(tableDefinition('db.tbl'), {
+      columns: ['country'],
+      filters: [{ column: 'ctr', operator: 'gt', value: 0.5, clause: 'having' }],
+      calculatedFilterMetrics: [
+        {
+          outputName: 'ctr',
+          type: 'DOUBLE',
+          formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+          level: 'metric' as const,
+        },
+      ],
+    } as never);
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('GROUP BY\n  "country"');
+    expect(out.sql).toMatch(/HAVING/);
+    // Filtered, not selected: the field must not reach the projection.
+    expect(out.sql).not.toContain('AS "ctr"');
+  });
 });

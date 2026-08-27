@@ -6,21 +6,36 @@ import type { ComponentType } from 'react';
 import { useCallback, useMemo } from 'react';
 import type { SortingStrategy } from '@dnd-kit/sortable';
 import type { BaseSchemaField } from '../../../../shared/types/data-mart-schema.types';
+import { DataMartSchemaFieldStatus } from '../../../../shared/types/data-mart-schema.types';
 import { EditableText } from '@owox/ui/components/common/editable-text';
 import {
   SchemaFieldActionsButton,
+  SchemaFieldCalculatedIcon,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldStatusIcon,
   SchemaHeaderAiButton,
   TableActionsButton,
+  type SchemaCapableStorageType,
 } from '../components';
 import { asString } from '../utils';
-import { SchemaTable } from './SchemaTable';
+import { SchemaTable, type RowCellSpan } from './SchemaTable';
 import type { SchemaAiHelper } from '../types/ai-helper';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
 import { AllowedAggregationsSelect } from '../AllowedAggregationsSelect';
 import { resolveFieldGovernance } from '../../../../shared/utils/aggregation-governance';
+import { isRowLevelCalculatedField } from '../../../../shared/utils/calculated-field-level';
 import type { SchemaToolbar } from '../types/schema-toolbar';
+import { CalculatedFieldFormulaCell } from '../calculated/CalculatedFieldFormulaCell';
+import { aggregateFunctionsFor } from '../calculated/formula-function-dialects';
+import { scalarFunctionsFor } from '../calculated/formula-scalar-functions';
+import {
+  buildJoinedReferenceIndex,
+  buildReferenceIndex,
+  type SchemaField,
+} from '../calculated/formula-reference-index';
+import { useJoinedFormulaFields } from '../calculated/joined-fields-context';
+import { useFormulaDataMartId } from '../calculated/formula-data-mart-context';
+import { useCalculatedFieldIssues } from '../calculated/calculated-field-issues-context';
 
 // Extended column definition with optional columnIndex property
 export type ExtendedColumnDef<T extends BaseSchemaField> = ColumnDef<T> & {
@@ -106,6 +121,29 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
   aiHelper?: SchemaAiHelper;
   /** Schema toolbar component */
   schemaToolbar: SchemaToolbar;
+  /** The storage type — picks the dialect whose aggregates a formula may name. */
+  storageType: SchemaCapableStorageType;
+  /**
+   * The Data Mart's genuine (non-flattened) schema field tree, for the calculated field's
+   * formula autocomplete. Defaults to `fields` — correct for every storage except BigQuery, whose
+   * `fields` prop here is already flattened for row rendering (see useRecordExpansion), which
+   * would both mis-shape nested paths and duplicate entries if fed to buildReferenceIndex as is.
+   */
+  schemaFields?: readonly SchemaField[];
+  /**
+   * Adds or updates a calculated field. `index` is undefined for a new metric (appended);
+   * otherwise the FLATTENED row index of the metric being edited. Defaults to operating directly
+   * on `fields`/`onFieldsChange` — correct for every storage except BigQuery, which overrides this
+   * to route through its flattened-index → nested-path translation (useNestedFieldOperations),
+   * since `fields`/`onFieldsChange` here are the flattened view, not the true schema tree.
+   */
+  onSaveCalculatedField?: (index: number | undefined, next: SchemaField) => void;
+}
+
+/** The id TanStack derives for a column definition: its explicit `id`, else its accessor key. */
+function columnIdOf<T extends BaseSchemaField>(column: ColumnDef<T>): string | undefined {
+  if (column.id) return column.id;
+  return 'accessorKey' in column ? String(column.accessorKey) : undefined;
 }
 
 /**
@@ -133,6 +171,9 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   getRowId,
   aiHelper,
   schemaToolbar,
+  storageType,
+  schemaFields,
+  onSaveCalculatedField,
 }: BaseSchemaTableProps<T>) {
   // Handler to update a field
   const updateField = useCallback(
@@ -153,6 +194,90 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       onFieldsChange([...fields, newField]);
     }
   }, [fields, onFieldsChange, createNewField]);
+
+  const joinedFormulaFields = useJoinedFormulaFields();
+  const calculatedFieldIssues = useCalculatedFieldIssues();
+  const formulaDataMartId = useFormulaDataMartId();
+
+  const defaultSaveCalculatedField = useCallback(
+    (index: number | undefined, next: SchemaField) => {
+      if (!onFieldsChange) return;
+      if (index === undefined) {
+        onFieldsChange([...fields, { ...createNewField(), ...next } as T]);
+      } else {
+        updateField(index, next as Partial<T>);
+      }
+    },
+    [onFieldsChange, fields, createNewField, updateField]
+  );
+  const saveCalculatedField = onSaveCalculatedField ?? defaultSaveCalculatedField;
+
+  // A new metric is appended straight away and filled in on its row — the same way "Add Field"
+  // works. Its status is CONNECTED because there is no warehouse column to be disconnected from.
+  const handleAddCalculatedField = useCallback(() => {
+    saveCalculatedField(undefined, {
+      ...createNewField(),
+      isPrimaryKey: false,
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      calculated: { formula: '' },
+    });
+  }, [saveCalculatedField, createNewField]);
+
+  // Own fields first: only the MENU order is decided here — which candidate a typed name resolves
+  // to is `resolveTypedName`'s precedence rule, not this concatenation's order.
+  const referenceIndex = useMemo(
+    () => [
+      ...buildReferenceIndex(schemaFields ?? fields),
+      ...buildJoinedReferenceIndex(joinedFormulaFields.fields),
+    ],
+    [schemaFields, fields, joinedFormulaFields.fields]
+  );
+  // The aggregate functions THIS warehouse's dialect offers, as the backend parser recognizes
+  // them — offering any other name would suggest a formula the save is guaranteed to reject.
+  const functionNames = useMemo(() => aggregateFunctionsFor(storageType), [storageType]);
+  // The scalar functions to SUGGEST alongside them — a curated, deliberately incomplete list that
+  // judges nothing (see formula-scalar-functions.ts), so unlike `functionNames` it never reaches
+  // the save gate. An unrecognised storage gets none rather than a guessed dialect.
+  const scalarFunctionNames = useMemo(() => scalarFunctionsFor(storageType), [storageType]);
+
+  const renderFormulaCell = useCallback(
+    (row: Row<T>) => (
+      <CalculatedFieldFormulaCell
+        formula={row.original.calculated?.formula ?? ''}
+        index={referenceIndex}
+        functionNames={functionNames}
+        scalarFunctionNames={scalarFunctionNames}
+        joinedFieldsStatus={joinedFormulaFields.status}
+        dataMartId={formulaDataMartId}
+        fieldName={row.original.name}
+        fieldType={row.original.type}
+        // Read-only (no onFieldsChange): both save paths bail without it, so an editor here would
+        // let an analyst edit and press Apply only to watch the change vanish.
+        onSave={
+          onFieldsChange
+            ? formula => {
+                saveCalculatedField(row.index, {
+                  ...(row.original as SchemaField),
+                  // `calculated` is replaced wholesale, so a level read back from a PREVIOUS save
+                  // is dropped rather than carried onto a formula it no longer describes — the
+                  // save derives the new one.
+                  calculated: { formula },
+                });
+              }
+            : undefined
+        }
+      />
+    ),
+    [
+      referenceIndex,
+      functionNames,
+      scalarFunctionNames,
+      joinedFormulaFields.status,
+      formulaDataMartId,
+      onFieldsChange,
+      saveCalculatedField,
+    ]
+  );
 
   // Handler to delete a row
   const handleDeleteRow = useCallback(
@@ -179,7 +304,14 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
         accessorKey: 'status',
         header: '',
         size: 36,
-        cell: ({ row }) => <SchemaFieldStatusIcon status={row.getValue('status')} />,
+        cell: ({ row }) =>
+          row.original.calculated ? (
+            <SchemaFieldCalculatedIcon
+              missingReferences={calculatedFieldIssues.get(row.original.name)}
+            />
+          ) : (
+            <SchemaFieldStatusIcon status={row.getValue('status')} />
+          ),
         enableHiding: false,
       },
       {
@@ -233,6 +365,10 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
         ),
         size: 36,
         cell: ({ row }) => {
+          // True at BOTH levels, and not about aggregation: no calculated field owns a warehouse
+          // column, so none can be part of the output Primary Key. The save refuses it too
+          // (`DataMartSchemaParserFacade`); hiding it here keeps the analyst off a dead end.
+          if (row.original.calculated) return null;
           if (primaryKeyColumnCell) {
             return primaryKeyColumnCell({ row, updateField });
           }
@@ -265,19 +401,29 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           </Tooltip>
         ),
         size: 120,
-        cell: ({ row }) => (
-          <AllowedAggregationsSelect
-            value={
-              row.original.allowedAggregations ??
-              resolveFieldGovernance(row.original.type).allowedAggregations
-            }
-            fieldType={row.original.type}
-            onChange={next => {
-              updateField(row.index, { allowedAggregations: next } as Partial<T>);
-            }}
-            ariaLabel={`Aggregations for ${asString(row.getValue('name'))}`}
-          />
-        ),
+        cell: ({ row }) => {
+          // An AGGREGATE-level field already IS an aggregate and can never be aggregated again; a
+          // row-level one is a dimension a report may aggregate, so it governs its own set here
+          // exactly like a warehouse column. Relaxing this line ALONE changes nothing visible —
+          // the formula band below replaces this cell before the guard runs — which is why the
+          // band has to end before this column for a row-level row.
+          if (row.original.calculated && !isRowLevelCalculatedField(row.original.calculated)) {
+            return null;
+          }
+          return (
+            <AllowedAggregationsSelect
+              value={
+                row.original.allowedAggregations ??
+                resolveFieldGovernance(row.original.type).allowedAggregations
+              }
+              fieldType={row.original.type}
+              onChange={next => {
+                updateField(row.index, { allowedAggregations: next } as Partial<T>);
+              }}
+              ariaLabel={`Aggregations for ${asString(row.getValue('name'))}`}
+            />
+          );
+        },
       },
       {
         accessorKey: 'alias',
@@ -403,6 +549,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       updateField,
       handleDeleteRow,
       onFieldsChange,
+      calculatedFieldIssues,
       nameColumnHeader,
       nameColumnCell,
       primaryKeyColumnCell,
@@ -420,7 +567,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   );
 
   // Combine base columns with type column and any additional columns
-  const columns = useMemo(() => {
+  const { columns, formulaSpan } = useMemo(() => {
     const typeColumnIndex = 3; // Insert type column after name column
     const typeColumn: ColumnDef<T> = {
       accessorKey: 'type',
@@ -457,15 +604,57 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       });
     }
 
-    return result;
-  }, [baseColumns, renderTypeCell, updateField, additionalColumns]);
+    // The formula takes the band between Type and "Σ available": every column in it describes
+    // something a calculated field does not have (BigQuery's Mode, the primary key, and — for an
+    // aggregate-level field — an aggregation to apply), and each already renders nothing for such
+    // a row. Every column in the band can host the formula, so hiding one moves the cell along
+    // instead of taking the formula off the row with it.
+    //
+    // A ROW-LEVEL field's band stops one column short: "Σ available" is a control it owns, so the
+    // formula must not cover it.
+    const typeIndex = result.findIndex(column => columnIdOf(column) === 'type');
+    const lastIndex = result.findIndex(column => columnIdOf(column) === 'allowedAggregations');
+    const band: string[] = [];
+    const rowLevelBand: string[] = [];
+    const bandForRow = (row: Row<T>): readonly string[] => {
+      if (!row.original.calculated) return [];
+      return isRowLevelCalculatedField(row.original.calculated) ? rowLevelBand : band;
+    };
+    if (typeIndex !== -1 && lastIndex > typeIndex) {
+      for (let index = typeIndex + 1; index <= lastIndex; index++) {
+        const column = result[index];
+        const columnId = columnIdOf(column);
+        if (!columnId) continue;
+        band.push(columnId);
+        if (index !== lastIndex) rowLevelBand.push(columnId);
+        const ownCell = column.cell;
+        result[index] = {
+          ...column,
+          cell: props => {
+            // Only the band's HOST cell is ever asked (SchemaTable renders none of the covered
+            // ones), so answering for any member is enough — and a row whose band excludes this
+            // column falls through to the real cell instead of drawing the formula twice.
+            if (bandForRow(props.row).includes(columnId)) return renderFormulaCell(props.row);
+            return typeof ownCell === 'function' ? (ownCell(props) as React.ReactNode) : null;
+          },
+        } as ColumnDef<T>;
+      }
+    }
+
+    return {
+      columns: result,
+      formulaSpan: band.length > 0 ? ({ bandFor: bandForRow } satisfies RowCellSpan<T>) : undefined,
+    };
+  }, [baseColumns, renderTypeCell, updateField, additionalColumns, renderFormulaCell]);
 
   return (
     <SchemaTable
       fields={fields}
       columns={columns}
+      rowCellSpan={formulaSpan}
       onFieldsChange={onFieldsChange}
       onAddRow={onAddRow ?? (onFieldsChange ? handleAddRow : undefined)}
+      onAddCalculatedField={onFieldsChange ? handleAddCalculatedField : undefined}
       fieldsForStatusCount={fieldsForStatusCount}
       onSearchChange={onSearchChange}
       dragContext={dragContext}

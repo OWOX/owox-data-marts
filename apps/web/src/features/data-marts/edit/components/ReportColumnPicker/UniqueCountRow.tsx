@@ -181,13 +181,11 @@ export function UniqueCountRow({
                 {note}
               </TooltipContent>
             </Tooltip>
-            {info}
           </>
         ) : (
           <label className='flex min-w-0 flex-1 cursor-pointer items-center gap-2'>
             {checkbox}
             <span className='min-w-0 truncate font-mono text-xs'>{label}</span>
-            {info}
           </label>
         )}
         {/* Outside the <label> above: a <span> is not interactive content, so inside it every
@@ -197,6 +195,7 @@ export function UniqueCountRow({
             way: the badge is taller than the row's text, so revealing it with the tick used to
             grow the row from 24px to 32px and shift everything below it. */}
         <span className='ml-auto flex items-center'>
+          {info && <span className='h-6 w-6' aria-hidden='true' />}
           <span className='flex h-6 w-6 items-center justify-center rounded'>
             {checked &&
               (notEmitted ? (
@@ -223,8 +222,7 @@ export function UniqueCountRow({
                 </Tooltip>
               ))}
           </span>
-          {/* Spacer matching the field rows' filter-icon slot so this Σ aligns with them. */}
-          <span className='h-6 w-6' aria-hidden='true' />
+          {info}
         </span>
       </div>
       {/* Outside the row on purpose: inside a <label> it would be read a second time as part of

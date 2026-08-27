@@ -1,6 +1,7 @@
 export enum DataDestinationType {
   GOOGLE_SHEETS = 'GOOGLE_SHEETS',
   LOOKER_STUDIO = 'LOOKER_STUDIO',
+  EXCEL = 'EXCEL',
 
   // Enterprise edition only
   EMAIL = 'EMAIL',
@@ -15,6 +16,8 @@ export function toHumanReadable(type: DataDestinationType): string {
       return 'Google Sheets';
     case DataDestinationType.LOOKER_STUDIO:
       return 'Data Studio';
+    case DataDestinationType.EXCEL:
+      return 'Microsoft Excel';
     case DataDestinationType.EMAIL:
       return 'Email';
     case DataDestinationType.SLACK:
@@ -37,8 +40,27 @@ export function isEmailBasedDataDestinationType(type: DataDestinationType): bool
   );
 }
 
+/**
+ * Destinations the server cannot write into: the consumer asks for the data instead.
+ *
+ * Looker Studio calls the connector; Excel reads the report over the HTTP data endpoint,
+ * because the workbook lives on the user's machine and no server can reach it. Reports on
+ * these destinations therefore have no server-side run — see ReportRunService.createPending.
+ */
 export function isPullBasedDataDestinationType(type: DataDestinationType): boolean {
-  return type === DataDestinationType.LOOKER_STUDIO;
+  return type === DataDestinationType.LOOKER_STUDIO || type === DataDestinationType.EXCEL;
+}
+
+/**
+ * Destinations that hold a secret of their own.
+ *
+ * Every other type stores something the server needs in order to reach the destination — a
+ * service account, a webhook URL, a connector key. Excel stores nothing: the add-in
+ * authenticates as the user and pulls its own data, so there is no credential to keep, and
+ * inventing an empty one would put a meaningless row in the credential table.
+ */
+export function requiresCredentials(type: DataDestinationType): boolean {
+  return type !== DataDestinationType.EXCEL;
 }
 
 /**

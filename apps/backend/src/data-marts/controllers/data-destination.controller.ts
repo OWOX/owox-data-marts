@@ -22,6 +22,8 @@ import { UpdateDataDestinationService } from '../use-cases/update-data-destinati
 import { GetDataDestinationService } from '../use-cases/get-data-destination.service';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
 import { ListDataDestinationsByTypeService } from '../use-cases/list-data-destinations-by-type.service';
+import { ResolveExcelDestinationService } from '../use-cases/resolve-excel-destination.service';
+import { ResolveExcelDestinationCommand } from '../dto/domain/resolve-excel-destination.command';
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
 import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -43,6 +45,7 @@ import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth
 import {
   CreateDataDestinationSpec,
   CreateConnectGoogleSheetsDestinationSpec,
+  ResolveExcelDestinationSpec,
   DeleteDataDestinationSpec,
   GetDataDestinationImpactSpec,
   GetDataDestinationSpec,
@@ -97,6 +100,7 @@ export class DataDestinationController {
     private readonly revokeOAuthService: RevokeDestinationOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataDestinationsByTypeService,
+    private readonly resolveExcelService: ResolveExcelDestinationService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService
@@ -144,6 +148,22 @@ export class DataDestinationController {
   ): Promise<DataDestinationResponseApiDto> {
     const command = this.mapper.toConnectGoogleSheetsCreateCommand(context, dto);
     const dataDestinationDto = await this.createService.run(command);
+    return await this.mapper.toApiResponse(dataDestinationDto);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Post('excel')
+  @HttpCode(200)
+  @ResolveExcelDestinationSpec()
+  async resolveExcel(
+    @AuthContext() context: AuthorizationContext
+  ): Promise<DataDestinationResponseApiDto> {
+    const command = new ResolveExcelDestinationCommand(
+      context.projectId,
+      context.userId,
+      context.roles
+    );
+    const dataDestinationDto = await this.resolveExcelService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
   }
 

@@ -3,12 +3,20 @@ import {
   AvailableSourceDto,
   BlendableSchemaDto,
   BlendedFieldDto,
+  CalculatedFieldIssueDto,
 } from '../dto/domain/blendable-schema.dto';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { AccessDecisionService, Action, EntityType } from './access-decision';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
+import {
+  brokenJoinedReferencesOf,
+  brokenReferencesOf,
+  buildJoinedReferenceIndex,
+  calculatedFieldsOf,
+  type CalculatedFieldConfig,
+} from '../calculated-fields/calculated-field.utils';
 import {
   classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
@@ -67,6 +75,7 @@ interface RawSchemaField {
   alias?: string;
   description?: string;
   fields?: RawSchemaField[];
+  calculated?: CalculatedFieldConfig;
 }
 
 interface FlatSchemaField {
@@ -74,12 +83,16 @@ interface FlatSchemaField {
   type: string;
   alias?: string;
   description?: string;
+  /** A formula, not a warehouse column — see `BlendedFieldDto.isCalculated` for who reads this. */
+  isCalculated?: boolean;
 }
 
 export function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): FlatSchemaField[] {
   const result: FlatSchemaField[] = [];
   for (const field of fields) {
-    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    // A calculated field carries a warehouse-derived status that means nothing for it; skipping it
+    // here would hide it from HTTP Data's ad-hoc column sets and the MCP facade.
+    if (!field.calculated && field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     if (field.fields && field.fields.length > 0) {
       result.push(...flattenSchemaFields(field.fields, fullName));
@@ -89,6 +102,7 @@ export function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): Flat
         type: field.type,
         alias: field.alias,
         description: field.description,
+        isCalculated: field.calculated !== undefined,
       });
     }
   }
@@ -157,6 +171,11 @@ export class BlendableSchemaService {
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
 
+    const rawSchemaFields = dataMart.schema?.fields ?? [];
+    // The join tree this very call just walked — so a formula's joined reference is checked against
+    // the SAME tree the report builder will route it through, on the one payload the picker reads.
+    const joinedReferenceIndex = buildJoinedReferenceIndex({ availableSources, blendedFields });
+
     return {
       nativeFields,
       nativeDescription: dataMart.description ?? undefined,
@@ -164,8 +183,27 @@ export class BlendableSchemaService {
       availableSources,
       // From the RAW schema, not `nativeFields`: a key column hidden for reporting is stripped from
       // that list but is still counted, so deriving it there reports "no key" for a key that works.
-      mainUniqueCountKeyFields: getMainUniqueCountKeyFields(dataMart.schema?.fields ?? []).map(
-        f => f.name
+      mainUniqueCountKeyFields: getMainUniqueCountKeyFields(rawSchemaFields).map(f => f.name),
+      // Same reason, same RAW input: `brokenReferencesOf` deliberately keeps a hidden field as a
+      // valid formula target (hidden takes a column off the reporting menu, it does not
+      // remove it from the source), so resolving against `nativeFields` would misreport every
+      // metric that references one as broken. Mirrors `output-controls-validator.service.ts`'s own
+      // composition-time check exactly (same function, same input shape); only entries that
+      // actually have a missing reference are included.
+      // A joined reference goes stale the same ways an own one does — the join deleted, its alias
+      // renamed out from under the formula, the field gone or hidden — and it fails the same way:
+      // nothing resolves the path, so the metric renders `main.<field>`. Both halves ride one
+      // channel because the picker asks one question ("is this metric usable?").
+      calculatedFieldIssues: calculatedFieldsOf(rawSchemaFields).reduce<CalculatedFieldIssueDto[]>(
+        (issues, field) => {
+          const missing = [
+            ...brokenReferencesOf(field, rawSchemaFields),
+            ...brokenJoinedReferencesOf(field, joinedReferenceIndex),
+          ];
+          if (missing.length > 0) issues.push({ field: field.name, missing });
+          return issues;
+        },
+        []
       ),
     };
   }
@@ -298,6 +336,7 @@ export class BlendableSchemaService {
         dto.alias = fieldOverride?.alias ?? field.alias ?? '';
         dto.description = field.description ?? '';
         dto.isHidden = fieldOverride?.isHidden ?? false;
+        dto.isCalculated = field.isCalculated === true;
         dto.aggregateFunction = dedupFunction;
         // No override → effective-type governance default; explicit `[]` = none allowed. An
         // explicit override may only NARROW the effective type's SUPPORTED set: it used to be

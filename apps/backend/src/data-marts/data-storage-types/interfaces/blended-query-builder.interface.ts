@@ -6,7 +6,9 @@ import { SortRule } from '../../dto/schemas/sort-config.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
 import { QueryBuildResult } from './data-mart-query-builder.interface';
-import { GroupRestriction } from '../../dto/domain/group-restriction';
+import { GroupRestriction, RoutedGroupRestriction } from '../../dto/domain/group-restriction';
+import { RoutedFilterRule } from '../../dto/domain/filter-clause';
+import { CalculatedFieldPlan } from '../utils/sql-clause-renderer';
 
 export interface BlendedFieldConfig {
   targetFieldName: string;
@@ -103,6 +105,12 @@ export interface BlendedQueryContext {
   mainDataMartUrl: string;
   chains: ResolvedRelationshipChain[];
   columns: string[];
+  /**
+   * Each rule's clause is the one it CARRIES, read through `filterClauseOf` — the
+   * builder never re-derives it. Typed as the plain rule here because the dialect specs drive this
+   * builder with hand-built rules; the requirement to ROUTE is enforced on
+   * {@link RoutedBlendedQueryContext}, which is what `BlendedQueryBuilderFacade` takes.
+   */
   filters?: FilterRule[];
   sort?: SortRule[];
   limit?: number | null;
@@ -119,6 +127,25 @@ export interface BlendedQueryContext {
    */
   uniqueCountSources?: JoinedUniqueCountSleeve[];
   columnTypes?: BlendedColumnTypes;
+  /**
+   * Calculated fields this query projects. Their names must NOT appear in `columns` — a metric
+   * renders through this channel only (same contract as the flat builders).
+   *
+   * A formula may aggregate a JOINED source. Each such call is lifted into its own metric
+   * sleeve and its call site replaced by that sleeve's pull, which the builder can only do with the
+   * metric's `formulaOwnership`; without it a joined reference is refused rather than qualified
+   * against `main`.
+   */
+  calculatedFields?: readonly CalculatedFieldPlan[];
+  /**
+   * Calculated fields a FILTER (or the Totals restriction's HAVING) names, whether or not this
+   * query projects them. A predicate on one compares the field's FORMULA — its
+   * name is a SELECT alias with no column behind it — so the plan must reach the renderer even
+   * when the field is not selected. Deliberately not folded into `calculatedFields`: that list is
+   * the PROJECTION, and a filter-only field added to it would appear in the SELECT and in the
+   * headers under a name nobody asked for.
+   */
+  calculatedFilterMetrics?: readonly CalculatedFieldPlan[];
   fieldIndex?: ReadonlyMap<string, BlendedFieldEntry>;
   /**
    * Restricts this query to the rows of the GROUPS that survive the report's metric (HAVING)
@@ -132,6 +159,19 @@ export interface BlendedQueryContext {
    */
   groupRestriction?: GroupRestriction;
 }
+
+/**
+ * What `BlendedQueryBuilderFacade` takes — the same context with every filter's clause already
+ * DECIDED. See {@link RoutedDataMartQueryOptions} for why the guard sits on the facade
+ * boundary rather than on the builder's own option type.
+ */
+export type RoutedBlendedQueryContext = Omit<
+  BlendedQueryContext,
+  'filters' | 'groupRestriction'
+> & {
+  filters?: RoutedFilterRule[];
+  groupRestriction?: RoutedGroupRestriction;
+};
 
 export interface BlendedQueryBuilder {
   readonly type: DataStorageType;

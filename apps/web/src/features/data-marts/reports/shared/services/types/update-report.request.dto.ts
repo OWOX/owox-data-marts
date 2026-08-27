@@ -11,6 +11,14 @@ export interface GoogleSheetsDestinationConfigDto {
 }
 
 /**
+ * DTO for Microsoft Excel destination configuration.
+ * Carries no location: the add-in places the rows itself, so the worksheet is known only there.
+ */
+export interface ExcelDestinationConfigDto {
+  type: DestinationTypeConfigEnum.EXCEL_CONFIG;
+}
+
+/**
  * DTO for Looker Studio destination configuration
  */
 export interface LookerStudioDestinationConfigDto {
@@ -61,6 +69,7 @@ export interface EmailDestinationConfigDto {
  */
 export type DestinationConfigDto =
   | GoogleSheetsDestinationConfigDto
+  | ExcelDestinationConfigDto
   | LookerStudioDestinationConfigDto
   | EmailDestinationConfigDto;
 
