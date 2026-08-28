@@ -301,13 +301,60 @@ describe('analyzeFormula', () => {
     expect(a.warnings[0].code).toBe('FORMULA_UNGUARDED_DIVISION');
   });
 
+  // The message has to name THIS formula's denominator. It used to carry a fixed example naming a
+  // column the analyst was not looking at, which reads as advice about somebody else's formula.
+  it('names the denominator it is actually warning about', () => {
+    const a = analyze('SUM({{ref field="a"}}) / SUM({{ref field="b"}})');
+    expect(a.warnings[0].subject).toBe('SUM(b)');
+    expect(a.warnings[0].message).toContain('`SUM(b)` can come out ZERO');
+    expect(a.warnings[0].message).toContain('NULLIF(SUM(b), 0)');
+  });
+
+  // The analyzer only holds the STORED form; quoting it verbatim would show a `{{ref}}` tag, which
+  // the editor deliberately never displays.
+  it('writes the denominator the way the analyst sees it, never as a tag', () => {
+    const a = analyze('SUM({{ref field="a"}}) / SUM({{ref path="orders" field="amount"}})');
+    expect(a.warnings[0].subject).toBe('SUM(orders.amount)');
+    expect(a.warnings[0].message).not.toContain('{{ref');
+  });
+
+  // A tag is punctuation to the scanner, so a BARE reference as the denominator starts at its `{`
+  // and was quoted as a single brace.
+  it('names a bare reference denominator, not the brace it starts with', () => {
+    const a = analyze('{{ref field="revenue"}} / {{ref field="cost"}}');
+    expect(a.warnings[0].subject).toBe('cost');
+    expect(a.warnings[0].message).toContain('NULLIF(cost, 0)');
+  });
+
+  // The one violation in the catalogue that refuses nothing. A reader who cannot tell it apart from
+  // the ones that do treats a saveable formula as broken.
+  it('says it does not block the save', () => {
+    const a = analyze('SUM({{ref field="a"}}) / SUM({{ref field="b"}})');
+    expect(a.warnings[0].message).toContain('does not block the save');
+  });
+
+  // COALESCE replaces a NULL, and a NULL denominator is harmless — `1 / CAST(NULL AS INT64)` is
+  // NULL on BigQuery and raises nothing. `1 / 0` is what fails the statement, and
+  // `COALESCE(SUM(x), 0)` is a machine for producing exactly that zero (verified: it raises
+  // `division by zero`). Accepting it as a guard agreed with an analyst who had guarded nothing.
+  it('does not accept COALESCE as a guard, which replaces a null rather than a zero', () => {
+    const a = analyze('SUM({{ref field="a"}}) / COALESCE(SUM({{ref field="b"}}), 0)');
+    expect(a.warnings.map(w => w.code)).toEqual(['FORMULA_UNGUARDED_DIVISION']);
+  });
+
+  it('warns about the zero, never about a null', () => {
+    const a = analyze('SUM({{ref field="a"}}) / SUM({{ref field="b"}})');
+    expect(a.warnings[0].message).toContain('come out ZERO');
+    expect(a.warnings[0].message).not.toContain('empty denominator');
+  });
+
   it('does not warn when the denominator is guarded', () => {
     expect(analyze('SUM({{ref field="a"}}) / NULLIF(SUM({{ref field="b"}}), 0)').warnings).toEqual(
       []
     );
   });
 
-  // The example the policy comment above `hasUnguardedDivision` names in full: a guard around the
+  // The example the policy comment above `unguardedDenominator` names in full: a guard around the
   // QUOTIENT is not a guard on the denominator, and the analyst still divides by zero. Pinned
   // because a containment test passes every other case here while silently accepting this one.
   it('still warns when the guard wraps the quotient rather than the denominator', () => {
@@ -319,6 +366,37 @@ describe('analyzeFormula', () => {
     expect(
       analyze('SUM({{ref field="a"}}) / (NULLIF(SUM({{ref field="b"}}), 0))').warnings
     ).toEqual([]);
+  });
+
+  // Naming a FRAGMENT of the denominator is worse than naming nothing. An analyst who wraps what
+  // the message quotes gets `revenue / (NULLIF(cost, 0) + tax)` — still fatal when `cost + tax` is
+  // zero, and now silent, because the guard sits exactly where this scan looks.
+  it('names a parenthesised denominator whole, not its first operand', () => {
+    const a = analyze('{{ref field="revenue"}} / ({{ref field="cost"}} + {{ref field="tax"}})');
+    expect(a.warnings[0].subject).toBe('(cost + tax)');
+    expect(a.warnings[0].message).toContain('NULLIF((cost + tax), 0)');
+  });
+
+  // Same rule where no span stands for the denominator at all: the warning is still true, so it
+  // stays — it just stops pointing at the wrong token.
+  it.each([
+    [
+      'a CASE expression',
+      'SUM({{ref field="a"}}) / CASE WHEN {{ref field="b"}} > 0 THEN 1 ELSE 2 END',
+    ],
+    ['an unclosed call', 'SUM({{ref field="a"}}) / SUM({{ref field="b"}}'],
+  ])('warns without naming anything when the denominator is %s', (_case, formula) => {
+    const a = analyze(formula);
+    const warning = a.warnings.find(w => w.code === 'FORMULA_UNGUARDED_DIVISION');
+    expect(warning).toBeDefined();
+    expect(warning?.subject).toBeUndefined();
+    expect(warning?.message).toContain('does not block the save');
+  });
+
+  // A constant denominator cannot come out zero unless it IS zero, and the sign is part of the
+  // constant. Without stepping over it the scan landed on the sign and quoted `-`.
+  it.each(['-1', '+ 2', '- 0.5'])('stays silent on the constant denominator %s', constant => {
+    expect(analyze(`SUM({{ref field="a"}}) / ${constant}`).warnings).toEqual([]);
   });
 
   it('does not warn when the denominator is a numeric literal', () => {

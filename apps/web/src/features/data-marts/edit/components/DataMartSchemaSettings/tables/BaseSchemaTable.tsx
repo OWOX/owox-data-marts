@@ -258,10 +258,15 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             ? formula => {
                 saveCalculatedField(row.index, {
                   ...(row.original as SchemaField),
-                  // `calculated` is replaced wholesale, so a level read back from a PREVIOUS save
-                  // is dropped rather than carried onto a formula it no longer describes — the
-                  // save derives the new one.
-                  calculated: { formula },
+                  // `calculated` is replaced wholesale, so `warehouseValidation` goes: a stamp
+                  // must not outlive the formula it judged.
+                  //
+                  // The LEVEL is carried instead. It decides this row's shape, and an absent one
+                  // reads as aggregate — which took the "Σ available" control off a dimension the
+                  // moment its formula was touched, and put it back only after a save. Safe to
+                  // keep, because the save overwrites `calculated.level` from its own analysis
+                  // (CalculatedFieldValidatorService) rather than trusting what it was sent.
+                  calculated: { formula, level: row.original.calculated?.level },
                 });
               }
             : undefined

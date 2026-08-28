@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/base';
 import { TESTIDS } from '../selectors/testids';
+import { findFormulaCell } from '../helpers/formula-cell';
 
 // ---------------------------------------------------------------------------
 // DSET-10: a resolved field reference behaves as an ATOMIC CHIP.
@@ -158,7 +159,7 @@ test.describe('Data Setup - Calculated field chips', () => {
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const formulaCell = page.locator(`[title="${formula}"]`).first();
+    const formulaCell = findFormulaCell(page, formula);
     await expect(formulaCell).toBeVisible({ timeout: 15000 });
     await formulaCell.click();
 
@@ -180,7 +181,7 @@ test.describe('Data Setup - Calculated field chips', () => {
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const cell = page.locator(`[title="${METRIC_FORMULA}"]`).first();
+    const cell = findFormulaCell(page, METRIC_FORMULA);
     await expect(cell).toBeVisible({ timeout: 15000 });
 
     const chip = cell.locator(CHIP);
@@ -587,11 +588,11 @@ test.describe('Data Setup - Calculated field chips', () => {
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const cell = page.locator(`[title="${JOINED_FORMULA}"]`).first();
+    const cell = findFormulaCell(page, JOINED_FORMULA);
     await expect(cell).toBeVisible({ timeout: 15000 });
 
-    // The cell carries the whole formula as its title; the pill's own title has to win over it,
-    // which is what a hover on the pill actually shows.
+    // The pill carries its own answer, which is what a hover on the pill actually shows. The cell
+    // around it no longer carries a `title` of its own for that answer to have to win over.
     await expect(cell.locator(CHIP)).toHaveAttribute(
       'title',
       `amount from the joined Data Mart \u201C${JOINED_TITLE}\u201D`
@@ -610,7 +611,7 @@ test.describe('Data Setup - Calculated field chips', () => {
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const cell = page.locator(`[title="${JOINED_FORMULA}"]`).first();
+    const cell = findFormulaCell(page, JOINED_FORMULA);
     await expect(cell).toBeVisible({ timeout: 15000 });
 
     const surface = cell.locator('[data-slot="popover-trigger"]').first();
@@ -639,15 +640,17 @@ test.describe('Data Setup - Calculated field chips', () => {
     expect((formulaBox?.x ?? 0) + (formulaBox?.width ?? 0)).toBeLessThanOrEqual(aliasBox?.x ?? 0);
   });
 
-  test('wraps a long formula instead of cutting it off (DSET-10)', async ({ page }) => {
+  test('clamps a long formula to two lines instead of growing the row (DSET-10)', async ({
+    page,
+  }) => {
     test.setTimeout(90_000);
 
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const shortCell = page.locator(`[title="${METRIC_FORMULA}"]`).first();
+    const shortCell = findFormulaCell(page, METRIC_FORMULA);
     await expect(shortCell).toBeVisible({ timeout: 15000 });
-    const longCell = page.locator(`[title="${LONG_FORMULA}"]`).first();
+    const longCell = findFormulaCell(page, LONG_FORMULA);
     await expect(longCell).toBeVisible({ timeout: 15000 });
 
     const longSurface = longCell.locator('[data-slot="popover-trigger"]').first();
@@ -656,27 +659,33 @@ test.describe('Data Setup - Calculated field chips', () => {
     const measured = await longSurface.evaluate(element => {
       const style = getComputedStyle(element);
       return {
-        textOverflow: style.textOverflow,
         whiteSpace: style.whiteSpace,
-        // With `truncate` the content is wider than the box and the tail is simply gone.
+        lineClamp: style.webkitLineClamp,
+        // Nothing is hidden sideways: the text wraps, so the formula never widens its column.
         clientWidth: element.clientWidth,
         scrollWidth: element.scrollWidth,
-        height: element.getBoundingClientRect().height,
       };
     });
-    const shortHeight = await shortSurface.evaluate(
-      element => element.getBoundingClientRect().height
-    );
 
-    expect(measured.textOverflow).not.toBe('ellipsis');
-    expect(measured.whiteSpace).toBe('pre-wrap');
-    // Nothing hidden sideways: every character is inside the box.
+    // The author's own line breaks fold into spaces, which is what lets a clamp count lines of
+    // rendered text rather than lines of source.
+    expect(measured.whiteSpace).toBe('normal');
+    expect(measured.lineClamp).toBe('2');
     expect(measured.scrollWidth).toBeLessThanOrEqual(measured.clientWidth + 1);
-    // …because it went onto more lines, which is the row growing rather than the text vanishing.
-    expect(measured.height).toBeGreaterThan(shortHeight);
 
-    // And the whole formula is there, chips included — a pill that straddles the line break is
-    // still one pill and still painted.
+    // The point of the clamp: a long formula costs the row nothing. Compared against a row whose
+    // formula fits on one line, because the row's height comes from the controls beside it.
+    const longRow = await longSurface.evaluate(
+      element => element.closest('tr')?.getBoundingClientRect().height ?? -1
+    );
+    const shortRow = await shortSurface.evaluate(
+      element => element.closest('tr')?.getBoundingClientRect().height ?? -1
+    );
+    expect(longRow).toBeGreaterThan(0);
+    expect(longRow).toBe(shortRow);
+
+    // The whole formula is still in the DOM, chips included — clipped for the eye, not truncated
+    // in the text — and it is what the hover card reads.
     expect((await longCell.textContent())?.trim()).toBe(LONG_FORMULA);
     const chips = longCell.locator(CHIP);
     await expect(chips).toHaveCount(4);
@@ -693,6 +702,25 @@ test.describe('Data Setup - Calculated field chips', () => {
       expect(pill.drawn).toBe(true);
       expect(pill.background).not.toBe('rgba(0, 0, 0, 0)');
     });
+  });
+
+  test('shows the whole formula in a hover card the clamped row cannot (DSET-10)', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
+
+    const longCell = findFormulaCell(page, LONG_FORMULA);
+    await expect(longCell).toBeVisible({ timeout: 15000 });
+
+    const card = page.locator('[data-slot="hover-card-content"]');
+    await expect(card).toHaveCount(0);
+
+    await longCell.hover();
+    await expect(card).toBeVisible({ timeout: 15000 });
+    expect((await card.textContent())?.trim()).toBe(LONG_FORMULA);
   });
 
   test('still opens the suggest list with the chip layer attached (DSET-10)', async ({ page }) => {

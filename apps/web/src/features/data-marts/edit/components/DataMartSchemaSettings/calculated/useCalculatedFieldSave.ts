@@ -58,6 +58,19 @@ function groupByField(violations: ApiFormulaViolation[] | undefined): Violations
 }
 
 /**
+ * The one-line summary of a rejected save, for a surface that can only render a string — today the
+ * unsaved-changes dialog, which otherwise shows axios's own "Request failed with status code 400".
+ * Returns undefined when the rejection carries no formula violations, so the caller keeps its own
+ * wording for an unrelated failure.
+ */
+export function rejectedFormulaMessage(error: unknown): string | undefined {
+  const violations = extractApiError(error).errorDetails?.errors;
+  const fields = Object.keys(groupByField(violations));
+  if (fields.length === 0) return undefined;
+  return `The warehouse rejected ${fields.join(', ')}. Close this dialog to see why.`;
+}
+
+/**
  * Mirrors `apiClient.ts`'s response interceptor for 403/404/5xx. `save` always sets
  * `skipErrorToast` on its underlying request (this hook renders its own field-grouped feedback
  * for the 400 case instead), so a failure that ISN'T a calculated-field violation gets NO toast

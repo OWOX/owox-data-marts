@@ -291,8 +291,9 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
     }
   }
 
-  if (hasUnguardedDivision(tokens, calls)) {
-    warnings.push(FormulaViolations.unguardedDivision(fieldName));
+  const division = unguardedDenominator(formula, tokens, calls, references);
+  if (division) {
+    warnings.push(FormulaViolations.unguardedDivision(fieldName, division.subject));
   }
 
   return {
@@ -365,32 +366,111 @@ function dedupeViolations(violations: FormulaViolation[]): FormulaViolation[] {
 }
 
 /**
- * A `/` whose right-hand side is neither a numeric literal nor already wrapped in a null-guarding
- * call. Deliberately shallow — an advisory, not a correctness gate. Known gaps, left for a human:
- * a guard around the RESULT of the division still warns, because it does not guard the denominator;
- * IF and CASE guards are not recognised; the guard-function set is fixed rather than per dialect.
+ * A `/` whose right-hand side is neither a numeric literal nor already wrapped in a call that turns
+ * a ZERO denominator into something harmless.
+ *
+ * Zero, not null. Measured on BigQuery: `1 / CAST(NULL AS INT64)` is NULL and raises nothing, while
+ * `1 / 0` fails the statement. So COALESCE is NOT in the guard set — it replaces a null, which was
+ * never the danger, and `COALESCE(SUM(x), 0)` actively PRODUCES the zero that fails the query
+ * (verified: `1 / COALESCE(CAST(NULL AS INT64), 0)` raises `division by zero`). Accepting it meant
+ * agreeing with an analyst who believed they had guarded.
+ *
+ * Deliberately shallow — an advisory, not a correctness gate. Known gaps, all erring toward warning
+ * rather than staying silent: a guard around the RESULT of the division still warns, because it does
+ * not guard the denominator; a guard NESTED inside the denominator (`COALESCE(NULLIF(x, 0), 1)`)
+ * warns too; IF and CASE guards are not recognised; the guard set is fixed rather than per dialect.
  */
-function hasUnguardedDivision(
+interface UnguardedDivision {
+  /** The span to quote, or absent when nothing in the formula stands for the whole denominator. */
+  subject?: string;
+}
+
+function unguardedDenominator(
+  formula: string,
   tokens: readonly SqlToken[],
-  calls: readonly SqlFunctionCall[]
-): boolean {
-  const GUARDS = new Set(['NULLIF', 'SAFE_DIVIDE', 'IFF', 'COALESCE', 'NULLIFZERO', 'DIV0']);
+  calls: readonly SqlFunctionCall[],
+  references: readonly FormulaReference[]
+): UnguardedDivision | undefined {
+  const GUARDS = new Set(['NULLIF', 'SAFE_DIVIDE', 'IFF', 'NULLIFZERO', 'DIV0']);
   const code = tokens.filter(t => t.kind !== 'comment');
-  return code.some((token, i) => {
-    if (!(token.kind === 'punct' && token.value === '/')) return false;
+  for (const [i, token] of code.entries()) {
+    if (!(token.kind === 'punct' && token.value === '/')) continue;
     // Past any parens the analyst wrapped the denominator in, so `a / (NULLIF(b, 0))` reads the
-    // same as `a / NULLIF(b, 0)`.
+    // same as `a / NULLIF(b, 0)` — and past a unary sign, so `a / -1` reads like `a / 1` and is
+    // dropped as the constant it is.
     let j = i + 1;
-    while (code[j]?.kind === 'punct' && code[j].value === '(') j++;
+    let group: SqlToken | undefined;
+    while (code[j]?.kind === 'punct' && ['(', '-', '+'].includes(code[j].value)) {
+      if (code[j].value === '(') group ??= code[j];
+      j++;
+    }
     const denominator = code[j];
-    if (!denominator) return false;
-    if (denominator.kind === 'number') return false;
+    if (!denominator) continue;
+    if (denominator.kind === 'number') continue;
     // The denominator must BE the guard call. Asking only that it fall somewhere INSIDE one also
     // accepts a guard wrapped around the whole quotient — the case the policy above says still
     // warns, because a guard on the result does nothing about dividing by zero.
-    const guarded = calls.some(
-      c => GUARDS.has(c.name.toUpperCase()) && c.nameStart === denominator.start
-    );
-    return !guarded;
-  });
+    const call = calls.find(c => c.nameStart === denominator.start);
+    if (call && GUARDS.has(call.name.toUpperCase())) continue;
+
+    // What to NAME is a separate question from whether to warn, and naming the wrong thing is
+    // worse than naming nothing: an analyst who wraps what the message quotes in `NULLIF` ends up
+    // with a formula that still divides by zero AND no longer warns, because the guard now sits
+    // where this scan looks. So the subject is only ever a span that stands for the whole
+    // denominator.
+    if (group) {
+      // A parenthesised denominator is that whole group: `a / (cost + tax)` is guarded by wrapping
+      // the SUM, never by wrapping `cost`.
+      const close = matchingParen(code, group);
+      return { subject: close && authoringText(formula, references, group.start, close.end) };
+    }
+    // A `{{ref}}` tag is punctuation to the scanner, so a bare reference as the denominator starts
+    // at its `{` and would be quoted as one brace. Its own span is the thing to name.
+    const ref = references.find(r => r.start <= denominator.start && denominator.start < r.end);
+    if (ref) return { subject: authoringText(formula, references, ref.start, ref.end) };
+    if (call?.closed) {
+      return { subject: authoringText(formula, references, denominator.start, call.argEnd + 1) };
+    }
+    if (denominator.kind === 'quotedIdentifier') {
+      return { subject: authoringText(formula, references, denominator.start, denominator.end) };
+    }
+    // A bare word (`CASE`), an unclosed call, a stray operator: the token is a fragment of the
+    // denominator rather than the denominator, so the warning stands without pointing at it.
+    return {};
+  }
+  return undefined;
+}
+
+/** The `)` closing `open`, or undefined if the formula never closes it. */
+function matchingParen(code: readonly SqlToken[], open: SqlToken): SqlToken | undefined {
+  let depth = 0;
+  for (const token of code) {
+    if (token.start < open.start || token.kind !== 'punct') continue;
+    if (token.value === '(') depth++;
+    else if (token.value === ')' && --depth === 0) return token;
+  }
+  return undefined;
+}
+
+/**
+ * A slice of the STORED formula written the way the analyst sees it — every `{{ref}}` tag inside it
+ * replaced by the name it stands for.
+ *
+ * The analyzer only ever holds the stored form, and a message quoting that verbatim would show a tag
+ * the editor deliberately never displays.
+ */
+function authoringText(
+  formula: string,
+  references: readonly FormulaReference[],
+  start: number,
+  end: number
+): string {
+  const inside = references
+    .filter(r => start <= r.start && r.end <= end)
+    .sort((a, b) => b.start - a.start);
+  let text = formula.slice(start, end);
+  for (const ref of inside) {
+    text = text.slice(0, ref.start - start) + refLabel(ref) + text.slice(ref.end - start);
+  }
+  return text.replace(/\s+/g, ' ').trim();
 }

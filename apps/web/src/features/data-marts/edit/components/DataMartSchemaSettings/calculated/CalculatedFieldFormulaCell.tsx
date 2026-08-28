@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { EditableText } from '@owox/ui/components/common/editable-text';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
 import { useDraftCalculatedFields } from './draft-calculated-fields';
 import { toAuthoringForm, toStoredForm, type ResolvedReference } from './formula-authoring';
 import { FormulaChips } from './FormulaChips';
@@ -105,7 +106,7 @@ function LiveCheckedFormulaEditor({
 }
 
 /**
- * Plain text on the row's own background, wrapping rather than truncating.
+ * Plain text on the row's own background, ONE line, truncated.
  *
  * NOT on a surface of its own: a filled one was tried and rejected. It began under the `Mode`
  * header and ran under `PK` and the aggregations, so a solid rectangle sat beneath three headers
@@ -113,12 +114,69 @@ function LiveCheckedFormulaEditor({
  * is said by a rule at the band's edge instead (`SchemaTable.tsx`), which is a mark a table already
  * means as a column boundary.
  *
- * `whitespace-pre-wrap` overrides the `white-space: pre` the table cell sets inline — without it a
- * long formula is one unbroken line and the wrap never happens. `break-words` covers the case that
- * has no space to break at: one very long identifier.
+ * It used to wrap, and a formula authored over several lines made its row several lines tall — a
+ * calculated field pushed the whole table around in a way no ordinary field does.
+ *
+ * `whitespace-normal` overrides the `white-space: pre` the cell sets inline, folding the author's
+ * own newlines and indentation into single spaces; `line-clamp-2` then keeps two lines of the
+ * result. Nothing here rewrites the text, so the reference spans still line up with it, and the
+ * whole formula is a hover away.
+ *
+ * TWO lines because they are free: the row's height comes from the controls beside the formula,
+ * measured at 49px whether the formula occupies one 16px line or two. The third line is what
+ * costs — it takes the row to 64px.
+ *
+ * Clamped rather than `whitespace-nowrap`, which also bounds the height but makes the formula
+ * unbreakable: measured on this table's own widths, that grew the formula column from 549px to
+ * 1042px at the other columns' expense. Wrapped text keeps the intrinsic width it always had.
  */
 const PREVIEW_CLASSES =
-  'max-w-full font-mono text-xs break-words whitespace-pre-wrap text-gray-600 dark:text-gray-300';
+  'line-clamp-2 max-w-full font-mono text-xs break-words whitespace-normal ' +
+  'text-gray-600 dark:text-gray-300';
+
+/** The same formula in the hover card, where the author's own line breaks are worth keeping. */
+const CARD_CLASSES = 'font-mono text-xs break-words whitespace-pre-wrap text-foreground';
+
+/**
+ * The whole formula, for a row that now shows only its first line.
+ *
+ * Suppressed while the editor is open: the editor's popover is anchored to this same cell, and two
+ * floating layers over one row is one too many. `open` is therefore controlled rather than left to
+ * the primitive, which has no way to know about the other popover.
+ *
+ * Opens on focus as well as hover, so the formula a clamped row hides is still reachable from the
+ * keyboard — which is why both triggers take focus: the editable one through `EditableText`'s own
+ * `role='button'`, the read-only one through a `tabIndex` of its own. Nothing is rendered for an
+ * empty formula — the row shows its placeholder and there is no second telling of it.
+ */
+function FormulaHoverCard({
+  text,
+  references,
+  describeReference,
+  suppressed,
+  children,
+}: {
+  text: string;
+  references: readonly ResolvedReference[];
+  describeReference: (reference: ResolvedReference) => string | undefined;
+  suppressed: boolean;
+  children: ReactElement;
+}) {
+  const [open, setOpen] = useState(false);
+  if (text.trim() === '') return children;
+  return (
+    <HoverCard open={open && !suppressed} onOpenChange={setOpen} openDelay={300} closeDelay={100}>
+      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+      {/* Matches the editor popover's own width, so hovering and editing show the formula
+          wrapped at the same measure. */}
+      <HoverCardContent align='start' className='px-4 py-3 sm:w-[520px] sm:max-w-[520px]'>
+        <div className={CARD_CLASSES}>
+          <FormulaChips text={text} references={references} describeReference={describeReference} />
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
 
 const CALCULATED_FIELDS_DOCS =
   'https://docs.owox.com/docs/getting-started/setup-guide/calculated-fields/' +
@@ -163,16 +221,28 @@ export function CalculatedFieldFormulaCell({
    */
   const [draftRefs, setDraftRefs] = useState<ResolvedReference[] | null>(null);
   const refs = draftRefs ?? authoring.refs;
+  /** Whether the editor popover is open, so the hover card can stand down while it is. */
+  const [isEditing, setIsEditing] = useState(false);
 
   if (!onSave) {
     return (
-      <span className={`block w-full ${PREVIEW_CLASSES}`} title={authoring.text}>
-        <FormulaChips
-          text={authoring.text}
-          references={authoring.refs}
-          describeReference={describeReference}
-        />
-      </span>
+      <FormulaHoverCard
+        text={authoring.text}
+        references={authoring.refs}
+        describeReference={describeReference}
+        suppressed={false}
+      >
+        {/* Focusable so the card is reachable without a pointer: this read-only row has no editor
+            behind it, so nothing else here takes focus. The clamp is visual only — the whole
+            formula is in the DOM either way, which is what a screen reader reads. */}
+        <span tabIndex={0} className={`w-full ${PREVIEW_CLASSES}`}>
+          <FormulaChips
+            text={authoring.text}
+            references={authoring.refs}
+            describeReference={describeReference}
+          />
+        </span>
+      </FormulaHoverCard>
     );
   }
 
@@ -195,56 +265,67 @@ export function CalculatedFieldFormulaCell({
   };
 
   return (
-    <div title={authoring.text}>
-      <EditableText
-        value={authoring.text}
-        placeholder='Formula is required'
-        className={PREVIEW_CLASSES}
-        // The name of the row being edited, which the open popover covers up. Not "Formula" when a
-        // name is known — the hint below already says what this editor is.
-        editorTitle={fieldName?.trim() ? fieldName : 'Formula'}
-        editorHint={
-          <>
-            Warehouse SQL over this Data Mart&apos;s fields.{' '}
-            <ExternalAnchor href={CALCULATED_FIELDS_DOCS}>Learn more</ExternalAnchor>
-          </>
-        }
-        // The row shows the PERSISTED formula, so it draws the stored tags' own spans — never
-        // `refs`, which follow the popover's draft and would not line up with this text.
-        renderValue={text => (
-          <FormulaChips
-            text={text}
-            references={authoring.refs}
-            describeReference={describeReference}
-          />
-        )}
-        onEditStart={() => {
-          setDraftRefs(null);
-        }}
-        onApply={applyFormula}
-        renderEditor={ctx => (
-          <div className='w-[520px]'>
-            <LiveCheckedFormulaEditor
-              value={ctx.value}
-              references={refs}
-              index={index}
-              functionNames={functionNames}
-              scalarFunctionNames={scalarFunctionNames}
-              ariaLabel='Formula'
-              dataMartId={dataMartId}
-              fieldName={fieldName}
-              fieldType={fieldType}
-              onChange={next => {
-                setDraftRefs(next.refs);
-                ctx.setValue(next.text);
-              }}
-              // `EditableText` binds Enter and Ctrl+Enter to the textarea this editor replaces, so
-              // on this path they reach nothing. Same action as the Apply button, refusal included.
-              onSubmit={ctx.apply}
+    <FormulaHoverCard
+      text={authoring.text}
+      references={authoring.refs}
+      describeReference={describeReference}
+      suppressed={isEditing}
+    >
+      <div>
+        <EditableText
+          value={authoring.text}
+          placeholder='Formula is required'
+          className={PREVIEW_CLASSES}
+          // The name of the row being edited, which the open popover covers up. Not "Formula" when a
+          // name is known — the hint below already says what this editor is.
+          editorTitle={fieldName?.trim() ? fieldName : 'Formula'}
+          editorHint={
+            <>
+              Warehouse SQL over this Data Mart&apos;s fields.{' '}
+              <ExternalAnchor href={CALCULATED_FIELDS_DOCS}>Learn more</ExternalAnchor>
+            </>
+          }
+          // The row shows the PERSISTED formula, so it draws the stored tags' own spans — never
+          // `refs`, which follow the popover's draft and would not line up with this text.
+          renderValue={text => (
+            <FormulaChips
+              text={text}
+              references={authoring.refs}
+              describeReference={describeReference}
             />
-          </div>
-        )}
-      />
-    </div>
+          )}
+          onEditStart={() => {
+            setIsEditing(true);
+            setDraftRefs(null);
+          }}
+          onEditEnd={() => {
+            setIsEditing(false);
+          }}
+          onApply={applyFormula}
+          renderEditor={ctx => (
+            <div className='w-[520px]'>
+              <LiveCheckedFormulaEditor
+                value={ctx.value}
+                references={refs}
+                index={index}
+                functionNames={functionNames}
+                scalarFunctionNames={scalarFunctionNames}
+                ariaLabel='Formula'
+                dataMartId={dataMartId}
+                fieldName={fieldName}
+                fieldType={fieldType}
+                onChange={next => {
+                  setDraftRefs(next.refs);
+                  ctx.setValue(next.text);
+                }}
+                // `EditableText` binds Enter and Ctrl+Enter to the textarea this editor replaces, so
+                // on this path they reach nothing. Same action as the Apply button, refusal included.
+                onSubmit={ctx.apply}
+              />
+            </div>
+          )}
+        />
+      </div>
+    </FormulaHoverCard>
   );
 }

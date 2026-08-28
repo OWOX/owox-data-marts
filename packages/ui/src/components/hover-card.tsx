@@ -32,6 +32,7 @@ const HoverCardContent = React.forwardRef<
   return (
     <HoverCardPrimitive.Portal>
       <HoverCardPrimitive.Content
+        data-slot='hover-card-content'
         ref={ref}
         align={align}
         sideOffset={sideOffset}

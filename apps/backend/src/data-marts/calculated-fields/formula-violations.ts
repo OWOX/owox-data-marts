@@ -312,12 +312,26 @@ export const FormulaViolations = {
     field,
     message: detail,
   }),
-  unguardedDivision: (field: string): FormulaViolation => ({
+  // ADVICE, and the message has to say so: this is the only violation in the catalogue that does
+  // not refuse anything, and a reader who cannot tell it from the ones that do treats a saveable
+  // formula as broken. The example is built from THIS formula's own denominator rather than from a
+  // fixed one, which named a column the analyst was not looking at.
+  // `denominator` is omitted when nothing in the formula stands for the WHOLE denominator — a
+  // `CASE`, an unclosed call. Quoting a fragment would be worse than quoting nothing: wrapping it
+  // in NULLIF leaves the division just as unguarded and moves the guard to where the check looks,
+  // so the next save says nothing at all.
+  unguardedDivision: (field: string, denominator?: string): FormulaViolation => ({
     code: 'FORMULA_UNGUARDED_DIVISION',
     field,
-    message:
-      'This formula divides without guarding against a zero or empty denominator. ' +
-      'Wrap it, e.g. NULLIF(SUM(impressions), 0).',
+    ...(denominator ? { subject: denominator } : {}),
+    message: denominator
+      ? `\`${denominator}\` can come out ZERO, and dividing by zero fails the whole report at the ` +
+        `warehouse rather than leaving one cell blank. Wrap it as NULLIF(${denominator}, 0), which ` +
+        `turns the zero into an empty cell. Advice only: this does not block the save.`
+      : `This formula divides by something that can come out ZERO, and dividing by zero fails the ` +
+        `whole report at the warehouse rather than leaving one cell blank. Wrap the denominator as ` +
+        `NULLIF(it, 0), which turns the zero into an empty cell. Advice only: this does not block ` +
+        `the save.`,
   }),
   // Used by the dry-run pass. Defined here so every message this feature can emit
   // lives in one file.

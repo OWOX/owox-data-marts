@@ -1,7 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { DataMartSchema } from '../../../../shared/types/data-mart-schema.types';
-import { useCalculatedFieldSave, type CalculatedFieldSaveOutcome } from './useCalculatedFieldSave';
+import {
+  rejectedFormulaMessage,
+  useCalculatedFieldSave,
+  type CalculatedFieldSaveOutcome,
+} from './useCalculatedFieldSave';
 
 vi.mock('../../../../../../shared/utils', () => ({
   showApiErrorToast: vi.fn(),
@@ -395,5 +399,27 @@ describe('useCalculatedFieldSave', () => {
 
     expect(result.current.warningsByField).toEqual({});
     expect(result.current.errorsByField).toEqual({});
+  });
+});
+
+describe('rejectedFormulaMessage', () => {
+  it('names every rejected field so the unsaved-changes dialog can say more than the status code', () => {
+    const message = rejectedFormulaMessage(
+      apiError(400, {
+        errorDetails: {
+          errors: [
+            { code: 'FORMULA_DRY_RUN_FAILED', field: 'activation_rate', message: 'Rejected.' },
+            { code: 'FORMULA_UNKNOWN_REFERENCE', field: 'roas', message: 'Gone.' },
+          ],
+        },
+      })
+    );
+
+    expect(message).toContain('activation_rate');
+    expect(message).toContain('roas');
+  });
+
+  it('declines an unrelated failure so the caller keeps its own wording', () => {
+    expect(rejectedFormulaMessage(apiError(500))).toBeUndefined();
   });
 });

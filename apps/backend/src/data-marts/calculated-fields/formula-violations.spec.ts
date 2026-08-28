@@ -37,7 +37,7 @@ const built: Record<string, FormulaViolation> = {
   mainUniqueCountReference: FormulaViolations.mainUniqueCountReference('ctr', 'unique_count'),
   tagInStringLiteral: FormulaViolations.tagInStringLiteral('ctr'),
   syntax: FormulaViolations.syntax('ctr', 'something could not be parsed'),
-  unguardedDivision: FormulaViolations.unguardedDivision('ctr'),
+  unguardedDivision: FormulaViolations.unguardedDivision('ctr', 'SUM(impressions)'),
   warehouseRejected: FormulaViolations.warehouseRejected('ctr', 'Unrecognized name: clcks'),
   warehouseRejectedAsSet: FormulaViolations.warehouseRejectedAsSet('ctr', 'alias collision'),
   otherFieldErrorsTruncated: FormulaViolations.otherFieldErrorsTruncated('ctr', 12),
@@ -114,6 +114,7 @@ describe('FormulaViolations', () => {
         'nestedAggregate',
         'selfReference',
         'unbalancedParenthesis',
+        'unguardedDivision',
         'unknownReference',
       ].sort()
     );

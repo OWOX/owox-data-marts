@@ -32,6 +32,10 @@ function deepCloneSchema<T extends DataMartSchema | null | undefined>(schema: T)
   return JSON.parse(JSON.stringify(schema)) as T;
 }
 
+function fingerprint(schema: DataMartSchema | null | undefined): string {
+  return JSON.stringify(schema ?? null);
+}
+
 /**
  * Custom hook for managing schema state.
  * Extracts state management logic from the DataMartSchemaSettings component.
@@ -44,13 +48,24 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
   const [schema, setSchema] = useState<DataMartSchema | null | undefined>(clonedInitialSchema);
   const [isDirty, setIsDirty] = useState(false);
   const skipNextInitialSchemaResetRef = useRef(false);
+  const appliedInitialSchemaRef = useRef(fingerprint(clonedInitialSchema));
 
   // Reset schema when initialSchema changes
   useEffect(() => {
     if (skipNextInitialSchemaResetRef.current) {
       skipNextInitialSchemaResetRef.current = false;
+      // Deliberately NOT recorded as applied: what is on screen is the schema this hook was told
+      // to keep, not the one just skipped. Recording the skipped one would make it match every
+      // later republish, and the server's own version — the level it derived — would never land.
       return;
     }
+    const incoming = fingerprint(initialSchema);
+    // Compared by CONTENT, not identity. Every refetch of the Data Mart hands this hook a fresh
+    // object — the runs poll, an actualization, a relationship change — and resetting on identity
+    // alone silently discards whatever the analyst has typed since, while a failed save's errors
+    // stay on screen naming a field that is no longer in the table.
+    if (incoming === appliedInitialSchemaRef.current) return;
+    appliedInitialSchemaRef.current = incoming;
     const clonedSchema = deepCloneSchema(initialSchema);
     setSchema(clonedSchema);
     setIsDirty(false);
@@ -63,6 +78,9 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
    */
   const markSchemaSaved = useCallback((savedSchema: DataMartSchema) => {
     skipNextInitialSchemaResetRef.current = true;
+    // What is on screen from here on, so the next initialSchema that DIFFERS from it still resets
+    // — including the server's own copy of this save, which carries the level it derived.
+    appliedInitialSchemaRef.current = fingerprint(savedSchema);
     setSchema(deepCloneSchema(savedSchema));
     setIsDirty(false);
   }, []);

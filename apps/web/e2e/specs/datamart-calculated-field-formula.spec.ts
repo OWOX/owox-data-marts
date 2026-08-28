@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/base';
 import { TESTIDS } from '../selectors/testids';
+import { findFormulaCell } from '../helpers/formula-cell';
 
 // ---------------------------------------------------------------------------
 // DSET-09: the calculated-field formula editor's autocomplete.
@@ -90,7 +91,7 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // The formula cell of the `roas` row — the whole cell carries the formula as its title.
-    const formulaCell = page.locator(`[title="${METRIC_FORMULA}"]`).first();
+    const formulaCell = findFormulaCell(page, METRIC_FORMULA);
     await expect(formulaCell).toBeVisible({ timeout: 15000 });
     await formulaCell.click();
 

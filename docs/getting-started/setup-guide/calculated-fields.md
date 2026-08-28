@@ -100,6 +100,28 @@ SUM(clicks) * 1.0 / NULLIF(SUM(impressions), 0)
 
 The guarded-division snippet inserts the plain form, so add the `* 1.0` yourself whenever both sides are integers.
 
+### A rate over a condition
+
+An activation rate, a share of paid accounts, a fill rate — all the same shape: count the rows that meet one condition, divide by the rows that meet another. Count with a conditional aggregate rather than filtering the Data Mart, so both counts come from the same rows at whatever grain the report asks for.
+
+```text
+COUNTIF(firstUsageDateTime IS NOT NULL) * 1.0
+  / NULLIF(COUNTIF(firstLogInDateTime IS NOT NULL), 0)
+```
+
+`COUNTIF` is BigQuery's spelling; Athena, Snowflake and Databricks call it `COUNT_IF`. Redshift has no conditional count, so count with a `CASE` there — which every dialect accepts:
+
+```text
+SUM(CASE WHEN firstUsageDateTime IS NOT NULL THEN 1 ELSE 0 END) * 1.0
+  / NULLIF(SUM(CASE WHEN firstLogInDateTime IS NOT NULL THEN 1 ELSE 0 END), 0)
+```
+
+Three things this shape depends on:
+
+- **`NULLIF(..., 0)`** — a period where nobody logged in gives an empty cell instead of failing the whole report with a division by zero.
+- **`* 1.0`** — both counts are integers, and on Redshift and Athena an integer divided by an integer truncates to `0`. See [Dividing one integer by another](#dividing-one-integer-by-another).
+- **Two arguments to `IFNULL`.** On BigQuery `IFNULL(x, 0, 1)` is not a shorter `IF` — `IFNULL` accepts exactly two. The editor's live check does not run the query, so a wrong-arity call is caught by the save's warehouse test run, not while you type. On BigQuery, `SAFE_DIVIDE(a, b)` is the guarded division in one call and needs no `NULLIF`.
+
 ### Aggregate Functions per Dialect
 
 These are the names OWOX recognises **as aggregates** when it reads your formula. Every storage offers the shared set:
@@ -228,7 +250,7 @@ When the joined Data Marts have not loaded, a dotted name is refused with _"coul
 
 Two outcomes are **warnings** and do not block the save:
 
-- **Unguarded division.** A `/` whose denominator is neither a number nor already wrapped in a null-guard is flagged so you can wrap it — `NULLIF(SUM(impressions), 0)` — but the formula still saves. Nothing is rewritten for you. This warning is about a **zero** denominator and nothing else: an integer-by-integer division is never flagged, on any storage — see [Dividing one integer by another](#dividing-one-integer-by-another).
+- **Unguarded division.** A `/` whose denominator is neither a number nor already wrapped in a zero-guard is flagged, naming the denominator it means, so you can wrap it — `NULLIF(SUM(impressions), 0)`. The formula still saves; nothing is rewritten for you. The warning is about a **zero** denominator and nothing else. Dividing by `NULL` is harmless — it simply returns `NULL` — which is why `COALESCE(SUM(impressions), 0)` does **not** count as a guard: it replaces a null with the very zero that fails the query. An integer-by-integer division is never flagged either, on any storage — see [Dividing one integer by another](#dividing-one-integer-by-another).
 - **The warehouse was unreachable.** The schema saves without the test run, says so by name, and the check runs again on the next save.
 
 ## Using the Field in a Report

@@ -158,9 +158,27 @@ function renderCell({
  * its own `<span>` chip now, so the formula is several text nodes and `getByText` matches none.
  */
 function formulaRow(text: string): HTMLElement {
-  // An empty formula shows the placeholder instead, which is one text node and carries no title.
-  const row = screen.queryByTitle(text) ?? screen.getByText(text);
-  return row.querySelector<HTMLElement>('[data-slot="popover-trigger"]') ?? row;
+  // Found by slot rather than by text: a resolved reference is its own `<span>` chip, so the
+  // formula is several text nodes and `getByText` matches none. One cell per render, so the
+  // first trigger IS this cell's. An empty formula shows the placeholder and gets no hover card.
+  const trigger =
+    document.querySelector<HTMLElement>('[data-slot="popover-trigger"]') ??
+    document.querySelector<HTMLElement>('[data-slot="hover-card-trigger"]');
+  return trigger ?? screen.getByText(text);
+}
+
+/** The hover card's own copy of the formula, or null while it is closed. */
+function hoverCard(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="hover-card-content"]');
+}
+
+function hoverRow() {
+  const trigger = document.querySelector<HTMLElement>('[data-slot="hover-card-trigger"]');
+  if (!trigger) throw new Error('no hover-card trigger on the row');
+  fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
 }
 
 function openEditor(triggerText: string) {
@@ -505,8 +523,6 @@ describe('CalculatedFieldFormulaCell', () => {
       );
 
       expect(titles).toEqual([null, 'amount from the joined Data Mart \u201COrders\u201D']);
-      // The whole formula stays on the cell, so a hover anywhere else still shows it.
-      expect(screen.getByTitle('SUM(clicks) + SUM(orders.amount)')).toBeInTheDocument();
     });
   });
 
@@ -793,5 +809,65 @@ describe('CalculatedFieldFormulaCell', () => {
       expect(onSave).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('orders.secret');
     });
+  });
+});
+
+describe('the row preview', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const MULTILINE =
+    'SAFE_DIVIDE(\n  SUM({{ref field="clicks"}}),\n  SUM({{ref field="impressions"}})\n)';
+
+  it('holds the row to two lines however many the formula was authored over', () => {
+    renderCell({ formula: MULTILINE });
+
+    // The fold is CSS, which happy-dom lays out nowhere, so the classes ARE the assertion — they
+    // are also the whole mechanism: nothing rewrites the formula's text, which still holds its
+    // newlines and is what the hover card and the editor read.
+    const preview = formulaRow('');
+    expect(preview.className).toContain('line-clamp-2');
+    expect(preview.className).toContain('whitespace-normal');
+    expect(preview.textContent).toContain('\n');
+  });
+
+  it('shows the whole formula on hover, line breaks and all', () => {
+    renderCell({ formula: MULTILINE });
+    expect(hoverCard()).toBeNull();
+
+    hoverRow();
+
+    expect(hoverCard()?.textContent).toBe('SAFE_DIVIDE(\n  SUM(clicks),\n  SUM(impressions)\n)');
+  });
+
+  it('stands down while the editor is open, so one row never carries two popovers', () => {
+    renderCell({ formula: MULTILINE });
+    hoverRow();
+    expect(hoverCard()).not.toBeNull();
+
+    openEditor('');
+
+    expect(screen.getByTestId('formula-editor')).toBeInTheDocument();
+    expect(hoverCard()).toBeNull();
+  });
+
+  it('lets a keyboard reach a read-only formula, which has no editor to focus instead', () => {
+    renderCell({ formula: MULTILINE, readOnly: true });
+
+    const preview = document.querySelector<HTMLElement>('[data-slot="hover-card-trigger"]');
+    expect(preview?.tabIndex).toBe(0);
+    // The clamp hides nothing from a screen reader: the whole formula is still text in the DOM.
+    expect(preview?.textContent).toBe('SAFE_DIVIDE(\n  SUM(clicks),\n  SUM(impressions)\n)');
+  });
+
+  it('offers no card for a formula that is not there yet', () => {
+    renderCell({ formula: '' });
+
+    expect(document.querySelector('[data-slot="hover-card-trigger"]')).toBeNull();
   });
 });

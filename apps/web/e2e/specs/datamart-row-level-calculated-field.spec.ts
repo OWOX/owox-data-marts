@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/base';
 import { TESTIDS } from '../selectors/testids';
+import { findFormulaCell } from '../helpers/formula-cell';
 
 // ---------------------------------------------------------------------------
 // Authoring a ROW-LEVEL calculated field.
@@ -127,7 +128,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     await expect(popover).toBeHidden();
 
     // The formula is on the row in AUTHORING form — the stored `{{ref}}` tag never reaches screen.
-    const formulaCell = page.locator(`[title="${ROW_LEVEL_FORMULA}"]`).first();
+    const formulaCell = findFormulaCell(page, ROW_LEVEL_FORMULA);
     await expect(formulaCell).toBeVisible();
     expect(await formulaCell.textContent()).toBe(ROW_LEVEL_FORMULA);
 
@@ -154,7 +155,7 @@ test.describe('Data Setup - row-level calculated field', () => {
     await page.reload();
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    const reloadedCell = page.locator(`[title="${ROW_LEVEL_FORMULA}"]`).first();
+    const reloadedCell = findFormulaCell(page, ROW_LEVEL_FORMULA);
     await expect(reloadedCell).toBeVisible({ timeout: 15000 });
     await expect(reloadedCell.locator(CHIP)).toHaveText('clicks');
 

@@ -209,11 +209,22 @@ function buildAthenaField(overrides: Partial<AthenaSchemaField> = {}): AthenaSch
 }
 
 /**
- * The formula cell's clickable trigger. Found by title rather than by text: a resolved reference
- * renders as its own chip span now, so the formula is several text nodes.
+ * The formula cell showing `text`, optionally scoped to one row. Found by the hover-card slot the
+ * cell wraps itself in and then by its text: a resolved reference renders as its own chip span, so
+ * the formula is several text nodes and `getByText` matches none.
+ */
+function formulaCell(text: string, scope: ParentNode = document): HTMLElement {
+  const cells = [...scope.querySelectorAll<HTMLElement>('[data-slot="hover-card-trigger"]')];
+  const cell = cells.find(candidate => candidate.textContent === text);
+  if (!cell) throw new Error(`no formula cell showing "${text}"`);
+  return cell;
+}
+
+/**
+ * The formula cell's clickable trigger.
  */
 function formulaTrigger(text: string): HTMLElement {
-  const cell = screen.getByTitle(text);
+  const cell = formulaCell(text);
   return cell.querySelector<HTMLElement>('[data-slot="popover-trigger"]') ?? cell;
 }
 
@@ -515,7 +526,7 @@ describe('BaseSchemaTable — calculated field row', () => {
     );
 
     const row = screen.getByRole('row', { name: /ctr/ });
-    expect(within(row).getByTitle('SUM(clicks)').textContent).toBe('SUM(clicks)');
+    expect(formulaCell('SUM(clicks)', row).textContent).toBe('SUM(clicks)');
     expect(within(row).queryByText(/\{\{/)).not.toBeInTheDocument();
   });
 
@@ -530,7 +541,7 @@ describe('BaseSchemaTable — calculated field row', () => {
     );
 
     // Athena has no Mode column, so the band between Type and Σ available is those two columns.
-    expect(screen.getByTitle('SUM(clicks)').closest('td')).toHaveAttribute('colspan', '2');
+    expect(formulaCell('SUM(clicks)').closest('td')).toHaveAttribute('colspan', '2');
   });
 
   it('renders the ƒ icon on a calculated row and the ordinary status icon on a normal one', () => {
@@ -750,9 +761,8 @@ describe('BaseSchemaTable — calculated field row', () => {
       name: 'ctr',
       calculated: { formula: 'SUM({{ref field="clicks"}}) * 2' },
     });
-    // The edited field HAD a level, read back from an earlier save. It is dropped rather than
-    // carried onto a formula it no longer describes — the save derives the new one.
-    expect(updatedFields[1].calculated).not.toHaveProperty('level');
+    // The level rides along so the row does not change shape mid-edit; the save re-derives it.
+    expect(updatedFields[1].calculated).toHaveProperty('level', 'metric');
   });
 
   // The cell cannot know either of these on its own: the Data Mart arrives by context, and the
@@ -1015,7 +1025,7 @@ describe('BaseSchemaTable — calculated field row', () => {
       // replaces the cell before that guard ever runs. The band has to END before this column for
       // a row-level row, and this span is that seam — on a storage with no Mode column the band
       // is now the PK cell alone, which spans nothing (SchemaTable omits `colspan` at 1).
-      expect(within(row).getByTitle(ROW_LEVEL_TEXT).closest('td')).not.toHaveAttribute('colspan');
+      expect(formulaCell(ROW_LEVEL_TEXT, row).closest('td')).not.toHaveAttribute('colspan');
     });
 
     it('edits its own allowed set through that control, and the change is saved', async () => {
@@ -1065,8 +1075,8 @@ describe('BaseSchemaTable — calculated field row', () => {
         />
       );
 
-      const metricCell = screen.getByTitle('SUM(clicks)');
-      const rowLevelCell = screen.getByTitle(ROW_LEVEL_TEXT);
+      const metricCell = formulaCell('SUM(clicks)');
+      const rowLevelCell = formulaCell(ROW_LEVEL_TEXT);
 
       // Authoring form, never the stored tag — the same as a metric's.
       expect(rowLevelCell.textContent).toBe(ROW_LEVEL_TEXT);
@@ -1080,7 +1090,11 @@ describe('BaseSchemaTable — calculated field row', () => {
 
       // …and the row-level row's own Σ cell is the real one, not the formula drawn a second time.
       const row = screen.getByRole('row', { name: /doubled_clicks/ });
-      expect(within(row).getAllByTitle(ROW_LEVEL_TEXT)).toHaveLength(1);
+      expect(
+        [...row.querySelectorAll('[data-slot="hover-card-trigger"]')].filter(
+          cell => cell.textContent === ROW_LEVEL_TEXT
+        )
+      ).toHaveLength(1);
       expect(within(row).getByLabelText('Aggregations for doubled_clicks')).toBeInTheDocument();
     });
 
@@ -1095,7 +1109,7 @@ describe('BaseSchemaTable — calculated field row', () => {
 
       const row = screen.getByRole('row', { name: /ctr/ });
       expect(within(row).queryByLabelText(/aggregation/i)).not.toBeInTheDocument();
-      expect(within(row).getByTitle('SUM(clicks)').closest('td')).toHaveAttribute('colspan', '2');
+      expect(formulaCell('SUM(clicks)', row).closest('td')).toHaveAttribute('colspan', '2');
     });
 
     // A field authored in this session carries no level yet (the save derives it), and the
@@ -1115,7 +1129,7 @@ describe('BaseSchemaTable — calculated field row', () => {
 
       const row = screen.getByRole('row', { name: /doubled_clicks/ });
       expect(within(row).queryByLabelText(/aggregation/i)).not.toBeInTheDocument();
-      expect(within(row).getByTitle(ROW_LEVEL_TEXT).closest('td')).toHaveAttribute('colspan', '2');
+      expect(formulaCell(ROW_LEVEL_TEXT, row).closest('td')).toHaveAttribute('colspan', '2');
     });
 
     it('carries the same ƒ status icon a metric does', () => {
@@ -1138,14 +1152,25 @@ describe('BaseSchemaTable — calculated field row', () => {
       expect(screen.getAllByRole('img', { name: 'Calculated field' })).toHaveLength(2);
     });
 
-    // The level is DERIVED on save. Editing a row-level field's formula must drop the level read
-    // back from the previous save exactly as editing a metric's does — otherwise a formula that
-    // just gained an aggregate would be sent carrying `level: 'column'`.
-    it('drops the stored level when its formula is edited in place', () => {
+    // The level decides this row's SHAPE, and an absent one reads as aggregate — so dropping it
+    // on every edit took "Σ available" off a dimension the moment its formula was touched, and
+    // gave it back only after a save. It rides along instead; the save overwrites
+    // `calculated.level` from its own analysis, so what is sent decides nothing.
+    it('carries the stored level through an edit, and drops the warehouse stamp', () => {
       const onFieldsChange = vi.fn();
       render(
         <AthenaSchemaTable
-          fields={[buildAthenaField({ name: 'clicks' }), buildRowLevelField()]}
+          fields={[
+            buildAthenaField({ name: 'clicks' }),
+            {
+              ...buildRowLevelField(),
+              calculated: {
+                formula: ROW_LEVEL_FORMULA,
+                level: 'column',
+                warehouseValidation: 'passed',
+              },
+            } as AthenaSchemaField,
+          ]}
           onFieldsChange={onFieldsChange}
           schemaToolbar={mockSchemaToolbar}
         />
@@ -1158,7 +1183,40 @@ describe('BaseSchemaTable — calculated field row', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
 
       const [updatedFields] = onFieldsChange.mock.calls[0] as [AthenaSchemaField[]];
-      expect(updatedFields[1].calculated).toEqual({ formula: 'SUM({{ref field="clicks"}})' });
+      expect(updatedFields[1].calculated).toEqual({
+        formula: 'SUM({{ref field="clicks"}})',
+        level: 'column',
+      });
+    });
+
+    it('keeps its Σ available control after its formula is edited, before any save', () => {
+      const onFieldsChange = vi.fn();
+      const fields = [buildAthenaField({ name: 'clicks' }), buildRowLevelField()];
+      const { rerender } = render(
+        <AthenaSchemaTable
+          fields={fields}
+          onFieldsChange={onFieldsChange}
+          schemaToolbar={mockSchemaToolbar}
+        />
+      );
+
+      fireEvent.click(formulaTrigger(ROW_LEVEL_TEXT));
+      fireEvent.change(screen.getByTestId('formula-editor'), {
+        target: { value: 'UPPER(clicks)' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+      const [updatedFields] = onFieldsChange.mock.calls[0] as [AthenaSchemaField[]];
+      rerender(
+        <AthenaSchemaTable
+          fields={updatedFields}
+          onFieldsChange={onFieldsChange}
+          schemaToolbar={mockSchemaToolbar}
+        />
+      );
+
+      const row = screen.getAllByRole('row')[2];
+      expect(within(row).getByLabelText(/aggregation/i)).toBeInTheDocument();
     });
   });
 });

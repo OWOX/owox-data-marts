@@ -2,7 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Textarea } from '@owox/ui/components/textarea';
 import { cn } from '@owox/ui/lib/utils';
-import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
 /**
  * Helpers passed to a `editorAction` render-function so the action (e.g. AI generate)
@@ -85,6 +85,12 @@ export interface EditableTextProps {
    */
   onEditStart?: () => void;
   /**
+   * Called when the popover closes, however it closed — Apply, Cancel, Escape or a click outside.
+   * Pairs with `onEditStart` for owners that suppress something of their own while the editor is
+   * open; this component reports the transition because nothing outside it can observe one.
+   */
+  onEditEnd?: () => void;
+  /**
    * Heading for the open popover — which row is being edited, once the popover covers it. Omitted
    * by default, so a cell that does not ask for one looks exactly as it did.
    */
@@ -123,11 +129,19 @@ export function EditableText({
   renderEditor,
   onApply,
   onEditStart,
+  onEditEnd,
   editorTitle,
   editorHint,
   renderValue,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
+  // Reported from the state itself, not from the close handlers: Apply and Cancel both lower
+  // `isEditing` directly, so hooking any one route would miss the others.
+  const wasEditingRef = useRef(false);
+  useEffect(() => {
+    if (wasEditingRef.current && !isEditing) onEditEnd?.();
+    wasEditingRef.current = isEditing;
+  }, [isEditing, onEditEnd]);
   const [editedValue, setEditedValue] = useState(value);
   // Why an Apply can be refused: only `onApply` ever refuses one, so without it this stays null.
   const [applyError, setApplyError] = useState<string | null>(null);

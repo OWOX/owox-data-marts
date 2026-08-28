@@ -169,11 +169,22 @@ function buildCtrField(): BigQuerySchemaField {
 }
 
 /**
- * The formula cell's clickable trigger. Found by title rather than by text: a resolved reference
- * renders as its own chip span now, so the formula is several text nodes.
+ * The formula cell showing `text`, optionally scoped to one row. Found by the hover-card slot the
+ * cell wraps itself in and then by its text: a resolved reference renders as its own chip span, so
+ * the formula is several text nodes and `getByText` matches none.
+ */
+function formulaCell(text: string, scope: ParentNode = document): HTMLElement {
+  const cells = [...scope.querySelectorAll<HTMLElement>('[data-slot="hover-card-trigger"]')];
+  const cell = cells.find(candidate => candidate.textContent === text);
+  if (!cell) throw new Error(`no formula cell showing "${text}"`);
+  return cell;
+}
+
+/**
+ * The formula cell's clickable trigger.
  */
 function formulaTrigger(text: string): HTMLElement {
-  const cell = screen.getByTitle(text);
+  const cell = formulaCell(text);
   return cell.querySelector<HTMLElement>('[data-slot="popover-trigger"]') ?? cell;
 }
 
@@ -193,8 +204,7 @@ describe('BigQuerySchemaTable — calculated field (flattened-index correctness)
 
     // Mode + PK + Σ available: three columns that describe a warehouse column, none of which a
     // calculated field has.
-    const formulaCell = screen.getByTitle('SUM(id)').closest('td');
-    expect(formulaCell).toHaveAttribute('colspan', '3');
+    expect(formulaCell('SUM(id)').closest('td')).toHaveAttribute('colspan', '3');
   });
 
   it('a ROW-LEVEL row’s formula stops one column short — Σ available is its own', () => {
@@ -213,8 +223,8 @@ describe('BigQuerySchemaTable — calculated field (flattened-index correctness)
 
     // Mode + PK only. The metric beside it keeps all three, so this table renders two bands of
     // DIFFERENT lengths at once — what `RowCellSpan` had to grow to express.
-    expect(screen.getByTitle('id * 2').closest('td')).toHaveAttribute('colspan', '2');
-    expect(screen.getByTitle('SUM(id)').closest('td')).toHaveAttribute('colspan', '3');
+    expect(formulaCell('id * 2').closest('td')).toHaveAttribute('colspan', '2');
+    expect(formulaCell('SUM(id)').closest('td')).toHaveAttribute('colspan', '3');
 
     const row = screen.getByRole('row', { name: /doubled_id/ });
     expect(within(row).getByLabelText('Aggregations for doubled_id')).toBeInTheDocument();

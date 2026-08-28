@@ -42,10 +42,21 @@ const VIOLATIONS = {
       'A formula is a single expression and cannot contain `;`. Remove the semicolon — a formula ' +
       'never ends a statement.',
   },
+  // Two shapes, because the backend names the denominator only when a span of the formula stands
+  // for the WHOLE of it — quoting a fragment would send the analyst to guard the wrong thing.
   unguardedDivision: {
+    subject: 'SUM(impressions)',
     message:
-      'This formula divides without guarding against a zero or empty denominator. Wrap it, e.g. ' +
-      'NULLIF(SUM(impressions), 0).',
+      '`SUM(impressions)` can come out ZERO, and dividing by zero fails the whole report at the ' +
+      'warehouse rather than leaving one cell blank. Wrap it as NULLIF(SUM(impressions), 0), ' +
+      'which turns the zero into an empty cell. Advice only: this does not block the save.',
+  },
+  unguardedDivisionUnnamed: {
+    message:
+      'This formula divides by something that can come out ZERO, and dividing by zero fails the ' +
+      'whole report at the warehouse rather than leaving one cell blank. Wrap the denominator as ' +
+      'NULLIF(it, 0), which turns the zero into an empty cell. Advice only: this does not block ' +
+      'the save.',
   },
   subquery: { message: 'A formula cannot contain a subquery.' },
 } satisfies Record<string, PlaceableViolation>;
@@ -70,8 +81,14 @@ describe('violationSubject — the fallback for a violation carrying no subject'
   });
 
   it('has none for a message about the whole formula', () => {
-    expect(violationSubject(VIOLATIONS.unguardedDivision.message)).toBeNull();
+    expect(violationSubject(VIOLATIONS.unguardedDivisionUnnamed.message)).toBeNull();
     expect(violationSubject(VIOLATIONS.subquery.message)).toBeNull();
+  });
+
+  // The other half of that pair: when the backend DOES name the denominator it leads with it, so
+  // the fallback reads the same token the structured `subject` carries.
+  it('reads the denominator a division warning names', () => {
+    expect(violationSubject(VIOLATIONS.unguardedDivision.message)).toBe('SUM(impressions)');
   });
 });
 
@@ -138,8 +155,16 @@ describe('violationRanges', () => {
 
   it('places nothing for a violation that names no token', () => {
     expect(
-      violationRanges(VIOLATIONS.unguardedDivision, 'SUM(clicks) / SUM(impressions)', [])
+      violationRanges(VIOLATIONS.unguardedDivisionUnnamed, 'SUM(clicks) / SUM(impressions)', [])
     ).toEqual([]);
+  });
+
+  // …and marks the denominator when the violation does name one, which is the whole reason it
+  // carries a subject rather than leaving the reader to find the division themselves.
+  it('marks the denominator a division warning names', () => {
+    expect(
+      violationRanges(VIOLATIONS.unguardedDivision, 'SUM(clicks) / SUM(impressions)', [])
+    ).toEqual([{ start: 14, end: 30 }]);
   });
 
   it('ignores a reference whose span no longer holds its own text', () => {
