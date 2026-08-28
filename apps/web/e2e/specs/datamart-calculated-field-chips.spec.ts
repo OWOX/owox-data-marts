@@ -494,7 +494,14 @@ test.describe('Data Setup - Calculated field chips', () => {
     // Mixing the two levels is what is still refused, and it is refused about a FIELD, which is
     // what this test needs: a violation about a function or about the formula as a whole marks no
     // chip.
-    await page.keyboard.type(' + clicks');
+    // Typed at a human pace, and asserted before the check is asked about it. Every other burst in
+    // this file is a single character; this one is nine, and fired as fast as CDP allows it
+    // outruns the editor on a loaded machine — CI lost `clic` out of the middle and sent
+    // `SUM(clicks) + ks`, a formula with nothing wrong in it, so the assertion below waited 15s
+    // for a diagnostic that was never coming. Polling the text first says that in one line.
+    await page.keyboard.type(' + clicks', { delay: 25 });
+    await expect.poll(formulaText(page)).toBe('SUM(clicks) + clicks');
+
     await expect(page.getByTestId('formula-diagnostics')).toContainText('row-level column', {
       timeout: 15000,
     });
