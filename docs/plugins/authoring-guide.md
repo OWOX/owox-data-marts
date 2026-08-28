@@ -266,6 +266,7 @@ const preferences = ctx.collections<Preferences>('preferences');
 
 await preferences.put('current', { compactView: true, selectedTab: 'overview' });
 const saved = await preferences.get('current');
+const prefs = saved?.document ?? { compactView: false, selectedTab: 'overview' };
 ```
 
 Choose the scope based on who owns the state:
@@ -279,13 +280,24 @@ Collection declarations are immutable in structure once released. Later versions
 collections and change action mappings, but cannot remove a collection or change its name, scope,
 or entity binding.
 
-### Bind shared documents to OWOX entities
+### Bind collection documents to OWOX entities
 
-A project-scoped collection can optionally bind each document to a `data-mart`, `storage`,
-`destination`, or `report`. OWOX checks the mapped existing action on every request. For a bound
-collection, `parentId` is required on create and cannot change later. See
-[Actions and access by entity](../project/ownership-and-sharing.md#actions) for the available
-actions, their meanings, and the access each entity supports.
+A `member`- or `project`-scoped collection can optionally bind each document to a `data-mart`,
+`storage`, `destination`, or `report`. Binding does not change its visibility: member-scoped
+documents remain private, while project-scoped documents remain shared with eligible project
+members. OWOX checks the mapped existing action on every request. For a bound collection,
+`parentId` is required on create and cannot change later.
+
+Each operation mapping must use an action supported by the bound entity type:
+
+| Entity type | Allowed action identifiers |
+| --- | --- |
+| `data-mart` | `SEE`, `USE`, `EDIT`, `DELETE`, `CONFIGURE_SHARING`, `MANAGE_OWNERS`, `MANAGE_TRIGGERS` |
+| `storage`, `destination` | `SEE`, `USE`, `EDIT`, `DELETE`, `CONFIGURE_SHARING`, `MANAGE_OWNERS`, `COPY_CREDENTIALS` |
+| `report` | `SEE`, `EDIT`, `DELETE`, `RUN` |
+
+See [Actions and access by entity](../project/ownership-and-sharing.md#actions) for what each action
+means and which members receive it.
 
 ```json
 {
