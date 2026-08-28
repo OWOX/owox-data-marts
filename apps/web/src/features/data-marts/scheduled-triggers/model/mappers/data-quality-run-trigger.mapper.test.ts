@@ -51,4 +51,15 @@ describe('DataQualityRunTriggerMapper', () => {
       triggerConfig: null,
     });
   });
+
+  it('serializes the canonical UTC value in an update request', () => {
+    const mapper = new DataQualityRunTriggerMapper();
+    const model: ScheduledTrigger = mapper.mapFromDto(dto);
+
+    expect(mapper.mapToUpdateRequest(model)).toEqual({
+      cronExpression: '0 9 * * *',
+      timeZone: 'UTC',
+      isActive: true,
+    });
+  });
 });

@@ -28,6 +28,10 @@ interface TimezoneData {
   isDST: boolean;
 }
 
+const UTC_TIMEZONE = 'UTC';
+const UTC_TIMEZONE_ALIASES = new Set(['UTC', 'Etc/UTC', 'GMT', 'Etc/GMT']);
+const TIMEZONE_DISPLAY_NAME_OVERRIDES = new Map([['Europe/Kiev', 'Europe/Kyiv']]);
+
 /**
  * Service for providing timezone data.
  * Currently returns a fixed list of timezones from Intl.supportedValuesOf('timeZone'),
@@ -41,7 +45,11 @@ class TimezoneService {
   getTimezones(): string[] {
     // Currently using the browser's Intl API to get supported timezones
     // This could be replaced with an API call in the future
-    return Intl.supportedValuesOf('timeZone');
+    const runtimeTimezones = Intl.supportedValuesOf('timeZone').filter(
+      timezone => !UTC_TIMEZONE_ALIASES.has(timezone)
+    );
+
+    return [UTC_TIMEZONE, ...runtimeTimezones];
   }
 
   /**
@@ -77,6 +85,10 @@ class TimezoneService {
    * @returns {number} Offset in minutes from UTC
    */
   getTimezoneOffset(timezone: string, date: Date = new Date()): number {
+    if (UTC_TIMEZONE_ALIASES.has(timezone)) {
+      return 0;
+    }
+
     try {
       // Create date formatters for UTC and target timezone
       const utcFormatter = new Intl.DateTimeFormat('en-US', {
@@ -127,12 +139,25 @@ class TimezoneService {
   }
 
   /**
+   * Get the user-facing name for a stored timezone identifier.
+   * @param timezone - Stored timezone identifier
+   * @returns {string} User-facing timezone name
+   */
+  getTimezoneDisplayName(timezone: string): string {
+    return TIMEZONE_DISPLAY_NAME_OVERRIDES.get(timezone) ?? timezone;
+  }
+
+  /**
    * Check if a timezone is currently in daylight saving time
    * @param timezone - Timezone identifier
    * @param date - Date to check (optional, defaults to now)
    * @returns {boolean} Whether timezone is in DST
    */
   isDaylightSavingTime(timezone: string, date: Date = new Date()): boolean {
+    if (UTC_TIMEZONE_ALIASES.has(timezone)) {
+      return false;
+    }
+
     try {
       const january = new Date(date.getFullYear(), 0, 1);
       const july = new Date(date.getFullYear(), 6, 1);
@@ -157,11 +182,12 @@ class TimezoneService {
    * @returns {string} Display name
    */
   private getDisplayName(timezone: string, offsetString: string): string {
-    // Replace underscores with spaces and format city names
-    // const parts = timezone.split('/');
-    // const city = parts[parts.length - 1].replace(/_/g, ' ');
+    if (timezone === UTC_TIMEZONE) {
+      return `${UTC_TIMEZONE} (${offsetString}, no DST)`;
+    }
 
-    return `${timezone} (${offsetString})`;
+    const displayTimezone = this.getTimezoneDisplayName(timezone);
+    return `${displayTimezone} (${offsetString})`;
   }
 
   /**

@@ -488,6 +488,9 @@ export function ScheduleConfig({
   };
 
   const needsTimezone = ['daily', 'weekly', 'monthly'].includes(config.type);
+  const browserTimezone = getBrowserTimezone();
+  const currentTimezoneDisplayName = timezoneService.getTimezoneDisplayName(currentTimezone);
+  const browserTimezoneDisplayName = timezoneService.getTimezoneDisplayName(browserTimezone);
 
   return (
     <div className={className}>
@@ -647,7 +650,7 @@ export function ScheduleConfig({
                     <div className='flex items-center justify-between'>
                       <span className='text-muted-foreground text-xs'>Timezone:</span>
                       <Badge variant='outline' className='text-xs'>
-                        {currentTimezone}
+                        {currentTimezoneDisplayName}
                       </Badge>
                     </div>
 
@@ -657,13 +660,13 @@ export function ScheduleConfig({
                     </div>
                   </div>
 
-                  {isEnabled && needsTimezone && currentTimezone !== getBrowserTimezone() && (
+                  {isEnabled && needsTimezone && currentTimezone !== browserTimezone && (
                     <Alert className={'border-amber-200 bg-amber-50'}>
                       <AlertCircle className='h-4 w-4' />
                       <AlertTitle>Time Zone</AlertTitle>
                       <AlertDescription>
-                        Schedule runs in {currentTimezone} (not your local {getBrowserTimezone()}{' '}
-                        time). Execution time may differ from expected.
+                        Schedule runs in {currentTimezoneDisplayName} (not your local{' '}
+                        {browserTimezoneDisplayName} time). Execution time may differ from expected.
                       </AlertDescription>
                     </Alert>
                   )}
