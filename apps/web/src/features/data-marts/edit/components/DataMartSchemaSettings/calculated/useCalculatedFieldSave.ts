@@ -67,7 +67,9 @@ export function rejectedFormulaMessage(error: unknown): string | undefined {
   const violations = extractApiError(error).errorDetails?.errors;
   const fields = Object.keys(groupByField(violations));
   if (fields.length === 0) return undefined;
-  return `The warehouse rejected ${fields.join(', ')}. Close this dialog to see why.`;
+  // Not "the warehouse rejected": the same list carries refusals the parser made before any
+  // warehouse was asked, and a storage that is not configured yet is never asked at all.
+  return `The save was rejected for ${fields.join(', ')}. Close this dialog to see why.`;
 }
 
 /**

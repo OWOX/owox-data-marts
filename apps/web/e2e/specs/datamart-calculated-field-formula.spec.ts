@@ -90,7 +90,6 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
     await page.goto(`/ui/0/data-marts/${dataMartId}/data-setup`);
     await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
-    // The formula cell of the `roas` row — the whole cell carries the formula as its title.
     const formulaCell = findFormulaCell(page, METRIC_FORMULA);
     await expect(formulaCell).toBeVisible({ timeout: 15000 });
     await formulaCell.click();

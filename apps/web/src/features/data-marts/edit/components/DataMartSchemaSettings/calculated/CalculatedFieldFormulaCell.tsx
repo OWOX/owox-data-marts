@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { EditableText } from '@owox/ui/components/common/editable-text';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
@@ -106,7 +106,7 @@ function LiveCheckedFormulaEditor({
 }
 
 /**
- * Plain text on the row's own background, ONE line, truncated.
+ * Plain text on the row's own background, clamped to two lines.
  *
  * NOT on a surface of its own: a filled one was tried and rejected. It began under the `Mode`
  * header and ran under `PK` and the aggregations, so a solid rectangle sat beneath three headers
@@ -142,31 +142,62 @@ const CARD_CLASSES = 'font-mono text-xs break-words whitespace-pre-wrap text-for
  *
  * Suppressed while the editor is open: the editor's popover is anchored to this same cell, and two
  * floating layers over one row is one too many. `open` is therefore controlled rather than left to
- * the primitive, which has no way to know about the other popover.
+ * the primitive, which has no way to know about the other popover — and lowered explicitly on the
+ * way in, because Radix drops a close whose value already matches the prop, which would leave a
+ * stale `open` to spring back the moment suppression lifts.
  *
- * Opens on focus as well as hover, so the formula a clamped row hides is still reachable from the
- * keyboard — which is why both triggers take focus: the editable one through `EditableText`'s own
- * `role='button'`, the read-only one through a `tabIndex` of its own. Nothing is rendered for an
- * empty formula — the row shows its placeholder and there is no second telling of it.
+ * `openOnFocus` belongs to the READ-ONLY row, which has no editor to open and would otherwise be
+ * unreachable without a pointer. The editable row refuses it: the editor's popover returns focus
+ * to this very trigger when it closes, and Radix opens on ANY focus, so every Apply would be
+ * followed by a card appearing over the rows below with nothing to explain it. A keyboard reader
+ * there opens the editor itself, which shows more than the card does.
+ *
+ * The wrapper renders even for an empty formula — with nothing to show and nothing to open. It
+ * used to return `children` bare, and applying the FIRST formula of a new field then swapped one
+ * element type for another at the same position: React unmounted the editor before its close could
+ * be reported, and the cell stayed suppressed for good.
  */
 function FormulaHoverCard({
   text,
   references,
   describeReference,
   suppressed,
+  openOnFocus,
   children,
 }: {
   text: string;
   references: readonly ResolvedReference[];
   describeReference: (reference: ResolvedReference) => string | undefined;
   suppressed: boolean;
+  openOnFocus: boolean;
   children: ReactElement;
 }) {
   const [open, setOpen] = useState(false);
-  if (text.trim() === '') return children;
+  useEffect(() => {
+    if (suppressed) setOpen(false);
+  }, [suppressed]);
+  const empty = text.trim() === '';
   return (
-    <HoverCard open={open && !suppressed} onOpenChange={setOpen} openDelay={300} closeDelay={100}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+    <HoverCard
+      open={open && !suppressed && !empty}
+      onOpenChange={setOpen}
+      openDelay={300}
+      closeDelay={100}
+    >
+      <HoverCardTrigger
+        asChild
+        // Radix composes this with its own opener and skips that opener once the event is
+        // defaulted-prevented, which is the whole mechanism behind `openOnFocus`.
+        onFocus={
+          openOnFocus
+            ? undefined
+            : event => {
+                event.preventDefault();
+              }
+        }
+      >
+        {children}
+      </HoverCardTrigger>
       {/* Matches the editor popover's own width, so hovering and editing show the formula
           wrapped at the same measure. */}
       <HoverCardContent align='start' className='px-4 py-3 sm:w-[520px] sm:max-w-[520px]'>
@@ -231,6 +262,7 @@ export function CalculatedFieldFormulaCell({
         references={authoring.refs}
         describeReference={describeReference}
         suppressed={false}
+        openOnFocus
       >
         {/* Focusable so the card is reachable without a pointer: this read-only row has no editor
             behind it, so nothing else here takes focus. The clamp is visual only — the whole
@@ -270,6 +302,7 @@ export function CalculatedFieldFormulaCell({
       references={authoring.refs}
       describeReference={describeReference}
       suppressed={isEditing}
+      openOnFocus={false}
     >
       <div>
         <EditableText

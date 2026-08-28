@@ -120,7 +120,7 @@ Three things this shape depends on:
 
 - **`NULLIF(..., 0)`** — a period where nobody logged in gives an empty cell instead of failing the whole report with a division by zero.
 - **`* 1.0`** — both counts are integers, and on Redshift and Athena an integer divided by an integer truncates to `0`. See [Dividing one integer by another](#dividing-one-integer-by-another).
-- **Two arguments to `IFNULL`.** On BigQuery `IFNULL(x, 0, 1)` is not a shorter `IF` — `IFNULL` accepts exactly two. The editor's live check does not run the query, so a wrong-arity call is caught by the save's warehouse test run, not while you type. On BigQuery, `SAFE_DIVIDE(a, b)` is the guarded division in one call and needs no `NULLIF`.
+- **`NULLIF`, not `IFNULL`.** The two names invite each other, and they do opposite things: `NULLIF(x, 0)` turns a zero into a null, which is the guard, while `IFNULL(x, 0)` turns a null into a zero — the very value that fails the division. `IFNULL` also takes exactly two arguments on BigQuery, so `IFNULL(x, 0, 1)` is not a shorter `IF`; the editor's live check never runs the query, so a wrong-arity call is caught by the save's warehouse test run rather than while you type. On BigQuery, `SAFE_DIVIDE(a, b)` is the guarded division in one call and needs no `NULLIF` at all.
 
 ### Aggregate Functions per Dialect
 

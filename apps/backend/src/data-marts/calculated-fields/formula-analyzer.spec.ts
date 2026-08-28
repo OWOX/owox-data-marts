@@ -393,6 +393,34 @@ describe('analyzeFormula', () => {
     expect(warning?.message).toContain('does not block the save');
   });
 
+  // Stepping past the parens to test the FIRST token called `(1 - rate)` a constant and went
+  // quiet — on a shape common enough to matter. The whole group has to be constant to say that.
+  it.each([
+    ['(-1 + {{ref field="b"}})', '(-1 + b)'],
+    ['(1 - {{ref field="rate"}})', '(1 - rate)'],
+  ])('warns about the non-constant group %s', (group, expected) => {
+    const a = analyze(`SUM({{ref field="a"}}) / ${group}`);
+    expect(a.warnings[0].code).toBe('FORMULA_UNGUARDED_DIVISION');
+    expect(a.warnings[0].subject).toBe(expected);
+  });
+
+  it('stays silent on a group that really is constant', () => {
+    expect(analyze('SUM({{ref field="a"}}) / (2)').warnings).toEqual([]);
+  });
+
+  // Same rule as everywhere else here: a subject that cannot be quoted honestly is not quoted. A
+  // comment's terminating newline folds into a space, so the advice would paste as broken SQL; a
+  // quoted identifier brings its own delimiters, which the message's backticks would double.
+  it.each([
+    ['a comment', 'SUM({{ref field="a"}}) / ({{ref field="b"}} -- note\n + 1)'],
+    ['a quoted identifier', 'SUM({{ref field="a"}}) / "weird col"'],
+  ])('warns without naming a denominator holding %s', (_case, formula) => {
+    const a = analyze(formula);
+    const warning = a.warnings.find(w => w.code === 'FORMULA_UNGUARDED_DIVISION');
+    expect(warning).toBeDefined();
+    expect(warning?.subject).toBeUndefined();
+  });
+
   // A constant denominator cannot come out zero unless it IS zero, and the sign is part of the
   // constant. Without stepping over it the scan landed on the sign and quoted `-`.
   it.each(['-1', '+ 2', '- 0.5'])('stays silent on the constant denominator %s', constant => {

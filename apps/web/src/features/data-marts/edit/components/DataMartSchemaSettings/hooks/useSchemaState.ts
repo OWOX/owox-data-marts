@@ -44,11 +44,15 @@ function fingerprint(schema: DataMartSchema | null | undefined): string {
  * @returns An object containing the schema state and functions to update it
  */
 export function useSchemaState(initialSchema: DataMartSchema | null | undefined) {
-  const clonedInitialSchema = deepCloneSchema(initialSchema);
-  const [schema, setSchema] = useState<DataMartSchema | null | undefined>(clonedInitialSchema);
+  const [schema, setSchema] = useState<DataMartSchema | null | undefined>(() =>
+    deepCloneSchema(initialSchema)
+  );
   const [isDirty, setIsDirty] = useState(false);
   const skipNextInitialSchemaResetRef = useRef(false);
-  const appliedInitialSchemaRef = useRef(fingerprint(clonedInitialSchema));
+  // Filled on first use rather than passed to `useRef`, whose argument is evaluated on EVERY render
+  // and thrown away after the first — and this one serialises the whole schema.
+  const appliedInitialSchemaRef = useRef<string | null>(null);
+  appliedInitialSchemaRef.current ??= fingerprint(initialSchema);
 
   // Reset schema when initialSchema changes
   useEffect(() => {

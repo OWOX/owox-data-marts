@@ -1,6 +1,7 @@
 import {
   FormulaReference,
   parseFormulaReferences,
+  renderFormula,
   FormulaReferenceSyntaxError,
 } from './formula-reference';
 import { scanSql, SqlToken } from './sql-token-scanner';
@@ -393,11 +394,42 @@ function unguardedDenominator(
 ): UnguardedDivision | undefined {
   const GUARDS = new Set(['NULLIF', 'SAFE_DIVIDE', 'IFF', 'NULLIFZERO', 'DIV0']);
   const code = tokens.filter(t => t.kind !== 'comment');
+
+  /**
+   * The span, written as the analyst sees it — unless it cannot be quoted honestly.
+   *
+   * A comment inside it survives the slice and the whitespace collapse folds the newline that ends
+   * it, so `NULLIF((b -- note + 1), 0)` is what the advice would say: broken SQL when pasted. A
+   * quoted identifier arrives with its own delimiters, which the message's backticks would then
+   * double — unreadable to the web's leading-backtick parser, and unmarkable in an editor that
+   * masks quoted spans before searching. Both take the unnamed message, which reads fine.
+   */
+  const named = (from: number, to: number): UnguardedDivision => {
+    // A `{{ref}}` tag's own `"field"` scans as a quoted identifier, so tokens inside a tag are
+    // excluded — they are the tag's syntax, not text the analyst wrote.
+    const insideTag = (t: SqlToken) => references.some(r => r.start <= t.start && t.end <= r.end);
+    const unquotable = tokens.some(
+      t =>
+        t.start >= from &&
+        t.end <= to &&
+        !insideTag(t) &&
+        (t.kind === 'comment' || t.kind === 'quotedIdentifier')
+    );
+    if (unquotable) return {};
+    try {
+      return { subject: authoringText(formula, from, to) };
+    } catch {
+      // A span holding half a `{{ref}}` tag cannot be rendered. Not reachable from the spans below,
+      // which are all tag-aligned, but this runs inside the editor's live check: a throw here would
+      // silence every diagnostic rather than lose one subject.
+      return {};
+    }
+  };
+
   for (const [i, token] of code.entries()) {
     if (!(token.kind === 'punct' && token.value === '/')) continue;
     // Past any parens the analyst wrapped the denominator in, so `a / (NULLIF(b, 0))` reads the
-    // same as `a / NULLIF(b, 0)` — and past a unary sign, so `a / -1` reads like `a / 1` and is
-    // dropped as the constant it is.
+    // same as `a / NULLIF(b, 0)` — and past a unary sign, so `a / -1` reads like `a / 1`.
     let j = i + 1;
     let group: SqlToken | undefined;
     while (code[j]?.kind === 'punct' && ['(', '-', '+'].includes(code[j].value)) {
@@ -406,7 +438,13 @@ function unguardedDenominator(
     }
     const denominator = code[j];
     if (!denominator) continue;
-    if (denominator.kind === 'number') continue;
+    const close = group && matchingParen(code, group);
+    // A constant cannot come out zero unless it IS zero. Inside a group the whole group has to be
+    // constant to say that: `(2)` is, `(1 - rate)` is not, and testing only the first token called
+    // both of them constants.
+    if (group ? close && isConstantGroup(code, group, close) : denominator.kind === 'number') {
+      continue;
+    }
     // The denominator must BE the guard call. Asking only that it fall somewhere INSIDE one also
     // accepts a guard wrapped around the whole quotient — the case the policy above says still
     // warns, because a guard on the result does nothing about dividing by zero.
@@ -416,29 +454,30 @@ function unguardedDenominator(
     // What to NAME is a separate question from whether to warn, and naming the wrong thing is
     // worse than naming nothing: an analyst who wraps what the message quotes in `NULLIF` ends up
     // with a formula that still divides by zero AND no longer warns, because the guard now sits
-    // where this scan looks. So the subject is only ever a span that stands for the whole
-    // denominator.
+    // where this scan looks. So the subject is only ever a span standing for the WHOLE denominator.
     if (group) {
-      // A parenthesised denominator is that whole group: `a / (cost + tax)` is guarded by wrapping
-      // the SUM, never by wrapping `cost`.
-      const close = matchingParen(code, group);
-      return { subject: close && authoringText(formula, references, group.start, close.end) };
+      // `a / (cost + tax)` is guarded by wrapping the sum, never by wrapping `cost`.
+      return close ? named(group.start, close.end) : {};
     }
     // A `{{ref}}` tag is punctuation to the scanner, so a bare reference as the denominator starts
     // at its `{` and would be quoted as one brace. Its own span is the thing to name.
     const ref = references.find(r => r.start <= denominator.start && denominator.start < r.end);
-    if (ref) return { subject: authoringText(formula, references, ref.start, ref.end) };
-    if (call?.closed) {
-      return { subject: authoringText(formula, references, denominator.start, call.argEnd + 1) };
-    }
-    if (denominator.kind === 'quotedIdentifier') {
-      return { subject: authoringText(formula, references, denominator.start, denominator.end) };
-    }
+    if (ref) return named(ref.start, ref.end);
+    if (call?.closed) return named(denominator.start, call.argEnd + 1);
     // A bare word (`CASE`), an unclosed call, a stray operator: the token is a fragment of the
     // denominator rather than the denominator, so the warning stands without pointing at it.
     return {};
   }
   return undefined;
+}
+
+/** Whether everything between `open` and `close` is a numeric literal or a sign on one. */
+function isConstantGroup(code: readonly SqlToken[], open: SqlToken, close: SqlToken): boolean {
+  return code
+    .filter(t => t.start >= open.end && t.end <= close.start)
+    .every(
+      t => t.kind === 'number' || (t.kind === 'punct' && ['+', '-', '(', ')'].includes(t.value))
+    );
 }
 
 /** The `)` closing `open`, or undefined if the formula never closes it. */
@@ -459,18 +498,9 @@ function matchingParen(code: readonly SqlToken[], open: SqlToken): SqlToken | un
  * The analyzer only ever holds the stored form, and a message quoting that verbatim would show a tag
  * the editor deliberately never displays.
  */
-function authoringText(
-  formula: string,
-  references: readonly FormulaReference[],
-  start: number,
-  end: number
-): string {
-  const inside = references
-    .filter(r => start <= r.start && r.end <= end)
-    .sort((a, b) => b.start - a.start);
-  let text = formula.slice(start, end);
-  for (const ref of inside) {
-    text = text.slice(0, ref.start - start) + refLabel(ref) + text.slice(ref.end - start);
-  }
-  return text.replace(/\s+/g, ' ').trim();
+function authoringText(formula: string, start: number, end: number): string {
+  // The same renderer the rest of the feature uses, rather than a second substitution loop for the
+  // two to drift apart on. Every span passed here contains whole tags, which is what lets a SLICE
+  // be re-parsed on its own.
+  return renderFormula(formula.slice(start, end), refLabel).replace(/\s+/g, ' ').trim();
 }
