@@ -187,7 +187,7 @@ OAUTH_FLOW attribute; API key connectors have SECRET attribute; OAuth connectors
 attribute with AuthType field and variant value. Verifies 404 for non-existent connector.
 Verifies all connectors have well-formed specification schemas.</p>
 <div class="sl-heading-wrapper level-h4"><h4 id="connector-oauthe2e-spects"><code dir="auto">connector-oauth.e2e-spec.ts</code></h4><a class="sl-anchor-link" href="#connector-oauthe2e-spects"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “connector-oauth.e2e-spec.ts”</span></a></div>
-<p><code dir="auto">GET /api/connectors/:name/oauth/settings</code> for 4 OAuth connectors (GoogleAds, FacebookMarketing,
+<p><code dir="auto">GET /api/connectors/:name/oauth/settings</code> for OAuth connectors (GoogleAds, GoogleSheets, FacebookMarketing,
 TikTokAds, MicrosoftAds). Dynamically discovers OAuth field path from specification, then
 validates vars (non-empty object, per-var key/value types) and isEnabled (boolean, false in
 test env). Also tests non-OAuth connector edge case (OpenHolidays returns empty vars, isEnabled false).</p>
