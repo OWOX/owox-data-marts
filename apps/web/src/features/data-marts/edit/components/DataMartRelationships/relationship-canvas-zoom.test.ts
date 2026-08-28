@@ -3,6 +3,7 @@ import { getViewportForBounds } from '@xyflow/react';
 import {
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
+  getFittedGraphViewport,
   getFittedGraphZoom,
   getGraphZoomRange,
   getNextGraphZoom,
@@ -91,6 +92,25 @@ describe('relationship canvas zoom', () => {
       expect(getFittedGraphZoom(bounds, 0, 500, 0.1)).toBeNaN();
       expect(getFittedGraphZoom({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 1000, 500, 0.1)).toBeNaN();
       expect(getGraphZoomRange(getFittedGraphZoom(bounds, 0, 0, 0.1)).min).toBe(1);
+    });
+  });
+
+  describe('getFittedGraphViewport', () => {
+    const bounds = { minX: 0, minY: 0, maxX: 800, maxY: 200 };
+    const rect = { x: 0, y: 0, width: 800, height: 200 };
+
+    it('matches the viewport the real fitView math produces', () => {
+      // The automatic first fit applies this viewport directly (fitView would
+      // race node measurement), so it must be byte-equal to the library math.
+      const expected = getViewportForBounds(rect, 1000, 500, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX, 0.1);
+      expect(getFittedGraphViewport(bounds, 1000, 500, 0.1)).toEqual(expected);
+    });
+
+    it('returns null for degenerate geometry', () => {
+      expect(getFittedGraphViewport(bounds, 0, 500, 0.1)).toBeNull();
+      expect(getFittedGraphViewport({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 1000, 500, 0.1)).toBe(
+        null
+      );
     });
   });
 });

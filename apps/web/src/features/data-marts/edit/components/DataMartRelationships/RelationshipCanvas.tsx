@@ -84,7 +84,7 @@ import {
 import {
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
-  getFittedGraphZoom,
+  getFittedGraphViewport,
   getGraphZoomRange,
   getNextGraphZoom,
 } from './relationship-canvas-zoom';
@@ -895,10 +895,13 @@ function RelationshipCanvasInner({
   // range in a state where both zoom buttons were dead until "Fit to view"
   // recomputed it — the exact "zoom stops working after opening the page via
   // search" bug.
-  const zoomRange = useMemo(
-    () =>
-      getGraphZoomRange(getFittedGraphZoom(graphBounds, paneWidth, paneHeight, FIT_VIEW_PADDING)),
+  const fittedViewport = useMemo(
+    () => getFittedGraphViewport(graphBounds, paneWidth, paneHeight, FIT_VIEW_PADDING),
     [graphBounds, paneWidth, paneHeight]
+  );
+  const zoomRange = useMemo(
+    () => getGraphZoomRange(fittedViewport?.zoom ?? Number.NaN),
+    [fittedViewport]
   );
 
   useEffect(() => {
@@ -997,6 +1000,23 @@ function RelationshipCanvasInner({
     });
   }, [reactFlow]);
 
+  // Behind a ref so the automatic fit below stays keyed on the graph identity:
+  // cosmetic relayouts (view mode, direction, join labels) move the bounds but
+  // must not wipe the user's viewport.
+  const fittedViewportRef = useRef(fittedViewport);
+  fittedViewportRef.current = fittedViewport;
+
+  const fitInitial = useCallback(() => {
+    // Not fitView: it only fits nodes whose DOM dimensions are measured, and
+    // the declared node sizes make the graph count as initialized before any
+    // measurement — on first mount that fit ran against a half-measured
+    // subset and left the canvas zoomed in on the root card instead of
+    // showing the whole graph. The layout-derived viewport needs no DOM.
+    const fitted = fittedViewportRef.current;
+    if (!fitted) return fitFull();
+    return reactFlow.setViewport(fitted);
+  }, [fitFull, reactFlow]);
+
   const markUserInteracted = useCallback(() => {
     userInteractedRef.current = true;
   }, []);
@@ -1004,13 +1024,13 @@ function RelationshipCanvasInner({
   useEffect(() => {
     if (paneWidth === 0 || paneHeight === 0) return;
     if (userInteractedRef.current) return;
-    void fitFull().then(() => {
+    void fitInitial().then(() => {
       hasFitRef.current = true;
       zoomToMatches();
     });
     // graphIdentity (not graphResult): an identical-content rebuild — e.g. a
     // schema refetch producing byte-equal fields — must not re-run the fit.
-  }, [paneWidth, paneHeight, graphIdentity, fitFull, zoomToMatches]);
+  }, [paneWidth, paneHeight, graphIdentity, fitInitial, zoomToMatches]);
 
   useEffect(() => {
     if (!hasFitRef.current) return;

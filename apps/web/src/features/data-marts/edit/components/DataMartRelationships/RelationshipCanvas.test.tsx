@@ -165,13 +165,41 @@ describe('RelationshipCanvas viewport', () => {
     expect(fittedZoom).toBeGreaterThan(0.05);
   });
 
+  it('fits the whole graph from the layout geometry on first mount', async () => {
+    // The regression behind this test: the automatic fit used fitView, which
+    // only fits nodes whose DOM dimensions are already measured — on first
+    // mount of the Graph tab it ran against a half-measured subset and left
+    // the canvas zoomed in on the root card instead of showing the graph.
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    });
+    const bounds = getRenderedGraphBounds();
+    expect(reactFlowHarness.setViewport).toHaveBeenCalledWith(
+      getViewportForBounds(
+        {
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.maxX - bounds.minX,
+          height: bounds.maxY - bounds.minY,
+        },
+        reactFlowHarness.store.width,
+        reactFlowHarness.store.height,
+        0.05,
+        3,
+        FIT_VIEW_PADDING
+      )
+    );
+    expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
+  });
+
   it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
-    reactFlowHarness.fitView.mockClear();
 
     fireEvent.click(screen.getByRole('button', { name: 'Fit to view' }));
 
@@ -190,7 +218,7 @@ describe('RelationshipCanvas viewport', () => {
     // The bug behind this test: the zoom range used to be captured only after
     // a completed fit, so a fit that ran under transient conditions (opening
     // the page via search) left both buttons dead until "Fit to view".
-    reactFlowHarness.fitView.mockReset().mockReturnValue(new Promise<boolean>(() => undefined));
+    reactFlowHarness.setViewport.mockReset().mockReturnValue(new Promise<boolean>(() => undefined));
 
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 
@@ -208,9 +236,8 @@ describe('RelationshipCanvas viewport', () => {
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
-    reactFlowHarness.fitView.mockClear();
     reactFlowHarness.getZoom.mockReturnValue(Number.NaN);
 
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
@@ -230,8 +257,10 @@ describe('RelationshipCanvas viewport', () => {
     );
 
     await waitFor(() => {
-      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+      // Let the automatic first fit land, then count only clamp corrections.
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
+    reactFlowHarness.setViewport.mockClear();
 
     reactFlowHarness.latestProps?.onMove?.(null, { x: -10_000, y: 10_000, zoom: Number.NaN });
 
@@ -245,7 +274,7 @@ describe('RelationshipCanvas viewport', () => {
     );
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
     reactFlowHarness.latestProps?.onMoveStart?.({ type: 'pointerdown' });
 
@@ -257,7 +286,7 @@ describe('RelationshipCanvas viewport', () => {
     };
     rerender(<RelationshipCanvas {...buildCanvasProps([semanticallyUnchangedRelationship])} />);
 
-    expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
 
     rerender(
       <RelationshipCanvas
@@ -269,7 +298,7 @@ describe('RelationshipCanvas viewport', () => {
     );
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(2);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -286,8 +315,11 @@ describe('RelationshipCanvas viewport', () => {
       );
 
       await waitFor(() => {
-        expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+        // The automatic first fit also goes through setViewport — let it land
+        // and drop it so the counts below cover only the clamp corrections.
+        expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
       });
+      reactFlowHarness.setViewport.mockClear();
 
       const bounds = getRenderedGraphBounds();
       const onMove = reactFlowHarness.latestProps?.onMove;
@@ -345,8 +377,10 @@ describe('RelationshipCanvas viewport', () => {
     );
 
     await waitFor(() => {
-      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+      // Let the automatic first fit land, then count only clamp corrections.
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
+    reactFlowHarness.setViewport.mockClear();
 
     const outOfBoundsViewport = { x: -10_000, y: 10_000, zoom: 1 };
     reactFlowHarness.setViewport.mockImplementation(async correctedViewport => {
@@ -379,9 +413,9 @@ describe('RelationshipCanvas viewport', () => {
     const { rerender } = render(<RelationshipCanvas {...buildCanvasProps([relationship])} />);
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
-    reactFlowHarness.fitView.mockClear();
+    reactFlowHarness.setViewport.mockClear();
 
     interact();
     reactFlowHarness.store.width = 900;
@@ -390,6 +424,7 @@ describe('RelationshipCanvas viewport', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps).not.toBeNull();
     });
+    expect(reactFlowHarness.setViewport).not.toHaveBeenCalled();
     expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
   });
 });
@@ -567,7 +602,7 @@ describe('RelationshipCanvas view settings', () => {
     const { rerender } = render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
 
     await waitFor(() => {
-      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
     });
 
     const rootId = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isSource)?.id ?? '';
@@ -579,7 +614,7 @@ describe('RelationshipCanvas view settings', () => {
     );
 
     // Cosmetic toggles relayout the graph but keep every node id — the
-    // selection and the user's viewport must survive (no extra fitView).
+    // selection and the user's viewport must survive (no extra fit).
     rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} showJoinFields />);
     rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} viewMode='erd' />);
     rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} direction='vertical' />);
@@ -587,7 +622,8 @@ describe('RelationshipCanvas view settings', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps).not.toBeNull();
     });
-    expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
     expect(reactFlowHarness.latestProps?.nodes?.find(node => node.id === rootId)?.selected).toBe(
       true
     );
