@@ -114,17 +114,17 @@ A new Data Mart is shared for maintenance so that other Technical Users can join
 
 The following actions can be granted or restricted by the combination of ownership and sharing settings:
 
-| Action | Description |
-|---|---|
-| **See** | View the resource in lists and open its detail page |
-| **Use** | Link the resource to other entities (e.g. attach a Storage to a Data Mart) |
-| **Edit** | Modify the resource configuration |
-| **Delete** | Remove the resource |
-| **Copy Credentials** | Access connection credentials *(Storage, Destination)* |
-| **Configure Sharing** | Change the sharing settings of the resource |
-| **Manage Owners** | Assign or revoke ownership |
-| **Manage Triggers** | Create, edit, or delete triggers *(Data Mart)* |
-| **Run** | Execute the Report manually *(Report)* |
+| Action | Identifier | Description |
+|---|---|---|
+| **See** | `SEE` | View the resource in lists and open its detail page |
+| **Use** | `USE` | Link the resource to other entities (e.g. attach a Storage to a Data Mart) |
+| **Edit** | `EDIT` | Modify the resource configuration |
+| **Delete** | `DELETE` | Remove the resource |
+| **Copy Credentials** | `COPY_CREDENTIALS` | Access connection credentials *(Storage, Destination)* |
+| **Configure Sharing** | `CONFIGURE_SHARING` | Change the sharing settings of the resource |
+| **Manage Owners** | `MANAGE_OWNERS` | Assign or revoke ownership |
+| **Manage Triggers** | `MANAGE_TRIGGERS` | Create, edit, or delete triggers *(Data Mart)* |
+| **Run** | `RUN` | Execute the Report manually *(Report)* |
 
 **Who can manage owners** per entity type:
 

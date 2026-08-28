@@ -54,8 +54,9 @@ the application inside a protected frame and connects it to the installing membe
 These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them.
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
-`IndexedDB`, or service workers. Use host-managed plugin collections for ordinary JSON state, or
-your own backend when collections do not fit the use case.
+`IndexedDB`, or service workers. Keep short-lived state in memory. For state that must persist, use
+[host-managed plugin collections](#persist-plugin-state-as-json-with-collections), or use your own
+backend when collections do not fit the use case.
 
 **Calls to your backend arrive with `Origin: null`.** The backend must answer
 `Access-Control-Allow-Origin: *`, and it cannot authenticate requests with cookies. Pass an
@@ -203,61 +204,6 @@ data-driven screen should include loading, empty, error, and success states.
 Do not depend on undocumented host HTML or CSS: it cannot cross the iframe boundary and may change
 without notice.
 
-## Persisting JSON with collections
-
-Declare every collection in `plugin.json`. The declaration is immutable in structure once
-released: later versions may add collections and change action mappings, but cannot remove a
-collection or change its name, scope, or entity binding.
-
-```json
-{
-  "collections": [
-    {
-      "name": "dashboards",
-      "scope": "project",
-      "entityBinding": {
-        "type": "data-mart",
-        "actions": {
-          "read": "SEE",
-          "create": "SEE",
-          "update": "SEE",
-          "delete": "SEE"
-        }
-      }
-    }
-  ]
-}
-```
-
-Project scope shares documents between eligible members of the project. Member scope creates
-a private namespace for each member. An optional entity binding can target `data-mart`,
-`storage`, `destination`, or `report`; OWOX checks the mapped existing action on every request.
-For a bound collection, `parentId` is required on create and cannot change later.
-
-```ts
-const dashboards = ctx.collections<Dashboard>('dashboards');
-
-await dashboards.put('revenue', dashboard, { parentId: dataMartId });
-const saved = await dashboards.get('revenue');
-const page = await dashboards.list({ limit: 50 });
-await dashboards.delete('revenue');
-```
-
-Collections store non-secret JSON only. Do not put credentials, access tokens, refresh tokens,
-or other secrets in a document. Platform limits are 1 MiB per document, 10,000 documents and
-100 MiB per namespace, 500 MiB per plugin and project, and 2 GiB across collections in a
-project. JSON may contain at most 100 nested containers. List pages contain at most 100
-documents and 4 MiB of JSON. Entity-bound collections inspect at most 10 stored documents per
-request so authorization checks stay bounded. Such a page can contain fewer items than requested,
-or no items, while still returning a non-null `nextCursor`; continue until the cursor is null.
-
-Collection data survives uninstall, suspension, and recoverable deletion. Documents bound to
-a recoverably deleted parent are inaccessible until the parent is restored. There is no
-document schema validation or automatic migration; the plugin owns compatibility of its JSON.
-Mutation and authorization-denial audit records never include document bodies. They use rolling
-90-day retention and are additionally capped at 50,000 rows per plugin/project and 500,000 rows
-per project, with the oldest records removed first.
-
 ## Define the plugin manifest
 
 Add `plugin.json` at the repository root:
@@ -284,6 +230,112 @@ contents are two different plugins.
 
 There is no separate API-key or permissions list in `plugin.json`. The plugin can call only the
 SDK-supported APIs, acting with the permissions of the member who installed it.
+
+## Persist plugin state as JSON with collections
+
+Use host-managed collections to persist plugin state that must survive reloads, browser changes,
+or device changes. Collections are asynchronous and server-backed, so the same member can retrieve
+their state in another browser or on another device.
+
+> **Why collections instead of browser storage?** The plugin sandbox makes browser persistence
+> unavailable. See the [security and trust model](#security-and-trust-model) for the restrictions.
+
+Add every collection to the `collections` array in `plugin.json`. For example, a plugin can declare
+private preferences with `scope: "member"`:
+
+```json
+{
+  "collections": [
+    {
+      "name": "preferences",
+      "scope": "member"
+    }
+  ]
+}
+```
+
+Use a stable document ID for a preference or draft that has one current value:
+
+```ts
+interface Preferences {
+  compactView: boolean;
+  selectedTab: string;
+}
+
+const preferences = ctx.collections<Preferences>('preferences');
+
+await preferences.put('current', { compactView: true, selectedTab: 'overview' });
+const saved = await preferences.get('current');
+```
+
+Choose the scope based on who owns the state:
+
+| Scope | Visibility and namespace | Typical uses |
+| --- | --- | --- |
+| `member` | Private to the current member for this plugin and project. It is not shared with other project members or with the same member in another project. | Preferences, personal layouts, drafts, and last-used settings. This is the usual replacement for `localStorage`. |
+| `project` | Shared by eligible members of the project. | Shared dashboards, configuration, and other collaborative state. |
+
+Collection declarations are immutable in structure once released. Later versions may add
+collections and change action mappings, but cannot remove a collection or change its name, scope,
+or entity binding.
+
+### Bind shared documents to OWOX entities
+
+A project-scoped collection can optionally bind each document to a `data-mart`, `storage`,
+`destination`, or `report`. OWOX checks the mapped existing action on every request. For a bound
+collection, `parentId` is required on create and cannot change later. See
+[Actions and access by entity](../project/ownership-and-sharing.md#actions) for the available
+actions, their meanings, and the access each entity supports.
+
+```json
+{
+  "collections": [
+    {
+      "name": "dashboards",
+      "scope": "project",
+      "entityBinding": {
+        "type": "data-mart",
+        "actions": {
+          "read": "SEE",
+          "create": "SEE",
+          "update": "SEE",
+          "delete": "SEE"
+        }
+      }
+    }
+  ]
+}
+```
+
+```ts
+const dashboards = ctx.collections<Dashboard>('dashboards');
+
+await dashboards.put('revenue', dashboard, { parentId: dataMartId });
+const saved = await dashboards.get('revenue');
+const page = await dashboards.list({ limit: 50 });
+await dashboards.delete('revenue');
+```
+
+### Design collection data for network persistence
+
+Collections store non-secret JSON only. Do not put credentials, access tokens, refresh tokens, or
+other secrets in a document. Keep rapidly changing state in memory, then debounce or batch writes
+instead of sending a request for every keystroke, drag event, or resize. Provide an in-memory
+default while the initial collection read is loading, and handle network errors explicitly.
+
+Platform limits are 1 MiB per document, 10,000 documents and 100 MiB per namespace, 500 MiB per
+plugin and project, and 2 GiB across collections in a project. JSON may contain at most 100 nested
+containers. List pages contain at most 100 documents and 4 MiB of JSON. Entity-bound collections
+inspect at most 10 stored documents per request so authorization checks stay bounded. Such a page
+can contain fewer items than requested, or no items, while still returning a non-null `nextCursor`;
+continue until the cursor is null.
+
+Collection data survives uninstall, suspension, and recoverable deletion. Documents bound to a
+recoverably deleted parent are inaccessible until the parent is restored. There is no document
+schema validation or automatic migration; the plugin owns compatibility of its JSON. Mutation and
+authorization-denial audit records never include document bodies. They use rolling 90-day
+retention and are additionally capped at 50,000 rows per plugin/project and 500,000 rows per
+project, with the oldest records removed first.
 
 ## Deploy with GitHub Pages
 
