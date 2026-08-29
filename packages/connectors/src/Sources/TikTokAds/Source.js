@@ -465,22 +465,37 @@ export class TikTokAdsSource extends AbstractSource {
    * collide across advertisers without it. campaign_id/adgroup_id/ad_id are unique
    * platform-wide, so this is a no-op (redundant-but-harmless) at the other data levels.
    *
+   * This is also the engine hook AbstractConnector.getUniqueKeysForNode() calls to
+   * build the storage's MERGE key (main did the same from
+   * TikTokAdsConnector.getStorageByNode). The engine knows nothing about data levels
+   * and passes the node name ONLY, so dataLevel has to default to the configured
+   * level -- leaving it undefined there would silently fall through
+   * getDimensionsForDataLevel's AUCTION_AD default and hand storage an ad_id key for
+   * rows that, at any other level, have no ad_id at all.
+   *
    * @param {string} nodeName - The node name (e.g. ad_insights, ad_insights_by_country)
-   * @param {string} dataLevel - The reporting data level (only relevant for insights nodes)
+   * @param {string} [dataLevel] - The reporting data level (only relevant for insights
+   *   nodes); defaults to the level configured for this run
    * @return {array} - Array of unique key fields
    */
   getUniqueKeysForNode(nodeName, dataLevel) {
+    const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
+    if (!isInsightsNode) {
+      return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
+    }
+
+    // Resolved only for the nodes it applies to: getValidatedDataLevel() warns on a
+    // bogus level, and the engine asks for EVERY node's keys, once per write.
+    const level = dataLevel === undefined ? this.getValidatedDataLevel() : dataLevel;
+
     if (nodeName === 'ad_insights') {
-      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'advertiser_id');
+      return this.populateDimensions(this.getDimensionsForDataLevel(level), 'advertiser_id');
     }
-    if (nodeName === 'ad_insights_by_country') {
-      const dimensions = this.populateDimensions(
-        this.getDimensionsForDataLevel(dataLevel),
-        'country_code'
-      );
-      return this.populateDimensions(dimensions, 'advertiser_id');
-    }
-    return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
+    const dimensions = this.populateDimensions(
+      this.getDimensionsForDataLevel(level),
+      'country_code'
+    );
+    return this.populateDimensions(dimensions, 'advertiser_id');
   }
 
   /**
@@ -543,8 +558,9 @@ export class TikTokAdsSource extends AbstractSource {
 
     if (this.fieldsSchema[nodeName].uniqueKeys) {
       const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
-      const nodeDataLevel = isInsightsNode ? this.getValidatedDataLevel() : null;
-      const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeDataLevel);
+      // No data level passed: getUniqueKeysForNode resolves the configured one
+      // itself, so this validation and the storage's MERGE key cannot diverge.
+      const uniqueKeys = this.getUniqueKeysForNode(nodeName);
       const missingKeys = uniqueKeys.filter(
         key => !(isInsightsNode && key === 'advertiser_id') && !fields.includes(key)
       );

@@ -72,13 +72,15 @@ type PublishConnectorInput = z.infer<typeof inputSchema>;
 export class ConnectorPublishTool implements McpToolDefinition<PublishConnectorInput> {
   readonly name = 'connector_publish';
   readonly description =
-    'Save and publish a custom connector. Provide name + title + manifest to create and publish a new one, connector_id + manifest to publish a new version of an existing connector, or connector_id alone to publish its existing draft. Read the current manifest first with connector_details. Returns the connector id, name, version, and status. Also returns `url`, a link to the connector in the builder — give it to the user so they can open it and test the connector with their own credentials.';
+    'Save and publish a custom connector. Provide name + title + manifest to create and publish a new one, connector_id + manifest to publish a new version of an existing connector, or connector_id alone to publish its existing draft. Read the current manifest first with connector_details. Returns the connector id, name, version, and status. Also returns `url`, a link to the connector in the builder — give it to the user so they can open it and test the connector with their own credentials. ' +
+    '`warnings` lists credential-handling problems the publish did NOT refuse the manifest for — typically a parameter whose value will be stored in plain text because nothing could mark it SECRET. Show them to the user verbatim and offer to fix the manifest; nothing else will ever tell them.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     connector_id: z.string(),
     name: z.string(),
     version: z.number(),
     status: z.string(),
+    warnings: z.array(z.string()),
     url: z.string(),
   };
   readonly annotations = {
@@ -115,6 +117,11 @@ export class ConnectorPublishTool implements McpToolDefinition<PublishConnectorI
       name: result.name,
       version: result.version,
       status: result.status,
+      // Publishing does not refuse a manifest that leaves a credential unprotected, so this
+      // is the whole mitigation for the mistake — and the model reading this result is the
+      // only one who will see it. The backend log it also goes to is unreadable to an
+      // author on managed cloud.
+      warnings: result.warnings,
       url: joinPublicOrigin(
         this.publicOriginService.getPublicOrigin(),
         buildConnectorBuilderPath(context.projectId, result.connectorId)

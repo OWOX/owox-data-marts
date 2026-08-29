@@ -186,6 +186,20 @@ describe('Builder TestPanel flow', () => {
     expect(screen.getByText(/raw sample/)).toBeInTheDocument();
     expect(screen.queryByTestId('test-empty')).toBeNull();
   });
+
+  it('renders a raw sample with a null record in it', async () => {
+    // A recordPath can select an array with a null hole in it — JSON allows it and
+    // deriveColumns already allows for it. Nothing wraps the dock in a boundary, so a
+    // throw here escapes to the route boundary and takes the author's unsaved edits
+    // with the whole builder.
+    test.mockResolvedValue({ rows: [], sample: [{ id: 1 }, null], logs: [], error: null });
+    await runTestOnOneNode();
+
+    const table = await screen.findByTestId('test-results');
+    expect(within(table).getByText('1')).toBeInTheDocument();
+    // Two records in, two rows out: the null one renders empty rather than vanishing.
+    expect(within(table).getAllByRole('row')).toHaveLength(3); // header + 2 records
+  });
 });
 
 describe('test settings persistence', () => {

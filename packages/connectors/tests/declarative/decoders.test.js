@@ -70,6 +70,31 @@ describe('decoders', () => {
     assert.deepStrictEqual(await decodeResponse(response, 'json'), { a: 1 });
   });
 
+  it('decodeResponse concatenates streamed chunks without an extra full-body copy', async () => {
+    // Chunks off a real fetch body are Uint8Array and go straight into
+    // Buffer.concat; only a non-typed-array chunk needs converting. Both shapes
+    // must decode, and a multi-chunk body must not be truncated or reordered.
+    const enc = new TextEncoder();
+    const asBytes = {
+      headers: { get: () => null },
+      body: fakeBodyStream([enc.encode('{"a":'), enc.encode('1,"b":'), enc.encode('"x"}')]),
+    };
+    assert.deepStrictEqual(await decodeResponse(asBytes, 'json'), { a: 1, b: 'x' });
+
+    const asStrings = {
+      headers: { get: () => null },
+      body: fakeBodyStream(['{"a":', '2}']),
+    };
+    assert.deepStrictEqual(await decodeResponse(asStrings, 'json'), { a: 2 });
+  });
+
+  it('decodeResponse decodes multi-byte UTF-8 split across chunk boundaries', async () => {
+    const bytes = new TextEncoder().encode('{"n":"\u00e9\u4e2d"}');
+    const chunks = [bytes.slice(0, 7), bytes.slice(7, 9), bytes.slice(9)];
+    const response = { headers: { get: () => null }, body: fakeBodyStream(chunks) };
+    assert.deepStrictEqual(await decodeResponse(response, 'json'), { n: '\u00e9\u4e2d' });
+  });
+
   it('decodeResponse parses jsonl via response.text()', async () => {
     const response = {
       async text() {

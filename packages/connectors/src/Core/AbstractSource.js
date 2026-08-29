@@ -8,6 +8,33 @@
 import { TraceEvent } from './Events/TraceEvent.js';
 import { LOG_LEVEL, DATE_STRATEGY } from '../Constants/CommonConstants.js';
 
+/**
+ * Strip credentials from a URL for logging/error messages: keep origin + path,
+ * drop the entire query string (API keys are commonly passed there, e.g.
+ * ?app_id=SECRET) and any userinfo. Falls back to a coarse split if the URL
+ * does not parse (a relative path, or a still-unrendered template).
+ *
+ * Module-level and exported, not just an AbstractSource method, because the
+ * declarative engine needs the SAME redaction on paths that never touch a
+ * Source instance — Requester/SyncRetriever log an upstream-supplied URL, and
+ * SsrfGuard rejects one by throwing it. One implementation, so a future change
+ * to what counts as sensitive cannot apply to the trace but miss the run log.
+ *
+ * The whole query goes, deliberately — see the note at the declarative call
+ * sites on why redacting only `authentication.inject.name` is not enough.
+ *
+ * @param {string} u
+ * @returns {string}
+ */
+export function redactUrl(u) {
+  try {
+    const parsed = new URL(u);
+    return parsed.origin + parsed.pathname;
+  } catch {
+    return String(u).split('?')[0];
+  }
+}
+
 export class AbstractSource {
   constructor(context) {
     if (!context) throw new Error('context is required');
@@ -464,20 +491,13 @@ export class AbstractSource {
   }
 
   /**
-   * Strip credentials from a URL for logging/error messages: keep origin + path,
-   * drop the entire query string (API keys are commonly passed there, e.g.
-   * ?app_id=SECRET) and any userinfo. Falls back to a coarse split if the URL
-   * does not parse.
+   * Instance-method view of the shared `redactUrl` above (kept as a method so
+   * subclasses and existing call sites are unaffected).
    * @param {string} u
    * @returns {string}
    */
   _redactUrl(u) {
-    try {
-      const parsed = new URL(u);
-      return parsed.origin + parsed.pathname;
-    } catch {
-      return String(u).split('?')[0];
-    }
+    return redactUrl(u);
   }
 
   _getRetryParam(name, defaultVal) {

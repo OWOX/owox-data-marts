@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
 import {
   ConnectorProcessSpawnerService,
   INHERITED_CONNECTOR_ENV_VARS,
@@ -22,15 +24,23 @@ describe('ConnectorProcessSpawnerService', () => {
     return { service, gracefulShutdownService };
   };
 
+  /**
+   * `data` arrives as a STRING, not a Buffer: the service puts both pipes in utf8 mode, so
+   * the stream decodes and the handler never sees bytes. Modelling it as a Buffer here
+   * would let a per-chunk decode back into the service unnoticed -- see the chunk-boundary
+   * case at the bottom of this file for what that costs.
+   */
   const createMockProcess = () => {
     const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
     const stdout = {
+      setEncoding: jest.fn(),
       on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
         listeners[`stdout:${event}`] = listeners[`stdout:${event}`] || [];
         listeners[`stdout:${event}`].push(cb);
       }),
     };
     const stderr = {
+      setEncoding: jest.fn(),
       on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
         listeners[`stderr:${event}`] = listeners[`stderr:${event}`] || [];
         listeners[`stderr:${event}`].push(cb);
@@ -49,10 +59,10 @@ describe('ConnectorProcessSpawnerService', () => {
         (listeners[event] || []).forEach(cb => cb(...args));
       },
       emitStdout: (data: string) => {
-        (listeners['stdout:data'] || []).forEach(cb => cb(Buffer.from(data)));
+        (listeners['stdout:data'] || []).forEach(cb => cb(data));
       },
       emitStderr: (data: string) => {
-        (listeners['stderr:data'] || []).forEach(cb => cb(Buffer.from(data)));
+        (listeners['stderr:data'] || []).forEach(cb => cb(data));
       },
     };
   };
@@ -580,6 +590,66 @@ describe('ConnectorProcessSpawnerService', () => {
         if (previous === undefined) delete process.env.SENTINEL_NOT_ALLOWED;
         else process.env.SENTINEL_NOT_ALLOWED = previous;
       }
+    });
+  });
+
+  /**
+   * A pipe hands over bytes, not characters, so a multi-byte UTF-8 sequence is routinely
+   * split across two chunks -- at every 64 KiB boundary of a large write, which is the size
+   * at which a connector echoes real payload data. Decoding each chunk on its own turns the
+   * split character into U+FFFD in both halves, and these lines are what the run log shows
+   * the user and what the credential-update protocol is parsed out of.
+   *
+   * Real streams here rather than the hand-rolled mock above: where a pipe splits is the
+   * kernel's decision, so the split has to be written explicitly, and only a real Readable
+   * decodes across chunks the way the fix relies on.
+   */
+  describe('output whose characters straddle a chunk boundary', () => {
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+
+    const createStreamingMockProcess = () =>
+      Object.assign(new EventEmitter(), {
+        pid: 12345,
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+      });
+
+    it('reassembles a character split across two chunks on both streams', async () => {
+      const { service } = createService();
+      const mockProcess = createStreamingMockProcess();
+      (spawn as unknown as jest.Mock).mockReturnValue(mockProcess);
+
+      const onStdout = jest.fn();
+      const onStderr = jest.fn();
+      const promise = service.spawnConnector(
+        'dm-1',
+        'run-1',
+        { toObject: () => ({}) } as unknown,
+        { toObject: () => ({}) } as unknown,
+        { logCapture: { onStdout, onStderr } }
+      );
+
+      // 0xF0 leads the four bytes of '🚀' (U+1F680); two past it is mid-sequence.
+      const stdoutLine = Buffer.from('загрузка 🚀\n', 'utf8');
+      const stdoutSplit = stdoutLine.indexOf(0xf0) + 2;
+      mockProcess.stdout.write(stdoutLine.subarray(0, stdoutSplit));
+      await settle();
+      mockProcess.stdout.write(stdoutLine.subarray(stdoutSplit));
+      await settle();
+
+      // 0xC3 leads the two bytes of 'é' (U+00E9); one past it is between them.
+      const stderrLine = Buffer.from('requête échouée\n', 'utf8');
+      const stderrSplit = stderrLine.indexOf(0xc3) + 1;
+      mockProcess.stderr.write(stderrLine.subarray(0, stderrSplit));
+      await settle();
+      mockProcess.stderr.write(stderrLine.subarray(stderrSplit));
+      await settle();
+
+      mockProcess.emit('close', 0, null);
+      await promise;
+
+      expect(onStdout).toHaveBeenCalledWith('загрузка 🚀');
+      expect(onStderr).toHaveBeenCalledWith('requête échouée');
     });
   });
 });

@@ -25,6 +25,7 @@ import {
   CreateCustomConnectorRequestApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
+  UpdateCustomConnectorRequestApiDto,
 } from '../../dto/presentation/custom-connector.dto';
 
 export function ListCustomConnectorsSpec() {
@@ -115,6 +116,26 @@ export function GetCustomConnectorVersionSpec() {
   );
 }
 
+export function UpdateCustomConnectorSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Update the display metadata of a custom connector',
+      description:
+        'Updates the title, description, logo or documentation URL. Omitted fields are left ' +
+        'unchanged; an explicit null clears a nullable one. The connector name cannot be ' +
+        'changed, because data marts reference their connector by name. Editor access is ' +
+        'required.',
+    }),
+    ApiParam({ name: 'id', description: 'Custom connector ID' }),
+    ApiBody({ type: UpdateCustomConnectorRequestApiDto }),
+    ApiOkResponse({
+      description: 'The connector after the update.',
+      type: CustomConnectorDetailResponseApiDto,
+    }),
+    ApiResponse({ status: 404, description: 'Custom connector not found' })
+  );
+}
+
 export function SaveCustomConnectorDraftSpec() {
   return applyDecorators(
     ApiOperation({
@@ -138,7 +159,9 @@ export function PublishCustomConnectorSpec() {
     ApiOperation({
       summary: 'Publish the draft version of a custom connector',
       description:
-        'Marks the latest draft published and activates it in the same change. Editor access is ' +
+        'Marks the latest draft published and activates it in the same change. The response ' +
+        'carries `warnings`: credential-handling problems the publish did not refuse the ' +
+        'manifest for, and the only notice the author gets of them. Editor access is ' +
         'required.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
@@ -200,17 +223,22 @@ export function GetCustomConnectorSpecificationSpec() {
       summary: 'Get the configuration specification of a custom connector',
       description:
         'Renders the parameter specification from the requested manifest version, falling back to ' +
-        'the active version. Viewer access is required.',
+        "the active version. PUBLISHED versions only: a draft is an editor's work in progress, " +
+        'and the runner refuses one too. Values of parameters attributed SECRET (default, ' +
+        'placeholder, options) are withheld. Viewer access is required.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiQuery({
       name: 'version',
       required: false,
       type: Number,
-      description: 'Version to render. Defaults to the active version, then the latest.',
+      description: 'Published version to render. Defaults to the active version.',
     }),
     ApiOkResponse({ type: ConnectorSpecificationResponseApiDto, isArray: true }),
-    ApiResponse({ status: 404, description: 'Custom connector or version not found' })
+    ApiResponse({
+      status: 404,
+      description: 'Custom connector not found, or the version is missing or unpublished',
+    })
   );
 }
 
@@ -220,16 +248,20 @@ export function GetCustomConnectorFieldsSpec() {
       summary: 'Get the fields schema of a custom connector',
       description:
         'Renders the node/field schema from the requested manifest version, falling back to the ' +
-        'active version. Viewer access is required.',
+        'active version. PUBLISHED versions only, matching the specification endpoint. Viewer ' +
+        'access is required.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiQuery({
       name: 'version',
       required: false,
       type: Number,
-      description: 'Version to render. Defaults to the active version, then the latest.',
+      description: 'Published version to render. Defaults to the active version.',
     }),
     ApiOkResponse({ type: ConnectorFieldsResponseApiDto, isArray: true }),
-    ApiResponse({ status: 404, description: 'Custom connector or version not found' })
+    ApiResponse({
+      status: 404,
+      description: 'Custom connector not found, or the version is missing or unpublished',
+    })
   );
 }

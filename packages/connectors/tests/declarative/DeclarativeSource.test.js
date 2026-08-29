@@ -1513,6 +1513,14 @@ describe('DeclarativeSource oauth2 refresh-token rotation', () => {
     // GeneratedRefreshToken context parameter so node 2's scope (rebuilt from
     // context in _baseScope) reads the live value instead of the stale 'rt0'
     // baked into the manifest.
+    //
+    // expires_in is 60 below, i.e. exactly the expiry skew, so every minted
+    // token is already expired and node 2 is FORCED to call the token endpoint
+    // again. That is what makes the refresh token it sends observable at all:
+    // with a normal 3600s expiry the run-scoped token cache (see
+    // DeclarativeSource._tokenCache) would correctly serve node 2 from node 1's
+    // token and there would be no second request to inspect. Caching is asserted
+    // separately, below; this test is only about WHICH refresh token is sent.
     const updates = [];
     const context = makeSelectiveContext({});
     context.updateCredentials = creds => updates.push(creds);
@@ -1533,7 +1541,7 @@ describe('DeclarativeSource oauth2 refresh-token rotation', () => {
         return {
           json: async () => ({
             access_token: `AT${tokenCalls}`,
-            expires_in: 3600,
+            expires_in: 60, // == the expiry skew: minted already-expired, see above
             refresh_token: rotated,
           }),
         };
@@ -1566,6 +1574,129 @@ describe('DeclarativeSource oauth2 refresh-token rotation', () => {
       { generated_refresh_token: 'rt-new' },
       { generated_refresh_token: 'rt-newer' },
     ]); // both nodes' rotations reached context.updateCredentials
+  });
+});
+
+/**
+ * The Authenticator is rebuilt inside every fetchData call, so before the
+ * run-scoped token cache each node x account x date slice re-authenticated: a
+ * 365-day, 10-account, 2-node incremental backfill issued ~7300 token-endpoint
+ * POSTs where one per token lifetime would do. The cache is keyed by the
+ * RENDERED token request, so the reduction must never come at the cost of one
+ * account seeing another's token — both halves are asserted here.
+ */
+describe('DeclarativeSource token-endpoint call count', () => {
+  const oneNode = {
+    items: {
+      request: { method: 'GET', path: '/items' },
+      recordSelector: { recordPath: ['data'] },
+      fields: { id: { type: 'string' } },
+    },
+    items2: {
+      request: { method: 'GET', path: '/items2' },
+      recordSelector: { recordPath: ['data'] },
+      fields: { id: { type: 'string' } },
+    },
+  };
+
+  const manifestWith = authentication =>
+    JSON.stringify({
+      version: '1.0',
+      name: 'TokenCounted',
+      baseUrl: 'https://api.example.com',
+      parameters: {},
+      authentication,
+      nodes: oneNode,
+    });
+
+  /** Counts token-endpoint POSTs and records the refresh_token each one sent. */
+  const countingSource = (source, mintToken) => {
+    const calls = [];
+    source.urlFetchWithRetry = async (url, options) => {
+      if (String(url).startsWith('https://oauth.example.com')) {
+        const rt = new URLSearchParams(options.body).get('refresh_token');
+        calls.push(rt);
+        return { json: async () => mintToken(rt) };
+      }
+      return { json: async () => ({ data: [{ id: '1' }] }) };
+    };
+    return calls;
+  };
+
+  const runSlices = async (source, { nodes, accounts, slices }) => {
+    for (const nodeName of nodes) {
+      for (const accountId of accounts) {
+        for (let d = 0; d < slices; d++) {
+          const day = String(d + 1).padStart(2, '0');
+          await source.fetchData({
+            nodeName,
+            fields: ['id'],
+            accountId,
+            startDate: `2026-01-${day}`,
+            endDate: `2026-01-${day}`,
+          });
+        }
+      }
+    }
+  };
+
+  it('authenticates once for a whole multi-node, multi-slice run (was: once per slice)', async () => {
+    const model = new ManifestParser().parse(
+      manifestWith({
+        type: 'oauth2',
+        tokenUrl: 'https://oauth.example.com/token',
+        clientId: 'cid',
+        clientSecret: 'sec',
+        refreshToken: 'rt0',
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      })
+    );
+    const source = new DeclarativeSource(makeSelectiveContext({}), model);
+    const calls = countingSource(source, () => ({ access_token: 'AT', expires_in: 3600 }));
+
+    // 2 nodes x 1 account x 30 day-slices = 60 fetchData calls.
+    await runSlices(source, { nodes: ['items', 'items2'], accounts: [null], slices: 30 });
+
+    assert.strictEqual(calls.length, 1, `expected 1 token call for 60 slices, got ${calls.length}`);
+  });
+
+  it('mints one token PER ACCOUNT when the token request templates account.id', async () => {
+    const model = new ManifestParser().parse(
+      manifestWith({
+        type: 'oauth2',
+        tokenUrl: 'https://oauth.example.com/token',
+        clientId: 'cid',
+        clientSecret: 'sec',
+        // Each account holds its own grant — the case where a coarser cache key
+        // would leak account A's access token to account B's requests.
+        refreshToken: 'rt-{{ account.id }}',
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      })
+    );
+    const source = new DeclarativeSource(makeSelectiveContext({}), model);
+    const tokensUsed = [];
+    const calls = countingSource(source, rt => ({ access_token: `AT-${rt}`, expires_in: 3600 }));
+    const innerFetch = source.urlFetchWithRetry;
+    source.urlFetchWithRetry = async (url, options) => {
+      if (!String(url).startsWith('https://oauth.example.com')) {
+        tokensUsed.push(options?.headers?.Authorization);
+      }
+      return innerFetch(url, options);
+    };
+
+    // 2 nodes x 3 accounts x 5 day-slices = 30 fetchData calls.
+    await runSlices(source, { nodes: ['items', 'items2'], accounts: ['A', 'B', 'C'], slices: 5 });
+
+    // One token per account, not one per slice and not one for all three.
+    assert.deepStrictEqual(calls, ['rt-A', 'rt-B', 'rt-C']);
+    // Every data request carried its OWN account's token.
+    const perAccount = { A: 0, B: 0, C: 0 };
+    for (const header of tokensUsed) {
+      const id = header.slice('Bearer AT-rt-'.length);
+      assert.ok(id in perAccount, `unexpected Authorization header ${header}`);
+      perAccount[id] += 1;
+    }
+    assert.deepStrictEqual(perAccount, { A: 10, B: 10, C: 10 });
   });
 });
 

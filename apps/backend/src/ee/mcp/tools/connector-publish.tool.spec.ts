@@ -22,6 +22,7 @@ it('publishes a connector using token project-member context (create-and-publish
     name: 'Acme',
     version: 1,
     status: 'published',
+    warnings: [],
   };
   const facade = {
     publishConnector: jest.fn().mockResolvedValue(response),
@@ -39,6 +40,7 @@ it('publishes a connector using token project-member context (create-and-publish
     name: response.name,
     version: response.version,
     status: response.status,
+    warnings: [],
     url: 'https://app.owox.com/ui/project-1/connectors/builder/def_1',
   };
   await expect(tool.handler(input, context)).resolves.toEqual({
@@ -62,6 +64,7 @@ it('publishes an existing draft using token project-member context (connector_id
     name: 'Existing',
     version: 2,
     status: 'published',
+    warnings: [],
   };
   const facade = {
     publishConnector: jest.fn().mockResolvedValue(response),
@@ -73,6 +76,7 @@ it('publishes an existing draft using token project-member context (connector_id
     name: response.name,
     version: response.version,
     status: response.status,
+    warnings: [],
     url: 'https://app.owox.com/ui/project-1/connectors/builder/def_9',
   };
   await expect(tool.handler({ connector_id: 'def_9' }, context)).resolves.toEqual({
@@ -92,9 +96,13 @@ it('publishes an existing draft using token project-member context (connector_id
 
 it('returns an absolute builder link the assistant can hand to the user', async () => {
   const facade = {
-    publishConnector: jest
-      .fn()
-      .mockResolvedValue({ connectorId: 'c1', name: 'Acme', version: 1, status: 'published' }),
+    publishConnector: jest.fn().mockResolvedValue({
+      connectorId: 'c1',
+      name: 'Acme',
+      version: 1,
+      status: 'published',
+      warnings: [],
+    }),
   } as unknown as jest.Mocked<McpConnectorAuthoringFacade>;
   const tool = new ConnectorPublishTool(facade, {
     getPublicOrigin: () => 'https://app.example.com',
@@ -104,6 +112,32 @@ it('returns an absolute builder link the assistant can hand to the user', async 
   expect((res.structuredContent as { url: string }).url).toBe(
     'https://app.example.com/ui/p1/connectors/builder/c1'
   );
+});
+
+/**
+ * The publish-time coverage warnings are the only thing standing between an author's mistake
+ * and a credential stored in plain text, and the assistant driving this tool is the author's
+ * only view of them: it never sees the backend log. Relayed on the result, or lost.
+ */
+it('relays the publish coverage warnings so the assistant can show them to the author', async () => {
+  const warnings = [
+    'Connector \'Acme\' v1: "authentication" references undeclared parameter(s) Token.',
+  ];
+  const facade = {
+    publishConnector: jest.fn().mockResolvedValue({
+      connectorId: 'c1',
+      name: 'Acme',
+      version: 1,
+      status: 'published',
+      warnings,
+    }),
+  } as unknown as jest.Mocked<McpConnectorAuthoringFacade>;
+  const tool = new ConnectorPublishTool(facade, origin);
+
+  const res = await tool.handler({ connector_id: 'c1' }, context);
+  expect((res.structuredContent as { warnings: string[] }).warnings).toEqual(warnings);
+  // Also in the text block: a client that reads only `content` must still see them.
+  expect(res.content[0].text).toContain('undeclared parameter(s) Token');
 });
 
 it('rejects input satisfying neither valid shape', () => {

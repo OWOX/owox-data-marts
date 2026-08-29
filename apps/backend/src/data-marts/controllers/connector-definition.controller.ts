@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -22,6 +23,7 @@ import {
   CreateCustomConnectorRequestApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
+  UpdateCustomConnectorRequestApiDto,
 } from '../dto/presentation/custom-connector.dto';
 import {
   ActivateCustomConnectorVersionResponseApiDto,
@@ -34,6 +36,7 @@ import {
   DeleteCustomConnectorResponseApiDto,
   PublishCustomConnectorResponseApiDto,
 } from '../dto/presentation/custom-connector-response.dto';
+import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
 import {
   ActivateCustomConnectorVersionSpec,
   CreateCustomConnectorSpec,
@@ -46,6 +49,7 @@ import {
   PublishCustomConnectorSpec,
   SaveCustomConnectorDraftSpec,
   TestCustomConnectorSpec,
+  UpdateCustomConnectorSpec,
 } from './spec/connector-definition.api';
 
 /**
@@ -68,7 +72,8 @@ export class ConnectorDefinitionController {
   constructor(
     private readonly definitionService: ConnectorDefinitionService,
     private readonly connectorService: ConnectorService,
-    private readonly testService: ConnectorTestService
+    private readonly testService: ConnectorTestService,
+    private readonly mapper: ConnectorDefinitionMapper
   ) {}
 
   /**
@@ -89,16 +94,7 @@ export class ConnectorDefinitionController {
   ): Promise<CustomConnectorListItemResponseApiDto[]> {
     const defs = await this.definitionService.listByProject(ctx.projectId);
     const activeVersionByDefId = await this.definitionService.getActiveVersionNumbersByDefId(defs);
-    return defs.map(d => ({
-      id: d.id,
-      name: d.name,
-      title: d.title,
-      description: d.description ?? null,
-      logo: d.logo ?? null,
-      docUrl: d.docUrl ?? null,
-      activeVersionId: d.activeVersionId ?? null,
-      activeVersion: activeVersionByDefId.get(d.id) ?? null,
-    }));
+    return this.mapper.toListResponse(defs, activeVersionByDefId);
   }
 
   @Auth(Role.editor())
@@ -116,7 +112,7 @@ export class ConnectorDefinitionController {
       docUrl: body.docUrl ?? null,
       manifest: body.manifest,
     });
-    return { id: def.id, name: def.name, title: def.title };
+    return this.mapper.toCreateResponse(def);
   }
 
   @Auth(Role.editor())
@@ -145,21 +141,31 @@ export class ConnectorDefinitionController {
   ): Promise<CustomConnectorDetailResponseApiDto> {
     const def = await this.definitionService.getById(ctx.projectId, id);
     const versions = await this.definitionService.listVersions(ctx.projectId, id);
-    return {
-      id: def.id,
-      name: def.name,
-      title: def.title,
-      description: def.description ?? null,
-      logo: def.logo ?? null,
-      docUrl: def.docUrl ?? null,
-      activeVersionId: def.activeVersionId ?? null,
-      activeVersion: await this.definitionService.getActiveVersionNumberForDef(def),
-      versions: versions.map(v => ({
-        version: v.version,
-        status: v.status,
-        publishedAt: v.publishedAt ?? null,
-      })),
-    };
+    const activeVersion = await this.definitionService.getActiveVersionNumberForDef(def);
+    return this.mapper.toDetailResponse(def, versions, activeVersion);
+  }
+
+  /**
+   * Editor rather than viewer for the obvious reason, and PATCH rather than PUT because the
+   * body is a partial: what it omits, it leaves alone.
+   *
+   * `name` is not in the body and must not be added. A data mart names the connector it runs
+   * in `connector.source.name`, and that field is shared with bundled connectors, which have
+   * no id to use instead -- so a rename here would silently unbind every data mart that
+   * pointed at the old name. Freeing a name for reuse is what deleting the connector does.
+   */
+  @Auth(Role.editor())
+  @Patch(':id')
+  @UpdateCustomConnectorSpec()
+  async update(
+    @AuthContext() ctx: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() body: UpdateCustomConnectorRequestApiDto
+  ): Promise<CustomConnectorDetailResponseApiDto> {
+    const def = await this.definitionService.updateMetadata(ctx.projectId, id, body);
+    const versions = await this.definitionService.listVersions(ctx.projectId, id);
+    const activeVersion = await this.definitionService.getActiveVersionNumberForDef(def);
+    return this.mapper.toDetailResponse(def, versions, activeVersion);
   }
 
   /**
@@ -182,7 +188,14 @@ export class ConnectorDefinitionController {
    * The siblings stay at viewer deliberately: `list` and `get` carry version METADATA and
    * no manifest (and `get` backs the version-pinning popover a viewer sees on a Data
    * Mart), while `specification` and `fields` are derived parameter/field schemas that
-   * render the config form. None of them can leak the connector body.
+   * render the config form.
+   *
+   * "Derived" only earns viewer access while the derivation actually drops the sensitive
+   * parts, and twice it did not: a SECRET parameter's `default` travelled verbatim (closed
+   * in ConnectorService.mapConfigFieldToSchema, which withholds a SECRET parameter's
+   * values), and `?version=` served DRAFT manifests (closed in
+   * ConnectorDefinitionService.resolveManifest, which now serves published versions only).
+   * Anything added to those two payloads has to be re-checked against that bar.
    */
   @Auth(Role.editor())
   @Get(':id/versions/:version')
@@ -193,7 +206,7 @@ export class ConnectorDefinitionController {
     @Param('version', ParseIntPipe) version: number
   ): Promise<CustomConnectorVersionResponseApiDto> {
     const row = await this.definitionService.getVersion(ctx.projectId, id, version);
-    return { version: row.version, status: row.status, manifest: row.manifest };
+    return this.mapper.toVersionResponse(row);
   }
 
   @Auth(Role.editor())
@@ -205,7 +218,7 @@ export class ConnectorDefinitionController {
     @Body() body: SaveDraftRequestApiDto
   ): Promise<CustomConnectorVersionStateResponseApiDto> {
     const row = await this.definitionService.saveDraft(ctx.projectId, id, body.manifest);
-    return { version: row.version, status: row.status };
+    return this.mapper.toVersionStateResponse(row);
   }
 
   @Auth(Role.editor())
@@ -215,8 +228,8 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string
   ): Promise<PublishCustomConnectorResponseApiDto> {
-    const row = await this.definitionService.publish(ctx.projectId, id);
-    return { version: row.version, status: row.status, publishedAt: row.publishedAt };
+    const { version: row, warnings } = await this.definitionService.publish(ctx.projectId, id);
+    return this.mapper.toPublishResponse(row, warnings);
   }
 
   @Auth(Role.editor())
@@ -228,7 +241,7 @@ export class ConnectorDefinitionController {
     @Param('version', ParseIntPipe) version: number
   ): Promise<ActivateCustomConnectorVersionResponseApiDto> {
     const def = await this.definitionService.setActiveVersion(ctx.projectId, id, version);
-    return { activeVersionId: def.activeVersionId ?? null, activeVersion: version };
+    return this.mapper.toActivateResponse(def, version);
   }
 
   @Auth(Role.editor())

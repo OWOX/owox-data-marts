@@ -8,6 +8,7 @@
 import { decodeResponse } from './decoders.js';
 import { UnlimitedRateLimiter } from './rateLimiter.js';
 import { isOpaque, unwrapOpaque } from './opaqueValue.js';
+import { redactUrl } from '../AbstractSource.js';
 import { LOG_LEVEL } from '../../Constants/CommonConstants.js';
 
 /**
@@ -119,7 +120,21 @@ export class Requester {
     const options = { method, headers: req.headers };
     if (requestSpec.body !== undefined && method !== 'GET') {
       options.body = JSON.stringify(this._renderDeep(requestSpec.body, scope));
-      options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+      // Header names are case-INSENSITIVE on the wire, but a manifest `headers` map is a
+      // plain object keyed exactly as the author typed it, so this default has to look for
+      // any spelling. A case-sensitive `headers['Content-Type']` misses an author's
+      // `"content-type"` and adds a SECOND key: undici merges duplicates into one
+      // comma-joined value ("application/vnd.api+json, application/json"), which
+      // media-type-strict APIs (JSON:API, vendor +json media types, most GraphQL gateways)
+      // reject with 415 — and the manifest looks correct while it happens.
+      //
+      // Only the default needs this. Authenticator writes `inject.name` verbatim and
+      // Paginator injects `inject.name` verbatim; neither reads a header back, so neither
+      // can miss an author's casing.
+      const hasContentType = Object.keys(options.headers).some(
+        h => h.toLowerCase() === 'content-type'
+      );
+      if (!hasContentType) options.headers['Content-Type'] = 'application/json';
     }
 
     let response;
@@ -156,12 +171,24 @@ export class Requester {
    * config to FAILED. A run failed by the very action the author asked for would
    * make `IGNORE` indistinguishable from `FAIL` in outcome, i.e. meaningless. An
    * author who wants a status to end the run already has `action: "FAIL"`.
+   *
+   * The target is REDACTED (origin + path only). This is a run log, persisted
+   * and readable by anyone who can see run history including viewers — and with
+   * `authentication.inject.into: "query"` the credential is in the query string
+   * of the very URL named here: a next page arrives as the link the API sent
+   * back, and APIs routinely echo the caller's own query parameters into it
+   * (Graph's `paging.next` carries `access_token`). Redacting the whole query
+   * rather than just `authentication.inject.name` is deliberate: this string is
+   * upstream-authored, so it can also carry signatures and signed cursors the
+   * manifest never declared and the engine cannot enumerate. Origin + path still
+   * names the endpoint, which is all this message needs.
    */
   _reportIgnored(error, requestSpec) {
     if (!this.context?.log) return;
     const status = error.statusCode ? `HTTP ${error.statusCode}` : 'a request error';
     const where = this.nodeName ? `node "${this.nodeName}"` : 'the request';
-    const target = unwrapOpaque(requestSpec.url) || unwrapOpaque(requestSpec.path) || '';
+    const raw = unwrapOpaque(requestSpec.url) || unwrapOpaque(requestSpec.path) || '';
+    const target = raw ? redactUrl(raw) : '';
     this.context.log(
       LOG_LEVEL.INFO,
       `${status} on ${where} (${target}) matched an errorHandler IGNORE filter: this response was ` +

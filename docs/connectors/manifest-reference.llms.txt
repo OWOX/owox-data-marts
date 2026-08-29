@@ -36,7 +36,7 @@ These four are the most common rejection causes — the parser is strict and doe
 - A record's row-selector is `recordSelector.recordPath` (an **array** of keys), **not** `fieldPath`.
 - `fields` is an **object keyed by field name**, **not** an array.
 
-A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`) is an **array of key segments** (`["stats", "spending"]`). Mixing the two up is a common, silent bug.
+A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`) is an **array of key segments** (`["stats", "spending"]`). Mixing the two up is a common, silent bug — the parser refuses a dot-string in any of those array positions, so it fails at publish rather than silently at run time.
 
 ## 4. `parameters`
 
@@ -389,7 +389,7 @@ For APIs that generate a report asynchronously: submit a job, poll until it is r
 - `poll` — a request spec (its `path`/templates may reference `{{ job.id }}`) plus `statusPath` (array), `readyValue`, optional `failedValue`, and `resultUrlPath` (array) locating a download URL once the job succeeds. `poll.backoff` bounds the polling loop: `maxAttempts` (default 180), `initialMs` (default 3000), `maxMs` (default 15000) — delay doubles each attempt up to `maxMs`. A response matching `failedValue` throws immediately; exhausting `maxAttempts` without reaching `readyValue` also throws.
 - `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows (§18).
 
-Note: this poll `backoff` is a completely separate mechanism from a node's `errorHandler.backoff` (§15) — the former paces the async job-status loop, the latter paces HTTP-error retries.
+Note: this poll `backoff` is a completely separate mechanism from a node's `errorHandler.backoff` (§15) — the former paces the async job-status loop, the latter paces HTTP-error retries. An async node must not carry an `errorHandler` at all: the engine wires that for sync retrievers only, so the parser refuses the pairing at publish.
 
 ## 13. `transformations` — 4 types
 
@@ -432,7 +432,7 @@ Only ONE `recordFilter` per node (it is a single object, not an array).
 
 ## 15. `errorHandler` — actions × backoff
 
-Optional, node-level, and applies to **sync nodes only** (an async node paces itself through `poll.backoff`, §12, instead). Matches an HTTP error response against an ordered list of filters; the first matching filter decides what happens:
+Optional, node-level, and applies to **sync nodes only** — an `errorHandler` on an async node is refused at publish, because an async node paces itself through `poll.backoff` (§12) instead. Matches an HTTP error response against an ordered list of filters; the first matching filter decides what happens:
 
 ```json
 {

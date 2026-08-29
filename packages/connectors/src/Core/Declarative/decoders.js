@@ -83,13 +83,23 @@ async function readCappedText(response, format, maxBytes) {
         if (total > maxBytes) {
           throw new Error(`decodeResponse: response too large (exceeds ${maxBytes} bytes)`);
         }
-        chunks.push(value);
+        // Buffer.concat accepts Uint8Array (Buffer is one) directly, so a chunk
+        // off a real fetch body needs no conversion. Only a hand-rolled fake
+        // yielding something else (a string) needs the copy Buffer.from makes —
+        // which is why the conversion happens HERE, per odd chunk, instead of
+        // mapping Buffer.from over every chunk below. That map copied the entire
+        // body an extra time before Buffer.concat copied it again.
+        chunks.push(value instanceof Uint8Array ? value : Buffer.from(value));
       }
     }
   } finally {
     reader.releaseLock?.();
   }
-  return Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf8');
+  // No totalLength argument on purpose: `total` above counts a string chunk by
+  // character, not by UTF-8 byte, and an undersized totalLength silently
+  // TRUNCATES the body. Letting concat re-sum the (already known) lengths costs
+  // one cheap pass and cannot be wrong.
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 export function parseJsonl(text) {
