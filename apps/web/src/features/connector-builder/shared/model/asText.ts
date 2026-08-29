@@ -19,6 +19,18 @@ export function firstNonEmpty(...values: (string | undefined | null)[]): string 
   return '';
 }
 
+/**
+ * A nullable column's value for a text field the user may have emptied.
+ *
+ * An emptied `<input>` yields `''`, and sending that stores an empty string where the field
+ * is meant to be cleared — the difference shows up wherever the value is rendered only when
+ * present. Whitespace counts as empty; the value itself is never trimmed, so what the user
+ * typed is what is stored.
+ */
+export function blankToNull(value: string | undefined | null): string | null {
+  return value === undefined || value === null || value.trim() === '' ? null : value;
+}
+
 export function asText(value: unknown, fallback = ''): string {
   if (value === undefined || value === null) return fallback;
   if (typeof value === 'string') return value;

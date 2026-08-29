@@ -63,7 +63,7 @@ export class InsightMapper {
     return entities.map(entity => this.toDomainDto(entity, null));
   }
 
-  async toResponse(dto: InsightDto): Promise<InsightResponseApiDto> {
+  async toResponse(dto: InsightDto, projectId: string): Promise<InsightResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
@@ -74,7 +74,7 @@ export class InsightMapper {
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
       lastManualDataMartRun: dto.lastManualDataMartRun
-        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun)
+        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun, projectId)
         : null,
     };
   }

@@ -33,6 +33,6 @@ export class ProjectDataMartRunsController {
       context.roles ?? []
     );
     const runs = await this.listProjectDataMartRunsService.run(command);
-    return this.mapper.toProjectRunsResponse(runs);
+    return this.mapper.toProjectRunsResponse(runs, context.projectId);
   }
 }

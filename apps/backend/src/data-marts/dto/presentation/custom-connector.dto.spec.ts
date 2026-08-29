@@ -141,6 +141,44 @@ describe('manifest size ceiling', () => {
 });
 
 /**
+ * The test request carries a second payload that reaches the same spawn: `configuration` becomes
+ * OW_CONFIG, a sibling environment string subject to the same MAX_ARG_STRLEN. Bounding only the
+ * manifest leaves the identical E2BIG one field to the right.
+ */
+describe('test configuration size ceiling', () => {
+  const withConfiguration = (configuration: Record<string, unknown>) => ({
+    manifest: { name: 'Acme' },
+    node: 'items',
+    configuration,
+  });
+
+  it('rejects a configuration one byte over the ceiling', async () => {
+    const dto = plainToInstance(
+      TestConnectorRequestApiDto,
+      withConfiguration(manifestOfSize(MAX_MANIFEST_SIZE_BYTES + 1))
+    );
+
+    await expect(validate(dto)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'configuration',
+          constraints: expect.objectContaining({ maxJsonSize: expect.any(String) }),
+        }),
+      ])
+    );
+  });
+
+  it('accepts a configuration of exactly the ceiling', async () => {
+    const dto = plainToInstance(
+      TestConnectorRequestApiDto,
+      withConfiguration(manifestOfSize(MAX_MANIFEST_SIZE_BYTES))
+    );
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+});
+
+/**
  * The logo is bounded on its own terms rather than the manifest's. It never reaches the child
  * process -- ConnectorExecutorService.stripManifestForRunner drops it before the spawn, and the
  * stored column is never folded back into a resolved manifest -- so MAX_ARG_STRLEN does not apply

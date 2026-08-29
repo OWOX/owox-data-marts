@@ -31,9 +31,10 @@ import { MaxJsonSize } from '../../../common/validators/max-json-size.validator'
  * ~24 KiB with full descriptions -- so five nodes of that weight still fit.
  *
  * Exported because this DTO is not the only way in: the MCP tools (connector-publish,
- * connector-test) accept a manifest through their own Zod schemas and never reach here.
- * ConnectorDefinitionService enforces the same ceiling on create()/saveDraft(), which is what
- * every path shares -- see assertManifestFitsSpawn() there.
+ * connector-test) accept a manifest through their own Zod schemas and never reach here. Each
+ * service that can reach a spawn re-applies it at its own choke point -- ConnectorDefinitionService
+ * on create()/saveDraft(), ConnectorTestService on runTest(). There is no single one they share:
+ * a test stores nothing, so it passes through neither create() nor saveDraft().
  */
 export const MAX_MANIFEST_SIZE_BYTES = 120 * 1024;
 
@@ -96,6 +97,44 @@ export class CreateCustomConnectorRequestApiDto {
   manifest: Record<string, unknown>;
 }
 
+/**
+ * The connector's display metadata, editable after creation.
+ *
+ * `name` is deliberately absent and cannot be added here. A data mart stores the connector it
+ * runs as a bare string in `connector.source.name` -- the same field a bundled connector fills,
+ * which is why it is a name and not this row's id: bundled connectors have no id. Renaming a
+ * definition would strand every data mart pointing at the old name with no error at either end.
+ *
+ * Every field is optional, and the three nullable ones accept an explicit null to clear them:
+ * absent means "leave alone", which is what makes this a PATCH rather than a PUT.
+ */
+export class UpdateCustomConnectorRequestApiDto {
+  @ApiProperty({ required: false, example: 'My Custom API', maxLength: MAX_VARCHAR_LENGTH })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(MAX_VARCHAR_LENGTH)
+  title?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxByteLength(MAX_TEXT_COLUMN_BYTES)
+  description?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxByteLength(MAX_TEXT_COLUMN_BYTES)
+  logo?: string | null;
+
+  @ApiProperty({ required: false, nullable: true, maxLength: MAX_VARCHAR_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_VARCHAR_LENGTH)
+  docUrl?: string | null;
+}
+
 export class SaveDraftRequestApiDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   @IsObject()
@@ -115,8 +154,16 @@ export class TestConnectorRequestApiDto {
   @IsNotEmpty()
   node: string;
 
+  /**
+   * Bounded for the same reason the manifest is: it travels to the connector runner in
+   * OW_CONFIG, a sibling environment string on the same spawn, and an unbounded one dies
+   * with the same E2BIG. ConnectorTestService.runTest() applies the ceiling too -- this is
+   * here so the refusal arrives as a field-level 400 alongside the rest of the body's
+   * errors, rather than as a bare message from the service.
+   */
   @ApiProperty({ type: 'object', additionalProperties: true })
   @IsObject()
+  @MaxJsonSize(MAX_MANIFEST_SIZE_BYTES)
   configuration: Record<string, unknown>;
 
   @ApiProperty({ required: false })

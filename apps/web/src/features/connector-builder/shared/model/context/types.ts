@@ -12,6 +12,7 @@ export enum BuilderActionType {
   SET_PUBLISHING = 'SET_PUBLISHING',
   SET_ERROR = 'SET_ERROR',
   SET_SAMPLE = 'SET_SAMPLE',
+  SET_CODE_INVALID = 'SET_CODE_INVALID',
 }
 
 export type BuilderAction =
@@ -36,7 +37,8 @@ export type BuilderAction =
   | {
       type: BuilderActionType.SET_SAMPLE;
       payload: { node: string; records: Record<string, unknown>[] };
-    };
+    }
+  | { type: BuilderActionType.SET_CODE_INVALID; payload: boolean };
 
 export interface BuilderState {
   id: string | null;
@@ -50,6 +52,15 @@ export interface BuilderState {
   publishing: boolean;
   error: string | null;
   sample: { node: string; records: Record<string, unknown>[] } | null;
+  /**
+   * Code mode is holding text that does not parse as JSON.
+   *
+   * Lives here rather than in the editor because it has to outlive it: the editor's buffer
+   * is local state that the Builder/Code switch unmounts, and the two things that must know
+   * about an unparseable buffer — the Save/Publish buttons, and the switch itself — are
+   * mounted outside it.
+   */
+  codeInvalid: boolean;
 }
 
 export interface BuilderContextValue {

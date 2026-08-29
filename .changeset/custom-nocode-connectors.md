@@ -7,9 +7,12 @@
 Build a connector to any REST API without writing code. A declarative manifest describes the
 API — authentication, pagination, nodes and fields — and a three-pane web builder edits it with
 live testing against the real endpoint. Connectors are versioned: publish, roll back, and bind
-them to Data Marts alongside the built-in ones. A connector's manifest is readable by editors
-only — it is author-written JSON that can hold a credential typed straight into the builder —
-while the connector list, its configuration form and its field schema stay open to viewers.
+them to Data Marts alongside the built-in ones. Title, description and documentation link stay
+editable; the name is fixed once the connector exists, because a Data Mart references its
+connector by name — deleting a connector frees its name to be used again. A connector's
+manifest is readable by editors only — it is author-written JSON that can hold a credential
+typed straight into the builder — while the connector list, its configuration form and its
+field schema stay open to viewers.
 
 AI assistants connected over MCP can do the same — discover connectors, author and test a
 manifest, publish it, run a connector Data Mart and watch the result — and hand you a link to
@@ -21,6 +24,10 @@ Connector fixes included in this release:
   rejected as malformed.
 - **Microsoft Ads** — `offline_access` is restored on the refresh-token grant, so refresh tokens
   rotate reliably again.
+- **Multi-account imports** — one account failing no longer ends the run. The remaining
+  accounts are imported, their data is delivered, and the run is reported as failed at the end
+  with every failure named. Previously the first failure stopped the run and every account
+  after it was skipped without explanation.
 - **Run failures** — clearer error messages and stricter date parsing: a manual backfill with an
   unreadable date now fails immediately instead of quietly importing nothing. A failure the
   connector itself flags as a warning is now recorded once, as a warning, instead of also being

@@ -13,7 +13,16 @@ import { InfoLabel } from './fields';
 import { AdvancedSettingsEditor } from './AdvancedSettingsEditor';
 
 export function GeneralEditor() {
-  const { manifest, setPath } = useBuilder();
+  const { manifest, setPath, state } = useBuilder();
+  // The name is written into the connector's definition row by create() and never again. It
+  // is the key data marts resolve this connector by — `connector.source.name`, the same field
+  // a bundled connector fills, which is why it is a name and not the row's id: bundled
+  // connectors have no id. Renaming would strand every data mart pointing at the old name,
+  // with no error at either end, so no endpoint offers it. Deleting the connector frees the
+  // name, which is the supported way to change it.
+  //
+  // The fields beside it are display-only and DO save: saveDraft syncs them onto the row.
+  const nameLocked = state.id !== null;
   return (
     <div className='flex flex-col gap-4 px-6 py-[18px]' data-testid='general-editor'>
       <CollapsibleCard collapsible name='connector-general'>
@@ -25,7 +34,13 @@ export function GeneralEditor() {
         <CollapsibleCardContent>
           <div className='grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2'>
             <label className='flex flex-col'>
-              <InfoLabel hint='Internal identifier used in code, the manifest and API calls. Use letters and numbers without spaces, e.g. MyCustomApi. Avoid renaming it later — references rely on it.'>
+              <InfoLabel
+                hint={
+                  nameLocked
+                    ? 'Internal identifier this connector is referenced by, in the manifest, in API calls and in every data mart using it. It cannot be changed — delete the connector and create it again to use a different name.'
+                    : 'Internal identifier used in code, the manifest and API calls. Use letters and numbers without spaces, e.g. MyCustomApi. It cannot be changed once the connector is created.'
+                }
+              >
                 Name
               </InfoLabel>
               <Input
@@ -34,6 +49,8 @@ export function GeneralEditor() {
                   setPath(['name'], e.target.value);
                 }}
                 placeholder='MyCustomApi'
+                readOnly={nameLocked}
+                className={nameLocked ? 'text-muted-foreground' : undefined}
               />
             </label>
             <label className='flex flex-col'>

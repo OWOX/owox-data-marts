@@ -137,6 +137,7 @@ export function NodeSections({ nodeName }: { nodeName: string }) {
   const setRetriever = (mode: 'sync' | 'async') => {
     if (mode === 'async') {
       setPath(['nodes', nodeName, 'partitionRouter'], undefined); // engine rejects partitionRouter + async
+      setPath(['nodes', nodeName, 'errorHandler'], undefined); // engine rejects errorHandler + async
       setPath(['nodes', nodeName, 'retriever'], createDefaultAsyncRetriever());
     } else {
       setPath(['nodes', nodeName, 'retriever'], undefined);

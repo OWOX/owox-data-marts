@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { satisfiesRole } from '../../idp/utils/role-hierarchy';
 import { ConnectorTestService } from '../services/connector/connector-test.service';
 import { ConnectorDefinitionService } from '../services/connector/connector-definition.service';
 import {
@@ -85,13 +86,13 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
    * Introducing one would also make `ContextAccessService.getEntityContextConfig`
    * throw ("Unsupported entity type for context overlap") for any member whose
    * role scope is SELECTED_CONTEXTS, i.e. break legitimate editors. The
-   * comparison itself follows the repo's existing idiom
-   * (`ReportAccessService.isTechnicalUser`) and the `editor: ['editor', 'admin']`
-   * row of `IdpGuard.checkRoleAuthorization`'s hierarchy, so MCP and REST refuse
-   * the same callers.
+   * comparison itself goes through `satisfiesRole`, the same `ROLE_HIERARCHY` that
+   * `IdpGuard.checkRoleAuthorization` applies to `@Auth(Role.editor())`, so MCP and
+   * REST refuse the same callers by construction rather than by two lists staying in
+   * step.
    */
   private assertCanAuthor(roles: string[], operation: string): void {
-    if (roles.includes('editor') || roles.includes('admin')) {
+    if (satisfiesRole(roles, 'editor')) {
       return;
     }
     throw new ForbiddenException(
@@ -136,7 +137,7 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
       // and the manifest reaching it has never been validated as a whole (connector_test
       // parses only the node it runs). Two transactions left a manifest the parser rejects as
       // a committed, unpublishable connector whose name stayed reserved for good.
-      const { definition, version } = await this.definitionService.createAndPublish(
+      const { definition, version, warnings } = await this.definitionService.createAndPublish(
         request.projectId,
         request.userId,
         {
@@ -150,6 +151,7 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
         name: definition.name,
         version: version.version,
         status: version.status,
+        warnings,
       };
     }
 
@@ -164,11 +166,14 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
       await this.definitionService.saveDraft(request.projectId, connectorId, request.manifest);
     }
 
-    const published = await this.definitionService.publish(request.projectId, connectorId);
+    const { version: published, warnings } = await this.definitionService.publish(
+      request.projectId,
+      connectorId
+    );
     const name =
       request.name ?? (await this.definitionService.getById(request.projectId, connectorId)).name;
 
-    return { connectorId, name, version: published.version, status: published.status };
+    return { connectorId, name, version: published.version, status: published.status, warnings };
   }
 
   async deleteConnector(request: McpDeleteConnectorRequest): Promise<McpDeleteConnectorResponse> {

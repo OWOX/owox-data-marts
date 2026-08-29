@@ -84,7 +84,7 @@ export class InsightController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateDomainCommand(dataMartId, context, dto);
     const insight = await this.createInsightService.run(command);
-    return this.mapper.toResponse(insight);
+    return this.mapper.toResponse(insight, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -97,7 +97,7 @@ export class InsightController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateWithAiDomainCommand(dataMartId, context);
     const insight = await this.createInsightWithAiService.run(command);
-    return this.mapper.toResponse(insight);
+    return this.mapper.toResponse(insight, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -125,7 +125,7 @@ export class InsightController {
     const command = this.mapper.toGetCommand(insightId, dataMartId, context);
     const insight = await this.getInsightService.run(command);
 
-    return this.mapper.toResponse(insight);
+    return this.mapper.toResponse(insight, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -140,7 +140,7 @@ export class InsightController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateCommand(insightId, dataMartId, context, dto);
     const insight = await this.updateInsightService.run(command);
-    return this.mapper.toResponse(insight);
+    return this.mapper.toResponse(insight, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -155,7 +155,7 @@ export class InsightController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateTitleCommand(insightId, dataMartId, context, dto);
     const insight = await this.updateInsightTitleService.run(command);
-    return this.mapper.toResponse(insight);
+    return this.mapper.toResponse(insight, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

@@ -1,20 +1,41 @@
 import type { PropsWithChildren } from 'react';
 import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ConnectorFieldsResponseApiDto } from '../../api';
+import type {
+  ConnectorFieldsResponseApiDto,
+  ConnectorSpecificationResponseApiDto,
+} from '../../api';
 import { ConnectorApiService } from '../../api';
+import type { ConnectorListItem } from '../types/connector';
 import { ConnectorContextProvider } from '../context';
 import { useConnector } from './useConnector';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(promiseResolve => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve;
+    reject = promiseReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 const fields = (node: string, field: string) => [{ name: node, fields: [{ name: field }] }];
+
+const specification = (parameter: string): ConnectorSpecificationResponseApiDto[] => [
+  { name: parameter },
+];
+
+const pinnedConnector = (version: number): ConnectorListItem => ({
+  name: 'MyCustom',
+  displayName: 'My Custom',
+  description: '',
+  logoBase64: null,
+  docUrl: null,
+  isCustom: true,
+  id: 'custom-1',
+  version,
+});
 
 const wrapper = ({ children }: PropsWithChildren) => (
   <ConnectorContextProvider>{children}</ConnectorContextProvider>
@@ -123,5 +144,70 @@ describe('useConnector preview requests', () => {
       </ConnectorContextProvider>
     );
     expect(view.getByRole('button')).toHaveTextContent('false');
+  });
+});
+
+describe('useConnector specification requests', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('ignores a superseded specification response that resolves last', async () => {
+    const active = deferred<ConnectorSpecificationResponseApiDto[]>();
+    const pinned = deferred<ConnectorSpecificationResponseApiDto[]>();
+    vi.spyOn(ConnectorApiService.prototype, 'getCustomConnectorSpecification').mockImplementation(
+      (_id, version) => (version === 3 ? active.promise : pinned.promise)
+    );
+    const { result } = renderHook(() => useConnector(), { wrapper });
+
+    let activeRequest!: Promise<void>;
+    let pinnedRequest!: Promise<void>;
+    act(() => {
+      activeRequest = result.current.fetchConnectorSpecification(pinnedConnector(3));
+      pinnedRequest = result.current.fetchConnectorSpecification(pinnedConnector(1));
+    });
+
+    await act(async () => {
+      pinned.resolve(specification('v1 parameter'));
+      await pinnedRequest;
+    });
+
+    // The superseded v3 request answers after the pin the user actually asked for.
+    await act(async () => {
+      active.resolve(specification('v3 parameter'));
+      await activeRequest;
+    });
+
+    expect(result.current.connectorSpecification?.[0]?.name).toBe('v1 parameter');
+    expect(result.current.loadingSpecification).toBe(false);
+  });
+
+  it('ignores a superseded specification failure that rejects last', async () => {
+    const active = deferred<ConnectorSpecificationResponseApiDto[]>();
+    const pinned = deferred<ConnectorSpecificationResponseApiDto[]>();
+    vi.spyOn(ConnectorApiService.prototype, 'getCustomConnectorSpecification').mockImplementation(
+      (_id, version) => (version === 3 ? active.promise : pinned.promise)
+    );
+    const { result } = renderHook(() => useConnector(), { wrapper });
+
+    let activeRequest!: Promise<void>;
+    let pinnedRequest!: Promise<void>;
+    act(() => {
+      activeRequest = result.current.fetchConnectorSpecification(pinnedConnector(3));
+      pinnedRequest = result.current.fetchConnectorSpecification(pinnedConnector(1));
+    });
+
+    await act(async () => {
+      pinned.resolve(specification('v1 parameter'));
+      await pinnedRequest;
+    });
+
+    await act(async () => {
+      active.reject(new Error('version 3 is gone'));
+      await activeRequest;
+    });
+
+    expect(result.current.connectorSpecification?.[0]?.name).toBe('v1 parameter');
+    expect(result.current.error).toBeNull();
   });
 });

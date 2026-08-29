@@ -9,6 +9,7 @@ import type {
   CustomConnectorVersionDto,
   CustomConnectorVersionSummaryDto,
   TestConnectorPayload,
+  UpdateCustomConnectorMetadataPayload,
 } from './types';
 
 export class ConnectorBuilderApiService extends ApiService {
@@ -39,6 +40,19 @@ export class ConnectorBuilderApiService extends ApiService {
     manifest: BuilderManifest
   ): Promise<CustomConnectorVersionSummaryDto> {
     return this.put<CustomConnectorVersionSummaryDto>(`/${id}/draft`, { manifest });
+  }
+
+  /**
+   * The manifest's display fields are also columns on the connector row, and the row is what
+   * every list, picker and data-mart page reads — the builder is the only screen that reads
+   * the manifest. Saving the draft alone left a retitled connector titled the old way
+   * everywhere else. `name` is not updatable: data marts reference their connector by it.
+   */
+  async updateMetadata(
+    id: string,
+    metadata: UpdateCustomConnectorMetadataPayload
+  ): Promise<CustomConnectorDetailDto> {
+    return this.patch<CustomConnectorDetailDto>(`/${id}`, metadata);
   }
 
   async publish(id: string): Promise<CustomConnectorVersionSummaryDto> {

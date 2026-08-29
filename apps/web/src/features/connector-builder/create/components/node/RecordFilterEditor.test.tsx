@@ -99,4 +99,22 @@ describe('RecordFilterEditor', () => {
     expect(screen.getByLabelText('Enable record filter')).not.toBeChecked();
     expect(screen.queryByPlaceholderText('sheetType')).not.toBeInTheDocument();
   });
+  // The dot is the whole difficulty. The manifest stores the path as segments, so a
+  // controlled input has to split and rejoin on every keystroke -- and the empty trailing
+  // segment created by typing "stats." is dropped, deleting the dot from under the cursor.
+  // A nested path was therefore impossible to enter at all. Typed one character at a time,
+  // because a single change event with the final string never reproduces it.
+  it('lets a nested field path be typed one character at a time', () => {
+    renderEditor('{"nodes":{"items":{"recordSelector":{},"recordFilter":{"operator":"isNull"}}}}');
+    const input = screen.getByPlaceholderText('sheetType');
+
+    let typed = '';
+    for (const char of 'stats.clicks') {
+      typed += char;
+      fireEvent.change(input, { target: { value: typed } });
+      expect(input).toHaveValue(typed);
+    }
+
+    expect(storedFilter()).toEqual({ path: ['stats', 'clicks'], operator: 'isNull' });
+  });
 });

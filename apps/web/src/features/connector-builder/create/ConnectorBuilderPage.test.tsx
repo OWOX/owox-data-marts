@@ -9,6 +9,7 @@ const getVersion = vi.fn();
 const saveDraft = vi.fn();
 const publish = vi.fn();
 const softDelete = vi.fn();
+const updateMetadata = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
@@ -18,10 +19,21 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
     publish = publish;
     getVersion = getVersion;
     softDelete = softDelete;
+    updateMetadata = updateMetadata;
   },
 }));
 
 vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+/** What the builder reads into itself when it opens an existing connector. */
+const EXISTING_MANIFEST = {
+  version: '1.0',
+  name: 'MyApi',
+  title: 'My API',
+  baseUrl: 'https://api.example.com',
+  parameters: {},
+  nodes: {},
+};
 
 vi.mock('@monaco-editor/react', () => ({
   Editor: ({ value, onChange }: { value: string; onChange: (v: string | undefined) => void }) => (
@@ -53,6 +65,16 @@ describe('ConnectorBuilderPage (new)', () => {
       version: 1,
       status: 'published',
       publishedAt: '2026-06-11T00:00:00Z',
+    });
+    updateMetadata.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
     });
   });
 
@@ -117,6 +139,140 @@ describe('ConnectorBuilderPage (new)', () => {
     await waitFor(() => {
       expect(create).toHaveBeenCalledTimes(1);
     });
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith('def-1');
+    });
+  });
+
+  it('locks the connector name once the connector exists', async () => {
+    render(<ConnectorBuilderPage />);
+    expect(screen.getByPlaceholderText('MyCustomApi')).not.toHaveAttribute('readonly');
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(getById).toHaveBeenCalled();
+    });
+
+    // Only create() writes the definition row's name, and that name is what data marts
+    // resolve a connector by. Editing this afterwards renames the manifest alone: the
+    // builder would show the new name and every other surface the old one, forever.
+    expect(screen.getByPlaceholderText('MyCustomApi')).toHaveAttribute('readonly');
+  });
+
+  /**
+   * The builder edits the manifest, but the connectors list, the picker and every data-mart
+   * page read the connector's ROW — seeded from the manifest at create and, before this,
+   * never updated. A retitled connector saved cleanly and kept its old title everywhere the
+   * user would actually look for it, with nothing to say why.
+   */
+  it('sends an edited title to the connector row, not only into the manifest', async () => {
+    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: EXISTING_MANIFEST });
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(getById).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('My Custom API'), {
+      target: { value: 'Renamed API' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateMetadata).toHaveBeenCalledWith(
+        'def-1',
+        expect.objectContaining({ title: 'Renamed API' })
+      );
+    });
+    // The name is what data marts resolve the connector by, so it is never part of the update.
+    expect(updateMetadata.mock.calls[0][1]).not.toHaveProperty('name');
+  });
+
+  /**
+   * An emptied optional field has to clear the column, not store `''`: the row is read by
+   * screens that render these only when present, and an empty string is present.
+   */
+  it('clears an emptied description rather than storing a blank', async () => {
+    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    getVersion.mockResolvedValue({
+      version: 1,
+      status: 'draft',
+      manifest: { ...EXISTING_MANIFEST, description: 'Something' },
+    });
+    getById.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: 'Something',
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(getById).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByRole('textbox', { name: /description/i }), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateMetadata).toHaveBeenCalledWith(
+        'def-1',
+        expect.objectContaining({ description: null })
+      );
+    });
+  });
+
+  it('keeps the created id when the read that follows create fails', async () => {
+    // create() has already taken the name, so re-POSTing it 400s on the name check.
+    // If the id is discarded with the failed read, every retry takes that path and the
+    // session can never save again.
+    getById.mockRejectedValueOnce(new Error('Network Error'));
+    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(getById).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(saveDraft).toHaveBeenCalledWith('def-1', expect.anything());
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not announce the new id until the publish that created it has landed', async () => {
+    // The announcement swaps /connectors/builder/new → /:id, and those are different
+    // route elements: the whole page remounts and reloads the connector. Remounting
+    // mid-publish reloads it pre-publish — a draft under a "Published" toast.
+    let releasePublish!: () => void;
+    publish.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          releasePublish = () => {
+            resolve({ version: 1, status: 'published', publishedAt: '2026-06-11T00:00:00Z' });
+          };
+        })
+    );
+    const onCreated = vi.fn();
+    render(<ConnectorBuilderPage onCreated={onCreated} />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /publish/i }));
+    await waitFor(() => {
+      expect(publish).toHaveBeenCalledWith('def-1');
+    });
+    expect(onCreated).not.toHaveBeenCalled();
+
+    releasePublish();
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith('def-1');
     });

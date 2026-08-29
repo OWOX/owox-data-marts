@@ -17,6 +17,7 @@ jest.mock('../../idp', () => ({
 import { FindOperator } from 'typeorm';
 import { ConnectorDefinitionController } from './connector-definition.controller';
 import { ConnectorDefinitionService } from '../services/connector/connector-definition.service';
+import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
 import { ConnectorDefinitionVersionStatus } from '../entities/connector-definition-version.entity';
 import type { AuthorizationContext } from '../../idp';
 
@@ -101,7 +102,14 @@ describe('ConnectorDefinitionController list() cost', () => {
       { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never
     );
 
-    const controller = new ConnectorDefinitionController(service, {} as never, {} as never);
+    // The real mapper, not a double: it is pure, and a double would stop these cases
+    // exercising the projection the handler actually returns.
+    const controller = new ConnectorDefinitionController(
+      service,
+      {} as never,
+      {} as never,
+      new ConnectorDefinitionMapper()
+    );
 
     return { controller, versionQueries };
   };

@@ -51,6 +51,15 @@ export interface McpPublishConnectorResponse {
   name: string;
   version: number;
   status: string;
+  /**
+   * The publish-time coverage warnings — parameters that will end up holding a credential
+   * in plain text, and SECRET parameters whose default the specification withholds.
+   *
+   * Carried on the response because the assistant driving `connector_publish` is the
+   * author's only view of them: it authored the manifest, it is the one that can correct
+   * it, and it never sees the backend log where these used to end. Always an array.
+   */
+  warnings: string[];
 }
 
 export interface McpDeleteConnectorRequest {

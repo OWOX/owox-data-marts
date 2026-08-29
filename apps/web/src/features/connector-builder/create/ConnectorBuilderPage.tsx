@@ -11,6 +11,7 @@ import { NodeEditor } from './components/node/NodeEditor';
 import { NodeEditorBoundary } from './components/node/NodeEditorBoundary';
 import { ResultsDock } from './components/ResultsDock';
 import { CodeModeEditor } from './components/CodeModeEditor';
+import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 
 function BuilderCenter({
   selection,
@@ -83,14 +84,24 @@ function BuilderShell({
   onCreated?: (id: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { state, manifest, addNode, cloneNode, initNew, loadConnector } = useBuilder();
+  const { state, manifest, addNode, cloneNode, initNew, loadConnector, setCodeInvalid } =
+    useBuilder();
   const [selection, setSelection] = useState<BuilderSelection>({
     kind: 'global',
     section: 'general',
   });
   const [dockOpen, setDockOpen] = useState(false);
   const [mode, setMode] = useState<'builder' | 'code'>('builder');
+  const [confirmDropCode, setConfirmDropCode] = useState(false);
   const announcedCreate = useRef(false);
+
+  // Leaving Code mode unmounts the editor, and its buffer with it. Anything that parsed is
+  // pushed on the way out, so the only thing at stake is text that does not — which is
+  // exactly what the author is in the middle of fixing. Ask rather than drop it silently.
+  const requestMode = (next: 'builder' | 'code') => {
+    if (next === 'builder' && state.codeInvalid) setConfirmDropCode(true);
+    else setMode(next);
+  };
 
   useEffect(() => {
     if (id) void loadConnector(id);
@@ -110,12 +121,17 @@ function BuilderShell({
 
   // First successful "Save draft" on a brand-new connector assigns an id. Hand it
   // back so the page can swap /connectors/builder/new → /connectors/builder/:id.
+  //
+  // Held back while a publish is in flight. Publish on a never-saved connector creates it
+  // first, so the id arrives mid-publish — and /new and /:id are different route elements,
+  // so announcing it there remounts this page and reloads the connector before the publish
+  // has landed: the author would be shown the draft under a "Published" toast.
   useEffect(() => {
-    if (!id && state.id && !announcedCreate.current) {
+    if (!id && state.id && !state.publishing && !announcedCreate.current) {
       announcedCreate.current = true;
       onCreated?.(state.id);
     }
-  }, [id, state.id, onCreated]);
+  }, [id, state.id, state.publishing, onCreated]);
 
   const handleAddNode = (name: string) => {
     addNode(name);
@@ -144,7 +160,7 @@ function BuilderShell({
         {mode === 'builder' && (
           <div className='flex w-[236px] shrink-0 flex-col border-r'>
             {/* Builder / Code switch sits above the configuration tree */}
-            <BuilderModeTabs mode={mode} onSetMode={setMode} />
+            <BuilderModeTabs mode={mode} onSetMode={requestMode} />
             <div className='min-h-0 flex-1 overflow-y-auto'>
               <BuilderNavRail
                 manifest={manifest}
@@ -165,7 +181,7 @@ function BuilderShell({
           ) : (
             <div className='flex min-h-0 flex-1 flex-col'>
               {/* In Code mode the switch heads the editor column so it stays reachable */}
-              <BuilderModeTabs mode={mode} onSetMode={setMode} />
+              <BuilderModeTabs mode={mode} onSetMode={requestMode} />
               <div className='min-h-0 flex-1'>
                 <CodeModeEditor />
               </div>
@@ -181,6 +197,28 @@ function BuilderShell({
           />
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={confirmDropCode}
+        onOpenChange={open => {
+          if (!open) setConfirmDropCode(false);
+        }}
+        title='Discard the invalid JSON?'
+        description={
+          <p className='mt-2'>
+            The JSON in Code mode doesn't parse, so it can't be applied. Switching to the Builder
+            discards everything typed since it was last valid.
+          </p>
+        }
+        confirmLabel='Discard & switch'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={() => {
+          setConfirmDropCode(false);
+          setCodeInvalid(false);
+          setMode('builder');
+        }}
+      />
     </div>
   );
 }
