@@ -26,8 +26,8 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
   --destructive-bg: oklch(0.971 0.013 17.38);
-  --success: oklch(0.627 0.194 149.21);
-  --success-bg: oklch(0.982 0.018 155.83);
+  --success: oklch(0.7157 0.1515 140.73);
+  --success-bg: oklch(0.965 0.025 140.73);
   --warning: oklch(0.666 0.179 58.32);
   --warning-bg: oklch(0.987 0.022 95.28);
   --notice: var(--muted-foreground);

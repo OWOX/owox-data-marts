@@ -65,9 +65,9 @@ describe('DataMartTable', () => {
         deleteDataMart,
       })
     );
-    const trigger = screen.getByRole('button', { name: 'Actions 1' });
+    const trigger = screen.getByTestId('data-mart-bulk-actions-trigger');
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Delete/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     await vi.waitFor(() => {
@@ -80,18 +80,13 @@ describe('DataMartTable', () => {
     const trigger = selectRowAndOpenActions();
 
     expect(trigger).toBeVisible();
-    expect(screen.getByText('1', { selector: '[data-slot="badge"]' })).toHaveClass(
-      'bg-muted',
-      'text-muted-foreground',
-      'rounded-full'
-    );
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
-      'Publish',
+      'Publish 0 draft Data Marts',
       'Check Quality',
-      'Delete',
+      'Delete 1 Data Mart',
     ]);
-    expect(screen.getByRole('menuitem', { name: 'Delete' })).not.toHaveAttribute('data-disabled');
-    expect(screen.getByRole('menuitem', { name: 'Publish' })).toHaveAttribute('data-disabled');
+    expect(screen.getByRole('menuitem', { name: /^Delete/ })).not.toHaveAttribute('data-disabled');
+    expect(screen.getByRole('menuitem', { name: /^Publish/ })).toHaveAttribute('data-disabled');
     expect(screen.getByRole('menuitem', { name: 'Check Quality' })).not.toHaveAttribute(
       'data-disabled'
     );
@@ -111,7 +106,7 @@ describe('DataMartTable', () => {
     renderTable(buildDataMart());
     selectRowAndOpenActions();
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Delete/ }));
 
     expect(screen.getByRole('heading', { name: 'Are you sure?' })).toBeVisible();
     expect(screen.getByText("You're about to delete 1 selected data mart.")).toBeVisible();
@@ -129,7 +124,7 @@ describe('DataMartTable', () => {
     });
     selectRowAndOpenActions();
 
-    const publishAction = screen.getByRole('menuitem', { name: 'Publish' });
+    const publishAction = screen.getByRole('menuitem', { name: /^Publish/ });
     expect(publishAction).not.toHaveAttribute('data-disabled');
     fireEvent.click(publishAction);
 
@@ -187,7 +182,7 @@ function renderTableElement(
 
 function selectRowAndOpenActions() {
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select row' }));
-  const trigger = screen.getByRole('button', { name: 'Actions 1' });
+  const trigger = screen.getByTestId('data-mart-bulk-actions-trigger');
   fireEvent.pointerDown(trigger, {
     button: 0,
     ctrlKey: false,

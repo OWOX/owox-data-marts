@@ -57,7 +57,7 @@ const viewState = vi.hoisted(() => ({
   useDataQualitySummaries: vi.fn(),
   navigate: vi.fn(),
   filters: {
-    storageId: 'storage-1',
+    storageId: 'storage-1' as string | null,
     setStorageId: vi.fn(),
     status: 'published' as const,
     setStatus: vi.fn(),
@@ -114,10 +114,26 @@ vi.mock('../../data-quality/api/data-quality.service', () => ({
   dataQualityService: dataQualityServiceMock,
 }));
 
-vi.mock('./ModelCanvasToolbar', () => ({
-  // The Actions menu renders through the toolbar's `actions` slot.
-  ModelCanvasToolbar: ({ actions }: { actions?: React.ReactNode }) => <>{actions}</>,
-}));
+vi.mock('./ModelCanvasToolbar', async () => {
+  const { ModelCanvasExportMenu } =
+    await vi.importActual<typeof import('./ModelCanvasExportMenu')>('./ModelCanvasExportMenu');
+  // The Actions menu renders through the toolbar's `actions` slot; the export
+  // menu is rendered by the real toolbar, so keep it real here too.
+  return {
+    ModelCanvasToolbar: ({
+      actions,
+      onExport,
+    }: {
+      actions?: React.ReactNode;
+      onExport: (format: 'svg' | 'png' | 'json' | 'okf') => void;
+    }) => (
+      <>
+        {actions}
+        <ModelCanvasExportMenu onExport={onExport} />
+      </>
+    ),
+  };
+});
 
 vi.mock('./ModelCanvas', () => ({
   default: ({
@@ -346,10 +362,11 @@ describe('ModelCanvasView', () => {
 
     render(<ModelCanvasView />);
 
-    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'JSON' }));
+    fireEvent.pointerDown(await screen.findByTestId('export-canvas'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('export-canvas-json'));
 
     await waitFor(() => {
       expect(exportMocks.toast).toHaveBeenCalledWith(
@@ -367,10 +384,11 @@ describe('ModelCanvasView', () => {
 
     render(<ModelCanvasView />);
 
-    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'OKF (Markdown)' }));
+    fireEvent.pointerDown(await screen.findByTestId('export-canvas'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('export-canvas-okf'));
 
     await waitFor(() => {
       expect(exportCanvas).toHaveBeenCalledWith('okf');
@@ -388,10 +406,11 @@ describe('ModelCanvasView', () => {
 
     render(<ModelCanvasView />);
 
-    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'JSON' }));
+    fireEvent.pointerDown(await screen.findByTestId('export-canvas'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('export-canvas-json'));
 
     await waitFor(() => {
       expect(exportMocks.toast).toHaveBeenCalledWith(
@@ -401,8 +420,8 @@ describe('ModelCanvasView', () => {
     expect(exportMocks.trackEvent).not.toHaveBeenCalled();
   });
 
-  // The same `bulkActionDataMarts` set feeds the Actions badge AND the export
-  // scope: search only highlights, it never narrows either of them.
+  // The same `bulkActionDataMarts` set feeds the Delete confirmation count AND
+  // the export scope: search only highlights, it never narrows either of them.
   it('counts the Data Marts left by canvas filters without narrowing the count by search', async () => {
     viewState.filters.searchQuery = 'Orders';
     viewState.canvasHook.data = {
@@ -422,7 +441,15 @@ describe('ModelCanvasView', () => {
 
     render(<ModelCanvasView />);
 
-    expect(await screen.findByRole('button', { name: 'Actions 2' })).toBeVisible();
+    const trigger = await screen.findByTestId('data-mart-bulk-actions-trigger');
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Delete/ }));
+
+    expect(
+      screen.getByText(
+        "You're about to delete all 2 data marts shown by the current canvas filters."
+      )
+    ).toBeVisible();
   });
 
   it('describes canvas actions as applying to every Data Mart shown by the filters', async () => {
@@ -430,9 +457,9 @@ describe('ModelCanvasView', () => {
 
     render(<ModelCanvasView />);
 
-    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
+    const trigger = await screen.findByTestId('data-mart-bulk-actions-trigger');
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Delete/ }));
 
     expect(
       screen.getByText(
@@ -523,6 +550,27 @@ describe('ModelCanvasView', () => {
     expect(screen.queryByText('Select a storage to view its data model')).not.toBeInTheDocument();
   });
 
+  it('hides the toolbar until a storage is selected', async () => {
+    viewState.storageHook.dataStorages = [
+      viewState.storageHook.dataStorages[0],
+      {
+        id: 'storage-2',
+        type: 'GOOGLE_BIGQUERY',
+        title: 'Marketing',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        modifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+        publishedDataMartsCount: 1,
+        draftDataMartsCount: 0,
+      },
+    ];
+    viewState.filters.storageId = null;
+
+    render(<ModelCanvasView />);
+
+    expect(await screen.findByText('Select a storage to view its data model')).toBeInTheDocument();
+    expect(screen.queryByTestId('export-canvas')).not.toBeInTheDocument();
+  });
+
   it('replaces a storage error with loading feedback during retry', async () => {
     const retry = deferred<undefined>();
     viewState.storageHook.dataStorages = [];
@@ -543,7 +591,7 @@ describe('ModelCanvasView', () => {
     render(<ModelCanvasView />);
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('No data marts in this storage');
+      expect(screen.getByRole('status')).toHaveTextContent('No Data Marts in this storage');
     });
   });
 

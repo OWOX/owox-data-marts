@@ -34,6 +34,7 @@ import {
 import { collectOptionsFromData } from '../../../shared/components/TableFilters/collectOptions.utils';
 import { UserReference } from '../../../shared/components/UserReference';
 import { useBaseTable, usePersistentFilters, useProjectRoute } from '../../../shared/hooks';
+import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTableFilters } from '../shared/ProjectDataMartTableFilters';
 import { ProjectDataMartTableSearch } from '../shared/ProjectDataMartTableSearch';
 import {
@@ -401,9 +402,7 @@ function DataMartSchedulesPageContent() {
 
   return (
     <div className='dm-page' data-testid='dataMartSchedulesPage'>
-      <header className='dm-page-header'>
-        <h1 className='dm-page-header-title'>Triggers</h1>
-      </header>
+      <ProjectDataMartSectionHeader title='Triggers' />
 
       <div className='dm-page-content'>
         {isLoading ? (

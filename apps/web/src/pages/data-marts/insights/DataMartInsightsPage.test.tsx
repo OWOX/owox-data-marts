@@ -90,7 +90,7 @@ describe('DataMartInsightsPage', () => {
     expect(getColumnHeaderLabels().slice(0, 2)).toEqual(['Data Mart', 'Insight']);
   });
 
-  it('renders the Data Mart title without truncation so long titles can wrap', async () => {
+  it('truncates the Data Mart title and reveals the full title via tooltip', async () => {
     const longDataMartTitle = 'Marketing Campaign Performance Data Mart With Long Title';
     vi.mocked(insightTemplatesService.getProjectInsightTemplates).mockResolvedValueOnce({
       insights: [buildInsightTemplateResponse({ dataMartTitle: longDataMartTitle })],
@@ -99,8 +99,8 @@ describe('DataMartInsightsPage', () => {
     renderPage();
 
     const dataMartLink = await screen.findByRole('link', { name: longDataMartTitle });
-    expect(dataMartLink).toHaveClass('block', 'w-full', 'whitespace-normal', 'break-words');
-    expect(dataMartLink).not.toHaveClass('truncate');
+    expect(dataMartLink).toHaveClass('block', 'w-full', 'truncate');
+    expect(dataMartLink).not.toHaveClass('whitespace-normal', 'break-words');
   });
 
   it('shows a Data Mart-focused empty state when there are no project-wide insights', async () => {

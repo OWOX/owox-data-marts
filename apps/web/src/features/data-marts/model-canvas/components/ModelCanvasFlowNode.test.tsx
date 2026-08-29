@@ -167,7 +167,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText('Field 5')).not.toBeInTheDocument();
   });
 
-  it('hides the badge, field count and status dot when all object labels are hidden', () => {
+  it('hides the badge, field count and status pill when all object labels are hidden', () => {
     const { container } = renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
       source: true,
       fields: true,
@@ -176,7 +176,7 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.queryByText('View')).not.toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Published')).not.toBeInTheDocument();
+    expect(screen.queryByText('Published')).not.toBeInTheDocument();
     expect(screen.getByText('Orders')).toBeInTheDocument();
     // Title-only mode also drops the quality indicators row.
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
@@ -195,7 +195,7 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.getByText('View')).toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.getByTitle('Published')).toBeInTheDocument();
+    expect(screen.getByText('Published')).toBeInTheDocument();
   });
 
   it('orders primary keys first in the field list', () => {

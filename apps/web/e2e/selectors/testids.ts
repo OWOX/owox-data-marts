@@ -18,6 +18,7 @@ export const TESTIDS = {
   datamartTabDataSetup: 'datamartTabDataSetup',
   datamartTabQuality: 'datamartTabQuality',
   runSelectedDataQuality: 'run-selected-data-quality',
+  dataMartBulkActionsTrigger: 'data-mart-bulk-actions-trigger',
   datamartPublishButton: 'datamartPublishButton',
   datamartDeleteButton: 'datamartDeleteButton',
   datamartTitleInput: 'datamartTitleInput',

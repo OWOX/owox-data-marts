@@ -1,50 +1,42 @@
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 
 function renderToolbar(actions?: ReactNode) {
   return render(
     <ModelCanvasToolbar
       actions={actions}
-      storages={[
-        {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-          title: 'Warehouse',
-          createdAt: new Date('2026-01-01T00:00:00.000Z'),
-          modifiedAt: new Date('2026-01-01T00:00:00.000Z'),
-          publishedDataMartsCount: 1,
-          draftDataMartsCount: 0,
-        },
-      ]}
-      storageId='storage-1'
-      onStorageChange={vi.fn()}
       status='published'
       onStatusChange={vi.fn()}
       rel='connected'
       onRelChange={vi.fn()}
       searchQuery=''
       onSearchChange={vi.fn()}
+      onExport={vi.fn()}
     />
   );
 }
 
 describe('ModelCanvasToolbar', () => {
-  it('labels its select filters and exposes the selected storage', () => {
+  it('labels its select filters', () => {
     renderToolbar();
 
-    expect(screen.getByRole('combobox', { name: 'Storage' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Relationships' })).toBeInTheDocument();
   });
 
-  it('renders the actions slot at the start of the row', () => {
+  it('renders the actions slot within the row, ahead of the download button', () => {
     const { container } = renderToolbar(<button type='button'>Actions</button>);
 
     const row = container.firstElementChild;
-    expect(row?.firstElementChild).toBe(screen.getByRole('button', { name: 'Actions' }));
+    const actionsButton = screen.getByRole('button', { name: 'Actions' });
+    const downloadButton = screen.getByTestId('export-canvas');
+
+    expect(row).toContainElement(actionsButton);
+    expect(
+      actionsButton.compareDocumentPosition(downloadButton) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('keeps the controls on one row and constrains the search width', () => {
@@ -53,10 +45,9 @@ describe('ModelCanvasToolbar', () => {
     expect(container.firstElementChild).toHaveClass('flex-nowrap');
     expect(container.firstElementChild).not.toHaveClass('flex-wrap');
 
-    const searchInput = screen.getByRole('textbox', { name: 'Search data marts' });
+    const searchInput = screen.getByRole('textbox', { name: 'Search Data Marts' });
     expect(searchInput.parentElement?.parentElement).toHaveClass(
-      'ml-auto',
-      'w-[240px]',
+      'max-w-[240px]',
       'min-w-[180px]',
       'shrink',
       '[&>div]:w-full'

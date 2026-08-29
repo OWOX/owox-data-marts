@@ -24,7 +24,11 @@ import '@xyflow/react/dist/style.css';
 import { Button } from '../../../../shared/components/Button';
 import { CanvasSettingsPopover } from '../../shared/canvas/canvas-settings-panel';
 import { storageService } from '../../../../services/localstorage.service';
-import { NODE_PULSE_KEYFRAMES, STATIC_NODE_STYLE } from '../../shared/canvas/constants';
+import {
+  MINIMAP_NODE_COLOR,
+  NODE_PULSE_KEYFRAMES,
+  STATIC_NODE_STYLE,
+} from '../../shared/canvas/constants';
 import {
   computeCanvasHighlight,
   NO_HIGHLIGHT,
@@ -42,7 +46,6 @@ import {
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
 import type { PathPoint } from '../../shared/canvas/path-point';
-import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import type { ModelCanvasNode } from '../model/types';
 import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
 import {
@@ -151,8 +154,8 @@ interface FlowNodeParams {
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
   const { node, highlight, viewMode, objectLabels } = params;
   // The field count lives in the status icons row, so the meta row only holds
-  // the source badge — hiding the badge drops the whole row.
-  const metaRowHidden = objectLabels.source;
+  // the status pill and the source badge — hiding both drops the whole row.
+  const metaRowHidden = objectLabels.source && objectLabels.status;
   const statusRowHidden = objectLabels.source && objectLabels.fields && objectLabels.status;
   return {
     id: node.id,
@@ -331,7 +334,7 @@ function ModelCanvasInner({
       n => n.title
     );
 
-    const metaRowHidden = objectLabels.source;
+    const metaRowHidden = objectLabels.source && objectLabels.status;
     const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
@@ -711,7 +714,7 @@ function ModelCanvasInner({
             pannable
             zoomable
             style={{ width: 140, height: 100 }}
-            nodeColor={node => definitionTypeAccent(node.data.definitionType)}
+            nodeColor={MINIMAP_NODE_COLOR}
           />
         </ReactFlow>
       )}
@@ -736,10 +739,7 @@ export default function ModelCanvas({
   if (nodes.length === 0) return null;
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-lg border ${className ?? ''}`}
-      style={style ?? { height: 480 }}
-    >
+    <div className={`relative overflow-hidden ${className ?? ''}`} style={style ?? { height: 480 }}>
       <style>{NODE_PULSE_KEYFRAMES}</style>
       <ReactFlowProvider>
         <ModelCanvasInner

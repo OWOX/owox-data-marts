@@ -27,7 +27,7 @@ export const COMPACT_NODE_HEIGHT = 116;
 
 export const ERD_NODE_WIDTH = 256;
 export const ERD_HEADER_HEIGHT = 88; // title + meta + Data Quality rows
-/** Height of the meta row (the source badge), subtracted when object labels hide it. */
+/** Height of the meta row (status pill + source badge), subtracted when object labels hide both. */
 export const CARD_META_ROW_HEIGHT = 36;
 /** Height of the status icons row (quality shield + Data Last Updated + field count), dropped in title-only mode. */
 export const CARD_STATUS_ROW_HEIGHT = 30;
@@ -38,9 +38,9 @@ export function nodeWidth(viewMode: CanvasViewMode): number {
 
 /**
  * Collapsed layout height for a node, used by dagre and as the initial render
- * size. `metaRowHidden` reflects the object-labels preference: when the
- * source badge is hidden, the card drops its meta row (the field count lives
- * in the status icons row).
+ * size. `metaRowHidden` reflects the object-labels preference: when both the
+ * status pill and the source badge are hidden, the card drops its meta row
+ * (the field count lives in the status icons row).
  * `statusRowHidden` reflects title-only mode, which also drops the quality
  * indicators row (Data Quality shield + Data Last Updated clock).
  */

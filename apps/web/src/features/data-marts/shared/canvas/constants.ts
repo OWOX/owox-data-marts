@@ -15,6 +15,8 @@ export const EDGE_STROKE_WIDTH = 1.5;
 export const EDGE_SELECTED_STROKE_WIDTH = 2.5;
 export const EDGE_WARNING_DASH = '8 4';
 export const DIMMED_OPACITY = 0.15;
+/** MiniMap node fill — flat, theme-aware; no per-node color coding. */
+export const MINIMAP_NODE_COLOR = ' var(--muted)';
 
 export const SOCKET_STYLE: CSSProperties = {
   width: 10,

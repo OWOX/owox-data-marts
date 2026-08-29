@@ -27,6 +27,7 @@ import {
 } from '../shared/ProjectDataMartTableFilters.utils';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { formatDateShort, trackEvent } from '../../../utils';
 
@@ -258,9 +259,7 @@ export default function DataMartInsightsPage() {
 
   return (
     <div className='dm-page' data-testid='dataMartInsightsPage'>
-      <header className='dm-page-header'>
-        <h1 className='dm-page-header-title'>Insights</h1>
-      </header>
+      <ProjectDataMartSectionHeader title='Insights' />
 
       <div className='dm-page-content'>
         {isLoading ? (

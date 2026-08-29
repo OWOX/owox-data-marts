@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../../app/api';
 import { Button } from '../../../../shared/components/Button';
-import { DataStorageProvider } from '../../../data-storage/shared/model/context';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import { useProjectRoute } from '../../../../shared/hooks';
 import { filterCanvasData } from '../model/graph/filter-canvas-data';
@@ -12,12 +11,10 @@ import { useModelCanvas } from '../model/use-model-canvas';
 import { useRefreshDataLastUpdated } from '../model/use-refresh-data-last-updated';
 import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
+import { type DataMartCanvasExportFormat } from './ModelCanvasExportMenu';
 import { dataQualityService } from '../../data-quality/api/data-quality.service';
 import { dataMartService } from '../../shared';
-import {
-  DataMartBulkActions,
-  type DataMartCanvasExportFormat,
-} from '../../shared/components/DataMartBulkActions';
+import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
 import type { ModelCanvasExportHandle } from '../export';
 import { trackEvent } from '../../../../utils/data-layer';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
@@ -36,7 +33,7 @@ function CanvasMessage({
   return (
     <div
       role={role}
-      className='text-muted-foreground flex h-[480px] items-center justify-center rounded-lg border text-sm'
+      className='text-muted-foreground flex h-[480px] items-center justify-center text-sm'
     >
       {children}
     </div>
@@ -52,7 +49,7 @@ interface ModelCanvasViewProps {
   onActiveQualityRunChange?: (active: boolean) => void;
 }
 
-function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewProps) {
+export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
   const [storageLoadError, setStorageLoadError] = useState<unknown>(null);
   const [storageLoadPending, setStorageLoadPending] = useState(true);
@@ -97,6 +94,11 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
       storageLoadGenerationRef.current += 1;
     };
   }, [loadDataStorages]);
+
+  useEffect(() => {
+    if (storageKnown || dataStorages.length !== 1) return;
+    filters.setStorageId(dataStorages[0].id);
+  }, [storageKnown, dataStorages, filters.setStorageId]);
 
   const filteredTopology = useMemo(
     () => (topology ? filterCanvasData(topology, filters.status, filters.rel) : null),
@@ -271,68 +273,83 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
   const error = topologyError ?? qualitySummariesError;
 
   return (
-    <div className='dm-card p-4'>
-      <ModelCanvasToolbar
-        storages={dataStorages}
-        storageId={filters.storageId}
-        onStorageChange={filters.setStorageId}
-        status={filters.status}
-        onStatusChange={filters.setStatus}
-        rel={filters.rel}
-        onRelChange={filters.setRel}
-        searchQuery={filters.searchQuery}
-        onSearchChange={filters.setSearchQuery}
-        actions={
-          <DataMartBulkActions
-            onExport={handleExport}
-            onCheckDataLastUpdated={() => {
-              // Meeting decision: the check covers what the user actually sees — the same
-              // filtered set the other bulk actions target.
-              void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
-            }}
-            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
-            dataMarts={bulkActionDataMarts}
-            projectId={projectId ?? ''}
-            deleteDataMart={deleteDataMart}
-            publishDataMart={publishDataMart}
-            onCompleted={refreshCanvas}
-            targetScope='canvas'
-          />
-        }
-      />
-      {storageLoadError ? (
-        <CanvasMessage role='alert'>
-          <div className='flex flex-col items-center gap-3'>
-            <span>{extractErrorMessage(storageLoadError) ?? 'Failed to load storages'}</span>
-            <Button
-              type='button'
-              size='sm'
-              variant='outline'
-              aria-label='Retry loading storages'
-              onClick={() => {
-                void loadDataStorages();
+    <div className='dm-card !p-0'>
+      {storageKnown && (
+        <ModelCanvasToolbar
+          status={filters.status}
+          onStatusChange={filters.setStatus}
+          rel={filters.rel}
+          onRelChange={filters.setRel}
+          searchQuery={filters.searchQuery}
+          onSearchChange={filters.setSearchQuery}
+          onExport={handleExport}
+          actions={
+            <DataMartBulkActions
+              onCheckDataLastUpdated={() => {
+                // Meeting decision: the check covers what the user actually sees — the same
+                // filtered set the other bulk actions target.
+                void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
               }}
-            >
-              Retry
-            </Button>
-          </div>
-        </CanvasMessage>
+              isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+              dataMarts={bulkActionDataMarts}
+              projectId={projectId ?? ''}
+              deleteDataMart={deleteDataMart}
+              publishDataMart={publishDataMart}
+              onCompleted={refreshCanvas}
+              targetScope='canvas'
+            />
+          }
+        />
+      )}
+      {storageLoadError ? (
+        <div className='p-4'>
+          <CanvasMessage role='alert'>
+            <div className='flex flex-col items-center gap-3'>
+              <span>{extractErrorMessage(storageLoadError) ?? 'Failed to load storages'}</span>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                aria-label='Retry loading storages'
+                onClick={() => {
+                  void loadDataStorages();
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          </CanvasMessage>
+        </div>
       ) : loadingStorages || storageLoadPending || isLoading ? (
-        <SkeletonList />
+        <div className='p-4'>
+          <SkeletonList />
+        </div>
       ) : dataStorages.length === 0 ? (
-        <CanvasMessage>No storages available</CanvasMessage>
+        <div className='p-4'>
+          <CanvasMessage>No storages available</CanvasMessage>
+        </div>
       ) : !filters.storageId || !storageKnown ? (
-        <CanvasMessage>Select a storage to view its data model</CanvasMessage>
+        <div className='p-4'>
+          <CanvasMessage>Select a storage to view its data model</CanvasMessage>
+        </div>
       ) : error ? (
-        <CanvasMessage role='alert'>
-          {extractErrorMessage(error) ?? 'Failed to load the data model'}
-        </CanvasMessage>
+        <div className='p-4'>
+          <CanvasMessage role='alert'>
+            {extractErrorMessage(error) ?? 'Failed to load the data model'}
+          </CanvasMessage>
+        </div>
       ) : !topology || topology.nodes.length === 0 ? (
-        <CanvasMessage>No data marts in this storage</CanvasMessage>
+        <div className='p-4'>
+          <CanvasMessage>No Data Marts in this storage</CanvasMessage>
+        </div>
       ) : !filteredTopology || filteredTopology.nodes.length === 0 ? (
-        <CanvasMessage>No data marts match the current filters</CanvasMessage>
+        <div className='p-4'>
+          <CanvasMessage>No Data Marts match the current filters</CanvasMessage>
+        </div>
       ) : !filtered ? (
-        <SkeletonList />
+        <div className='p-4'>
+          <SkeletonList />
+        </div>
       ) : (
         <Suspense fallback={<SkeletonList />}>
           <ModelCanvas
@@ -359,13 +376,5 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         </Suspense>
       )}
     </div>
-  );
-}
-
-export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewProps) {
-  return (
-    <DataStorageProvider>
-      <ModelCanvasViewContent onActiveQualityRunChange={onActiveQualityRunChange} />
-    </DataStorageProvider>
   );
 }

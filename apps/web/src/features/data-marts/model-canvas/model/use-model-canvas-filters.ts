@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useParams } from 'react-router';
 import { storageService } from '../../../../services/localstorage.service';
 import { useUrlParam } from '../../../../shared/hooks/useUrlParam';
@@ -24,29 +24,52 @@ export function useModelCanvasFilters() {
   }, [storageValue, setStorageParam, storageLsKey]);
 
   const statusFilter: CanvasStatusFilter =
-    status.value === 'draft' ? 'draft' : status.value === 'all' ? 'all' : 'published';
-  const relFilter: CanvasRelFilter = rel.value === 'all' ? 'all' : 'connected';
+    status.value === 'draft' ? 'draft' : status.value === 'published' ? 'published' : 'all';
+  const relFilter: CanvasRelFilter = rel.value === 'connected' ? 'connected' : 'all';
 
-  return {
-    storageId: storage.value,
-    setStorageId: (id: string) => {
+  const { setParam: setStatusParam, removeParam: removeStatusParam } = status;
+  const { setParam: setRelParam, removeParam: removeRelParam } = rel;
+  const { setParam: setSearchParam, removeParam: removeSearchParam } = search;
+
+  // Stable across renders (react-router's setSearchParams churns, but useUrlParam
+  // already isolates that) so effects can safely depend on these setters.
+  const setStorageId = useCallback(
+    (id: string) => {
       storageService.set(storageLsKey, id);
       setStorageParam(id);
     },
+    [storageLsKey, setStorageParam]
+  );
+  const setStatus = useCallback(
+    (next: CanvasStatusFilter) => {
+      if (next === 'all') removeStatusParam();
+      else setStatusParam(next);
+    },
+    [removeStatusParam, setStatusParam]
+  );
+  const setRel = useCallback(
+    (next: CanvasRelFilter) => {
+      if (next === 'all') removeRelParam();
+      else setRelParam(next);
+    },
+    [removeRelParam, setRelParam]
+  );
+  const setSearchQuery = useCallback(
+    (next: string) => {
+      if (next) setSearchParam(next);
+      else removeSearchParam();
+    },
+    [setSearchParam, removeSearchParam]
+  );
+
+  return {
+    storageId: storage.value,
+    setStorageId,
     status: statusFilter,
-    setStatus: (next: CanvasStatusFilter) => {
-      if (next === 'published') status.removeParam();
-      else status.setParam(next);
-    },
+    setStatus,
     rel: relFilter,
-    setRel: (next: CanvasRelFilter) => {
-      if (next === 'connected') rel.removeParam();
-      else rel.setParam(next);
-    },
+    setRel,
     searchQuery: search.value ?? '',
-    setSearchQuery: (next: string) => {
-      if (next) search.setParam(next);
-      else search.removeParam();
-    },
+    setSearchQuery,
   };
 }

@@ -196,16 +196,16 @@ describe('DataMartReportsPage', () => {
     expect(screen.getByText('16–16 of 16 rows')).toBeInTheDocument();
   });
 
-  it('shows Data Mart as the first table column', async () => {
+  it('shows Report as the first table column, followed by Data Mart', async () => {
     vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([buildReportResponse()]);
 
     renderPage();
 
     expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
-    expect(getColumnHeaderLabels().slice(0, 2)).toEqual(['Data Mart', 'Report']);
+    expect(getColumnHeaderLabels().slice(0, 2)).toEqual(['Report', 'Data Mart']);
   });
 
-  it('renders the Data Mart title without truncation so long titles can wrap', async () => {
+  it('truncates the Data Mart title and reveals the full title via tooltip', async () => {
     const longDataMartTitle = 'Marketing Campaign Performance Data Mart With Long Title';
     vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
       buildReportResponse({ dataMartTitle: longDataMartTitle }),
@@ -214,8 +214,8 @@ describe('DataMartReportsPage', () => {
     renderPage();
 
     const dataMartLink = await screen.findByRole('link', { name: longDataMartTitle });
-    expect(dataMartLink).toHaveClass('block', 'w-full', 'whitespace-normal', 'break-words');
-    expect(dataMartLink).not.toHaveClass('truncate');
+    expect(dataMartLink).toHaveClass('block', 'w-full', 'truncate');
+    expect(dataMartLink).not.toHaveClass('whitespace-normal', 'break-words');
   });
 
   it('shows a Data Mart-focused empty state when there are no project-wide reports', async () => {

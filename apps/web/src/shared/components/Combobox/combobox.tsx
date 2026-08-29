@@ -33,7 +33,7 @@ interface ComboboxProps {
   disabled?: boolean;
   ariaLabel?: string;
   ariaInvalid?: boolean;
-  renderLabel?: (option: ComboboxOption) => React.ReactNode;
+  renderLabel?: (option: ComboboxOption, context: 'trigger' | 'item') => React.ReactNode;
 }
 
 function filterOptions(value: string, search: string, keywords?: string[]): number {
@@ -111,7 +111,9 @@ export function Combobox({
         >
           {selectedOption ? (
             renderLabel ? (
-              <span className='min-w-0 flex-1 text-left'>{renderLabel(selectedOption)}</span>
+              <span className='min-w-0 flex-1 text-left'>
+                {renderLabel(selectedOption, 'trigger')}
+              </span>
             ) : (
               <span className='min-w-0 flex-1 truncate text-left'>{selectedOption.label}</span>
             )
@@ -154,7 +156,7 @@ export function Combobox({
                         className='min-w-0 justify-between'
                       >
                         {renderLabel ? (
-                          renderLabel(option)
+                          renderLabel(option, 'item')
                         ) : (
                           <span className='min-w-0 flex-1 truncate'>{option.label}</span>
                         )}

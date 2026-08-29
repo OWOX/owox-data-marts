@@ -8,8 +8,8 @@ import { canvasToModelGraph, sanitizeModelGraph } from './model-graph';
 import { serializeOkfBundle } from './okf/serialize';
 import { bundleToZip } from './okf/zip';
 
-export type { DataMartCanvasExportFormat } from '../../shared/components/DataMartBulkActions';
-import type { DataMartCanvasExportFormat } from '../../shared/components/DataMartBulkActions';
+export type { DataMartCanvasExportFormat } from '../components/ModelCanvasExportMenu';
+import type { DataMartCanvasExportFormat } from '../components/ModelCanvasExportMenu';
 
 export interface ModelCanvasExportContext {
   /** The `.react-flow__viewport` element — required for image formats. */

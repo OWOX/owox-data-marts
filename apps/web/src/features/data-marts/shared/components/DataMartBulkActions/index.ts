@@ -1,5 +1,1 @@
-export {
-  DataMartBulkActions,
-  type DataMartBulkActionTarget,
-  type DataMartCanvasExportFormat,
-} from './DataMartBulkActions';
+export { DataMartBulkActions, type DataMartBulkActionTarget } from './DataMartBulkActions';

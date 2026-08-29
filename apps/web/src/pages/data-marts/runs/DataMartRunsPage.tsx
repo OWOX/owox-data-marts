@@ -13,6 +13,7 @@ import type { ConnectorListItem } from '../../../features/connectors/shared/mode
 import { getConnectorInfoByName } from '../../../features/connectors/shared/utils';
 import { useProjectRoute } from '../../../shared/hooks';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 
 const PROJECT_RUNS_PAGE_SIZE = 50;
 
@@ -157,13 +158,13 @@ export default function DataMartRunsPage() {
 
   return (
     <div className='dm-page' data-testid='dataMartRunsPage'>
-      <header className='dm-page-header'>
-        <h1 className='dm-page-header-title'>Run History</h1>
-      </header>
+      <ProjectDataMartSectionHeader title='Run History' />
 
       <div className='dm-page-content'>
         {isLoading ? (
-          <SkeletonList />
+          <div className='dm-card'>
+            <SkeletonList />
+          </div>
         ) : error ? (
           <div className='dm-card-block text-destructive text-sm'>{error}</div>
         ) : runs.length === 0 ? (
@@ -171,7 +172,7 @@ export default function DataMartRunsPage() {
             <ProjectDataMartEmptyState variant='runs' />
           </div>
         ) : (
-          <div className='space-y-2' data-testid='projectRunHistoryList'>
+          <div className='dm-card space-y-2' data-testid='projectRunHistoryList'>
             {runs.map(run => (
               <RunItem
                 key={run.id}

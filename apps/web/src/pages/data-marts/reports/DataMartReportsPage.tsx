@@ -38,6 +38,7 @@ import {
 } from '../shared/ProjectDataMartTableFilters.utils';
 import { buildProjectDataMartContextValue } from '../shared/projectDataMartContext';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 import {
@@ -333,19 +334,6 @@ export default function DataMartReportsPage() {
         ),
       },
       {
-        id: 'dataMart',
-        accessorFn: row => row.dataMart.title,
-        size: 260,
-        meta: { title: 'Data Mart' },
-        header: ({ column }) => <SortableHeader column={column}>Data Mart</SortableHeader>,
-        cell: ({ row }) => (
-          <ProjectDataMartTitleLink
-            to={scope(`/data-marts/${row.original.dataMart.id}/reports`)}
-            title={row.original.dataMart.title}
-          />
-        ),
-      },
-      {
         accessorKey: 'title',
         size: 320,
         meta: { title: 'Report' },
@@ -357,6 +345,19 @@ export default function DataMartReportsPage() {
           }
           return <ProjectReportTitleCell report={row.original} />;
         },
+      },
+      {
+        id: 'dataMart',
+        accessorFn: row => row.dataMart.title,
+        size: 260,
+        meta: { title: 'Data Mart' },
+        header: ({ column }) => <SortableHeader column={column}>Data Mart</SortableHeader>,
+        cell: ({ row }) => (
+          <ProjectDataMartTitleLink
+            to={scope(`/data-marts/${row.original.dataMart.id}/reports`)}
+            title={row.original.dataMart.title}
+          />
+        ),
       },
       {
         id: 'destination',
@@ -483,9 +484,7 @@ export default function DataMartReportsPage() {
   return (
     <ReportsProvider>
       <div className='dm-page' data-testid='dataMartReportsPage'>
-        <header className='dm-page-header'>
-          <h1 className='dm-page-header-title'>Reports</h1>
-        </header>
+        <ProjectDataMartSectionHeader title='Reports' />
 
         <div className='dm-page-content'>
           {isLoading ? (

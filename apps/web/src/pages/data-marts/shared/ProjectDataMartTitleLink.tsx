@@ -1,4 +1,10 @@
 import { Link } from 'react-router';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@owox/ui/components/tooltip';
 
 interface ProjectDataMartTitleLinkProps {
   title: string;
@@ -7,14 +13,24 @@ interface ProjectDataMartTitleLinkProps {
 
 export function ProjectDataMartTitleLink({ title, to }: ProjectDataMartTitleLinkProps) {
   return (
-    <Link
-      to={to}
-      onClick={event => {
-        event.stopPropagation();
-      }}
-      className='text-foreground hover:text-primary block w-full [overflow-wrap:anywhere] break-words whitespace-normal transition-colors'
-    >
-      {title}
-    </Link>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            to={to}
+            onClick={event => {
+              event.stopPropagation();
+            }}
+            className='text-foreground hover:text-primary block w-full truncate transition-colors'
+          >
+            {title}
+          </Link>
+        </TooltipTrigger>
+
+        <TooltipContent side='bottom' align='start'>
+          {title}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

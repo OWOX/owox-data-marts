@@ -72,7 +72,7 @@ test.describe('DataMart List with data', () => {
 
     const row = page.locator('tr', { hasText: publishedTitle });
     await row.getByRole('checkbox', { name: 'Select row' }).click();
-    await page.getByRole('button', { name: /Actions/ }).click();
+    await page.getByTestId(TESTIDS.dataMartBulkActionsTrigger).click();
     await page.getByTestId(TESTIDS.runSelectedDataQuality).click();
 
     const dialog = page.getByRole('dialog', { name: 'Check Data Quality' });

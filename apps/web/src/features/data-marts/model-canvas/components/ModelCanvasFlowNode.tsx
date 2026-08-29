@@ -9,14 +9,17 @@ import {
   OWOX_BLUE,
   SOCKET_STYLE,
 } from '../../shared/canvas/constants';
-import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
-import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
+import { ErdDefinitionBadge, ErdStatusBadge } from '../../shared/canvas/erd-card';
 import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
 import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../../shared/canvas/object-labels';
 import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
+import {
+  DATA_QUALITY_STATUS_STRIPE_CLASSES,
+  getDataQualityStatusVisual,
+} from '../../shared/utils/data-quality-status';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
@@ -63,20 +66,30 @@ export default function ModelCanvasFlowNode({
     updateNodeInternals(id);
   }, [expanded, id, updateNodeInternals]);
 
-  const accent = definitionTypeAccent(data.definitionType);
+  const stripeClass =
+    DATA_QUALITY_STATUS_STRIPE_CLASSES[getDataQualityStatusVisual(data.qualitySummary).tone];
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
 
-  // Object labels: the accent stripe and the source badge encode the same
-  // definition type, so they show and hide together (as in owox/models).
+  // Object labels: the accent stripe mirrors the Data Quality status shown by
+  // the status icons row below, so the two hide together — only in "title
+  // only" mode, not when the source badge alone is toggled off.
   const labels = data.objectLabels ?? NOTHING_HIDDEN;
   const withSource = !labels.source;
   const withFieldCount = !labels.fields;
   const withStatus = !labels.status;
+  const withDefinitionBadge = withSource && !!data.definitionType;
+  // Both pills render flush (no gap, shared edge unrounded) so they read as
+  // one pill split into two labels — only when both are actually on screen.
+  const metaBadgesJoined = withStatus && withDefinitionBadge;
   // "Uncheck all — title only" strips the card down to its name: the quality
   // indicators (Data Quality shield + Data Last Updated clock) go too.
   const titleOnly = labels.source && labels.fields && labels.status;
+  // The stripe now runs full-height along the left edge (absolutely
+  // positioned) instead of sitting inline in the header, so every row needs
+  // extra left padding to clear it — but only while the stripe is shown.
+  const contentPaddingLeft = !titleOnly ? 'pl-[16px]' : 'pl-3.5';
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
@@ -90,7 +103,7 @@ export default function ModelCanvasFlowNode({
 
   return (
     <div
-      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
+      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-sm border shadow-sm active:cursor-grabbing'
       style={{
         width: nodeWidth(data.viewMode),
         borderColor: data.highlighted ? HIGHLIGHT_COLOR : selected ? OWOX_BLUE : undefined,
@@ -105,6 +118,13 @@ export default function ModelCanvasFlowNode({
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
+      {!titleOnly && (
+        <span
+          className={`absolute inset-y-0 top-0 bottom-0 left-0 w-1 rounded-tr-full rounded-br-full ${stripeClass}`}
+          aria-hidden='true'
+        />
+      )}
+
       {data.hasIncoming && (
         <Handle
           type='target'
@@ -114,22 +134,16 @@ export default function ModelCanvasFlowNode({
         />
       )}
 
-      {/* Header: accent stripe + title + status + actions */}
-      <div className={`flex items-center gap-2 px-3.5 pt-3 ${titleOnly ? 'pb-3' : 'pb-1'}`}>
-        {withSource && (
-          <span
-            className='h-4 w-1 shrink-0 rounded-sm'
-            style={{ background: accent }}
-            aria-hidden='true'
-          />
-        )}
+      {/* Header: title + status + actions (accent stripe is the full-height bar on the left edge) */}
+      <div
+        className={`flex items-center gap-2 pt-3 pr-3.5 ${contentPaddingLeft} ${titleOnly ? 'pb-3' : 'pb-1'}`}
+      >
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
-        {withStatus && <ErdStatusDot isDraft={data.isDraft} />}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -163,15 +177,22 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Meta row: the definition badge on its own line. */}
-      {withSource && (
-        <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
-          <ErdDefinitionBadge type={data.definitionType} />
+      {/* Meta row: status pill + definition badge on their own line. */}
+      {(withStatus || withSource) && (
+        <div
+          className={`text-muted-foreground flex items-center ${metaBadgesJoined ? 'gap-0' : 'gap-1'} pt-1 pr-3.5 text-[11px] ${contentPaddingLeft}`}
+        >
+          {withStatus && <ErdStatusBadge isDraft={data.isDraft} joined={metaBadgesJoined} />}
+          {withSource && (
+            <ErdDefinitionBadge type={data.definitionType} joined={metaBadgesJoined} />
+          )}
         </div>
       )}
       {/* Status icons row: quality shield + data-last-updated clock + field count */}
       {!titleOnly && (
-        <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
+        <div
+          className={`text-muted-foreground flex items-center gap-1 pt-1.5 pr-3.5 pb-3 text-[11px] ${contentPaddingLeft}`}
+        >
           <DataQualityCanvasStatusIcon
             dataMartTitle={data.title}
             summary={data.qualitySummary}
