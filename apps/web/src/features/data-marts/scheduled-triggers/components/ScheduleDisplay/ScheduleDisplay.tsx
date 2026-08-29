@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { timezoneService } from '../../../../../services';
+import { timezoneService } from '../../../../../services/timezone.service';
 import { parseScheduleFromCron } from '../../utils/schedule-utils';
 
 interface ScheduleDisplayProps {

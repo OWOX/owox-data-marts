@@ -68,6 +68,20 @@ describe('ScheduledTrigger', () => {
       expect(utcTrigger.nextRunTimestamp?.toISOString()).toBe(expectedNextRun);
     });
 
+    it.each([
+      ['winter', '2026-01-15T10:00:00.000Z', '2026-01-16T09:00:00.000Z'],
+      ['summer', '2026-07-15T10:00:00.000Z', '2026-07-16T08:00:00.000Z'],
+    ])(
+      'applies Europe/London daylight saving behavior in %s',
+      (_season, startFrom, expectedNextRun) => {
+        const londonTrigger = new TestScheduledTrigger('0 9 * * *', 'Europe/London');
+
+        londonTrigger.scheduleNextRun(new Date(startFrom));
+
+        expect(londonTrigger.nextRunTimestamp?.toISOString()).toBe(expectedNextRun);
+      }
+    );
+
     it('should handle hourly cron expression correctly', () => {
       // Arrange - Every hour
       const hourlyTrigger = new TestScheduledTrigger('0 0 * * * *');

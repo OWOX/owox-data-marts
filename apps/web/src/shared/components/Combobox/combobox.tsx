@@ -17,6 +17,7 @@ import { cn } from '@owox/ui/lib/utils';
 export interface ComboboxOption {
   value: string;
   label: string;
+  keywords?: string[];
   group?: string;
   separator?: boolean;
 }
@@ -30,6 +31,7 @@ interface ComboboxProps {
   className?: string;
   disabled?: boolean;
   renderLabel?: (option: ComboboxOption) => React.ReactNode;
+  ariaLabel?: string;
 }
 
 function filterOptions(value: string, search: string, keywords?: string[]): number {
@@ -46,6 +48,7 @@ export function Combobox({
   className,
   disabled = false,
   renderLabel,
+  ariaLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -95,6 +98,7 @@ export function Combobox({
         <Button
           variant='outline'
           role='combobox'
+          aria-label={ariaLabel}
           aria-expanded={open}
           className={cn('w-full justify-between', !value && 'text-muted-foreground', className)}
           disabled={disabled}
@@ -140,7 +144,7 @@ export function Combobox({
                         onSelect={() => {
                           handleSelect(option.value);
                         }}
-                        keywords={[option.label]}
+                        keywords={[option.value, option.label, ...(option.keywords ?? [])]}
                         className='min-w-0 justify-between'
                       >
                         {renderLabel ? (

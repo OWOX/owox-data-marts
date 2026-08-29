@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { ScheduledTriggerType, TRIGGER_CONFIG_TYPES } from '../../enums';
 import { scheduledTriggerSchema, type ScheduledTriggerFormData } from '../../schemas';
+import { getBrowserTimezone } from '../../utils/schedule-utils';
 
 interface UseScheduledTriggerFormOptions {
   initialData?: ScheduledTriggerFormData;
@@ -22,7 +23,7 @@ export function useScheduledTriggerForm({
     defaultValues: {
       type: initialData ? initialData.type : (preSelectedType ?? ScheduledTriggerType.REPORT_RUN),
       cronExpression: initialData?.cronExpression ?? '',
-      timeZone: initialData?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone: initialData?.timeZone ?? getBrowserTimezone(),
       isActive: initialData?.isActive ?? true,
       triggerConfig: initialData
         ? initialData.triggerConfig
