@@ -234,6 +234,7 @@ describe('ConnectorDefinition controller — the custom connector surface, pinne
       // Every write. `test` included: it runs the submitted manifest against a live API.
       create: 'editor',
       test: 'editor',
+      update: 'editor',
       saveDraft: 'editor',
       publish: 'editor',
       activate: 'editor',

@@ -315,8 +315,16 @@ export class LinkedInPagesSource extends AbstractSource {
     // so we add +1 here (inside fetchData) to keep that quirk encapsulated to this source.
     let adjustedEndDate = endDate;
     if (endDate && this.fieldsSchema[nodeName].isTimeSeries) {
+      // UTC methods throughout, matching XAds/Source.js. `new Date("YYYY-MM-DD")`
+      // parses as UTC midnight and `toISOString()` truncates in UTC, so advancing
+      // with local-time setDate/getDate mixes two clocks: on a spring-forward date
+      // west of UTC the lost hour eats the whole adjustment (2026-03-08 in
+      // America/Los_Angeles is local 2026-03-07 16:00 PST; +1 local day is
+      // 2026-03-08 16:00 PDT = 23:00Z, still "2026-03-08"). Since LinkedIn's end
+      // bound is EXCLUSIVE, the no-op silently drops the final day of the window
+      // and the run still reports success.
       const d = new Date(endDate);
-      d.setDate(d.getDate() + 1);
+      d.setUTCDate(d.getUTCDate() + 1);
       adjustedEndDate = d.toISOString().split('T')[0];
     }
 

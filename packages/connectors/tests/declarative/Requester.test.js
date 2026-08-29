@@ -162,6 +162,38 @@ describe('Requester', () => {
     assert.deepStrictEqual(JSON.parse(captured.options.body), { id: 'A1', n: 5 });
   });
 
+  // Header names are case-INSENSITIVE on the wire, but a manifest's `headers`
+  // map is a plain object keyed exactly as the author typed it. A case-sensitive
+  // default therefore misses `content-type` and ships BOTH keys; undici merges
+  // duplicates into one comma-joined value ("application/vnd.api+json,
+  // application/json"), which media-type-strict APIs reject with 415.
+  it('does not add a second Content-Type when the manifest spells it in another case', async () => {
+    for (const spelling of ['content-type', 'CONTENT-TYPE', 'Content-type']) {
+      const captured = {};
+      const requester = new Requester({
+        baseUrl: 'https://api.example.com',
+        httpClient: fakeClient(captured),
+        auth: new Authenticator(null, engine),
+        ssrfGuard: guardFor(['api.example.com']),
+        templateEngine: engine,
+      });
+      await requester.send(
+        {
+          method: 'POST',
+          path: '/r',
+          headers: { [spelling]: 'application/vnd.api+json' },
+          body: { n: 1 },
+        },
+        { parameters: {} }
+      );
+      const contentTypeKeys = Object.keys(captured.options.headers).filter(
+        k => k.toLowerCase() === 'content-type'
+      );
+      assert.deepStrictEqual(contentTypeKeys, [spelling], `spelling "${spelling}"`);
+      assert.strictEqual(captured.options.headers[spelling], 'application/vnd.api+json');
+    }
+  });
+
   it('awaits auth.prepare before applying auth (token-based)', async () => {
     const captured = {};
     const tokenClient = {

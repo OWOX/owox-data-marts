@@ -1,5 +1,4 @@
 import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
 import {
   Select,
   SelectContent,
@@ -7,10 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useState } from 'react';
 import { useBuilder } from '../../../shared/model/hooks/useBuilder';
 import type { ManifestNode, ManifestNodeRequest } from '../../../shared/model/manifest.types';
 import { InfoLabel } from '../fields';
+import { JsonBodyEditor } from '../JsonBodyEditor';
 import { QueryParametersEditor } from './QueryParametersEditor';
 
 /** `T` with the keys in `K` admitted as possibly-absent. */
@@ -91,50 +90,15 @@ export function RequestEditor({ nodeName }: { nodeName: string }) {
 
       <QueryParametersEditor query={request?.queryParameters ?? {}} basePath={base} />
 
-      {method === 'POST' && <BodyEditor initial={request?.body} onChange={setBody} />}
-    </div>
-  );
-}
-
-function BodyEditor({
-  initial,
-  onChange,
-}: {
-  initial?: Record<string, unknown>;
-  onChange: (text: string) => void;
-}) {
-  const [text, setText] = useState(initial ? JSON.stringify(initial, null, 2) : '');
-  const [invalid, setInvalid] = useState(false);
-  return (
-    <label className='flex flex-col'>
-      <InfoLabel hint='Request body sent with the POST.'>Body (JSON)</InfoLabel>
-      <Textarea
-        className='bg-card min-h-32 font-mono text-[12.5px] leading-relaxed'
-        value={text}
-        data-testid='request-body'
-        aria-invalid={invalid}
-        onChange={e => {
-          const v = e.target.value;
-          setText(v);
-          if (v.trim() === '') {
-            setInvalid(false);
-            onChange('');
-            return;
-          }
-          try {
-            JSON.parse(v);
-            setInvalid(false);
-            onChange(v);
-          } catch {
-            setInvalid(true);
-          }
-        }}
-      />
-      {invalid && (
-        <span className='mt-1 text-xs text-red-600 dark:text-red-400'>
-          Invalid JSON — not saved
-        </span>
+      {method === 'POST' && (
+        <JsonBodyEditor
+          label='Body (JSON)'
+          hint='Request body sent with the POST.'
+          initial={request?.body}
+          onChange={setBody}
+          testId='request-body'
+        />
       )}
-    </label>
+    </div>
   );
 }

@@ -569,3 +569,195 @@ describe('Authenticator oauth2', () => {
     );
   });
 });
+
+/**
+ * A shared token cache must be keyed by the RENDERED token request, never by
+ * anything coarser. These tests pin both halves of that: a token is reused when
+ * (and only when) the request that produced it was identical, and an
+ * account-templated token request can never serve account A's token to account B.
+ */
+describe('Authenticator shared token cache', () => {
+  const clientFor = handler => ({ urlFetchWithRetry: handler });
+  const okJson = body => ({ json: async () => body });
+
+  // Per-account credentials, the shape a manifest uses when one connector run
+  // fans out over several accounts that each hold their own OAuth grant.
+  const perAccountOAuth = () => ({
+    type: 'oauth2',
+    tokenUrl: 'https://oauth.example.com/token',
+    clientId: '{{ parameters.ClientId }}',
+    clientSecret: '{{ parameters.ClientSecret }}',
+    refreshToken: '{{ account.id }}-refresh',
+    inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+  });
+
+  const scopeFor = accountId => ({
+    parameters: { ClientId: 'c', ClientSecret: 's' },
+    account: { id: accountId },
+  });
+
+  it('never serves one account a token minted for another account', async () => {
+    const sent = [];
+    const client = clientFor(async (url, options) => {
+      const rt = new URLSearchParams(options.body).get('refresh_token');
+      sent.push(rt);
+      return okJson({ access_token: `AT-for-${rt}`, expires_in: 3600 });
+    });
+    // One cache, deliberately shared by two Authenticators the way
+    // DeclarativeSource shares one across every fetchData of a run.
+    const cache = new Map();
+    const mk = () =>
+      new Authenticator(perAccountOAuth(), engine, guardFor(['oauth.example.com']), {
+        tokenCache: cache,
+      });
+
+    const scopeA = scopeFor('acct-A');
+    const scopeB = scopeFor('acct-B');
+    await mk().prepare(scopeA, client, () => 0);
+    await mk().prepare(scopeB, client, () => 0);
+
+    assert.strictEqual(scopeA.auth.token, 'AT-for-acct-A-refresh');
+    assert.strictEqual(scopeB.auth.token, 'AT-for-acct-B-refresh');
+    assert.notStrictEqual(scopeA.auth.token, scopeB.auth.token);
+    assert.deepStrictEqual(sent, ['acct-A-refresh', 'acct-B-refresh']);
+  });
+
+  it('keeps accounts apart under interleaved re-prepares, and each still caches', async () => {
+    const sent = [];
+    const client = clientFor(async (url, options) => {
+      const rt = new URLSearchParams(options.body).get('refresh_token');
+      sent.push(rt);
+      return okJson({ access_token: `AT-for-${rt}`, expires_in: 3600 });
+    });
+    const cache = new Map();
+    const mk = () =>
+      new Authenticator(perAccountOAuth(), engine, guardFor(['oauth.example.com']), {
+        tokenCache: cache,
+      });
+
+    for (const id of ['acct-A', 'acct-B', 'acct-A', 'acct-B', 'acct-A']) {
+      const scope = scopeFor(id);
+      await mk().prepare(scope, client, () => 0);
+      assert.strictEqual(scope.auth.token, `AT-for-${id}-refresh`);
+    }
+    // Two accounts, two token endpoint calls — not five.
+    assert.deepStrictEqual(sent, ['acct-A-refresh', 'acct-B-refresh']);
+  });
+
+  it('reuses one account token across separate Authenticator instances (the #31 fix)', async () => {
+    let calls = 0;
+    const client = clientFor(async () => {
+      calls++;
+      return okJson({ access_token: 'AT', expires_in: 3600 });
+    });
+    const cache = new Map();
+    const cfg = {
+      type: 'oauth2',
+      tokenUrl: 'https://oauth.example.com/token',
+      clientId: '{{ parameters.ClientId }}',
+      clientSecret: '{{ parameters.ClientSecret }}',
+      refreshToken: '{{ parameters.RefreshToken }}',
+      inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+    };
+    // 24 fetchData calls (2 nodes x 12 date slices), each building its own
+    // Authenticator exactly as DeclarativeSource.fetchData does.
+    for (let i = 0; i < 24; i++) {
+      const auth = new Authenticator(cfg, engine, guardFor(['oauth.example.com']), {
+        tokenCache: cache,
+      });
+      const scope = {
+        parameters: { ClientId: 'c', ClientSecret: 's', RefreshToken: 'r' },
+        account: { id: 'acct-1' },
+        dateWindow: { start: `2026-01-${String(i + 1).padStart(2, '0')}`, end: '2026-01-31' },
+      };
+      await auth.prepare(scope, client, () => i * 1000);
+      assert.strictEqual(scope.auth.token, 'AT');
+    }
+    assert.strictEqual(calls, 1);
+  });
+
+  it('re-mints per date window when the token request templates dateWindow', async () => {
+    const sent = [];
+    const client = clientFor(async (url, options) => {
+      const s = new URLSearchParams(options.body).get('scope');
+      sent.push(s);
+      return okJson({ access_token: `AT-${s}`, expires_in: 3600 });
+    });
+    const cache = new Map();
+    const cfg = {
+      type: 'oauth2',
+      grantType: 'client_credentials',
+      tokenUrl: 'https://oauth.example.com/token',
+      clientId: 'c',
+      clientSecret: 's',
+      scope: 'reports:{{ dateWindow.start }}',
+      inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+    };
+    for (const start of ['2026-01-01', '2026-01-02', '2026-01-01']) {
+      const auth = new Authenticator(cfg, engine, guardFor(['oauth.example.com']), {
+        tokenCache: cache,
+      });
+      const scope = { parameters: {}, dateWindow: { start, end: start } };
+      await auth.prepare(scope, client, () => 0);
+      assert.strictEqual(scope.auth.token, `AT-reports:${start}`);
+    }
+    assert.deepStrictEqual(sent, ['reports:2026-01-01', 'reports:2026-01-02']);
+  });
+
+  it('tokenExchange keys on the rendered exchange body, so accounts never share', async () => {
+    const sent = [];
+    const client = {
+      urlFetchWithRetry: async (url, options) => {
+        const body = JSON.parse(options.body);
+        sent.push(body.account);
+        return okJson({ access_token: `T-${body.account}` });
+      },
+    };
+    const cache = new Map();
+    const cfg = {
+      type: 'tokenExchange',
+      exchange: {
+        url: 'https://auth.example.com/token',
+        method: 'POST',
+        body: { account: '{{ account.id }}' },
+        tokenPath: ['access_token'],
+        ttlSeconds: 3600,
+      },
+      inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+    };
+    const mk = () =>
+      new Authenticator(cfg, engine, guardFor(['auth.example.com']), { tokenCache: cache });
+
+    for (const id of ['A', 'B', 'A', 'B']) {
+      const scope = { parameters: {}, account: { id } };
+      await mk().prepare(scope, client, () => 0);
+      assert.strictEqual(scope.auth.token, `T-${id}`);
+    }
+    assert.deepStrictEqual(sent, ['A', 'B']);
+  });
+
+  it('falls back to a private cache when the host supplies none (bundled/test callers)', async () => {
+    let calls = 0;
+    const client = clientFor(async () => {
+      calls++;
+      return okJson({ access_token: 'AT', expires_in: 3600 });
+    });
+    const cfg = {
+      type: 'oauth2',
+      tokenUrl: 'https://oauth.example.com/token',
+      clientId: 'c',
+      clientSecret: 's',
+      refreshToken: 'r',
+      inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+    };
+    const guard = guardFor(['oauth.example.com']);
+    const scope = { parameters: {} };
+    const a1 = new Authenticator(cfg, engine, guard, {});
+    await a1.prepare(scope, client, () => 0);
+    await a1.prepare(scope, client, () => 0);
+    assert.strictEqual(calls, 1); // same instance still caches
+    const a2 = new Authenticator(cfg, engine, guard, {});
+    await a2.prepare(scope, client, () => 0);
+    assert.strictEqual(calls, 2); // a separate instance shares nothing
+  });
+});

@@ -7,8 +7,8 @@
 
 /**
  * Applies an ordered list of record transformations to raw API records before
- * field projection/casting. Operates on a deep copy so retriever output is never
- * mutated. Transform types:
+ * field projection/casting. Operates on a per-record shallow copy so retriever
+ * output is never mutated. Transform types:
  *  - add        { field, value }    set a top-level field to a lenient-templated value
  *  - remove     { field }           delete a top-level field
  *  - keysToLower {}                 lowercase all top-level keys (last wins on collision)
@@ -31,8 +31,24 @@ export class Transformer {
    * @returns {object[]} transformed records (input is not mutated)
    */
   transform(records, scope) {
+    // A SHALLOW copy is all the isolation this needs, and it used to be a
+    // JSON.parse(JSON.stringify(record)) deep clone of every record — the single
+    // most expensive step in the whole record pipeline, paid even in the default
+    // case where `transformations` is empty and the loop below does nothing.
+    //
+    // Shallow is sufficient because every transform writes at the TOP LEVEL only:
+    // `add` assigns record[field], `remove` deletes record[field], and
+    // keysToLower/flatten allocate a fresh object and copy into it — none of them
+    // reaches into a nested object or array to mutate it. So nested values stay
+    // shared with the caller's record, and nothing ever writes through that
+    // sharing. (Anything added here that mutates nested state must clone first.)
+    //
+    // The clone was also silently normalizing JSON-hostile values (Date -> string,
+    // undefined/function -> dropped). That cannot regress: records reaching here
+    // come from decodeResponse — JSON.parse, or the CSV/JSONL parsers, which emit
+    // plain strings — so they only ever hold JSON-native values already.
     return records.map(record => {
-      let out = JSON.parse(JSON.stringify(record));
+      let out = { ...record };
       for (const t of this.transformations) {
         out = this._applyOne(out, t, scope);
       }

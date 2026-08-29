@@ -114,6 +114,24 @@ export class PublishCustomConnectorResponseApiDto extends CustomConnectorVersion
     nullable: true,
   })
   publishedAt?: Date | null;
+
+  /**
+   * What publishing found wrong with the manifest but did not refuse it for — chiefly
+   * parameters that will hold a credential in plain text because nothing could mark them
+   * SECRET.
+   *
+   * These used to reach the backend log only, which is not a surface the author has: on
+   * managed cloud they cannot read it, and since nothing here refuses a risky manifest, the
+   * warning IS the mitigation. Required and possibly empty rather than optional, so a client
+   * can tell "this publish had nothing to report" from "this response has no warnings field".
+   */
+  @ApiProperty({
+    type: [String],
+    example: [
+      'Connector \'MyCustomApi\' v3: "authentication" references undeclared parameter(s) Token.',
+    ],
+  })
+  warnings: string[];
 }
 
 export class ActivateCustomConnectorVersionResponseApiDto {

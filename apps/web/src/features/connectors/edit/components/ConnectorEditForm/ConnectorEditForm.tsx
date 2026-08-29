@@ -23,7 +23,7 @@ import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-c
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { RefreshCw } from 'lucide-react';
-import { extractApiError } from '../../../../../app/api/extract-api-error.util';
+import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
 import {
   GOOGLE_SHEETS_CONNECTOR_NAME,
   getAvailableGoogleSheetsSelectedFields,
@@ -36,6 +36,7 @@ import {
 import { ConnectorBuilderApiService } from '../../../../connector-builder/shared/api/connector-builder-api.service';
 import type { CustomConnectorListItemDto } from '../../../../connector-builder/shared/api/types';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
+import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
@@ -116,6 +117,9 @@ export function ConnectorEditForm({
     null
   );
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
+  const isUnpublishedConnector = selectedConnector
+    ? isUnpublishedCustomConnector(selectedConnector)
+    : false;
   const currentConfigurationKey = useMemo(
     () => getGoogleSheetsPreviewConfigurationKey(connectorConfiguration),
     [connectorConfiguration]
@@ -207,6 +211,11 @@ export function ConnectorEditForm({
     if (found) {
       setSelectedConnector(found);
       setCurrentStep(initialStep ?? 2);
+      // A never-published custom connector has no manifest to serve: both the
+      // specification and the fields endpoints 404. Selecting it still tells the
+      // step which connector to name in the "publish it first" notice, but the
+      // requests are skipped so the step is not left blank by the failed fetch.
+      if (isUnpublishedCustomConnector(found)) return;
       // if in full flow ensure fields/spec are loaded:
       void loadSpecificationSafely(found);
       if (
@@ -530,10 +539,7 @@ export function ConnectorEditForm({
 
         return true;
       } catch (error) {
-        const apiError = extractApiError(error) as { message?: string } | undefined;
-        const message =
-          apiError?.message ??
-          (error instanceof Error ? error.message : 'Failed to load Google Sheets columns');
+        const message = apiErrorMessage(error, 'Failed to load Google Sheets columns');
         if (mode === 'fields-only') {
           setFieldsOnlyPreviewError(message);
         }
@@ -672,8 +678,43 @@ export function ConnectorEditForm({
     return field?.destinationName ?? selectedNode;
   };
 
+  // The Configuration step is driven by `connectorSpecification`, which stays null
+  // for a connector with no published version — the backend serves published
+  // manifests only. Say so instead of rendering an empty step.
+  const renderUnpublishedNotice = () => {
+    const builderPath = selectedConnector?.id
+      ? `/connectors/builder/${selectedConnector.id}`
+      : null;
+    return (
+      <div
+        role='alert'
+        className='flex min-h-48 flex-col items-center justify-center gap-3 text-center'
+      >
+        <p className='text-sm font-medium'>{selectedConnector?.displayName}</p>
+        <p className='text-muted-foreground text-sm'>
+          Not published yet — publish it in the builder first.
+        </p>
+        {builderPath && (
+          <Button
+            type='button'
+            size='sm'
+            variant='outline'
+            onClick={() => {
+              navigate(builderPath);
+            }}
+          >
+            Open in builder
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   const renderCurrentStep = () => {
     if (configurationOnly && currentStep === 1) {
+      if (isUnpublishedConnector) {
+        return renderUnpublishedNotice();
+      }
       return connectorSpecification && selectedConnector ? (
         <ConfigurationStep
           connector={selectedConnector}
@@ -787,6 +828,9 @@ export function ConnectorEditForm({
           />
         );
       case 2:
+        if (isUnpublishedConnector) {
+          return renderUnpublishedNotice();
+        }
         return selectedConnector && connectorSpecification ? (
           <ConfigurationStep
             connector={selectedConnector}

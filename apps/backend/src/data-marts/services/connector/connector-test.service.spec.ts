@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import { join } from 'path';
+import { PassThrough } from 'stream';
+import { Core } from '@owox/connectors';
 import { ConnectorTestService } from './connector-test.service';
 import {
   MAX_CAPTURED_LINE_LENGTH,
@@ -11,11 +14,20 @@ import {
 // (the fake-runner fixture must still really execute).
 const actualCrossSpawn = jest.requireActual<typeof import('cross-spawn')>('cross-spawn');
 let capturedSpawnEnv: Record<string, string | undefined> | undefined;
+/**
+ * When set, the child is a stub whose stdout/stderr the test writes byte by byte instead
+ * of a real process. Only the chunk-boundary cases use it: where a pipe splits a chunk is
+ * the kernel's decision, so a real child cannot be made to split a character on demand.
+ */
+let stubbedChild: (() => unknown) | undefined;
 jest.mock('cross-spawn', () => ({
   __esModule: true,
   spawn: (...args: Parameters<typeof actualCrossSpawn.spawn>) => {
     const options = args[2] as { env?: Record<string, string | undefined> } | undefined;
     capturedSpawnEnv = options?.env;
+    if (stubbedChild) {
+      return stubbedChild() as ReturnType<typeof actualCrossSpawn.spawn>;
+    }
     return actualCrossSpawn.spawn(...args);
   },
 }));
@@ -539,5 +551,226 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
         else process.env[key] = value;
       }
     }
+  });
+
+  /**
+   * The manifest and the configuration both reach the runner as process ENVIRONMENT
+   * STRINGS, and Linux refuses a single one longer than MAX_ARG_STRLEN (131072 bytes) with
+   * E2BIG. The HTTP DTO bounds what it receives; the MCP `connector_test` tool takes both
+   * through its own Zod schema and the MCP transport accepts a 2 MiB body, so without a
+   * bound on the service the spawn fails and the caller is handed a raw "spawn node E2BIG"
+   * on an otherwise 200-shaped result.
+   *
+   * The number is re-stated rather than imported on purpose, as in
+   * connector-definition.service.spec.ts: it is a reasoned trade-off against a kernel
+   * limit, so moving it should turn these red rather than have them silently follow.
+   */
+  describe('the ceiling on what can be handed to the child process', () => {
+    const MAX_MANIFEST_SIZE_BYTES = 120 * 1024;
+
+    /** `{"pad":"<x's>"}` -- the padding plus 10 bytes of envelope. */
+    const payloadOfSize = (bytes: number) => ({ pad: 'x'.repeat(bytes - 10) });
+    /**
+     * A configuration whose WRAPPED form is exactly `bytes` long. The service measures the
+     * wrapped one because that is what OW_CONFIG carries: `{"pad":{"value":"<x's>"}}` is
+     * the padding plus 20 bytes of envelope.
+     */
+    const configOfWrappedSize = (bytes: number) => ({ pad: 'x'.repeat(bytes - 20) });
+
+    it('pads to exactly the byte lengths the service measures', () => {
+      // Guards the helpers: every boundary case below only means something while this holds.
+      const svc = makeService();
+      for (const size of [MAX_MANIFEST_SIZE_BYTES, MAX_MANIFEST_SIZE_BYTES + 1]) {
+        expect(Buffer.byteLength(JSON.stringify(payloadOfSize(size)), 'utf8')).toBe(size);
+        expect(
+          Buffer.byteLength(JSON.stringify(svc.wrapConfig(configOfWrappedSize(size))), 'utf8')
+        ).toBe(size);
+      }
+    });
+
+    it('refuses a manifest too large for the runner to receive, without spawning anything', async () => {
+      const svc = makeService();
+      capturedSpawnEnv = undefined;
+
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest: payloadOfSize(MAX_MANIFEST_SIZE_BYTES + 1),
+          node: 'items',
+          configuration: {},
+        })
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest: payloadOfSize(MAX_MANIFEST_SIZE_BYTES + 1),
+          node: 'items',
+          configuration: {},
+        })
+      ).rejects.toThrow(new RegExp(`${MAX_MANIFEST_SIZE_BYTES}-byte limit`));
+      // E2BIG is what the guard exists to prevent, so the refusal must come first.
+      expect(capturedSpawnEnv).toBeUndefined();
+    });
+
+    it('refuses a configuration too large for the runner to receive, without spawning anything', async () => {
+      const svc = makeService();
+      capturedSpawnEnv = undefined;
+
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest,
+          node: 'items',
+          configuration: configOfWrappedSize(MAX_MANIFEST_SIZE_BYTES + 1),
+        })
+      ).rejects.toThrow(new RegExp(`${MAX_MANIFEST_SIZE_BYTES}-byte limit`));
+      expect(capturedSpawnEnv).toBeUndefined();
+    });
+
+    /**
+     * MAX_ARG_STRLEN is a BYTE budget, and both payloads are user-authored text: labels,
+     * descriptions and parameter values are routinely non-ASCII. A character count would
+     * wave through a payload three times over the kernel's limit.
+     */
+    it('measures the ceiling in bytes, not characters', async () => {
+      const svc = makeService();
+      // 41000 '€' (3 bytes each) = 123000 bytes of padding: well past the ceiling in
+      // bytes, well under it in characters.
+      const multiByte = { pad: '€'.repeat(41000) };
+      expect(JSON.stringify(multiByte).length).toBeLessThan(MAX_MANIFEST_SIZE_BYTES);
+
+      await expect(
+        svc.runTest({ projectId: 'p', manifest: multiByte, node: 'items', configuration: {} })
+      ).rejects.toThrow(new RegExp(`${MAX_MANIFEST_SIZE_BYTES}-byte limit`));
+    });
+
+    /**
+     * At the ceiling the payload is still refused -- but by `pruneToNode`, for having no
+     * such node, which is the next thing that runs. That is what says the size guard let it
+     * through rather than that it never fired.
+     */
+    it('accepts payloads of exactly the ceiling', async () => {
+      const svc = makeService();
+
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest: payloadOfSize(MAX_MANIFEST_SIZE_BYTES),
+          node: 'items',
+          configuration: configOfWrappedSize(MAX_MANIFEST_SIZE_BYTES),
+        })
+      ).rejects.toThrow(/^Unknown node/);
+    });
+
+    /**
+     * The guard runs ahead of acquireTestSlot. A slot bounds child processes, and a payload
+     * that can never produce one must not be able to hold one -- otherwise a caller that
+     * only ever sends oversized manifests locks its project's real tests out.
+     */
+    it('does not consume a concurrency slot for a payload it refuses', async () => {
+      const svc = makeService();
+      const oversized = {
+        projectId: 'p',
+        manifest: payloadOfSize(MAX_MANIFEST_SIZE_BYTES + 1),
+        node: 'items',
+        configuration: {},
+      };
+
+      // More refusals than DEFAULT_MAX_TESTS_PER_PROJECT (3), so a leaked slot saturates.
+      for (let i = 0; i < 5; i++) {
+        await expect(svc.runTest(oversized)).rejects.toThrow(BadRequestException);
+      }
+
+      const res = await svc.runTest({
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      });
+      expect(res.rows.length).toBe(3);
+    });
+  });
+
+  /**
+   * A pipe hands over bytes, not characters, so a multi-byte UTF-8 sequence is routinely
+   * split across two chunks -- at every 64 KiB boundary of a large response, which is
+   * exactly the size at which a connector echoes real payload data. Decoding each chunk on
+   * its own turns the split character into U+FFFD in both halves, silently corrupting the
+   * non-ASCII sample rows and log lines the test panel exists to show.
+   *
+   * Driven through a stub child because where a pipe splits is the kernel's decision: a
+   * real child cannot be asked to break a character in two.
+   */
+  describe('output whose characters straddle a chunk boundary', () => {
+    /** Let the stream machinery deliver what was just written before writing more. */
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+
+    function makeStubChild() {
+      const child = Object.assign(new EventEmitter(), {
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+        pid: 4242,
+        // Set to 0 before `close` is emitted, so stopChild sees a reaped child and the
+        // result resolves without waiting on a signal nothing would receive.
+        exitCode: null as number | null,
+        signalCode: null as string | null,
+        kill: () => true,
+      });
+      return child;
+    }
+
+    /** Write `line` to `stream` as two chunks, splitting at byte `splitAt`. */
+    async function writeSplit(stream: PassThrough, line: Buffer, splitAt: number): Promise<void> {
+      stream.write(line.subarray(0, splitAt));
+      await settle();
+      stream.write(line.subarray(splitAt));
+      await settle();
+    }
+
+    async function runAgainstStub(
+      write: (child: ReturnType<typeof makeStubChild>) => Promise<void>
+    ) {
+      const svc = makeService();
+      const child = makeStubChild();
+      stubbedChild = () => child;
+      try {
+        const run = svc.runTest({
+          projectId: 'p',
+          manifest,
+          node: 'items',
+          configuration: {},
+          maxRows: 3,
+        });
+        await write(child);
+        child.exitCode = 0;
+        child.emit('close', 0);
+        return await run;
+      } finally {
+        stubbedChild = undefined;
+      }
+    }
+
+    it('keeps a two-byte character intact in a sample row split across stdout chunks', async () => {
+      const line = Buffer.from(`${String(Core.TEST_ROW_MARKER)}{"city":"Kraków"}\n`, 'utf8');
+      // 0xC3 leads the two bytes of 'ó' (U+00F3), and nothing else in the line is
+      // non-ASCII, so one past it is inside the character and nowhere else.
+      const res = await runAgainstStub(child =>
+        writeSplit(child.stdout, line, line.indexOf(0xc3) + 1)
+      );
+
+      expect(res.rows).toEqual([{ city: 'Kraków' }]);
+      expect(JSON.stringify(res.rows)).not.toContain('�');
+    });
+
+    it('keeps a four-byte character intact in a log line split across stderr chunks', async () => {
+      const line = Buffer.from('fetch failed for 東京 🚀\n', 'utf8');
+      // 0xF0 leads the four bytes of '🚀' (U+1F680); two past it is mid-sequence.
+      const res = await runAgainstStub(child =>
+        writeSplit(child.stderr, line, line.indexOf(0xf0) + 2)
+      );
+
+      expect(res.logs).toContain('fetch failed for 東京 🚀');
+    });
   });
 });

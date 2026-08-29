@@ -4,7 +4,9 @@ import type { ChildProcess } from 'child_process';
 import { spawn } from 'cross-spawn';
 
 import { Core } from '@owox/connectors';
+import { castError } from '@owox/internal-helpers';
 import { ConcurrencyLimitExceededException } from '../../../common/exceptions/concurrency-limit-exceeded.exception';
+import { MAX_MANIFEST_SIZE_BYTES } from '../../dto/presentation/custom-connector.dto';
 import { createCapturedLineBuffer, inheritConnectorEnv } from './connector-process-spawner.service';
 
 /**
@@ -132,27 +134,51 @@ export class ConnectorTestService {
   }
 
   /**
-   * Parse the WHOLE manifest to find the problem a single-node test would otherwise hide.
-   * Returns the parser's message, or null when the whole manifest is publishable.
+   * The parser's complaint about `manifest`, or null when it accepts it.
    *
-   * A test prunes to one node, so the parse above only ever covers that node; publish()
-   * parses everything. A two-node connector whose second node is malformed therefore passes
-   * its test and is refused at publish -- and that is the ordinary shape of an
-   * assistant-authored connector, where each node is written in turn and only the node just
-   * written gets tested.
-   *
-   * Reported rather than thrown on purpose. The caller asked about ONE node and deserves an
-   * answer about it: an author iterating on the first node while the second is half-written
-   * would otherwise be locked out of testing anything, and a run that failed on a node it
-   * never touched would be its own kind of unhelpful. The parser names the offending node
-   * in its message, so the note is actionable without being an obstacle.
+   * One helper for both parses a test does -- the pruned node it is about to run, and the
+   * whole manifest -- because the two differ only in what the caller does with the answer,
+   * not in how the answer is obtained. What each parse means is at its call site in
+   * execute(): the pruned one is a refusal, the whole-manifest one is a note in the log.
    */
-  private findUntestedNodeError(manifest: Record<string, unknown>): string | null {
+  private manifestParseError(manifest: Record<string, unknown>): string | null {
     try {
       new Core.ManifestParser().parse(JSON.stringify(manifest));
       return null;
     } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+      return castError(e).message;
+    }
+  }
+
+  /**
+   * Refuse a payload the spawn could never carry.
+   *
+   * The manifest and the configuration both reach the runner as process ENVIRONMENT
+   * STRINGS (OW_MANIFEST, OW_CONFIG), and Linux -- the deployment target -- refuses a
+   * single env string longer than MAX_ARG_STRLEN, 32 * PAGE_SIZE = 131072 bytes. Over that
+   * the spawn fails with E2BIG, which reaches the caller through the `error` handler as a
+   * raw "spawn node E2BIG" on an otherwise 200-shaped result: true, and useless to the
+   * author who has to act on it.
+   *
+   * Enforced on the service rather than at each entrance, because there are several and
+   * none of them is shared: the HTTP DTO bounds its own body, but the MCP `connector_test`
+   * tool takes both values through its own Zod schema and the MCP transport accepts a 2 MiB
+   * body -- roughly sixteen times the kernel's limit. Unlike create()/saveDraft(), a test
+   * stores nothing, so there is no other choke point it has to pass.
+   *
+   * MAX_MANIFEST_SIZE_BYTES is the ceiling those two already apply for the same kernel
+   * reason: a manifest that can be tested but never saved would be its own kind of trap.
+   * Measured in BYTES, matching what the kernel counts -- both payloads are user-authored
+   * text, and a character count would wave through three times the limit.
+   */
+  private assertFitsChildEnv(label: string, serialized: string): void {
+    const sizeBytes = Buffer.byteLength(serialized, 'utf8');
+    if (sizeBytes > MAX_MANIFEST_SIZE_BYTES) {
+      throw new BadRequestException(
+        `Connector test ${label} is ${sizeBytes} bytes, over the ${MAX_MANIFEST_SIZE_BYTES}-byte limit. ` +
+          `It is handed to the connector runner as an environment variable, which the operating ` +
+          `system refuses past that size.`
+      );
     }
   }
 
@@ -287,6 +313,22 @@ export class ConnectorTestService {
   }
 
   async runTest(args: ConnectorTestRequest): Promise<ConnectorTestResult> {
+    // Ahead of the slot: a payload that can never produce a child process must not be able
+    // to hold one of the slots that bound them, or a caller sending nothing but oversized
+    // manifests would lock its project's real tests out.
+    //
+    // The manifest is measured whole even though only the pruned node is spawned, which is
+    // stricter than the spawn strictly needs -- but it is the whole manifest that has to
+    // fit once it is published, so refusing here says so while the author is still writing
+    // it. The configuration is measured WRAPPED, because that is the form OW_CONFIG
+    // carries: wrapConfig adds ten bytes per parameter, so the request-shaped number would
+    // be a ceiling on something else.
+    this.assertFitsChildEnv('manifest', JSON.stringify(args.manifest));
+    this.assertFitsChildEnv(
+      'configuration',
+      JSON.stringify(this.wrapConfig(args.configuration ?? {}))
+    );
+
     const release = this.acquireTestSlot(args.projectId);
     try {
       // Awaited, not returned directly: `finally` runs when the returned promise is
@@ -307,16 +349,22 @@ export class ConnectorTestService {
     const timeoutMs = args.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
     const pruned = this.pruneToNode(args.manifest, args.node);
-    try {
-      new Core.ManifestParser().parse(JSON.stringify(pruned));
-    } catch (e) {
-      throw new BadRequestException(
-        `Invalid manifest: ${e instanceof Error ? e.message : String(e)}`
-      );
+    // The node under test has to run, so its parse error is a refusal.
+    const prunedError = this.manifestParseError(pruned);
+    if (prunedError) {
+      throw new BadRequestException(`Invalid manifest: ${prunedError}`);
     }
+
     // The pruned manifest is the full one minus the other nodes, so it having parsed means
-    // anything the full manifest trips on is in a node this run does not touch.
-    const untestedNodeError = this.findUntestedNodeError(args.manifest);
+    // anything the full manifest trips on is in a node this run does not touch. That is the
+    // ordinary shape of an assistant-authored connector -- each node written in turn, only
+    // the one just written tested -- and it passes its test and is refused at publish.
+    //
+    // Reported rather than thrown on purpose. The caller asked about ONE node and deserves
+    // an answer about it: an author iterating on the first node while the second is
+    // half-written would otherwise be locked out of testing anything. The parser names the
+    // offending node, so the note is actionable without being an obstacle.
+    const untestedNodeError = this.manifestParseError(args.manifest);
 
     // The connector only fetches nodes selected via the `Fields` config param
     // (`"node field, ..."`). On a real run the data-mart UI supplies it; the live
@@ -504,8 +552,16 @@ export class ConnectorTestService {
         // Blank lines carry nothing; `onLine` drops them on the stdout side too.
         if (line) logs.push(line);
       });
-      child.stdout?.on('data', (chunk: Buffer) => stdoutBuffer.push(chunk.toString()));
-      child.stderr?.on('data', (chunk: Buffer) => stderrBuffer.push(chunk.toString()));
+      // Decode on the STREAM, not per chunk. A pipe hands over bytes, so a multi-byte UTF-8
+      // character is routinely split across two chunks -- at every 64 KiB boundary of a
+      // large response, which is the size at which a connector echoes real payload data.
+      // Decoding each chunk on its own turns that character into U+FFFD in both halves, and
+      // the sample rows this panel exists to show are exactly where non-ASCII data lives.
+      // setEncoding holds the partial sequence until its remaining bytes arrive.
+      child.stdout?.setEncoding('utf8');
+      child.stderr?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => stdoutBuffer.push(chunk));
+      child.stderr?.on('data', (chunk: string) => stderrBuffer.push(chunk));
       child.on('close', code => {
         if (settled) return;
         stdoutBuffer.flush();

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useReducer } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { NodeSections } from './NodeSections';
 import { BuilderContext } from '../../../shared/model/context/context';
 import { builderReducer, initialBuilderState } from '../../../shared/model/context/reducer';
@@ -33,8 +33,15 @@ function seed(json: string): BuilderState {
   return { ...initialBuilderState, manifest: parsed.manifest };
 }
 
+// Snapshot of the (real) store's state as of the most recent render, so a test can assert
+// on what actually landed in the manifest rather than only on what the pane draws. Held in
+// an object so the Harness mutates a property instead of reassigning an outer binding,
+// which the react-hooks lint rules forbid.
+const latest: { state?: BuilderState } = {};
+
 function Harness({ json }: { json: string }) {
   const [state, dispatch] = useReducer(builderReducer, json, seed);
+  latest.state = state;
   return (
     <BuilderContext.Provider value={{ state, dispatch }}>
       <NodeSections nodeName='items' />
@@ -43,7 +50,21 @@ function Harness({ json }: { json: string }) {
 }
 
 function renderSections(json: string) {
+  latest.state = undefined;
   return render(<Harness json={json} />);
+}
+
+/** The `items` node as it currently stands in the store. */
+function storedNode(): Record<string, unknown> {
+  const node = latest.state?.manifest.nodes.items;
+  if (!node) throw new Error('No "items" node in the store');
+  return node as unknown as Record<string, unknown>;
+}
+
+/** Switch the retriever mode with the toggle inside the retriever block. */
+function selectRetriever(label: 'Sync' | 'Async') {
+  const group = screen.getByRole('group', { name: 'Retriever' });
+  fireEvent.click(within(group).getByRole('button', { name: label }));
 }
 
 /** The header of the section card whose title is `title`. */
@@ -169,6 +190,33 @@ describe('NodeSections', () => {
       renderSections(
         '{"nodes":{"items":{"request":{"method":"GET","path":"/v1/items"},"recordSelector":{"recordPath":[]},"fields":{},"errorHandler":{"responseFilters":[{"httpCodes":[429],"action":"RETRY"}]}}}}'
       );
+      expect(sectionBadge('Error handling')).toBe('1');
+    });
+  });
+
+  describe('retriever mode', () => {
+    const WITH_ERROR_HANDLER =
+      '{"nodes":{"items":{"request":{"method":"GET","path":"/v1/items"},"recordSelector":{"recordPath":[]},"fields":{},"errorHandler":{"responseFilters":[{"httpCodes":[429],"action":"RETRY"}]}}}}';
+
+    it('drops an errorHandler when the node is switched to the async retriever', () => {
+      // `ManifestParser` refuses errorHandler + async (it only drives sync retrievers), and
+      // the Error handling section is hidden while async — so an errorHandler left behind
+      // here would fail publish with no way to remove it outside Code mode.
+      renderSections(WITH_ERROR_HANDLER);
+      expect(sectionBadge('Error handling')).toBe('1');
+
+      selectRetriever('Async');
+
+      expect(storedNode().errorHandler).toBeUndefined();
+      // What the engine is actually handed: undefined does not survive serialization.
+      expect(JSON.stringify(storedNode())).not.toContain('errorHandler');
+      expect(screen.queryByText('Error handling')).not.toBeInTheDocument();
+    });
+
+    it('keeps the errorHandler while the node stays sync', () => {
+      renderSections(WITH_ERROR_HANDLER);
+      selectRetriever('Sync');
+      expect(storedNode().errorHandler).toBeDefined();
       expect(sectionBadge('Error handling')).toBe('1');
     });
   });

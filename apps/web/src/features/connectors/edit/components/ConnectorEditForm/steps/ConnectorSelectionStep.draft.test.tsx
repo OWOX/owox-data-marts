@@ -80,6 +80,14 @@ describe('ConnectorSelectionStep — draft-only custom connectors', () => {
     expect(onConnectorSelect).not.toHaveBeenCalled();
   });
 
+  it('explains why the draft-only card cannot be used', () => {
+    renderStep(vi.fn());
+    expect(screen.getByText('Publish to use')).toHaveAttribute(
+      'title',
+      'Not published yet — publish it in the builder first.'
+    );
+  });
+
   it('does not show "Coming soon" tooltip text for the draft-only card', () => {
     renderStep(vi.fn());
     // The "Coming soon" tooltip is only rendered when disabled=true is passed to
