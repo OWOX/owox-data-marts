@@ -457,6 +457,39 @@ describe('ConnectorExecutorService', () => {
     );
   });
 
+  it('keeps a run SUCCESS when a recovered-from warning is logged alongside IMPORT_DONE', async () => {
+    // A WARNING is how the engine reports something it RECOVERED from: MicrosoftAds
+    // "Scope … failed, trying next scope…" fires when the NEXT scope succeeds, and
+    // GoogleBigQueryStorage "Reducing batch size" fires when the halved MERGE succeeds.
+    // Demoting on those recorded a completed import as FAILED — which also skipped
+    // billing and fired a failure notification.
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      projectBilling,
+      emitSuccessMessage,
+      emitMessage,
+    } = createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.WARNING,
+        at: new Date().toISOString(),
+        warning: 'Scope ads.read failed, trying next scope...',
+        toFormattedString: () => '[WARNING] Scope ads.read failed, trying next scope...',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      { id: 'run-1', status: expect.anything() },
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
+  });
+
   it('does not mark a run successful when only import in-progress status is emitted', async () => {
     const {
       service,
@@ -687,6 +720,150 @@ describe('ConnectorExecutorService', () => {
     expect(finalUpdate).toBeDefined();
     expect(finalUpdate![1].logs.join()).toContain('pre-interruption log');
     expect(finalUpdate![1].errors.join()).toContain('pre-interruption error');
+  });
+
+  /**
+   * Drives the WHOLE resume path rather than handing the executor a resume flag: the
+   * recovery sweep flips INTERRUPTED -> PENDING and the trigger handler's claim flips
+   * PENDING -> RUNNING, so by the time `executeInBackground` reads the row, INTERRUPTED
+   * is two transitions in the past and no status check can recognise a resume.
+   *
+   * That matters because the incremental flusher REPLACES logs/errors with a snapshot of
+   * the current attempt's buffers. Left enabled on a resumed attempt it overwrites the
+   * earlier attempt's persisted output one interval in, and the terminal merge — which
+   * reads the row it just clobbered — then has nothing left to restore.
+   */
+  it('keeps the first attempt logs when the recovery sweep resumes an interrupted run', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      gracefulShutdownService,
+      configService,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+
+    // One stateful row stands in for the DB across BOTH attempts: the wipe is only
+    // observable when the flusher's write and the terminal merge hit the same row.
+    const row: {
+      status: DataMartRunStatus;
+      logs: string[] | null;
+      errors: string[] | null;
+    } = { status: DataMartRunStatus.RUNNING, logs: null, errors: null };
+    let onIntermediateFlush: () => void = () => undefined;
+
+    (dataMartRunRepository.findOne as jest.Mock).mockImplementation(async () => ({ ...row }));
+    (dataMartRunRepository.update as jest.Mock).mockImplementation(
+      async (criteria: unknown, patch: Record<string, unknown>) => {
+        const expected = (criteria as { status?: { _value?: DataMartRunStatus[] } })?.status
+          ?._value;
+        if (expected && !expected.includes(row.status)) {
+          return { affected: 0 };
+        }
+        if (patch.status) row.status = patch.status as DataMartRunStatus;
+        if (patch.logs !== undefined) row.logs = patch.logs as string[] | null;
+        if (patch.errors !== undefined) row.errors = patch.errors as string[] | null;
+        // A logs write carrying no status is the flusher's intermediate snapshot.
+        if (patch.status === undefined && patch.logs) onIntermediateFlush();
+        return { affected: 1 };
+      }
+    );
+
+    const logMessage = (text: string) => ({
+      type: ConnectorMessageType.LOG,
+      at: '2026-08-01T00:00:00.000Z',
+      message: text,
+      toFormattedString: () => `[LOG] ${text}`,
+    });
+
+    // Attempt 1: the pod is told to stop mid-import, so the run persists what it got
+    // through and is left INTERRUPTED for the sweep.
+    (processSpawner.spawnConnector as jest.Mock).mockImplementationOnce(async () => {
+      emitMessage(logMessage('first attempt: imported 2024-01-01'));
+      (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(row.status).toBe(DataMartRunStatus.INTERRUPTED);
+    expect(row.logs!.join()).toContain('first attempt');
+
+    // The REAL sweep: INTERRUPTED -> PENDING, exactly as it runs on the next boot.
+    const sweepRepository = {
+      find: jest.fn(async ({ where }: { where: { status: DataMartRunStatus; type: string } }) =>
+        where.status === row.status && where.type === DataMartRunType.CONNECTOR
+          ? [
+              {
+                id: 'run-1',
+                dataMartId: 'dm-1',
+                type: DataMartRunType.CONNECTOR,
+                status: row.status,
+                dataMart: { projectId: 'proj-1' },
+                createdById: 'user-1',
+                runType: 'MANUAL',
+                additionalParams: null,
+              },
+            ]
+          : []
+      ),
+      update: jest.fn(
+        async (criteria: { status: DataMartRunStatus }, patch: { status: DataMartRunStatus }) => {
+          if (criteria.status !== row.status) return { affected: 0 };
+          row.status = patch.status;
+          return { affected: 1 };
+        }
+      ),
+    } as unknown as Repository<DataMartRun>;
+    const connectorRunTriggerService = {
+      createTrigger: jest.fn().mockResolvedValue('trigger-1'),
+    } as unknown as ConnectorRunTriggerService;
+
+    await new ConnectorRunService(
+      sweepRepository,
+      connectorRunTriggerService,
+      service
+    ).executeInterruptedRuns();
+
+    expect(row.status).toBe(DataMartRunStatus.PENDING);
+
+    // ...and then the trigger handler's claimRunSlotAtomically: PENDING -> RUNNING
+    // followed by a full reload, which is the entity the executor is handed.
+    row.status = DataMartRunStatus.RUNNING;
+    const resumedRun = createRun({
+      status: row.status,
+      startedAt: new Date('2026-08-01T00:00:00.000Z'),
+      logs: row.logs,
+      errors: row.errors,
+    });
+
+    // Attempt 2 flushes almost immediately instead of after the 2s default, so it
+    // really does write over the row while the run is still going.
+    (configService.get as jest.Mock).mockImplementation((key: string, def: unknown) =>
+      key === 'CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS' ? 1 : def
+    );
+    (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(false);
+
+    // Hold the connector open until an intermediate write has actually landed (or the
+    // resumed attempt proved it makes none), so the outcome is not a race.
+    const flushSettled = new Promise<void>(resolve => {
+      onIntermediateFlush = resolve;
+      setTimeout(resolve, 50);
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage(logMessage('second attempt: imported 2024-01-02'));
+      await flushSettled;
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), resumedRun, null);
+
+    expect(row.status).toBe(DataMartRunStatus.SUCCESS);
+    const persistedLogs = row.logs!.join();
+    expect(persistedLogs).toContain('first attempt: imported 2024-01-01');
+    expect(persistedLogs).toContain('second attempt: imported 2024-01-02');
+    // Preserved once, not duplicated by the merge.
+    expect(row.logs!.filter(entry => entry.includes('first attempt'))).toHaveLength(1);
   });
 
   it('caps merged logs so repeatedly resumed runs cannot grow the column without bound', async () => {
@@ -1032,7 +1209,11 @@ describe('ConnectorExecutorService', () => {
       await service.executeInBackground(createMultiConfigDataMart(), createRun(), null);
 
       expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.FAILED);
-      expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      // Status and billing part company here on purpose. The run is FAILED because one
+      // configuration did not import, but the other one DID put rows in the warehouse and
+      // that is what consumption measures. Gating billing on the all-success flag made a
+      // connector with one permanently broken account free forever.
+      expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
       expect(eventDispatcher.publishExternal).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({ status: 'unsuccessfully' }),
@@ -1068,6 +1249,10 @@ describe('ConnectorExecutorService', () => {
       await service.executeInBackground(createMultiConfigDataMart(), createRun(), null);
 
       expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.INTERRUPTED);
+      // The one partially-successful state that must NOT be billed, and the reason billing
+      // keys off the persisted status rather than just "some configuration succeeded": the
+      // sweep resumes this run and the resumed attempt registers consumption itself, so
+      // charging here would bill one import twice.
       expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
       // An interrupted run is going to be resumed, so no outcome webhook may fire.
       expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
@@ -1171,7 +1356,10 @@ describe('ConnectorExecutorService', () => {
       );
 
       expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.CANCELLED);
-      expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      // Billed, unlike the INTERRUPTED case below: a cancelled run is terminal and is never
+      // resumed, so this is the only attempt those rows will ever be charged for. The
+      // configuration that finished before the cancel landed did deliver its data.
+      expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
       expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
     });
 
@@ -1738,7 +1926,10 @@ describe('ConnectorExecutorService', () => {
   }, 30000);
 
   describe('createRunLogFlusher', () => {
-    it('returns null for a resumed (mergeWithExisting) run', () => {
+    // Unit-level companion to the sweep-driven resume test above: that one proves the
+    // flag is computed correctly from the real status churn, this one proves the flag
+    // still disables streaming.
+    it('returns null for a run that already carries an earlier attempt output', () => {
       const { service } = createService();
 
       const flusher = service['createRunLogFlusher']('run-1', [], [], true);

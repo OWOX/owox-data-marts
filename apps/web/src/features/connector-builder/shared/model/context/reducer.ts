@@ -14,6 +14,7 @@ export const initialBuilderState: BuilderState = {
   publishing: false,
   error: null,
   sample: null,
+  codeInvalid: false,
 };
 
 export function builderReducer(state: BuilderState, action: BuilderAction): BuilderState {
@@ -61,6 +62,12 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       return { ...state, error: action.payload };
     case BuilderActionType.SET_SAMPLE:
       return { ...state, sample: action.payload };
+    // Returning the same object on a no-op is what lets Code mode report validity on every
+    // keystroke: React bails out of the render entirely when the reducer returns `state`.
+    case BuilderActionType.SET_CODE_INVALID:
+      return state.codeInvalid === action.payload
+        ? state
+        : { ...state, codeInvalid: action.payload };
     default:
       return state;
   }

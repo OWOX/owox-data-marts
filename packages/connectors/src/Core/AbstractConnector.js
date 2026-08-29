@@ -34,14 +34,73 @@ export class AbstractConnector {
    * future refactor could introduce an optional `dispose()` hook called after
    * each node's processing completes.
    */
-  getStorageForNode(nodeName, nodeSchema) {
-    const destinationName = this._wireDestinationName(nodeName, nodeSchema);
+  getStorageForNode(nodeName, nodeSchema, nodeFields = null) {
+    const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeSchema);
+    const destinationName = this._wireNodeConfig(nodeName, nodeSchema, nodeFields, uniqueKeys);
     return new this.StorageClass(
       this.context,
-      nodeSchema.uniqueKeys || [],
+      uniqueKeys,
       nodeSchema.fields || [],
       destinationName
     );
+  }
+
+  /**
+   * The columns storage must MERGE a node on.
+   *
+   * Static `schema.uniqueKeys` is only the DEFAULT. A node's identity can
+   * depend on configuration, and when it does the static list is simply wrong:
+   * TikTok's `ad_insights` declares ['ad_id', 'stat_time_day', 'advertiser_id'],
+   * but a report requested at DataLevel=AUCTION_CAMPAIGN/ADGROUP/ADVERTISER
+   * returns rows that have no ad_id at all -- campaign_id (or nothing) is what
+   * identifies a row there.
+   *
+   * main built the storage from `source.getUniqueKeysForNode(...)` for exactly
+   * this reason (TikTokAds/Connector.js `getStorageByNode`). Centralising the
+   * per-connector files here dropped that call, so every non-AUCTION_AD TikTok
+   * data mart started failing on its first record with
+   * "'ad_id' value is required for Unique Key" (AbstractStorage
+   * .getUniqueKeyByRecordFields) -- or, when the user did select ad_id, wrote a
+   * null-filled key that collapsed every distinct row of a day into one.
+   *
+   * The hook is optional and duck-typed rather than an AbstractSource default,
+   * so a source only pays for it when its keys really are config-dependent; a
+   * source that declares nothing (all of them but TikTokAds today) keeps the
+   * static list. An empty/absent result also falls back, so a source that
+   * special-cases only some of its nodes does not have to re-implement the
+   * default for the rest.
+   *
+   * @param {string} nodeName
+   * @param {object} nodeSchema
+   * @returns {string[]}
+   */
+  getUniqueKeysForNode(nodeName, nodeSchema) {
+    if (typeof this.source.getUniqueKeysForNode === 'function') {
+      const declared = this.source.getUniqueKeysForNode(nodeName);
+      if (Array.isArray(declared) && declared.length) return declared;
+    }
+    return (nodeSchema && nodeSchema.uniqueKeys) || [];
+  }
+
+  /**
+   * Points every context parameter that storage reads per node at ONE node.
+   *
+   * Both parameters below are global to the context but per-node in meaning, and
+   * the loops interleave nodes against a single context, so whichever node is
+   * about to fetch or write has to re-claim them first.
+   *
+   * @param {string} nodeName
+   * @param {object} nodeSchema
+   * @param {string[]|null} nodeFields - fields selected for this node, or null
+   *   when the caller has already written the field list itself
+   * @param {string[]} uniqueKeys - resolved merge keys for this node
+   * @returns {string} the resolved destination name
+   * @private
+   */
+  _wireNodeConfig(nodeName, nodeSchema, nodeFields, uniqueKeys) {
+    const destinationName = this._wireDestinationName(nodeName, nodeSchema);
+    this._wireSelectedFields(nodeName, nodeFields, uniqueKeys);
+    return destinationName;
   }
 
   /**
@@ -63,6 +122,57 @@ export class AbstractConnector {
     const destinationName = this.source.getDestinationName(nodeName, nodeSchema);
     this.context.storageConfig.DestinationTableName = { value: destinationName };
     return destinationName;
+  }
+
+  /**
+   * Points the context's Fields parameter at a node: this node's fields, plus
+   * its unique keys force-included.
+   *
+   * Storage derives its CREATE TABLE column list from Fields via
+   * AbstractStorage.getSelectedFields(), which STRIPS the "<node> " prefix --
+   * so an untouched Fields makes every node's table the union of every selected
+   * node's columns. main rewrote it per node for that reason
+   * (CriteoAds/Connector.js `_buildStorageConfig`); centralising the
+   * per-connector files here kept the DestinationTableName rewrite and dropped
+   * this one, which breaks two ways:
+   *
+   *  - with two Criteo nodes selected, each node's table is created holding the
+   *    sibling node's columns;
+   *  - a unique key the user never selected -- one the source injects after the
+   *    fetch, like Criteo's `day` on placements/placement_categories -- is
+   *    absent from the column list while still being named in
+   *    `PRIMARY KEY (...)` (GoogleBigQueryStorage.createTableIfItDoesntExist
+   *    always emits every uniqueKeyColumn there), so the very first
+   *    CREATE TABLE against a fresh destination is invalid SQL.
+   *
+   * Force-including the keys is what main did too, and it is what keeps the
+   * PRIMARY KEY and the column list in agreement.
+   *
+   * `nodeFields === null` means "the caller owns Fields" and is left alone:
+   * processFullRefreshNode discovers the real columns from the fetched data and
+   * writes them here itself, and re-pointing Fields at the (empty, or stale)
+   * configured selection would undo that.
+   *
+   * @param {string} nodeName
+   * @param {string[]|null} nodeFields
+   * @param {string[]} uniqueKeys
+   * @private
+   */
+  _wireSelectedFields(nodeName, nodeFields, uniqueKeys) {
+    if (!Array.isArray(nodeFields)) return;
+
+    const scopedFields = [...nodeFields];
+    for (const key of uniqueKeys || []) {
+      if (!scopedFields.includes(key)) scopedFields.push(key);
+    }
+
+    const value = scopedFields.map(field => `${nodeName} ${field}`).join(', ');
+    const fieldsParam = this.context.getParameter('Fields');
+    if (fieldsParam) {
+      fieldsParam.value = value;
+    } else {
+      this.context.storageConfig.Fields = { value };
+    }
   }
 
   /**
@@ -212,7 +322,26 @@ export class AbstractConnector {
       issues: new Map(),
       succeeded: new Set(),
       cursorHalted: false,
+      // Hard (non-`isWarning`) account failures in the CURRENT pass only; reset by
+      // _beginPass. It is what decides whether the cursor may claim this date -- see
+      // _advanceCursor for why a hard failure withholds it and a permission skip does not.
+      passHardFailures: 0,
     };
+  }
+
+  /**
+   * Opens a pass (one date for day-by-day, the whole window for range).
+   *
+   * Only the hard-failure counter is per-pass. `issues` and `succeeded` accumulate for the
+   * whole run because _reportAccountOutcomes judges the run, not a date; the cursor judges
+   * one date, and an account that failed on Monday and recovered on Tuesday must not hold
+   * Tuesday back.
+   *
+   * @param {object} state run state from _createRunState
+   * @private
+   */
+  _beginPass(state) {
+    state.passHardFailures = 0;
   }
 
   /**
@@ -290,38 +419,42 @@ export class AbstractConnector {
       return true;
     } catch (error) {
       this.source.onAccountError(account, error);
-      this.context.log(
-        LOG_LEVEL.ERROR,
-        `Error processing account ${account?.id}: ${error.message}`
-      );
+      // No log here. This ran BEFORE _recordAccountFailure classified the error, so a
+      // skipped account was reported twice at two severities -- ERROR here and WARN
+      // there -- and the ERROR arrived first, paging someone for a failure the engine
+      // had already decided not to page for. _recordAccountFailure now owns the whole
+      // report and emits exactly one line at the severity classification chose.
       this._recordAccountFailure(state, account, error);
       return false;
     }
   }
 
   /**
-   * Decides whether a failed account lets the import move on to the next one.
+   * Records a failed account. The import ALWAYS moves on to the next account;
+   * what the classification decides is severity and whether the cursor may claim
+   * this date.
    *
-   * Port of main's FacebookMarketing `_skipOrRethrow`, and deliberately as
-   * narrow as that one was -- exactly two outcomes, with `isWarning` the only
-   * thing that separates them:
+   * main (and this file until now) rethrew anything not flagged `isWarning`, so
+   * the first hard failure cost every remaining account its import. That is the
+   * behaviour being replaced: one account the API is unhappy with must not stop
+   * the other nine from loading.
    *
-   * - SKIPPED (`isWarning`, set by AbstractSource for 401/403): this token
-   *   cannot reach this account and no amount of retrying changes that, so
-   *   continuing costs nothing. The cursor still advances. Holding it back for a
-   *   permanently revoked account would make every later run re-import an
-   *   ever-growing window until it times out, turning one account's gap into
-   *   total data loss -- which is why main advanced past skipped accounts too
-   *   (FacebookMarketing #1519). The gap is surfaced by _reportAccountOutcomes.
-   * - EVERYTHING ELSE (a storage write, an exhausted transient error, a bad
-   *   manifest, a 404): rethrown on the spot, so the accounts after this one are
-   *   never attempted. None of those are account-scoped -- the next account is
-   *   just as likely to hit the same condition -- so spending the rest of the
-   *   window rediscovering it one account at a time buys nothing and only delays
-   *   the failure the customer has to act on.
+   * - SKIPPED (`isWarning`, set by AbstractSource for 401/403): reported at WARN,
+   *   and the cursor STILL ADVANCES. This token cannot reach this account and no
+   *   amount of retrying changes that, so withholding the date would make every
+   *   later run re-import an ever-growing window until it times out -- turning
+   *   one account's gap into total data loss. main advanced past skipped accounts
+   *   for the same reason (FacebookMarketing #1519). The gap is surfaced by
+   *   _reportAccountOutcomes and recovered with a manual backfill.
+   * - EVERYTHING ELSE (a storage write, an exhausted transient error, a 500):
+   *   reported at ERROR, and the cursor is WITHHELD for this pass. These are the
+   *   failures that plausibly succeed on the next attempt, so the date must stay
+   *   re-readable; without that, dropping the rethrow would silently lose that
+   *   account's day forever -- the same class of loss the E1 regression test
+   *   guards against, reached by a different route.
    *
    * There is no account-count special case: a one-account run whose only account
-   * is skipped falls through to the "nothing was imported" check in
+   * failed falls through to the "nothing was imported" check in
    * _reportAccountOutcomes, exactly as main's _throwIfAllAccountsSkipped did.
    *
    * `isWarning` is compared strictly (main used a truthy check). A stale or
@@ -331,23 +464,40 @@ export class AbstractConnector {
    * @param {object} state run state from _createRunState
    * @param {object|null} account the account that failed
    * @param {Error} error the failure to classify
-   * @throws {Error} the original error, when it is not an account-scoped permission failure
    * @private
    */
   _recordAccountFailure(state, account, error) {
-    if (error?.isWarning !== true) {
-      throw error;
-    }
-
     const accountId = this._accountKey(account);
+    const isSkip = error?.isWarning === true;
+
+    if (!isSkip) state.passHardFailures += 1;
+
     let entry = state.issues.get(accountId);
     if (!entry) {
-      entry = { errors: [] };
+      entry = { errors: [], reported: new Set() };
       state.issues.set(accountId, entry);
     }
     entry.errors.push(error);
 
-    this.context.log(LOG_LEVEL.WARN, `Skipped account ${accountId}: ${error.message}`);
+    // Severity follows the classification, and the failure is reported here exactly once --
+    // by the classifier, not by the caller before it. Reporting it earlier meant a skipped
+    // account was announced twice, at ERROR and then at WARN, with the ERROR arriving first
+    // and paging someone for a failure the engine had already decided not to page for.
+    // A skip stays quiet on purpose: "this failed, but do not page anyone".
+    //
+    // Naming the account matters more than it looks: nothing else does. The error itself
+    // knows only what went wrong, never on whose behalf.
+    const level = isSkip ? LOG_LEVEL.WARN : LOG_LEVEL.ERROR;
+
+    // Deduplicated per (account, message) for the life of the run. The day-by-day loop
+    // re-attempts every account on every date, so one revoked token across a 30-day window
+    // wrote the same line 30 times and buried whatever else the run had to say. A DIFFERENT
+    // message from the same account still gets through -- that is new information.
+    if (entry.reported.has(error.message)) return;
+    entry.reported.add(error.message);
+
+    const what = isSkip ? 'Skipped account' : 'Error processing account';
+    this.context.log(level, `${what} ${accountId}: ${error.message}`);
   }
 
   /**
@@ -371,7 +521,16 @@ export class AbstractConnector {
     // Nothing at all was written for this pass, so moving past it would lose it
     // outright. main guarded exactly this with _throwIfAllAccountsSkipped(),
     // called immediately before updateLastRequstedDate().
-    if (completedBy === 0) state.cursorHalted = true;
+    //
+    // A hard failure on ANY account withholds the date too, and that guard is what
+    // makes it safe to carry on past such a failure instead of aborting the run.
+    // Under main's rule (advance whenever someone finished) the accounts that DID
+    // complete would carry the cursor past a date the failed one never read, and it
+    // would never be read again -- silent loss, and precisely what the E1 regression
+    // test was written for. A permission skip is deliberately NOT counted: that
+    // account is not coming back this run or the next, so holding the date would
+    // stall the cursor forever instead of for one attempt.
+    if (completedBy === 0 || state.passHardFailures > 0) state.cursorHalted = true;
 
     this._emitCursor(state, date);
   }
@@ -431,33 +590,68 @@ export class AbstractConnector {
         })
         .join('; ');
 
+    // Every account failure lands here now instead of aborting the run at the first hard
+    // one, so this is where the run's verdict is decided -- and the two kinds are kept
+    // apart all the way through. A skip is reported AS a skip and never folded into the
+    // failure text: the customer has to be able to tell "this account is locked out" from
+    // "this account broke", because the fixes are different.
+    const entries = [...state.issues.entries()];
+    const failed = entries.filter(([, entry]) =>
+      entry.errors.some(error => error?.isWarning !== true)
+    );
+    const skipped = entries.filter(([, entry]) =>
+      entry.errors.every(error => error?.isWarning === true)
+    );
+
     if (state.succeeded.size === 0) {
       const error = new Error(
         `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
           `to a global failure, such as an expired access token, rather than individual accounts ` +
-          `being inaccessible. Errors: ${describe([...state.issues.entries()])}`
+          `being inaccessible. Errors: ${describe(entries)}`
       );
-      // Every skipped account was skipped because of a permission failure, which
-      // is something the customer can act on: RunFailureReport keeps the readable
-      // message instead of a stack for a flagged error.
-      error.isWarning = true;
+      // Flagged ONLY when every account was turned away for permissions -- something the
+      // customer can act on, and RunFailureReport then keeps the readable message instead
+      // of a stack. A run whose accounts died on 500s is not that: it must page.
+      error.isWarning = failed.length === 0;
       throw error;
     }
 
-    this.context.log(
-      LOG_LEVEL.WARN,
-      `${state.issues.size} out of ${state.attemptedCount} accounts were skipped and their data ` +
-        `is missing. Skipped accounts: ${[...state.issues.keys()].join(', ')}`
-    );
+    // Deliberately AFTER the all-failed throw: this line means "some accounts imported,
+    // these did not". Emitting it for a run where nothing imported reported a partial
+    // skip for a total failure -- the D2 regression.
+    if (skipped.length) {
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `${skipped.length} out of ${state.attemptedCount} accounts were skipped and their ` +
+          `data is missing. Skipped accounts: ${skipped.map(([id]) => id).join(', ')}`
+      );
+    }
+
+    if (failed.length) {
+      // Some accounts imported and at least one failed hard. Everything that COULD load
+      // has loaded by now -- this runs after the last account of the last date -- so
+      // failing here costs no data and is the only honest verdict: reporting `completed`
+      // would tell the scheduler the window is done when part of it was never read.
+      // Unflagged, so it pages; the cursor was already withheld for those passes.
+      throw new Error(
+        `${failed.length} out of ${state.attemptedCount} accounts did not import, so this ` +
+          `window is incomplete and will be requested again. Errors: ${describe(failed)}`
+      );
+    }
   }
+
 
   // --- node passes ---
 
   /**
-   * Lazily builds (and memoizes) the storage for a node, re-claiming
-   * DestinationTableName each time so an interleaved node cannot leave it
-   * pointing elsewhere. One storage per node matches main, which memoized them
-   * in `this.storages[nodeName]`.
+   * Lazily builds (and memoizes) the storage for a node, re-claiming the
+   * per-node context parameters each time so an interleaved node cannot leave
+   * them pointing elsewhere. One storage per node matches main, which memoized
+   * them in `this.storages[nodeName]`.
+   *
+   * The re-claim covers Fields as well as DestinationTableName: the storage is
+   * memoized but its init() is not, so node B's deferred table creation would
+   * otherwise read whichever node's field list was written last.
    *
    * storage.init() is NOT called here: that is what actually creates the
    * destination table (BigQuery/Redshift/...), so it stays deferred until a
@@ -469,10 +663,14 @@ export class AbstractConnector {
   _nodeWriter(writers, node) {
     let writer = writers.get(node.name);
     if (!writer) {
-      writer = { storage: this.getStorageForNode(node.name, node.schema), initialized: false };
+      writer = {
+        storage: this.getStorageForNode(node.name, node.schema, node.fields),
+        uniqueKeys: this.getUniqueKeysForNode(node.name, node.schema),
+        initialized: false,
+      };
       writers.set(node.name, writer);
     } else {
-      this._wireDestinationName(node.name, node.schema);
+      this._wireNodeConfig(node.name, node.schema, node.fields, writer.uniqueKeys);
     }
     return writer;
   }
@@ -608,6 +806,7 @@ export class AbstractConnector {
 
     const writers = new Map();
     let completedBy = 0;
+    this._beginPass(state);
 
     for (const account of accounts) {
       const done = await this._runForAccount(state, account, async () => {
@@ -624,10 +823,11 @@ export class AbstractConnector {
       if (done) completedBy += 1;
     }
 
-    // The same guard _advanceCursor applies to a day: a pass no account
-    // completed is a pass whose data moving past it would lose, and the halt is
+    // The same guard _advanceCursor applies to a day, for the same two reasons: a
+    // pass no account completed is a pass whose data moving past it would lose, and
+    // a hard failure on any account leaves that account's window unread. The halt is
     // sticky for the rest of the run.
-    if (completedBy === 0) {
+    if (completedBy === 0 || state.passHardFailures > 0) {
       state.cursorHalted = true;
       return null;
     }
@@ -679,12 +879,14 @@ export class AbstractConnector {
     for (const date of this._iterateDates(dateRange.startDate, dateRange.endDate)) {
       const formattedDate = this._formatDate(date);
       let completedBy = 0;
+      this._beginPass(state);
 
       for (const account of accounts) {
-        // One try/catch around the whole node loop, as main had it: a SKIPPED
-        // account loses node 3 for this day only -- the other accounts, and this
-        // account's other days, are unaffected. Any other failure leaves through
-        // _recordAccountFailure and ends the run.
+        // One try/catch around the whole node loop, as main had it: a failing account
+        // loses node 3 for this day only -- the other accounts, and this account's
+        // other days, are unaffected. Whether this date is then checkpointed is
+        // _advanceCursor's call, and it turns on the KIND of failure, not on there
+        // having been one.
         const done = await this._runForAccount(state, account, async () => {
           for (const node of nodes) {
             const writer = this._nodeWriter(writers, node);
@@ -839,6 +1041,10 @@ export class AbstractConnector {
 
     // Built after the field write-back: getStorageForNode() resolves the
     // destination and the storage reads the selected fields from the context.
+    // No node fields are passed on purpose -- the discovered list written above
+    // IS this node's field list, and handing over the configured selection
+    // would make _wireSelectedFields overwrite it with a stale (often empty)
+    // one.
     const storage = this.getStorageForNode(nodeName, discoveredSchema);
     await storage.replaceData(rows);
   }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { ConnectorBuilderApiService } from '../../../connector-builder/shared/api/connector-builder-api.service';
 import type { CustomConnectorListItemDto } from '../../../connector-builder/shared/api/types';
+import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 
 export function useConnectorsList(): {
   connectors: CustomConnectorListItemDto[];
@@ -21,7 +22,7 @@ export function useConnectorsList(): {
       const items = await new ConnectorBuilderApiService().list();
       setConnectors(items);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load connectors');
+      setError(apiErrorMessage(e, 'Failed to load connectors'));
     } finally {
       setLoading(false);
     }
@@ -34,7 +35,7 @@ export function useConnectorsList(): {
         toast.success('Connector deleted');
         await refetch();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Failed to delete connector');
+        toast.error(apiErrorMessage(e, 'Failed to delete connector'));
       }
     },
     [refetch]

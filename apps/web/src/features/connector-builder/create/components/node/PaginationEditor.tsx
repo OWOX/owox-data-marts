@@ -5,7 +5,7 @@ import {
   createDefaultPagination,
   type ManifestNodePagination,
 } from '../../../shared/model/manifest.types';
-import { getAtPath } from '../../../shared/model/manifestPath';
+import { getAtPath, toDotPath } from '../../../shared/model/manifestPath';
 import { InfoLabel, OptionSelect, Segmented } from '../fields';
 
 type PgChoice = ManifestNodePagination['type'];
@@ -137,13 +137,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
                 aria-label='Offset inject body path'
                 defaultValue={pagination.inject.path?.join('.') ?? ''}
                 onChange={e => {
-                  setPath(
-                    [...base, 'inject', 'path'],
-                    e.target.value
-                      .split('.')
-                      .map(s => s.trim())
-                      .filter(Boolean)
-                  );
+                  setPath([...base, 'inject', 'path'], toDotPath(e.target.value));
                 }}
                 placeholder='variables.offset'
                 className='font-mono'
@@ -218,13 +212,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
                 aria-label='Page inject body path'
                 defaultValue={pagination.inject.path?.join('.') ?? ''}
                 onChange={e => {
-                  setPath(
-                    [...base, 'inject', 'path'],
-                    e.target.value
-                      .split('.')
-                      .map(s => s.trim())
-                      .filter(Boolean)
-                  );
+                  setPath([...base, 'inject', 'path'], toDotPath(e.target.value));
                 }}
                 placeholder='variables.page'
                 className='font-mono'
@@ -244,13 +232,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
               <Input
                 defaultValue={pagination.cursorPath?.join('.') ?? ''}
                 onChange={e => {
-                  setPath(
-                    [...base, 'cursorPath'],
-                    e.target.value
-                      .split('.')
-                      .map(s => s.trim())
-                      .filter(Boolean)
-                  );
+                  setPath([...base, 'cursorPath'], toDotPath(e.target.value));
                 }}
                 placeholder='paging.next'
                 className='font-mono'
@@ -318,13 +300,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
               <Input
                 defaultValue={pagination.cursor.path?.join('.') ?? ''}
                 onChange={e => {
-                  setPath(
-                    [...base, 'cursor', 'path'],
-                    e.target.value
-                      .split('.')
-                      .map(s => s.trim())
-                      .filter(Boolean)
-                  );
+                  setPath([...base, 'cursor', 'path'], toDotPath(e.target.value));
                 }}
                 placeholder='data.pageInfo.endCursor'
                 className='font-mono'
@@ -382,13 +358,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
               <Input
                 defaultValue={pagination.inject.path?.join('.') ?? ''}
                 onChange={e => {
-                  setPath(
-                    [...base, 'inject', 'path'],
-                    e.target.value
-                      .split('.')
-                      .map(s => s.trim())
-                      .filter(Boolean)
-                  );
+                  setPath([...base, 'inject', 'path'], toDotPath(e.target.value));
                 }}
                 placeholder='variables.after'
                 className='font-mono'
@@ -411,10 +381,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
                 ref={stopPathInputRef}
                 defaultValue={pagination.stopCondition?.path?.join('.') ?? ''}
                 onChange={e => {
-                  const pathParts = e.target.value
-                    .split('.')
-                    .map(s => s.trim())
-                    .filter(Boolean);
+                  const pathParts = toDotPath(e.target.value);
                   const rawEquals =
                     pagination.stopCondition?.equals !== undefined
                       ? String(pagination.stopCondition.equals)
@@ -444,10 +411,7 @@ export function PaginationEditor({ basePath }: { basePath: (string | number)[] }
                 onChange={e => {
                   const rawEquals = e.target.value;
                   const domPath = stopPathInputRef.current?.value ?? '';
-                  const pathParts = domPath
-                    .split('.')
-                    .map(s => s.trim())
-                    .filter(Boolean);
+                  const pathParts = toDotPath(domPath);
                   const equals =
                     rawEquals === 'true' ? true : rawEquals === 'false' ? false : rawEquals;
                   if (pathParts.length && rawEquals !== '') {

@@ -221,12 +221,21 @@ export class ConnectorProcessSpawnerService {
         const stdoutBuffer = createCapturedLineBuffer(message => logCapture?.onStdout?.(message));
         const stderrBuffer = createCapturedLineBuffer(message => logCapture?.onStderr?.(message));
 
-        node.stdout.on('data', data => {
-          stdoutBuffer.push(data.toString());
+        // Decode on the STREAM, not per chunk. A pipe hands over bytes, so a multi-byte
+        // UTF-8 character is routinely split across two chunks -- at every 64 KiB boundary
+        // of a large write. Decoding each chunk on its own turns that character into U+FFFD
+        // in both halves, and these lines are both what the run log shows the user and what
+        // the credential-update protocol is parsed out of. setEncoding holds the partial
+        // sequence until its remaining bytes arrive.
+        node.stdout.setEncoding('utf8');
+        node.stderr.setEncoding('utf8');
+
+        node.stdout.on('data', (data: string) => {
+          stdoutBuffer.push(data);
         });
 
-        node.stderr.on('data', data => {
-          stderrBuffer.push(data.toString());
+        node.stderr.on('data', (data: string) => {
+          stderrBuffer.push(data);
         });
 
         node.stdout.on('end', () => {

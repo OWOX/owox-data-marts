@@ -87,6 +87,35 @@ describe('Transformer', () => {
     assert.deepStrictEqual(recs, [{ a: { b: 1 } }]);
   });
 
+  it("no transformation mutates the caller's record, at any depth", () => {
+    // The shallow copy in transform() is only sound because every transform
+    // writes at the TOP LEVEL. Run all four against a record with nested state
+    // and assert the input is byte-identical afterwards.
+    const original = () => ({ Keep: 'k', drop: 'd', addr: { city: 'NY' }, tags: [1, 2] });
+    for (const t of [
+      { type: 'add', field: 'x', value: 'v' },
+      { type: 'remove', field: 'drop' },
+      { type: 'keysToLower' },
+      { type: 'flatten' },
+    ]) {
+      const recs = [original()];
+      const out = new Transformer([t], engine).transform(recs, {});
+      assert.deepStrictEqual(recs, [original()], `input mutated by ${t.type}`);
+      assert.notStrictEqual(out[0], recs[0], `${t.type} returned the input object`);
+    }
+  });
+
+  it('leaves nested values shared by reference (no deep clone) but never writes through', () => {
+    const nested = { city: 'NY' };
+    const recs = [{ addr: nested }];
+    const out = new Transformer([{ type: 'add', field: 'x', value: 'v' }], engine).transform(
+      recs,
+      {}
+    );
+    assert.strictEqual(out[0].addr, nested); // shared, deliberately
+    assert.strictEqual(recs[0].addr.city, 'NY'); // and untouched
+  });
+
   it('throws on an unknown transformation type', () => {
     assert.throws(
       () => new Transformer([{ type: 'magic' }], engine).transform([{}], {}),
