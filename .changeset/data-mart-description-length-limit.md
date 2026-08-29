@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Over-long Data Mart descriptions are refused instead of failing on save
