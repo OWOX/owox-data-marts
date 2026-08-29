@@ -6,6 +6,8 @@
  */
 
 import { TraceEvent } from '../Events/TraceEvent.js';
+import { unwrapOpaque } from './opaqueValue.js';
+import { redactUrl } from '../AbstractSource.js';
 import { LOG_LEVEL } from '../../Constants/CommonConstants.js';
 
 /**
@@ -119,10 +121,21 @@ export class SyncRetriever {
    * -> success = false). maxPages is additionally the normal stop for a live test
    * run — connector-test.service.ts caps it at 1 by default — so at WARN every
    * builder test run of a paginated node would report as FAILED.
+   *
+   * The target is REDACTED (origin + path only) for the same reason as
+   * Requester._reportIgnored: this is a persisted, viewer-readable run log, and
+   * `pendingRequest` is the NEXT page — i.e. the link the upstream returned,
+   * which echoes back whatever the caller sent, including an
+   * `authentication.inject.into: "query"` credential. That makes this the most
+   * exposed of the two sites, not the least: maxPages is 1 for a builder live
+   * test, so every test run of a link-paginated node reaches this line.
    */
   _reportPageBudgetExhausted(pendingRequest) {
     if (!this.context?.log) return;
-    const target = pendingRequest?.url || pendingRequest?.path || '';
+    // Paginator injects the next page marked opaque, so unwrap before redacting
+    // — otherwise `redactUrl` would be handed an OpaqueValue, not a string.
+    const raw = unwrapOpaque(pendingRequest?.url) || unwrapOpaque(pendingRequest?.path) || '';
+    const target = raw ? redactUrl(raw) : '';
     this.context.log(
       LOG_LEVEL.INFO,
       `Stopped after the maximum of ${this.maxPages} page(s) for (${target}) while the paginator ` +

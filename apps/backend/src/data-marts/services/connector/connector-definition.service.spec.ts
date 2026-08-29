@@ -12,6 +12,18 @@ import { ConnectorDefinitionVersionStatus } from '../../entities/connector-defin
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 
 describe('ConnectorDefinitionService', () => {
+  /**
+   * `select` is honoured, not ignored, for the same reason `withDeleted` is below: it is an
+   * instruction about what the driver hands back, and a double that returns whole rows
+   * regardless agrees with a service that asks for a projection and with one that does not.
+   * Which columns a real database omits is pinned on the real schema in
+   * connector-definition-tables.migration.spec.ts.
+   */
+  const project = <T extends object>(row: T, select?: (keyof T)[]): T =>
+    select?.length
+      ? (Object.fromEntries(select.map(column => [column, row[column]])) as T)
+      : { ...row };
+
   const make = () => {
     const store: { defs: any[]; versions: any[] } = { defs: [], versions: [] };
 
@@ -37,9 +49,22 @@ describe('ConnectorDefinitionService', () => {
               (withDeleted === true || !d.deletedAt)
           ) ?? null
       ),
-      find: jest.fn(async ({ where }) =>
-        store.defs.filter(d => d.projectId === where.projectId && !d.deletedAt)
+      find: jest.fn(async ({ where, withDeleted, select }) =>
+        store.defs
+          .filter(d => d.projectId === where.projectId && (withDeleted === true || !d.deletedAt))
+          .map(d => project(d, select))
       ),
+      // Writes ONLY the columns it is given, to the rows matching every criterion — which is
+      // the whole reason the service uses it instead of save(): a save ships every column
+      // that differs from the entity it read, reverting whatever landed in between. A double
+      // that assigned the entity wholesale would agree with both and pin neither.
+      update: jest.fn(async (criteria, patch) => {
+        const rows = store.defs.filter(d =>
+          Object.entries(criteria).every(([column, value]) => d[column] === value)
+        );
+        for (const row of rows) Object.assign(row, patch);
+        return { affected: rows.length };
+      }),
       softDelete: jest.fn(async (id: string) => {
         const d = store.defs.find(x => x.id === id);
         if (d) d.deletedAt = new Date();
@@ -67,9 +92,21 @@ describe('ConnectorDefinitionService', () => {
         if (order?.version === 'DESC') rows = rows.sort((a, b) => b.version - a.version);
         return rows[0] ?? null;
       }),
-      find: jest.fn(async ({ where }) =>
-        store.versions.filter(v => v.connectorDefinitionId === where.connectorDefinitionId)
+      find: jest.fn(async ({ where, select }) =>
+        store.versions
+          .filter(v => v.connectorDefinitionId === where.connectorDefinitionId)
+          .map(v => project(v, select))
       ),
+      // The guarded UPDATE saveDraft() uses instead of a read-modify-write save(): only rows
+      // matching EVERY criterion are touched, and `affected` is what tells the service
+      // whether the draft it read is still a draft.
+      update: jest.fn(async (criteria, patch) => {
+        const rows = store.versions.filter(v =>
+          Object.entries(criteria).every(([column, value]) => v[column] === value)
+        );
+        for (const row of rows) Object.assign(row, patch);
+        return { affected: rows.length };
+      }),
     };
 
     const dataMartService = {
@@ -132,6 +169,54 @@ describe('ConnectorDefinitionService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  /**
+   * The reserved-name guard is what keeps a custom connector from shadowing a bundled one --
+   * ConnectorService resolves bundled names FIRST, so a custom connector allowed through
+   * under a bundled name is unreachable by every resolve path and its author gets the
+   * bundled connector's specification instead, with nothing anywhere saying why.
+   *
+   * A case-sensitive Set only guards the exact spelling. `googleads` is a different string
+   * from `GoogleAds`, and the connector name is a case-INSENSITIVE identifier everywhere it
+   * matters: MySQL's default collation makes the unique index treat them as one name, and a
+   * human reading `googleads` reads it as Google Ads.
+   */
+  it('create() rejects a name that differs from a bundled connector only in case', async () => {
+    const { service } = make();
+    await expect(
+      service.create('proj-1', 'user-1', { name: 'googleads', title: 'x', manifest: validManifest })
+    ).rejects.toThrow(/reserved by a built-in connector/);
+  });
+
+  /**
+   * Two names that differ only in case are one name to the production index (MySQL's default
+   * collation is case-insensitive) and two to the local one (sqlite compares varchar as
+   * BINARY). Left to the collation, the same create succeeds in dev and fails in production
+   * -- and fails there as a driver error, since the app-layer guard cleared it.
+   */
+  it('create() rejects a name that differs from an existing one only in case', async () => {
+    const { service } = make();
+    await service.create('proj-1', 'user-1', {
+      name: 'Report',
+      title: 'x',
+      manifest: validManifest,
+    });
+    await expect(
+      service.create('proj-1', 'user-1', { name: 'report', title: 'y', manifest: validManifest })
+    ).rejects.toThrow(/already exists in this project/);
+  });
+
+  it('create() still allows the same name in a different project', async () => {
+    const { service } = make();
+    await service.create('proj-1', 'user-1', {
+      name: 'Report',
+      title: 'x',
+      manifest: validManifest,
+    });
+    await expect(
+      service.create('proj-2', 'user-1', { name: 'report', title: 'y', manifest: validManifest })
+    ).resolves.toMatchObject({ name: 'report' });
+  });
+
   it('create() rejects a duplicate name within the same project', async () => {
     const { service } = make();
     await service.create('proj-1', 'user-1', {
@@ -145,16 +230,14 @@ describe('ConnectorDefinitionService', () => {
   });
 
   /**
-   * The name of a soft-deleted connector stays reserved: assertNameAvailable() looks it up
-   * with `withDeleted: true`, so the tombstoned row is still a collision. Deleting that flag
-   * from the service turns this red.
+   * Deleting a connector frees its name. softDelete() renames the row it tombstones, which is
+   * the whole mechanism -- assertNameAvailable() still reads `withDeleted: true`, so a
+   * tombstone that kept its name would still collide and this would go red.
    *
-   * This is the flag's SHAPE only -- it proves the service asks the repository to include
-   * soft-deleted rows, against a double that now agrees with production about what the
-   * option means. Which rows a real database hands back is pinned separately, on the real
-   * schema, in connector-definition-tables.migration.spec.ts.
+   * The name has to survive on the row in some form: it is what tells whoever reads the table
+   * later which connector this tombstone was.
    */
-  it('create() keeps a soft-deleted connector name reserved', async () => {
+  it('create() reuses the name of a soft-deleted connector', async () => {
     const { service, store } = make();
     const def = await service.create('proj-1', 'user-1', {
       name: 'MyCustom',
@@ -163,11 +246,186 @@ describe('ConnectorDefinitionService', () => {
     });
     await service.softDelete('proj-1', def.id);
     expect(store.defs[0].deletedAt).toBeInstanceOf(Date);
+    expect(store.defs[0].name).toBe(`deleted:${def.id}:MyCustom`);
 
-    await expect(
-      service.create('proj-1', 'user-1', { name: 'MyCustom', title: 'y', manifest: validManifest })
-    ).rejects.toThrow(/already exists in this project/);
-    expect(store.defs).toHaveLength(1);
+    const recreated = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'y',
+      manifest: validManifest,
+    });
+
+    expect(recreated.id).not.toBe(def.id);
+    expect(recreated.name).toBe('MyCustom');
+    expect(store.defs).toHaveLength(2);
+  });
+
+  /**
+   * A name may be reused any number of times, so the tombstones pile up -- and every one of
+   * them sits under the unique index on (projectId, name). Keying the tombstone on the
+   * definition's id is what keeps them apart; a fixed suffix would collide on the second
+   * delete and take the DELETE down with a driver error.
+   */
+  it('softDelete() tombstones each row under a name of its own', async () => {
+    const { service, store } = make();
+    for (let i = 0; i < 3; i++) {
+      const def = await service.create('proj-1', 'user-1', {
+        name: 'MyCustom',
+        title: `attempt ${String(i)}`,
+        manifest: validManifest,
+      });
+      await service.softDelete('proj-1', def.id);
+    }
+
+    const names = store.defs.map(d => d.name);
+    expect(new Set(names).size).toBe(3);
+    expect(names.every(n => n.endsWith(':MyCustom'))).toBe(true);
+  });
+
+  /**
+   * `name` is varchar(255). A tombstone prefixes an id and must still fit, so the original is
+   * truncated rather than the row failing to save -- an unsaveable tombstone would mean an
+   * undeletable connector.
+   */
+  it('softDelete() keeps a tombstoned name inside the column', async () => {
+    const { service, store } = make();
+    const longName = 'A'.repeat(255);
+    const def = await service.create('proj-1', 'user-1', {
+      name: longName,
+      title: 'x',
+      manifest: validManifest,
+    });
+    await service.softDelete('proj-1', def.id);
+
+    expect(store.defs[0].name.length).toBe(255);
+    expect(store.defs[0].name.startsWith(`deleted:${def.id}:A`)).toBe(true);
+  });
+
+  /**
+   * The row is what every list, picker and data-mart page reads; the manifest is what the
+   * builder shows. Before updateMetadata() existed, only the manifest could be edited, so a
+   * retitled connector kept its old title everywhere except the screen it was retitled on.
+   */
+  it('updateMetadata() writes the columns the rest of the product reads', async () => {
+    const { service, store } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Old title',
+      description: 'Old description',
+      docUrl: 'https://old.example',
+      manifest: validManifest,
+    });
+
+    await service.updateMetadata('proj-1', def.id, {
+      title: 'New title',
+      description: 'New description',
+    });
+
+    expect(store.defs[0].title).toBe('New title');
+    expect(store.defs[0].description).toBe('New description');
+    // Untouched: a PATCH leaves out what it does not mention.
+    expect(store.defs[0].docUrl).toBe('https://old.example');
+  });
+
+  /**
+   * `undefined` and `null` have to mean different things or a nullable field can be set and
+   * never unset: absent leaves the column, null clears it. Collapsing the two -- the shape a
+   * `?? undefined` or a spread of the whole body would produce -- makes the difference
+   * invisible.
+   */
+  it('updateMetadata() clears a nullable field on an explicit null', async () => {
+    const { service, store } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Title',
+      description: 'Old description',
+      docUrl: 'https://old.example',
+      manifest: validManifest,
+    });
+
+    await service.updateMetadata('proj-1', def.id, { description: null });
+
+    expect(store.defs[0].description).toBeNull();
+    expect(store.defs[0].docUrl).toBe('https://old.example');
+    expect(store.defs[0].title).toBe('Title');
+  });
+
+  /**
+   * A data mart stores the connector it runs as `connector.source.name`, so a rename would
+   * unbind every data mart pointing at the old name with no error at either end. The name is
+   * absent from the input type, and this pins that a body carrying one anyway changes nothing.
+   */
+  it('updateMetadata() cannot rename a connector', async () => {
+    const { service, store } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Title',
+      manifest: validManifest,
+    });
+
+    await service.updateMetadata('proj-1', def.id, {
+      title: 'New title',
+      ...({ name: 'Renamed' } as Record<string, never>),
+    });
+
+    expect(store.defs[0].name).toBe('MyCustom');
+    expect(store.defs[0].title).toBe('New title');
+  });
+
+  it('updateMetadata() rejects a connector from another project', async () => {
+    const { service } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Title',
+      manifest: validManifest,
+    });
+
+    await expect(service.updateMetadata('proj-2', def.id, { title: 'New title' })).rejects.toThrow(
+      NotFoundException
+    );
+  });
+
+  /**
+   * `activeVersionId` lives on this row and belongs to publish(). Writing the loaded entity
+   * back with save() ships every column that differs from the snapshot it was read at, so a
+   * publish landing between the read and the write is reverted -- the released version becomes
+   * unpublished and every run 400s with "has no published version to run". saveDraft() was hit
+   * by exactly this and answered it the same way: write only the named columns.
+   *
+   * Not a hypothetical race here. The builder calls this immediately after saveDraft(), which
+   * is the moment a publish is most likely to be in flight against the same connector.
+   */
+  it('updateMetadata() does not revert a publish that lands mid-update', async () => {
+    const { service, store, defRepo } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Old title',
+      manifest: validManifest,
+    });
+
+    // The row as this call reads it: nothing published yet.
+    defRepo.findOne.mockResolvedValueOnce({ ...store.defs[0] });
+    // ...and the publish that lands before the update is written.
+    store.defs[0].activeVersionId = 'ver-1';
+
+    await service.updateMetadata('proj-1', def.id, { title: 'New title' });
+
+    expect(store.defs[0].title).toBe('New title');
+    expect(store.defs[0].activeVersionId).toBe('ver-1');
+  });
+
+  it('updateMetadata() leaves the row alone when the body carries nothing', async () => {
+    const { service, defRepo } = make();
+    const def = await service.create('proj-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Title',
+      manifest: validManifest,
+    });
+    defRepo.update.mockClear();
+
+    await service.updateMetadata('proj-1', def.id, {});
+
+    // TypeORM rejects an empty update outright, so this has to be skipped, not sent.
+    expect(defRepo.update).not.toHaveBeenCalled();
   });
 
   it('create() rejects an invalid name pattern', async () => {
@@ -202,34 +460,58 @@ describe('ConnectorDefinitionService', () => {
     expect(got.id).toBe(def.id);
   });
 
-  it('resolveManifest() returns the requested version manifest', async () => {
+  it('resolveManifest() returns the requested version manifest once it is published', async () => {
     const { service } = make();
     const def = await service.create('proj-1', 'u', {
       name: 'A',
       title: 'A',
       manifest: validManifest,
     });
+    await service.publish('proj-1', def.id);
     const m = await service.resolveManifest('proj-1', 'A', 1);
     expect(m).toEqual(validManifest);
-    void def;
   });
 
-  it('resolveManifest() without a version falls back to the latest version', async () => {
+  /**
+   * `resolveManifest` is the SPEC path: what it returns is rendered into the parameter
+   * schema the viewer-level GET :id/specification and :id/fields serve. A draft is an
+   * editor's work in progress -- its parameter names, labels and defaults are literally
+   * being typed -- so serving one there hands every project member a read of unfinished
+   * editor state through an endpoint that was never meant to expose the manifest.
+   */
+  it('resolveManifest() refuses a pinned version that is still a draft', async () => {
+    const { service } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: validManifest,
+    });
+    await service.publish('proj-1', def.id);
+    // v2: saved but never published.
+    await service.saveDraft('proj-1', def.id, {
+      ...validManifest,
+      baseUrl: 'https://api.v2.example.com',
+    });
+
+    await expect(service.resolveManifest('proj-1', 'A', 2)).rejects.toThrow(NotFoundException);
+    // The published version it supersedes still resolves.
+    expect(await service.resolveManifest('proj-1', 'A', 1)).toEqual(validManifest);
+  });
+
+  it('resolveManifest() without a version refuses a connector that has never published', async () => {
     const { service } = make();
     await service.create('proj-1', 'u', { name: 'A', title: 'A', manifest: validManifest });
-    const m = await service.resolveManifest('proj-1', 'A');
-    expect(m).toEqual(validManifest);
+    await expect(service.resolveManifest('proj-1', 'A')).rejects.toThrow(NotFoundException);
   });
 
-  it('resolveManifest() without a version prefers the activeVersionId', async () => {
+  it('resolveManifest() without a version serves the active version, not a newer draft', async () => {
     const { service, store } = make();
     const def = await service.create('proj-1', 'u', {
       name: 'A',
       title: 'A',
       manifest: validManifest,
     });
-    // Simulate a second version and point activeVersionId at version 1.
-    const v1 = store.versions[0];
+    await service.publish('proj-1', def.id);
     store.versions.push({
       id: 'ver-2',
       connectorDefinitionId: def.id,
@@ -237,7 +519,6 @@ describe('ConnectorDefinitionService', () => {
       manifest: { ...validManifest, baseUrl: 'https://api.v2.example.com' },
       status: 'draft',
     });
-    store.defs[0].activeVersionId = v1.id;
     const m = await service.resolveManifest('proj-1', 'A');
     expect(m).toEqual(validManifest); // active (v1), NOT the newer v2
   });
@@ -284,6 +565,30 @@ describe('ConnectorDefinitionService', () => {
     await expect(service.listVersions('proj-2', def.id)).rejects.toThrow(NotFoundException);
   });
 
+  /**
+   * The SHAPE of the projection only -- that the service asks for version metadata and not
+   * the manifest column. What a real database then leaves out is pinned against the real
+   * schema in connector-definition-tables.migration.spec.ts.
+   */
+  it('listVersions() asks for version metadata, not the manifests', async () => {
+    const { service, versionRepo } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: validManifest,
+    });
+    const versions = await service.listVersions('proj-1', def.id);
+
+    expect(versionRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.not.arrayContaining(['manifest']) })
+    );
+    expect(versions[0].manifest).toBeUndefined();
+    expect(versions[0]).toMatchObject({
+      version: 1,
+      status: ConnectorDefinitionVersionStatus.DRAFT,
+    });
+  });
+
   it('saveDraft() updates the open draft manifest', async () => {
     const { service, store } = make();
     const def = await service.create('proj-1', 'u', {
@@ -318,7 +623,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const published = await service.publish('proj-1', def.id);
+    const { version: published } = await service.publish('proj-1', def.id);
     expect(published.status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);
     expect(published.publishedAt).toBeInstanceOf(Date);
     const reloaded = store.defs.find(d => d.id === def.id);
@@ -345,6 +650,86 @@ describe('ConnectorDefinitionService', () => {
     });
     await service.publish('proj-1', def.id);
     await expect(service.publish('proj-1', def.id)).rejects.toThrow(BadRequestException);
+  });
+
+  /**
+   * The secret model leans on the author noticing these: nothing refuses a manifest that
+   * leaves a credential unprotected, because refusing on a heuristic would break working
+   * connectors. That makes the warning the whole mitigation -- and a mitigation delivered
+   * only to the backend logger does not exist for an author on managed cloud, who has no
+   * way to read it. So publish() has to hand them back to whoever called it.
+   */
+  describe('publish() returns the coverage warnings, not just logs them', () => {
+    const publishManifest = async (manifest: Record<string, unknown>) => {
+      const { service } = make();
+      const def = await service.create('proj-1', 'u', { name: 'A', title: 'A', manifest });
+      return service.publish('proj-1', def.id);
+    };
+
+    it('is quiet for a manifest with nothing to report', async () => {
+      const { warnings } = await publishManifest(validManifest);
+      expect(warnings).toEqual([]);
+    });
+
+    it('reports an "authentication" reference with no parameter to protect', async () => {
+      const { warnings } = await publishManifest({
+        ...validManifest,
+        authentication: {
+          type: 'bearer',
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: 'Bearer {{ parameters.Undeclared }}',
+          },
+        },
+      });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('Undeclared');
+      expect(warnings[0]).toContain('plain text');
+    });
+
+    it('reports a credential-looking parameter a node request interpolates unprotected', async () => {
+      const { warnings } = await publishManifest({
+        ...validManifest,
+        parameters: { ApiKey: { requiredType: 'string', label: 'API key' } },
+        nodes: {
+          items: {
+            fields: { id: { type: 'string' } },
+            request: {
+              method: 'GET',
+              path: '/items',
+              queryParameters: { api_key: '{{ parameters.ApiKey }}' },
+            },
+            recordSelector: { recordPath: [] },
+          },
+        },
+      });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('ApiKey');
+      expect(warnings[0]).toContain('SECRET');
+    });
+
+    /**
+     * The other half of the specification fix: a SECRET parameter's `default` no longer
+     * reaches the config form, so an author who put a working credential there has to be
+     * told -- otherwise their connector simply stops pre-filling with no explanation.
+     */
+    it('reports a SECRET parameter whose value the specification will withhold', async () => {
+      const { warnings } = await publishManifest({
+        ...validManifest,
+        parameters: {
+          Token: {
+            requiredType: 'string',
+            label: 'Token',
+            attributes: ['SECRET'],
+            default: 'ghp_REAL_CREDENTIAL',
+          },
+        },
+      });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('Token');
+      expect(warnings[0]).toContain('default');
+    });
   });
 
   it('softDelete() removes the definition for the project', async () => {
@@ -489,7 +874,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const published = await service.publish('proj-1', def.id);
+    const { version: published } = await service.publish('proj-1', def.id);
     // Reset activeVersionId to simulate it not being set (test the method independently)
     const storedDef = store.defs.find(d => d.id === def.id);
     storedDef.activeVersionId = null;
@@ -531,7 +916,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const v1 = await service.publish('proj-1', def.id);
+    const { version: v1 } = await service.publish('proj-1', def.id);
     // publish v2
     await service.saveDraft('proj-1', def.id, { ...validManifest, baseUrl: 'https://api.v2.com' });
     await service.publish('proj-1', def.id);
@@ -655,18 +1040,6 @@ describe('ConnectorDefinitionService', () => {
     });
   });
 
-  it('validateManifest() returns null for a valid manifest', () => {
-    const { service } = make();
-    expect(service.validateManifest(validManifest)).toBeNull();
-  });
-
-  it('validateManifest() returns an error string for an invalid manifest', () => {
-    const { service } = make();
-    const result = service.validateManifest({});
-    expect(typeof result).toBe('string');
-    expect(result).not.toBeNull();
-  });
-
   // ManifestParser marks every parameter a manifest interpolates into a credential
   // position of `authentication` as SECRET, which is what keeps a custom connector's
   // token out of `data_mart.definition` and out of the viewer-readable GET response.
@@ -700,7 +1073,7 @@ describe('ConnectorDefinitionService', () => {
         title: 'My Custom',
         manifest,
       });
-      const published = await service.publish('proj-1', def.id);
+      const { version: published } = await service.publish('proj-1', def.id);
       const messages = {
         warn: warn.mock.calls.map(c => String(c[0])),
         log: log.mock.calls.map(c => String(c[0])),

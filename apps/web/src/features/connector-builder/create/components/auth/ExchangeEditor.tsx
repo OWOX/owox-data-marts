@@ -12,6 +12,7 @@ import type {
   BuilderAuthentication,
   TokenExchangeSpec,
 } from '../../../shared/model/manifest.types';
+import { toDotPath } from '../../../shared/model/manifestPath';
 import { InfoLabel } from '../fields';
 
 export function ExchangeEditor({
@@ -31,13 +32,7 @@ export function ExchangeEditor({
   const base = [...basePath, 'exchange'] as (string | number)[];
 
   const setTokenPath = (text: string) => {
-    setPath(
-      [...base, 'tokenPath'],
-      text
-        .split('.')
-        .map(s => s.trim())
-        .filter(Boolean)
-    );
+    setPath([...base, 'tokenPath'], toDotPath(text));
   };
 
   return (

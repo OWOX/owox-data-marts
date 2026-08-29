@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { DataSource, QueryRunner, Repository, Table } from 'typeorm';
 import {
   addTransactionalDataSource,
@@ -521,20 +522,16 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
   });
 
   /**
-   * A soft-deleted connector keeps its name reserved, so a new connector can never collide
-   * with a tombstone. Only a real database can prove that. `withDeleted: true` is an
-   * instruction to the driver about which rows to hand back, and a repository double can at
-   * most agree with whatever its author believed the instruction meant -- pin the contract
-   * against a double and you are testing the double. Here the `deletedAt` column, the
-   * soft-delete UPDATE and the `withDeleted` lookup are all TypeORM's own, running on the
-   * schema the migration builds, so the row that comes back is the row production gets.
+   * Deleting a connector frees its name for a new one. Only a real database can prove it: the
+   * tombstoned row stays on disk under the same unique index as the live rows, so what decides
+   * whether the INSERT lands is the index, not the service's opinion of it. A double can only
+   * agree with whatever its author believed the index does.
    *
-   * Dropping `withDeleted: true` from assertNameAvailable() turns this red -- and red in a
-   * way only the real schema can show: the guard waves the name through and the unique
-   * index on (projectId, name), which counts tombstones too, rejects the INSERT instead.
-   * The caller gets a raw driver error rather than this endpoint's documented 400.
+   * This is also why the mechanism is a rename and not `withDeleted: false`. Waving the name
+   * through the guard while the tombstone still holds it in the index turns this red the
+   * hard way -- a raw driver error from the INSERT rather than the endpoint's documented 400.
    */
-  it('create() keeps the name of a soft-deleted connector reserved', async () => {
+  it('create() reuses the name of a soft-deleted connector', async () => {
     const definition = await service.create('project-1', 'user-1', {
       name: 'MyCustom',
       title: 'My Custom',
@@ -545,19 +542,72 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
 
     // Invisible to every ordinary read...
     await expect(definitionRepo.count()).resolves.toBe(0);
-    // ...but still on disk, which is the only reason the name is still taken.
+    // ...but still on disk, under a name no NAME_PATTERN-valid input can equal.
     await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(1);
+    const [tombstone] = await definitionRepo.find({ withDeleted: true });
+    expect(tombstone.name).toBe(`deleted:${definition.id}:MyCustom`);
+
+    const recreated = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Second Attempt',
+      manifest: VALID_MANIFEST,
+    });
+
+    expect(recreated.id).not.toBe(definition.id);
+    await expect(definitionRepo.count()).resolves.toBe(1);
+    await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(2);
+    await expect(versionRepo.count()).resolves.toBe(2);
+  });
+
+  /**
+   * The same name, deleted and recreated repeatedly, piles tombstones up under the unique
+   * index. Real schema because the index is the thing under test: keying each tombstone on
+   * its row's id is what keeps them distinct, and a fixed suffix would fail the second DELETE.
+   */
+  it('allows a name to be deleted and recreated repeatedly', async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const definition = await service.create('project-1', 'user-1', {
+        name: 'MyCustom',
+        title: `Attempt ${String(attempt)}`,
+        manifest: VALID_MANIFEST,
+      });
+      await service.softDelete('project-1', definition.id);
+    }
+
+    const live = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Survivor',
+      manifest: VALID_MANIFEST,
+    });
+
+    expect(live.name).toBe('MyCustom');
+    await expect(definitionRepo.count()).resolves.toBe(1);
+    await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(4);
+  });
+
+  /**
+   * Two LIVE connectors may never share a name -- a data mart resolves its connector by
+   * `connector.source.name`, so a duplicate is an unanswerable question about which row it
+   * means. Freeing deleted names must not weaken that, which is exactly the trap in widening
+   * the index to (projectId, name, deletedAt): NULLs compare distinct, so both live rows
+   * would sit under distinct keys and the INSERT would land.
+   */
+  it('still refuses a second live connector under one name', async () => {
+    await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'First',
+      manifest: VALID_MANIFEST,
+    });
 
     await expect(
       service.create('project-1', 'user-1', {
         name: 'MyCustom',
-        title: 'Second Attempt',
+        title: 'Second',
         manifest: VALID_MANIFEST,
       })
     ).rejects.toThrow(/already exists in this project/);
 
-    // And the refused create left nothing behind either.
-    await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(1);
+    await expect(definitionRepo.count()).resolves.toBe(1);
     await expect(versionRepo.count()).resolves.toBe(1);
   });
 
@@ -674,6 +724,221 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       });
       expect(definition.activeVersionId).toBe(versions[0].id);
     });
+  });
+
+  /**
+   * saveDraft() reads the latest version, edits that entity in memory and saves it back.
+   * Between the read and the write a publish can land -- MCP `connector_publish` runs
+   * saveDraft() then publish() on the same connector, and the builder autosaves from another
+   * tab -- and the entity the read produced still carries `status: draft, publishedAt: null`.
+   * TypeORM's save() diffs the loaded entity against the row and writes every column that
+   * differs, so those two travel along with the manifest and UNPUBLISH the version that was
+   * just released: every run then fails with "has no published version to run" until someone
+   * publishes again, and the connector's active version silently points at a draft.
+   *
+   * Only the real schema shows it. The write is one UPDATE whose column list is decided by
+   * TypeORM's change computer against the row on disk; a repository double just stores back
+   * whatever object it was handed, so it agrees with any implementation.
+   */
+  it('saveDraft() does not unpublish a version that was published while it was reading', async () => {
+    const definition = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'My Custom',
+      manifest: VALID_MANIFEST,
+    });
+
+    const readLatest = versionRepo.findOne.bind(versionRepo);
+    jest
+      .spyOn(versionRepo, 'findOne')
+      .mockImplementationOnce(async (options: Parameters<typeof readLatest>[0]) => {
+        const latest = await readLatest(options);
+        // The concurrent publish commits HERE: after saveDraft has read the draft, before it
+        // writes. Only the one-shot mock is intercepted, so publish() reads for real.
+        await service.publish('project-1', definition.id);
+        return latest;
+      });
+
+    await service.saveDraft('project-1', definition.id, {
+      ...VALID_MANIFEST,
+      baseUrl: 'https://api.v2.example.test',
+    });
+
+    const v1 = await versionRepo.findOneOrFail({
+      where: { connectorDefinitionId: definition.id, version: 1 },
+    });
+    expect(v1.status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);
+    expect(v1.publishedAt).not.toBeNull();
+    // ...and the released manifest is the one that was released, not the one being edited.
+    expect(v1.manifest).toEqual(VALID_MANIFEST);
+    await expect(
+      definitionRepo.findOneOrFail({ where: { id: definition.id } })
+    ).resolves.toMatchObject({ activeVersionId: v1.id });
+
+    // The author's save is not dropped either: it lands as the next draft, which is what
+    // saveDraft would have done had it read the state it wrote against.
+    const v2 = await versionRepo.findOneOrFail({
+      where: { connectorDefinitionId: definition.id, version: 2 },
+    });
+    expect(v2.status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    expect(v2.manifest).toMatchObject({ baseUrl: 'https://api.v2.example.test' });
+  });
+
+  /**
+   * The other half of the same race. Two saves that both read the latest version compute the
+   * same next number, and IDX_connector_definition_version_definitionId_version refuses the
+   * second INSERT -- the entity comment says as much, so the constraint is doing its job. What
+   * was missing is anything to catch it: the driver error escaped as a bare 500 on a request
+   * whose correct outcome is the one a serialized pair of saves would have produced.
+   */
+  it('saveDraft() recovers the serialized outcome when another save takes its version number', async () => {
+    const definition = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'My Custom',
+      manifest: VALID_MANIFEST,
+    });
+    // v1 published, so this save has to INSERT v2 rather than update an open draft.
+    await service.publish('project-1', definition.id);
+
+    const readLatest = versionRepo.findOne.bind(versionRepo);
+    jest
+      .spyOn(versionRepo, 'findOne')
+      .mockImplementationOnce(async (options: Parameters<typeof readLatest>[0]) => {
+        const latest = await readLatest(options);
+        // The competing save commits v2 here, so the number this call just computed is taken.
+        await versionRepo.save(
+          versionRepo.create({
+            connectorDefinitionId: definition.id,
+            version: 2,
+            manifest: { ...VALID_MANIFEST, baseUrl: 'https://api.other.example.test' },
+            status: ConnectorDefinitionVersionStatus.DRAFT,
+          })
+        );
+        return latest;
+      });
+
+    const saved = await service.saveDraft('project-1', definition.id, {
+      ...VALID_MANIFEST,
+      baseUrl: 'https://api.mine.example.test',
+    });
+
+    expect(saved.version).toBe(2);
+    await expect(versionRepo.count()).resolves.toBe(2);
+    const v2 = await versionRepo.findOneOrFail({
+      where: { connectorDefinitionId: definition.id, version: 2 },
+    });
+    expect(v2.status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    expect(v2.manifest).toMatchObject({ baseUrl: 'https://api.mine.example.test' });
+  });
+
+  /**
+   * The retry is bounded, and what it does when the bound is reached still has to be an
+   * answer the caller can read. Every read here is stale, so every attempt collides.
+   */
+  it('saveDraft() reports a conflict, not a driver error, when the collision never clears', async () => {
+    const definition = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'My Custom',
+      manifest: VALID_MANIFEST,
+    });
+    await service.publish('project-1', definition.id);
+    await versionRepo.save(
+      versionRepo.create({
+        connectorDefinitionId: definition.id,
+        version: 2,
+        manifest: VALID_MANIFEST,
+        status: ConnectorDefinitionVersionStatus.DRAFT,
+      })
+    );
+    const stale = await versionRepo.findOneOrFail({
+      where: { connectorDefinitionId: definition.id, version: 1 },
+    });
+    jest.spyOn(versionRepo, 'findOne').mockResolvedValue(stale);
+
+    await expect(service.saveDraft('project-1', definition.id, VALID_MANIFEST)).rejects.toThrow(
+      ConflictException
+    );
+  });
+
+  /**
+   * assertNameAvailable() reads before it writes, so the name it cleared can be taken before
+   * the INSERT reaches the index. sqlite runs on one connection, so this stages the competing
+   * INSERT inside the same transaction: what is being pinned is the translation of the real
+   * unique-index error, and the index does not care which transaction filled the slot.
+   */
+  it('create() reports a name the unique index refuses as a conflict, not a driver error', async () => {
+    const insert = definitionRepo.save.bind(definitionRepo);
+    jest
+      .spyOn(definitionRepo, 'save')
+      .mockImplementationOnce(async (entity: Parameters<typeof insert>[0]) => {
+        await insert(
+          definitionRepo.create({ projectId: 'project-1', name: 'MyCustom', title: 'Winner' })
+        );
+        return insert(entity);
+      });
+
+    const losing = service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'Loser',
+      manifest: VALID_MANIFEST,
+    });
+    await expect(losing).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  /**
+   * The app layer and the unique index disagree about case unless the app layer is the
+   * stricter of the two. sqlite compares varchar with BINARY collation, so it accepts
+   * `Report` alongside `report`; MySQL's default collation is case-insensitive and refuses
+   * it. Same code, same manifest, opposite outcome by environment -- and the name a
+   * developer proved works locally is the one production rejects.
+   *
+   * Refusing in the app layer makes the guard stricter than either collation, so a name that
+   * passes it can never reach the index and fail.
+   */
+  it('create() refuses a name that differs from an existing one only in case', async () => {
+    await service.create('project-1', 'user-1', {
+      name: 'Report',
+      title: 'Report',
+      manifest: VALID_MANIFEST,
+    });
+
+    await expect(
+      service.create('project-1', 'user-1', {
+        name: 'report',
+        title: 'Report again',
+        manifest: VALID_MANIFEST,
+      })
+    ).rejects.toThrow(/already exists in this project/);
+    await expect(definitionRepo.count()).resolves.toBe(1);
+  });
+
+  /**
+   * Both callers of listVersions() render version metadata only -- GET :id builds the
+   * version-pinning list, MCP connector_versions the same list with an isActive flag. Loading
+   * the rows whole reads every manifest on the connector, up to MAX_MANIFEST_SIZE_BYTES
+   * (120 KiB) each, to produce four scalar columns.
+   *
+   * Asserted on the real schema because `select` is an instruction to the driver: a
+   * repository double returns whatever it stored regardless.
+   */
+  it('listVersions() answers from metadata without hydrating any manifest', async () => {
+    const definition = await service.create('project-1', 'user-1', {
+      name: 'MyCustom',
+      title: 'My Custom',
+      manifest: VALID_MANIFEST,
+    });
+    await service.publish('project-1', definition.id);
+    await service.saveDraft('project-1', definition.id, VALID_MANIFEST);
+
+    const versions = await service.listVersions('project-1', definition.id);
+
+    expect(versions.map(row => row.version)).toEqual([1, 2]);
+    expect(versions.map(row => row.manifest)).toEqual([undefined, undefined]);
+    // Everything both callers actually render is still there.
+    expect(versions[0].id).toEqual(expect.any(String));
+    expect(versions[0].status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);
+    expect(versions[0].publishedAt).toBeInstanceOf(Date);
+    expect(versions[1].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    expect(versions[1].publishedAt).toBeNull();
   });
 
   it('publish() rolls the version back to draft when activating it fails', async () => {

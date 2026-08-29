@@ -122,11 +122,13 @@ describe('McpConnectorsFacadeImpl.getConnectorDetails manifest', () => {
     ({
       resolveConnectorSpecification: jest.fn().mockResolvedValue([]),
       resolveConnectorFieldsSchema: jest.fn().mockResolvedValue([]),
+      getSpecificationFromManifest: jest.fn().mockReturnValue([]),
+      getFieldsSchemaFromManifest: jest.fn().mockReturnValue([]),
     }) as unknown as ConnectorService;
 
   it('returns the manifest for a custom connector', async () => {
     const ds = {
-      tryResolveManifest: jest.fn().mockResolvedValue({ name: 'CocCocAds', version: '1.0' }),
+      resolveAuthoredManifest: jest.fn().mockResolvedValue({ name: 'CocCocAds', version: '1.0' }),
       listByProject: jest.fn().mockResolvedValue([{ id: 'def-cc', name: 'CocCocAds' }]),
     } as unknown as ConnectorDefinitionService;
     const facade = new McpConnectorsFacadeImpl(cs(), ds);
@@ -199,10 +201,10 @@ describe('McpConnectorsFacadeImpl.getConnectorDetails manifest', () => {
   });
 
   it('passes the requested version through to the manifest lookup', async () => {
-    const tryResolveManifest = jest.fn().mockResolvedValue({});
+    const resolveAuthoredManifest = jest.fn().mockResolvedValue({});
     const ds = {
-      tryResolveManifest,
-      listByProject: jest.fn().mockResolvedValue([]),
+      resolveAuthoredManifest,
+      listByProject: jest.fn().mockResolvedValue([{ id: 'def-cc', name: 'CocCocAds' }]),
     } as unknown as ConnectorDefinitionService;
     const facade = new McpConnectorsFacadeImpl(cs(), ds);
 
@@ -214,6 +216,157 @@ describe('McpConnectorsFacadeImpl.getConnectorDetails manifest', () => {
       version: 3,
     });
 
-    expect(tryResolveManifest).toHaveBeenCalledWith('project-1', 'CocCocAds', 3);
+    expect(resolveAuthoredManifest).toHaveBeenCalledWith('project-1', 'CocCocAds', 3);
+  });
+});
+
+/**
+ * `connector_details` is the read half of the MCP authoring loop, and connector_publish's own
+ * description sends callers here first ("Read this before updating a connector"). A connector
+ * an assistant just created has ONE version and it is a draft -- so routing this read through
+ * the run-path resolver, which serves published versions only, made the documented first step
+ * fail with "has no published version to run" on exactly the connector the caller was told to
+ * read.
+ *
+ * The fix is a separate resolver, not a relaxed one: the viewer-facing REST /specification and
+ * /fields still refuse drafts, and the split here is by AUDIENCE. An editor reading a
+ * connector they can already read verbatim through GET :id/versions/:version (and whose
+ * manifest this response gates on the same role) is the author; a viewer is not, and takes the
+ * published-only path unchanged.
+ */
+describe('McpConnectorsFacadeImpl.getConnectorDetails on a draft-only connector', () => {
+  const DRAFT_MANIFEST = { name: 'MyApi', version: '1.0', baseUrl: 'https://api.example.test' };
+
+  /** The published-only resolvers, refusing exactly as they do for a draft-only connector. */
+  const publishedOnlyConnectorService = () =>
+    ({
+      resolveConnectorSpecification: jest
+        .fn()
+        .mockRejectedValue(new Error("Custom connector 'MyApi' has no published version to run")),
+      resolveConnectorFieldsSchema: jest
+        .fn()
+        .mockRejectedValue(new Error("Custom connector 'MyApi' has no published version to run")),
+      getSpecificationFromManifest: jest.fn().mockReturnValue([{ name: 'Token' }]),
+      getFieldsSchemaFromManifest: jest.fn().mockReturnValue([{ name: 'items' }]),
+    }) as unknown as ConnectorService;
+
+  const draftOnlyDefinitionService = () =>
+    ({
+      listByProject: jest.fn().mockResolvedValue([{ id: 'def-1', name: 'MyApi' }]),
+      resolveAuthoredManifest: jest.fn().mockResolvedValue(DRAFT_MANIFEST),
+      tryResolveManifest: jest
+        .fn()
+        .mockRejectedValue(new Error("Custom connector 'MyApi' has no published version to run")),
+    }) as unknown as ConnectorDefinitionService;
+
+  it('answers an author with the draft the builder just saved', async () => {
+    const facade = new McpConnectorsFacadeImpl(
+      publishedOnlyConnectorService(),
+      draftOnlyDefinitionService()
+    );
+
+    await expect(
+      facade.getConnectorDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        connector: 'MyApi',
+      })
+    ).resolves.toEqual({
+      name: 'MyApi',
+      connectorId: 'def-1',
+      configFields: [{ name: 'Token' }],
+      nodes: [{ name: 'items' }],
+      manifest: DRAFT_MANIFEST,
+    });
+  });
+
+  /**
+   * The point of the split. A viewer asking about the same draft-only connector gets the
+   * published-only answer they got before -- the draft is not readable through this tool at
+   * any level, derived or verbatim.
+   */
+  it('leaves the viewer on the published-only path', async () => {
+    const connectorService = publishedOnlyConnectorService();
+    const definitionService = draftOnlyDefinitionService();
+    const facade = new McpConnectorsFacadeImpl(connectorService, definitionService);
+
+    await expect(
+      facade.getConnectorDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        connector: 'MyApi',
+      })
+    ).rejects.toThrow(/no published version/);
+    expect(definitionService.resolveAuthoredManifest).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A draft is allowed to be incomplete -- that is what a draft IS, and the builder saves one
+   * on every keystroke batch. Refusing to answer because the parser cannot derive a
+   * specification from it would put the caller back where finding #20 started: told to read
+   * the connector before fixing it, and unable to read it. The manifest is the part that is
+   * always available, so it is returned with empty derived halves rather than not at all.
+   * publish() remains the authority that refuses the manifest, with the parser's message.
+   */
+  it('still returns an unparseable draft, with nothing derived to show for it', async () => {
+    const broken = { nodes: 'not an object' };
+    const connectorService = {
+      resolveConnectorSpecification: jest.fn(),
+      resolveConnectorFieldsSchema: jest.fn(),
+      getSpecificationFromManifest: jest.fn(() => {
+        throw new Error('Invalid declarative manifest: nodes must be an object');
+      }),
+      getFieldsSchemaFromManifest: jest.fn(() => {
+        throw new Error('Invalid declarative manifest: nodes must be an object');
+      }),
+    } as unknown as ConnectorService;
+    const definitionService = {
+      listByProject: jest.fn().mockResolvedValue([{ id: 'def-1', name: 'MyApi' }]),
+      resolveAuthoredManifest: jest.fn().mockResolvedValue(broken),
+    } as unknown as ConnectorDefinitionService;
+    const facade = new McpConnectorsFacadeImpl(connectorService, definitionService);
+
+    await expect(
+      facade.getConnectorDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['admin'],
+        connector: 'MyApi',
+      })
+    ).resolves.toEqual({
+      name: 'MyApi',
+      connectorId: 'def-1',
+      configFields: [],
+      nodes: [],
+      manifest: broken,
+    });
+  });
+
+  /**
+   * A bundled connector has no ConnectorDefinition row, so there is no authored version to
+   * prefer and the editor takes the same path a viewer does.
+   */
+  it('leaves a bundled connector on the bundled path even for an editor', async () => {
+    const connectorService = {
+      resolveConnectorSpecification: jest.fn().mockResolvedValue([{ name: 'apiKey' }]),
+      resolveConnectorFieldsSchema: jest.fn().mockResolvedValue([{ name: 'Repos' }]),
+    } as unknown as ConnectorService;
+    const definitionService = {
+      listByProject: jest.fn().mockResolvedValue([]),
+      resolveAuthoredManifest: jest.fn(),
+    } as unknown as ConnectorDefinitionService;
+    const facade = new McpConnectorsFacadeImpl(connectorService, definitionService);
+
+    await expect(
+      facade.getConnectorDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        connector: 'GitHub',
+      })
+    ).resolves.toMatchObject({ connectorId: null, manifest: null });
+    expect(definitionService.resolveAuthoredManifest).not.toHaveBeenCalled();
   });
 });

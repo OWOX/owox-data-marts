@@ -13,7 +13,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
 import { asText } from '../../shared/model/asText';
 import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-api.service';
-import { extractApiError } from '../../../../app/api/extract-api-error.util';
+import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 
@@ -31,15 +31,14 @@ type ResultView = 'table' | 'json' | 'logs';
  * same way the shared toast does.
  */
 export function testFailureMessage(error: unknown): string {
-  const serverMessage = extractApiError(error).message?.trim();
-  if (serverMessage) return serverMessage;
-  const thrownMessage = error instanceof Error ? error.message.trim() : '';
-  return thrownMessage || 'Test failed';
+  return apiErrorMessage(error, 'Test failed');
 }
 
 /** The records the dock should render: the cast rows when present, otherwise the raw
- * sample — so a node with no declared fields still shows output for field discovery. */
-export function displayRecords(result: ConnectorTestResultDto): Record<string, unknown>[] {
+ * sample — so a node with no declared fields still shows output for field discovery.
+ * Typed nullable because a raw sample is the source's own JSON: `[{...}, null]` is a
+ * shape a real API returns, and the DTO's non-null row type is a promise nothing keeps. */
+export function displayRecords(result: ConnectorTestResultDto): (Record<string, unknown> | null)[] {
   return result.rows.length ? result.rows : (result.sample ?? []);
 }
 
@@ -480,7 +479,10 @@ function TableView({ result }: { result: ConnectorTestResultDto }) {
                   key={c}
                   className={cn('max-w-[260px] py-2 align-middle', j === 0 ? 'pr-2 pl-6' : 'px-3')}
                 >
-                  <Cell value={primitive ? (row as unknown) : row[c]} mono={j === 0} />
+                  {/* `row?.` for the null entries deriveColumns already allows for: the
+                      dock has no error boundary of its own, so a throw here unmounts the
+                      whole builder and the author's unsaved edits with it. */}
+                  <Cell value={primitive ? (row as unknown) : row?.[c]} mono={j === 0} />
                 </td>
               ))}
             </tr>

@@ -19,6 +19,13 @@
 //
 // A dynamic import is not at the start of a line, so the stripper leaves it
 // alone, and source and bundle now execute the exact same path.
+//
+// `redactUrl` is a different case and a STATIC import is correct for it: it is a
+// Core file, so the bundler concatenates its (hoisted) declaration into the same
+// scope and stripping this line leaves the call resolving fine — the same way
+// every other Declarative file reaches Core symbols.
+import { redactUrl } from '../AbstractSource.js';
+
 let dnsLookupPromise;
 
 async function defaultLookup(host) {
@@ -183,7 +190,12 @@ export class SsrfGuard {
     try {
       url = new URL(rawUrl);
     } catch {
-      throw new Error(`SsrfGuard: invalid URL "${rawUrl}"`);
+      // Redacted: a rejection here is thrown, and a thrown error is persisted to
+      // viewer-readable run history exactly like a log line. The string may be a
+      // credential-bearing URL — `authentication.inject.into: "query"` puts the
+      // credential in the query string — so only the unparsable origin+path part
+      // is echoed back, which is what identifies the offending value anyway.
+      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl)}"`);
     }
 
     const allowLocal = SsrfGuard._allowLocalEgress();
@@ -218,7 +230,11 @@ export class SsrfGuard {
     try {
       url = new URL(rawUrl);
     } catch {
-      throw new Error(`SsrfGuard: invalid URL "${rawUrl}"`);
+      // Redacted for the same reason as assertAllowed, and this is the likelier
+      // of the two to see a secret: the only caller passes a URL taken straight
+      // out of an upstream response (AsyncRetriever's `poll.resultUrlPath`),
+      // which is typically a SIGNED download link.
+      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl)}"`);
     }
     if (SsrfGuard._allowLocalEgress()) return;
     if (url.protocol !== 'https:') {

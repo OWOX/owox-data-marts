@@ -19,6 +19,10 @@ import {
  *   tokenExchange it issues a token (POST exchange.body -> exchange.url),
  *   reads exchange.tokenPath, caches it for ttlSeconds, and writes it into
  *   scope.auth.token so inject.format ("Bearer {{ auth.token }}") resolves.
+ *   Tokens are cached in options.tokenCache — a Map the HOST owns, so the cache
+ *   survives the per-fetchData lifetime of this object — under a key derived
+ *   from the rendered token request (_tokenCacheKey), which is what keeps two
+ *   accounts from ever sharing one token.
  * - oauth2: form-encoded refresh_token/client_credentials grant against tokenUrl;
  *   caches by expires_in (60s skew), falling back to config.ttlSeconds or a
  *   conservative default when the provider omits expires_in (RFC 6749 §5.1
@@ -56,7 +60,20 @@ export class Authenticator {
     // refresh token. Omitted (tests, bundled callers) = rotation is not emitted.
     this.onCredentialsUpdate = options.onCredentialsUpdate || null;
     this._token = null;
-    this._tokenExpiresAt = 0;
+    // Access-token cache. The host passes one in (DeclarativeSource creates a
+    // single Map per run) so it OUTLIVES this instance: an Authenticator is
+    // built per fetchData — i.e. per node, per account, per date slice — so a
+    // purely private cache is thrown away before it can ever be reused, and a
+    // 365-day x 10-account x 2-node incremental backfill POSTs the token
+    // endpoint ~7300 times where roughly one call per hour would do. Falls back
+    // to a private Map so a standalone Authenticator (bundled callers, unit
+    // tests) keeps exactly its previous single-instance behaviour.
+    //
+    // Sharing is only safe because entries are keyed by the fully RENDERED token
+    // request — see _tokenCacheKey. Sub-authenticators of a `selective` config
+    // are handed the same Map on purpose: their URLs and bodies differ, so their
+    // keys do too.
+    this._tokenCache = options.tokenCache instanceof Map ? options.tokenCache : new Map();
     // A refresh token rotated by THIS Authenticator instance; wins over the
     // host-persisted one. Its reuse is bounded to a single node's fetch, NOT the
     // whole run: DeclarativeSource constructs a fresh Authenticator per fetchData
@@ -101,6 +118,43 @@ export class Authenticator {
   }
 
   /**
+   * Cache identity of a token request: the auth strategy, the endpoint, and every
+   * RENDERED value that goes into the request body. Two prepare() calls share a
+   * cached access token only when they would have issued a byte-identical POST.
+   *
+   * That is the entire reason this cache may be shared across fetchData calls.
+   * Token requests routinely template `account.id`, `dateWindow` or a parameter,
+   * so any coarser key — the token URL, the auth type, the config object — would
+   * hand ONE ACCOUNT'S ACCESS TOKEN to another account's requests, which is a
+   * far worse bug than the redundant POSTs it set out to remove. Rendering first
+   * and keying on the result makes that impossible by construction: a request
+   * that varies per account keys per account, and a request that does not vary
+   * is, by definition, the same credential being asked for twice.
+   *
+   * Rendering therefore has to happen BEFORE the cache lookup, not just on a
+   * miss. It is string interpolation over a small object — far cheaper than the
+   * HTTP round trip it saves.
+   *
+   * JSON.stringify is property-order sensitive, which is fine here: every body
+   * for a given key is built from the same config object literal, so its
+   * property order is fixed.
+   */
+  _tokenCacheKey(type, url, body) {
+    return JSON.stringify([type, url, body]);
+  }
+
+  /** @returns {string|undefined} the cached token for `key`, if still in its TTL */
+  _readCachedToken(key, now) {
+    const hit = this._tokenCache.get(key);
+    return hit && now() < hit.expiresAt ? hit.token : undefined;
+  }
+
+  _storeToken(key, token, expiresAt) {
+    this._token = token;
+    this._tokenCache.set(key, { token, expiresAt });
+  }
+
+  /**
    * Shared token-endpoint call: threads a per-hop validator so a redirect on the
    * token exchange cannot pivot the request elsewhere, issues the request, and
    * parses the JSON body. Callers own the pre-check, body encoding, expiry and
@@ -131,12 +185,16 @@ export class Authenticator {
       await this.ssrfGuard.assertPublicHttps(ex.url);
     }
 
-    if (this._token && now() < this._tokenExpiresAt) {
+    const body = this.templateEngine ? this._renderDeep(ex.body, scope) : ex.body;
+    const key = this._tokenCacheKey('tokenExchange', ex.url, body);
+
+    const cached = this._readCachedToken(key, now);
+    if (cached !== undefined) {
+      this._token = cached;
       this._writeToken(scope);
       return;
     }
 
-    const body = this.templateEngine ? this._renderDeep(ex.body, scope) : ex.body;
     const json = await this._postToken(
       ex.url,
       {
@@ -150,8 +208,7 @@ export class Authenticator {
     if (token === undefined || token === null) {
       throw new Error(`Authenticator: token not found at exchange.tokenPath`);
     }
-    this._token = token;
-    this._tokenExpiresAt = now() + (Number(ex.ttlSeconds) || 0) * 1000;
+    this._storeToken(key, token, now() + (Number(ex.ttlSeconds) || 0) * 1000);
     this._writeToken(scope);
   }
 
@@ -162,11 +219,6 @@ export class Authenticator {
 
     if (this.ssrfGuard) {
       await this.ssrfGuard.assertPublicHttps(c.tokenUrl);
-    }
-
-    if (this._token && now() < this._tokenExpiresAt) {
-      this._writeToken(scope);
-      return;
     }
 
     const render = v => (v == null ? undefined : this.templateEngine.render(String(v), scope));
@@ -181,6 +233,25 @@ export class Authenticator {
       grantType === 'refresh_token'
         ? this._refreshTokenCandidates(scope, render(c.refreshToken))
         : [null];
+    const keyFor = refreshToken =>
+      this._tokenCacheKey(
+        'oauth2',
+        c.tokenUrl,
+        refreshToken ? { ...base, refresh_token: refreshToken } : base
+      );
+
+    // Every candidate is a refresh token for the SAME credential set (the
+    // current one and the originally configured fallback), so a hit on either is
+    // this caller's own token — never another account's, whose rendered `base`
+    // or refresh token would differ and so key differently.
+    for (const refreshToken of candidates) {
+      const cached = this._readCachedToken(keyFor(refreshToken), now);
+      if (cached !== undefined) {
+        this._token = cached;
+        this._writeToken(scope);
+        return;
+      }
+    }
 
     for (let i = 0; i < candidates.length; i++) {
       const refreshToken = candidates[i];
@@ -202,7 +273,6 @@ export class Authenticator {
           throw new Error('Authenticator: oauth2 response has no access_token');
         }
 
-        this._token = json.access_token;
         const expiresIn = Number(json.expires_in);
         const ttlSeconds =
           Number.isFinite(expiresIn) && expiresIn > 0
@@ -210,12 +280,21 @@ export class Authenticator {
             : Number.isFinite(Number(this.config.ttlSeconds)) && Number(this.config.ttlSeconds) > 0
               ? Number(this.config.ttlSeconds)
               : OAUTH2_DEFAULT_TTL_SECONDS;
-        this._tokenExpiresAt = now() + ttlSeconds * 1000;
+        const expiresAt = now() + ttlSeconds * 1000;
+        this._storeToken(keyFor(refreshToken), json.access_token, expiresAt);
 
         // The provider rotated the refresh token: reuse it for the rest of this
         // run and report it so the host persists it for the next one.
         if (json.refresh_token && json.refresh_token !== refreshToken) {
           this._rotatedRefreshToken = json.refresh_token;
+          // Also file the still-valid access token under the key the NEXT
+          // prepare will compute. That one reads the rotated token back out of
+          // scope.parameters.GeneratedRefreshToken, so it would key on
+          // `refresh_token: <rotated>` and miss — meaning a provider that
+          // rotates on every refresh would defeat the cache entirely and keep
+          // re-POSTing. Same credential set, same token: only the name it is
+          // filed under changes.
+          this._storeToken(keyFor(json.refresh_token), json.access_token, expiresAt);
           if (this.onCredentialsUpdate) {
             this.onCredentialsUpdate({
               [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: json.refresh_token,

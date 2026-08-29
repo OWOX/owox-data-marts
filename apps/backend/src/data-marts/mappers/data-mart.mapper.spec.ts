@@ -589,4 +589,139 @@ describe('DataMartMapper', () => {
       expect(response.runs[0].definitionRun).toBeNull();
     });
   });
+
+  describe('run history masking of a custom connector definition', () => {
+    // A custom connector's specification lives in the project, not in the bundle, so it
+    // only resolves when the caller's project id is supplied. Without it the lookup falls
+    // to the bundled-only path, throws NotFound, and ConnectorSecretService fails closed by
+    // masking EVERY configuration value — which in run history means dates, account ids and
+    // node params all come back as `**********`, plus a logger warning per run per page.
+    const SECRET_MASK = '**********';
+    const maskEveryValue = (definition: Record<string, never>) => {
+      const source = (definition as never as ConnectorDefinitionShape).connector.source;
+      return {
+        connector: {
+          ...(definition as never as ConnectorDefinitionShape).connector,
+          source: {
+            ...source,
+            configuration: source.configuration.map(item =>
+              Object.fromEntries(
+                Object.entries(item).map(([key, value]) => [
+                  key,
+                  key.startsWith('_') ? value : SECRET_MASK,
+                ])
+              )
+            ),
+          },
+        },
+      };
+    };
+
+    interface ConnectorDefinitionShape {
+      connector: {
+        source: {
+          name: string;
+          version?: number;
+          node: string;
+          fields: string[];
+          configuration: Array<Record<string, unknown>>;
+        };
+        storage: { fullyQualifiedName: string };
+      };
+    }
+
+    const createMapper = async () => {
+      const mask = jest.fn(
+        async (projectId: string | undefined, definition: Record<string, never>) =>
+          projectId === undefined ? maskEveryValue(definition) : definition
+      );
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          DataMartMapper,
+          {
+            provide: DataStorageMapper,
+            useValue: {
+              toDomainDto: jest.fn().mockReturnValue({}),
+              toApiResponse: jest.fn().mockResolvedValue({}),
+            },
+          },
+          { provide: ConnectorSecretService, useValue: { mask } },
+        ],
+      }).compile();
+
+      return { mapper: module.get<DataMartMapper>(DataMartMapper), mask };
+    };
+
+    const definitionRun = {
+      connector: {
+        source: {
+          name: 'MyCustomConnector',
+          version: 3,
+          node: 'campaigns',
+          fields: ['id'],
+          configuration: [{ _id: 'cfg-1', AccountId: '12345', StartDate: '2026-01-01' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+
+    const runEntity = () =>
+      ({
+        id: 'run-1',
+        status: 'SUCCESS',
+        type: DataMartRunType.CONNECTOR,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun,
+        createdAt: new Date('2026-08-01T00:00:00Z'),
+      }) as unknown as DataMartRunEntity;
+
+    const configurationOf = (definition: unknown) =>
+      (definition as ConnectorDefinitionShape).connector.source.configuration[0];
+
+    it('resolves the run definition specification within the requesting project', async () => {
+      const { mapper: scopedMapper, mask } = await createMapper();
+
+      const list = await scopedMapper.toRunsResponse(
+        [scopedMapper.toDataMartRunDto(runEntity())],
+        'proj-1'
+      );
+      const detail = await scopedMapper.toRunDetailResponse(
+        scopedMapper.toDataMartRunDto(runEntity()),
+        'proj-1'
+      );
+
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
+      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything());
+      // Non-secret configuration survives, exactly as it does on GET /data-marts/:id.
+      expect(configurationOf(list.runs[0].definitionRun)).toMatchObject({
+        AccountId: '12345',
+        StartDate: '2026-01-01',
+      });
+      expect(configurationOf(detail.definitionRun)).toMatchObject({
+        AccountId: '12345',
+        StartDate: '2026-01-01',
+      });
+    });
+
+    it('resolves the specification for the project-wide run list too', async () => {
+      const { mapper: scopedMapper, mask } = await createMapper();
+
+      const response = await scopedMapper.toProjectRunsResponse(
+        [
+          {
+            run: scopedMapper.toDataMartRunDto(runEntity()),
+            dataMart: { id: 'dm-1', title: 'Data Mart' },
+          },
+        ],
+        'proj-1'
+      );
+
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
+      expect(configurationOf(response.runs[0].definitionRun)).toMatchObject({
+        AccountId: '12345',
+        StartDate: '2026-01-01',
+      });
+    });
+  });
 });

@@ -7,11 +7,13 @@ import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useConnector() {
   const { state, dispatch } = useConnectorContext();
+  const specificationRequestIdRef = useRef(0);
   const fieldsRequestIdRef = useRef(0);
   const previewAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
+      specificationRequestIdRef.current += 1;
       fieldsRequestIdRef.current += 1;
       const activePreview = previewAbortControllerRef.current;
       previewAbortControllerRef.current = null;
@@ -49,6 +51,14 @@ export function useConnector() {
 
   const fetchConnectorSpecification = useCallback(
     async (connector: ConnectorListItem) => {
+      // Same stale-response guard as fetchConnectorFields below: overlapping requests
+      // resolve in arbitrary order, so only the newest one may write to the shared
+      // context. Without it the specification is last-response-wins, and a superseded
+      // version's parameters can end up rendered against a different pinned version.
+      // The cleanup effect above bumps the id too, so a response that lands after the
+      // consumer unmounted no longer writes into the still-mounted provider.
+      const requestId = specificationRequestIdRef.current + 1;
+      specificationRequestIdRef.current = requestId;
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_START });
       try {
         const connectorApiService = new ConnectorApiService();
@@ -59,11 +69,13 @@ export function useConnector() {
                 connector.version
               )
             : await connectorApiService.getConnectorSpecification(connector.name);
+        if (requestId !== specificationRequestIdRef.current) return;
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_SUCCESS,
           payload: response,
         });
       } catch (error) {
+        if (requestId !== specificationRequestIdRef.current) return;
         const message = error instanceof Error ? error.message : 'Unknown error';
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_ERROR,

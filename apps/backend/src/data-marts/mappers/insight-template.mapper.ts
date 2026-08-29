@@ -81,7 +81,10 @@ export class InsightTemplateMapper {
     );
   }
 
-  async toResponse(dto: InsightTemplateDto): Promise<InsightTemplateResponseApiDto> {
+  async toResponse(
+    dto: InsightTemplateDto,
+    projectId: string
+  ): Promise<InsightTemplateResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
@@ -93,7 +96,7 @@ export class InsightTemplateMapper {
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
       lastManualDataMartRun: dto.lastManualDataMartRun
-        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun)
+        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun, projectId)
         : null,
       createdByUser: dto.createdByUser,
     };

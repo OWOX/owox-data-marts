@@ -4,6 +4,7 @@ import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitio
 import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { Core } from '@owox/connectors';
+import { castError } from '@owox/internal-helpers';
 
 export const SECRET_MASK = '**********' as const;
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
@@ -655,7 +656,7 @@ export class ConnectorSecretService {
     } catch (error) {
       this.logger.warn(
         `Failed to resolve specification for connector "${definition.connector.source.name}" while masking; masking every configuration value`,
-        error instanceof Error ? error.stack : String(error)
+        castError(error).stack
       );
       return this.maskWithoutSpecification(definition);
     }

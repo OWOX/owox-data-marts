@@ -93,6 +93,15 @@ export class DeclarativeSource extends AbstractSource {
     this._sampleEmitted = false;
     this._activeErrorHandler = null;
     this._pendingBackoff = null;
+    // Run-scoped access-token cache, handed to every Authenticator this source
+    // builds. It has to live HERE rather than on the Authenticator because
+    // fetchData constructs a fresh Authenticator per node x account x date
+    // slice: a per-instance cache never survives to a second use, so an
+    // incremental backfill re-authenticated on every slice. Entries are keyed by
+    // the rendered token request (Authenticator._tokenCacheKey), so accounts
+    // with different credentials cannot see each other's tokens; one Map per
+    // source instance additionally means it cannot outlive the run.
+    this._tokenCache = new Map();
   }
 
   _compileNodes(nodes = {}) {
@@ -185,6 +194,11 @@ export class DeclarativeSource extends AbstractSource {
       this.templateEngine,
       this.ssrfGuard,
       {
+        // Survives this call: the Authenticator itself does not (a fresh one is
+        // built per fetchData), so the ACCESS token cache is owned by the source
+        // and passed down. See the constructor for why it is keyed, not shared
+        // blindly.
+        tokenCache: this._tokenCache,
         // The Authenticator stays context-free: it reports a provider-rotated
         // refresh token here. A fresh Authenticator is constructed on every
         // fetchData call (this line runs per-node), so the token must ALSO be

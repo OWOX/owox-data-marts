@@ -336,12 +336,27 @@ export class ManifestParser {
       // null and every real row is lost with no error at all. The array form is what
       // the manifest reference documents for all three of these.
       //
+      // The async job paths below are the same mixup with a different, more
+      // expensive failure: they go to getPath, whose `for (const k of path)`
+      // iterates a STRING one character at a time, so `"data.status"` reads
+      // `body.d.a.t.a` and yields undefined. A dot-string `statusPath` then never
+      // equals readyValue OR failedValue, and the poll loop runs its full
+      // maxAttempts — 180 attempts at up to 15s apart is ~44 minutes holding a
+      // concurrency slot — before failing with "job did not become ready", which
+      // points at the upstream API rather than at the manifest. `jobIdPath` and
+      // `resultUrlPath` fail faster but just as misleadingly ("job id not found").
+      // The reference calls this dot-string-vs-array mixup a common, silent bug;
+      // these were the only paths in the grammar not checked for it.
+      //
       // Segments are deliberately not required to be strings: a positional index
       // into an array-shaped row (`[[ts, price], ...]`) is a legitimate segment.
       for (const [where, value] of [
         ['recordSelector.recordPath', node.recordSelector?.recordPath],
         ['retriever.download.recordPath', node.retriever?.download?.recordPath],
         ['partitionRouter.parent.recordPath', node.partitionRouter?.parent?.recordPath],
+        ['retriever.submit.jobIdPath', node.retriever?.submit?.jobIdPath],
+        ['retriever.poll.statusPath', node.retriever?.poll?.statusPath],
+        ['retriever.poll.resultUrlPath', node.retriever?.poll?.resultUrlPath],
       ]) {
         if (value !== undefined && !Array.isArray(value)) {
           throw new Error(
@@ -478,6 +493,27 @@ export class ManifestParser {
           }
         }
         if (eh.backoff !== undefined) validateBackoff(eh.backoff, nodeName, 'errorHandler');
+        // Deliberately LAST, like the partitionRouter check below, so a handler that
+        // is ALSO malformed keeps reporting the more specific message.
+        //
+        // errorHandler drives sync retrievers only: DeclarativeSource.fetchData builds
+        // the ErrorHandler behind `retriever.type !== "async"`, so on an async node
+        // every RETRY/IGNORE action and every waitTimeFromHeader backoff written here
+        // is inert. That is invisible at run time in the worst way — a 429 on the poll
+        // loop silently falls through to the engine's default retry policy, and an
+        // IGNORE filter that was meant to tolerate a 404 fails the run instead.
+        //
+        // Refused rather than warned, for the same reason `partitionRouter` + async is
+        // refused: this engine has no publish-time warning channel an author reliably
+        // reads (run-time WARN is the run-FAILURE channel — see Requester._reportIgnored),
+        // so a warning here would either fail the run or vanish. The grammar ships for
+        // the first time in this release and no bundled manifest pairs the two, so
+        // there is nothing to break. `poll.backoff` is the async equivalent.
+        if (node.retriever?.type === 'async') {
+          throw new Error(
+            `ManifestParser: node "${nodeName}" errorHandler is not supported with an async retriever — an async node paces itself through "retriever.poll.backoff" instead, so these filters and this backoff would never run. Remove "errorHandler", or make the node sync.`
+          );
+        }
       }
       if (node.partitionRouter !== undefined) {
         const pr = node.partitionRouter;

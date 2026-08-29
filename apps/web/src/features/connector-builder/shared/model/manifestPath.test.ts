@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getAtPath, setAtPath } from './manifestPath';
+import { getAtPath, setAtPath, toDotPath } from './manifestPath';
 
 describe('manifestPath', () => {
   it('getAtPath reads nested values', () => {
@@ -36,5 +36,19 @@ describe('manifestPath', () => {
   it('setAtPath overwrites a primitive intermediate cleanly (no index keys)', () => {
     const next = setAtPath({ a: 'xy' }, ['a', 'b'], 1) as unknown as { a: Record<string, unknown> };
     expect(next.a).toEqual({ b: 1 });
+  });
+});
+
+describe('toDotPath', () => {
+  it('splits a dot path into trimmed segments', () => {
+    expect(toDotPath('data.items')).toEqual(['data', 'items']);
+    expect(toDotPath(' data . items ')).toEqual(['data', 'items']);
+  });
+
+  it('drops empty segments so a half-typed path stays usable', () => {
+    expect(toDotPath('data.')).toEqual(['data']);
+    expect(toDotPath('a..b')).toEqual(['a', 'b']);
+    expect(toDotPath('')).toEqual([]);
+    expect(toDotPath('   ')).toEqual([]);
   });
 });

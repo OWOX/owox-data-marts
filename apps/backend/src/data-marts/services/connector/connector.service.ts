@@ -108,8 +108,7 @@ export class ConnectorService {
 
   /**
    * Resolves the capabilities of either a bundled connector or a custom (DB-stored)
-   * one. Symmetric to resolveConnectorSpecification: bundled names win first (no DB
-   * lookup), then a custom manifest, else the existing 404 path.
+   * one, over the shared resolveBundledOrCustom cascade.
    *
    * A custom connector resolves to NO_CAPABILITIES — its stored manifest's own
    * `capabilities` block is deliberately NOT read. That manifest is unvalidated user
@@ -122,8 +121,38 @@ export class ConnectorService {
     connectorName: string,
     version?: number
   ): Promise<ConnectorCapabilities> {
+    return this.resolveBundledOrCustom(
+      projectId,
+      connectorName,
+      version,
+      name => this.getConnectorCapabilities(name),
+      () => NO_CAPABILITIES
+    );
+  }
+
+  /**
+   * The bundled-then-custom-then-404 cascade the three `resolveConnector*` methods share.
+   *
+   * Centralised because the ORDER is a security property, not a convenience: the bundled
+   * check runs first so a custom connector can never shadow a bundled name (creation
+   * reserves bundled names, and this keeps that guarantee even if the reservation is ever
+   * relaxed), and the final call re-enters the bundled path so an unknown name raises the
+   * SAME NotFoundException it always did rather than a "no manifest" message that would
+   * tell a caller whether the project owns a connector by that name. Three copies of that
+   * ordering is three chances for one of them to drift.
+   *
+   * `fromBundled` is passed the name rather than closed over so each caller's bundled
+   * method stays the single place its own 404 is raised.
+   */
+  private async resolveBundledOrCustom<T>(
+    projectId: string,
+    connectorName: string,
+    version: number | undefined,
+    fromBundled: (connectorName: string) => T | Promise<T>,
+    fromManifest: (manifest: Record<string, unknown>) => T
+  ): Promise<T> {
     if (Object.keys(Connectors).includes(connectorName)) {
-      return this.getConnectorCapabilities(connectorName);
+      return fromBundled(connectorName);
     }
     const manifest = await this.connectorDefinitionService.tryResolveManifest(
       projectId,
@@ -131,9 +160,9 @@ export class ConnectorService {
       version
     );
     if (manifest) {
-      return NO_CAPABILITIES;
+      return fromManifest(manifest);
     }
-    return this.getConnectorCapabilities(connectorName);
+    return fromBundled(connectorName);
   }
 
   /**
@@ -150,28 +179,24 @@ export class ConnectorService {
 
   /**
    * Resolves a connector specification for either a bundled connector or a custom
-   * (DB-stored) one. Bundled names are canonical and cannot collide with custom
-   * names (reserved-name guard at creation), so we check the bundle first to avoid
-   * a DB lookup. For a custom connector we resolve its published manifest and build
-   * the spec from it; for an unknown name we preserve the existing 404.
+   * (DB-stored) one, over the shared resolveBundledOrCustom cascade. Bundled names are
+   * canonical and cannot collide with custom names (reserved-name guard at creation),
+   * so the bundle is checked first and no DB lookup happens for one. For a custom
+   * connector the published manifest is resolved and the spec built from it; for an
+   * unknown name the existing 404 is preserved.
    */
   async resolveConnectorSpecification(
     projectId: string,
     connectorName: string,
     version?: number
   ): Promise<ConnectorSpecification> {
-    if (Object.keys(Connectors).includes(connectorName)) {
-      return this.getConnectorSpecification(connectorName);
-    }
-    const manifest = await this.connectorDefinitionService.tryResolveManifest(
+    return this.resolveBundledOrCustom(
       projectId,
       connectorName,
-      version
+      version,
+      name => this.getConnectorSpecification(name),
+      manifest => this.getSpecificationFromManifest(manifest)
     );
-    if (manifest) {
-      return this.getSpecificationFromManifest(manifest);
-    }
-    return this.getConnectorSpecification(connectorName);
   }
 
   /**
@@ -213,27 +238,21 @@ export class ConnectorService {
   }
 
   /**
-   * Resolves the fields schema for a bundled or custom connector. Symmetric to
-   * resolveConnectorSpecification: bundled names win first (no DB lookup), then a
-   * custom manifest, else the existing 404 path.
+   * Resolves the fields schema for a bundled or custom connector, over the shared
+   * resolveBundledOrCustom cascade.
    */
   async resolveConnectorFieldsSchema(
     projectId: string,
     connectorName: string,
     version?: number
   ): Promise<ConnectorFieldsSchema> {
-    if (Object.keys(Connectors).includes(connectorName)) {
-      return this.getConnectorFieldsSchema(connectorName);
-    }
-    const manifest = await this.connectorDefinitionService.tryResolveManifest(
+    return this.resolveBundledOrCustom(
       projectId,
       connectorName,
-      version
+      version,
+      name => this.getConnectorFieldsSchema(name),
+      manifest => this.getFieldsSchemaFromManifest(manifest)
     );
-    if (manifest) {
-      return this.getFieldsSchemaFromManifest(manifest);
-    }
-    return this.getConnectorFieldsSchema(connectorName);
   }
 
   private createDeclarativeSourceFromManifest(manifest: Record<string, unknown>) {
@@ -633,16 +652,7 @@ export class ConnectorService {
   private mapConfigToSchema(config: ConnectorConfig) {
     const result = Object.keys(config).map(key => {
       const item = {
-        name: key,
-        title: config[key].label,
-        description: config[key].description,
-        default: config[key].default,
-        requiredType: config[key].requiredType,
-        required: config[key].isRequired,
-        options: config[key].options,
-        placeholder: config[key].placeholder,
-        minimum: config[key].minimum,
-        attributes: config[key].attributes,
+        ...this.mapConfigFieldToSchema(key, config[key]),
         oneOf: config[key].oneOf?.map(oneOf => {
           return {
             label: oneOf.label,
@@ -652,18 +662,7 @@ export class ConnectorService {
             oauthParams: oneOf.oauthParams,
             items: Object.entries(oneOf.items).reduce(
               (acc, [itemKey, itemValue]) => {
-                acc[itemKey] = {
-                  name: itemKey,
-                  title: itemValue.label,
-                  description: itemValue.description,
-                  default: itemValue.default,
-                  requiredType: itemValue.requiredType,
-                  required: itemValue.isRequired,
-                  options: itemValue.options,
-                  placeholder: itemValue.placeholder,
-                  minimum: itemValue.minimum,
-                  attributes: itemValue.attributes,
-                };
+                acc[itemKey] = this.mapConfigFieldToSchema(itemKey, itemValue);
                 return acc;
               },
               {} as Record<string, unknown>
@@ -674,5 +673,59 @@ export class ConnectorService {
       return item;
     });
     return result;
+  }
+
+  /**
+   * One parameter as the specification exposes it -- minus, for a SECRET parameter, the
+   * three keys that carry a VALUE for the field rather than a description of it.
+   *
+   * The specification is the derived, viewer-readable half of the split
+   * ConnectorDefinitionController draws: the manifest is @Auth(Role.editor()) because it is
+   * author-written JSON
+   * that may carry a literal credential, while the spec is served to every project member
+   * (and, over MCP, to anything holding `mcp:read`) on the grounds that it carries no part
+   * of the body. `default` broke that grounds outright -- the config form ASSIGNS it as the
+   * parameter's value when the Data Mart has none (ConfigurationStep), so a `default` on a
+   * SECRET parameter is not decoration, it is a working credential shipped to everyone who
+   * can open the connector. The manifest grammar permits it and the builder's parameter
+   * editor offers a "Default value" box on every parameter, secret ones included.
+   *
+   * `options` goes for the same reason and `placeholder` because it is author free text
+   * rendered INSIDE the credential input (ConfigurationSecretField), which is exactly where
+   * a token pasted out of a working `curl` lands. Neither has a cost worth keeping: a
+   * SECRET parameter renders as a password box, so its `options` are never offered, and the
+   * placeholder falls back to "Enter <field name>". No bundled connector sets any of the
+   * three on a SECRET parameter.
+   *
+   * `title` and `description` deliberately stay. They are prose, nothing turns them into a
+   * value, and stripping them would leave an unlabelled credential box; a credential typed
+   * into a description is the same class of author mistake as one typed into `baseUrl`, and
+   * the answer to that class is the publish-time warning, not blanking the whole form.
+   *
+   * Applied here rather than at each boundary so it is one choke point for every caller --
+   * REST, MCP and anything added later. Nothing server-side reads a SECRET parameter's
+   * default: ConnectorSecretService takes only names, attributes and `oneOf` from the spec.
+   */
+  private mapConfigFieldToSchema(name: string, field: ConnectorConfigField) {
+    const item = {
+      name,
+      title: field.label,
+      description: field.description,
+      default: field.default,
+      requiredType: field.requiredType,
+      required: field.isRequired,
+      options: field.options,
+      placeholder: field.placeholder,
+      minimum: field.minimum,
+      attributes: field.attributes,
+    };
+
+    // The attributes are read AFTER ManifestParser has run, so this also covers the
+    // parameters the parser marked SECRET on the author's behalf -- the common case, where
+    // the author never typed the attribute at all.
+    if (!(field.attributes ?? []).includes(Core.CONFIG_ATTRIBUTES.SECRET)) {
+      return item;
+    }
+    return { ...item, default: undefined, options: undefined, placeholder: undefined };
   }
 }

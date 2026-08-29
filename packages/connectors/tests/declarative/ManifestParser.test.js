@@ -156,6 +156,75 @@ describe('ManifestParser', () => {
     assert.throws(() => new ManifestParser().parse(JSON.stringify(m)), /async.*requires.*poll/);
   });
 
+  // The dot-string-vs-array mixup the reference calls "a common, silent bug". On
+  // statusPath it is the expensive one: getPath iterates a string CHARACTER by
+  // character, so every poll reads undefined, never matches readyValue or
+  // failedValue, and the loop burns all 180 attempts (~44 min holding a
+  // concurrency slot) before throwing "did not become ready".
+  const asyncNodeWith = overrides => {
+    const m = JSON.parse(JSON.stringify(valid));
+    m.nodes.rates.retriever = {
+      type: 'async',
+      submit: { method: 'POST', path: '/r', body: {}, jobIdPath: ['id'] },
+      poll: {
+        method: 'GET',
+        path: '/r/{{ job.id }}/status',
+        statusPath: ['status'],
+        readyValue: 'READY',
+        resultUrlPath: ['location_json'],
+      },
+      download: { format: 'json', recordPath: ['rows'] },
+    };
+    delete m.nodes.rates.request;
+    const r = m.nodes.rates.retriever;
+    if (overrides.jobIdPath !== undefined) r.submit.jobIdPath = overrides.jobIdPath;
+    if (overrides.statusPath !== undefined) r.poll.statusPath = overrides.statusPath;
+    if (overrides.resultUrlPath !== undefined) r.poll.resultUrlPath = overrides.resultUrlPath;
+    return m;
+  };
+
+  it('rejects a dot-string jobIdPath / statusPath / resultUrlPath on an async node', () => {
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(asyncNodeWith({ jobIdPath: 'data.id' }))),
+      /retriever\.submit\.jobIdPath must be an array of keys.*not a string/s
+    );
+    assert.throws(
+      () =>
+        new ManifestParser().parse(JSON.stringify(asyncNodeWith({ statusPath: 'data.status' }))),
+      /retriever\.poll\.statusPath must be an array of keys.*not a string/s
+    );
+    assert.throws(
+      () =>
+        new ManifestParser().parse(JSON.stringify(asyncNodeWith({ resultUrlPath: 'data.url' }))),
+      /retriever\.poll\.resultUrlPath must be an array of keys.*not a string/s
+    );
+  });
+
+  it('accepts array async paths, including a numeric segment', () => {
+    assert.doesNotThrow(() => new ManifestParser().parse(JSON.stringify(asyncNodeWith({}))));
+    assert.doesNotThrow(() =>
+      new ManifestParser().parse(
+        JSON.stringify(asyncNodeWith({ jobIdPath: ['data', 0, 'id'], statusPath: ['data', 0] }))
+      )
+    );
+  });
+
+  // errorHandler is wired for SYNC retrievers only (DeclarativeSource.fetchData
+  // gates it on `retriever.type !== "async"`), so on an async node the author's
+  // RETRY/IGNORE rules and waitTimeFromHeader backoff never run. Same policy the
+  // parser already applies to partitionRouter + async: an inert block is an
+  // error at publish, not a surprise in production.
+  it('rejects an errorHandler on an async node', () => {
+    const m = asyncNodeWith({});
+    m.nodes.rates.errorHandler = {
+      responseFilters: [{ httpCodes: [429], action: 'RETRY' }],
+    };
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(m)),
+      /errorHandler is not supported with an async retriever/
+    );
+  });
+
   it('accepts a known pagination.type on a sync node', () => {
     const m = JSON.parse(JSON.stringify(valid));
     m.nodes.rates.pagination = { type: 'cursor', cursorPath: ['next'], cursorParam: 'c' };

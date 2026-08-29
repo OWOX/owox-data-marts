@@ -16,6 +16,7 @@ import {
   type ManifestNodeRequest,
   type PartitionRouter,
 } from '../../../shared/model/manifest.types';
+import { toDotPath } from '../../../shared/model/manifestPath';
 import { InfoLabel, OptionSelect } from '../fields';
 import { PaginationEditor } from './PaginationEditor';
 
@@ -160,16 +161,12 @@ export function PartitionRouterEditor({ nodeName }: { nodeName: string }) {
                 <InfoLabel hint='Dot-path to the array of parent records in the parent response.'>
                   Parent record path
                 </InfoLabel>
+                {/* UNCONTROLLED on purpose -- see RecordFilterEditor: a controlled
+                      dot-path input eats the dot as the user types it. */}
                 <Input
-                  value={parentRecordPath.join('.')}
+                  defaultValue={parentRecordPath.join('.')}
                   onChange={e => {
-                    setPath(
-                      [...base, 'parent', 'recordPath'],
-                      e.target.value
-                        .split('.')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                    );
+                    setPath([...base, 'parent', 'recordPath'], toDotPath(e.target.value));
                   }}
                   placeholder='data'
                   className='h-[34px] font-mono'

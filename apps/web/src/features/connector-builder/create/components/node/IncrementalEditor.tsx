@@ -5,6 +5,7 @@ import {
   type IncrementalRequest,
   type ManifestNodeIncremental,
 } from '../../../shared/model/manifest.types';
+import { toDotPath } from '../../../shared/model/manifestPath';
 import { InfoLabel, Segmented } from '../fields';
 
 type IncChoice = ManifestNodeIncremental['strategy'];
@@ -143,13 +144,7 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
                 <Input
                   defaultValue={(req.startPath ?? []).join('.')}
                   onChange={e => {
-                    setPath(
-                      [...base, 'request', 'startPath'],
-                      e.target.value
-                        .split('.')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                    );
+                    setPath([...base, 'request', 'startPath'], toDotPath(e.target.value));
                   }}
                   placeholder='date.start'
                   className='font-mono'
@@ -160,13 +155,7 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
                 <Input
                   defaultValue={(req.endPath ?? []).join('.')}
                   onChange={e => {
-                    setPath(
-                      [...base, 'request', 'endPath'],
-                      e.target.value
-                        .split('.')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                    );
+                    setPath([...base, 'request', 'endPath'], toDotPath(e.target.value));
                   }}
                   placeholder='date.end'
                   className='font-mono'

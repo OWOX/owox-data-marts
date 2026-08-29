@@ -1,5 +1,4 @@
 import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
 import {
   Select,
   SelectContent,
@@ -7,9 +6,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useState } from 'react';
 import { useBuilder } from '../../../shared/model/hooks/useBuilder';
 import { InfoLabel } from '../fields';
+import { JsonBodyEditor } from '../JsonBodyEditor';
 import { QueryParametersEditor } from './QueryParametersEditor';
 
 type Path = (string | number)[];
@@ -62,56 +61,19 @@ function DotPath({
   return (
     <label className='flex flex-col'>
       <InfoLabel hint={hint}>{label}</InfoLabel>
+      {/* UNCONTROLLED on purpose. The manifest stores a path as segments, so a controlled
+          input has to round-trip through split/join on every keystroke — and the moment the
+          user types the dot in `data.status`, the empty trailing segment is dropped and the
+          dot is deleted from under the cursor. A nested path then cannot be typed at all.
+          Every other dot-path field in the builder is uncontrolled for the same reason. */}
       <Input
-        value={value.join('.')}
+        defaultValue={value.join('.')}
         onChange={e => {
           onChange(toDotArray(e.target.value));
         }}
         placeholder={placeholder}
         className='h-[34px] font-mono'
       />
-    </label>
-  );
-}
-
-function BodyEditor({
-  initial,
-  onChange,
-}: {
-  initial?: Record<string, unknown>;
-  onChange: (text: string) => void;
-}) {
-  const [text, setText] = useState(initial ? JSON.stringify(initial, null, 2) : '');
-  const [invalid, setInvalid] = useState(false);
-  return (
-    <label className='flex flex-col'>
-      <InfoLabel hint='JSON body sent with the submit POST.'>Body (JSON)</InfoLabel>
-      <Textarea
-        className='bg-card min-h-32 font-mono text-[12.5px] leading-relaxed'
-        value={text}
-        aria-invalid={invalid}
-        onChange={e => {
-          const v = e.target.value;
-          setText(v);
-          if (v.trim() === '') {
-            setInvalid(false);
-            onChange('');
-            return;
-          }
-          try {
-            JSON.parse(v);
-            setInvalid(false);
-            onChange(v);
-          } catch {
-            setInvalid(true);
-          }
-        }}
-      />
-      {invalid && (
-        <span className='mt-1 text-xs text-red-600 dark:text-red-400'>
-          Invalid JSON — not saved
-        </span>
-      )}
     </label>
   );
 }
@@ -147,7 +109,9 @@ function SubmitGroup({ nodeName }: { nodeName: string }) {
       </div>
       <QueryParametersEditor query={submit.queryParameters ?? {}} basePath={base} scope='submit' />
       {submit.method === 'POST' && (
-        <BodyEditor
+        <JsonBodyEditor
+          label='Body (JSON)'
+          hint='JSON body sent with the submit POST.'
           initial={submit.body}
           onChange={text => {
             if (text.trim() === '') {

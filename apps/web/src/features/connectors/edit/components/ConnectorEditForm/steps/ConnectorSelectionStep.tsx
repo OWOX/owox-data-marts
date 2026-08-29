@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
 import { Button } from '@owox/ui/components/button';
 import { Badge } from '@owox/ui/components/badge';
+import { isUnpublishedCustomConnector } from '../../../../shared/utils/custom-connector-publish.utils';
 
 interface ConnectorSelectionStepProps {
   connectors: ConnectorListItem[];
@@ -104,7 +105,7 @@ export function ConnectorSelectionStep({
       <AppWizardStepSection title='Custom Connectors'>
         <AppWizardGrid>
           {customConnectors.map(connector => {
-            const isUnpublished = connector.isCustom === true && connector.version === undefined;
+            const isUnpublished = isUnpublishedCustomConnector(connector);
             return (
               <div key={connector.id} className='relative'>
                 <AppWizardGridItem
@@ -148,7 +149,11 @@ export function ConnectorSelectionStep({
                   </button>
                 )}
                 {isUnpublished && (
-                  <Badge variant='outline' className='absolute top-2 right-9 text-xs'>
+                  <Badge
+                    variant='outline'
+                    className='absolute top-2 right-9 text-xs'
+                    title='Not published yet — publish it in the builder first.'
+                  >
                     Publish to use
                   </Badge>
                 )}

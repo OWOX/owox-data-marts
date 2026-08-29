@@ -167,6 +167,7 @@ import { ConnectorSourceConfigService } from './services/connector/connector-sou
 import { ConnectorCredentialInjectorService } from './services/connector/connector-credential-injector.service';
 import { ConnectorPreviewCredentialsService } from './services/connector/connector-preview-credentials.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
+import { ConnectorDefinitionMapper } from './mappers/connector-definition.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { ConnectorFieldsPreviewService } from './services/connector/connector-fields-preview.service';
@@ -753,6 +754,7 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     ConnectorCredentialInjectorService,
     ConnectorPreviewCredentialsService,
     ConnectorMapper,
+    ConnectorDefinitionMapper,
     SpecificationConnectorService,
     FieldsConnectorService,
     ConnectorFieldsPreviewService,

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
 import { Core } from '@owox/connectors';
+import { castError } from '@owox/internal-helpers';
 
 const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
@@ -121,7 +122,21 @@ export class ConnectorExecutorService {
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
-    const mergeWithExisting = run.status === DataMartRunStatus.INTERRUPTED;
+    // Does an EARLIER attempt of this run already have output in the row? That decides
+    // whether the incremental flusher may run, because its write REPLACES the column
+    // (see createRunLogFlusher).
+    //
+    // Deliberately NOT `run.status === INTERRUPTED`: by the time a resumed attempt
+    // reaches here that status is two transitions in the past — the recovery sweep flips
+    // INTERRUPTED -> PENDING and claimRunSlotAtomically flips PENDING -> RUNNING, both
+    // before this method reads the row — so the check never fired on a real resume, the
+    // flusher stayed enabled, and it overwrote the previous attempt's logs one interval
+    // in; the terminal merge then had nothing left to restore. The run entity arrives
+    // freshly reloaded by that claim, so its logs/errors ARE the persisted output: the
+    // one signal true for every resume, including a run interrupted before its first
+    // RUNNING write, which neither status nor startedAt can identify.
+    const hasOutputFromEarlierAttempt =
+      (run.logs?.length ?? 0) > 0 || (run.errors?.length ?? 0) > 0;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
@@ -132,6 +147,7 @@ export class ConnectorExecutorService {
     const liveErrors: ConnectorMessage[] = [];
     let logFlusher: RunLogFlusher | null = null;
     let allConfigurationsSucceeded = false;
+    let hasAnySuccessfulConfiguration = false;
     let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
 
@@ -176,7 +192,12 @@ export class ConnectorExecutorService {
         return;
       }
 
-      logFlusher = this.createRunLogFlusher(runId, liveLogs, liveErrors, mergeWithExisting);
+      logFlusher = this.createRunLogFlusher(
+        runId,
+        liveLogs,
+        liveErrors,
+        hasOutputFromEarlierAttempt
+      );
       logFlusher?.start();
 
       configurationResults = await this.runConnectorConfigurations(
@@ -204,6 +225,14 @@ export class ConnectorExecutorService {
       // keeps the rule from being vacuously satisfied by a run that executed
       // nothing: that stays a failure, as it was before.
       allConfigurationsSucceeded = totalCount > 0 && successCount === totalCount;
+      // Billing keeps the ORIGINAL rule ("at least one configuration imported"), which is
+      // what `hasSuccessfulRun` gated before this branch. Tightening the status flag to
+      // "all" moved three consumers at once — status, the success webhook and consumption —
+      // but only the first two were intended. Under the tightened flag a four-of-five run
+      // delivered four accounts' data and registered nothing, which is both wrong for us
+      // and trivially exploitable: one permanently broken account makes a connector free.
+      // Status stays strict; what the customer received is what gets billed.
+      hasAnySuccessfulConfiguration = successCount > 0;
       // The user stopped a run that did not finish all its work. Still conditioned
       // on the full-success flag, but that flag now means "all", so a cancel that
       // lands mid-run is CANCELLED even when earlier configurations completed —
@@ -288,7 +317,7 @@ export class ConnectorExecutorService {
       // concurrently and CANCELLED must win), billing and outcome events must
       // be skipped too: the persisted status is CANCELLED, and charging the
       // project or publishing a success/failure webhook would contradict it.
-      const statusPersisted = await this.updateRunStatus(
+      const persistedStatus = await this.updateRunStatus(
         runId,
         allConfigurationsSucceeded,
         capturedLogs,
@@ -298,8 +327,24 @@ export class ConnectorExecutorService {
         flushedSnapshot
       );
 
-      if (allConfigurationsSucceeded && statusPersisted) {
+      // Consumption is registered on ANY successful configuration, deliberately split from
+      // the success webhook below: the customer received those rows whether or not a
+      // sibling account failed, and "some data arrived" is not the same claim as "the run
+      // succeeded". They were one condition until this branch tightened the flag, which
+      // silently stopped billing every partial run.
+      // INTERRUPTED is excluded on purpose: the recovery sweep resumes that run, and the
+      // resumed attempt registers consumption itself, so billing here would charge twice
+      // for one import. This state did not exist before this branch — INTERRUPTED used to
+      // require that NOTHING had succeeded, so it could never overlap with a billable run.
+      if (
+        hasAnySuccessfulConfiguration &&
+        persistedStatus !== null &&
+        persistedStatus !== DataMartRunStatus.INTERRUPTED
+      ) {
         await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
+      }
+
+      if (allConfigurationsSucceeded && persistedStatus !== null) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -311,7 +356,7 @@ export class ConnectorExecutorService {
           )
         );
       } else if (
-        statusPersisted &&
+        persistedStatus !== null &&
         !wasCancelled &&
         !this.gracefulShutdownService.isInShutdownMode()
       ) {
@@ -583,9 +628,19 @@ export class ConnectorExecutorService {
 
         // A connector can emit a terminal IMPORT_DONE yet ALSO log a hard error
         // (e.g. a per-account 429 after retries are exhausted) — that is a
-        // failed/incomplete import, not a success. Any captured error demotes the
-        // config from success, regardless of the order the status/error arrived.
-        if (success && configErrors.length > 0) {
+        // failed/incomplete import, not a success. Such an error demotes the config
+        // regardless of the order the status/error arrived.
+        //
+        // ERROR only, NOT `configErrors.length`: that array also collects WARNINGs, and a
+        // WARNING is how the engine reports things it RECOVERED from — MicrosoftAds
+        // "Scope … failed, trying next scope…" (the next scope then succeeds),
+        // GoogleBigQueryStorage "Reducing batch size" (the halved MERGE then succeeds).
+        // Counting those demoted a completed import to FAILED, which also skipped billing
+        // and fired a failure notification. Whether a partially-skipped run is a failure is
+        // the ENGINE's call — it fails the run itself when every account was skipped
+        // (AbstractConnector._reportAccountOutcomes) — so the host must not re-decide it
+        // from log severity.
+        if (success && configErrors.some(m => m.type === ConnectorMessageType.ERROR)) {
           success = false;
         }
 
@@ -971,18 +1026,26 @@ export class ConnectorExecutorService {
 
   /**
    * Build the incremental log flusher for a run, or `null` when incremental
-   * streaming is disabled. Disabled for resumed runs (`mergeWithExisting`) so the
-   * terminal merge path is never double-counted, and when the configured interval
-   * is non-positive. The snapshot serializes the run-scoped live buffers exactly as
-   * the terminal write does; status/finishedAt are left to `updateRunStatus`.
+   * streaming is disabled: when the configured interval is non-positive, and when the
+   * run already carries output from an earlier attempt.
+   *
+   * The second case is not an optimization. This flusher REPLACES the row's logs/errors
+   * with a snapshot of the CURRENT attempt's buffers, so on a resumed run its first tick
+   * erases everything the previous attempt persisted — and the terminal merge, which
+   * reads that same row, then has nothing left to merge. Live streaming for the tail of a
+   * resumed run is worth far less than the history of how it got there, so the resumed
+   * attempt writes once, at the end, through `updateRunStatus`.
+   *
+   * The snapshot serializes the run-scoped live buffers exactly as the terminal write
+   * does; status/finishedAt are left to `updateRunStatus`.
    */
   private createRunLogFlusher(
     runId: string,
     liveLogs: ConnectorMessage[],
     liveErrors: ConnectorMessage[],
-    mergeWithExisting: boolean
+    hasOutputFromEarlierAttempt: boolean
   ): RunLogFlusher | null {
-    if (mergeWithExisting) return null;
+    if (hasOutputFromEarlierAttempt) return null;
     const intervalMs = this.configService.get<number>('CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS', 2000);
     if (intervalMs <= 0) return null;
     return new RunLogFlusher(
@@ -996,9 +1059,7 @@ export class ConnectorExecutorService {
       },
       error =>
         this.logger.warn(
-          `Incremental log flush failed for run ${runId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`
+          `Incremental log flush failed for run ${runId}: ${castError(error).message}`
         )
     );
   }
@@ -1019,7 +1080,12 @@ export class ConnectorExecutorService {
     operationBlockedException?: ProjectOperationBlockedException,
     wasCancelled: boolean = false,
     flushedSnapshot: RunLogSnapshot | null = null
-  ): Promise<boolean> {
+    // Returns the status actually persisted, or null when a concurrently committed
+    // terminal status won. Callers need the status itself, not just "did it write":
+    // billing must skip an INTERRUPTED run because the recovery sweep will run it
+    // again and bill then, and re-deriving that condition at the call site would be
+    // a second copy of the shutdown rule below, free to drift from it.
+  ): Promise<DataMartRunStatus | null> {
     let status = wasCancelled
       ? DataMartRunStatus.CANCELLED
       : allConfigurationsSucceeded
@@ -1071,7 +1137,7 @@ export class ConnectorExecutorService {
     );
 
     if (result.affected) {
-      return true;
+      return status;
     }
 
     // Routine on every user cancellation (the cancel endpoint commits CANCELLED
@@ -1090,7 +1156,7 @@ export class ConnectorExecutorService {
       );
     }
 
-    return false;
+    return null;
   }
 
   /**

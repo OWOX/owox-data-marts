@@ -36,6 +36,18 @@ export interface CreateCustomConnectorPayload {
   manifest: BuilderManifest;
 }
 
+/**
+ * A partial update: an omitted field is left alone, an explicit null clears a nullable one.
+ * `name` is absent by design — data marts reference their connector by name, so renaming a
+ * definition would unbind them. Deleting the connector is what frees a name for reuse.
+ */
+export interface UpdateCustomConnectorMetadataPayload {
+  title?: string;
+  description?: string | null;
+  logo?: string | null;
+  docUrl?: string | null;
+}
+
 export interface ActivateVersionResultDto {
   activeVersionId: string | null;
   activeVersion: number;

@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
-import { useBuilder } from '../../shared/model/hooks/useBuilder';
+import { draftVersionAtRisk, useBuilder } from '../../shared/model/hooks/useBuilder';
 import { firstNonEmpty } from '../../shared/model/asText';
 import { VersionHistoryPopover } from './VersionHistoryPopover';
 export function BuilderTopBar({
@@ -32,6 +32,15 @@ export function BuilderTopBar({
   const { manifest, state, saveDraft, publish, softDelete, reset } = useBuilder();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  // Which write is waiting on the "this replaces a newer draft" confirmation, if any.
+  // Publish is guarded too: it saves the draft first, so it destroys the same row.
+  const [pendingWrite, setPendingWrite] = useState<'save' | 'publish' | null>(null);
+  const atRisk = draftVersionAtRisk(state);
+  const write = (kind: 'save' | 'publish') => {
+    if (atRisk !== null) setPendingWrite(kind);
+    else if (kind === 'save') void saveDraft();
+    else void publish();
+  };
 
   return (
     <div
@@ -86,16 +95,25 @@ export function BuilderTopBar({
 
         <Button
           variant='ghost'
-          onClick={() => void saveDraft()}
-          disabled={state.saving || !state.dirty}
+          onClick={() => {
+            write('save');
+          }}
+          disabled={state.saving || state.codeInvalid || !state.dirty}
           className='text-muted-foreground h-8'
         >
           {state.saving ? 'Saving…' : 'Save draft'}
         </Button>
 
         <Button
-          onClick={() => void publish()}
-          disabled={state.saving || state.publishing}
+          onClick={() => {
+            write('publish');
+          }}
+          // Both writes send `state.manifest`, which is the last text Code mode managed to
+          // parse — publishing while the buffer does not parse ships a manifest missing
+          // everything typed since, and says "Published". No explanation is needed on the
+          // buttons: an unparseable buffer only exists in Code mode, where the parse error
+          // is on screen above the editor.
+          disabled={state.saving || state.publishing || state.codeInvalid}
           className='h-8 rounded-full'
         >
           {state.publishing ? 'Publishing…' : 'Publish'}
@@ -138,6 +156,29 @@ export function BuilderTopBar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ConfirmationDialog
+        open={pendingWrite !== null}
+        onOpenChange={open => {
+          if (!open) setPendingWrite(null);
+        }}
+        title='Replace the newest draft?'
+        description={
+          <p className='mt-2'>
+            You're editing version {state.loadedVersion}, but version {atRisk} is a newer draft.
+            Saving writes over version {atRisk}, and its contents can't be recovered.
+          </p>
+        }
+        confirmLabel={pendingWrite === 'publish' ? 'Replace & publish' : 'Replace draft'}
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={() => {
+          const kind = pendingWrite;
+          setPendingWrite(null);
+          if (kind === 'save') void saveDraft();
+          else if (kind === 'publish') void publish();
+        }}
+      />
 
       <ConfirmationDialog
         open={resetOpen}

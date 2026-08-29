@@ -369,14 +369,16 @@ describe('AbstractConnector', () => {
       }
     });
 
-    it('G3 regression: calls onAccountError, then aborts the run without attempting the remaining accounts', async () => {
-      // main's contract has exactly two outcomes (FacebookMarketing
-      // `_skipOrRethrow`): an account-scoped permission failure is skipped and
-      // the run carries on, ANYTHING else rethrows on the spot. A storage write
-      // or an exhausted transient error may well repeat on the next account, so
-      // main never spent the rest of the window discovering that one account at
-      // a time. onAccountError still fires as an observation hook before the
-      // rethrow.
+    it('G3 regression: calls onAccountError for a failing account, and keeps importing the rest', async () => {
+      // G3 was: the hook was not called at all. That half is unchanged — onAccountError
+      // still fires for every failing account, and exactly once.
+      //
+      // What changed is what follows it. main rethrew anything not flagged `isWarning`
+      // (FacebookMarketing `_skipOrRethrow`), so account "b" was never requested; the
+      // reasoning was that a storage write or an exhausted transient error is likely to
+      // repeat, so the window was not worth spending one account at a time. We now spend
+      // it: the accounts that CAN import do, and the run fails at the end instead. The
+      // data that abort used to protect is protected by the cursor halt instead.
       const restore = suppressStdout();
       try {
         const ctx = createTestContext();
@@ -395,7 +397,7 @@ describe('AbstractConnector', () => {
         await assert.rejects(() => connector.run(), /account A boom/);
         assert.strictEqual(errors.length, 1);
         assert.strictEqual(errors[0].id, 'a');
-        assert.deepStrictEqual(fetched, [], 'account "b" must never be attempted');
+        assert.deepStrictEqual(fetched, ['b'], 'account "b" must still be imported');
       } finally {
         restore();
       }
@@ -469,16 +471,16 @@ describe('AbstractConnector', () => {
       }
     });
 
-    it('a non-permission error aborts a multi-account run before the next account is touched', async () => {
-      // Completing this quietly would advance the incremental cursor past a
-      // range whose data was never stored, and once ReimportLookbackWindow
-      // passes those days are never requested again. main aborted the whole run
-      // at the first such error (`_skipOrRethrow` rethrows anything not flagged
-      // isWarning), so account "b" is never even requested.
+    it('a non-permission error still imports the remaining accounts, and fails the run', async () => {
+      // Contract change from main. main aborted at the first unflagged error
+      // (`_skipOrRethrow` rethrows), so one bad account cost every later account its
+      // import. Now every account is attempted and the run fails at the end instead.
       //
-      // The fetch count is the real assertion here: a guard placed at the end of
-      // the run instead of at the failure would still make run() reject, and
-      // only the count tells the two apart.
+      // What used to make that safe was the abort itself: no account saw a day past the
+      // failure, so the cursor could not run ahead of the missing data. That job now
+      // belongs to _advanceCursor, which withholds any pass with a hard failure — see
+      // the cursor test in the incremental suite. This test owns the other half: the
+      // remaining accounts really are attempted, and the run still reports failure.
       const restore = suppressStdout();
       try {
         const ctx = createTestContext();
@@ -495,8 +497,9 @@ describe('AbstractConnector', () => {
         await assert.rejects(() => connector.run(), /BigQuery write failed/);
         assert.deepStrictEqual(
           fetched,
-          [],
-          'the run must stop at "a"; a write that failed once is likely to fail again'
+          ['b'],
+          'account "b" must still be imported: one account the API refuses is not a reason ' +
+            'to deny every other account its data'
         );
       } finally {
         restore();
@@ -1877,7 +1880,7 @@ describe('AbstractConnector', () => {
       });
     }
 
-    it('does NOT advance the cursor past a day one account failed, and stops the run there', async () => {
+    it('does NOT advance the cursor past a day one account failed, while still importing later days', async () => {
       const cap = captureEvents();
       try {
         const ctx = incrementalWindow(3);
@@ -1907,13 +1910,14 @@ describe('AbstractConnector', () => {
           'the cursor may only reach the last day EVERY account completed; ' +
             `day ${d1} was partially failed so nothing past ${d0} may be persisted`
         );
-        // The cursor invariant above survives the fail-fast revert, but the way
-        // it is reached changes: a non-permission error aborts at once, so no
-        // account sees a day past the failure. That is exactly why the cursor is
-        // safe -- the next run resumes at d1 and re-requests it for everyone.
+        // This is the whole point of the sticky halt. The run no longer aborts at the
+        // failure, so d2 IS imported for both accounts -- and the cursor still may not
+        // pass d0, because acc-2 never read d1. Without the halt, d1 and d2 would each
+        // look "completed by someone" and the cursor would sail to d2, stranding acc-2's
+        // d1 forever. Importing more and checkpointing less is exactly the intended shape.
         assert.ok(
-          !attempts.some(a => a.endsWith(`@${d2}`)),
-          `nothing may be requested for ${d2} after ${d1} failed; got ${attempts.join(', ')}`
+          attempts.includes(`acc-1@${d2}`) && attempts.includes(`acc-2@${d2}`),
+          `${d2} must still be imported after ${d1} failed; got ${attempts.join(', ')}`
         );
         assert.ok(
           attempts.includes(`acc-1@${d1}`),
@@ -2078,16 +2082,16 @@ describe('AbstractConnector', () => {
     });
   });
 
-  describe('E2: only a permission failure is skipped, everything else aborts the run', () => {
-    // main drew the line at `error.isWarning` and nowhere else (FacebookMarketing
-    // `_skipOrRethrow`): a 401/403 account is unreachable however often it is
-    // retried, so skipping it costs nothing, while an upstream 500 or a storage
-    // write failure is a condition the next account is just as likely to hit.
-    // Spending the rest of the window rediscovering that one account at a time
-    // buys nothing and delays the failure the customer has to act on, so the
-    // first such error ends the run.
+  describe('E2: every account is attempted; the failure kind decides severity and the cursor', () => {
+    // main drew the line at `error.isWarning` and used it to decide whether to ABORT
+    // (FacebookMarketing `_skipOrRethrow`). The line is still drawn in the same place,
+    // but it no longer decides whether the run continues -- it always does. What it
+    // decides now is severity (a 401/403 skip is a WARN and does not page) and whether
+    // the pass may be checkpointed (a hard failure withholds the date so the next run
+    // re-reads it; a permanently locked-out account does not, or the cursor would stall
+    // forever).
 
-    it('an upstream 500 on one advertiser ends the run before the next one is tried', async () => {
+    it('an upstream 500 on one advertiser still lets the other four import', async () => {
       const restore = suppressStdout();
       try {
         const ctx = createTestContext();
@@ -2106,8 +2110,8 @@ describe('AbstractConnector', () => {
         await assert.rejects(() => connector.run(), /Internal Server Error/);
         assert.deepStrictEqual(
           fetched,
-          ['adv-1'],
-          'adv-3..adv-5 must not be attempted once adv-2 failed for a non-permission reason'
+          ['adv-1', 'adv-3', 'adv-4', 'adv-5'],
+          'one advertiser returning a 500 must not cost the other four their import'
         );
       } finally {
         restore();
@@ -2153,9 +2157,9 @@ describe('AbstractConnector', () => {
 
     it('a skip before a failure is still reported as a skip, and the failure still wins', async () => {
       // Both kinds in one run, in the order that makes them hard to tell apart.
-      // "revoked" is skipped and recorded, then "broken" ends the run -- and the
-      // skip must not be swallowed by the abort, because the customer needs to
-      // know that account's data is missing too.
+      // "revoked" is skipped, "broken" fails hard, and "fine" must still import.
+      // The skip must not be folded into the failure text: "locked out" and "broke"
+      // need different fixes, so the customer has to be able to tell them apart.
       const cap = captureEvents();
       try {
         const ctx = createTestContext();
@@ -2182,7 +2186,7 @@ describe('AbstractConnector', () => {
           !/token cannot reach revoked/.test(error.message),
           'a permission skip is reported as a skip, not folded into the failure'
         );
-        assert.deepStrictEqual(fetched, [], '"fine" is never reached once "broken" failed');
+        assert.deepStrictEqual(fetched, ['fine'], '"fine" still imports after "broken" failed');
         const warnings = cap.events
           .filter(e => e.type === 'LOG' && e.level === 'warn')
           .map(e => e.message);

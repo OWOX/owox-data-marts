@@ -11,9 +11,9 @@
  * value to its declared `type`. Missing/empty values become null (never NaN).
  * Object/array values are JSON-stringified so they never become "[object Object]".
  */
-function getNested(obj, path) {
+function getNested(obj, segments) {
   let value = obj;
-  for (const key of String(path).split('.')) {
+  for (const key of segments) {
     value = value == null ? undefined : value[key];
   }
   return value;
@@ -49,6 +49,16 @@ export class FieldCaster {
    */
   constructor(fields = {}) {
     this.fields = fields;
+    // The projection plan is fixed by the manifest, so it is resolved ONCE here
+    // instead of per record: cast() used to re-run Object.entries(this.fields)
+    // (a fresh array of N pair-arrays) and String(path).split('.') (a fresh array
+    // per field) for every single record. On a backfill that is one throwaway
+    // allocation per field per row, for a value that never changes.
+    this.plan = Object.entries(fields).map(([name, def]) => ({
+      name,
+      segments: String(def.dataPath ?? def.apiName ?? name).split('.'),
+      type: def.type,
+    }));
   }
 
   /**
@@ -56,10 +66,12 @@ export class FieldCaster {
    * @returns {object[]} projected + cast records
    */
   cast(records) {
+    const plan = this.plan;
     return records.map(record => {
       const out = {};
-      for (const [name, def] of Object.entries(this.fields)) {
-        out[name] = castValue(getNested(record, def.dataPath ?? def.apiName ?? name), def.type);
+      for (let i = 0; i < plan.length; i++) {
+        const field = plan[i];
+        out[field.name] = castValue(getNested(record, field.segments), field.type);
       }
       return out;
     });

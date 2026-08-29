@@ -1,6 +1,7 @@
 import { Input } from '@owox/ui/components/input';
 import { useBuilder } from '../../../shared/model/hooks/useBuilder';
 import { type RecordFilter, type RecordFilterOperator } from '../../../shared/model/manifest.types';
+import { toDotPath } from '../../../shared/model/manifestPath';
 import { OptionSelect } from '../fields';
 
 const OPERATORS: RecordFilterOperator[] = [
@@ -52,18 +53,14 @@ export function RecordFilterEditor({ nodeName }: { nodeName: string }) {
         <>
           <label className='flex flex-col'>
             <span className='text-[13px]'>Field path</span>
+            {/* UNCONTROLLED on purpose: a controlled dot-path input round-trips through
+                  split/join on every keystroke, so typing the dot in `a.b` drops the empty
+                  trailing segment and deletes the dot as it is typed -- a nested path could
+                  not be entered at all. Every other dot-path field here is uncontrolled. */}
             <Input
-              value={filterPath.join('.')}
+              defaultValue={filterPath.join('.')}
               onChange={e => {
-                setPath(
-                  [...base, 'path'],
-                  e.target.value
-                    ? e.target.value
-                        .split('.')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                    : []
-                );
+                setPath([...base, 'path'], toDotPath(e.target.value));
               }}
               placeholder='sheetType'
               className='h-[34px] font-mono'

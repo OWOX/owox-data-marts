@@ -246,11 +246,18 @@ describe('ConnectorDefinitionController OpenAPI', () => {
       jsonSchemaOf(document.paths[`${BASE}/{id}/publish`]?.post as Record<string, any>, '201')
     ).toEqual({ $ref: '#/components/schemas/PublishCustomConnectorResponseApiDto' });
     const publishSchema = resolveRef('#/components/schemas/PublishCustomConnectorResponseApiDto');
-    expect(publishSchema.required).toEqual(['version', 'status']);
+    // `warnings` is required, not optional: the builder has to be able to tell "this publish
+    // reported nothing" from "this client is too old to be told", and an always-present
+    // (possibly empty) array is the only shape that distinguishes them.
+    expect(publishSchema.required).toEqual(['version', 'status', 'warnings']);
     expect(publishSchema.properties.publishedAt).toMatchObject({
       type: 'string',
       format: 'date-time',
       nullable: true,
+    });
+    expect(publishSchema.properties.warnings).toMatchObject({
+      type: 'array',
+      items: { type: 'string' },
     });
 
     expect(

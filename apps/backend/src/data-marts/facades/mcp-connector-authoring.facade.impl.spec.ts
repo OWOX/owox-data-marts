@@ -112,6 +112,7 @@ describe('McpConnectorAuthoringFacadeImpl.publishConnector', () => {
       createAndPublish: jest.fn().mockResolvedValue({
         definition: { id: 'def_1', name: 'Acme' },
         version: { version: 1, status: 'PUBLISHED' },
+        warnings: [],
       }),
       getById: jest.fn(),
     } as unknown as ConnectorDefinitionService;
@@ -135,13 +136,24 @@ describe('McpConnectorAuthoringFacadeImpl.publishConnector', () => {
     // The two-step path is what left orphans behind; neither half may be called on its own.
     expect(definitionService.create).not.toHaveBeenCalled();
     expect(definitionService.publish).not.toHaveBeenCalled();
-    expect(res).toEqual({ connectorId: 'def_1', name: 'Acme', version: 1, status: 'PUBLISHED' });
+    expect(res).toEqual({
+      connectorId: 'def_1',
+      name: 'Acme',
+      version: 1,
+      status: 'PUBLISHED',
+      warnings: [],
+    });
   });
 
   it('publishes an existing draft when given only connectorId', async () => {
     const definitionService = {
       create: jest.fn(),
-      publish: jest.fn().mockResolvedValue({ version: 2, status: 'PUBLISHED' }),
+      publish: jest.fn().mockResolvedValue({
+        version: { version: 2, status: 'PUBLISHED' },
+        // Not decoration: publish does not refuse a manifest that leaves a credential
+        // unprotected, so the facade dropping this array is the whole mitigation lost.
+        warnings: ["Connector 'Existing' v2: parameter 'ApiKey' ... is not marked SECRET."],
+      }),
       getById: jest.fn().mockResolvedValue({ id: 'def_9', name: 'Existing' }),
     } as unknown as ConnectorDefinitionService;
     const facade = new McpConnectorAuthoringFacadeImpl(
@@ -158,6 +170,7 @@ describe('McpConnectorAuthoringFacadeImpl.publishConnector', () => {
       name: 'Existing',
       version: 2,
       status: 'PUBLISHED',
+      warnings: ["Connector 'Existing' v2: parameter 'ApiKey' ... is not marked SECRET."],
     });
   });
 });
@@ -167,7 +180,9 @@ describe('publishConnector update branch', () => {
     const definitionService = {
       create: jest.fn(),
       saveDraft: jest.fn().mockResolvedValue({}),
-      publish: jest.fn().mockResolvedValue({ version: 2, status: 'PUBLISHED' }),
+      publish: jest
+        .fn()
+        .mockResolvedValue({ version: { version: 2, status: 'PUBLISHED' }, warnings: [] }),
       getById: jest.fn().mockResolvedValue({ id: 'def-1', name: 'CocCocAds' }),
     } as unknown as ConnectorDefinitionService;
     const facade = new McpConnectorAuthoringFacadeImpl(
@@ -201,7 +216,9 @@ describe('publishConnector update branch', () => {
     const definitionService = {
       create: jest.fn(),
       saveDraft: jest.fn(),
-      publish: jest.fn().mockResolvedValue({ version: 1, status: 'PUBLISHED' }),
+      publish: jest
+        .fn()
+        .mockResolvedValue({ version: { version: 1, status: 'PUBLISHED' }, warnings: [] }),
       getById: jest.fn().mockResolvedValue({ id: 'def-1', name: 'CocCocAds' }),
     } as unknown as ConnectorDefinitionService;
     const facade = new McpConnectorAuthoringFacadeImpl(
