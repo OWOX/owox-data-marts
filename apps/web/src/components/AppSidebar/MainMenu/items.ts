@@ -7,6 +7,7 @@ import {
   HistoryIcon,
   Network,
   Bookmark,
+  Plug,
 } from 'lucide-react';
 import type { MainMenuItem } from './types';
 
@@ -47,6 +48,11 @@ export const MainMenuItems: MainMenuItem[] = [
     title: 'Storages',
     url: '/data-storages',
     icon: DatabaseIcon,
+  },
+  {
+    title: 'Connectors',
+    url: '/connectors',
+    icon: Plug,
   },
   {
     title: 'Destinations',

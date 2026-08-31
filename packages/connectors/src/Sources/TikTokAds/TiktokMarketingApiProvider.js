@@ -6,11 +6,11 @@
  */
 
 class TiktokMarketingApiProvider {
-  constructor(appId, accessToken, appSecret, isSandbox = false) {
+  constructor(appId, accessToken, appSecret, isSandbox = false, context = null) {
     // Constants
-    this.BASE_URL = "https://business-api.tiktok.com/open_api/";
-    this.SANDBOX_BASE_URL = "https://sandbox-ads.tiktok.com/open_api/";
-    this.API_VERSION = "v1.3";
+    this.BASE_URL = 'https://business-api.tiktok.com/open_api/';
+    this.SANDBOX_BASE_URL = 'https://sandbox-ads.tiktok.com/open_api/';
+    this.API_VERSION = 'v1.3';
     this.MAX_STRING_LENGTH = 50000;
     this.MAX_RETRIES = 3;
     this.INITIAL_BACKOFF = 1000;
@@ -22,7 +22,23 @@ class TiktokMarketingApiProvider {
     this.accessToken = accessToken;
     this.appSecret = appSecret;
     this.isSandbox = isSandbox;
+    this.context = context;
     this.currentAdvertiserId = null;
+  }
+
+  /**
+   * Surface a warning through the run's structured log when a context is
+   * available, falling back to stderr (never stdout, to avoid the host's
+   * message parser) when constructed without one.
+   *
+   * @param {string} message - Warning message.
+   */
+  _warn(message) {
+    if (this.context && typeof this.context.log === 'function') {
+      this.context.log(LOG_LEVEL.WARN, message);
+    } else {
+      console.warn(message);
+    }
   }
 
   getBaseUrl() {
@@ -37,22 +53,22 @@ class TiktokMarketingApiProvider {
     const { url, method, data } = options;
     const headers = {
       'Access-Token': this.accessToken,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     let backoff = this.INITIAL_BACKOFF;
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
       try {
-        const response = await HttpUtils.fetch(url, {
+        const response = await fetch(url, {
           method: method,
           headers: headers,
-          body: data ? JSON.stringify(data) : null
+          body: data ? JSON.stringify(data) : null,
         });
 
-        const responseCode = response.getResponseCode();
-        const text = await response.getContentText();
-        
+        const responseCode = response.status;
+        const text = await response.text();
+
         if (responseCode !== this.SUCCESS_RESPONSE_CODE) {
           throw new Error(`TikTok API error: ${text}`);
         }
@@ -61,9 +77,7 @@ class TiktokMarketingApiProvider {
 
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
-            // stdout, not stderr: a retry notice is not a run error. This class has no
-            // config reference, so it cannot use logMessage.
-            console.log("TikTok Marketing API rate limit exceeded. Retrying...");
+            this._warn('TikTok Marketing API rate limit exceeded. Retrying...');
             await AsyncUtils.delay(backoff);
             backoff *= 2;
             continue;
@@ -71,7 +85,10 @@ class TiktokMarketingApiProvider {
           const error = new Error(`TikTok API error: ${jsonData.message}`);
           // Matched on message text because TikTok's Business API docs don't publish
           // reliable numeric codes for these; switch to jsonData.code if they ever do
-          error.isWarning = /No permission to operate advertiser|doesn't exist or has been deleted/.test(jsonData.message);
+          error.isWarning =
+            /No permission to operate advertiser|doesn't exist or has been deleted/.test(
+              jsonData.message
+            );
           throw error;
         }
 
@@ -103,7 +120,7 @@ class TiktokMarketingApiProvider {
 
       const total = response.data.page_info ? response.data.page_info.total_number : 0;
       const currentCount = page * pageSize;
-      hasMorePages = (currentCount < total && pageData.length > 0);
+      hasMorePages = currentCount < total && pageData.length > 0;
       page++;
 
       if (hasMorePages) {
@@ -139,33 +156,61 @@ class TiktokMarketingApiProvider {
     return [
       // Parent-hierarchy IDs — at AUCTION_AD level TikTok returns these only when
       // requested as `metrics`; passing them in `dimensions` is rejected at this level.
-      "campaign_id", "adgroup_id",
+      'campaign_id',
+      'adgroup_id',
 
       // Cost metrics
-      "spend", "cpc", "cpm", "cpr", "cpa", "cost_per_1000_reached",
+      'spend',
+      'cpc',
+      'cpm',
+      'cpr',
+      'cpa',
+      'cost_per_1000_reached',
 
       // Performance metrics
-      "impressions", "clicks", "ctr", "reach", "frequency", "viewable_impression",
-      "viewable_rate", "video_play_actions", "video_watched_2s", "video_watched_6s",
-      "average_video_play", "average_video_play_per_user", "video_views_p25",
-      "video_views_p50", "video_views_p75", "video_views_p100", "profile_visits",
-      "profile_visits_rate", "likes", "comments", "shares", "follows", "landing_page_views",
+      'impressions',
+      'clicks',
+      'ctr',
+      'reach',
+      'frequency',
+      'viewable_impression',
+      'viewable_rate',
+      'video_play_actions',
+      'video_watched_2s',
+      'video_watched_6s',
+      'average_video_play',
+      'average_video_play_per_user',
+      'video_views_p25',
+      'video_views_p50',
+      'video_views_p75',
+      'video_views_p100',
+      'profile_visits',
+      'profile_visits_rate',
+      'likes',
+      'comments',
+      'shares',
+      'follows',
+      'landing_page_views',
 
       // Conversion metrics
-      "conversion", "cost_per_conversion", "conversion_rate", "conversion_1d_click",
-      "conversion_7d_click", "conversion_28d_click"
+      'conversion',
+      'cost_per_conversion',
+      'conversion_rate',
+      'conversion_1d_click',
+      'conversion_7d_click',
+      'conversion_28d_click',
     ];
   }
 
   async getAdvertisers(advertiserIds) {
     if (!this.appId || !this.appSecret) {
-      throw new Error("To fetch advertiser data, both AppId and AppSecret must be provided.");
+      throw new Error('To fetch advertiser data, both AppId and AppSecret must be provided.');
     }
 
     const params = {
       advertiser_ids: advertiserIds,
       app_id: this.appId,
-      secret: this.appSecret
+      secret: this.appSecret,
     };
 
     const url = this.buildUrl('oauth2/advertiser/get/', params);
@@ -178,7 +223,7 @@ class TiktokMarketingApiProvider {
     const params = {
       advertiser_id: advertiserId,
       fields: fields,
-      filtering: filtering
+      filtering: filtering,
     };
 
     return await this.handlePagination('campaign/get/', params);
@@ -189,7 +234,7 @@ class TiktokMarketingApiProvider {
     const params = {
       advertiser_id: advertiserId,
       fields: fields,
-      filtering: filtering
+      filtering: filtering,
     };
 
     return await this.handlePagination('adgroup/get/', params);
@@ -200,7 +245,7 @@ class TiktokMarketingApiProvider {
     const params = {
       advertiser_id: advertiserId,
       fields: fields,
-      filtering: filtering
+      filtering: filtering,
     };
 
     return await this.handlePagination('ad/get/', params);
@@ -216,7 +261,7 @@ class TiktokMarketingApiProvider {
       metrics: metrics,
       data_level: dataLevel,
       start_date: startDate,
-      end_date: endDate
+      end_date: endDate,
     };
 
     return await this.handlePagination('report/integrated/get/', params);
@@ -225,7 +270,7 @@ class TiktokMarketingApiProvider {
   async getAudiences(advertiserId) {
     this.currentAdvertiserId = advertiserId;
     const params = {
-      advertiser_id: advertiserId
+      advertiser_id: advertiserId,
     };
 
     return await this.handlePagination('dmp/custom_audience/list/', params);

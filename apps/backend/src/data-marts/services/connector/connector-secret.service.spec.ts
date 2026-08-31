@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import type { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
@@ -28,8 +29,10 @@ describe('ConnectorSecretService', () => {
         }))
       : [];
 
+    const specification = [...baseFields, ...fieldsWithOneOf];
     const specService = {
-      getConnectorSpecification: jest.fn().mockResolvedValue([...baseFields, ...fieldsWithOneOf]),
+      getConnectorSpecification: jest.fn().mockResolvedValue(specification),
+      resolveConnectorSpecification: jest.fn().mockResolvedValue(specification),
       getConnectorCapabilities: jest.fn().mockReturnValue({
         singleConfiguration: false,
         copySecretsByValue: false,
@@ -74,7 +77,7 @@ describe('ConnectorSecretService', () => {
         { _id: 'b', AccessToken: 'token-b', AccountIDs: '22' },
       ]);
 
-      const masked = await service.mask(def);
+      const masked = await service.mask(undefined, def);
       expect(masked).toBeDefined();
       const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
@@ -86,7 +89,7 @@ describe('ConnectorSecretService', () => {
     it('returns original definition if no secret fields in spec', async () => {
       const { service } = createService([]);
       const def = makeDefinition([{ _id: 'a', AccountIDs: '33' }]);
-      const masked = await service.mask(def);
+      const masked = await service.mask(undefined, def);
       expect(masked).toBe(def);
     });
 
@@ -100,10 +103,93 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const masked = await service.mask(def);
+      const masked = await service.mask(undefined, def);
       const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+    });
+
+    it('resolves a custom connector secret fields via resolveConnectorSpecification', async () => {
+      const { service, specService } = createService([]);
+      (specService.resolveConnectorSpecification as jest.Mock).mockResolvedValue([
+        { name: 'ApiKey', attributes: ['SECRET'] },
+      ]);
+      const def = {
+        connector: {
+          source: {
+            name: 'SampleApisSwitch',
+            version: 2,
+            configuration: [{ _id: 'c1', ApiKey: 'super-secret' }],
+            node: 'node',
+            fields: ['id'],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      } as unknown as ConnectorDefinition;
+
+      const masked = await service.mask('p1', def);
+      const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+      expect(cfg[0].ApiKey).toBe(SECRET_MASK);
+      expect(specService.resolveConnectorSpecification).toHaveBeenCalledWith(
+        'p1',
+        'SampleApisSwitch',
+        2
+      );
+    });
+
+    // Fails closed. Without the specification there is nothing to say WHICH fields are
+    // secret, so the only sound assumption is that any configuration value could be one.
+    // Returning the definition untouched handed a viewer every secret still stored inline —
+    // a parameter the manifest never marked SECRET, or a row saved before the value was
+    // externalised — through a @Auth(Role.viewer()) endpoint.
+    it('masks every configuration value instead of returning secrets when the specification cannot be resolved', async () => {
+      const { service, specService } = createService(['ApiKey']);
+      const notFound = new Error("Connector 'SampleApisSwitch' not found");
+      (specService.resolveConnectorSpecification as jest.Mock).mockRejectedValue(notFound);
+      (specService.getConnectorSpecification as jest.Mock).mockRejectedValue(notFound);
+      const def = makeDefinition([{ _id: 'a', ApiKey: 'super-secret', AccountIDs: '33' }]);
+
+      const masked = await service.mask(undefined, def);
+
+      const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+      expect(cfg[0].ApiKey).toBe(SECRET_MASK);
+      expect(cfg[0].AccountIDs).toBe(SECRET_MASK);
+      expect(JSON.stringify(masked)).not.toContain('super-secret');
+      // Still readable rather than a 500: throwing here would hide the very Data Mart whose
+      // connector the author has to repair.
+      expect(cfg[0]._id).toBe('a');
+    });
+
+    it('masks nested values, keeps bookkeeping keys and still drops the generated refresh token when the specification cannot be resolved', async () => {
+      const { service, specService } = createService([]);
+      const notFound = new Error("Connector 'SampleApisSwitch' not found");
+      (specService.getConnectorSpecification as jest.Mock).mockRejectedValue(notFound);
+      const def = makeDefinition([
+        {
+          _id: 'a',
+          _secrets_id: 'secrets-1',
+          AuthType: { oauth2: { RefreshToken: 'nested-secret', ClientId: 'client-1' } },
+          AccountIDs: ['acc-1', 'acc-2'],
+          Empty: '',
+          generated_refresh_token: 'rotated-token',
+        },
+      ]);
+
+      const masked = await service.mask(undefined, def);
+
+      const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+      expect(authType.oauth2.RefreshToken).toBe(SECRET_MASK);
+      expect(authType.oauth2.ClientId).toBe(SECRET_MASK);
+      expect(cfg[0].AccountIDs).toEqual([SECRET_MASK, SECRET_MASK]);
+      // "No value" stays distinguishable from "a value being hidden", as on the normal path.
+      expect(cfg[0].Empty).toBe('');
+      // The client needs these to round-trip the item; they are not user-entered values.
+      expect(cfg[0]._id).toBe('a');
+      expect(cfg[0]._secrets_id).toBe('secrets-1');
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+      expect(JSON.stringify(masked)).not.toContain('nested-secret');
+      expect(JSON.stringify(masked)).not.toContain('rotated-token');
     });
   });
 
@@ -119,7 +205,7 @@ describe('ConnectorSecretService', () => {
         { _id: 'b', AccessToken: SECRET_MASK, AccountIDs: '22' },
       ]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe('prev-a');
       expect(cfg[1].AccessToken).toBe('prev-b');
@@ -130,7 +216,7 @@ describe('ConnectorSecretService', () => {
       const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a', AccountIDs: '33' }]);
       const incoming = makeDefinition([{ _id: 'a', AccountIDs: '33' }]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe('prev-a');
       expect(cfg[0].AccountIDs).toBe('33');
@@ -141,7 +227,7 @@ describe('ConnectorSecretService', () => {
       const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a' }]);
       const incoming = makeDefinition([{ _id: 'a', AccessToken: 'new-a' }]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe('new-a');
     });
@@ -151,7 +237,7 @@ describe('ConnectorSecretService', () => {
       const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a' }]);
       const incoming = makeDefinition([{ AccountIDs: '33' }]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(typeof cfg[0]._id).toBe('string');
       expect((cfg[0]._id as string).length).toBeGreaterThan(0);
@@ -163,7 +249,7 @@ describe('ConnectorSecretService', () => {
       const previous = makeDefinition([{ _id: 'x', AccessToken: 'prev-x' }]);
       const incoming = makeDefinition([{ _id: 'y', AccessToken: SECRET_MASK }]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
       expect(cfg[0]._id).toBe('y');
@@ -181,7 +267,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -235,7 +321,7 @@ describe('ConnectorSecretService', () => {
           },
         ]);
 
-        const masked = await service.mask(def);
+        const masked = await service.mask(undefined, def);
         expect(masked).toBeDefined();
         const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
         const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
@@ -285,7 +371,7 @@ describe('ConnectorSecretService', () => {
           },
         ]);
 
-        const masked = await service.mask(def);
+        const masked = await service.mask(undefined, def);
         const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
         const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -341,7 +427,7 @@ describe('ConnectorSecretService', () => {
           },
         ]);
 
-        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
         const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
         const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -390,7 +476,7 @@ describe('ConnectorSecretService', () => {
           },
         ]);
 
-        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
         const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
         const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -440,7 +526,7 @@ describe('ConnectorSecretService', () => {
           },
         ]);
 
-        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
         const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
         const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -636,9 +722,90 @@ describe('ConnectorSecretService', () => {
 
       expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
     });
+
+    it('throws Unauthorized when _secrets_id belongs to a different project', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secrets-from-other-project',
+        projectId: 'other-project',
+        credentials: { AccessToken: 'someone-elses-secret' },
+      });
+
+      const definition = makeDefinition([
+        {
+          _id: 'config-1',
+          _secrets_id: 'secrets-from-other-project',
+          AccessToken: 'new-value',
+        },
+      ]);
+
+      await expect(
+        service.extractAndSaveSecrets('dm-1', 'proj-1', 'FacebookMarketing', definition, 'user-1')
+      ).rejects.toThrow(
+        'Unauthorized: secrets secrets-from-other-project do not belong to project proj-1'
+      );
+
+      expect(credentialsService.updateSecretsForConfig).not.toHaveBeenCalled();
+      expect(credentialsService.createSecretsForConfig).not.toHaveBeenCalled();
+    });
   });
 
   describe('mergeDefinitionSecretsFromSource', () => {
+    // getConnectorCapabilities is bundled-only: it throws NotFoundException for any
+    // custom connector name. Merging must not depend on it — the existence guard is
+    // getAllSecretFieldNames, which resolves custom connectors too.
+    it('merges a custom connector definition without consulting bundled capabilities', async () => {
+      const { service, specService } = createService(['AccessToken']);
+      (specService.getConnectorCapabilities as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("Connector 'MyCustomApi' not found");
+      });
+
+      const sourceDefinition = makeDefinition(
+        [{ _id: 'source-id-1', AccessToken: 'access1', AccountIDs: '1' }],
+        'MyCustomApi'
+      );
+      const incoming = makeDefinition(
+        [{ AccessToken: SECRET_MASK, AccountIDs: '1', _copiedFrom: { configId: 'source-id-1' } }],
+        'MyCustomApi'
+      );
+
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0].AccessToken).toBe('access1');
+      expect(specService.getConnectorCapabilities).not.toHaveBeenCalled();
+    });
+
+    // What SECRET_MASK means on the way back IN, pinned because mask() now masks
+    // defensively when it cannot resolve the specification. For a spec SECRET field the mask
+    // means "keep the stored value"; a field that is NOT a spec secret carries its literal
+    // incoming value and stays editable. Over-masking a non-secret field would break exactly
+    // this — the edit would be lost and the mask string persisted in its place.
+    it('keeps the stored secret on a SECRET_MASK round-trip and still applies an edit to a non-secret field', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', AccessToken: 'stored-token', AccountIDs: '33' },
+      ]);
+      const incoming = makeDefinition([
+        { AccessToken: SECRET_MASK, AccountIDs: '44', _copiedFrom: { configId: 'source-id-1' } },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0].AccessToken).toBe('stored-token');
+      expect(cfg[0].AccountIDs).toBe('44');
+    });
+
     it('copies secrets from correct source configurations using _copiedFrom.configId metadata', async () => {
       const { service } = createService(['AccessToken']);
 
@@ -661,7 +828,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0].AccessToken).toBe('access1');
@@ -677,12 +848,10 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._id).not.toBe('source-id-3');
     });
 
+    // A copied config never keeps the source's _secrets_id, for every connector:
+    // the deletion is unconditional and no capability flag gates it.
     it('copies secrets by value without retaining the source secret record', async () => {
-      const { service, specService, credentialsService } = createService(['ServiceAccountKey']);
-      (specService.getConnectorCapabilities as jest.Mock).mockReturnValue({
-        singleConfiguration: false,
-        copySecretsByValue: true,
-      });
+      const { service, credentialsService } = createService(['ServiceAccountKey']);
 
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
         new Map([
@@ -714,7 +883,11 @@ describe('ConnectorSecretService', () => {
         'CopyByValueConnector'
       );
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -752,7 +925,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -794,7 +971,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -835,7 +1016,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
@@ -864,7 +1049,7 @@ describe('ConnectorSecretService', () => {
       } as unknown as ConnectorDefinition;
 
       await expect(
-        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
+        service.mergeDefinitionSecretsFromSource('project-1', incoming, sourceDefinition)
       ).rejects.toThrow('Cannot copy secrets from different connector type');
     });
 
@@ -881,7 +1066,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // Should return the item unchanged (will be merged with previous in the next step)
@@ -903,7 +1092,7 @@ describe('ConnectorSecretService', () => {
       ]);
 
       await expect(
-        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
+        service.mergeDefinitionSecretsFromSource('project-1', incoming, sourceDefinition)
       ).rejects.toThrow('Source configuration with _id "non-existent-id" not found');
     });
 
@@ -919,7 +1108,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0]._id).not.toBe('source-1');
@@ -957,7 +1150,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // The value is carried over from the source's credentials record, but the
@@ -1000,7 +1197,11 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        'project-1',
+        incoming,
+        sourceDefinition
+      );
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // First config (existing) should be unchanged

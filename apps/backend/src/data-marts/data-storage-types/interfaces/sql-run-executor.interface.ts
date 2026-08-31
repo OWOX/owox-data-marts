@@ -20,6 +20,7 @@ export interface SqlRunExecutor extends TypedComponent<DataStorageType> {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: SqlRunExecuteOptions
+    options?: SqlRunExecuteOptions,
+    storageId?: string
   ): AsyncIterable<SqlRunBatch<Row>>;
 }

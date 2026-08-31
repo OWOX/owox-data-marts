@@ -50,6 +50,20 @@ jobs:
           - name: 'Overall test @owox/ctl'
             command: 'npm run test -w @owox/ctl'
             timeout: 10
+          # Unit + declarative-engine suite for @owox/connectors (vitest plus an
+          # explicit `node --test` file list). Needs no credentials and no network:
+          # the live ad-connector fixtures live in the separate `test:fixtures`
+          # script, which is deliberately NOT gated here because it calls real APIs.
+          - name: 'Overall test @owox/connectors'
+            command: 'npm run test -w @owox/connectors'
+            timeout: 10
+          # Type-level tests for the @owox/connectors shipped declarations
+          # (tsc --noEmit; resolves the static .d.ts, so no connectors build is
+          # needed). Distinct from the suite above, which never type-checks the
+          # published .d.ts.
+          - name: 'Type tests @owox/connectors'
+            command: 'npm run test:types -w @owox/connectors'
+            timeout: 10
 
     steps:
       - name: Checkout repository

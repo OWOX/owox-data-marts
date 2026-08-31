@@ -5,22 +5,30 @@
  * file that was distributed with this source code.
  */
 
-var TIKTOK_ADS_DATA_LEVELS = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
+import { AbstractSource } from '../../Core/AbstractSource.js';
 
-var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
+const TIKTOK_ADS_DATA_LEVELS = [
+  'AUCTION_ADVERTISER',
+  'AUCTION_CAMPAIGN',
+  'AUCTION_ADGROUP',
+  'AUCTION_AD',
+];
 
-  constructor(config) {
-    super(config.mergeParameters({
+export class TikTokAdsSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       AuthType: {
-        requiredType: "object",
-        label: "Auth Type",
-        description: "Authentication type",
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
         isRequired: true,
         oneOf: [
           {
-            label: "OAuth2",
-            value: "oauth2",
-            requiredType: "object",
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -29,189 +37,305 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
                   required: true,
                   store: 'env',
                   key: 'OAUTH_TIKTOK_ADS_APP_ID',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 AppSecret: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_TIKTOK_ADS_APP_SECRET',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
                 RedirectUri: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_TIKTOK_ADS_REDIRECT_URI',
-                  attributes: [OAUTH_CONSTANTS.UI]
-                }
+                  attributes: [OAUTH_CONSTANTS.UI],
+                },
               },
               mapping: {
                 AccessToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'accessToken'
-                }
-              }
+                  key: 'accessToken',
+                },
+              },
             },
             items: {
               AccessToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Access Token",
-                description: "TikTok Ads API Access Token for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Access Token',
+                description: 'TikTok Ads API Access Token for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               AppId: {
-                requiredType: "string",
-                label: "App ID",
-                description: "TikTok Ads API Application ID",
+                requiredType: 'string',
+                label: 'App ID',
+                description: 'TikTok Ads API Application ID',
               },
               AppSecret: {
-                requiredType: "string",
-                label: "App Secret",
-                description: "TikTok Ads API Application Secret",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'App Secret',
+                description: 'TikTok Ads API Application Secret',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
-            }
-          }
-        ]
+            },
+          },
+        ],
       },
       AccessToken: {
-        requiredType: "string",
-        label: "Access Token",
-        description: "TikTok Ads API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Access Token',
+        description: 'TikTok Ads API Access Token for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       AppId: {
-        requiredType: "string",
-        label: "App ID",
-        description: "TikTok Ads API Application ID",
-        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'App ID',
+        description: 'TikTok Ads API Application ID',
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       AppSecret: {
-        requiredType: "string",
-        label: "App Secret",
-        description: "TikTok Ads API Application Secret",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'App Secret',
+        description: 'TikTok Ads API Application Secret',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       AdvertiserIDs: {
         isRequired: true,
-        label: "Advertiser IDs",
-        description: "TikTok Ads Advertiser IDs to fetch data from"
+        label: 'Advertiser IDs',
+        description: 'TikTok Ads Advertiser IDs to fetch data from',
       },
       DataLevel: {
-        requiredType: "string",
-        default: "AUCTION_AD",
-        label: "Data Level",
-        description: "Data level for ad_insights reports. Switching levels after data exists can corrupt merges — use a new table in another Data Mart instead.",
-        options: TIKTOK_ADS_DATA_LEVELS
+        requiredType: 'string',
+        default: 'AUCTION_AD',
+        label: 'Data Level',
+        description:
+          'Data level for ad_insights reports. Switching levels after data exists can corrupt merges — use a new table in another Data Mart instead.',
+        options: TIKTOK_ADS_DATA_LEVELS,
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       IncludeDeleted: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: false,
-        label: "Include Deleted",
-        description: "Include deleted entities in results",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Include Deleted',
+        description: 'Include deleted entities in results',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       SandboxMode: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: false,
-        label: "Sandbox Mode",
-        description: "Use sandbox environment for testing",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Sandbox Mode',
+        description: 'Use sandbox environment for testing',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
+        label: 'Create Empty Tables',
+        description: 'Create tables with all columns even if no data is returned from API',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = TikTokAdsFieldsSchema;
-    this.apiVersion = "v1.3"; // TikTok Ads API version
+    this.apiVersion = 'v1.3';
 
+    // Per-advertiser tracking for onImportComplete error aggregation.
+    // Mirrors the legacy Connector.js _checkAndReportErrors() behavior so that
+    // partial failures emit a warning while a total wipeout (every advertiser
+    // failed) still throws and triggers ControlEvent failed.
+    this.advertiserErrors = new Map(); // advertiserId -> [errors]
+    this.advertiserSuccesses = new Map(); // advertiserId -> boolean
   }
 
   /**
-   * Exchange OAuth authorization code for access and refresh tokens
-   * 
-   * @param {Object} credentials - OAuth credentials from the authorization flow
-   * @param {string} credentials.authCode - Authorization code from TikTok OAuth redirect
-   * @param {Object} variables - OAuth configuration variables
-   * @param {string} variables.AppId - TikTok App ID
-   * @param {string} variables.AppSecret - TikTok App Secret
-   * @param {string} variables.RedirectUri - OAuth redirect URI
-   * @return {Object} OAuth credentials DTO
+   * Parse comma/semicolon-separated AdvertiserIDs into [{ id }, ...].
+   */
+  getAccounts(context) {
+    const advertiserIdsParam = context.getParameter('AdvertiserIDs');
+    if (!advertiserIdsParam?.value) return [null];
+    return TikTokAdsHelper.parseAdvertiserIds(advertiserIdsParam.value).map(id => ({ id }));
+  }
+
+  /**
+   * Parse "node1 fieldA, node1 fieldB, ..." → { node1: ['fieldA', 'fieldB'] }.
+   */
+  parseFields(context) {
+    const fieldsValue = context.getParameter('Fields')?.value;
+    if (!fieldsValue) return {};
+    return TikTokAdsHelper.parseFields(fieldsValue);
+  }
+
+  /**
+   * TikTok ad_insights queries take start_date/end_date of the same day — fetch one day per call.
+   */
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
+
+  /**
+   * Track that this advertiser had at least one successful fetch.
+   * Called by the host AbstractConnector after each fetch completes — but
+   * AbstractConnector doesn't currently expose per-fetch success hooks. We
+   * therefore mark on-success inline in fetchData() and on-failure via
+   * onAccountError() (which the connector calls when an account-level loop
+   * throws). For partial-success tracking within an account, we mark
+   * `successes[id] = true` whenever fetchData() returns without throwing.
+   */
+  onAccountError(account, error) {
+    if (!account?.id) return;
+    if (!this.advertiserErrors.has(account.id)) {
+      this.advertiserErrors.set(account.id, []);
+    }
+    this.advertiserErrors.get(account.id).push(error);
+  }
+
+  /**
+   * Aggregate post-import status. Equivalent to legacy _checkAndReportErrors() +
+   * cleanUpExpiredData(): if every advertiser failed → throw (escalates to
+   * ControlEvent failed via AbstractConnector); if some failed → emit warn log;
+   * if all OK → silent.
+   */
+  onImportComplete(context) {
+    // Cleanup hook — preserved as no-op shape for parity with legacy behavior.
+    // Original implementation only logged for now (cleanup is not actually
+    // wired to current storages); we keep it as a placeholder.
+    this._cleanUpExpiredData(context);
+
+    const advertiserIds = this.getAccounts(context)
+      .map(a => a?.id)
+      .filter(Boolean);
+    const total = advertiserIds.length;
+    if (total === 0) return;
+
+    const failed = [];
+    const succeeded = [];
+
+    for (const id of advertiserIds) {
+      const hasErrors = this.advertiserErrors.has(id) && this.advertiserErrors.get(id).length > 0;
+      const hasSuccess = this.advertiserSuccesses.get(id) === true;
+
+      if (hasErrors && !hasSuccess) {
+        failed.push(id);
+      } else {
+        succeeded.push(id);
+      }
+    }
+
+    if (failed.length === total) {
+      const messages = failed.map(id => {
+        const errs = this.advertiserErrors.get(id) || [];
+        return errs[0] ? `Advertiser ${id}: ${errs[0].message}` : `Advertiser ${id}`;
+      });
+      throw new Error(`All advertisers failed to import data. Errors: ${messages.join('; ')}`);
+    }
+
+    if (failed.length > 0 && succeeded.length > 0) {
+      context.log(
+        LOG_LEVEL.WARN,
+        `Warning: ${failed.length} out of ${total} advertisers had errors. ` +
+          `Failed advertisers: ${failed.join(', ')}. ` +
+          `Successful advertisers: ${succeeded.join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * Cleanup window placeholder. Legacy implementation iterated time-series nodes
+   * but only emitted a log message (no actual deletion was wired). Kept for
+   * behavioral parity.
+   * @private
+   */
+  _cleanUpExpiredData(context) {
+    const param = context.getParameter('CleanUpToKeepWindow');
+    if (!param?.value) return;
+    const keepDays = parseInt(param.value, 10);
+    if (isNaN(keepDays) || keepDays <= 0) return;
+    context.log(LOG_LEVEL.INFO, `Cleaning up data older than ${keepDays} days...`);
+  }
+
+  /**
+   * Exchange OAuth authorization code for an access token.
    */
   async exchangeOauthCredentials(credentials, variables) {
     try {
       const tokenUrl = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/';
 
-      const tokenResponse = await HttpUtils.fetch(tokenUrl, {
+      const tokenResponse = await fetch(tokenUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           app_id: variables.AppId,
           secret: variables.AppSecret,
           auth_code: credentials.authCode,
-          grant_type: 'authorization_code'
-        })
+          grant_type: 'authorization_code',
+        }),
       });
 
-      const tokenData = await tokenResponse.getAsJson();
+      const tokenData = await tokenResponse.json();
 
       if (tokenData.code !== 0) {
         throw new OauthFlowException({
           message: tokenData.message || 'Failed to exchange authorization code',
-          payload: tokenData
+          payload: tokenData,
         });
       }
 
       const data = tokenData.data;
 
       if (!data.access_token) {
-        throw new OauthFlowException({
-          message: 'Missing access_token in exchange response'
-        });
+        throw new OauthFlowException({ message: 'Missing access_token in exchange response' });
       }
 
       const provider = new TiktokMarketingApiProvider(
         variables.AppId,
         data.access_token,
         variables.AppSecret,
-        false
+        false,
+        this.context
       );
 
       let userName = 'TikTok Ads User';
@@ -220,16 +344,12 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
       try {
         const advertisers = await provider.getAdvertisers(advertiserIds);
-
         if (advertisers && advertisers.length > 0) {
           userName = advertisers[0].advertiser_name || userName;
           userId = advertisers[0].advertiser_id || userId;
-
           advertiserIds = advertisers.map(adv => adv.advertiser_id);
         }
       } catch (err) {
-        console.warn('Failed to fetch advertiser details during OAuth exchange:', err.message);
-        // Fallback to basic data if fetch fails
         if (advertiserIds.length > 0) {
           userId = advertiserIds[0];
         }
@@ -237,9 +357,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
       const oauthCredentials = OauthCredentialsDto.builder()
         .withUser({ id: userId, name: userName })
-        .withSecret({
-          accessToken: data.access_token
-        })
+        .withSecret({ accessToken: data.access_token })
         .withExpiresIn(null);
 
       return oauthCredentials.build().toObject();
@@ -249,110 +367,86 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       }
       throw new OauthFlowException({
         message: 'Failed to exchange TikTok authorization code',
-        payload: error.message
+        payload: error.message,
       });
     }
   }
 
-  /**
-   * Refresh OAuth credentials when access token is about to expire
-   * 
-   * @param {Object} configuration - Connector configuration
-   * @param {Object} credentials - Stored OAuth credentials
-   * @param {Object} variables - OAuth configuration variables
-   * @return {Object|null} New OAuth credentials DTO or null if refresh not needed
-   */
   async refreshCredentials() {
     return null;
   }
 
   /**
-   * Get access token based on authentication type
-   * @return {string} Access token
+   * Get access token based on auth type.
    * @private
    */
   _getAccessToken() {
-    // If using OAuth2, get the access token from AuthType config
-    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
-      return this.config.AuthType.items?.AccessToken?.value;
+    const authType = this.context.getParameter('AuthType');
+    if (authType?.value === 'oauth2') {
+      return authType.items?.AccessToken?.value;
     }
-    // Fallback to legacy AccessToken config
-    return this.config.AccessToken?.value;
+    return this.context.getParameter('AccessToken')?.value;
   }
 
   /**
-   * Get App ID based on authentication type
-   * @return {string} App ID
+   * Get App ID based on auth type.
    * @private
    */
   _getAppId() {
-    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
-      return this.config.AuthType.items?.AppId?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
+    const authType = this.context.getParameter('AuthType');
+    if (authType?.value === 'oauth2') {
+      return authType.items?.AppId?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
     }
-    return this.config.AppId?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
+    return this.context.getParameter('AppId')?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
   }
 
   /**
-   * Get App Secret based on authentication type
-   * @return {string} App Secret
+   * Get App Secret based on auth type.
    * @private
    */
   _getAppSecret() {
-    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
-      return this.config.AuthType.items?.AppSecret?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
+    const authType = this.context.getParameter('AuthType');
+    if (authType?.value === 'oauth2') {
+      return authType.items?.AppSecret?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
     }
-    return this.config.AppSecret?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
+    return this.context.getParameter('AppSecret')?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
   }
 
   /**
-   * Retrieves and validates the data level from the configuration
-   * 
-   * @return {string} - The validated data level string
+   * Validate the configured DataLevel; fall back to AUCTION_AD on bad input.
    */
   getValidatedDataLevel() {
-    let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
-      this.config.DataLevel.value : "AUCTION_AD";
+    let dataLevel = this.context.getParameter('DataLevel')?.value || 'AUCTION_AD';
 
     if (!TIKTOK_ADS_DATA_LEVELS.includes(dataLevel)) {
-      this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
-      dataLevel = "AUCTION_AD";
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`
+      );
+      dataLevel = 'AUCTION_AD';
     }
-
     return dataLevel;
   }
 
   /**
-   * Get dimensions based on the specified data level
-   * 
-   * @param {string} dataLevel - The reporting data level
-   * @return {array} - Array of dimension fields
+   * Get dimensions based on the specified data level.
    */
   getDimensionsForDataLevel(dataLevel) {
-    let dimensions = [];
     switch (dataLevel) {
-      case "AUCTION_ADVERTISER":
-        dimensions = ["stat_time_day"];
-        break;
-      case "AUCTION_CAMPAIGN":
-        dimensions = ["campaign_id", "stat_time_day"];
-        break;
-      case "AUCTION_ADGROUP":
-        dimensions = ["adgroup_id", "stat_time_day"];
-        break;
-      case "AUCTION_AD":
+      case 'AUCTION_ADVERTISER':
+        return ['stat_time_day'];
+      case 'AUCTION_CAMPAIGN':
+        return ['campaign_id', 'stat_time_day'];
+      case 'AUCTION_ADGROUP':
+        return ['adgroup_id', 'stat_time_day'];
+      case 'AUCTION_AD':
       default:
-        dimensions = ["ad_id", "stat_time_day"];
-        break;
+        return ['ad_id', 'stat_time_day'];
     }
-    return dimensions;
   }
 
   /**
-   * Appends a new dimension to an existing dimensions array
-   * 
-   * @param {array} dimensions - The initial dimensions array
-   * @param {string} newDimension - The dimension to append
-   * @return {array} - Array of dimension fields with the new one added
+   * Append a new dimension to an existing dimensions array (de-duplicated).
    */
   populateDimensions(dimensions, newDimension) {
     if (!dimensions.includes(newDimension)) {
@@ -371,19 +465,37 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    * collide across advertisers without it. campaign_id/adgroup_id/ad_id are unique
    * platform-wide, so this is a no-op (redundant-but-harmless) at the other data levels.
    *
+   * This is also the engine hook AbstractConnector.getUniqueKeysForNode() calls to
+   * build the storage's MERGE key (main did the same from
+   * TikTokAdsConnector.getStorageByNode). The engine knows nothing about data levels
+   * and passes the node name ONLY, so dataLevel has to default to the configured
+   * level -- leaving it undefined there would silently fall through
+   * getDimensionsForDataLevel's AUCTION_AD default and hand storage an ad_id key for
+   * rows that, at any other level, have no ad_id at all.
+   *
    * @param {string} nodeName - The node name (e.g. ad_insights, ad_insights_by_country)
-   * @param {string} dataLevel - The reporting data level (only relevant for insights nodes)
+   * @param {string} [dataLevel] - The reporting data level (only relevant for insights
+   *   nodes); defaults to the level configured for this run
    * @return {array} - Array of unique key fields
    */
   getUniqueKeysForNode(nodeName, dataLevel) {
+    const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
+    if (!isInsightsNode) {
+      return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
+    }
+
+    // Resolved only for the nodes it applies to: getValidatedDataLevel() warns on a
+    // bogus level, and the engine asks for EVERY node's keys, once per write.
+    const level = dataLevel === undefined ? this.getValidatedDataLevel() : dataLevel;
+
     if (nodeName === 'ad_insights') {
-      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'advertiser_id');
+      return this.populateDimensions(this.getDimensionsForDataLevel(level), 'advertiser_id');
     }
-    if (nodeName === 'ad_insights_by_country') {
-      const dimensions = this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
-      return this.populateDimensions(dimensions, 'advertiser_id');
-    }
-    return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
+    const dimensions = this.populateDimensions(
+      this.getDimensionsForDataLevel(level),
+      'country_code'
+    );
+    return this.populateDimensions(dimensions, 'advertiser_id');
   }
 
   /**
@@ -419,81 +531,73 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    * @return {array} - Filtered valid metric fields
    */
   getFilteredMetrics(filteredFields, dimensions, validMetricsList) {
-    const nonMetricFields = [...dimensions, "advertiser_id", "stat_time_day", "date_start", "date_end"];
-
+    const nonMetricFields = [
+      ...dimensions,
+      'advertiser_id',
+      'stat_time_day',
+      'date_start',
+      'date_end',
+    ];
     return filteredFields
       .filter(field => !nonMetricFields.includes(field))
       .filter(field => validMetricsList.includes(field));
   }
 
   /**
-   * Fetches data from TikTok Ads API
-   * 
-   * @param {string} nodeName - The node to fetch data from (advertiser, campaigns, ad_groups, ads, ad_insights, audiences)
-   * @param {string} advertiserId - The advertiser ID to fetch data for
-   * @param {array} fields - Array of field names to fetch
-   * @param {Date} startDate - Start date for time-series data (optional)
-   * @param {Date} endDate - End date for time-series data (optional)
-   * @return {array} - Array of data objects
+   * Single fetch entry point. AbstractConnector calls us with
+   * { nodeName, fields, accountId, startDate, endDate } once per
+   * (advertiser × node × day) for time-series, or once per
+   * (advertiser × node) for catalog. Under day-by-day, startDate === endDate.
    */
-  async fetchData(nodeName, advertiserId, fields, startDate = null, endDate = null) {
-    // Check if the node schema exists
+  async fetchData({ nodeName, accountId, fields = [], startDate = null, endDate = null }) {
+    const advertiserId = accountId;
+
     if (!this.fieldsSchema[nodeName]) {
       throw new Error(`Unknown node type: ${nodeName}`);
     }
 
-    // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {
       const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
-      const nodeDataLevel = isInsightsNode ? this.getValidatedDataLevel() : null;
-      const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeDataLevel);
+      // No data level passed: getUniqueKeysForNode resolves the configured one
+      // itself, so this validation and the storage's MERGE key cannot diverge.
+      const uniqueKeys = this.getUniqueKeysForNode(nodeName);
       const missingKeys = uniqueKeys.filter(
         key => !(isInsightsNode && key === 'advertiser_id') && !fields.includes(key)
       );
 
       if (missingKeys.length > 0) {
-        throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+        throw new Error(
+          `Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`
+        );
       }
     }
 
-    // Initialize the API provider
+    const sandboxMode = this.context.getParameter('SandboxMode')?.value === true;
+
     const provider = new TiktokMarketingApiProvider(
       this._getAppId(),
       this._getAccessToken(),
       this._getAppSecret(),
-      this.config.SandboxMode && this.config.SandboxMode.value
+      sandboxMode,
+      this.context
     );
 
-    // Store the current advertiser ID so it can be used if missing in records
+    // Store the current advertiser ID so castFields can patch missing values
     this.currentAdvertiserId = advertiserId;
-
-    let formattedStartDate = null;
-    let formattedEndDate = null;
-
-    if (startDate) {
-      formattedStartDate = DateUtils.formatDate(startDate);
-      // If no end date is provided, use start date as end date (single day)
-      formattedEndDate = endDate
-        ? DateUtils.formatDate(endDate)
-        : formattedStartDate;
-    }
 
     // Filter parameter for including deleted entities
     let filtering = null;
-    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value) {
+    if (this.context.getParameter('IncludeDeleted')?.value) {
       if (nodeName === 'campaigns') {
-        filtering = { "secondary_status": "CAMPAIGN_STATUS_ALL" };
+        filtering = { secondary_status: 'CAMPAIGN_STATUS_ALL' };
       } else if (nodeName === 'ad_groups') {
-        filtering = { "secondary_status": "ADGROUP_STATUS_ALL" };
+        filtering = { secondary_status: 'ADGROUP_STATUS_ALL' };
       } else if (nodeName === 'ads') {
-        filtering = { "secondary_status": "AD_STATUS_ALL" };
+        filtering = { secondary_status: 'AD_STATUS_ALL' };
       }
     }
 
-    // Use schema-defined fields
     let filteredFields = fields;
-
-    // If no fields specified or empty array, use all fields from schema
     if (!fields || fields.length === 0) {
       if (this.fieldsSchema[nodeName] && this.fieldsSchema[nodeName].fields) {
         filteredFields = Object.keys(this.fieldsSchema[nodeName].fields);
@@ -521,38 +625,44 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           break;
 
         case 'ad_insights': {
-          let dataLevel = this.getValidatedDataLevel();
-          let dimensions = this.getDimensionsForDataLevel(dataLevel);
-
+          const dataLevel = this.getValidatedDataLevel();
+          const dimensions = this.getDimensionsForDataLevel(dataLevel);
           const validMetricsList = provider.getValidAdInsightsMetrics();
-          let metricFields = this.getFilteredMetrics(filteredFields, dimensions, validMetricsList);
+          const metricFields = this.getFilteredMetrics(
+            filteredFields,
+            dimensions,
+            validMetricsList
+          );
 
           allData = await provider.getAdInsights({
-            advertiserId: advertiserId,
-            dataLevel: dataLevel,
-            dimensions: dimensions,
+            advertiserId,
+            dataLevel,
+            dimensions,
             metrics: metricFields,
-            startDate: formattedStartDate,
-            endDate: formattedEndDate
+            startDate: startDate || null,
+            endDate: endDate || startDate || null,
           });
           break;
         }
 
         case 'ad_insights_by_country': {
-          let dataLevel = this.getValidatedDataLevel();
-          let dimensions = this.getDimensionsForDataLevel(dataLevel);
-          let countryDimensions = this.populateDimensions(dimensions, 'country_code');
-
+          const dataLevel = this.getValidatedDataLevel();
+          const dimensions = this.getDimensionsForDataLevel(dataLevel);
+          const countryDimensions = this.populateDimensions(dimensions, 'country_code');
           const validMetricsList = provider.getValidAdInsightsMetrics();
-          let metricFields = this.getFilteredMetrics(filteredFields, countryDimensions, validMetricsList);
+          const metricFields = this.getFilteredMetrics(
+            filteredFields,
+            countryDimensions,
+            validMetricsList
+          );
 
           allData = await provider.getAdInsights({
-            advertiserId: advertiserId,
-            dataLevel: dataLevel,
+            advertiserId,
+            dataLevel,
             dimensions: countryDimensions,
             metrics: metricFields,
-            startDate: formattedStartDate,
-            endDate: formattedEndDate
+            startDate: startDate || null,
+            endDate: endDate || startDate || null,
           });
           break;
         }
@@ -562,66 +672,64 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           break;
 
         default:
-          throw new Error(`Endpoint for ${nodeName} is not implemented yet. Feel free to add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`);
+          throw new Error(
+            `Endpoint for ${nodeName} is not implemented yet. Feel free to add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`
+          );
       }
 
-      // Cast fields to the correct data types using the provider's castFields method
       allData = allData.map(record => this.castFields(nodeName, record, this.fieldsSchema));
 
-
-      // add missing fields to the record
-      for (let field in this.fieldsSchema[nodeName].fields) {
-        if (!(field in allData)) {
-          allData[field] = null;
-        }
-      }
+      // Mark this advertiser as having had at least one successful fetch.
+      this.advertiserSuccesses.set(advertiserId, true);
 
       return allData;
-
     } catch (error) {
-      if (error.message.includes('one or more value of the param is not acceptable, correct is')) {
-        // Extract the valid fields from the error message
+      // TikTok returns a list of valid fields in the error body when params are bad.
+      // Retry once with that filtered list.
+      if (
+        error.message &&
+        error.message.includes('one or more value of the param is not acceptable, correct is')
+      ) {
         try {
           const fieldErrorMatch = error.message.match(/correct is \[(.*?)\]/);
           if (fieldErrorMatch && fieldErrorMatch[1]) {
-            const validFieldsFromError = fieldErrorMatch[1].split("', '").map(f => f.replace(/'/g, "").trim());
-
-            console.log("API returned valid fields list: " + validFieldsFromError.join(", "));
-
-            // Retry with valid fields from the API
+            const validFieldsFromError = fieldErrorMatch[1]
+              .split("', '")
+              .map(f => f.replace(/'/g, '').trim());
             if (validFieldsFromError.length > 0) {
-              console.log("Retrying with valid fields from API");
-              return this.fetchData(nodeName, advertiserId, validFieldsFromError, startDate, endDate);
+              this.context.log(
+                LOG_LEVEL.INFO,
+                `Retrying ${nodeName} with valid fields from API: ${validFieldsFromError.join(', ')}`
+              );
+              return this.fetchData({
+                nodeName,
+                accountId: advertiserId,
+                fields: validFieldsFromError,
+                startDate,
+                endDate,
+              });
             }
           }
         } catch (parseError) {
-          // logMessage, not console.error: this is a recoverable parsing hiccup, and raw
-          // stderr would be recorded as a run ERROR entry
-          this.config.logMessage(`Error parsing valid fields from error message: ${parseError}`);
+          this.context.log(
+            LOG_LEVEL.ERROR,
+            `Error parsing valid fields from error message: ${parseError.message}`
+          );
         }
       }
-
-      // No console.error here: the caller logs the message via config.logMessage,
-      // and raw stderr writes get captured as separate ERROR entries in run logs
       throw error;
     }
   }
 
   /**
-   * Cast record fields to the types defined in schema
-   * 
-   * @param {string} nodeName - Name of the TikTok API node
-   * @param {object} record - Object with all the row fields
-   * @return {object} - Record with properly cast field values
+   * Cast record fields to the types defined in schema. Includes ad_insights
+   * metric/dimension flattening and string truncation safeguards.
    */
   castFields(nodeName, record, schema) {
-    // Maximum string length to prevent exceeding column limits
     const MAX_STRING_LENGTH = 50000;
 
-    // Special handling for metrics/dimensions fields in ad_insights and ad_insights_by_country
     if (nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country') {
       if (record.metrics) {
-        // Flatten metrics object into the main record
         for (const metricKey in record.metrics) {
           record[metricKey] = record.metrics[metricKey];
         }
@@ -629,19 +737,16 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       }
 
       if (record.dimensions) {
-        // Flatten dimensions object into the main record
         for (const dimensionKey in record.dimensions) {
           record[dimensionKey] = record.dimensions[dimensionKey];
         }
         delete record.dimensions;
       }
 
-      // Ensure advertiser_id is present
       if (!record.advertiser_id && this.currentAdvertiserId) {
         record.advertiser_id = this.currentAdvertiserId;
       }
 
-      // Handle date fields
       if (record.stat_time_day && !record.date_start) {
         record.date_start = record.stat_time_day;
       }
@@ -654,13 +759,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       record.advertiser_id = this.currentAdvertiserId;
     }
 
-    // Verify we have a schema for this node
     if (!schema[nodeName] || !schema[nodeName].fields) {
-      console.warn(`No schema defined for node ${nodeName}`);
       return record;
     }
 
-    // Filter out any extremely large fields or fields not in schema
     const processedRecord = {};
 
     // Add all fields defined in the schema. Every node's uniqueKeys are themselves schema
@@ -673,20 +775,16 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       }
     }
 
-    // Then add other fields from the record that might be needed
-    for (let field in record) {
-      if (field === 'rowIndex' && !processedRecord[field]) {
+    for (const field in record) {
+      if (field === 'rowIndex' && !(field in processedRecord)) {
         processedRecord[field] = record[field];
       }
     }
 
-    // Now process field types
-    for (let field in processedRecord) {
-      if (field in schema[nodeName].fields &&
-        "type" in schema[nodeName].fields[field]) {
-
-        let type = schema[nodeName].fields[field].type;
-        let value = processedRecord[field];
+    for (const field in processedRecord) {
+      if (field in schema[nodeName].fields && 'type' in schema[nodeName].fields[field]) {
+        const type = schema[nodeName].fields[field].type;
+        const value = processedRecord[field];
 
         if (value === null || value === undefined) {
           continue;
@@ -710,26 +808,30 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               processedRecord[field] = Boolean(value);
               break;
 
-            case DATA_TYPES.DATE:
+            case DATA_TYPES.DATE: {
               let dateValue;
               if (value instanceof Date) {
                 dateValue = value;
               } else if (typeof value === 'string') {
                 let dateStr = value.replace(' ', 'T');
                 if (!dateStr.includes('T')) {
-                  dateStr = dateStr + "T00:00:00Z";
-                } else if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-                  dateStr = dateStr + "Z";
+                  dateStr = dateStr + 'T00:00:00Z';
+                } else if (
+                  !dateStr.endsWith('Z') &&
+                  !dateStr.includes('+') &&
+                  !dateStr.includes('-', 10)
+                ) {
+                  dateStr = dateStr + 'Z';
                 }
                 dateValue = new Date(dateStr);
               } else {
                 dateValue = new Date(value);
               }
-
               processedRecord[field] = dateValue;
               break;
+            }
 
-            case DATA_TYPES.DATETIME:
+            case DATA_TYPES.DATETIME: {
               let datetimeValue;
               if (field === 'create_time' || field === 'modify_time') {
                 if (typeof value === 'number') {
@@ -744,6 +846,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               }
               processedRecord[field] = datetimeValue;
               break;
+            }
 
             case DATA_TYPES.TIMESTAMP:
               processedRecord[field] = new Date(value);
@@ -760,25 +863,18 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               break;
 
             default:
-              console.warn(`Unknown type ${type} for field ${field}`);
               processedRecord[field] = String(value).substring(0, MAX_STRING_LENGTH);
               break;
           }
         } catch (error) {
-          // The value is replaced with a placeholder and the import continues, so this
-          // is a log rather than a run error
-          this.config.logMessage(
-            `Error processing field ${field} with value ${value}: ${error.message}`
-          );
-          processedRecord[field] = "[Error processing value]";
+          processedRecord[field] = '[Error processing value]';
         }
       } else if (field !== 'rowIndex') {
-        console.debug(`Field ${field} in ${nodeName} is not defined in schema`);
         if (processedRecord[field] !== null && processedRecord[field] !== undefined) {
           try {
             processedRecord[field] = String(processedRecord[field]).substring(0, MAX_STRING_LENGTH);
           } catch (error) {
-            processedRecord[field] = "[Error processing value]";
+            processedRecord[field] = '[Error processing value]';
           }
         }
       }
@@ -786,5 +882,4 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     return processedRecord;
   }
-
-};
+}

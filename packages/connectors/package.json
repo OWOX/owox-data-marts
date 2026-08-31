@@ -26,17 +26,23 @@
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,json}\"",
-    "test": "vitest run"
+    "test": "vitest run && node --test tests/AbstractConnector.test.js tests/AbstractContext.test.js tests/AbstractSource.test.js tests/AbstractStorage.test.js tests/Events.test.js tests/RunFailureReport.test.js tests/RunnerTestMode.test.js tests/buildBundleOnce.test.js \"tests/declarative/*.test.js\" \"tests/regression/*.test.js\"",
+    "test:fixtures": "node --test tests/Fixture.test.js",
+    "test:types": "tsc -p tests/types/tsconfig.unit.json && tsc -p tests/types/tsconfig.node10.json && tsc -p tests/types/tsconfig.nodenext.json",
+    "fixture": "node scripts/run-fixture.js"
   },
   "files": [
     "dist/**/*.js",
-    "dist/**/*.cjs"
+    "dist/**/*.cjs",
+    "types/**/*.d.ts"
   ],
+  "types": "./types/index.d.ts",
   "bin": {
     "owox-connector-runner": "./dist/connector-runner.cjs"
   },
   "exports": {
     ".": {
+      "types": "./types/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -62,6 +68,7 @@
     "fs-extra": "^11",
     "glob": "^13",
     "globals": "^16",
+    "typescript": "~5.9.0",
     "vite": "^6.3.5",
     "vitest": "^4.1.8"
   }

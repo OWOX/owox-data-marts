@@ -45,6 +45,7 @@ const connectorDefinitionSchema = z.object({
           .min(1, 'At least one configuration is required'),
         node: z.string().min(1, 'Node is required'),
         fields: z.array(z.string()).min(1, 'At least one field is required'),
+        version: z.number().int().positive().optional(),
       }),
       storage: z.object({
         fullyQualifiedName: z.string().min(1, 'fully qualified name is required'),

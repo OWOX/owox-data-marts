@@ -3,21 +3,22 @@ import vm from 'vm';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { MicrosoftAdsSource } from '../../../src/Sources/MicrosoftAds/Source.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fileUtilsPath = path.join(__dirname, '../../../src/Core/Utils/FileUtils.js');
-const coreSourcePath = path.join(__dirname, '../../../src/Core/AbstractSource.js');
 const helperPath = path.join(__dirname, '../../../src/Sources/MicrosoftAds/Helper.js');
-const sourcePath = path.join(__dirname, '../../../src/Sources/MicrosoftAds/Source.js');
 
-// GAS-style files: `var X = ...` lands on globalThis, but Helper.js uses a top-level
-// `const`, which only enters the global lexical scope — read it back with a vm eval.
+// The source and its base class are ES modules here, so they are imported rather than
+// evaluated as scripts. LOG_LEVEL stays a bare global, the way the built bundle supplies
+// it to every source. FileUtils.js and Helper.js are still GAS-style scripts: `var X = ...`
+// lands on globalThis, but Helper.js uses a top-level `const`, which only enters the global
+// lexical scope — read it back with a vm eval.
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
 loadGasClass(fileUtilsPath);
-loadGasClass(coreSourcePath);
 loadGasClass(helperPath);
-loadGasClass(sourcePath);
 const MicrosoftAdsHelper = vm.runInThisContext('MicrosoftAdsHelper');
-const proto = globalThis.MicrosoftAdsSource.prototype;
+const proto = MicrosoftAdsSource.prototype;
 
 const CSV_FIXTURE = [
   'Type,Id,Parent Id,Keyword',
@@ -73,7 +74,7 @@ describe('_fetchEntityByCampaigns streaming', () => {
     const logs = [];
     return {
       logs,
-      config: { logMessage: message => logs.push(message) },
+      context: { log: (level, message) => logs.push(message) },
       _downloadEntityBatch: downloadEntityBatch,
     };
   };
@@ -153,21 +154,22 @@ describe('_downloadEntity streaming', () => {
   it('streams records per zip file with per-file headers and returns []', async () => {
     const submitUrl = 'https://bulk.test/submit';
     const fileUrl = 'https://bulk.test/result.zip';
-    const originalHttpUtils = globalThis.HttpUtils;
+    const originalFetch = globalThis.fetch;
     const originalUnzip = globalThis.FileUtils.unzip;
-    globalThis.HttpUtils = {
-      fetch: async url => {
-        if (url === submitUrl) {
-          return { getContentText: async () => JSON.stringify({ DownloadRequestId: 'r1' }) };
-        }
-        if (url.includes('BulkDownloadStatus')) {
-          return {
-            getContentText: async () =>
-              JSON.stringify({ RequestStatus: 'Completed', ResultFileUrl: fileUrl }),
-          };
-        }
-        return { getBlob: async () => 'zip-bytes' };
-      },
+    // The submit call goes through the source's own retrying fetch; the poll and the
+    // result-file download go through the global fetch the helper uses.
+    const fakeSource = {
+      urlFetchWithRetry: async () => ({
+        text: async () => JSON.stringify({ DownloadRequestId: 'r1' }),
+      }),
+    };
+    globalThis.fetch = async url => {
+      if (url.includes('BulkDownloadStatus')) {
+        return {
+          text: async () => JSON.stringify({ RequestStatus: 'Completed', ResultFileUrl: fileUrl }),
+        };
+      }
+      return { arrayBuffer: async () => new ArrayBuffer(0) };
     };
     globalThis.FileUtils.unzip = () => [
       { getDataAsString: () => 'Id,Name\n1,a\n2,b' },
@@ -176,14 +178,11 @@ describe('_downloadEntity streaming', () => {
 
     try {
       const chunks = [];
-      const result = await proto._downloadEntity.call(
-        {},
-        {
-          submitUrl,
-          submitOpts: {},
-          onRecordsChunk: async chunk => chunks.push(chunk),
-        }
-      );
+      const result = await proto._downloadEntity.call(fakeSource, {
+        submitUrl,
+        submitOpts: {},
+        onRecordsChunk: async chunk => chunks.push(chunk),
+      });
 
       expect(result).toEqual([]);
       // Each zip entry gets its own header — the legacy array pipeline reused the
@@ -194,7 +193,7 @@ describe('_downloadEntity streaming', () => {
         { Code: '9', Label: 'x' },
       ]);
     } finally {
-      globalThis.HttpUtils = originalHttpUtils;
+      globalThis.fetch = originalFetch;
       globalThis.FileUtils.unzip = originalUnzip;
     }
   });

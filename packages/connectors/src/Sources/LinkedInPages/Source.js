@@ -5,19 +5,23 @@
  * file that was distributed with this source code.
  */
 
-var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
-  constructor(config) {
-    super(config.mergeParameters({
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+export class LinkedInPagesSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       AuthType: {
-        requiredType: "object",
-        label: "Auth Type",
-        description: "Authentication type",
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
         isRequired: true,
         oneOf: [
           {
-            label: "OAuth2",
-            value: "oauth2",
-            requiredType: "object",
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -26,161 +30,188 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_PAGES_CLIENT_ID',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_PAGES_CLIENT_SECRET',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
                 RedirectUri: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_PAGES_REDIRECT_URI',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
                 },
                 Scopes: {
                   type: 'string',
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_PAGES_SCOPE',
                   default: 'r_organization_social,rw_organization_admin',
-                  attributes: [OAUTH_CONSTANTS.UI]
-                }
+                  attributes: [OAUTH_CONSTANTS.UI],
+                },
               },
               mapping: {
                 RefreshToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'refresh_token'
+                  key: 'refresh_token',
                 },
                 ClientId: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_id'
+                  key: 'client_id',
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_secret'
+                  key: 'client_secret',
                 },
                 AccessToken: {
                   type: 'string',
                   required: false,
                   store: 'secret',
-                  key: 'access_token'
-                }
-              }
+                  key: 'access_token',
+                },
+              },
             },
             items: {
               ClientId: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Client ID",
-                description: "LinkedIn API Client ID for authentication"
+                requiredType: 'string',
+                label: 'Client ID',
+                description: 'LinkedIn API Client ID for authentication',
               },
               ClientSecret: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Primary Client Secret",
-                description: "LinkedIn API Primary Client Secret for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Primary Client Secret',
+                description: 'LinkedIn API Primary Client Secret for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               RefreshToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Refresh Token",
-                description: "LinkedIn API Refresh Token for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Refresh Token',
+                description: 'LinkedIn API Refresh Token for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               AccessToken: {
-                requiredType: "string",
-                label: "Access Token",
-                description: "LinkedIn API Access Token (auto-generated)",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
-              }
-            }
-          }
-        ]
+                requiredType: 'string',
+                label: 'Access Token',
+                description: 'LinkedIn API Access Token (auto-generated)',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+            },
+          },
+        ],
       },
       ClientID: {
         isRequired: false,
-        requiredType: "string",
-        label: "Client ID",
-        description: "LinkedIn API Client ID for authentication",
-        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Client ID',
+        description: 'LinkedIn API Client ID for authentication',
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       ClientSecret: {
         isRequired: false,
-        requiredType: "string",
-        label: "Primary Client Secret",
-        description: "LinkedIn API Primary Client Secret for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Primary Client Secret',
+        description: 'LinkedIn API Primary Client Secret for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       RefreshToken: {
         isRequired: false,
-        requiredType: "string",
-        label: "Refresh Token",
-        description: "LinkedIn API Refresh Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Refresh Token',
+        description: 'LinkedIn API Refresh Token for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       Fields: {
         isRequired: true,
-        label: "Fields",
-        description: "List of fields to fetch from LinkedIn API"
+        label: 'Fields',
+        description: 'List of fields to fetch from LinkedIn API',
       },
       OrganizationURNs: {
         isRequired: true,
-        label: "Organization URNs",
-        description: "LinkedIn Organization URNs to fetch data from"
+        label: 'Organization URNs',
+        description: 'LinkedIn Organization URNs to fetch data from',
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
-    
+        label: 'Create Empty Tables',
+        description: 'Create tables with all columns even if no data is returned from API',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+
     this.fieldsSchema = LinkedInPagesFieldsSchema;
-    this.BASE_URL = "https://api.linkedin.com/rest/";
+    this.BASE_URL = 'https://api.linkedin.com/rest/';
+  }
+
+  // LinkedIn Pages stats accept a date range (start/end timestamps) — single call.
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.RANGE;
+  }
+
+  getAccounts(context) {
+    const urnsParam = context.getParameter('OrganizationURNs');
+    if (!urnsParam?.value) return [null];
+    return FormatUtils.parseIds(urnsParam.value, { prefix: 'urn:li:organization:' }).map(id => ({
+      id,
+    }));
   }
 
   async exchangeOauthCredentials(credentials, variables) {
     try {
-      const tokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
+      const tokenUrl = 'https://www.linkedin.com/oauth/v2/accessToken';
       const payload = {
         grant_type: 'authorization_code',
         code: credentials.code,
@@ -192,20 +223,23 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       const options = {
         method: 'post',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: Object.entries(payload)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&')
+          .join('&'),
       };
 
-      const response = await HttpUtils.fetch(tokenUrl, options);
-      const data = await response.getAsJson();
+      const response = await fetch(tokenUrl, options);
+      const data = await response.json();
 
       if (data.error || !data.refresh_token) {
         throw new OauthFlowException({
-          message: data.error_description || data.error || 'Failed to exchange LinkedIn authorization code',
-          payload: data
+          message:
+            data.error_description ||
+            data.error ||
+            'Failed to exchange LinkedIn authorization code',
+          payload: data,
         });
       }
 
@@ -217,7 +251,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
           refresh_token: data.refresh_token,
           access_token: data.access_token,
           client_id: variables.ClientId,
-          client_secret: variables.ClientSecret
+          client_secret: variables.ClientSecret,
         })
         .withExpiresIn(expiresIn)
         .build()
@@ -228,66 +262,94 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       }
       throw new OauthFlowException({
         message: 'Failed to exchange LinkedIn Pages authorization code',
-        payload: error.message
+        payload: error.message,
       });
     }
   }
 
   _getOAuthConfig() {
-    const authTypeConfig = this.config.AuthType || {};
-    const isOAuth2 = this.config.AuthType?.value === 'oauth2';
-    return isOAuth2 ? (authTypeConfig.items || {}) : {};
+    const authTypeParam = this.context.getParameter('AuthType');
+    const isOAuth2 = authTypeParam?.value === 'oauth2';
+    return isOAuth2 ? authTypeParam.items || {} : {};
   }
 
   _getClientId() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_LINKEDIN_PAGES_CLIENT_ID;
+    return (
+      oauthConfig.ClientId?.value ||
+      this.context.getParameter('ClientID')?.value ||
+      process.env.OAUTH_LINKEDIN_PAGES_CLIENT_ID
+    );
   }
 
   _getClientSecret() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_LINKEDIN_PAGES_CLIENT_SECRET;
+    return (
+      oauthConfig.ClientSecret?.value ||
+      this.context.getParameter('ClientSecret')?.value ||
+      process.env.OAUTH_LINKEDIN_PAGES_CLIENT_SECRET
+    );
   }
 
   _getRefreshToken() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.RefreshToken?.value || this.config.RefreshToken?.value;
+    return oauthConfig.RefreshToken?.value || this.context.getParameter('RefreshToken')?.value;
   }
 
   /**
-   * Main entry point for fetching data from LinkedIn Pages API
-   * @param {string} nodeName - Type of resource to fetch
-   * @param {string|number} urn - Organization ID (numeric)
-   * @param {Object} params - Additional parameters for the request
-   * @returns {Array} - Array of processed data objects
+   * Main entry point for fetching data from LinkedIn Pages API.
+   * accountId is the numeric organization ID.
    */
-  async fetchData(nodeName, urn, params = {}) {
-    const fields = params.fields || [];
+  async fetchData({ nodeName, fields = [], accountId, startDate, endDate }) {
+    const urn = accountId;
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    
+
     if (missingKeys.length > 0) {
-      throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+      throw new Error(
+        `Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`
+      );
     }
-    
+
+    // LinkedIn Pages API requires end date to be one day AFTER the last day of data needed,
+    // so we add +1 here (inside fetchData) to keep that quirk encapsulated to this source.
+    let adjustedEndDate = endDate;
+    if (endDate && this.fieldsSchema[nodeName].isTimeSeries) {
+      // UTC methods throughout, matching XAds/Source.js. `new Date("YYYY-MM-DD")`
+      // parses as UTC midnight and `toISOString()` truncates in UTC, so advancing
+      // with local-time setDate/getDate mixes two clocks: on a spring-forward date
+      // west of UTC the lost hour eats the whole adjustment (2026-03-08 in
+      // America/Los_Angeles is local 2026-03-07 16:00 PST; +1 local day is
+      // 2026-03-08 16:00 PDT = 23:00Z, still "2026-03-08"). Since LinkedIn's end
+      // bound is EXCLUSIVE, the no-op silently drops the final day of the window
+      // and the run still reports success.
+      const d = new Date(endDate);
+      d.setUTCDate(d.getUTCDate() + 1);
+      adjustedEndDate = d.toISOString().split('T')[0];
+    }
+
     switch (nodeName) {
-      case "follower_statistics_time_bound":
+      case 'follower_statistics_time_bound':
         return await this.fetchOrganizationStats({
-          urn, 
+          urn,
           nodeName,
-          endpoint: "organizationalEntityFollowerStatistics",
-          entityParam: "organizationalEntity",
+          endpoint: 'organizationalEntityFollowerStatistics',
+          entityParam: 'organizationalEntity',
           formatter: this.transformFollowerStatisticsTimeBound.bind(this),
-          params
+          fields,
+          startDate,
+          endDate: adjustedEndDate,
         });
-      case "follower_statistics":
+      case 'follower_statistics':
         return await this.fetchOrganizationStats({
-          urn, 
+          urn,
           nodeName,
-          endpoint: "organizationalEntityFollowerStatistics",
-          entityParam: "organizationalEntity",
+          endpoint: 'organizationalEntityFollowerStatistics',
+          entityParam: 'organizationalEntity',
           formatter: this.transformFollowerStatistics.bind(this),
-          params
+          fields,
+          startDate,
+          endDate: adjustedEndDate,
         });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
@@ -296,19 +358,17 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
 
   /**
    * Fetch organization statistics from LinkedIn Pages API
-   * @param {Object} options - Options for the request
-   * @param {string|number} options.urn - Organization ID (numeric)
-   * @param {string} options.nodeName - The node name from the schema
-   * @param {string} options.endpoint - API endpoint name
-   * @param {string} options.entityParam - Parameter name for the organization URN
-   * @param {Function} options.formatter - Function to format the response data
-   * @param {Date} [options.params.startDate] - Start date for time-bound data
-   * @param {Date} [options.params.endDate] - End date for time-bound data
-   * @param {Array} [options.params.fields] - Additional parameters including fields
-   * @returns {Array} - Processed statistics data
    */
-  async fetchOrganizationStats(options) {
-    const { urn, nodeName, endpoint, entityParam, formatter, params } = options;
+  async fetchOrganizationStats({
+    urn,
+    nodeName,
+    endpoint,
+    entityParam,
+    formatter,
+    fields,
+    startDate,
+    endDate,
+  }) {
     const orgUrn = `urn:li:organization:${urn}`;
     const encodedUrn = encodeURIComponent(orgUrn);
 
@@ -316,9 +376,9 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
 
     const isTimeSeries = this.fieldsSchema[nodeName].isTimeSeries;
 
-    if (isTimeSeries && params.startDate && params.endDate) {
-      const startTimestamp = new Date(params.startDate).getTime();
-      const endTimestamp = new Date(params.endDate).getTime();
+    if (isTimeSeries && startDate && endDate) {
+      const startTimestamp = new Date(startDate).getTime();
+      const endTimestamp = new Date(endDate).getTime();
       url += `&timeIntervals=(timeRange:(start:${startTimestamp},end:${endTimestamp}),timeGranularityType:DAY)`;
     }
 
@@ -329,21 +389,14 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       return [];
     }
 
-    return formatter({
-      elements,
-      orgUrn,
-      fields: params.fields
-    });
+    return formatter({ elements, orgUrn, fields });
   }
 
   /**
    * Make a request to LinkedIn API with proper headers and auth
-   * @param {string} url - Full API endpoint URL
-   * @param {Object} headers - Optional additional headers
-   * @returns {Object} - API response parsed from JSON
    */
   async makeRequest(url) {
-    console.log(`LinkedIn Pages API URL:`, url);
+    this.context.log(LOG_LEVEL.INFO, `LinkedIn Pages API URL: ${url}`);
     const clientId = this._getClientId();
     const clientSecret = this._getClientSecret();
     const refreshToken = this._getRefreshToken();
@@ -352,42 +405,39 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       throw new Error('LinkedIn Pages OAuth credentials are not configured');
     }
 
-    await OAuthUtils.getAccessToken({
-      config: this.config,
-      tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
+    const accessToken = await OAuthUtils.getAccessToken({
+      context: this.context,
+      tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
       formData: {
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
         client_id: clientId,
-        client_secret: clientSecret
-      }
+        client_secret: clientSecret,
+      },
     });
 
     const headers = {
-      "LinkedIn-Version": "202607",
-      "X-RestLi-Protocol-Version": "2.0.0",
+      'LinkedIn-Version': '202607',
+      'X-RestLi-Protocol-Version': '2.0.0',
     };
 
-    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
+    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${accessToken}`;
 
-    const response = await HttpUtils.fetch(authUrl, { headers });
-    const result = await response.getContentText();
+    const response = await this.urlFetchWithRetry(authUrl, { headers });
+    const result = await response.text();
     const parsedResult = JSON.parse(result);
     if (parsedResult.status && parsedResult.status >= HTTP_STATUS.BAD_REQUEST) {
-      throw new Error(`LinkedIn API Error: ${parsedResult.message || 'Unknown error'} (Status: ${parsedResult.status})`);
+      throw new Error(
+        `LinkedIn API Error: ${parsedResult.message || 'Unknown error'} (Status: ${parsedResult.status})`
+      );
     }
     return parsedResult;
   }
-  
+
   /**
    * Process time-bound statistics data
-   * @param {Object} params - Parameters object
-   * @param {Array} params.elements - API response elements
-   * @param {string} params.orgUrn - Organization URN
-   * @param {Object} params.options - Original options passed to fetchOrganizationStats
-   * @returns {Array} - Processed time-bound statistics
    */
-  transformFollowerStatisticsTimeBound({ elements, orgUrn, fields }) {    
+  transformFollowerStatisticsTimeBound({ elements, orgUrn, fields }) {
     return elements.map(element => {
       const dataObj = {
         organization_urn: element.organizationalEntity,
@@ -401,27 +451,22 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         follower_counts_by_function: element.followerCountsByFunction || [],
         follower_counts_by_staff_count_range: element.followerCountsByStaffCountRange || [],
         follower_counts_by_geo_country: element.followerCountsByGeoCountry || [],
-        follower_counts_by_geo: element.followerCountsByGeo || []
+        follower_counts_by_geo: element.followerCountsByGeo || [],
       };
-      
+
       return this.filterDataByFields(dataObj, fields);
     });
   }
 
   /**
    * Transform follower statistics into a denormalized format
-   * @param {Object} params - Parameters object
-   * @param {Array} params.elements - Response elements from the API
-   * @param {string} params.orgUrn - Organization URN
-   * @param {Object} params.options - Original options passed to fetchOrganizationStats
-   * @returns {Array} - Denormalized follower statistics
    */
   transformFollowerStatistics({ elements, orgUrn, fields }) {
     const results = [];
     const element = elements[0];
     const organizationUrn = element.organizationalEntity || orgUrn;
     const categoryTypes = this.extractCategoryTypes(element);
-    
+
     categoryTypes.forEach(category => {
       const items = element[category.type] || [];
       items.forEach(item => {
@@ -431,46 +476,34 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
           segment_name: category.segmentName,
           segment_value: item[category.segmentName],
           organic_follower_count: item.followerCounts?.organicFollowerCount || 0,
-          paid_follower_count: item.followerCounts?.paidFollowerCount || 0
+          paid_follower_count: item.followerCounts?.paidFollowerCount || 0,
         };
-        
+
         results.push(this.filterDataByFields(dataObj, fields));
       });
     });
-    
+
     return results;
   }
-  
+
   /**
    * Extract category types from the API response element
-   * @param {Object} element - The API response element
-   * @returns {Array} - Array of category type descriptors
    */
   extractCategoryTypes(element) {
     return Object.keys(element)
-      .filter(key => 
-        // Check if the property is an array containing elements with followerCounts
-        Array.isArray(element[key]) && 
-        element[key].length > 0 && 
-        element[key][0]?.followerCounts !== undefined
+      .filter(
+        key =>
+          Array.isArray(element[key]) &&
+          element[key].length > 0 &&
+          element[key][0]?.followerCounts !== undefined
       )
       .map(type => {
-        // Get the first item from the array, or empty object as fallback
         const firstItem = element[type][0] || {};
-        
-        // Find a key that is not 'followerCounts' to use as segment name
         const segmentKeys = Object.keys(firstItem).filter(key => key !== 'followerCounts');
-                  
         return { type, segmentName: segmentKeys[0] };
       });
   }
 
-  /**
-   * Filter object properties by allowed field names
-   * @param {Object} dataObj - Original data object
-   * @param {Array} fields - Array of allowed field names
-   * @returns {Object} - Filtered object with only allowed fields
-   */
   filterDataByFields(dataObj, fields) {
     return Object.keys(dataObj)
       .filter(key => fields.includes(key))
@@ -479,4 +512,4 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         return obj;
       }, {});
   }
-};
+}

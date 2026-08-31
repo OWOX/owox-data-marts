@@ -42,6 +42,7 @@ describe('MainMenu', () => {
       'Triggers',
       'Run History',
       'Storages',
+      'Connectors',
       'Destinations',
     ]);
     expect(

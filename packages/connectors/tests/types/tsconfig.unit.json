@@ -1,0 +1,10 @@
+{
+  "//": "UNIT: the declaration file in isolation (referenced by relative path, so",
+  "//2": "no package.json resolution is involved). Asserts the public type surface.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "files": ["unit.types.ts"]
+}

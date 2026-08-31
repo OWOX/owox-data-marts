@@ -10,9 +10,26 @@ Create a new directory in `src/Sources/` with your data source name:
 mkdir -p packages/connectors/src/Sources/YourDataSource
 ```
 
-## 2. Create Required Files
+## 2. Pick a connector kind
 
-Every connector must have these three files:
+There are two, and they are discovered differently at build time:
+
+- **JavaScript connector** — a `Source.js` class plus a small `manifest.json` carrying only
+  catalog metadata. Choose this when the API needs logic the declarative grammar cannot express.
+- **Declarative connector** — a single `manifest.json` that describes the whole connector and no
+  `Source.js` at all. Choose this whenever the grammar covers the API; there is less to write and
+  nothing to maintain.
+
+The build decides by looking at the directory: a `manifest.json` with a `nodes` key and no
+`Source.js` is declarative. A directory that is neither fails the build by name, so a half-created
+connector cannot silently disappear from the bundle.
+
+The rest of this guide covers the JavaScript kind. For the declarative kind, see
+[Declarative Connectors](#9-declarative-connectors) below.
+
+## 3. Create Required Files (JavaScript connector)
+
+A JavaScript connector must have these three files:
 
 ### `manifest.json`
 
@@ -141,7 +158,7 @@ var YourDataSourceConnector = class YourDataSourceConnector extends AbstractConn
 }
 ```
 
-## 3. Configuration Parameters
+## 4. Configuration Parameters
 
 Configuration parameters are defined in the Source constructor using `config.mergeParameters()`. Common parameters:
 
@@ -166,7 +183,7 @@ Configuration parameters are defined in the Source constructor using `config.mer
 - `ReimportLookbackWindow` — days to reimport for data consistency
 - `CreateEmptyTables` — whether to create tables with no data
 
-## 4. Utility Classes
+## 5. Utility Classes
 
 The framework provides several utility classes for common operations:
 
@@ -236,7 +253,7 @@ const data = FileUtils.parseCsv("col1,col2\nval1,val2");
 const files = FileUtils.unzip(zipBuffer);
 ```
 
-## 5. Advanced Features
+## 6. Advanced Features
 
 ### Paginated Data Fetching
 
@@ -318,7 +335,7 @@ constructor(config) {
 }
 ```
 
-## 6. Testing Your Connector
+## 7. Testing Your Connector
 
 After creating your connector:
 
@@ -339,7 +356,7 @@ After creating your connector:
    - Create a configuration with required parameters
    - Test source with existing storage
 
-## 7. Optional Files
+## 8. Optional Files
 
 You can add additional files to your connector directory:
 
@@ -351,3 +368,65 @@ You can add additional files to your connector directory:
 - `logo.svg` — connector logo (referenced in manifest.json)
 
 All `.js` files in your connector directory will be automatically bundled.
+
+## 9. Declarative Connectors
+
+A declarative connector is a single `manifest.json` and nothing else — no `Source.js`, no
+JavaScript at all. The declarative engine reads the manifest and performs the requests,
+pagination, incremental windows, filtering and type casting described in it.
+
+`src/Sources/RatesDeclarative/` is the shipped example: one file, under a kilobyte.
+
+### What the file contains
+
+The declarative manifest carries the connector's whole definition, plus the same catalog
+metadata a JavaScript connector's `manifest.json` carries:
+
+```json
+{
+  "title": "Frankfurter FX (Declarative)",
+  "docUrl": "https://frankfurter.dev",
+  "version": "1.0",
+  "name": "RatesDeclarative",
+  "baseUrl": "https://api.frankfurter.dev",
+  "parameters": {
+    "Base": { "requiredType": "string", "isRequired": true, "default": "EUR" }
+  },
+  "nodes": {
+    "latest": {
+      "uniqueKeys": ["date", "base"],
+      "fields": { "date": { "type": "date" }, "base": { "type": "string" } },
+      "request": { "method": "GET", "path": "/v1/latest" },
+      "recordSelector": { "recordPath": [] }
+    }
+  }
+}
+```
+
+`name` must match the directory name. `logo` works exactly as it does for a JavaScript
+connector — point it at a `logo.svg` beside the manifest and the build inlines it.
+
+The full grammar — six authentication types, four pagination types, incremental strategies,
+partition routers, async retrievers, transformations, record filters and error handling — lives in
+`apps/backend/src/ee/mcp/tools/manifest-schema.reference.ts`, which is also what the
+`connector_manifest_schema` MCP tool serves to assistants.
+
+### Two things to do besides writing the file
+
+1. **Add the name to `ALL_CONNECTORS`** in `packages/test-utils/src/constants.ts`. The backend
+   e2e suite asserts the length of the bundled connector list, so a new connector without this
+   entry fails `connector-list.e2e-spec.ts` with a count mismatch rather than a useful message.
+2. **Check the name is not already taken by a customer.** Bundled names are reserved
+   (`RESERVED_NAMES` in `connector-definition.service.ts`), and connector lookup resolves bundled
+   names before project-level custom ones. A custom connector that already carries the name was
+   created before the guard existed for it, so shipping a bundled connector under that name
+   shadows theirs on upgrade.
+
+### How it is validated
+
+The build parses every bundled declarative manifest with the same `ManifestParser` the runtime
+uses, and fails by name if it does not parse. This catches missing or misnamed required keys,
+malformed authentication blocks, a `recordPath` given as a string instead of an array, and a
+`pagination` or `incremental` block that could not work at run time. It does not catch every
+shape error — a request path missing its leading `/` still gets through — so run the connector
+once before shipping it.

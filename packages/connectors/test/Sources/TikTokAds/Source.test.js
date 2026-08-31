@@ -1,22 +1,13 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
-import { loadGasClass } from '../../support/loadGasClass.js';
+import { TikTokAdsSource } from '../../../src/Sources/TikTokAds/Source.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const coreSourcePath = path.join(__dirname, '../../../src/Core/AbstractSource.js');
-const sourcePath = path.join(__dirname, '../../../src/Sources/TikTokAds/Source.js');
-
-// Both files are GAS-style code (`var X = class X {...}`, no imports/exports).
-// Load the real AbstractSource first so TikTokAdsSource's `extends AbstractSource`
-// and `super.getFieldsSchema()` resolve against the actual implementation, not a
-// hand-copied stub that could drift from it. We never instantiate either class, so
-// constructor-only globals (CONFIG_ATTRIBUTES, etc.) never need to be real. Loaded at
-// module scope (not in beforeAll) so describe-body code below can use `proto` too —
+// Sources are ESM modules, so the class comes straight from the import and its
+// `extends AbstractSource` / `super.getFieldsSchema()` resolve against the real
+// implementation rather than a hand-copied stub that could drift from it. We never
+// instantiate, so constructor-only globals (CONFIG_ATTRIBUTES, etc.) never need to
+// be real. Read at module scope so describe-body code below can use `proto` too —
 // describe callbacks run during collection, before any beforeAll hook fires.
-loadGasClass(coreSourcePath);
-loadGasClass(sourcePath);
-const proto = globalThis.TikTokAdsSource.prototype;
+const proto = TikTokAdsSource.prototype;
 
 describe('getDimensionsForDataLevel', () => {
   it.each([
@@ -149,13 +140,14 @@ describe('fetchData unique-key validation', () => {
       // if a future test targets a catalog node.
       ads: { uniqueKeys: ['ad_id'], fields: { ad_id: {} } },
     },
-    config: {},
+    context: { getParameter: () => undefined, log: () => {} },
     getValidatedDataLevel: () => 'AUCTION_AD',
     getUniqueKeysForNode: proto.getUniqueKeysForNode,
     getDimensionsForDataLevel: proto.getDimensionsForDataLevel,
     populateDimensions: proto.populateDimensions,
     getFilteredMetrics: proto.getFilteredMetrics,
-    castFields: record => record,
+    castFields: (nodeName, record) => record,
+    advertiserSuccesses: new Map(),
     _getAppId: () => '',
     _getAccessToken: () => '',
     _getAppSecret: () => '',
@@ -175,10 +167,11 @@ describe('fetchData unique-key validation', () => {
 
     try {
       await expect(
-        proto.fetchData.call(createSource(), 'ad_insights', 'advertiser-1', [
-          'ad_id',
-          'stat_time_day',
-        ])
+        proto.fetchData.call(createSource(), {
+          nodeName: 'ad_insights',
+          accountId: 'advertiser-1',
+          fields: ['ad_id', 'stat_time_day'],
+        })
       ).resolves.toHaveLength(0);
     } finally {
       globalThis.TiktokMarketingApiProvider = originalProvider;
@@ -187,10 +180,11 @@ describe('fetchData unique-key validation', () => {
 
   it('still rejects unique keys that must be returned by the API', async () => {
     await expect(
-      proto.fetchData.call(createSource(), 'ad_insights', 'advertiser-1', [
-        'stat_time_day',
-        'advertiser_id',
-      ])
+      proto.fetchData.call(createSource(), {
+        nodeName: 'ad_insights',
+        accountId: 'advertiser-1',
+        fields: ['stat_time_day', 'advertiser_id'],
+      })
     ).rejects.toThrow(
       "Missing required unique fields for endpoint 'ad_insights'. Missing fields: ad_id"
     );

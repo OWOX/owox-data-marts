@@ -22,6 +22,7 @@ import {
   PLUGIN_RUNTIME_AUTHORIZER,
   PluginRuntimeAuthorizerPort,
 } from '../ports/plugin-runtime-authorizer.port';
+import { satisfiesRole } from '../utils/role-hierarchy';
 
 export interface AuthenticatedRequest extends Request {
   idpContext: {
@@ -296,18 +297,7 @@ export class IdpGuard implements CanActivate {
       throw new AuthorizationError('Access denied: No roles information available');
     }
 
-    const roleHierarchy: Record<RoleType, RoleType[]> = {
-      viewer: ['viewer', 'editor', 'admin'],
-      editor: ['editor', 'admin'],
-      admin: ['admin'],
-    };
-
-    const acceptableRoles = roleHierarchy[requiredRole];
-    const hasRequiredRole = request.idpContext.roles.some(userRole =>
-      acceptableRoles.includes(userRole)
-    );
-
-    if (!hasRequiredRole) {
+    if (!satisfiesRole(request.idpContext.roles, requiredRole)) {
       const displayName = IdpGuard.ROLE_DISPLAY_NAMES[requiredRole] ?? requiredRole;
       throw new AuthorizationError(`Access denied. Required role: ${displayName}`);
     }

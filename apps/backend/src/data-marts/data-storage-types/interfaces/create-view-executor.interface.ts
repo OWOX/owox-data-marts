@@ -15,6 +15,7 @@ export interface CreateViewExecutor extends TypedComponent<DataStorageType> {
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
     viewName: string,
-    sql: string
+    sql: string,
+    storageId?: string
   ): Promise<CreateViewResult>;
 }

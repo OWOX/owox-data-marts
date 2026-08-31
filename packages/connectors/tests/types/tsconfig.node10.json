@@ -1,0 +1,12 @@
+{
+  "//": "INTEGRATION: resolve @owox/connectors by package specifier under classic",
+  "//2": "node10 resolution (moduleResolution: node) — the EXACT mode apps/backend",
+  "//3": "uses. This is the resolution that emitted TS2307 before package.json gained",
+  "//4": "its top-level `types` field. node10 reads top-level `types`, NOT `exports`.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
+  "files": ["node10.consumer.ts"]
+}

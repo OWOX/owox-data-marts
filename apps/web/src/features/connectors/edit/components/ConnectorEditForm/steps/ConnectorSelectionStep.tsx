@@ -1,4 +1,4 @@
-import { AlertCircle, Unplug } from 'lucide-react';
+import { AlertCircle, Unplug, Pencil } from 'lucide-react';
 import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared/icons';
@@ -13,6 +13,9 @@ import {
 import { trackEvent } from '../../../../../../utils';
 import { useEffect } from 'react';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
+import { Button } from '@owox/ui/components/button';
+import { Badge } from '@owox/ui/components/badge';
+import { isUnpublishedCustomConnector } from '../../../../shared/utils/custom-connector-publish.utils';
 
 interface ConnectorSelectionStepProps {
   connectors: ConnectorListItem[];
@@ -21,6 +24,9 @@ interface ConnectorSelectionStepProps {
   error: string | null;
   onConnectorSelect: (connector: ConnectorListItem) => void;
   onConnectorDoubleClick?: (connector: ConnectorListItem) => void;
+  customConnectors: ConnectorListItem[];
+  onCreateNew: () => void;
+  onEditConnector?: (connector: ConnectorListItem) => void;
 }
 
 export function ConnectorSelectionStep({
@@ -30,6 +36,9 @@ export function ConnectorSelectionStep({
   error,
   onConnectorSelect,
   onConnectorDoubleClick,
+  customConnectors,
+  onCreateNew,
+  onEditConnector,
 }: ConnectorSelectionStepProps) {
   useEffect(() => {
     trackEvent({
@@ -66,7 +75,7 @@ export function ConnectorSelectionStep({
                 ) : null
               }
               title={connector.displayName}
-              selected={selectedConnector?.name === connector.name}
+              selected={!selectedConnector?.isCustom && selectedConnector?.name === connector.name}
               onClick={() => {
                 onConnectorSelect(connector);
               }}
@@ -92,6 +101,70 @@ export function ConnectorSelectionStep({
           subtitle='Ask your administrator to configure connectors.'
         />
       )}
+
+      <AppWizardStepSection title='Custom Connectors'>
+        <AppWizardGrid>
+          {customConnectors.map(connector => {
+            const isUnpublished = isUnpublishedCustomConnector(connector);
+            return (
+              <div key={connector.id} className='relative'>
+                <AppWizardGridItem
+                  icon={
+                    connector.logoBase64 ? (
+                      <RawBase64Icon base64={connector.logoBase64} size={20} />
+                    ) : null
+                  }
+                  title={connector.displayName}
+                  selected={!isUnpublished && selectedConnector?.id === connector.id}
+                  className={
+                    isUnpublished ? 'cursor-not-allowed opacity-50 hover:shadow-none' : undefined
+                  }
+                  onClick={
+                    isUnpublished
+                      ? undefined
+                      : () => {
+                          onConnectorSelect(connector);
+                        }
+                  }
+                  onDoubleClick={
+                    isUnpublished
+                      ? undefined
+                      : () => {
+                          onConnectorSelect(connector);
+                          onConnectorDoubleClick?.(connector);
+                        }
+                  }
+                />
+                {onEditConnector && (
+                  <button
+                    type='button'
+                    aria-label={`Edit ${connector.displayName}`}
+                    className='text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-2 right-2 rounded p-1 focus-visible:ring-2 focus-visible:outline-none'
+                    onClick={e => {
+                      e.stopPropagation();
+                      onEditConnector(connector);
+                    }}
+                  >
+                    <Pencil className='h-4 w-4' />
+                  </button>
+                )}
+                {isUnpublished && (
+                  <Badge
+                    variant='outline'
+                    className='absolute top-2 right-9 text-xs'
+                    title='Not published yet — publish it in the builder first.'
+                  >
+                    Publish to use
+                  </Badge>
+                )}
+              </div>
+            );
+          })}
+        </AppWizardGrid>
+        <Button variant='outline' onClick={onCreateNew}>
+          + Create custom connector
+        </Button>
+      </AppWizardStepSection>
     </AppWizardStep>
   );
 }

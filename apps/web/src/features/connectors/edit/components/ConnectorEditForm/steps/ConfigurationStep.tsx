@@ -1,5 +1,6 @@
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
+import { ConnectorVersionControl } from '../../ConnectorDefinitionField/ConnectorVersionControl';
 import { StepperHeroBlock } from '../components';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -30,6 +31,14 @@ interface ConfigurationStepProps {
   loading?: boolean;
   isEditingExisting?: boolean;
   disabled?: boolean;
+  /** The pin submitted for this source's version (undefined = follow active).
+   * Only passed by the first-time "Set Up Connector" wizard — omitted entirely
+   * when adding another configuration to an already-pinned source, where the
+   * version is fixed at the source level (see #1b) and must not be re-picked here. */
+  pinnedVersion?: number;
+  /** Present only when the version is user-choosable at this call site; its mere
+   * presence is what gates rendering ConnectorVersionControl below. */
+  onChangeVersion?: (version?: number) => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -84,6 +93,8 @@ export function ConfigurationStep({
   loading = false,
   isEditingExisting = false,
   disabled = false,
+  pinnedVersion,
+  onChangeVersion,
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
@@ -373,11 +384,20 @@ export function ConfigurationStep({
               <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
                 Configure Settings
               </h3>
-              <CopyConfigurationButton
-                currentConnectorName={connector.name}
-                onCopyConfiguration={handleCopyConfiguration}
-                connectorSpecification={connectorSpecification}
-              />
+              <div className='flex items-center gap-2'>
+                {onChangeVersion && (
+                  <ConnectorVersionControl
+                    info={connector}
+                    version={pinnedVersion}
+                    onChangeVersion={onChangeVersion}
+                  />
+                )}
+                <CopyConfigurationButton
+                  currentConnectorName={connector.name}
+                  onCopyConfiguration={handleCopyConfiguration}
+                  connectorSpecification={connectorSpecification}
+                />
+              </div>
             </div>
             {requiredFields.length > 0 && (
               <ConfigurationListRender

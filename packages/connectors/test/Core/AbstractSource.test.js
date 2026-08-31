@@ -2,17 +2,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { loadGasClass } from '../support/loadGasClass.js';
+import { AbstractSource } from '../../src/Core/AbstractSource.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const httpConstantsPath = path.join(__dirname, '../../src/Constants/HttpConstants.js');
-const coreSourcePath = path.join(__dirname, '../../src/Core/AbstractSource.js');
 
 // HTTP_STATUS is referenced inside _isAuthError's method body, so it only needs to be
 // real by call time, not by load time — but loading the real file (not a hand-stub)
 // keeps the test honest against the actual status codes AbstractSource checks.
+// AbstractSource itself is an ES module here, so it is imported rather than evaluated.
 loadGasClass(httpConstantsPath);
-loadGasClass(coreSourcePath);
-const proto = globalThis.AbstractSource.prototype;
+const proto = AbstractSource.prototype;
 
 describe('_isAuthError', () => {
   it.each([
@@ -31,14 +31,16 @@ describe('_isAuthError', () => {
 // recomputing from scratch here would silently clear it and page on-call again.
 describe('urlFetchWithRetry warning classification', () => {
   const failWith = async error => {
-    globalThis.HttpUtils = {
-      fetch: async () => {
-        throw error;
-      },
+    globalThis.fetch = async () => {
+      throw error;
     };
     const self = Object.assign(Object.create(proto), {
-      // A single attempt: _shouldRetry returns false immediately, so the throw path runs
-      config: { MaxFetchRetries: { value: 1 }, logMessage: () => {} },
+      // A single attempt: the retry check bails immediately, so the throw path runs
+      context: {
+        getParameter: name => (name === 'MaxFetchRetries' ? { value: 1 } : undefined),
+        log: () => {},
+        emit: () => {},
+      },
     });
     return proto.urlFetchWithRetry.call(self, 'https://example.test', {}).catch(e => e);
   };

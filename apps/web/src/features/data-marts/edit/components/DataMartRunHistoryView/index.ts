@@ -1,4 +1,6 @@
 export * from './types';
+export * from './log-category';
+export * from './load-status';
 export * from './utils';
 export * from './icons';
 export { StatusBadge } from './StatusBadge';
@@ -6,5 +8,6 @@ export { LogControls } from './LogControls';
 export { StructuredLogsView } from './StructuredLogsView';
 export { RawLogsView } from './RawLogsView';
 export { ConfigurationView } from './ConfigurationView';
+export { LoadStatusStrip } from './LoadStatusStrip';
 export { RunItem } from './RunItem';
 export { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';

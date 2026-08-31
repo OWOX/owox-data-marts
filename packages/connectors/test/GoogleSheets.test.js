@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 import { test } from 'vitest';
+import { GoogleSheetsSource } from '../src/Sources/GoogleSheets/Source.js';
+import { AbstractConnector } from '../src/Core/AbstractConnector.js';
 
 const DATA_TYPES = {
   STRING: 'STRING',
@@ -31,9 +31,11 @@ class OauthFlowException extends Error {
   }
 }
 
-const HttpUtils = {
-  async fetch() {
-    throw new Error('Unexpected HTTP request');
+// src/Core/Utils/AsyncUtils.js is bundle-only (`var AsyncUtils = class …`, no
+// export), so it cannot be imported here. This mirrors its one method exactly.
+const AsyncUtils = {
+  async delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   },
 };
 
@@ -61,50 +63,42 @@ const OauthCredentialsDto = {
   },
 };
 
-function loadScript(fileName, exportName, context) {
-  const source = readFileSync(new URL(fileName, import.meta.url), 'utf8');
-  const sandbox = vm.createContext({ console, ...context });
-  vm.runInContext(`${source}\nglobalThis.__exportedClass = ${exportName};`, sandbox);
-  return sandbox.__exportedClass;
-}
-
-const GoogleSheetsSource = loadScript(
-  '../src/Sources/GoogleSheets/Source.js',
-  'GoogleSheetsSource',
-  {
-    AbstractSource: class AbstractSource {},
-    DATA_TYPES,
-    HTTP_STATUS: {
-      UNAUTHORIZED: 401,
-      TOO_MANY_REQUESTS: 429,
-      SERVER_ERROR_MIN: 500,
-    },
-    HttpRequestException,
-    ConnectorConfigurationException,
-    HttpUtils,
-    OauthCredentialsDto,
-    OauthFlowException,
-    CONFIG_ATTRIBUTES: {
-      SECRET: 'SECRET',
-      ADVANCED: 'ADVANCED',
-      HIDE_IN_CONFIG_FORM: 'HIDE_IN_CONFIG_FORM',
-      OAUTH_FLOW: 'OAUTH_FLOW',
-    },
-    OAUTH_CONSTANTS: {
-      UI: 'UI',
-      SECRET: 'SECRET',
-      REQUIRED: 'REQUIRED',
-    },
-  }
-);
-
-const GoogleSheetsConnector = loadScript(
-  '../src/Sources/GoogleSheets/Connector.js',
-  'GoogleSheetsConnector',
-  {
-    AbstractConnector: class AbstractConnector {},
-  }
-);
+// The source reads these as bare globals, the way the built bundle supplies them;
+// only its base class is a real import.
+//
+// Every name here must be one the built bundle actually defines. `HttpUtils` used
+// to be stubbed in this list: the Core util behind it was deleted when HTTP moved
+// into AbstractSource, but the source kept calling it, and the stub kept 26 tests
+// green against a fake the runtime no longer had. The source now goes through the
+// runtime's own `fetch`, which the tests below stub per-test instead.
+Object.assign(globalThis, {
+  DATA_TYPES,
+  LOG_LEVEL: { INFO: 'info', WARN: 'warn', ERROR: 'error' },
+  HTTP_STATUS: {
+    UNAUTHORIZED: 401,
+    TOO_MANY_REQUESTS: 429,
+    SUCCESS_MIN: 200,
+    SUCCESS_MAX: 299,
+    SERVER_ERROR_MIN: 500,
+  },
+  AsyncUtils,
+  HttpRequestException,
+  ConnectorConfigurationException,
+  OauthCredentialsDto,
+  OauthFlowException,
+  PARAMETER_OWNER: { SOURCE: 'source', STORAGE: 'storage' },
+  CONFIG_ATTRIBUTES: {
+    SECRET: 'SECRET',
+    ADVANCED: 'ADVANCED',
+    HIDE_IN_CONFIG_FORM: 'HIDE_IN_CONFIG_FORM',
+    OAUTH_FLOW: 'OAUTH_FLOW',
+  },
+  OAUTH_CONSTANTS: {
+    UI: 'UI',
+    SECRET: 'SECRET',
+    REQUIRED: 'REQUIRED',
+  },
+});
 
 function createSource({
   headerRow = 1,
@@ -112,10 +106,11 @@ function createSource({
   importAllColumns = true,
   fields = 'sheet _owox_row_number',
   inferTypes = true,
+  authType = null,
 } = {}) {
   const logs = [];
   const source = Object.create(GoogleSheetsSource.prototype);
-  source.config = {
+  const parameters = {
     HeaderRow: { value: headerRow },
     Range: { value: range },
     SheetName: { value: 'Data' },
@@ -125,9 +120,16 @@ function createSource({
     InferTypes: { value: inferTypes },
     MaxFetchRetries: { value: 3 },
     InitialRetryDelay: { value: 1 },
-    logMessage(message) {
+  };
+  if (authType) {
+    parameters.AuthType = { value: authType, items: {} };
+  }
+  source.context = {
+    getParameter: name => parameters[name] ?? null,
+    log(_level, message) {
       logs.push(message);
     },
+    emitAnalytics() {},
   };
   source.logs = logs;
   source.accessToken = null;
@@ -139,61 +141,160 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+const originalFetch = globalThis.fetch;
+
+/**
+ * Runs `run` with `globalThis.fetch` replaced by `responder`.
+ *
+ * The source calls the runtime's own `fetch` directly — there is no HTTP
+ * indirection object left to substitute — so this stubs the real thing and hands
+ * back real `Response` objects. A test that passed against a hand-rolled response
+ * shape would prove nothing about what ships.
+ *
+ * @param {(url: string, options: object, callNumber: number) => Response} responder
+ * @param {(calls: Array<{url: string, options: object}>) => Promise<void>} run
+ */
+async function withFetch(responder, run) {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return responder(url, options, calls.length);
+  };
+  try {
+    return await run(calls);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+function jsonResponse(body, init = {}) {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+  });
+}
+
 test('preserves explicit false defaults inside the Google Sheets configuration only', () => {
-  let mergedParameters;
-  const config = {
+  const parameters = {
     InferTypes: { value: false },
     ImportAllColumns: { value: false },
-    mergeParameters(parameters) {
-      mergedParameters = parameters;
-      return this;
+  };
+  let registered;
+  const context = {
+    getParameter: name => parameters[name] ?? null,
+    registerParameters(declared) {
+      registered = declared;
     },
+    log() {},
   };
 
-  new GoogleSheetsSource(config);
+  const source = new GoogleSheetsSource(context);
 
   assert.deepEqual(
-    Array.from(mergedParameters.AuthType.oneOf, option => option.value),
+    Array.from(registered.AuthType.oneOf, option => option.value),
     ['oauth2', 'service_account']
   );
-  assert.equal(mergedParameters.InferTypes.default, false);
-  assert.equal(mergedParameters.ImportAllColumns.default, false);
+  // A declared default of `true` would be applied over the user's explicit
+  // `false` during validation, so the constructor has to read the value first.
+  assert.equal(registered.InferTypes.default, false);
+  assert.equal(registered.ImportAllColumns.default, false);
+  assert.equal(source.parameters, registered);
 });
 
 test('rejects OAuth authorization when required Google Sheets permissions were not granted', async () => {
-  const originalFetch = HttpUtils.fetch;
-  HttpUtils.fetch = async () => ({
-    getAsJson: async () => ({
-      access_token: 'access-token',
-      refresh_token: 'refresh-token',
-      expires_in: 3600,
-      scope: 'https://www.googleapis.com/auth/userinfo.email',
-    }),
-  });
   const source = Object.create(GoogleSheetsSource.prototype);
 
-  try {
-    await assert.rejects(
-      source.exchangeOauthCredentials(
+  await withFetch(
+    () =>
+      jsonResponse({
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        expires_in: 3600,
+        scope: 'https://www.googleapis.com/auth/userinfo.email',
+      }),
+    () =>
+      assert.rejects(
+        source.exchangeOauthCredentials(
+          { code: 'authorization-code' },
+          {
+            ClientId: 'client-id',
+            ClientSecret: 'client-secret',
+            RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+          }
+        ),
+        error =>
+          error instanceof OauthFlowException &&
+          error.name === 'OauthFlowException' &&
+          /authorization is missing required permissions/.test(error.message)
+      )
+  );
+});
+
+// The token exchange runs with no `this.context`: the backend builds the source
+// only to call this method, and the OAuth callback is a single-use authorization
+// code. It therefore uses bare `fetch`, not `urlFetchWithRetry` — which would
+// need a context and would retry a code that cannot be redeemed twice.
+test('exchanges OAuth credentials with a form-encoded POST and no run context', async () => {
+  const source = Object.create(GoogleSheetsSource.prototype);
+  assert.equal(source.context, undefined);
+
+  await withFetch(
+    (_url, _options, callNumber) =>
+      callNumber === 1
+        ? jsonResponse({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            scope:
+              'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+          })
+        : jsonResponse({ id: 'google-user-1', email: 'analyst@example.com' }),
+    async calls => {
+      await source.exchangeOauthCredentials(
         { code: 'authorization-code' },
         {
           ClientId: 'client-id',
           ClientSecret: 'client-secret',
           RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
         }
+      );
+
+      assert.equal(calls[0].url, 'https://oauth2.googleapis.com/token');
+      assert.equal(calls[0].options.method, 'post');
+      assert.equal(calls[0].options.headers['Content-Type'], 'application/x-www-form-urlencoded');
+      assert.match(calls[0].options.body, /(^|&)code=authorization-code(&|$)/);
+      assert.match(calls[0].options.body, /(^|&)grant_type=authorization_code(&|$)/);
+      assert.equal(calls[1].url, 'https://www.googleapis.com/oauth2/v2/userinfo');
+      assert.equal(calls[1].options.headers.Authorization, 'Bearer access-token');
+    }
+  );
+});
+
+// Google reports `invalid_grant` as HTTP 400 with the reason in the body. The
+// exchange must read that body rather than throwing on the status, or the user
+// sees "HTTP 400" instead of what actually went wrong.
+test('surfaces the provider error description from a non-2xx token response', async () => {
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  await withFetch(
+    () =>
+      jsonResponse(
+        { error: 'invalid_grant', error_description: 'Code was already redeemed.' },
+        { status: 400 }
       ),
-      error =>
-        error instanceof OauthFlowException &&
-        error.name === 'OauthFlowException' &&
-        /authorization is missing required permissions/.test(error.message)
-    );
-  } finally {
-    HttpUtils.fetch = originalFetch;
-  }
+    () =>
+      assert.rejects(
+        source.exchangeOauthCredentials(
+          { code: 'authorization-code' },
+          { ClientId: 'client-id', ClientSecret: 'client-secret', RedirectUri: 'https://x/cb' }
+        ),
+        error =>
+          error instanceof OauthFlowException &&
+          error.message === 'Token exchange failed: Code was already redeemed.'
+      )
+  );
 });
 
 test('stores the verified Google account used by Google Picker', async () => {
-  const originalFetch = HttpUtils.fetch;
   const responses = [
     {
       access_token: 'access-token',
@@ -204,33 +305,32 @@ test('stores the verified Google account used by Google Picker', async () => {
     },
     { id: 'google-user-1', email: 'analyst@example.com' },
   ];
-  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
   const source = Object.create(GoogleSheetsSource.prototype);
 
-  try {
-    const credentials = await source.exchangeOauthCredentials(
-      { code: 'authorization-code' },
-      {
-        ClientId: 'client-id',
-        ClientSecret: 'client-secret',
-        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
-      }
-    );
+  await withFetch(
+    () => jsonResponse(responses.shift()),
+    async () => {
+      const credentials = await source.exchangeOauthCredentials(
+        { code: 'authorization-code' },
+        {
+          ClientId: 'client-id',
+          ClientSecret: 'client-secret',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        }
+      );
 
-    assert.deepEqual(plain(credentials.user), {
-      id: 'google-user-1',
-      name: 'analyst@example.com',
-      email: 'analyst@example.com',
-    });
-    assert.equal(credentials.expiresIn, null);
-  } finally {
-    HttpUtils.fetch = originalFetch;
-  }
+      assert.deepEqual(plain(credentials.user), {
+        id: 'google-user-1',
+        name: 'analyst@example.com',
+        email: 'analyst@example.com',
+      });
+      assert.equal(credentials.expiresIn, null);
+    }
+  );
 });
 
 test('gives OAuth users Picker-specific guidance for access errors', () => {
-  const source = createSource();
-  source.config.AuthType = { value: 'oauth2', items: {} };
+  const source = createSource({ authType: 'oauth2' });
 
   assert.match(
     source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
@@ -243,7 +343,6 @@ test('gives OAuth users Picker-specific guidance for access errors', () => {
 });
 
 test('rejects OAuth authorization when Google does not return an email address', async () => {
-  const originalFetch = HttpUtils.fetch;
   const responses = [
     {
       access_token: 'access-token',
@@ -254,24 +353,51 @@ test('rejects OAuth authorization when Google does not return an email address',
     },
     { id: 'google-user-1' },
   ];
-  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
   const source = Object.create(GoogleSheetsSource.prototype);
 
-  try {
-    await assert.rejects(
-      source.exchangeOauthCredentials(
-        { code: 'authorization-code' },
-        {
-          ClientId: 'client-id',
-          ClientSecret: 'client-secret',
-          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
-        }
-      ),
-      /email address required by Google Picker/
-    );
-  } finally {
-    HttpUtils.fetch = originalFetch;
-  }
+  await withFetch(
+    () => jsonResponse(responses.shift()),
+    () =>
+      assert.rejects(
+        source.exchangeOauthCredentials(
+          { code: 'authorization-code' },
+          {
+            ClientId: 'client-id',
+            ClientSecret: 'client-secret',
+            RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+          }
+        ),
+        /email address required by Google Picker/
+      )
+  );
+});
+
+// A userinfo body that is not JSON must still land on the account-verification
+// message: the inner try/catch is what turns a parse failure into it.
+test('reports an unverifiable Google account when userinfo is not JSON', async () => {
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  await withFetch(
+    (_url, _options, callNumber) =>
+      callNumber === 1
+        ? jsonResponse({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            scope:
+              'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+          })
+        : new Response('<html>gateway error</html>', { status: 502 }),
+    () =>
+      assert.rejects(
+        source.exchangeOauthCredentials(
+          { code: 'authorization-code' },
+          { ClientId: 'client-id', ClientSecret: 'client-secret', RedirectUri: 'https://x/cb' }
+        ),
+        error =>
+          error instanceof OauthFlowException &&
+          /Could not verify the Google account/.test(error.message)
+      )
+  );
 });
 
 test('maps an absolute header row into an offset range and preserves absolute row numbers', () => {
@@ -349,9 +475,8 @@ test('extracts and validates spreadsheet IDs before building provider requests',
 test('preserves configuration errors wrapped by the Google Sheets request', async () => {
   const source = createSource();
   source.getAccessToken = async () => 'token';
-  source._fetchSheetResponse = async () => ({
-    getHeaders: () => ({ 'content-length': String(50 * 1024 * 1024 + 1) }),
-  });
+  source._fetchSheetResponse = async () =>
+    new Response('', { headers: { 'content-length': String(50 * 1024 * 1024 + 1) } });
 
   await assert.rejects(
     source._fetchSheetValues(),
@@ -613,35 +738,143 @@ test('refreshes a rejected token once and honors numeric Retry-After values', as
     if (requestCount === 1) {
       throw new HttpRequestException({ message: 'Unauthorized', statusCode: 401 });
     }
-    return { getContentText: async () => JSON.stringify({ values: [['Name']] }) };
+    return new Response(JSON.stringify({ values: [['Name']] }));
   };
 
   assert.deepEqual(plain(await source._fetchSheetValues()), [['Name']]);
   assert.deepEqual(tokenCalls, [false, true]);
-  assert.equal(source._getRetryAfterMs({ getHeaders: () => ({ 'Retry-After': '7' }) }), 7000);
+  assert.equal(
+    source._getRetryAfterMs(new Response(null, { headers: { 'Retry-After': '7' } })),
+    7000
+  );
 });
 
 test('rejects oversized responses before reading their body', async () => {
   const source = createSource();
   source.getAccessToken = async () => 'token';
-  source._fetchSheetResponse = async () => ({
-    getHeaders: () => ({ 'content-length': String(50 * 1024 * 1024 + 1) }),
-    getContentText: async () => assert.fail('body should not be read'),
-  });
+  source._fetchSheetResponse = async () => {
+    const response = new Response('', {
+      headers: { 'content-length': String(50 * 1024 * 1024 + 1) },
+    });
+    response.text = async () => assert.fail('body should not be read');
+    return response;
+  };
   await assert.rejects(source._fetchSheetValues(), /response exceeds the 50 MB import limit/);
 });
 
+// These exercise the real _fetchSheetResponse rather than replacing it. It was
+// the one call path with no coverage at all, which is how a call to a deleted
+// HTTP helper survived in it.
+test('reads a sheet through the runtime fetch and returns its values', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'sheet-token';
+
+  await withFetch(
+    () => jsonResponse({ values: [['Name'], ['Ada']] }),
+    async calls => {
+      assert.deepEqual(plain(await source._fetchSheetValues()), [['Name'], ['Ada']]);
+      assert.match(calls[0].url, /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\//);
+      assert.equal(calls[0].options.headers.Authorization, 'Bearer sheet-token');
+    }
+  );
+});
+
+test('turns a non-2xx sheet response into an error carrying its status and payload', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'sheet-token';
+
+  await withFetch(
+    () =>
+      jsonResponse(
+        { error: { code: 404, message: 'Requested entity was not found.' } },
+        { status: 404 }
+      ),
+    () =>
+      assert.rejects(source._fetchSheetValues(), error => {
+        assert.equal(error.statusCode, 404);
+        assert.equal(error.payload.error.code, 404);
+        assert.match(error.message, /spreadsheet was not found: Requested entity was not found\./);
+        return true;
+      })
+  );
+});
+
+test('propagates a 401 from the real request path so the token is refreshed once', async () => {
+  const source = createSource();
+  const tokenCalls = [];
+  source.getAccessToken = async options => {
+    tokenCalls.push(options.forceRefresh);
+    return options.forceRefresh ? 'fresh-token' : 'stale-token';
+  };
+
+  await withFetch(
+    (_url, _options, callNumber) =>
+      callNumber === 1
+        ? jsonResponse({ error: { message: 'Invalid Credentials' } }, { status: 401 })
+        : jsonResponse({ values: [['Name']] }),
+    async calls => {
+      assert.deepEqual(plain(await source._fetchSheetValues()), [['Name']]);
+      assert.deepEqual(tokenCalls, [false, true]);
+      assert.equal(calls[0].options.headers.Authorization, 'Bearer stale-token');
+      assert.equal(calls[1].options.headers.Authorization, 'Bearer fresh-token');
+    }
+  );
+});
+
+test('retries a 429 from the real request path after the Retry-After delay', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'sheet-token';
+
+  await withFetch(
+    (_url, _options, callNumber) =>
+      callNumber === 1
+        ? jsonResponse(
+            { error: { message: 'Rate limited' } },
+            {
+              status: 429,
+              headers: { 'Retry-After': '0' },
+            }
+          )
+        : jsonResponse({ values: [['Name']] }),
+    async calls => {
+      assert.deepEqual(plain(await source._fetchSheetValues()), [['Name']]);
+      assert.equal(calls.length, 2);
+      assert.ok(source.logs.some(message => /Retrying Google Sheets request/.test(message)));
+    }
+  );
+});
+
+test('does not retry a non-retryable status from the real request path', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'sheet-token';
+
+  await withFetch(
+    () => jsonResponse({ error: { message: 'Unable to parse range' } }, { status: 400 }),
+    async calls => {
+      await assert.rejects(source._fetchSheetValues(), /could not read the selected range/);
+      assert.equal(calls.length, 1);
+    }
+  );
+});
+
+// The behaviour this covers moved out of a per-connector Connector class into
+// AbstractConnector's full-refresh node mode, which any source can opt into with
+// `isFullRefresh` — Google Sheets is simply its first user.
 test('connector always publishes empty snapshots and reports only the runtime schema fields', async () => {
-  const connector = Object.create(GoogleSheetsConnector.prototype);
+  const connector = Object.create(AbstractConnector.prototype);
   const updates = [];
   const replacements = [];
-  connector.config = {
-    Fields: { value: 'sheet _owox_row_number, sheet _owox_imported_at, sheet name' },
+  const parameters = {
+    Fields: { value: 'sheet _owox_row_number' },
     ImportAllColumns: { value: false },
+  };
+  connector.context = {
+    getParameter: name => parameters[name] ?? null,
+    storageConfig: {},
+    log() {},
     updateFields(fields) {
       updates.push({ fields });
     },
-    logMessage() {},
   };
   connector.source = {
     fieldsSchema: {
@@ -655,20 +888,23 @@ test('connector always publishes empty snapshots and reports only the runtime sc
     },
     fetchData: async () => [],
   };
-  connector.getStorageByNode = async () => ({
+  connector.getStorageForNode = () => ({
     replaceData: async data => replacements.push(data),
   });
 
-  await connector.startImportProcess();
+  await connector.processFullRefreshNode('sheet', ['_owox_row_number'], {}, null);
 
   assert.deepEqual(plain(updates), [
     {
       fields: ['_owox_row_number', '_owox_imported_at', 'name'],
     },
   ]);
+  // Rewritten from the schema the fetch discovered, not left at the stale
+  // selection the run started with.
   assert.equal(
-    connector.config.Fields.value,
+    parameters.Fields.value,
     'sheet _owox_row_number, sheet _owox_imported_at, sheet name'
   );
+  // An empty sheet still publishes: that is how rows deleted upstream disappear.
   assert.deepEqual(replacements, [[]]);
 });

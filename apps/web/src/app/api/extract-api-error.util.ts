@@ -14,3 +14,20 @@ import type { AxiosError } from 'axios';
 export const extractApiError = (error: unknown): ApiError => {
   return ((error as AxiosError | undefined)?.response?.data ?? {}) as ApiError;
 };
+
+/**
+ * The message to show a user for a failed request: the server's own sentence when there is one,
+ * the thrown error's message otherwise, and `fallback` when neither says anything.
+ *
+ * The middle step is what a bare `e instanceof Error ? e.message : fallback` gets you, and on an
+ * Axios rejection that is only "Request failed with status code 400" — the refusal the backend
+ * wrote for a human is in the body, not on the error. Reading the body first is what
+ * `showApiErrorToast` already does for the toasts the interceptor raises; this is the same
+ * precedence for the call sites that render the message themselves.
+ */
+export const apiErrorMessage = (error: unknown, fallback: string): string => {
+  const serverMessage = extractApiError(error).message?.trim();
+  if (serverMessage) return serverMessage;
+  const thrownMessage = error instanceof Error ? error.message.trim() : '';
+  return thrownMessage || fallback;
+};
