@@ -45,19 +45,6 @@ export function getFittedGraphViewport(
   );
 }
 
-/**
- * The zoom component of the fitted viewport, NaN for degenerate geometry so
- * the zoom range falls back — see getFittedGraphViewport.
- */
-export function getFittedGraphZoom(
-  bounds: CanvasGraphBounds,
-  paneWidth: number,
-  paneHeight: number,
-  padding: number
-): number {
-  return getFittedGraphViewport(bounds, paneWidth, paneHeight, padding)?.zoom ?? Number.NaN;
-}
-
 export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {
   const safeFittedZoom =
     Number.isFinite(fittedZoom) && fittedZoom > 0
