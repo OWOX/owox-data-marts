@@ -160,7 +160,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           WHERE schema_name = '${this.config.DestinationDatasetName.value}'
         );
         IF dataset_exists THEN 
-          SELECT column_name, data_type
+          SELECT column_name, data_type, is_partitioning_column
           FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
           WHERE table_name = '${this.config.DestinationTableName.value}'
           ORDER BY ordinal_position;
@@ -176,11 +176,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
         if( queryResults.rows ) {
           queryResults.rows.map(row => {
-            columns[ row.f[0].v ]  = {"name": row.f[0].v, "type": row.f[1].v}
+            columns[ row.f[0].v ]  = {"name": row.f[0].v, "type": row.f[1].v, "isPartitioningColumn": row.f[2].v === "YES"}
           });
         } else if (Array.isArray(queryResults)) {
           queryResults.map(row => {
-            columns[ row.column_name ] = {"name": row.column_name, "type": row.data_type}
+            columns[ row.column_name ] = {"name": row.column_name, "type": row.data_type, "isPartitioningColumn": row.is_partitioning_column === "YES"}
           });
         }
 
@@ -202,24 +202,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     }
 
-  //---- getPartitionColumn ------------------------------------------
-    /**
-     * Finds the schema field flagged as the BigQuery partition column
-     * @return {string|null} - the column name, or null when the schema declares none
-     */
-    getPartitionColumn() {
-      for (const columnName in this.schema) {
-        if( this.schema[ columnName ] && this.schema[ columnName ]["GoogleBigQueryPartitioned"] ) {
-          return columnName;
-        }
-      }
-      return null;
-    }
-
   //---- createTableIfItDoesntExist ----------------------------------
     async createTableIfItDoesntExist(quoteColumnNames = false) {
 
       let columns = [];
+      let columnPartitioned = null;
       let existingColumns = {};
 
       let selectedFields = this.getSelectedFields();
@@ -239,6 +226,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           columnDescription = ` OPTIONS(description="${this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"])}")`;
         }
 
+        // Last flagged column wins — LinkedIn flags two; existing tables
+        // were created under this rule, so it must not change
+        if( "GoogleBigQueryPartitioned" in this.schema[ columnName ]
+        && this.schema[ columnName ]["GoogleBigQueryPartitioned"] ) {
+          columnPartitioned = columnName;
+        }
+
         const sqlColumnName = quoteColumnNames ? quoteBigQueryIdentifier(columnName) : columnName;
         columns.push(`${sqlColumnName} ${columnType}${columnDescription}`);
         
@@ -256,11 +250,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       let query = `---- Creating table if it not exists -----\n`;
       query += `CREATE TABLE IF NOT EXISTS \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
 
-      // The partition column must be among the columns actually created:
-      // a schema may flag a field the user did not select for this table.
-      const columnPartitioned = this.getPartitionColumn();
-      if( columnPartitioned && tableColumns.includes(columnPartitioned) ) {
-        query += `\nPARTITION BY ${quoteColumnNames ? quoteBigQueryIdentifier(columnPartitioned) : columnPartitioned}`;
+      if( columnPartitioned ) {
+        const sqlName = quoteColumnNames ? quoteBigQueryIdentifier(columnPartitioned) : columnPartitioned;
+        const partitionExpression = this.buildPartitionByExpression(sqlName, this.getColumnType(columnPartitioned));
+        if( partitionExpression ) {
+          query += `\nPARTITION BY ${partitionExpression}`;
+          // Record table truth for buildPartitionPredicate in same-run flows
+          existingColumns[ columnPartitioned ]["isPartitioningColumn"] = true;
+        }
       }
 
       if( this.description ) {
@@ -614,6 +611,43 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       return this.obfuscateSpecialCharacters( rawValue );
     }
 
+  //---- buildPartitionByExpression ----------------------------------
+    /**
+     * DDL expression for PARTITION BY, or null for types BigQuery cannot
+     * partition by. DATETIME/TIMESTAMP columns need daily truncation.
+     */
+    buildPartitionByExpression(sqlColumnName, columnType) {
+      switch( String(columnType).toUpperCase() ) {
+        case "DATE": return sqlColumnName;
+        case "DATETIME": return `DATETIME_TRUNC(${sqlColumnName}, DAY)`;
+        case "TIMESTAMP": return `TIMESTAMP_TRUNC(${sqlColumnName}, DAY)`;
+        default: return null;
+      }
+    }
+
+  //---- isRealCalendarValue -----------------------------------------
+    /**
+     * True when a canonical 'YYYY-MM-DD[ HH:MM:SS]' string denotes a real
+     * calendar date and time. The shape regex accepts impossible values like
+     * 2026-02-31; SAFE_CAST turns those into NULL inside source rows, but a
+     * typed literal in the predicate would fail the whole query.
+     */
+    isRealCalendarValue(value) {
+      const [datePart, timePart] = value.split(" ");
+      const [year, month, day] = datePart.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if( date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day ) {
+        return false;
+      }
+      if( timePart ) {
+        const [hours, minutes, seconds] = timePart.split(":").map(Number);
+        if( hours > 23 || minutes > 59 || seconds > 59 ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
   //---- buildPartitionPredicate -------------------------------------
     /**
      * Builds a constant partition filter for the MERGE ON clause, so BigQuery
@@ -621,10 +655,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * `target.date = source.date` alone does not prune: the source is a
      * subquery of literals, and pruning needs a constant filter on the target.
      *
-     * Returns null (no predicate, today's full-scan behavior) whenever the
-     * range cannot be derived safely: no partition column in the schema, the
-     * column is missing from the destination table, any record lacks a value,
-     * or a value does not look like a date/datetime literal.
+     * The partition column is taken from the destination table itself
+     * (INFORMATION_SCHEMA, or recorded at CREATE TABLE time), not from the
+     * schema flag: a legacy table can be partitioned by a different flagged
+     * field, or by nothing at all.
+     *
+     * Returns null (no predicate, the MERGE falls back to a full table scan)
+     * whenever the range cannot be derived safely: the destination table has
+     * no partitioning column, that column is not part of the unique key, its
+     * type is not date-like, any record lacks a value, or a value is not a
+     * real calendar date/time in canonical shape.
      *
      * @param {Array} recordKeys - Record keys of the batch being merged
      * @return {string|null} - SQL predicate for the target table, or null
@@ -643,7 +683,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         "TIMESTAMP": /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
       };
 
-      const partitionColumn = this.getPartitionColumn();
+      // The destination table's real partitioning column, as reported by
+      // INFORMATION_SCHEMA or recorded at CREATE TABLE time. The schema flag
+      // is not trusted here: a legacy table can be partitioned by a different
+      // flagged field (LinkedIn flags two), or by nothing at all.
+      const partitionColumn = Object.keys(this.existingColumns).find(
+        name => this.existingColumns[ name ] && this.existingColumns[ name ]["isPartitioningColumn"]
+      );
       if( !partitionColumn ) {
         return null;
       }
@@ -657,11 +703,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         return null;
       }
 
-      // A table created before the schema gained the flag has no such column
       const columnInfo = this.existingColumns[ partitionColumn ];
-      if( !columnInfo ) {
-        return null;
-      }
 
       const columnType = String(columnInfo.type).toUpperCase();
       const literalPattern = DATE_LIKE_LITERALS[ columnType ];
@@ -679,9 +721,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         // batch mixing them still has one uniform, comparable shape
         const value = typeof formatted === "string" ? formatted.replace("T", " ") : formatted;
 
-        // One unusable value and the whole predicate is off: a predicate that
-        // misses a record's partition would silently drop that record's update
-        if( typeof value !== "string" || !literalPattern.test(value) ) {
+        // One unusable value and the whole predicate is off: a range that
+        // misses a record's partition would hide its target row from the
+        // MERGE and insert a duplicate instead of updating it
+        if( typeof value !== "string" || !literalPattern.test(value) || !this.isRealCalendarValue(value) ) {
           return null;
         }
 

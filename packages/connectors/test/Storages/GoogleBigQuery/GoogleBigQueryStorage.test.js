@@ -137,7 +137,7 @@ describe('buildMergeQuery partition pruning', () => {
       },
       existingColumns: {
         ad_id: { name: 'ad_id', type: 'STRING' },
-        date: { name: 'date', type: 'DATE' },
+        date: { name: 'date', type: 'DATE', isPartitioningColumn: true },
         impressions: { name: 'impressions', type: 'INT64' },
       },
       updatedRecordsBuffer: {
@@ -186,8 +186,9 @@ describe('buildMergeQuery partition pruning', () => {
   });
 
   it('suppresses the predicate when any record lacks a partition value', () => {
-    // A predicate that misses one record's partition would silently drop that
-    // record's update, so one gap disables pruning for the whole batch.
+    // A range that misses one record's partition would hide its target row
+    // and produce a duplicate insert, so one gap disables pruning for the
+    // whole batch.
     const storage = mergeStorage();
     storage.updatedRecordsBuffer['ad_1|2026-08-30'].date = null;
 
@@ -230,7 +231,7 @@ describe('buildMergeQuery partition pruning', () => {
     const storage = mergeStorage({
       existingColumns: {
         ad_id: { name: 'ad_id', type: 'STRING' },
-        date: { name: 'date', type: 'TIMESTAMP' },
+        date: { name: 'date', type: 'TIMESTAMP', isPartitioningColumn: true },
         impressions: { name: 'impressions', type: 'INT64' },
       },
       updatedRecordsBuffer: {
@@ -246,7 +247,7 @@ describe('buildMergeQuery partition pruning', () => {
     const storage = mergeStorage({
       existingColumns: {
         ad_id: { name: 'ad_id', type: 'STRING' },
-        date: { name: 'date', type: 'DATETIME' },
+        date: { name: 'date', type: 'DATETIME', isPartitioningColumn: true },
         impressions: { name: 'impressions', type: 'INT64' },
       },
       updatedRecordsBuffer: {
@@ -260,11 +261,56 @@ describe('buildMergeQuery partition pruning', () => {
     );
   });
 
+  it('suppresses the predicate for an impossible calendar date', () => {
+    // Shape-valid but not a real date: SAFE_CAST makes it NULL in source
+    // rows, but DATE '2026-02-31' in the predicate would fail the whole query.
+    const storage = mergeStorage();
+    storage.updatedRecordsBuffer['ad_1|2026-08-30'].date = '2026-02-31';
+
+    expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBeNull();
+  });
+
+  it('suppresses the predicate for an out-of-range time', () => {
+    const storage = mergeStorage({
+      existingColumns: {
+        ad_id: { name: 'ad_id', type: 'STRING' },
+        date: { name: 'date', type: 'DATETIME', isPartitioningColumn: true },
+        impressions: { name: 'impressions', type: 'INT64' },
+      },
+      updatedRecordsBuffer: {
+        a: { ad_id: 'ad_1', date: '2026-08-30 25:00:00', impressions: 1 },
+      },
+    });
+
+    expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBeNull();
+  });
+
+  it('follows the table partitioning column when the schema flags a different field', () => {
+    // LinkedIn flags both dateRangeStart and dateRangeEnd; existing tables
+    // are partitioned by dateRangeEnd. Table truth must win over the schema.
+    const storage = mergeStorage({
+      uniqueKeyColumns: ['dateRangeStart', 'dateRangeEnd', 'pivotValues'],
+      existingColumns: {
+        dateRangeStart: { name: 'dateRangeStart', type: 'DATE' },
+        dateRangeEnd: { name: 'dateRangeEnd', type: 'DATE', isPartitioningColumn: true },
+        pivotValues: { name: 'pivotValues', type: 'STRING' },
+      },
+      updatedRecordsBuffer: {
+        a: { dateRangeStart: '2026-08-29', dateRangeEnd: '2026-08-30', pivotValues: 'x' },
+        b: { dateRangeStart: '2026-08-30', dateRangeEnd: '2026-08-31', pivotValues: 'y' },
+      },
+    });
+
+    expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBe(
+      "target.dateRangeEnd BETWEEN DATE '2026-08-30' AND DATE '2026-08-31'"
+    );
+  });
+
   it('uses a TIMESTAMP literal for a TIMESTAMP partition column', () => {
     const storage = mergeStorage({
       existingColumns: {
         ad_id: { name: 'ad_id', type: 'STRING' },
-        date: { name: 'date', type: 'TIMESTAMP' },
+        date: { name: 'date', type: 'TIMESTAMP', isPartitioningColumn: true },
         impressions: { name: 'impressions', type: 'INT64' },
       },
       updatedRecordsBuffer: {

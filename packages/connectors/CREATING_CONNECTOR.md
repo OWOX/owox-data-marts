@@ -338,12 +338,15 @@ The flag has two effects:
 
 Two rules make the filter work:
 
-- The field type must be `DATE`, `DATETIME`, or `TIMESTAMP`.
+- The field type must be `DATE`, `DATETIME`, or `TIMESTAMP`. `DATETIME`
+  and `TIMESTAMP` fields get daily partitions via `_TRUNC`.
 - The node's `uniqueKeys` must include the field. Without it, the MERGE
   skips the filter and scans the whole table on every run.
 
-Time-series nodes should set both the flag and the `uniqueKeys` entry.
-Entity nodes without a date field need neither.
+Flag exactly one field per node. When several fields carry the flag, the
+last one selected for the table wins. Time-series nodes should set both
+the flag and the `uniqueKeys` entry. Entity nodes without a date field
+need neither.
 
 ## 6. Testing Your Connector
 
