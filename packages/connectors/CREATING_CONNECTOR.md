@@ -318,6 +318,33 @@ constructor(config) {
 }
 ```
 
+### Partitioning in Google BigQuery
+
+Mark one date-like field per node with `GoogleBigQueryPartitioned: true`:
+
+```javascript
+date: {
+  description: 'The date for this metric.',
+  type: DATA_TYPES.DATE,
+  GoogleBigQueryPartitioned: true
+}
+```
+
+The flag has two effects:
+
+- New destination tables get `PARTITION BY` on this field.
+- Incremental MERGE runs add a date-range filter on the target table.
+  BigQuery then scans only the partitions being written, not the full table.
+
+Two rules make the filter work:
+
+- The field type must be `DATE`, `DATETIME`, or `TIMESTAMP`.
+- The node's `uniqueKeys` must include the field. Without it, the MERGE
+  skips the filter and scans the whole table on every run.
+
+Time-series nodes should set both the flag and the `uniqueKeys` entry.
+Entity nodes without a date field need neither.
+
 ## 6. Testing Your Connector
 
 After creating your connector:
