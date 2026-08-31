@@ -36,9 +36,17 @@ export interface BlendingDecision {
    */
   uniqueCountSources?: JoinedUniqueCountSource[];
   /**
-   * Calculated fields the blended SQL projects through its own formula-substitution channel.
-   * Their names are already stripped out of `columnFilter` — a reader must forward BOTH, or the
-   * metric is emitted by the SQL with no header naming it.
+   * The report's selected calculated fields, as plans.
+   *
+   * On the BLENDED path these are what the SQL projects through its own formula-substitution
+   * channel, and their names are already stripped out of `columnFilter` — a reader must forward
+   * BOTH, or the metric is emitted by the SQL with no header naming it.
+   *
+   * On the NON-blended path no SQL is produced here, so the plans are carried purely so a caller
+   * that only needs to NAME the columns does not have to rebuild them (or compose SQL to get at
+   * them). `columnFilter` is the raw column config there and still holds the metric names, so such
+   * a caller strips them itself. A caller that goes on to execute must keep taking its plans from
+   * `compose()`, which is the one that renders them.
    */
   calculatedFields?: CalculatedFieldPlan[];
 }

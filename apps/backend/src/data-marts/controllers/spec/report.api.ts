@@ -118,7 +118,7 @@ export function GetReportOutputSchemaSpec() {
     ApiParam({ name: 'id', description: 'Report ID' }),
     ApiOkResponse({
       description:
-        "The columns the report's rows will carry, in the order they are projected. `name` is the key each row is keyed by; `title` is the alias configured for it, absent when there is none. Columns the report synthesises — aggregated (`<column> | <FN>`), Unique Count, calculated fields — appear here and nowhere in the Data Mart schema.",
+        "The columns the report's rows will carry, in the order they are projected, as of the Data Mart's last schema actualization. `name` is the key each row is keyed by; `title` is the alias configured for it, absent when there is none. Columns the report synthesises — aggregated (`<column> | <FN>`), Unique Count, calculated fields — appear here and nowhere in the Data Mart schema. This reads the stored schema rather than the warehouse, so a column added warehouse-side and not yet actualized is missing here until a run or a data read picks it up.",
       type: [ReportOutputSchemaFieldApiDto],
     })
   );

@@ -478,10 +478,7 @@ export class ReportSqlComposerService {
    * them for the grain question: a row-level field the report aggregates stops being a grouping
    * key, and every site downstream reads that off the plan.
    */
-  // Pure: reads the stored schema only, no warehouse access. Public so a caller that needs the
-  // plans WITHOUT the SQL (the output-schema describe) does not have to compose — composing
-  // refreshes a SQL Data Mart's view, which a describe must not do.
-  buildCalculatedFieldPlans(
+  private buildCalculatedFieldPlans(
     schemaFields: readonly DataMartSchemaField[],
     names: readonly string[],
     aggregations: AggregationRule[] | undefined

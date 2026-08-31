@@ -306,6 +306,11 @@ export class BlendedReportDataService {
         columnFilter: columnConfig,
         blendedDataHeaders,
         primaryKeyColumns,
+        // Carried rather than dropped: they are already built above, and a caller that only names
+        // the report's columns would otherwise parse every formula a second time. Callers that
+        // execute overwrite this from `compose()` on this path anyway — safe because non-empty
+        // plans mean a calculated field is selected, which makes `hasOutputControls` true.
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
       };
     }
 

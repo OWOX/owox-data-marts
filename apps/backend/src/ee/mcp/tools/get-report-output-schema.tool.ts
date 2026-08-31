@@ -8,7 +8,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
-const inputSchema = z.object({ report_id: z.string().min(1) }).strict();
+const inputSchema = z.object({ report_id: z.string().trim().min(1) }).strict();
 
 type GetReportOutputSchemaInput = z.infer<typeof inputSchema>;
 
@@ -19,7 +19,9 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
     "The columns a report's rows will carry, in the order they are projected — the names to put " +
     'above the values the report delivers. Includes the columns a report synthesises (aggregated ' +
     '`revenue | SUM`, Unique Count, calculated fields), which appear in no data mart schema. ' +
-    'Answers from the stored schema and the report config, so it reads no report data. One ' +
+    'Answers from the stored schema and the report config, so it reads no report data — the ' +
+    "columns are as of the Data Mart's last schema actualization, so one added warehouse-side and " +
+    'not yet actualized is missing until a run or a data read picks it up. One ' +
     'caveat behind the read-only hint: for a report that joins other data marts, resolving the ' +
     "join refreshes each SQL-defined source's technical view, so a repeated call is not free on " +
     'the warehouse.';
@@ -36,8 +38,12 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
           .string()
           .nullable()
           .describe('The aggregate function the report applies to this column, if any.'),
+        // A bare string, not z.enum: this is an OUTPUT schema over a level the facade forwards
+        // from persisted JSON, and the SDK validates structuredContent against it — so a hardcoded
+        // vocabulary would turn "a level was added to the domain" into an McpError from this tool.
+        // Same call `data-mart-details.tool.ts` makes for its own `level`, for the same reason.
         calculated_field_level: z
-          .enum(['metric', 'column'])
+          .string()
           .nullable()
           .describe(
             'Calculated fields only. `metric` AGGREGATES — never re-aggregate it, whatever `type` says. `column` is row-level with no warehouse column behind it. null is an ordinary native column, which may be rolled up.'

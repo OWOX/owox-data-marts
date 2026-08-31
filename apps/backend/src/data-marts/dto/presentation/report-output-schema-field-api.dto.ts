@@ -1,4 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  CALCULATED_FIELD_LEVELS,
+  type CalculatedFieldLevel,
+} from '../../calculated-fields/formula-level';
 
 /** One column of a report's output, as a reader of the rows would name and understand it. */
 export class ReportOutputSchemaFieldApiDto {
@@ -39,8 +43,8 @@ export class ReportOutputSchemaFieldApiDto {
   @ApiProperty({
     description:
       "Set only for a calculated field, carrying the level its formula was derived to have. `metric` means the formula AGGREGATES: re-aggregating it is wrong at any grain, whatever `type` says. `column` means it is row-level and behaves like a column of its declared type, but no warehouse column backs it. Absent means an ordinary native column, which a consumer may treat as re-summable — so do not read an absent value as 'unknown'.",
-    enum: ['metric', 'column'],
+    enum: CALCULATED_FIELD_LEVELS,
     required: false,
   })
-  calculatedFieldLevel?: string;
+  calculatedFieldLevel?: CalculatedFieldLevel;
 }

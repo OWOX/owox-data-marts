@@ -72,8 +72,16 @@ export function requiresCredentials(type: DataDestinationType): boolean {
  * on every column at once. The other destinations render the label with enough room that the
  * prefix reads fine, so they keep it.
  *
- * Excel qualifies on that same ground. Left out here, a run's recorded label disagreed with the
- * header written into the worksheet.
+ * Excel qualifies on that same ground, but reaches the label by a different road than Google
+ * Sheets: nothing pushes rows into a workbook, so its add-in pulls the worksheet header from
+ * `GET /reports/:id/output-schema`, which resolves the style from the Report. This opt-in is what
+ * that header follows, and it is the only surface it reaches.
+ *
+ * It deliberately does NOT reach the same report's stream metadata or run record. Those are built
+ * from a `ReportLikeReadPlan`, which drops `dataDestination` on purpose (see `streamReport` in
+ * `stream-http-data.service.ts`) so that NDJSON — where a prefix has room to read fine — does not
+ * change shape just because a report happens to write to a spreadsheet. So the two differ by
+ * design: suffix in the worksheet header, prefix in the recorded run. Nothing keys on either.
  *
  * What this pins is the POSITION of the Data Mart name, not a byte-exact label: every surface
  * still normalizes whitespace (see `formatBlendedFieldDisplayName`), and no consumer keys on the

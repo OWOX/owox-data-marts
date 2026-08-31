@@ -27,15 +27,12 @@ describe('GetReportOutputSchemaService', () => {
       findOne: jest.fn().mockResolvedValue(found ? { ...report, ...reportOverrides } : null),
     };
     const generateHeadersFromSchema = jest.fn().mockResolvedValue(nativeHeaders);
-    const compose = jest.fn().mockResolvedValue({ calculatedFields: undefined });
-    const buildCalculatedFieldPlans = jest.fn().mockReturnValue([]);
     const resolveBlendingDecision = jest
       .fn()
       .mockResolvedValue({ needsBlending: false, ...decision });
     const service = new GetReportOutputSchemaService(
       reportRepository as never,
       { resolveBlendingDecision } as never,
-      { compose, buildCalculatedFieldPlans } as never,
       { canAccess: jest.fn().mockResolvedValue(canSee) } as never,
       { generateHeadersFromSchema } as never
     );
@@ -43,8 +40,6 @@ describe('GetReportOutputSchemaService', () => {
       service,
       reportRepository,
       generateHeadersFromSchema,
-      compose,
-      buildCalculatedFieldPlans,
       resolveBlendingDecision,
     };
   };
@@ -120,19 +115,20 @@ describe('GetReportOutputSchemaService', () => {
     );
   });
 
-  // `compose` resolves the main table reference, which for a SQL-defined Data Mart runs
-  // `CREATE OR REPLACE VIEW` against the customer's warehouse. Describing a report is a read, so
-  // the plans are built straight from the stored schema instead.
-  it('builds calculated-field plans for a report with output controls without composing SQL', async () => {
-    const { service, compose, buildCalculatedFieldPlans } = createService({
+  // The plans come off the decision on BOTH paths, so naming a report's columns never parses a
+  // formula twice and never calls `compose()` — which would refresh a SQL Data Mart's view.
+  it('takes calculated-field plans from the decision on the non-blended path', async () => {
+    const plans = [{ outputName: 'ctr', type: 'FLOAT', formula: 'clicks / impressions' }];
+    const { service } = createService({
       reportOverrides: { limitConfig: 100 },
-      decision: { columnFilter: ['clicks', 'ctr'] },
+      nativeHeaders: [new ReportDataHeader('clicks')],
+      decision: { columnFilter: ['clicks', 'ctr'], calculatedFields: plans },
     });
 
-    await service.run(command);
-
-    expect(compose).not.toHaveBeenCalled();
-    expect(buildCalculatedFieldPlans).toHaveBeenCalledWith([], ['clicks', 'ctr'], undefined);
+    await expect(service.run(command)).resolves.toEqual([
+      expect.objectContaining({ name: 'clicks' }),
+      expect.objectContaining({ name: 'ctr' }),
+    ]);
   });
 
   // The blended branch: joined headers and calculated fields have no Data Mart schema field behind

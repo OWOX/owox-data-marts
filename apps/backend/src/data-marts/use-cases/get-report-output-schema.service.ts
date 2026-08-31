@@ -10,15 +10,12 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { ReportHeadersGeneratorFacade } from '../data-storage-types/facades/report-headers-generator.facade';
 import { resolveReportDataHeaders } from '../data-storage-types/utils/report-data-headers.utils';
-import { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 import { GetReportOutputSchemaCommand } from '../dto/domain/get-report-output-schema.command';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
-import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { Report } from '../entities/report.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
-import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 
 /**
  * The columns a report's rows will carry. Headers come from the stored schema plus the report
@@ -40,7 +37,6 @@ export class GetReportOutputSchemaService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly reportHeadersGeneratorFacade: ReportHeadersGeneratorFacade
   ) {}
@@ -90,24 +86,11 @@ export class GetReportOutputSchemaService {
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
 
     // Calculated fields are named by their formula and exist only in the plan that built them.
-    //
-    // Built directly rather than through `compose`: composing resolves the main table reference,
-    // and for a SQL-defined Data Mart that runs `CREATE OR REPLACE VIEW` against the customer's
-    // warehouse — DDL a describe endpoint under `Role.viewer` must not issue. The plans are the
-    // same ones `compose` derives before it ever reaches that step, so nothing about the headers
-    // changes; what goes away is the warehouse write, a second `resolveBlendingDecision`, and the
-    // SQL-composition errors that used to fail a request that only ever needed to name columns.
-    let calculatedFields: CalculatedFieldPlan[] | undefined;
-    if (decision.needsBlending) {
-      calculatedFields = decision.calculatedFields;
-    } else if (hasOutputControls(report)) {
-      const plans = this.reportSqlComposerService.buildCalculatedFieldPlans(
-        report.dataMart.schema.fields ?? [],
-        decision.columnFilter ?? [],
-        report.aggregationConfig ?? undefined
-      );
-      calculatedFields = plans.length > 0 ? plans : undefined;
-    }
+    // Both branches read the decision: it builds these plans on either path, so naming the columns
+    // needs neither a second parse of every formula nor `compose()` — which would resolve the main
+    // table reference and, for a SQL-defined Data Mart, run `CREATE OR REPLACE VIEW` against the
+    // customer's warehouse from a describe endpoint under `Role.viewer`.
+    const calculatedFields = decision.calculatedFields;
 
     const nativeHeaders = await this.reportHeadersGeneratorFacade.generateHeadersFromSchema(
       report.dataMart.storage.type,

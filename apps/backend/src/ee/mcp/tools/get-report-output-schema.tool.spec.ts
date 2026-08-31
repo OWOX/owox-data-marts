@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { McpReportsFacade } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { GetReportOutputSchemaTool } from './get-report-output-schema.tool';
@@ -73,6 +74,29 @@ describe('GetReportOutputSchemaTool', () => {
     });
   });
 
+  // The SDK validates every structuredContent against this schema, so a hardcoded level vocabulary
+  // would turn "a level was added to the domain" into an McpError from this tool. The level must
+  // pass through as whatever the facade forwarded.
+  it('accepts a calculated-field level the tool does not know about', () => {
+    const tool = new GetReportOutputSchemaTool({} as McpReportsFacade);
+
+    const parsed = z.object(tool.outputSchema).safeParse({
+      report_id: 'report-1',
+      columns: [
+        {
+          name: 'ctr',
+          title: null,
+          description: null,
+          type: 'FLOAT',
+          aggregate_function: null,
+          calculated_field_level: 'a-level-added-later',
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
   it('rejects an input that names no report, or carries anything extra', () => {
     const tool = new GetReportOutputSchemaTool({} as McpReportsFacade);
 
@@ -80,6 +104,10 @@ describe('GetReportOutputSchemaTool', () => {
     expect(() => tool.parseInput({ report_id: '' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', limit: 10 })).toThrow();
     expect(tool.parseInput({ report_id: 'report-1' })).toEqual({ report_id: 'report-1' });
+    // A padded id is what an LLM caller copying a value out of a previous answer produces; the
+    // sibling report tools trim it, and a 404 here for whitespace alone would be gratuitous.
+    expect(tool.parseInput({ report_id: '  report-1  ' })).toEqual({ report_id: 'report-1' });
+    expect(() => tool.parseInput({ report_id: '   ' })).toThrow();
   });
 
   // Describing a report reads no report data and changes no OWOX entity, so a client holding only
