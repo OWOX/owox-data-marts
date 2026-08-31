@@ -25,6 +25,11 @@ export interface ReleaseIssues {
   rejections: ReleaseRejection[];
 }
 
+/** The subset of rejections a publisher can act on, in the report's order. */
+export function actionableRejections(rejections: ReleaseRejection[]): ReleaseRejection[] {
+  return rejections.filter(rejection => !BY_DESIGN_CODES.has(rejection.code));
+}
+
 /**
  * The publisher-fixable rejections from a plugin's publications, or null when there is
  * nothing to show.
@@ -41,9 +46,7 @@ export function findReleaseIssues(publications: PluginPublication[]): ReleaseIss
     return null;
   }
 
-  const rejections = diagnostics.rejections.filter(
-    rejection => !BY_DESIGN_CODES.has(rejection.code)
-  );
+  const rejections = actionableRejections(diagnostics.rejections);
   if (rejections.length === 0) {
     return null;
   }

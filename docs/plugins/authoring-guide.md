@@ -206,11 +206,13 @@ without notice.
 ## Persisting JSON with collections
 
 Declare every collection in `plugin.json`. The declaration is immutable in structure within a
-major version line: a minor or patch release may add collections and change action mappings, but
-cannot remove a collection or change its name, scope, or entity binding. Such a release is
-rejected and the previous version stays current; the reason appears in the publisher diagnostics
-and on the plugin page. A major version bump waives the check—it is how a breaking collection
-change ships deliberately.
+compatibility line: a release may add collections and change action mappings, but cannot remove
+a collection or change its name, scope, or entity binding. Such a release is rejected and the
+previous version stays current; the reason appears in the publisher diagnostics and on the
+plugin page. Opening a new line waives the check—it is how a breaking collection change ships
+deliberately. From 1.0.0 on, the line is the major version, so the declared break is a major
+bump. Below 1.0.0, where SemVer promises no stability, the line narrows to the minor version:
+a 0.x plugin ships a breaking change by bumping the minor, without leaving 0.x.
 
 ```json
 {

@@ -7,7 +7,7 @@ import {
   CollapsibleCardHeader,
   CollapsibleCardHeaderTitle,
 } from '../../../shared/components/CollapsibleCard';
-import { formatDateOnly } from '../../../utils/date-formatters';
+import { formatDateShort } from '../../../utils/date-formatters';
 import type { ReleaseIssues } from '../rejections';
 
 /**
@@ -55,8 +55,10 @@ export function PluginReleaseIssuesCard({ issues }: { issues: ReleaseIssues }) {
       <CollapsibleCardFooter
         left={
           issues.syncedAt ? (
+            // Date and time, not date alone: after a manual Check now the date would
+            // not move, and the publisher could not tell the card reflects it.
             <span className='text-muted-foreground text-sm'>
-              As of the check on {formatDateOnly(issues.syncedAt)}
+              As of the check on {formatDateShort(issues.syncedAt)}
             </span>
           ) : undefined
         }

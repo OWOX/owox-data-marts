@@ -35,25 +35,37 @@ export enum ReleaseRejectionCode {
 }
 
 /**
- * The rejections a publisher can and should act on: a release wanted to become current
- * and could not.
+ * Whether each rejection marks something the publisher can and should act on: a release
+ * that wanted to become current and could not.
  *
- * The candidacy codes (DRAFT, PRERELEASE_FLAG, PRERELEASE_TAG, BUILD_METADATA_TAG,
- * INVALID_TAG) are deliberately absent. They mark releases that are ineligible by design
- * and permanently -- a repository full of drafts and release candidates would repeat
- * them on every daily check while nothing is actually wrong, burying the one line that
- * matters.
+ * `false` marks the candidacy codes -- releases that are ineligible by design and
+ * permanently. A repository full of drafts and release candidates would repeat them on
+ * every daily check while nothing is actually wrong, burying the one line that matters.
+ *
+ * `satisfies` over the full enum so that adding a code without deciding its visibility
+ * is a compile error, not a silent disappearance from the log and audit trail.
  */
-export const PUBLISHER_ACTIONABLE_REJECTION_CODES: ReadonlySet<ReleaseRejectionCode> = new Set([
-  ReleaseRejectionCode.COMMIT_UNRESOLVABLE,
-  ReleaseRejectionCode.MANIFEST_MISSING,
-  ReleaseRejectionCode.MANIFEST_INVALID_JSON,
-  ReleaseRejectionCode.MANIFEST_SCHEMA,
-  ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
-  ReleaseRejectionCode.DELIVERY_UNSUPPORTED,
-  ReleaseRejectionCode.URL_NOT_HTTPS,
-  ReleaseRejectionCode.URL_PRIVATE_NETWORK,
-  ReleaseRejectionCode.URL_UNREACHABLE,
-  ReleaseRejectionCode.IFRAME_BLOCKED,
-  ReleaseRejectionCode.VERSION_CONFLICT,
-]);
+const REJECTION_IS_PUBLISHER_ACTIONABLE = {
+  [ReleaseRejectionCode.DRAFT]: false,
+  [ReleaseRejectionCode.PRERELEASE_FLAG]: false,
+  [ReleaseRejectionCode.PRERELEASE_TAG]: false,
+  [ReleaseRejectionCode.BUILD_METADATA_TAG]: false,
+  [ReleaseRejectionCode.INVALID_TAG]: false,
+  [ReleaseRejectionCode.COMMIT_UNRESOLVABLE]: true,
+  [ReleaseRejectionCode.MANIFEST_MISSING]: true,
+  [ReleaseRejectionCode.MANIFEST_INVALID_JSON]: true,
+  [ReleaseRejectionCode.MANIFEST_SCHEMA]: true,
+  [ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE]: true,
+  [ReleaseRejectionCode.DELIVERY_UNSUPPORTED]: true,
+  [ReleaseRejectionCode.URL_NOT_HTTPS]: true,
+  [ReleaseRejectionCode.URL_PRIVATE_NETWORK]: true,
+  [ReleaseRejectionCode.URL_UNREACHABLE]: true,
+  [ReleaseRejectionCode.IFRAME_BLOCKED]: true,
+  [ReleaseRejectionCode.VERSION_CONFLICT]: true,
+} satisfies Record<ReleaseRejectionCode, boolean>;
+
+export const PUBLISHER_ACTIONABLE_REJECTION_CODES: ReadonlySet<ReleaseRejectionCode> = new Set(
+  (Object.keys(REJECTION_IS_PUBLISHER_ACTIONABLE) as ReleaseRejectionCode[]).filter(
+    code => REJECTION_IS_PUBLISHER_ACTIONABLE[code]
+  )
+);

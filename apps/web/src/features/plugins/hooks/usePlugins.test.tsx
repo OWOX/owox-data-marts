@@ -193,4 +193,77 @@ describe('usePluginActions', () => {
     expect(channel === 'success' ? toast.success : toast).toHaveBeenCalledWith(expected);
     expect(toast.error).not.toHaveBeenCalled();
   });
+
+  // The publications query feeds the publisher's Release issues card; dropping this
+  // invalidation would silently restore the "Check now did nothing" UI.
+  it('refreshes publications after a check', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidated = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => usePluginActions(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.checkNow('p1');
+    });
+
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-publications', 'project-1'] });
+  });
+
+  // A publisher whose fresh check rejected a release must not read "you're up to date":
+  // that is the original silence this feature removes. The response carries diagnostics
+  // only for publishers, so ordinary members keep the plain message.
+  it('tells a publisher when the fresh check rejected a release', async () => {
+    service.checkNow.mockResolvedValue({
+      outcome: 'up_to_date',
+      updated: false,
+      currentSemver: '0.1.0',
+      diagnostics: {
+        syncedAt: '2026-08-17T13:00:12.933Z',
+        acceptedSemvers: [],
+        unchangedSemvers: [],
+        rejections: [
+          {
+            tagName: 'v0.1.1',
+            githubReleaseId: 'r2',
+            code: 'COLLECTIONS_INCOMPATIBLE',
+            detail: 'Collection "dashboards" cannot change entity binding',
+          },
+        ],
+      },
+    });
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.checkNow('p1');
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'v0.1.1 was rejected (COLLECTIONS_INCOMPATIBLE). v0.1.0 stays active — see Release issues for details.'
+    );
+  });
+
+  it('keeps the plain up-to-date message when only by-design rejections exist', async () => {
+    service.checkNow.mockResolvedValue({
+      outcome: 'up_to_date',
+      updated: false,
+      currentSemver: '1.0.0',
+      diagnostics: {
+        syncedAt: '2026-08-17T13:00:12.933Z',
+        acceptedSemvers: [],
+        unchangedSemvers: [],
+        rejections: [{ tagName: 'v1.1.0', githubReleaseId: 'r3', code: 'DRAFT', detail: '…' }],
+      },
+    });
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.checkNow('p1');
+    });
+
+    expect(toast).toHaveBeenCalledWith("You're up to date — v1.0.0");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
 });

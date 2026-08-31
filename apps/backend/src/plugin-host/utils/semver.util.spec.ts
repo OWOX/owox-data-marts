@@ -1,4 +1,4 @@
-import { compareSemver, formatSemver, parseReleaseTag } from './semver.util';
+import { compareSemver, formatSemver, parseReleaseTag, sameCompatibilityLine } from './semver.util';
 
 describe('parseReleaseTag', () => {
   it.each([
@@ -56,5 +56,20 @@ describe('compareSemver', () => {
   it('sorts a release list into activation order', () => {
     const sorted = ['1.9.0', '2.0.0', '1.10.0', '1.2.3'].sort(compareSemver);
     expect(sorted).toEqual(['1.2.3', '1.9.0', '1.10.0', '2.0.0']);
+  });
+});
+
+describe('sameCompatibilityLine', () => {
+  it('groups by major from 1.0.0 on', () => {
+    expect(sameCompatibilityLine('1.2.3', '1.9.0')).toBe(true);
+    expect(sameCompatibilityLine('1.2.3', '2.0.0')).toBe(false);
+  });
+
+  // SemVer promises no stability below 1.0.0, so the line narrows to the minor: a 0.x
+  // plugin declares a breaking change with a minor bump, without leaving 0.x.
+  it('narrows to the minor below 1.0.0', () => {
+    expect(sameCompatibilityLine('0.1.0', '0.1.5')).toBe(true);
+    expect(sameCompatibilityLine('0.1.0', '0.2.0')).toBe(false);
+    expect(sameCompatibilityLine('0.1.0', '1.1.0')).toBe(false);
   });
 });

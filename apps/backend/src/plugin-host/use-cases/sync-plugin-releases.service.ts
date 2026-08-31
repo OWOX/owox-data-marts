@@ -26,7 +26,13 @@ import {
   findIncompatibleCollectionChange,
   parsePluginManifest,
 } from '../utils/plugin-manifest.util';
-import { compareSemver, formatSemver, majorOf, parseReleaseTag } from '../utils/semver.util';
+import {
+  compareSemver,
+  formatSemver,
+  majorOf,
+  parseReleaseTag,
+  sameCompatibilityLine,
+} from '../utils/semver.util';
 
 /** A release that survived the free checks and is worth spending network calls on. */
 interface Candidate {
@@ -214,29 +220,31 @@ export class SyncPluginReleasesService {
       return false;
     }
 
-    // Collection compatibility is enforced only within the released major line: a minor
-    // or patch release inherits the structure contract, while a major bump is the
-    // publisher's declared breaking change and is waived through.
-    const currentVersion = (await this.versionService.findAllByPluginId(pluginId)).reduce<
-      { semver: string; collections: PluginVersionCollections } | undefined
-    >(
-      (highest, version) =>
-        !highest || compareSemver(version.semver, highest.semver) > 0
-          ? { semver: version.semver, collections: version.collections ?? [] }
-          : highest,
-      undefined
-    );
-    if (currentVersion && majorOf(semver) <= majorOf(currentVersion.semver)) {
+    // Collection compatibility is enforced only against the candidate's own
+    // compatibility line -- the highest released version with the same major (same
+    // minor too while below 1.0.0, per SemVer §4). A release that opens a new line is
+    // the publisher's declared breaking change, and versions from other lines are not
+    // its contract.
+    const baseline = (await this.versionService.findAllByPluginId(pluginId))
+      .filter(version => sameCompatibilityLine(version.semver, semver))
+      .reduce<
+        { semver: string; collections: PluginVersionCollections } | undefined
+      >((highest, version) => (!highest || compareSemver(version.semver, highest.semver) > 0 ? { semver: version.semver, collections: version.collections ?? [] } : highest), undefined);
+    if (baseline) {
       const incompatibility = findIncompatibleCollectionChange(
-        currentVersion.collections ?? [],
+        baseline.collections ?? [],
         manifest.manifest.collections
       );
       if (incompatibility) {
+        const escape =
+          majorOf(semver) === 0
+            ? 'bump the minor version to ship this breaking change while below 1.0.0'
+            : 'publish a new major version to ship this breaking change';
         into.rejections.push(
           this.rejection(
             release,
             ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
-            `${incompatibility} in a minor or patch release; publish a new major version to ship this breaking change`
+            `${incompatibility} within the ${baseline.semver} compatibility line; ${escape}`
           )
         );
         return false;

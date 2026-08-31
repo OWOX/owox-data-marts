@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { extractApiError } from '../../../app/api/extract-api-error.util';
 import { useProjectId } from '../../../shared/hooks';
+import { actionableRejections } from '../rejections';
 import { pluginsService } from '../services/plugins.service';
 import type { InstalledPlugin, PluginGalleryEntry, PluginUpdateResult } from '../types';
 
@@ -205,6 +206,10 @@ export function usePluginActions() {
  * source: which host could not be reached is a publisher diagnostic, and the member can
  * act on none of it.
  *
+ * For a publisher whose fresh check rejected a release, "you're up to date" would be
+ * the "Check now did nothing" silence all over again -- the response carries their
+ * diagnostics precisely so this toast can say what actually happened.
+ *
  * Falls back to `updated` when the response predates the outcome field, so the older
  * half of a rolling deploy still says something true.
  */
@@ -223,6 +228,18 @@ function reportOutcome(result: PluginUpdateResult): void {
       `Couldn't check for updates. ${version} remains active and OWOX will try again automatically.`
     );
     return;
+  }
+
+  if (outcome === 'up_to_date') {
+    const rejected = actionableRejections(result.diagnostics?.rejections ?? []);
+    if (rejected.length > 0) {
+      // The report is newest-first, so the first entry is the release that just failed
+      // to become current. The card below the fold carries the full detail.
+      toast.error(
+        `${rejected[0].tagName} was rejected (${rejected[0].code}). ${version} stays active — see Release issues for details.`
+      );
+      return;
+    }
   }
 
   toast(

@@ -97,6 +97,24 @@ export interface PluginUpdateResult {
   updated: boolean;
   /** When the deployment checks again on its own. Asking now does not move it. */
   nextCheckAt?: string | null;
+  /** Present for publishers of this plugin; null for ordinary members. */
+  diagnostics?: PluginPublisherDiagnostics | null;
+}
+
+/** Publisher management diagnostics; only management API responses carry it. */
+export interface PluginPublisherDiagnostics {
+  deliveryUrl: string | null;
+  commitSha: string | null;
+  accessMode: string | null;
+  syncedAt: string | null;
+  acceptedSemvers: string[];
+  unchangedSemvers: string[];
+  rejections: {
+    tagName: string;
+    githubReleaseId: string | null;
+    code: string;
+    detail: string;
+  }[];
 }
 
 export interface PluginPublication {
@@ -110,20 +128,7 @@ export interface PluginPublication {
   audienceProjectIds: string[];
   currentSemver: string | null;
   /** Publisher management diagnostics; present on management API responses. */
-  diagnostics?: {
-    deliveryUrl: string | null;
-    commitSha: string | null;
-    accessMode: string | null;
-    syncedAt: string | null;
-    acceptedSemvers: string[];
-    unchangedSemvers: string[];
-    rejections: {
-      tagName: string;
-      githubReleaseId: string | null;
-      code: string;
-      detail: string;
-    }[];
-  };
+  diagnostics?: PluginPublisherDiagnostics;
 }
 
 export interface PublishPluginRequest {

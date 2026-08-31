@@ -73,6 +73,7 @@ function setup(
 
   const publications = {
     findVisibleTo: jest.fn().mockResolvedValue([{ pluginId: 'p1' }]),
+    listManageable: jest.fn().mockResolvedValue([]),
   } as unknown as jest.Mocked<PluginPublicationService>;
 
   const installations = {
@@ -189,6 +190,27 @@ describe('UpdatePluginService', () => {
       deliveryUrl: 'https://plugin.example.com',
       acceptedSemvers: ['2.0.0'],
     });
+  });
+
+  // GET /publications already hands this same block to whoever manages a publication of
+  // the plugin; without it here, that publisher's Check now reads "up to date" while
+  // their release was just rejected.
+  it('returns diagnostics to a member who manages a publication of this plugin', async () => {
+    const s = setup();
+    s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
+
+    const result = await update(s);
+
+    expect(result.diagnostics).toMatchObject({ acceptedSemvers: ['2.0.0'] });
+  });
+
+  it('returns no diagnostics for a publication of a different plugin', async () => {
+    const s = setup();
+    s.publications.listManageable.mockResolvedValue([{ pluginId: 'other' }] as never);
+
+    const result = await update(s);
+
+    expect(result.diagnostics).toBeNull();
   });
 
   /**

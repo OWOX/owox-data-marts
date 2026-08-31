@@ -61,10 +61,10 @@ Requests time out after 30 seconds; streamed reads do not. At most 32 may be in 
 
 Collections let a plugin persist JSON without running its own backend. Declare every collection in
 the immutable `plugin.json` shipped with the release. The declared structure is a contract within
-a major version line: a minor or patch release may add collections and change action mappings, but
-cannot remove a collection or change its name, scope, or entity binding — such a release is
-rejected and the previous version stays current. Ship a breaking collection change by bumping the
-major version.
+a compatibility line: a release may add collections and change action mappings, but cannot remove
+a collection or change its name, scope, or entity binding — such a release is rejected and the
+previous version stays current. Ship a breaking collection change by opening a new line: a major
+version bump, or a minor bump while the plugin is still below 1.0.0.
 
 ```json
 {

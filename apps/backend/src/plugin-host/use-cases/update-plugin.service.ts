@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PluginPublisherDiagnosticsDto } from '../dto/domain/plugin-publication.dto';
 import { PluginUpdateResultDto, UpdatePluginCommand } from '../dto/domain/update-plugin.command';
 import { Plugin } from '../entities/plugin.entity';
+import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { PluginService } from '../services/plugin.service';
 import { PluginInstallationService } from '../services/plugin-installation.service';
@@ -54,11 +55,17 @@ export class UpdatePluginService {
       apiKeyId: command.context.apiKeyId ?? null,
     });
 
-    // Diagnostics only for deployment publishers: rejection detail is a source
-    // diagnostic and must not reach ordinary members on the same operation (§6.2 / §16).
+    // Diagnostics only for publishers: rejection detail is a source diagnostic and must
+    // not reach ordinary members on the same operation (§6.2 / §16). "Publisher" here
+    // includes anyone managing a publication of this plugin -- GET /publications already
+    // hands the same diagnostics block to exactly those callers, and without it a
+    // member-scope publisher pressing Check now is told everything is fine while their
+    // release was just rejected.
     const isPublisher = this.authorization.isDeploymentPublisher(command.context);
+    const managesPublication =
+      isPublisher || (await this.managesPublicationOf(plugin.id, command.context));
     let diagnostics: PluginPublisherDiagnosticsDto | null = null;
-    if (isPublisher) {
+    if (managesPublication) {
       const version = result.currentVersionId
         ? await this.versionService.findById(result.currentVersionId)
         : null;
@@ -108,6 +115,36 @@ export class UpdatePluginService {
     }
 
     throw new NotFoundException('A plugin id or repository is required');
+  }
+
+  /**
+   * Whether the caller manages a publication of this plugin, mirroring the scope rules
+   * `ListPublicationsService` enforces: project scope for Project Admins, member scope
+   * for the caller's own listings. Deployment scope is handled by the allowlist check.
+   */
+  private async managesPublicationOf(
+    pluginId: string,
+    context: AuthorizationContext
+  ): Promise<boolean> {
+    const scopes: PluginPublicationScope[] = [];
+    if (context.roles?.includes('admin')) {
+      scopes.push(PluginPublicationScope.PROJECT);
+    }
+    if (context.userId) {
+      scopes.push(PluginPublicationScope.MEMBER);
+    }
+
+    for (const scope of scopes) {
+      const rows = await this.publications.listManageable(scope, {
+        projectId: context.projectId,
+        userId: scope === PluginPublicationScope.MEMBER ? (context.userId ?? undefined) : undefined,
+      });
+      if (rows.some(row => row.pluginId === pluginId)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
