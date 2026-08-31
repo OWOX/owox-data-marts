@@ -34,6 +34,8 @@ To configure a new **Destination**:
 3. Complete the configuration fields specific to the selected **Destination Type**. Refer to the corresponding service configuration page for detailed instructions.
 4. Click **Save** to apply the **Destination** configuration or **Cancel** to discard changes.
 
+> ☝️ **[Microsoft Excel](supported-destinations/microsoft-excel.md)** is not created from **+ New Destination**. Install the add-in in Excel — the destination appears the first time you build a report from a workbook.
+
 ---
 
 ## Removing a Destination

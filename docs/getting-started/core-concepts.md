@@ -91,8 +91,9 @@ Each Storage has **Owners** — the team members responsible for its configurati
 A [**Destination**](../destinations/manage-destinations.md) is an interface or application used by business users to access the data. Supported destinations include:
 
 - [Google Sheets](../destinations/supported-destinations/google-sheets.md)
+- [Microsoft Excel](../destinations/supported-destinations/microsoft-excel.md)
 - [Data Studio](../destinations/supported-destinations/data-studio.md)
-- OData (compatible with Excel, Tableau, Power BI, etc)
+- OData (compatible with Tableau, Power BI, etc)
 
 Each **Data Mart** can be linked to multiple **Destinations**.
 
