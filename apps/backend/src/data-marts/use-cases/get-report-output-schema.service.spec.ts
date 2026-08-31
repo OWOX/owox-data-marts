@@ -102,6 +102,22 @@ describe('GetReportOutputSchemaService', () => {
     );
   });
 
+  // Cross-project isolation lives in the QUERY, not in a later check: a report id belonging to
+  // another project must not resolve at all, so the caller cannot tell it apart from one that does
+  // not exist. Asserted explicitly because the repository is mocked here — dropping the projectId
+  // clause would otherwise pass every other test in this file.
+  it('looks the report up only within the caller project', async () => {
+    const { service, reportRepository } = createService();
+
+    await service.run(command);
+
+    expect(reportRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'report-1', dataMart: { projectId: 'project-1' } },
+      })
+    );
+  });
+
   // `compose` resolves the main table reference, which for a SQL-defined Data Mart runs
   // `CREATE OR REPLACE VIEW` against the customer's warehouse. Describing a report is a read, so
   // the plans are built straight from the stored schema instead.

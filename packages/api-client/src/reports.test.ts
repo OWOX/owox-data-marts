@@ -129,6 +129,92 @@ describe('ReportsApi.traverseData', () => {
     });
   });
 
+  it('reads the output schema from the report route and passes the columns through', async () => {
+    const calls: Array<{ path: string; query?: Record<string, string> }> = [];
+    const columns = [
+      { name: 'date', title: 'Date', description: 'Reporting day', type: 'DATE' },
+      { name: 'revenue | SUM', title: 'Revenue, $ | SUM', type: 'NUMERIC' },
+      { name: 'clicks' },
+    ];
+    const requester = {
+      getJson: async (path: string, query?: Record<string, string>) => {
+        calls.push({ path, query });
+        return columns as never;
+      },
+      getStream: async () => streamResponse('run-1'),
+    };
+
+    const schema = await new ReportsApi(requester).getOutputSchema('report-1');
+
+    expect(calls[0]!.path).toBe('/api/reports/report-1/output-schema');
+    expect(schema).toEqual(columns);
+  });
+
+  it('encodes the report id into the output schema path', async () => {
+    const calls: string[] = [];
+    const requester = {
+      getJson: async (path: string) => {
+        calls.push(path);
+        return [] as never;
+      },
+      getStream: async () => streamResponse('run-1'),
+    };
+
+    await new ReportsApi(requester).getOutputSchema('report/1 2');
+
+    expect(calls[0]).toBe('/api/reports/report%2F1%202/output-schema');
+  });
+
+  it('rejects an output schema response that is not a list of columns', async () => {
+    const requester = {
+      getJson: async () => ({ columns: [] }) as never,
+      getStream: async () => streamResponse('run-1'),
+    };
+
+    const schema = new ReportsApi(requester).getOutputSchema('report-1');
+
+    await expect(schema).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(schema).rejects.toMatchObject({
+      message: 'OWOX report output schema API returned an unexpected response shape',
+      details: { reportId: 'report-1' },
+    });
+  });
+
+  it('carries the report id on an API error raised while reading the output schema', async () => {
+    const requester = {
+      getJson: async () => {
+        throw new OWOXApiError('Report not found', { status: 404 });
+      },
+      getStream: async () => streamResponse('run-1'),
+    };
+
+    const schema = new ReportsApi(requester).getOutputSchema('report-1');
+
+    await expect(schema).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Report not found',
+      status: 404,
+      details: { reportId: 'report-1' },
+    });
+  });
+
+  it('wraps a non-API failure while reading the output schema', async () => {
+    const requester = {
+      getJson: async () => {
+        throw new TypeError('socket hang up');
+      },
+      getStream: async () => streamResponse('run-1'),
+    };
+
+    const schema = new ReportsApi(requester).getOutputSchema('report-1');
+
+    await expect(schema).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(schema).rejects.toMatchObject({
+      message: 'Failed to read OWOX report output schema',
+      details: { reportId: 'report-1' },
+    });
+  });
+
   it('reports malformed NDJSON lines with report and run context', async () => {
     const requester = {
       getJson: async () => ({}) as never,

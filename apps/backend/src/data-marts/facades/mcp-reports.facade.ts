@@ -230,6 +230,29 @@ export interface McpGetReportRunStatusResponse {
   error: string | null;
 }
 
+export interface McpGetReportOutputSchemaRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  reportId: string;
+}
+
+/** One column of a report's output, as a reader of the rows would name and understand it. */
+export interface McpReportOutputSchemaColumn {
+  /** The key each output row is keyed by. */
+  name: string;
+  /** The alias configured for the column; null when there is none. */
+  title: string | null;
+  description: string | null;
+  /** Storage field type, null when it cannot be derived (e.g. an SQL-override column). */
+  type: string | null;
+}
+
+export interface McpGetReportOutputSchemaResponse {
+  reportId: string;
+  columns: McpReportOutputSchemaColumn[];
+}
+
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
@@ -264,4 +287,15 @@ export interface McpReportsFacade {
   deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult>;
   runReport(request: McpRunReportRequest): Promise<McpRunReportResponse>;
   getReportRunStatus(request: McpGetReportRunStatusRequest): Promise<McpGetReportRunStatusResponse>;
+  /**
+   * The columns a report's rows will carry, in the order they are projected — the names to put
+   * above the values `query_data_mart` and the HTTP data stream return.
+   *
+   * Includes the columns the report synthesises (aggregated `revenue | SUM`, Unique Count,
+   * calculated fields), which appear in no Data Mart schema. Resolved from the stored schema and
+   * the report config, so it answers without reading any report data.
+   */
+  getReportOutputSchema(
+    request: McpGetReportOutputSchemaRequest
+  ): Promise<McpGetReportOutputSchemaResponse>;
 }

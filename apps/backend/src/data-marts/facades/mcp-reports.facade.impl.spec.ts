@@ -73,6 +73,10 @@ import type { ScheduledTriggerService } from '../services/scheduled-trigger.serv
 import type { CreateReportService } from '../use-cases/create-report.service';
 import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import type { DeleteReportService } from '../use-cases/delete-report.service';
+import type { GetReportOutputSchemaService } from '../use-cases/get-report-output-schema.service';
+import { GetReportOutputSchemaCommand } from '../dto/domain/get-report-output-schema.command';
+import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import type { GetReportService } from '../use-cases/get-report.service';
 import type { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import type { RunReportService } from '../use-cases/run-report.service';
@@ -196,6 +200,9 @@ function createMocks() {
     reportService: {
       existsByDataMartIdAndDestinationIdAndProjectId: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<ReportService>,
+    getReportOutputSchemaService: {
+      run: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<GetReportOutputSchemaService>,
   };
 }
 
@@ -229,7 +236,8 @@ function createFacade(overrides?: {
       mocks.accessDecisionService,
       mocks.reportAccessService,
       mocks.outputControlsValidator,
-      mocks.reportService
+      mocks.reportService,
+      mocks.getReportOutputSchemaService
     ),
     ...mocks,
   };
@@ -1902,5 +1910,61 @@ describe('McpReportsFacadeImpl.getReportRunStatus', () => {
       'report-1',
       'project-1'
     );
+  });
+});
+
+describe('McpReportsFacadeImpl.getReportOutputSchema', () => {
+  it('delegates to the output-schema service with the caller identity', async () => {
+    const { facade, getReportOutputSchemaService } = createFacade();
+
+    await facade.getReportOutputSchema({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      reportId: 'report-1',
+    });
+
+    expect(getReportOutputSchemaService.run).toHaveBeenCalledWith(
+      new GetReportOutputSchemaCommand('report-1', 'user-1', 'project-1', ['viewer'])
+    );
+  });
+
+  // An MCP result is serialized to JSON, where an absent key reads as "unknown" rather than
+  // "this column has no alias". Every optional header field is published as an explicit null.
+  it('publishes a header with no alias, description or type as explicit nulls', async () => {
+    const { facade, getReportOutputSchemaService } = createFacade();
+    getReportOutputSchemaService.run.mockResolvedValue([
+      new ReportDataHeader('date', 'Date', 'Reporting day', BigQueryFieldType.DATE),
+      new ReportDataHeader('clicks'),
+    ]);
+
+    await expect(
+      facade.getReportOutputSchema({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        reportId: 'report-1',
+      })
+    ).resolves.toEqual({
+      reportId: 'report-1',
+      columns: [
+        { name: 'date', title: 'Date', description: 'Reporting day', type: BigQueryFieldType.DATE },
+        { name: 'clicks', title: null, description: null, type: null },
+      ],
+    });
+  });
+
+  it('lets the service refuse a caller who cannot see the source data mart', async () => {
+    const { facade, getReportOutputSchemaService } = createFacade();
+    getReportOutputSchemaService.run.mockRejectedValue(new ForbiddenException('nope'));
+
+    await expect(
+      facade.getReportOutputSchema({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        reportId: 'report-1',
+      })
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

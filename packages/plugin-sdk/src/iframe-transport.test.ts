@@ -1,3 +1,4 @@
+import { OWOXApiClient } from '@owox/api-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createIframeTransport, PluginTransportError } from './iframe-transport.js';
 import type { PluginRequest, PluginResponse } from './protocol.js';
@@ -54,6 +55,40 @@ describe('iframe transport', () => {
     });
 
     await expect(pending).resolves.toEqual({ ok: true });
+  });
+
+  /**
+   * A plugin reaches a report's output schema with no plugin-sdk code of its own: `connect()` hands
+   * it a real `OWOXApiClient` over this transport, and the host bridge forwards any root-relative
+   * `/api/` path without a per-endpoint allowlist. This pins that chain end to end — if either the
+   * api-client method or this transport stops carrying it, the failure lands here rather than in a
+   * plugin at runtime.
+   */
+  it('carries an api-client report output schema call through to the host', async () => {
+    const host = hostSide();
+    const owox = new OWOXApiClient({ transport: host.transport });
+    const columns = [
+      { name: 'date', title: 'Date', type: 'DATE' },
+      { name: 'revenue | SUM', title: 'Revenue, $ | SUM', type: 'NUMERIC' },
+    ];
+
+    const pending = owox.reports.getOutputSchema('report-1');
+    await host.waitForReceived();
+
+    expect(host.received[0]).toMatchObject({
+      kind: 'api',
+      method: 'GET',
+      path: '/api/reports/report-1/output-schema',
+    });
+    host.answer({
+      id: host.received[0].id,
+      ok: true,
+      status: 200,
+      headers: {},
+      body: columns,
+    });
+
+    await expect(pending).resolves.toEqual(columns);
   });
 
   it('forwards a PATCH JSON request with its body', async () => {

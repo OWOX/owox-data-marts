@@ -22,6 +22,7 @@ import { LookerStudioConnectorConfigType } from '../data-destination-types/looke
 import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
+import { GetReportOutputSchemaCommand } from '../dto/domain/get-report-output-schema.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
@@ -49,6 +50,7 @@ import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { CreateReportService } from '../use-cases/create-report.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
+import { GetReportOutputSchemaService } from '../use-cases/get-report-output-schema.service';
 import { GetReportService } from '../use-cases/get-report.service';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
@@ -64,6 +66,8 @@ import {
   McpDeleteReportResult,
   McpGetDataMartReportsRequest,
   McpGetDataMartReportsResponse,
+  McpGetReportOutputSchemaRequest,
+  McpGetReportOutputSchemaResponse,
   McpGetReportRunStatusRequest,
   McpGetReportRunStatusResponse,
   McpReportRunStatus,
@@ -145,8 +149,38 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly reportAccessService: ReportAccessService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly reportService: ReportService
+    private readonly reportService: ReportService,
+    private readonly getReportOutputSchemaService: GetReportOutputSchemaService
   ) {}
+
+  /**
+   * Delegated whole: the service enforces authentication, not-found and the
+   * see-the-source-data-mart rule itself, and resolves the headers without reading report data.
+   * Only the header shape is remapped — `undefined` becomes `null`, because an MCP result is
+   * serialized to JSON and an absent key reads as "unknown" rather than "no alias".
+   */
+  async getReportOutputSchema(
+    request: McpGetReportOutputSchemaRequest
+  ): Promise<McpGetReportOutputSchemaResponse> {
+    const headers = await this.getReportOutputSchemaService.run(
+      new GetReportOutputSchemaCommand(
+        request.reportId,
+        request.userId,
+        request.projectId,
+        request.roles
+      )
+    );
+
+    return {
+      reportId: request.reportId,
+      columns: headers.map(header => ({
+        name: header.name,
+        title: header.alias ?? null,
+        description: header.description ?? null,
+        type: header.storageFieldType ?? null,
+      })),
+    };
+  }
 
   async deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult> {
     // The service enforces not-found and mutate-access itself and returns

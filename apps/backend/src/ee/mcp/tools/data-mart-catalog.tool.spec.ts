@@ -191,6 +191,7 @@ describe('ListDataMartsTool', () => {
       'GetProjectContextTool',
       'ListDestinationsTool',
       'GetDataMartReportsTool',
+      'GetReportOutputSchemaTool',
       'ListReportRunSchedulesTool',
       'CreateReportRunScheduleTool',
       'UpdateReportRunScheduleTool',

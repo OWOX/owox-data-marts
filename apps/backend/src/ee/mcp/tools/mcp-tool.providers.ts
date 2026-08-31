@@ -6,6 +6,7 @@ import { GetDataMartDetailsTool } from './data-mart-details.tool';
 import { DeleteReportTool } from './delete-report.tool';
 import { DeleteReportRunScheduleTool } from './delete-report-run-schedule.tool';
 import { GetDataMartReportsTool } from './get-data-mart-reports.tool';
+import { GetReportOutputSchemaTool } from './get-report-output-schema.tool';
 import { GetReportRunStatusTool } from './get-report-run-status.tool';
 import { ListDestinationsTool } from './list-destinations.tool';
 import { ListReportRunSchedulesTool } from './list-report-run-schedules.tool';
@@ -27,6 +28,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   GetProjectContextTool,
   ListDestinationsTool,
   GetDataMartReportsTool,
+  GetReportOutputSchemaTool,
   ListReportRunSchedulesTool,
   CreateReportRunScheduleTool,
   UpdateReportRunScheduleTool,

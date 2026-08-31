@@ -86,6 +86,7 @@ export {
   type OWOXProjectSetupProgressSteps,
   type OWOXProjectSetupStepState,
 } from './project.js';
+export { type OWOXReportOutputSchemaField } from './reports.js';
 export {
   type OWOXSearchEntityType,
   type OWOXSearchOptions,
