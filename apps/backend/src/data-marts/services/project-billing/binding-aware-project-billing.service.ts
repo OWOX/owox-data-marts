@@ -63,6 +63,10 @@ export class BindingAwareProjectBillingService extends ProjectBillingService {
     return this.delegate().registerEmailBasedReportRunConsumption(report);
   }
 
+  registerExcelReportRunConsumption(report: Report, runId: string): Promise<void> {
+    return this.delegate().registerExcelReportRunConsumption(report, runId);
+  }
+
   registerHttpDataRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
     return this.delegate().registerHttpDataRunConsumption(dataMart, runId);
   }

@@ -1,3 +1,7 @@
+import {
+  requiresCredentials,
+  toHumanReadable,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -56,6 +60,20 @@ export class CreateDataDestinationService {
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     const availableForUse = command.availableForUse ?? true;
+
+    // A type that holds no secret has nothing to attach one to. Refused before the three
+    // credential-bearing branches below, because each of them fails badly rather than clearly:
+    // inline credentials reach a validator that does not exist for such a type (a plain Error,
+    // surfaced as HTTP 500), and a credentialId would link someone else's OAuth grant to a
+    // destination whose whole point is that it stores nothing.
+    if (
+      !requiresCredentials(command.type) &&
+      (command.hasCredentials() || command.credentialId || command.sourceDestinationId)
+    ) {
+      throw new BadRequestException(
+        `${toHumanReadable(command.type)} destinations do not use credentials`
+      );
+    }
 
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId
     if (command.sourceDestinationId && command.hasCredentials()) {
@@ -171,7 +189,26 @@ export class CreateDataDestinationService {
     }
 
     if (!command.credentials) {
-      throw new BadRequestException('Credentials are required when not copying from a source');
+      if (requiresCredentials(command.type)) {
+        throw new BadRequestException('Credentials are required when not copying from a source');
+      }
+
+      // A destination that holds no secret gets no credential record: `credentialId` is
+      // nullable precisely so nothing has to stand in for one.
+      const entity = this.repository.create({
+        title: command.title,
+        type: command.type,
+        projectId: command.projectId,
+        credentialId: null,
+        createdById: command.userId,
+        availableForUse,
+        availableForMaintenance: false,
+        config: command.config ?? null,
+      });
+
+      const savedEntity = await this.repository.save(entity);
+
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     await this.credentialsValidator.checkCredentials(command.type, command.credentials);

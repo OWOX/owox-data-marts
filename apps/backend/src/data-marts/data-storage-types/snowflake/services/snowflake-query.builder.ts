@@ -12,12 +12,16 @@ import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
 } from '../../interfaces/data-mart-query-builder.interface';
-import { FilterRule } from '../../../dto/schemas/filter-config.schema';
-import { effectiveComparisonType } from '../../field-aggregation';
 import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
 import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
 import { SnowflakeClauseRenderer } from './snowflake-clause-renderer';
-import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
+import {
+  assertNoHavingRules,
+  buildFilterTypeResolver,
+  composePlainSelectBody,
+  composeSelectFromClause,
+  hasAggregateCalculatedField,
+} from '../../utils/sql-clause-renderer';
 
 // User-controlled output-control column names use the robust shared escaper (quotes every
 // dotted part, doubles inner quotes). Table FQNs in FROM keep escapeSnowflakeIdentifier
@@ -34,12 +38,15 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
     const uniqueCount = queryOptions?.uniqueCount === true;
+    const calculatedFields = queryOptions?.calculatedFields ?? [];
+    const calculatedFilterMetrics = queryOptions?.calculatedFilterMetrics ?? [];
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
       uniqueCount ||
+      calculatedFields.length > 0 ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -50,21 +57,51 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
 
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
     const columnTypes = queryOptions?.columnTypes;
-    const resolveColumnType = columnTypes
-      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
-      : undefined;
+    // The same array the predicate expressions below are built from, so the type a comparison
+    // imposes on the VALUE and the one it imposes on the EXPRESSION come from one list of plans.
+    const resolveColumnType = buildFilterTypeResolver(
+      columnTypes,
+      calculatedFilterMetrics,
+      this.type
+    );
+    // A predicate on a Calculated Field compares its FORMULA, at both levels — its
+    // name is a SELECT alias with no column behind it. One map for both branches and both clauses.
+    const calculatedPredicateExpressions =
+      this.clauseRenderer.buildCalculatedPredicateExpressions(calculatedFilterMetrics);
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
       undefined,
       'p',
-      resolveColumnType
+      resolveColumnType,
+      calculatedPredicateExpressions
     );
-    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const orderBy = this.clauseRenderer.renderOrderBy(
+      queryOptions?.sort ?? [],
+      this.clauseRenderer.buildPlainSelectAliasResolver(
+        calculatedFields,
+        undefined,
+        // The plain branch carries no report aggregations by construction: an aggregation is what
+        // sends the query down the aggregated branch instead.
+        // No opts, matching `buildCalculatedPredicateExpressions` above: this dialect qualifies
+        // nothing, so the sort and the filter render the same unqualified expression.
+        this.clauseRenderer.buildCalculatedSortExpressions(
+          calculatedFields,
+          calculatedPredicateExpressions,
+          [],
+          {}
+        )
+      )
+    );
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
     this.assertNoParams(where.params.length + orderBy.params.length + limit.params.length);
 
-    if (aggregations.length > 0 || dateTruncs.length > 0 || uniqueCount) {
+    if (
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      uniqueCount ||
+      hasAggregateCalculatedField([...calculatedFields, ...calculatedFilterMetrics])
+    ) {
       const built = this.clauseRenderer.renderAggregatedQuery({
         fromClause,
         columns: queryOptions?.columns ?? [],
@@ -82,12 +119,21 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
         qualifyProjection: undefined,
         typeByColumn: columnTypes,
         resolveColumnType: resolveColumnType,
+        calculatedFields,
+        calculatedPredicateExpressions,
       });
       this.assertNoParams(built.params.length);
       return built.sql;
     }
 
-    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+    // Not aggregated, so every remaining calculated field is row-level: a projected expression
+    // and nothing else.
+    assertNoHavingRules(queryOptions?.filters ?? [], 'SnowflakeQueryBuilder plain query');
+    const plainSelect = composePlainSelectBody(
+      selectList,
+      this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)
+    );
+    return `${composeSelectFromClause(plainSelect, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
   }
 
   /**

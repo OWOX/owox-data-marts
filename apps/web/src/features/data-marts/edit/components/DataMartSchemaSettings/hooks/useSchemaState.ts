@@ -32,6 +32,10 @@ function deepCloneSchema<T extends DataMartSchema | null | undefined>(schema: T)
   return JSON.parse(JSON.stringify(schema)) as T;
 }
 
+function fingerprint(schema: DataMartSchema | null | undefined): string {
+  return JSON.stringify(schema ?? null);
+}
+
 /**
  * Custom hook for managing schema state.
  * Extracts state management logic from the DataMartSchemaSettings component.
@@ -40,17 +44,32 @@ function deepCloneSchema<T extends DataMartSchema | null | undefined>(schema: T)
  * @returns An object containing the schema state and functions to update it
  */
 export function useSchemaState(initialSchema: DataMartSchema | null | undefined) {
-  const clonedInitialSchema = deepCloneSchema(initialSchema);
-  const [schema, setSchema] = useState<DataMartSchema | null | undefined>(clonedInitialSchema);
+  const [schema, setSchema] = useState<DataMartSchema | null | undefined>(() =>
+    deepCloneSchema(initialSchema)
+  );
   const [isDirty, setIsDirty] = useState(false);
   const skipNextInitialSchemaResetRef = useRef(false);
+  // Filled on first use rather than passed to `useRef`, whose argument is evaluated on EVERY render
+  // and thrown away after the first — and this one serialises the whole schema.
+  const appliedInitialSchemaRef = useRef<string | null>(null);
+  appliedInitialSchemaRef.current ??= fingerprint(initialSchema);
 
   // Reset schema when initialSchema changes
   useEffect(() => {
     if (skipNextInitialSchemaResetRef.current) {
       skipNextInitialSchemaResetRef.current = false;
+      // Deliberately NOT recorded as applied: what is on screen is the schema this hook was told
+      // to keep, not the one just skipped. Recording the skipped one would make it match every
+      // later republish, and the server's own version — the level it derived — would never land.
       return;
     }
+    const incoming = fingerprint(initialSchema);
+    // Compared by CONTENT, not identity. Every refetch of the Data Mart hands this hook a fresh
+    // object — the runs poll, an actualization, a relationship change — and resetting on identity
+    // alone silently discards whatever the analyst has typed since, while a failed save's errors
+    // stay on screen naming a field that is no longer in the table.
+    if (incoming === appliedInitialSchemaRef.current) return;
+    appliedInitialSchemaRef.current = incoming;
     const clonedSchema = deepCloneSchema(initialSchema);
     setSchema(clonedSchema);
     setIsDirty(false);
@@ -63,8 +82,22 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
    */
   const markSchemaSaved = useCallback((savedSchema: DataMartSchema) => {
     skipNextInitialSchemaResetRef.current = true;
+    // What is on screen from here on, so the next initialSchema that DIFFERS from it still resets
+    // — including the server's own copy of this save, which carries the level it derived.
+    appliedInitialSchemaRef.current = fingerprint(savedSchema);
     setSchema(deepCloneSchema(savedSchema));
     setIsDirty(false);
+  }, []);
+
+  /**
+   * Whether the NEXT `initialSchema` the context publishes should leave the live schema alone.
+   * Raised while a save is in flight and something is applied on top of it: what comes back
+   * describes the snapshot that was SENT, not what is on screen. Nothing about that edit is
+   * persisted, so unlike `markSchemaSaved` this changes neither the schema nor `isDirty` — and it
+   * is lowered again on a failed save, where no new schema ever arrives to be kept from.
+   */
+  const keepUnsavedEdits = useCallback((keep: boolean) => {
+    skipNextInitialSchemaResetRef.current = keep;
   }, []);
 
   /**
@@ -169,6 +202,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
     updateSchema,
     resetSchema,
     markSchemaSaved,
+    keepUnsavedEdits,
     setIsDirty,
   };
 }

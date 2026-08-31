@@ -14,6 +14,8 @@ interface DateTruncRowProps {
   fieldType: string;
   /** Aggregate functions the column may carry (so the popover can switch to aggregate). */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /** Passed straight to the editor: false hides the bucket's time zone (a calculated field). */
+  allowBucketTimeZone?: boolean;
   displayLabel?: string;
   dataMartName?: string;
   /** Edit the whole column's bucket/aggregation selection at once. */
@@ -26,6 +28,7 @@ export function DateTruncRow({
   isOrphaned,
   fieldType,
   allowedAggregations,
+  allowBucketTimeZone,
   displayLabel,
   dataMartName,
   onApplyDraft,
@@ -97,6 +100,7 @@ export function DateTruncRow({
           displayLabel={displayLabel}
           dataMartName={dataMartName}
           allowedAggregations={allowedAggregations}
+          allowBucketTimeZone={allowBucketTimeZone}
           initialBucket={rule.unit}
           initialTimeZone={rule.timeZone ?? null}
           onApply={onApplyDraft}

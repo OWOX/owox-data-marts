@@ -140,7 +140,7 @@ export function ConfigurationView({
         )}
         {httpDataParams && (
           <>
-            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>HTTP Data parameters:</h4>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Data parameters:</h4>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
               {JSON.stringify(httpDataParams, null, 2)}
             </pre>

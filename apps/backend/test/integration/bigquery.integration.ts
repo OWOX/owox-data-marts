@@ -14,9 +14,16 @@ import { DataMartRelationship } from 'src/data-marts/entities/data-mart-relation
 import { DataStorageCredentialsResolver } from 'src/data-marts/data-storage-types/data-storage-credentials-resolver.service';
 import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/table-definition.schema';
 import { buildBlendedFieldIndex } from 'src/data-marts/services/blended-field-index';
+import { CalculatedFieldPlan } from 'src/data-marts/data-storage-types/utils/sql-clause-renderer';
 import { ReportSqlComposerService } from 'src/data-marts/services/report-sql-composer.service';
 import { Report } from 'src/data-marts/entities/report.entity';
 import { BlendedFieldDto } from 'src/data-marts/dto/domain/blendable-schema.dto';
+import { buildFormulaOwnerPlan } from 'src/data-marts/calculated-fields/formula-owner-plan';
+import {
+  createFormulaFunctionDialectRegistry,
+  FormulaFunctionDialect,
+} from 'src/data-marts/calculated-fields/formula-function-dialect';
+import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { extractCteBody } from '@owox/test-utils';
 
 /**
@@ -1833,7 +1840,7 @@ describeIfCredentials(
 );
 
 // ---------------------------------------------------------------------------
-// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix (, real
+// Blended COUNT_DISTINCT through a bridge — "metric sleeve" fix, on a real
 // BigQuery). This proves the N-hop NESTED-bridge variant: a 2-hop chain
 // events -> users -> organizations, where `organizations` is a CHILD of
 // `users` (org_id lives on users), NOT a sibling of it. Main = events
@@ -2214,7 +2221,7 @@ describeIfCredentials(
 );
 
 // ---------------------------------------------------------------------------
-// Blended COUNT_DISTINCT through a bridge — SIBLING topology (, real
+// Blended COUNT_DISTINCT through a bridge — SIBLING topology, on a real
 // BigQuery). Complements the NESTED case above with the prototype's flagship
 // shape: main = events (event_id, user_id, org_id), and TWO DIRECT (sibling)
 // chains off main — events.user_id -> users.userId (dimension: country) and
@@ -4383,5 +4390,532 @@ describeIfCredentials(
         'shipped',
       ]);
     }, 120000);
+  }
+);
+
+// Calculated Fields — main-owner grain correctness and the zero-denominator promise.
+//
+// This is the ONE place in the whole suite that can prove the feature's actual arithmetic: every
+// other calculated-metric test (output-controls.e2e-spec.ts, http-data.e2e-spec.ts) runs against a
+// mocked reader that returns a canned value regardless of the SQL, which proves the metric is
+// WIRED — never that it COMPUTES correctly. Runs the exact production entry point a main-owner
+// metric renders through (`BigQueryQueryBuilder.buildQuery` with `calculatedFields`), executed for
+// real via the same executeQuery -> getJob -> destinationTable -> getRows path as every other case
+// in this file.
+//
+// Seed — clicks/impressions across three days, with 2026-01-01 split into two rows carrying
+// deliberately lopsided per-row ratios (0.01 and 0.99):
+//   2026-01-01: (clicks=1,  impressions=100), (clicks=99, impressions=100)
+//   2026-01-02: (clicks=50, impressions=50)
+//   2026-01-03: (clicks=0,  impressions=0)     -- isolates the zero-denominator case
+//
+// Ground truth:
+//   2026-01-01: SUM(clicks)=100,  SUM(impressions)=200 -> ctr 0.5
+//   2026-01-02: SUM(clicks)=50,   SUM(impressions)=50  -> ctr 1.0
+//   2026-01-03: SUM(clicks)=0,    SUM(impressions)=0   -> ctr NULL (NULLIF guards the divide)
+//   overall:    SUM(clicks)=150,  SUM(impressions)=250 -> ctr 0.6
+//
+// 0.6 is deliberately NOT the average of the two valid per-day ratios (0.5, 1.0 -> mean 0.75) and
+// NOT the average of the per-row ratios (0.01, 0.99, 1.0 -> mean ~0.6667, skipping the undefined
+// 0/0 row). A "compute the average instead of the ratio of the sums" implementation — the exact
+// defect this feature exists to prevent — fails this assertion under either flavor of that mistake.
+describeIfCredentials(
+  'Calculated field — grain correctness and zero-denominator (real BigQuery)',
+  () => {
+    let adapter: BigQueryApiAdapter;
+    let fqName: string;
+
+    const builder = new BigQueryQueryBuilder(new BigQueryClauseRenderer());
+    const CTR: CalculatedFieldPlan = {
+      outputName: 'ctr',
+      formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+      type: 'FLOAT',
+      level: 'metric',
+    };
+
+    async function runQuery(
+      queryOptions: Parameters<BigQueryQueryBuilder['buildQuery']>[1]
+    ): Promise<Record<string, unknown>[]> {
+      const definition: TableDefinition = { fullyQualifiedName: fqName };
+      const built = await builder.buildQuery(definition, queryOptions);
+      if (typeof built === 'string')
+        throw new Error('expected QueryBuildResult with output controls');
+      const { jobId } = await adapter.executeQuery(built.sql, built.params);
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 5000, autoPaginate: false });
+      return rows as Record<string, unknown>[];
+    }
+
+    beforeAll(async () => {
+      const credentials = BigQueryServiceAccountCredentialsSchema.parse(
+        JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+      );
+      adapter = new BigQueryApiAdapter(credentials, {
+        projectId: BQ_PROJECT_ID!,
+        location: BIGQUERY_AUTODETECT_LOCATION,
+      });
+
+      const stamp = `${Date.now()}`;
+      fqName = `${BQ_PROJECT_ID}.${BQ_DATASET}.calc_metric_grain_${stamp}`;
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${fqName}\` (event_date DATE, clicks INT64, impressions INT64)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${fqName}\` (event_date, clicks, impressions) VALUES
+        (DATE '2026-01-01', 1, 100),
+        (DATE '2026-01-01', 99, 100),
+        (DATE '2026-01-02', 50, 50),
+        (DATE '2026-01-03', 0, 0)`
+      );
+    }, 120000);
+
+    afterAll(async () => {
+      try {
+        await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fqName}\``);
+      } catch (error) {
+        console.warn('Failed to drop calc-metric-grain table:', error);
+      }
+    }, 30000);
+
+    const dayOf = (r: Record<string, unknown>): string =>
+      String((r.event_date as { value?: string }).value ?? r.event_date).slice(0, 10);
+
+    it(
+      'recomputes per grain — each day is individually correct, and the rollup is the ' +
+        'ratio of the SUMS, not the average of the daily ratios',
+      async () => {
+        const byDay = await runQuery({
+          columns: ['event_date'],
+          dateTruncs: [{ column: 'event_date', unit: 'DAY' }],
+          calculatedFields: [CTR],
+        });
+        expect(byDay).toHaveLength(3);
+
+        const ctrByDay = new Map(byDay.map(r => [dayOf(r), r.ctr == null ? null : Number(r.ctr)]));
+        expect(ctrByDay.get('2026-01-01')).toBeCloseTo(0.5, 6);
+        expect(ctrByDay.get('2026-01-02')).toBeCloseTo(1.0, 6);
+        expect(ctrByDay.get('2026-01-03')).toBeNull();
+
+        const overall = await runQuery({ columns: [], calculatedFields: [CTR] });
+        expect(overall).toHaveLength(1);
+        expect(Number(overall[0].ctr)).toBeCloseTo(0.6, 6);
+        // The averages a wrong implementation would produce instead — neither is 0.6, so this
+        // assertion fails against either wrong shape, not just a broken one.
+        expect(Number(overall[0].ctr)).not.toBeCloseTo(0.75, 1);
+        expect(Number(overall[0].ctr)).not.toBeCloseTo(0.6667, 1);
+      },
+      120000
+    );
+
+    it('a zero denominator renders empty, not zero and not a warehouse error', async () => {
+      const filtered = await runQuery({
+        columns: [],
+        filters: [{ column: 'impressions', operator: 'eq', value: 0 }],
+        calculatedFields: [CTR],
+      });
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].ctr == null).toBe(true);
+    }, 120000);
+  }
+);
+
+// Calculated field whose formula aggregates a JOINED Data Mart — grain correctness through a
+// FANNING join.
+//
+// The blend aggregates each joined source by its join key BEFORE joining it in, so re-aggregating
+// that collapsed CTE is wrong in both directions on a fan-out. Each joined aggregate call is
+// therefore lifted into its own metric sleeve, computed at the report's dimension grain over the
+// owner's RAW rows. Every unit test in this feature asserts SQL SHAPE; only a live warehouse can
+// show that the shape produces the right NUMBER, and the failure mode here is a plausible wrong
+// number rather than an error.
+//
+// Seed — main `visits` joined to `orders` on sessionId. Every channel is a deliberately chosen
+// join shape, so a wrong implementation returns a DIFFERENT number rather than failing:
+//
+//   visits(visitId, channel, cost, sessionId)          orders(sessionId, orderId, amount)
+//     v1  paid     3  s1  \  two main rows, one key      s1 o1   5  \  one key, two orders
+//     v2  paid     7  s1  /                              s1 o2   7  /
+//     v3  organic 30  s2  \  s2 reachable from TWO        s2 o3 100
+//     v4  shared   1  s2  /  different report groups      s3 o4   0  \  zero denominator
+//     v5  fanjoin 18  s4     one main row, two orders     s3 o5   0  /
+//     v6  fanmain 40  s5  \  two main rows, one order     s4 o6  11
+//     v7  fanmain 60  s5  /                               s4 o7  13
+//     v8  zero     8  s3                                  s5 o8  50
+//     v9  none     5  s9     no matching order            s6 o9   9  \  two orders, EQUAL amount
+//     v10 twins    2  s6     one main row, two orders     s6 o10  9  /
+//     v11 keys     4  s7  \  ONE group, TWO join keys,    s7 o11 20  \  row 1 of key s7 and row 1
+//     v12 keys     6  s8  /  each with an equal amount    s8 o12 20  /  of key s8, SAME value
+//
+// Ground truth per channel — `product` = SUM(cost) * 2 * SUM(orders.amount),
+// `ratio` = SUM(cost) / NULLIF(SUM(orders.amount), 0), `orders_counted` = COUNT(DISTINCT orderId):
+//
+//   channel   SUM(cost)  joined SUM  product  ratio        orders_counted   naive product
+//   paid           10          12       240   0.833333333        2          200 or 280
+//   organic        30         100      6000   0.3                1          6000 (control)
+//   shared          1         100       200   0.01               1          200  (control)
+//   fanjoin        18          24       864   0.75               2          396 or 468
+//   fanmain       100          50     10000   2.0                1          20000
+//   twins           2          18        72   0.111111111        2          36
+//   keys           10          40       800   0.25               2          800  (control)
+//   zero            8           0         0   NULL               2          0    (control)
+//   none            5        NULL      NULL   NULL               0          NULL
+//
+// The "naive product" column is what re-aggregating the dedup CTE returns. `fanmain` (10000 vs
+// exactly 20000 — the joined value counted once per main row) and `twins` (72 vs exactly 36 — both
+// of s6's orders are $9, so the pre-join ANY_VALUE roll-up cannot vary) are the DETERMINISTIC
+// discriminators. `paid`/`fanjoin` fan across orders of DIFFERENT amounts, so their naive value
+// depends on which row that roll-up happens to keep — neither choice equals the truth, but do not
+// expect a specific one of the two to reproduce.
+//
+// `keys` exists for a hazard none of the others can see. The sleeve's row surrogate `__owox_rid` is
+// `ROW_NUMBER() OVER (PARTITION BY sessionId ...)` — unique only WITHIN a join key — so the inner
+// DISTINCT carries the join key as a SECOND identity slot. Every other channel maps to exactly one
+// sessionId, so no grouped assertion can reach a cross-key collision; `keys` spans two, and both
+// their row-1 orders carry $20. Drop that key slot and the two collapse into one DISTINCT row:
+// joined SUM 20, product 400. The surrogate slot and the key slot are separately falsifiable only
+// because this channel exists.
+//
+// Grand total (no grouping): SUM(cost) = 184, joined SUM = 244, product = 89792,
+// ratio = 184/244 = 0.754098361, orders_counted = 12. None of those is an aggregate of the
+// per-group values: the per-group products sum to 18176, the per-group joined sums to 344 (o3
+// counted in both `organic` and `shared`), and the per-group counts to 13.
+describeIfCredentials(
+  'Calculated field over a JOINED Data Mart — fan-out grain (real BigQuery)',
+  () => {
+    let adapter: BigQueryApiAdapter;
+    let visitsFQN: string;
+    let ordersFQN: string;
+    let formulaDialect: FormulaFunctionDialect;
+
+    const builder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
+
+    const COST = '{{ref field="cost"}}';
+    const AMOUNT = '{{ref path="orders" field="amount"}}';
+    const ORDER_ID = '{{ref path="orders" field="orderId"}}';
+
+    // The production analysis, not a hand-built plan: `formulaOwnership` is what decides which
+    // calls become sleeves, so a test that fabricated it would prove nothing about routing.
+    function metric(outputName: string, formula: string): CalculatedFieldPlan {
+      return {
+        outputName,
+        formula,
+        type: 'FLOAT',
+        level: 'metric',
+        formulaOwnership: buildFormulaOwnerPlan(formula, n =>
+          formulaDialect.isAggregateFunction(n)
+        ),
+      };
+    }
+
+    const metrics = (): CalculatedFieldPlan[] => [
+      metric('product', `SUM(${COST}) * 2 * SUM(${AMOUNT})`),
+      // The joined half on its own — compared row by row against `orders__amount | SUM`, which the
+      // report-metric value sleeve computes through entirely different code.
+      metric('joined_sum', `SUM(${AMOUNT})`),
+      metric('ratio', `SUM(${COST}) / NULLIF(SUM(${AMOUNT}), 0)`),
+      metric('orders_counted', `COUNT(DISTINCT ${ORDER_ID})`),
+    ];
+
+    function blendContext(dimensions: string[]): BlendedQueryContext {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'orders__amount',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            type: 'NUMERIC',
+          },
+          {
+            name: 'orders__orderId',
+            aliasPath: 'orders',
+            originalFieldName: 'orderId',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      } as never);
+
+      return {
+        mainTableReference: `\`${visitsFQN}\``,
+        mainDataMartTitle: 'Visits',
+        mainDataMartUrl: 'http://x/visits',
+        chains: [
+          {
+            relationship: {
+              id: 'rel-orders',
+              targetAlias: 'orders',
+              joinConditions: [{ sourceFieldName: 'sessionId', targetFieldName: 'sessionId' }],
+              blendedFields: [],
+              projectId: 'proj',
+              createdById: 'user-1',
+              createdAt: new Date(),
+              modifiedAt: new Date(),
+            } as unknown as DataMartRelationship,
+            targetTableReference: `\`${ordersFQN}\``,
+            parentAlias: 'main',
+            cteName: 'orders',
+            blendedFields: [
+              {
+                targetFieldName: 'amount',
+                outputAlias: 'orders__amount',
+                isHidden: false,
+                aggregateFunction: 'ANY_VALUE',
+              },
+              {
+                targetFieldName: 'orderId',
+                outputAlias: 'orders__orderId',
+                isHidden: false,
+                aggregateFunction: 'ANY_VALUE',
+              },
+            ],
+            targetDataMartTitle: 'Orders',
+            targetDataMartUrl: 'http://x/orders',
+          },
+        ],
+        // `orders__amount | SUM` rides along in BOTH queries so the report-metric answer and the
+        // formula's joined half are produced by ONE run over ONE seed — the equality the product
+        // ruling rests on cannot be an artefact of two different executions.
+        columns: [...dimensions, 'orders__amount'],
+        aggregations: [{ column: 'orders__amount', function: 'SUM' }],
+        calculatedFields: metrics(),
+        fieldIndex,
+      };
+    }
+
+    async function runBlend(context: BlendedQueryContext): Promise<Record<string, unknown>[]> {
+      const { sql, params } = builder.buildBlendedQuery(context);
+      const { jobId } = await adapter.executeQuery(sql, params);
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 5000, autoPaginate: false });
+      return rows as Record<string, unknown>[];
+    }
+
+    beforeAll(async () => {
+      const credentials = BigQueryServiceAccountCredentialsSchema.parse(
+        JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+      );
+      adapter = new BigQueryApiAdapter(credentials, {
+        projectId: BQ_PROJECT_ID!,
+        location: BIGQUERY_AUTODETECT_LOCATION,
+      });
+      formulaDialect = await createFormulaFunctionDialectRegistry().resolve(
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+
+      const stamp = `${Date.now()}`;
+      visitsFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.calcjoin_visits_${stamp}`;
+      ordersFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.calcjoin_orders_${stamp}`;
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${visitsFQN}\` (visitId STRING, channel STRING, cost NUMERIC, sessionId STRING)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${visitsFQN}\` (visitId, channel, cost, sessionId) VALUES
+          ('v1','paid',3,'s1'),
+          ('v2','paid',7,'s1'),
+          ('v3','organic',30,'s2'),
+          ('v4','shared',1,'s2'),
+          ('v5','fanjoin',18,'s4'),
+          ('v6','fanmain',40,'s5'),
+          ('v7','fanmain',60,'s5'),
+          ('v8','zero',8,'s3'),
+          ('v9','none',5,'s9'),
+          ('v10','twins',2,'s6'),
+          ('v11','keys',4,'s7'),
+          ('v12','keys',6,'s8')`
+      );
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${ordersFQN}\` (sessionId STRING, orderId STRING, amount NUMERIC)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${ordersFQN}\` (sessionId, orderId, amount) VALUES
+          ('s1','o1',5),
+          ('s1','o2',7),
+          ('s2','o3',100),
+          ('s3','o4',0),
+          ('s3','o5',0),
+          ('s4','o6',11),
+          ('s4','o7',13),
+          ('s5','o8',50),
+          ('s6','o9',9),
+          ('s6','o10',9),
+          ('s7','o11',20),
+          ('s8','o12',20)`
+      );
+    }, 180000);
+
+    afterAll(async () => {
+      for (const fqn of [visitsFQN, ordersFQN]) {
+        try {
+          await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fqn}\``);
+        } catch (error) {
+          console.warn(`Failed to drop joined-formula table ${fqn}:`, error);
+        }
+      }
+    }, 60000);
+
+    const num = (v: unknown): number | null => (v == null ? null : Number(v));
+
+    it(
+      'per dimension: SUM(cost) * 2 * SUM(orders.amount) is the set-based product, not the ' +
+        'fan-out-inflated one — fanmain 10000 (not 20000), twins 72 (not 36), keys 800 (not 400)',
+      async () => {
+        const rows = await runBlend(blendContext(['channel']));
+        expect(rows).toHaveLength(9);
+        const byChannel = new Map(rows.map(r => [String(r.channel), r]));
+
+        const product = (channel: string): number | null => num(byChannel.get(channel)!.product);
+
+        // Two main rows share one join key: the naive read counts o8's $50 once per main row, so
+        // it returns exactly 20000.
+        expect(product('fanmain')).toBe(10000);
+
+        // Two distinct orders carrying the SAME amount, so the pre-join roll-up cannot vary: the
+        // naive read — and equally a sleeve de-duplicating by VALUE rather than by row identity —
+        // returns exactly 36.
+        expect(product('twins')).toBe(72);
+
+        // One report group spanning TWO join keys whose row-1 orders both carry $20. The row
+        // surrogate is numbered per join key, so without the key alongside it in the sleeve's
+        // DISTINCT tuple the two rows collapse into one: 400.
+        expect(product('keys')).toBe(800);
+
+        // These two fan across orders of DIFFERENT amounts, so their naive value depends on which
+        // row the ANY_VALUE roll-up keeps: 200 or 280 for paid, 396 or 468 for fanjoin. Neither
+        // choice is the truth, but neither is reproducible either.
+        expect(product('paid')).toBe(240);
+        expect(product('fanjoin')).toBe(864);
+
+        // Controls: shapes that do not fan, where naive and correct coincide — they prove the
+        // sleeve does not distort a group it has nothing to fix.
+        expect(product('organic')).toBe(6000);
+        expect(product('shared')).toBe(200);
+        expect(product('zero')).toBe(0);
+      },
+      180000
+    );
+
+    // Both readings reach the SAME `buildDedupValueSleeveCte` and emit subqueries that differ only
+    // in their output alias, so this does NOT cross-check two independent implementations — a
+    // defect in that shared core moves both together. It is still load-bearing: nothing else pins
+    // per-channel `joined_sum`, and the roll-up-vs-raw routing decision that feeds the core is made
+    // separately for each (`renderFormulaSleeveValue` for the formula, `groupValueSleeveMetrics`
+    // for the report metric), which is the divergence the product ruling forbids. The
+    // `expected.get(channel)` line above closes the both-wrong-together hole.
+    it(
+      "the formula's joined half equals ticking that same joined field as a report metric — same " +
+        'field, same function, same number, and both against hand-computed truth',
+      async () => {
+        const rows = await runBlend(blendContext(['channel']));
+        expect(rows).toHaveLength(9);
+
+        const expected = new Map([
+          ['paid', 12],
+          ['organic', 100],
+          ['shared', 100],
+          ['fanjoin', 24],
+          ['fanmain', 50],
+          ['twins', 18],
+          ['keys', 40],
+          ['zero', 0],
+          ['none', null],
+        ]);
+        for (const row of rows) {
+          const channel = String(row.channel);
+          const reportMetric = num(row['orders__amount | SUM']);
+          const formulaHalf = num(row.joined_sum);
+          expect({ channel, value: reportMetric }).toEqual({
+            channel,
+            value: expected.get(channel)!,
+          });
+          expect({ channel, value: formulaHalf }).toEqual({ channel, value: reportMetric });
+        }
+      },
+      180000
+    );
+
+    it(
+      'an unmatched group reads NULL for a summing metric and 0 for a counting one, and a zero ' +
+        'denominator reads NULL — never a warehouse error and never a silent 0',
+      async () => {
+        const rows = await runBlend(blendContext(['channel']));
+        const byChannel = new Map(rows.map(r => [String(r.channel), r]));
+
+        // v9 joins to nothing. A sleeve pull that COALESCEd a summing metric to 0 would turn
+        // "no orders" into a confident 5 * 2 * 0 = 0.
+        const none = byChannel.get('none')!;
+        expect(num(none.joined_sum)).toBeNull();
+        expect(num(none.product)).toBeNull();
+        expect(num(none.ratio)).toBeNull();
+        // A counting function over an empty set is 0, not blank. TWO mechanisms deliver that, and
+        // this asserts the OUTCOME, not either one: the sleeve's `main LEFT JOIN <owner>_raw` still
+        // emits a row for this group, where BigQuery's own COUNT(DISTINCT NULL) is already 0, and
+        // the pull's COALESCE covers the case where the sleeve has no row at all (a post-join
+        // filter that empties it — not reachable from this fixture). Neither can be falsified
+        // alone; do not read a green run here as licence to delete one of them.
+        expect(num(none.orders_counted)).toBe(0);
+
+        // s3's two orders are both 0, so the denominator is a real 0 rather than a missing row.
+        const zero = byChannel.get('zero')!;
+        expect(num(zero.joined_sum)).toBe(0);
+        expect(num(zero.ratio)).toBeNull();
+
+        expect(num(byChannel.get('paid')!.ratio)).toBeCloseTo(10 / 12, 6);
+        expect(num(byChannel.get('fanmain')!.ratio)).toBeCloseTo(2, 6);
+        expect(num(byChannel.get('twins')!.ratio)).toBeCloseTo(2 / 18, 6);
+        expect(num(byChannel.get('keys')!.ratio)).toBeCloseTo(0.25, 6);
+
+        // COUNT(DISTINCT <joined key>) over the same fan-outs: each of these groups reaches two
+        // distinct orders, and every naive or identity-blind reading returns 1.
+        const counted = (channel: string): number | null =>
+          num(byChannel.get(channel)!.orders_counted);
+        expect(counted('paid')).toBe(2);
+        expect(counted('fanjoin')).toBe(2);
+        expect(counted('twins')).toBe(2);
+        expect(counted('keys')).toBe(2);
+        expect(counted('zero')).toBe(2);
+        expect(counted('fanmain')).toBe(1);
+      },
+      180000
+    );
+
+    it(
+      'the ungrouped reading is the product/ratio of the TOTALS, not an aggregate of the ' +
+        'per-group values (product 89792, ratio 184/244, 12 distinct orders — not 13)',
+      async () => {
+        const rows = await runBlend(blendContext([]));
+        expect(rows).toHaveLength(1);
+        const total = rows[0];
+
+        expect(num(total.joined_sum)).toBe(244);
+        expect(num(total['orders__amount | SUM'])).toBe(244);
+
+        // Wrong shapes this discriminates: 18176 (the per-group products added up) and 126592
+        // (the grand SUM(cost) against per-group joined sums added up — 344, because o3 counts in
+        // both `organic` and `shared`).
+        expect(num(total.product)).toBe(89792);
+
+        // Not the average of the seven non-null per-group ratios (0.6078).
+        expect(num(total.ratio)).toBeCloseTo(184 / 244, 6);
+
+        // o3 is reachable from both `organic` and `shared`; summing the per-group counts gives 13.
+        expect(num(total.orders_counted)).toBe(12);
+      },
+      180000
+    );
   }
 );

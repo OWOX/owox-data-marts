@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConfigurationStep } from './ConfigurationStep';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
 import { RequiredType } from '../../../../shared/api';
@@ -12,6 +12,16 @@ vi.mock(
 );
 
 vi.mock('../../../../../../utils', () => ({ trackEvent: vi.fn() }));
+
+const oauthMocks = vi.hoisted(() => ({
+  exchangeCredentials: vi.fn(),
+  checkStatus: vi.fn(),
+  getSettings: vi.fn(),
+}));
+
+vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
+  useOAuth: () => oauthMocks,
+}));
 
 const connector = {
   name: 'GoogleAds',
@@ -185,5 +195,81 @@ describe('ConfigurationStep state synchronization', () => {
 
     expect(screen.getByRole('textbox', { name: 'Sheet Name *' })).toHaveValue('Existing Sheet');
     expect(onConfigurationChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('ConfigurationStep Google Sheets OAuth fields', () => {
+  const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/sheet-1/edit';
+  const oauthSpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'AuthType',
+      title: 'Auth Type',
+      requiredType: RequiredType.OBJECT,
+      required: true,
+      oneOf: [
+        {
+          label: 'OAuth2',
+          value: 'oauth2',
+          requiredType: RequiredType.OBJECT,
+          attributes: ['OAUTH_FLOW'],
+          items: {
+            RefreshToken: {
+              name: 'RefreshToken',
+              title: 'Refresh Token',
+              requiredType: RequiredType.STRING,
+              required: true,
+            },
+          },
+        },
+      ],
+    },
+    {
+      name: 'SpreadsheetId',
+      title: 'Spreadsheet ID or URL',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+  ];
+
+  it('uses a read-only spreadsheet link for managed OAuth and restores the input for manual OAuth', async () => {
+    oauthMocks.getSettings.mockResolvedValue({
+      isEnabled: true,
+      vars: {
+        ClientId: 'client-id',
+        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        PickerApiKey: 'picker-key',
+        ProjectNumber: '123456789',
+      },
+    });
+    oauthMocks.checkStatus.mockResolvedValue({
+      valid: true,
+      user: { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' },
+    });
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={oauthSpecification}
+          initialConfiguration={{
+            AuthType: { oauth2: { _source_credential_id: 'credential-1' } },
+            SpreadsheetId: spreadsheetUrl,
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('link', { name: spreadsheetUrl })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+      ).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manually' }));
+
+    expect(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })).toHaveValue(
+      spreadsheetUrl
+    );
   });
 });

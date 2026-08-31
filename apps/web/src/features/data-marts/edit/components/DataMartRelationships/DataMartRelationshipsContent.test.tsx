@@ -9,6 +9,8 @@ import type {
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
 import { DataMartRelationshipsContent } from './DataMartRelationshipsContent';
+import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 
 interface CanvasStubProps {
   showLooped: boolean;
@@ -172,11 +174,14 @@ vi.mock('@owox/ui/components/select', () => {
 
 function renderContent() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <DataMartRelationshipsContent />
-    </QueryClientProvider>
-  );
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <DataMartRelationshipsContent />
+      </QueryClientProvider>
+    ),
+    queryClient,
+  };
 }
 
 const rowTitles = () => screen.getAllByTestId('relationship-row').map(row => row.textContent);
@@ -277,5 +282,27 @@ describe('DataMartRelationshipsContent toolbar filters', () => {
     // jsdom cannot measure overflow; asserting the wrap class is the closest
     // regression guard for the ~600px edit layout.
     expect(statusSelect.parentElement).toHaveClass('flex-wrap');
+  });
+});
+
+describe('DataMartRelationshipsContent blendable schema', () => {
+  it('refetches on an invalidation of the shared key, which is what every mutation path fires', async () => {
+    // This card used to refetch from an effect keyed on its relationship list; it now reads the
+    // shared query the schema editor's formula autocomplete reads too, so the refresh comes from
+    // `invalidateBlendableSchema` — the call every create/rename/delete/config-save already makes.
+    const service = vi.mocked(dataMartRelationshipService);
+    // The service mock is module-level and every earlier test in this file rendered through it.
+    service.getBlendableSchema.mockClear();
+    const { queryClient } = renderContent();
+
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });
+    });
+
+    expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
   });
 });

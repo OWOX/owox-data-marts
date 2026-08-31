@@ -644,6 +644,128 @@ describe('McpDataMartsFacadeImpl', () => {
     expect(relationshipService.findByIds).toHaveBeenCalledWith(['rel_1']);
   });
 
+  it("omits a joined Data Mart's calculated field, which no report surface accepts", async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [
+        {
+          name: 'orders__amount',
+          type: 'FLOAT',
+          description: 'Order amount',
+          sourceDataMartTitle: 'Orders',
+          aliasPath: 'orders',
+          isHidden: false,
+          isCalculated: false,
+          postJoinAggregations: ['SUM'],
+        },
+        {
+          // The joined mart's own formula — refused on every report surface, so an agent that
+          // copied this name would spend a whole query_data_mart round trip being told no.
+          name: 'orders__roas',
+          type: 'FLOAT',
+          description: 'Return on ad spend',
+          sourceDataMartTitle: 'Orders',
+          aliasPath: 'orders',
+          isHidden: false,
+          isCalculated: true,
+          postJoinAggregations: ['SUM'],
+        },
+        {
+          // No `isCalculated` key at all: an ordinary field, and it must survive the filter.
+          name: 'orders__status',
+          type: 'STRING',
+          description: '',
+          sourceDataMartTitle: 'Orders',
+          aliasPath: 'orders',
+          isHidden: false,
+        },
+      ],
+      [{ aliasPath: 'orders', isIncluded: true, isAccessibleForReporting: true }]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.joinedFields.map(field => field.name)).toEqual([
+      'orders__amount',
+      'orders__status',
+    ]);
+  });
+
+  it('keeps an omitted joined calculated field reserving its Unique Count name', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [
+        {
+          // A formula literally called `unique_count` on the `orders` source: omitted from the
+          // published list, but the blendable schema still holds the name, so the validator would
+          // refuse a query naming it — advertising the pseudo-field here is a guaranteed failure.
+          name: 'orders__unique_count',
+          type: 'FLOAT',
+          description: '',
+          sourceDataMartTitle: 'Orders',
+          aliasPath: 'orders',
+          isHidden: false,
+          isCalculated: true,
+        },
+      ],
+      [
+        {
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.joinedFields).toEqual([]);
+    expect(result.uniqueCountSources).toEqual([]);
+  });
+
   it('appends a joined Unique Count pseudo-field per available source, omitting sources that are not available (#6792)', async () => {
     const dataMartService = createDataMartService({
       id: 'dm_1',

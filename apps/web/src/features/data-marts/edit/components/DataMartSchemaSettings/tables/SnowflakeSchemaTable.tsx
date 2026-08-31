@@ -41,7 +41,13 @@ export function SnowflakeSchemaTable({
   const createNewField = useCallback(() => {
     return {
       name: '',
-      type: SnowflakeFieldType.VARCHAR,
+      // STRING, not the VARCHAR this dropdown also offers: the backend's save vocabulary is an
+      // 11-member enum that has no VARCHAR, and it is parsed BEFORE any per-field validation — so
+      // a field born VARCHAR is refused as a malformed schema, with a generic toast that names no
+      // field. STRING is spelled identically on both sides. (The wider divergence between this
+      // 35-spelling dropdown and that enum is older than calculated fields and outlives this fix;
+      // what changes here is that the default no longer lands on the broken side of it.)
+      type: SnowflakeFieldType.STRING,
       isPrimaryKey: false,
       status: DataMartSchemaFieldStatus.DISCONNECTED,
     };
@@ -94,6 +100,7 @@ export function SnowflakeSchemaTable({
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
         schemaToolbar={schemaToolbar}
+        storageType={DataStorageType.SNOWFLAKE}
       />
     </DndContext>
   );

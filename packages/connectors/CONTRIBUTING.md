@@ -122,4 +122,3 @@ Got a question? Feel free to ask the community:
 
 - Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
 - Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
-- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)

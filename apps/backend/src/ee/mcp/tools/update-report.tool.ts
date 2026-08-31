@@ -104,7 +104,8 @@ const baseInputSchema = z
   })
   .strict();
 
-const inputSchema = baseInputSchema
+// Exported for the JSON-Schema advertising contract spec (mcp-operator-advertising.spec.ts).
+export const updateReportInputSchema = baseInputSchema
   .refine(
     input =>
       input.fields !== undefined ||
@@ -132,7 +133,7 @@ const inputSchema = baseInputSchema
     }
   );
 
-type UpdateReportInput = z.infer<typeof inputSchema>;
+type UpdateReportInput = z.infer<typeof updateReportInputSchema>;
 
 @Injectable()
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
@@ -158,7 +159,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   ) {}
 
   parseInput(input: unknown): UpdateReportInput {
-    return inputSchema.parse(input);
+    return updateReportInputSchema.parse(input);
   }
 
   async handler(input: UpdateReportInput, context: McpAuthContext): Promise<McpToolResult> {

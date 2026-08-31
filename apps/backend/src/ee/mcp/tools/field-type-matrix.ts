@@ -8,9 +8,9 @@ import {
 } from '../../../data-marts/dto/schemas/field-aggregation-governance';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import {
+  ADVERTISED_MCP_OPERATORS,
   BOOLEAN_MCP_OPERATORS,
   MCP_AGGREGATE_FUNCTIONS,
-  SUPPORTED_MCP_OPERATORS,
 } from './query-data-mart.input';
 
 /**
@@ -33,6 +33,9 @@ export const MCP_TO_INTERNAL_OPERATOR: Readonly<Record<string, string>> = {
   lt: 'lt',
   lte: 'lte',
   between: 'between',
+  is_blank: 'is_blank',
+  is_not_blank: 'is_not_blank',
+  // Legacy null/empty cluster (#6779): accepted, never advertised.
   is_empty: 'is_empty',
   is_not_empty: 'is_not_empty',
   is_null: 'is_null',
@@ -78,7 +81,7 @@ export function mcpOperatorsForCategory(category: FieldTypeCategory): string[] {
   // is_true/is_false translation it depends on.
   if (category === 'boolean') return [...BOOLEAN_MCP_OPERATORS];
   const internal = INTERNAL_OPERATORS_BY_CATEGORY[category];
-  return SUPPORTED_MCP_OPERATORS.filter(op => {
+  return ADVERTISED_MCP_OPERATORS.filter(op => {
     // before/after are date-language synonyms of lt/gt; they run on numbers too but
     // advertising them there only invites odd queries — offer them for date/time only.
     if ((op === 'before' || op === 'after') && category !== 'date' && category !== 'time') {

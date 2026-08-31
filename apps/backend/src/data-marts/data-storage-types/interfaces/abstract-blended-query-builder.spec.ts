@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { extractCteBody } from '@owox/test-utils';
 import type { FilterRule } from '../../dto/schemas/filter-config.schema';
+import type { RoutedFilterRule } from '../../dto/domain/filter-clause';
 import type { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import {
   TestBlendedQueryBuilder,
@@ -12,7 +13,8 @@ import {
   makeRelationship,
 } from './__fixtures__/blended-query-builder-fixtures';
 import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-builder.interface';
-import { SqlParameter } from '../utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../utils/sql-clause-renderer';
+import { buildFormulaOwnerPlan } from '../../calculated-fields/formula-owner-plan';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 import { collectValueSleeveOwners } from '../blending/metric-sleeve.planner';
@@ -2191,8 +2193,179 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       // restriction is joined into queries whose columns are unqualified on four of the five
       // dialects, where a same-named column makes every outer reference ambiguous.
       expect(s).toContain('SELECT main.channel AS _owox_kg_0');
-      expect(s).toContain('JOIN _kept_groups ON (main.channel = _kept_groups._owox_kg_0');
+      expect(s).toContain('JOIN _kept_groups ON ((main.channel) = (_kept_groups._owox_kg_0)');
       expect(params.map(p => p.value)).toContain(10);
+    });
+
+    /**
+     * A ROW-LEVEL calculated field is a real grouping key of the report, so
+     * the restriction has to reproduce it — one key coarser and the metric filter keeps a
+     * different row set than the report shows, which is a wrong number rather than an error. The
+     * flat renderer already does this; these are the two halves the blended builder was missing.
+     */
+    describe('a row-level calculated dimension in the restriction', () => {
+      const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
+      const restrictedContext = (): BlendedQueryContext => ({
+        ...buildContext([spendChain()], ['spend__cost']),
+        fieldIndex: spendFieldIndex,
+        aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+        groupRestriction: {
+          dimensions: ['channel', 'session_key'],
+          calculatedDimensions: [
+            {
+              outputName: 'session_key',
+              type: 'STRING',
+              level: 'column',
+              formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+            },
+          ],
+          having: [
+            {
+              column: 'clicks',
+              function: 'SUM',
+              operator: 'gt',
+              value: 10,
+              placement: 'post-join',
+            },
+          ] as never,
+        },
+      });
+
+      it('regroups the kept-groups CTE by the expression, after every column key', () => {
+        const { sql } = builder.buildBlendedQuery(restrictedContext());
+        const cte = normalizeSql(sql).split('_kept_groups AS (')[1]?.split(') SELECT')[0] ?? '';
+
+        expect(cte).toContain(`${SESSION_KEY_SQL} AS _owox_kg_1`);
+        expect(cte).toContain(`GROUP BY main.channel, ${SESSION_KEY_SQL}`);
+        // Its NAME is never projected: the positional private alias is the whole point.
+        expect(cte).not.toContain('session_key');
+      });
+
+      it('joins the outer query back on that same expression', () => {
+        const { sql } = builder.buildBlendedQuery(restrictedContext());
+
+        expect(sql).toContain('JOIN _kept_groups ON ((main.channel) = (_kept_groups._owox_kg_0)');
+        expect(sql).toContain(`AND ((${SESSION_KEY_SQL}) = (_kept_groups._owox_kg_1)`);
+      });
+
+      // The half that bites. `referencedColumns` takes the restriction's dimension NAMES, and the
+      // loop that strips calculated names knew only about `context.calculatedFields` — from which
+      // a Totals plan deliberately excludes every row-level field. Left alone the main CTE emitted
+      // `SELECT session_key FROM <main table>`: `Unrecognized name`.
+      it('projects the columns the formula reads into the main CTE, and not its name', () => {
+        const { sql } = builder.buildBlendedQuery(restrictedContext());
+        const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+
+        expect(mainCte).not.toBeNull();
+        expect(mainCte![1]).toContain('session_id');
+        expect(mainCte![1]).toContain('user_id');
+        expect(mainCte![1]).not.toContain('session_key');
+      });
+
+      // The sleeve reads the SAME join clause, and its FROM starts at `main` — so the expression
+      // resolves there unchanged, and the sleeve aggregates exactly the rows the report shows.
+      it('reuses the join verbatim inside the metric sleeve', () => {
+        const { sql } = builder.buildBlendedQuery(restrictedContext());
+        const sleeveBody = normalizeSql(sql).split('sleeve_spend__cost AS (')[1] ?? '';
+
+        expect(sleeveBody).toContain(`AND ((${SESSION_KEY_SQL}) = (_kept_groups._owox_kg_1)`);
+      });
+
+      // An AGGREGATE-level plan contributes NO grouping key, so the calculated keys are a filtered
+      // SUBSEQUENCE of `calculatedDimensions` and the positional list must be rebuilt from that
+      // same filtered array — pairing against the unfiltered one shifts every later key onto the
+      // wrong dimension, silently.
+      it('ignores an aggregate-level plan in the restriction rather than pairing against it', () => {
+        const context = restrictedContext();
+        const { sql } = builder.buildBlendedQuery({
+          ...context,
+          groupRestriction: {
+            ...context.groupRestriction!,
+            calculatedDimensions: [
+              {
+                outputName: 'ctr',
+                type: 'FLOAT',
+                level: 'metric',
+                formula:
+                  'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+              },
+              ...context.groupRestriction!.calculatedDimensions!,
+            ],
+          },
+        });
+        const cte = normalizeSql(sql).split('_kept_groups AS (')[1]?.split(') SELECT')[0] ?? '';
+
+        expect(cte).toContain(`${SESSION_KEY_SQL} AS _owox_kg_1`);
+        expect(cte).not.toContain('_owox_kg_2');
+        expect(cte).not.toContain('ctr');
+      });
+
+      /**
+       * The THIRD channel of the bug class the selected and the filtered plans just closed, and the
+       * one the Totals path opens by design: a Totals plan projects no dimensions, so its row-level
+       * fields are deliberately absent from `calculatedFields` and travel here instead — where the
+       * two ownership guards, which walked those two lists, never saw them.
+       *
+       * A row-level formula reads its own Data Mart only. One that names a joined field
+       * has nothing to route it: no sleeve is planned for a restriction dimension. It does NOT fail
+       * loudly — the reference resolves through the shared options object to the joined mart's DEDUP
+       * CTE, so the CTE emitted `GROUP BY main.channel, CONCAT(spend.spend__cost)` and the sleeve
+       * joined back on that same string. Valid SQL that runs, keying the restriction on the joined
+       * mart's post-roll-up value instead of the report's grain: Totals then cover a different row
+       * set than the report shows, with nothing anywhere to say so.
+       *
+       * Latent in production today only because the report query beside this one carries the same
+       * field in `calculatedFields` and refuses first. That is protection by call order — the
+       * composer's own comment says the precondition holds "by call order alone" — and this branch
+       * has had two guards expire on exactly that reasoning.
+       */
+      it('refuses a joined reference in a restriction dimension’s formula', () => {
+        const context = restrictedContext();
+
+        expect(() =>
+          builder.buildBlendedQuery({
+            ...context,
+            groupRestriction: {
+              ...context.groupRestriction!,
+              calculatedDimensions: [
+                {
+                  outputName: 'session_key',
+                  type: 'STRING',
+                  level: 'column',
+                  formula: 'CONCAT({{ref path="spend" field="cost"}})',
+                },
+              ],
+            },
+          })
+        ).toThrow(BusinessViolationException);
+      });
+
+      // Once the REPORT aggregates it, the field is no longer a grouping key — so the
+      // restriction, which reproduces the report's own grain, must stop reproducing it. Kept, the
+      // CTE groups one key FINER than the report, its HAVING keeps a different row set, and Totals
+      // come back plausibly wrong; since that refusal landed the whole blended Totals query throws
+      // instead, because this CTE renders from an EMPTY rule list on purpose.
+      it('drops a plan the report AGGREGATES, so the CTE stays at the report grain', () => {
+        const context = restrictedContext();
+        const { sql } = builder.buildBlendedQuery({
+          ...context,
+          groupRestriction: {
+            ...context.groupRestriction!,
+            // The composer builds `dimensions` from the grouping keys, so the name is gone here too.
+            dimensions: ['channel'],
+            calculatedDimensions: context.groupRestriction!.calculatedDimensions!.map(plan => ({
+              ...plan,
+              isAggregatedByReport: true,
+            })),
+          },
+        });
+        const cte = normalizeSql(sql).split('_kept_groups AS (')[1]?.split(') SELECT')[0] ?? '';
+
+        expect(cte).toContain('GROUP BY main.channel');
+        expect(cte).not.toContain('CONCAT(');
+        expect(cte).not.toContain('_owox_kg_1');
+        expect(sql).toContain('JOIN _kept_groups ON ((main.channel) = (_kept_groups._owox_kg_0)');
+      });
     });
 
     it('restricts the metric sleeve too, so a joined COUNT DISTINCT ignores hidden groups', () => {
@@ -2274,7 +2447,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       });
       const sleeveBody = normalizeSql(sql).split('sleeve_spend__cost AS (')[1] ?? '';
 
-      expect(sleeveBody).toContain('JOIN _kept_groups ON (spend.spend__cost = ');
+      expect(sleeveBody).toContain('JOIN _kept_groups ON ((spend.spend__cost) = ');
       // The dedup CTE the join's left-hand side reads must be in the sleeve's own FROM.
       expect(sleeveBody.indexOf('LEFT JOIN spend ON')).toBeGreaterThan(-1);
       expect(sleeveBody.indexOf('LEFT JOIN spend ON')).toBeLessThan(
@@ -2691,6 +2864,1372 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
     expect(mainCte).not.toBeNull();
     expect(mainCte![1]).toContain('Unique Count');
+  });
+});
+
+/**
+ * A main-owner calculated field on a report that ALSO spans a joined Data Mart. The
+ * bottom-up join leaves at most one row per main-mart row, so `SUM(clicks)` inside a formula is
+ * the same grain — and the same render site — as the already-shipped `SUM(spend__cost)`.
+ */
+describe('AbstractBlendedQueryBuilder — calculated field', () => {
+  let builder: TestBlendedWithRenderer;
+  const buildContext = createBuildContext('main_table');
+
+  const CTR_FORMULA = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
+  const ctrMetric: CalculatedFieldPlan = {
+    outputName: 'ctr',
+    type: 'FLOAT',
+    formula: CTR_FORMULA,
+    level: 'metric',
+  };
+  // The rendered metric, qualified against `main` by the SAME resolver every other outer-SELECT
+  // reference goes through.
+  const CTR_SELECT_ITEM = 'SUM(main.clicks) / NULLIF(SUM(main.impressions), 0) AS `ctr`';
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  function ordersChain() {
+    return makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'country',
+          outputAlias: 'orders__country',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+  }
+
+  it('substitutes the formula in the outer SELECT and projects the columns it reads', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [ctrMetric],
+    });
+
+    expect(sql).toContain(CTR_SELECT_ITEM);
+    // Nothing else references `clicks`/`impressions`, so only the formula can have put them in
+    // the main raw CTE — without that the outer SELECT reads columns the CTE never projected.
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('clicks');
+    expect(mainCte![1]).toContain('impressions');
+    // Already an aggregate: grouped by the joined dimension only, never by the metric itself.
+    expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  orders.orders__country');
+  });
+
+  it('makes the query aggregated on its own, with no aggregation rules at all', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['channel', 'orders__country']),
+      calculatedFields: [ctrMetric],
+    });
+
+    expect(sql).toContain(CTR_SELECT_ITEM);
+    expect(sql).toContain('GROUP BY\n  main.channel,\n  orders.orders__country');
+  });
+
+  // A formula that reads another formula. The main CTE's projection is derived from the
+  // formulas this query RENDERS, and a dependency is one of them — so both halves of that
+  // derivation have to walk the closure, not just the top-level plans.
+  const revenueMetric: CalculatedFieldPlan = {
+    outputName: 'revenue_metric',
+    type: 'FLOAT',
+    formula: 'SUM({{ref field="amount"}})',
+    level: 'metric',
+  };
+  const costMetric: CalculatedFieldPlan = {
+    outputName: 'cost_metric',
+    type: 'FLOAT',
+    formula: 'SUM({{ref field="spend"}})',
+    level: 'metric',
+  };
+  const roasMetric: CalculatedFieldPlan = {
+    outputName: 'roas',
+    type: 'FLOAT',
+    formula: '{{ref field="revenue_metric"}} / NULLIF({{ref field="cost_metric"}}, 0)',
+    level: 'metric',
+    dependencies: [revenueMetric, costMetric],
+  };
+
+  // Kills "collect own-mart references from the top-level plans only": the outer SELECT emits
+  // `SUM(main.amount)` over a main CTE that never projected `amount` — `Unrecognized name` on
+  // every dialect, on every blended report selecting this metric.
+  it('projects the columns a DEPENDENCY reads into the main CTE', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [roasMetric],
+    });
+
+    expect(sql).toContain('(SUM(main.amount)) / NULLIF((SUM(main.spend)), 0) AS `roas`');
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    // Nothing else references them, so only the dependencies' formulas can have put them here.
+    expect(mainCte![1]).toContain('amount');
+    expect(mainCte![1]).toContain('spend');
+  });
+
+  // The other half, and the one the file's own comment at the delete loop states as a rule: no
+  // warehouse column can own a calculated field's name, so a dependency's NAME must never reach
+  // the main raw CTE either. Kills "delete only the top-level plans' outputNames".
+  it('keeps a DEPENDENCY’s name out of the main CTE', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [roasMetric],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).not.toContain('revenue_metric');
+    expect(mainCte![1]).not.toContain('cost_metric');
+  });
+
+  // The row-level shape fails identically, and it is the one the metric sleeve also reads: the
+  // outer GROUP BY and `_owox_dim_1` both render `CONCAT(CONCAT(main.first_name, …), …)`.
+  it('projects a row-level dependency’s columns, and not its name, into the main CTE', () => {
+    const initials: CalculatedFieldPlan = {
+      outputName: 'initials',
+      type: 'STRING',
+      formula: 'CONCAT({{ref field="first_name"}}, {{ref field="last_name"}})',
+      level: 'column',
+    };
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [
+        {
+          outputName: 'session_key',
+          type: 'STRING',
+          formula: 'CONCAT({{ref field="initials"}}, {{ref field="visit_id"}})',
+          level: 'column',
+          dependencies: [initials],
+        },
+      ],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('first_name');
+    expect(mainCte![1]).toContain('last_name');
+    expect(mainCte![1]).toContain('visit_id');
+    expect(mainCte![1]).not.toContain('initials');
+  });
+
+  // The mirror image, and the reason the flip reads the LEVEL rather than the count: a row-level
+  // formula is a dimension, so it must not turn a plain blended projection into a grouped one.
+  //
+  // Only the flip is pinned here. What that ungrouped SELECT projects is the PLAIN blended path's
+  // own question, and that path has no calculated channel yet — the grouped path's
+  // rendering is pinned in its own describe below.
+  it('does not force the grouped shape when the only calculated field is row-level', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['channel', 'orders__country']),
+      calculatedFields: [
+        {
+          outputName: 'session_key',
+          type: 'STRING',
+          formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+          level: 'column',
+        },
+      ],
+    });
+
+    // The OUTER query only: each source CTE keeps its own dedup GROUP BY regardless.
+    expect(sql.slice(sql.lastIndexOf('\n\nSELECT\n'))).not.toContain('GROUP BY');
+  });
+
+  it('renders alongside a joined Unique Count without disturbing the sleeve grain', () => {
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'orders__country',
+          aliasPath: 'orders',
+          originalFieldName: 'country',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    // The sleeve grain assertions compare `dimRefs.length` against `groupByParts.length`, so a
+    // metric that leaked into GROUP BY would throw here rather than silently mis-group.
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['channel']),
+      fieldIndex,
+      calculatedFields: [ctrMetric],
+      uniqueCountSources: [
+        {
+          aliasPath: 'orders',
+          cteName: 'orders',
+          pkColumns: ['order_id'],
+          outputLabel: 'orders__unique_count',
+        },
+      ],
+    });
+
+    expect(sql).toContain(CTR_SELECT_ITEM);
+    expect(sql).toContain(
+      'COALESCE(ANY_VALUE(sleeve_uc_orders.orders__unique_count), 0) AS orders__unique_count'
+    );
+    // The sleeve path adds projections of its own to the raw CTEs; the formula's columns must
+    // still reach the main one alongside them.
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('clicks');
+    expect(mainCte![1]).toContain('impressions');
+    expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
+  });
+
+  // Sorting by a calculated field is SUPPORTED and `validateSort` only checks the column is
+  // selected — so this saves as a 200 and
+  // then has to run. The metric's name is an outer-SELECT alias, never a warehouse column: leaving
+  // it in `referencedColumns` put it in the main raw CTE's projection and every run, Looker fetch
+  // and HTTP-Data stream failed with `Unrecognized name: ctr`.
+  it('sorts by the metric without projecting its name into the main raw CTE', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [ctrMetric],
+      sort: [{ column: 'ctr', direction: 'desc' }],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).not.toContain('ctr');
+    // The columns the formula actually reads still have to be there.
+    expect(mainCte![1]).toContain('clicks');
+    expect(mainCte![1]).toContain('impressions');
+    expect(sql).toContain(CTR_SELECT_ITEM);
+    // A FLOAT-declared metric sorts by the same cast expression its filter would compare, extended
+    // to the sort: ordering the bare alias sorted the formula's text, which under a
+    // LIMIT returns a different ROW SET. The alias itself cannot be wrapped — Redshift does not
+    // resolve an output name inside an ORDER BY expression — so the expression is repeated.
+    expect(sql).toContain(
+      'ORDER BY\n  CAST((SUM(main.clicks) / NULLIF(SUM(main.impressions), 0)) AS FLOAT64) DESC'
+    );
+    expect(sql).not.toContain('ORDER BY\n  `ctr` DESC');
+  });
+
+  // A predicate on a Calculated Field compares its FORMULA. It travels on its own
+  // channel because the field need not be SELECTED to be filtered on — and an aggregate-level
+  // PREDICATE forces the grouped shape exactly as selecting one does, or this takes the ungrouped
+  // branch where `assertNoHavingRules` refuses a predicate that belongs to no clause.
+  it('groups the query and compares the formula in HAVING for a filter on an unselected metric', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFilterMetrics: [ctrMetric],
+      filters: [
+        { column: 'ctr', operator: 'gt', value: 0.5, clause: 'having' },
+      ] satisfies RoutedFilterRule[],
+    });
+
+    // Both sides carry the DECLARED type; the VALUE's half appears only because
+    // `partitionBlendedFilters` answers a Calculated Field with its declaration.
+    expect(sql).toContain(
+      'HAVING CAST((SUM(main.clicks) / NULLIF(SUM(main.impressions), 0)) AS FLOAT64) > ' +
+        'CAST(@h0 AS FLOAT64)'
+    );
+    // Filtered, not selected: never projected, and never a column of any CTE.
+    expect(sql).not.toContain(CTR_SELECT_ITEM);
+    expect(sql).not.toContain('main.ctr');
+    // The columns the formula READS still have to reach the main raw CTE, and its own NAME must
+    // not: the filter puts `ctr` in the referenced-column set, and nothing else takes it out.
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('clicks');
+    expect(mainCte![1]).toContain('impressions');
+    expect(mainCte![1]).not.toContain('ctr');
+  });
+
+  // An analyst who comments a reference out instead of deleting it leaves a tag naming a column
+  // that may since have been dropped: every other reader on this branch is live-only, so the
+  // metric reports healthy, the picker offers it and the flat report runs — while the blended one
+  // failed in the warehouse with `Unrecognized name: legacy_cost` from a CTE nobody can see.
+  it('keeps a COMMENTED-OUT own reference out of the main raw CTE', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], ['orders__country']),
+      calculatedFields: [
+        {
+          outputName: 'clicks_total',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="clicks"}}) /* was {{ref field="legacy_cost"}} */',
+          level: 'metric',
+        },
+      ],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('clicks');
+    expect(mainCte![1]).not.toContain('legacy_cost');
+  });
+});
+
+/**
+ * A ROW-LEVEL calculated field on a report that spans a join. It is a DIMENSION:
+ * the outer query groups by its rendered expression, so every metric sleeve has to carry that same
+ * key. A sleeve left at the coarser grain would join one of its rows against several outer groups
+ * and `ANY_VALUE` would hand each of them a value computed over all of them — a plausible number,
+ * with no NULL and no warehouse error to show for it.
+ */
+describe('AbstractBlendedQueryBuilder — a row-level calculated field on a joined report', () => {
+  const SESSION_KEY_FORMULA = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
+  const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
+  const sessionKey: CalculatedFieldPlan = {
+    outputName: 'session_key',
+    type: 'STRING',
+    formula: SESSION_KEY_FORMULA,
+    level: 'column',
+  };
+
+  const costChain = (): ResolvedRelationshipChain =>
+    makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'spend',
+        joinConditions: [{ sourceFieldName: 'date', targetFieldName: 'date' }],
+      }),
+      targetTableReference: 'spend_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'cost',
+          outputAlias: 'spend__cost',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+
+  const costFieldIndex = buildBlendedFieldIndex({
+    blendedFields: [
+      { name: 'spend__cost', aliasPath: 'spend', originalFieldName: 'cost', type: 'FLOAT' },
+    ],
+    availableSources: [{ aliasPath: 'spend', isIncluded: true }],
+  } as never);
+
+  // A joined SUM routes through a value sleeve, which is the whole reason the grain has to agree.
+  const joinedContext = (): BlendedQueryContext => ({
+    ...buildContext([costChain()], ['channel', 'spend__cost']),
+    fieldIndex: costFieldIndex,
+    calculatedFields: [sessionKey],
+    aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
+  });
+
+  it('groups the outer query by the formula and gives the sleeve the identical key', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(joinedContext());
+
+    expect(sql).toContain(`${SESSION_KEY_SQL} AS \`session_key\``);
+    expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe(
+      `GROUP BY\n  main.channel,\n  ${SESSION_KEY_SQL}`
+    );
+    // Byte-identical by construction: the sleeve and the outer SELECT render this through one
+    // method with one options object, so the NULL-safe join-back below can only ever match.
+    expect(sql).toContain(`${SESSION_KEY_SQL} AS _owox_dim_1`);
+    expect(sql).toContain(
+      `((${SESSION_KEY_SQL}) = (sleeve_spend__cost._owox_dim_1) OR ` +
+        `((${SESSION_KEY_SQL}) IS NULL AND (sleeve_spend__cost._owox_dim_1) IS NULL))`
+    );
+  });
+
+  // The columns the formula reads are referenced by nothing else, so only the formula can have put
+  // them there — and the field's own NAME is an outer-SELECT alias no CTE may project.
+  it('projects the columns the formula reads into the main CTE, and not its name', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(joinedContext());
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('session_id');
+    expect(mainCte![1]).toContain('user_id');
+    expect(mainCte![1]).not.toContain('session_key');
+  });
+
+  // Keyed by column NAME in `columnTypes.postJoin` — and that map DOES hold a calculated field:
+  // `blended-report-data.service.ts` builds it from the schema and `isConnected` keeps a calculated
+  // field in (`data-mart-schema.utils.ts`). So the leg follows the analyst's DECLARED type, exactly
+  // as it does on the flat path (`kept-groups-join.spec.ts`, "takes the NaN-safe leg from the
+  // calculated field own declared type"). The fixture therefore carries the type production would.
+  it('adds no NaN-safe leg for a calculated key declared non-float', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+      ...joinedContext(),
+      columnTypes: {
+        postJoin: new Map([
+          ['channel', 'STRING'],
+          ['session_key', 'STRING'],
+        ]),
+      },
+    });
+
+    expect(sql).not.toContain(`(${SESSION_KEY_SQL}) != (${SESSION_KEY_SQL})`);
+  });
+
+  // The other half of the same rule. `x != x` is legal for any scalar on all five dialects and is
+  // false for every non-NaN value, so a declared type that lies costs nothing; a truthful FLOAT
+  // declaration is what keeps a NaN group in Totals.
+  it('adds the NaN-safe leg for a calculated key declared float', () => {
+    const MARGIN_SQL = '(main.revenue - main.discount)';
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+      ...joinedContext(),
+      calculatedFields: [
+        {
+          outputName: 'margin',
+          type: 'FLOAT',
+          formula: '({{ref field="revenue"}} - {{ref field="discount"}})',
+          level: 'column',
+        },
+      ],
+      columnTypes: {
+        postJoin: new Map([
+          ['channel', 'STRING'],
+          ['margin', 'FLOAT64'],
+        ]),
+      },
+    });
+
+    expect(sql).toContain(
+      `OR ((${MARGIN_SQL}) != (${MARGIN_SQL}) AND ` +
+        `(sleeve_spend__cost._owox_dim_1) != (sleeve_spend__cost._owox_dim_1))`
+    );
+  });
+
+  // The safety net, exercised in the DANGEROUS direction. The real builder cannot produce this
+  // drift, so the only way to see the guard work is to introduce it: a sleeve whose grain stops at
+  // the column dimension while the outer query also groups by the formula.
+  it('refuses a sleeve that stayed at the coarser grain when the formula was added', () => {
+    const drifted = new TestBlendedWithDriftedSleeve(sleeve => ({
+      ...sleeve,
+      dimRefs: sleeve.dimRefs.filter(d => d.column !== 'session_key'),
+    }));
+
+    expect(() => drifted.buildBlendedQuery(joinedContext())).toThrow(
+      /groups by 1 dimension\(s\) but the outer query groups by 2/
+    );
+    expect(() => drifted.buildBlendedQuery(joinedContext())).toThrow(/coarser grain/);
+  });
+
+  /**
+   * The report may apply an aggregation to the field, and it then stops being a
+   * grouping key — of the OUTER query and of every SLEEVE, together. One key out of step and the
+   * sleeve's join-back matches nothing: NULL, or 0 once the COUNT_DISTINCT pull coalesces.
+   */
+  describe('once the report aggregates it', () => {
+    const aggregatedContext = (): BlendedQueryContext => ({
+      ...joinedContext(),
+      calculatedFields: [{ ...sessionKey, isAggregatedByReport: true }],
+      aggregations: [
+        { column: 'spend__cost', function: 'SUM' },
+        { column: 'session_key', function: 'COUNT_DISTINCT' },
+      ] as AggregationRule[],
+    });
+
+    it('drops it from the outer GROUP BY and from the sleeve grain together', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(aggregatedContext());
+
+      expect(sql).toContain(
+        `COUNT(DISTINCT (${SESSION_KEY_SQL})) AS \`session_key | COUNTUNIQUE\``
+      );
+      expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
+      // The sleeve's grain moves with the outer one: a second key here and its join-back below
+      // would match no row at all.
+      expect(sql).not.toContain('_owox_dim_1');
+      expect(sql).toContain('(main.channel) = (sleeve_spend__cost._owox_dim_0)');
+      // It no longer projects under its bare name either — the header binds to the label.
+      expect(sql).not.toContain('AS `session_key`');
+    });
+
+    // A blended report with NO sleeve reaches neither the count nor the membership assertion, so
+    // the guard that makes a half-applied change loud is simply absent there. Hence its own test —
+    // and the grain check inside `buildAll`, which runs whether or not a sleeve exists.
+    it('drops it from the grouping keys on a blended report that carries no sleeve', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...buildContext([costChain()], ['channel']),
+        fieldIndex: costFieldIndex,
+        calculatedFields: [{ ...sessionKey, isAggregatedByReport: true }],
+        aggregations: [{ column: 'session_key', function: 'COUNT_DISTINCT' }] as AggregationRule[],
+      });
+
+      expect(sql).not.toContain('sleeve_');
+      expect(sql).toContain(
+        `COUNT(DISTINCT (${SESSION_KEY_SQL})) AS \`session_key | COUNTUNIQUE\``
+      );
+      expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
+    });
+
+    // The blended half of probe shape 4b. The outer SELECT casts the substituted
+    // formula to the declared type before SUM reads it; a metric filter over that same aggregation
+    // must compare the SAME string. Where it re-derived its own left-hand side, Redshift printed
+    // `1.75` for a group and then dropped it for failing `> 1.5`, having truncated the uncast
+    // value to `1`. Read out of one rendered query, so the relationship is what is asserted.
+    it('compares the metric filter against the aggregate the outer SELECT prints', () => {
+      const numericText: CalculatedFieldPlan = {
+        ...sessionKey,
+        // Declared FLOAT over a text formula: legal (a declaration is never validated against the
+        // formula) and the shape that makes the cast observable.
+        type: 'FLOAT',
+        isAggregatedByReport: true,
+      };
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...joinedContext(),
+        calculatedFields: [numericText],
+        aggregations: [
+          { column: 'spend__cost', function: 'SUM' },
+          { column: 'session_key', function: 'SUM' },
+        ] as AggregationRule[],
+        filters: [{ column: 'session_key', function: 'SUM', operator: 'gt', value: 1.5 }],
+      });
+
+      const projected = / {2}(SUM\(.+?\)) AS `session_key \| SUM`/.exec(sql);
+      expect(projected).not.toBeNull();
+      expect(sql).toContain(`HAVING ${projected![1]} > @h0`);
+      // Not a vacuous match: the projection casts here, and comparing the uncast value is exactly
+      // what dropped the group whose printed number satisfied the filter.
+      expect(projected![1]).toContain('CAST(');
+    });
+
+    // The hard guarantee behind the two moves: the sleeve grain is built from these plans alone, so
+    // one that is not a grouping key widens every sleeve past the outer GROUP BY. Nothing in the
+    // type system forces a caller to filter, so assert it where it cannot be skipped.
+    it('refuses a plan that is not a grouping key, before any sleeve exists', () => {
+      const builder = new TestBlendedWithRenderer();
+      expect(() =>
+        builder.sleeves().buildAll([], aggregatedContext(), {
+          outputAliasToRoot: new Map(),
+          filters: [],
+          calculatedDimensions: {
+            plans: new Map([['session_key', { ...sessionKey, isAggregatedByReport: true }]]),
+            renderOptions: {},
+          },
+        })
+      ).toThrow(/session_key/);
+    });
+  });
+
+  /**
+   * The report may BUCKET the field by date, and the outer GROUP BY key
+   * is then the truncated expression. The sleeve has to reproduce both steps in the same order —
+   * projecting the raw formula is the drift `abstract-blended-query-builder.ts` records as having
+   * already happened once for an ordinary column, and a COUNT_DISTINCT pull would today COALESCE
+   * that miss into a confident zero.
+   */
+  describe('once the report buckets it by date', () => {
+    const VISIT_DAY_FORMULA = 'COALESCE({{ref field="visit_ts"}}, {{ref field="created_ts"}})';
+    const VISIT_DAY_SQL = 'COALESCE(main.visit_ts, main.created_ts)';
+    // DATE-declared, which is what makes the type argument observable: BigQuery's renderer wraps a
+    // non-DATE expression in `DATE(...)` and leaves a DATE one bare.
+    const visitDay: CalculatedFieldPlan = {
+      outputName: 'visit_day',
+      type: 'DATE',
+      formula: VISIT_DAY_FORMULA,
+      level: 'column',
+    };
+    const BUCKET_SQL = `DATE_TRUNC(${VISIT_DAY_SQL}, MONTH)`;
+
+    const bucketedContext = (): BlendedQueryContext => ({
+      ...joinedContext(),
+      calculatedFields: [visitDay],
+      dateTruncs: [{ column: 'visit_day', unit: 'MONTH' }],
+    });
+
+    it('gives the sleeve the truncated key, byte-identical to the outer GROUP BY', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(bucketedContext());
+
+      expect(sql).toContain(`${BUCKET_SQL} AS \`visit_day\``);
+      expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe(
+        `GROUP BY\n  main.channel,\n  ${BUCKET_SQL}`
+      );
+      expect(sql).toContain(`${BUCKET_SQL} AS _owox_dim_1`);
+      expect(sql).toContain(
+        `((${BUCKET_SQL}) = (sleeve_spend__cost._owox_dim_1) OR ` +
+          `((${BUCKET_SQL}) IS NULL AND (sleeve_spend__cost._owox_dim_1) IS NULL))`
+      );
+      // The raw formula must not survive as a key of its own on either side.
+      expect(sql).not.toContain(`${VISIT_DAY_SQL} AS _owox_dim_1`);
+    });
+
+    // The probe measured `CAST(<expr> AS DATE)` returning `2026-05-01` on Redshift for a value
+    // meaning the 5th of August, where the uncast shape errors — so a cast added here to "help" the
+    // sleeve would trade a loud refusal for a wrong month.
+    it('adds no cast on the way to the truncation', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(bucketedContext());
+
+      expect(sql).not.toContain('CAST(');
+    });
+
+    // The type argument comes off the PLAN, which is the same object the outer SELECT renders from
+    // — not off `columnTypes.postJoin`, which is a second, independent derivation. Fixture makes the
+    // two disagree: a map-fed sleeve would emit `DATE_TRUNC(DATE(...), MONTH)` against the outer
+    // query's bare `DATE_TRUNC(..., MONTH)` and the membership assertion would fire.
+    it('takes the declared type from the plan, not from the post-join type map', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...bucketedContext(),
+        columnTypes: {
+          postJoin: new Map([
+            ['channel', 'STRING'],
+            ['visit_day', 'STRING'],
+          ]),
+        },
+      });
+
+      expect(sql).toContain(`${BUCKET_SQL} AS _owox_dim_1`);
+      expect(sql).not.toContain(`DATE_TRUNC(DATE(${VISIT_DAY_SQL}), MONTH)`);
+    });
+
+    // The safety net, exercised on exactly the drift this task removes: a sleeve that projected the
+    // formula untruncated while the outer query groups by the bucket. The real builder can no longer
+    // produce it, so it is injected — the message is what a maintainer would get instead of a zero.
+    it('refuses a sleeve that dropped the truncation from the calculated key', () => {
+      const drifted = new TestBlendedWithDriftedSleeve(sleeve => ({
+        ...sleeve,
+        dimRefs: sleeve.dimRefs.map(d =>
+          d.column === 'visit_day' ? { ...d, outer: VISIT_DAY_SQL } : d
+        ),
+      }));
+
+      expect(() => drifted.buildBlendedQuery(bucketedContext())).toThrow(
+        /not one of the outer GROUP BY keys/
+      );
+      expect(() => drifted.buildBlendedQuery(bucketedContext())).toThrow(
+        /silently match\s+no rows \(NULL metric, or 0 after the COUNT DISTINCT coalesce\)/
+      );
+    });
+  });
+
+  /**
+   * The report FILTERS on the field, and the predicate must reach the outer
+   * query AND the inside of every metric sleeve.
+   *
+   * This is #6766's Critical C1 in this feature's shape — there the sleeve read `FROM main`
+   * unfiltered, so any non-dimension filter computed the joined metric over ALL rows and gave
+   * Totals an unfiltered grand total, with no error to show for it. A calculated predicate has a
+   * second way to go wrong on top of that: the sleeve renders the field's NAME as a column
+   * (`main.session_key`) over a `main` CTE that correctly never projects it.
+   */
+  describe('once the report filters on it', () => {
+    const SESSION_KEY_RULE = {
+      column: 'session_key',
+      operator: 'eq',
+      value: 'a1',
+      clause: 'where',
+    } satisfies RoutedFilterRule;
+
+    const filteredContext = (): BlendedQueryContext => ({
+      ...joinedContext(),
+      calculatedFilterMetrics: [sessionKey],
+      filters: [SESSION_KEY_RULE],
+    });
+
+    it('reproduces the predicate inside the metric sleeve, as the formula', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(filteredContext());
+
+      // Inside the sleeve, on the DISTINCT set the outer aggregate reads — not after it.
+      expect(extractCteBody(sql, 'sleeve_spend__cost')).toContain(
+        `WHERE (${SESSION_KEY_SQL}) = @slv0p0`
+      );
+      // The outer query compares the same expression; one derivation, two renderings of it.
+      expect(sql).toContain(`WHERE (${SESSION_KEY_SQL}) = @p0`);
+      // The field's name is a SELECT alias: no CTE projects it, so a sleeve that qualified the
+      // rule's column instead emits a name `main` does not carry.
+      expect(sql).not.toContain('main.session_key');
+    });
+
+    // The gap that makes a filter harder than a selection: `SleeveCalculatedDimensions.plans` holds
+    // SELECTED grouping keys only, so a filtered-but-not-selected field has no plan at the sleeve
+    // and the raw CTE has no other reason to project the columns its formula reads.
+    it('reproduces it when the field is filtered but not selected', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...filteredContext(),
+        calculatedFields: undefined,
+      });
+
+      expect(extractCteBody(sql, 'sleeve_spend__cost')).toContain(
+        `WHERE (${SESSION_KEY_SQL}) = @slv0p0`
+      );
+      // The sleeve's own source is `main`, so the columns the predicate reads have to be there —
+      // and the field's name must not be, on either side of that rule.
+      const mainCte = extractCteBody(sql, 'main');
+      expect(mainCte).toContain('session_id');
+      expect(mainCte).toContain('user_id');
+      expect(mainCte).not.toContain('session_key');
+      // Filtered, not selected: not a grouping key of the outer query nor of the sleeve.
+      expect(sql).not.toContain('_owox_dim_1');
+      expect(sql).not.toContain('AS `session_key`');
+    });
+
+    // Totals: no dimensions at all, so the sleeve collapses to one global row — the exact row set
+    // #6766's C1 got wrong. An unfiltered sleeve here is a grand total over rows the report hides.
+    it('covers exactly the rows the report shows in a Totals query', () => {
+      const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...buildContext([costChain()], ['spend__cost']),
+        fieldIndex: costFieldIndex,
+        calculatedFilterMetrics: [sessionKey],
+        aggregations: [{ column: 'spend__cost', function: 'SUM' }] as AggregationRule[],
+        filters: [SESSION_KEY_RULE],
+      });
+
+      const sleeve = extractCteBody(sql, 'sleeve_spend__cost');
+      expect(sleeve).toContain(`WHERE (${SESSION_KEY_SQL}) = @slv0p0`);
+      // A grand total groups by nothing, so the sleeve must carry no key of its own either.
+      expect(sleeve).not.toContain('_owox_dim_0');
+      expect(sql).not.toContain('main.session_key');
+    });
+  });
+});
+
+/**
+ * The SAME field on a joined report carrying NO aggregation rules.
+ *
+ * A row-level field is a DIMENSION, so it does not flip the query into the grouped shape — the
+ * PLAIN blended projection is the only thing that can carry it, and it had no calculated channel
+ * at all: the field was silently absent from the emitted SQL while `report-data-headers.utils.ts`
+ * published a header for it regardless. A blank column on BigQuery, Snowflake and Databricks; an
+ * exception on Athena and Redshift.
+ */
+describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNGROUPED joined report', () => {
+  const SESSION_KEY_SQL = 'CONCAT(main.session_id, main.user_id)';
+  const sessionKey: CalculatedFieldPlan = {
+    outputName: 'session_key',
+    type: 'STRING',
+    formula: 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})',
+    level: 'column',
+  };
+
+  const ordersChain = (): ResolvedRelationshipChain =>
+    makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'country',
+          outputAlias: 'orders__country',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+
+  const plainContext = (): BlendedQueryContext => ({
+    ...buildContext([ordersChain()], ['channel', 'orders__country']),
+    calculatedFields: [sessionKey],
+  });
+
+  const outerSelect = (sql: string): string => sql.slice(sql.lastIndexOf('\n\nSELECT\n'));
+
+  it('projects the formula in the plain SELECT, beside the main and joined columns', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(plainContext());
+    const outer = outerSelect(sql);
+
+    expect(outer).toContain(`${SESSION_KEY_SQL} AS \`session_key\``);
+    expect(outer).toContain('main.channel');
+    expect(outer).toContain('orders.orders__country');
+    // A dimension, not an aggregate: a row-level field must not introduce a grouping shape.
+    expect(outer).not.toContain('GROUP BY');
+  });
+
+  // The columns the formula reads are referenced by nothing else, so only the formula can have put
+  // them there — and the field's own NAME is a SELECT alias no CTE may project.
+  it('projects the columns the formula reads into the main CTE, and not its name', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery(plainContext());
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('session_id');
+    expect(mainCte![1]).toContain('user_id');
+    expect(mainCte![1]).not.toContain('session_key');
+  });
+
+  // The plain path resolves ORDER BY through the column qualifier, which would emit
+  // `main.session_key` — an unrecognized name. The flat builders answer this with
+  // `buildPlainSelectAliasResolver`; the blended one must too.
+  it('sorts by the field own SELECT alias rather than qualifying it against main', () => {
+    const { sql } = new TestBlendedWithRenderer().buildBlendedQuery({
+      ...plainContext(),
+      sort: [{ column: 'session_key', direction: 'desc' }],
+    });
+
+    expect(sql).toContain('ORDER BY\n  `session_key` DESC');
+    expect(sql).not.toContain('main.session_key');
+  });
+
+  // Same verdict as the grouped path, from the same assertion: a row-level formula reads its own
+  // Data Mart only, so a joined reference is refused rather than qualified against
+  // `main` — an unrecognized name, or a wrong number when main owns a column of that name.
+  it('refuses a joined reference in a row-level formula on this path too', () => {
+    expect(() =>
+      new TestBlendedWithRenderer().buildBlendedQuery({
+        ...plainContext(),
+        calculatedFields: [
+          { ...sessionKey, formula: 'CONCAT({{ref path="orders" field="country"}})' },
+        ],
+      })
+    ).toThrow(BusinessViolationException);
+  });
+
+  // The same verdict for a formula that is only FILTERED. This path's assertion loop read the
+  // SELECTED metrics alone, so the predicate rendered `main.country` with no guard — the plausible
+  // wrong number, since `orders.country` really is a column name main could own.
+  it('refuses a joined reference in a row-level formula that is only FILTERED', () => {
+    expect(() =>
+      new TestBlendedWithRenderer().buildBlendedQuery({
+        ...plainContext(),
+        calculatedFields: undefined,
+        calculatedFilterMetrics: [
+          { ...sessionKey, formula: 'CONCAT({{ref path="orders" field="country"}})' },
+        ],
+        filters: [
+          { column: 'session_key', operator: 'eq', value: 'a1', clause: 'where' },
+        ] satisfies RoutedFilterRule[],
+      })
+    ).toThrow(BusinessViolationException);
+  });
+});
+
+/**
+ * A formula whose aggregate calls span BOTH Data Marts. The joined call cannot be computed
+ * in the outer SELECT — the blend aggregates `orders` by its join key before joining it in, so
+ * re-aggregating that collapsed CTE over- or under-counts on a fanning join — so it is lifted into
+ * its own metric sleeve and its call site is replaced by that sleeve's pull.
+ */
+describe('AbstractBlendedQueryBuilder — calculated field across joined Data Marts', () => {
+  let builder: TestBlendedWithRenderer;
+
+  // Enough of a warehouse's aggregate vocabulary for the owner analysis to split these formulas.
+  const isAggregateFunction = (name: string): boolean =>
+    ['SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'ANY_VALUE', 'APPROX_COUNT_DISTINCT'].includes(
+      name.trim().toUpperCase()
+    );
+
+  const metricPlan = (outputName: string, formula: string): CalculatedFieldPlan => ({
+    outputName,
+    type: 'FLOAT',
+    formula,
+    level: 'metric',
+    formulaOwnership: buildFormulaOwnerPlan(formula, isAggregateFunction),
+  });
+
+  const ROI_FORMULA = 'SUM({{ref field="cost"}}) * 2 * SUM({{ref path="orders" field="amount"}})';
+
+  function ordersChain() {
+    return makeChain({
+      relationship: makeRelationship({
+        id: 'rel-orders',
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+        {
+          targetFieldName: 'id',
+          outputAlias: 'orders__id',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+        {
+          targetFieldName: 'rate',
+          outputAlias: 'orders__rate',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+        // The funnel shape: this field's declared pre-join roll-up is a real aggregate, so the
+        // blended column MEANS "distinct sessions per order", not the raw `sessions` value.
+        {
+          targetFieldName: 'sessions',
+          outputAlias: 'orders__sessions',
+          isHidden: false,
+          aggregateFunction: 'COUNT_DISTINCT',
+        },
+        {
+          targetFieldName: 'refunds',
+          outputAlias: 'orders__refunds',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+  }
+
+  function joinedContext(
+    metrics: CalculatedFieldPlan[],
+    columns = ['channel']
+  ): BlendedQueryContext {
+    return {
+      ...buildContext([ordersChain()], columns),
+      fieldIndex: buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'orders__amount',
+            aliasPath: 'orders',
+            originalFieldName: 'amount',
+            type: 'NUMBER',
+          },
+          { name: 'orders__id', aliasPath: 'orders', originalFieldName: 'id', type: 'STRING' },
+          { name: 'orders__rate', aliasPath: 'orders', originalFieldName: 'rate', type: 'NUMBER' },
+          {
+            name: 'orders__sessions',
+            aliasPath: 'orders',
+            originalFieldName: 'sessions',
+            type: 'NUMBER',
+          },
+          {
+            name: 'orders__refunds',
+            aliasPath: 'orders',
+            originalFieldName: 'refunds',
+            type: 'NUMBER',
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      } as never),
+      calculatedFields: metrics,
+    };
+  }
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  it('lifts the joined call into its own sleeve and splices the pull back into the formula', () => {
+    const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('roi', ROI_FORMULA)]));
+    const s = normalizeSql(sql);
+
+    // The sleeve is named after the metric and the call's index in ITS OWN call list — call 0 is
+    // the own-Data-Mart SUM, which gets no sleeve.
+    expect(s).toContain('sleeve_fx_roi_1 AS (');
+    // The call's argument, rendered against the OWNER's raw rows, deduped per raw order row.
+    expect(s).toContain('orders_raw.amount AS _val');
+    expect(s).toContain('orders_raw.__owox_rid AS _oid');
+    expect(s).toContain('SELECT DISTINCT main.channel AS _owox_dim_0');
+    expect(s).toContain('SUM(_val) AS _fx_roi_1');
+    // The own call still renders in place against `main`, and the formula's non-aggregate
+    // structure (`* 2`) survives untouched around the spliced pull.
+    expect(sql).toContain('SUM(main.cost) * 2 * ANY_VALUE(sleeve_fx_roi_1._fx_roi_1) AS `roi`');
+    // Same NULL-safe dimension-tuple join-back every other sleeve gets.
+    expect(s).toContain(
+      'LEFT JOIN sleeve_fx_roi_1 ON ((main.channel) = (sleeve_fx_roi_1._owox_dim_0) ' +
+        'OR ((main.channel) IS NULL AND (sleeve_fx_roi_1._owox_dim_0) IS NULL))'
+    );
+    // An aggregate-level calculated field is already an aggregate: grouped by the report's
+    // dimension only.
+    expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
+  });
+
+  // The pull is spliced into the metric's expression tree; emitting it as its own SELECT item too
+  // would project a second, unnamed-in-any-header column carrying half the metric.
+  it('never emits the formula pull as an outer SELECT item of its own', () => {
+    const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('roi', ROI_FORMULA)]));
+
+    const outerSelect = sql.slice(sql.lastIndexOf('\n\nSELECT'), sql.indexOf('\nFROM main'));
+    expect(outerSelect).not.toContain('AS _fx_roi_1');
+    expect(outerSelect).not.toContain('AS `_fx_roi_1`');
+  });
+
+  // The joined ref's field name is the JOINED mart's column. Left in the main CTE's references it
+  // becomes `SELECT amount FROM main_table` — an error, or worse a real main column of that name.
+  it('keeps a joined reference out of the main raw CTE and projects it on the owner instead', () => {
+    const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('roi', ROI_FORMULA)]));
+
+    const mainCte = extractCteBody(sql, 'main');
+    expect(mainCte).toContain('cost');
+    expect(mainCte).not.toContain('amount');
+    const ordersRaw = extractCteBody(sql, 'orders_raw');
+    expect(ordersRaw).toContain('amount');
+    expect(ordersRaw).toContain('__owox_rid');
+  });
+
+  // `COUNT(DISTINCT orders.id)` is the symmetric-aggregate question this feature exists to answer.
+  // The quantifier belongs to the sleeve's OUTER aggregate: left in the inner slot it emits
+  // `DISTINCT orders_raw.id AS _val`, which no warehouse parses.
+  it('moves a COUNT(DISTINCT …) quantifier to the sleeve’s outer aggregate', () => {
+    const formula = 'COUNT(DISTINCT {{ref path="orders" field="id"}}) / 2';
+    const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('buyers', formula)]));
+    const s = normalizeSql(sql);
+
+    expect(s).toContain('orders_raw.id AS _val');
+    expect(s).not.toContain('DISTINCT orders_raw.id AS _val');
+    expect(s).toContain('COUNT(DISTINCT _val) AS _fx_buyers_0');
+    // A count over zero joined rows is 0, not "no value" — the outer ANY_VALUE would read NULL.
+    expect(sql).toContain(
+      'COALESCE(ANY_VALUE(sleeve_fx_buyers_0._fx_buyers_0), 0) / 2 AS `buyers`'
+    );
+  });
+
+  // Every other aggregate's DISTINCT has no representation in the sleeve's single slot, and the
+  // failure would otherwise be a warehouse syntax error at report time.
+  it('refuses a DISTINCT quantifier under any other aggregate', () => {
+    const formula = 'SUM(DISTINCT {{ref path="orders" field="amount"}})';
+
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('total', formula)]))).toThrow(
+      BusinessViolationException
+    );
+  });
+
+  // A mixed-owner call has no single grain at which it is defined. `buildFormulaOwnerPlan` reports
+  // it as a violation and routes it to `own`, so without this check it renders `main.amount` —
+  // an error at best, and a plausible wrong number if main happens to own a column of that name.
+  it('refuses a call that mixes its own Data Mart with a joined one', () => {
+    const formula = 'SUM({{ref field="cost"}} * {{ref path="orders" field="amount"}})';
+
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('mixed', formula)]))).toThrow(
+      /reads more than one Data Mart/
+    );
+  });
+
+  // Both guards iterated the SELECTED metrics only, so a FILTER-only formula reached the SQL with
+  // no ownership check at all — and `buildFormulaOwnerPlan` hands a mixed-owner call back as
+  // own-owner, so it renders `main.amount`: an unrecognised name, or a plausible WRONG NUMBER when
+  // main happens to own a column of that name. The validator refuses this filter upstream; the builder is
+  // where the refusal has to be true even when nothing upstream ran.
+  it('refuses a mixed-owner call on a formula that is only FILTERED', () => {
+    const formula = 'SUM({{ref field="cost"}} * {{ref path="orders" field="amount"}})';
+
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...joinedContext([]),
+        calculatedFilterMetrics: [metricPlan('mixed', formula)],
+        filters: [
+          { column: 'mixed', operator: 'gt', value: 1, clause: 'having' },
+        ] satisfies RoutedFilterRule[],
+      })
+    ).toThrow(/reads more than one Data Mart/);
+  });
+
+  // The other half: nothing lifts a filter-only formula's joined call into a sleeve, so its
+  // reference has nowhere to be routed and must be refused rather than qualified against `main`.
+  it('refuses an unrouted joined reference on a formula that is only FILTERED', () => {
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...joinedContext([]),
+        calculatedFilterMetrics: [metricPlan('roi', ROI_FORMULA)],
+        filters: [
+          { column: 'roi', operator: 'gt', value: 1, clause: 'having' },
+        ] satisfies RoutedFilterRule[],
+      })
+    ).toThrow(/orders\.amount/);
+  });
+
+  // Outside every aggregate there is no call to route and no grain to read it at, so the reference
+  // would land in the outer SELECT as a bare ungrouped column. `FORMULA_LEVEL_MIXING` gates it at
+  // save; this is the saved-before-the-gate case, and it gets a message rather than a warehouse
+  // error about grouping.
+  it('refuses a joined reference sitting outside every aggregate', () => {
+    const formula = 'SUM({{ref field="cost"}}) + {{ref path="orders" field="amount"}}';
+
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('roi', formula)]))).toThrow(
+      /readable only inside an aggregate call/
+    );
+  });
+
+  // The ownership analysis is what routes a joined call. A metric that arrives without one has
+  // every joined reference silently qualified against `main` instead.
+  it('refuses a joined reference on a metric whose ownership analysis never arrived', () => {
+    const context = joinedContext([
+      { outputName: 'roi', type: 'FLOAT', formula: ROI_FORMULA, level: 'metric' },
+    ]);
+
+    expect(() => builder.buildBlendedQuery(context)).toThrow(/orders\.amount/);
+  });
+
+  // The bug class: a commented-out reference is not live SQL, so it must neither build a
+  // sleeve nor trip the routing guard.
+  it('ignores a joined reference that is commented out', () => {
+    const formula = 'SUM({{ref field="cost"}}) /* was {{ref path="orders" field="amount"}} */';
+    const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('roi', formula)]));
+
+    expect(sql).not.toContain('sleeve_fx_roi');
+    expect(sql).toContain('SUM(main.cost)');
+  });
+
+  // The same grain assertion every other sleeve is subject to: a formula sleeve one dimension
+  // short would spread one value across several outer groups — a plausible number, no NULL.
+  it('holds a formula sleeve to the same grain assertion as every other sleeve', () => {
+    const drifted = new TestBlendedWithDriftedSleeve(sleeve =>
+      sleeve.cteName === 'sleeve_fx_roi_1' ? { ...sleeve, dimRefs: [] } : sleeve
+    );
+
+    expect(() =>
+      drifted.buildBlendedQuery(joinedContext([metricPlan('roi', ROI_FORMULA)]))
+    ).toThrow(/metric sleeve 'sleeve_fx_roi_1' groups by 0 dimension\(s\)/);
+  });
+
+  // Formula sleeves are appended LAST so selecting a calculated field cannot rename another
+  // sleeve's CTE or shift its `slv<i>p` bound-parameter prefix — which would silently re-bind a
+  // filter value to a different placeholder on a positional dialect.
+  it('leaves an existing sleeve’s CTE and bound-parameter names untouched', () => {
+    const withUniqueCount = (metrics: CalculatedFieldPlan[]): BlendedQueryContext => ({
+      ...joinedContext(metrics),
+      filters: [{ column: 'channel', operator: 'eq', value: 'paid' }],
+      uniqueCountSources: [
+        {
+          aliasPath: 'orders',
+          cteName: 'orders',
+          pkColumns: ['order_id'],
+          outputLabel: 'orders__unique_count',
+        },
+      ],
+    });
+
+    const before = builder.buildBlendedQuery(withUniqueCount([])).sql;
+    const after = builder.buildBlendedQuery(withUniqueCount([metricPlan('roi', ROI_FORMULA)])).sql;
+
+    expect(extractCteBody(after, 'sleeve_uc_orders')).toBe(
+      extractCteBody(before, 'sleeve_uc_orders')
+    );
+  });
+
+  /**
+   * A joined field's declared pre-join `aggregateFunction` is what that field MEANS once blended,
+   * so a formula naming it must read the value a report metric on it reads. For a funnel-shaped
+   * field the two paths would otherwise disagree with nothing on screen to say so: the report
+   * metric sums the per-order roll-up, while a formula forced onto the raw rows would sum the raw
+   * `sessions` values the roll-up exists to collapse.
+   */
+  describe('a joined field whose pre-join roll-up is a real aggregate', () => {
+    const SESSIONS_FORMULA = 'SUM({{ref path="orders" field="sessions"}})';
+
+    it('reads the same rows a report metric on that field reads', () => {
+      const shared = joinedContext([], ['channel']);
+      const formulaSql = builder.buildBlendedQuery({
+        ...shared,
+        calculatedFields: [metricPlan('total', SESSIONS_FORMULA)],
+      }).sql;
+      const reportSql = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...shared,
+        columns: ['channel', 'orders__sessions'],
+        aggregations: [{ column: 'orders__sessions', function: 'SUM' }],
+      }).sql;
+
+      // The whole CTE body, modulo the two things that legitimately differ — the output alias each
+      // path names its value by. Anything else (the join set, the identity leg, the WHERE, the
+      // GROUP BY) drifting apart is the two paths measuring different rows, which is the failure
+      // this equality exists to catch, and a substring check would sail past it.
+      const withoutAlias = (sql: string, cteName: string, alias: string): string =>
+        normalizeSql(extractCteBody(sql, cteName))
+          .split(cteName)
+          .join('<cte>')
+          .split(alias)
+          .join('<value>');
+
+      expect(withoutAlias(formulaSql, 'sleeve_fx_total_0', '_fx_total_0')).toBe(
+        withoutAlias(reportSql, 'sleeve_orders__sessions', '`orders__sessions | SUM`')
+      );
+      // ...and that shared body is the ROLLED-UP column keyed by the join key it was rolled up per,
+      // not the raw rows, which is what an unchanged `orders_raw` would mean here.
+      const body = normalizeSql(extractCteBody(formulaSql, 'sleeve_fx_total_0'));
+      expect(body).toContain('orders.orders__sessions AS _val');
+      expect(body).toContain('orders.order_id AS _oid');
+      expect(body).not.toContain('orders_raw');
+    });
+
+    // A sleeve on the roll-up keys off the owner dedup CTE's group key and never reads the per-row
+    // surrogate, so projecting one costs a full window sort over the joined mart for a column
+    // nothing reads.
+    it('leaves the owner’s raw CTE without a row surrogate it never reads', () => {
+      const { sql } = builder.buildBlendedQuery(
+        joinedContext([metricPlan('total', SESSIONS_FORMULA)])
+      );
+
+      expect(extractCteBody(sql, 'orders_raw')).not.toContain('__owox_rid');
+    });
+
+    // One field is still ONE already-collapsed value per join key, so scaling it is well defined
+    // after dedup — and reading it raw would be the same wrong number a bare reference would be.
+    it('reads the roll-up when the expression scales that one field', () => {
+      const formula = 'SUM({{ref path="orders" field="sessions"}} * 2)';
+      const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('total', formula)]));
+
+      expect(normalizeSql(sql)).toContain('orders.orders__sessions * 2 AS _val');
+    });
+
+    // Each column was collapsed separately, one value per join key, so a product of sums is not a
+    // sum of products: no row set computes what was written, and raw would contradict the field's
+    // own declared meaning. Refused rather than answered plausibly.
+    // The message names the CALL it refuses, not a general rule about combining a summarised field
+    // with another column — that rule is false for a plain joined COUNT (pinned just below), and an
+    // analyst told a working combination is unsupported does not try it again.
+    it.each([
+      [
+        'a passthrough column',
+        'SUM({{ref path="orders" field="sessions"}} * {{ref path="orders" field="rate"}})',
+        'SUM(…)',
+      ],
+      [
+        'another rolled-up column',
+        'SUM({{ref path="orders" field="sessions"}} * {{ref path="orders" field="refunds"}})',
+        'SUM(…)',
+      ],
+      // A DISTINCT-counting call is exempted from the roll-up only because a report metric on that
+      // ONE field answers the same way. An expression has no report counterpart to inherit that
+      // from, so the exemption must not extend to it: raw gives |{5×2, 7×3}| = 2 where the
+      // after-dedup product of the two roll-ups is a single value.
+      [
+        'another rolled-up column under COUNT DISTINCT',
+        'COUNT(DISTINCT {{ref path="orders" field="sessions"}} * {{ref path="orders" field="refunds"}})',
+        'COUNT(DISTINCT …)',
+      ],
+    ])('refuses a rolled-up field combined with %s, naming the call', (_case, formula, call) => {
+      expect(() =>
+        builder.buildBlendedQuery(joinedContext([metricPlan('mixed', formula)]))
+      ).toThrow(`inside ${call}, in an expression that reads more than one field of 'orders'`);
+    });
+
+    // The one combination the refusal above deliberately does NOT cover. The planner leaves a
+    // non-DISTINCT joined COUNT in the outer SELECT, so `renderFormulaSleeveValue` never sees it,
+    // and `COUNT(a * b)` off the dedup CTE counts the MAIN rows whose product is non-null — the
+    // ruled reading ("computed at the last join, after dedup"). Pinned so neither half can drift
+    // into contradicting the other.
+    it('allows the same combination under a plain joined COUNT, off the dedup CTE', () => {
+      const formula =
+        'COUNT({{ref path="orders" field="sessions"}} * {{ref path="orders" field="refunds"}})';
+      const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('pairs', formula)]));
+
+      expect(sql).toContain('COUNT(orders.orders__sessions * orders.orders__refunds) AS `pairs`');
+      expect(sql).not.toContain('sleeve_fx_pairs');
+    });
+
+    // Raw stays right for a row-level expression over passthrough fields: no pre-aggregated slot
+    // can represent a product of two of the owner's own columns.
+    it('still reads raw for a row-level expression over passthrough fields', () => {
+      const formula =
+        'SUM({{ref path="orders" field="amount"}} * {{ref path="orders" field="rate"}})';
+      const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('weighted', formula)]));
+      const s = normalizeSql(sql);
+
+      expect(s).toContain('orders_raw.amount * orders_raw.rate AS _val');
+      expect(s).toContain('orders_raw.__owox_rid AS _oid');
+    });
+
+    // Distinct-counting is the one shape the report path deliberately keeps on raw values, because
+    // counting distinct roll-ups conflates raw values that happen to roll up alike. The formula
+    // path has to make the same choice or the two disagree again — and the choice is keyed on the
+    // FUNCTION, not on the `DISTINCT` keyword: `APPROX_COUNT_DISTINCT(x)` carries no keyword and
+    // asks the same question, so a quantifier-only gate answered it off the roll-up (raw sessions
+    // [5,7,9] and [11] give 4; their roll-ups 3 and 1 give 2).
+    it.each([
+      ['COUNT(DISTINCT {{ref path="orders" field="sessions"}})', 'COUNT(DISTINCT _val)'],
+      [
+        'APPROX_COUNT_DISTINCT({{ref path="orders" field="sessions"}})',
+        'APPROX_COUNT_DISTINCT(_val)',
+      ],
+    ])(
+      'counts distinct RAW values in %s even when the field carries a roll-up',
+      (formula, outer) => {
+        const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('reach', formula)]));
+
+        expect(normalizeSql(sql)).toContain('orders_raw.sessions AS _val');
+        expect(normalizeSql(sql)).toContain(outer);
+      }
+    );
+  });
+
+  /**
+   * `COUNT` counts ROWS, and the two candidate row sets are far apart on a fanning join: a sleeve
+   * counts the owner's deduped raw rows (5 for one main row with 5 order lines), the report metric
+   * counts the main rows that survived the join (1). The product rule is "computed at the last
+   * join, after dedup", which is what the report path does — so a formula COUNT renders where the
+   * report metric renders, off the dedup CTE, and gets no sleeve.
+   */
+  describe('a joined COUNT', () => {
+    const COUNT_FORMULA = 'COUNT({{ref path="orders" field="amount"}}) / 2';
+
+    it('renders where a report metric on that column renders, with no sleeve of its own', () => {
+      const shared = joinedContext([], ['channel']);
+      const formulaSql = builder.buildBlendedQuery({
+        ...shared,
+        calculatedFields: [metricPlan('lines', COUNT_FORMULA)],
+      }).sql;
+      const reportSql = new TestBlendedWithRenderer().buildBlendedQuery({
+        ...shared,
+        columns: ['channel', 'orders__amount'],
+        aggregations: [{ column: 'orders__amount', function: 'COUNT' }],
+      }).sql;
+
+      // The same expression over the same CTE, in the same outer SELECT, as the report metric.
+      expect(formulaSql).toContain('COUNT(orders.orders__amount) / 2 AS `lines`');
+      expect(reportSql).toContain('COUNT(orders.orders__amount)');
+      expect(formulaSql).not.toContain('sleeve_fx_lines');
+      // The joined field is read off the dedup CTE, so nothing put its raw name in the main CTE.
+      expect(extractCteBody(formulaSql, 'main')).not.toContain('amount');
+    });
+
+    // COUNT(DISTINCT …) is a different question and keeps its sleeve — the routing is per call.
+    it('keeps the sleeve for the DISTINCT form in the same formula', () => {
+      const formula =
+        'COUNT({{ref path="orders" field="amount"}}) + ' +
+        'COUNT(DISTINCT {{ref path="orders" field="id"}})';
+      const { sql } = builder.buildBlendedQuery(joinedContext([metricPlan('both', formula)]));
+
+      expect(sql).toContain(
+        'COUNT(orders.orders__amount) + COALESCE(ANY_VALUE(sleeve_fx_both_1._fx_both_1), 0) AS `both`'
+      );
+      expect(normalizeSql(sql)).toContain('COUNT(DISTINCT _val) AS _fx_both_1');
+    });
+  });
+
+  // `FORMULA_NESTED_AGGREGATE` gates this at save, so it is the saved-before-the-gate case — which
+  // reached `renderFormulaWithReplacements` as two overlapping spans and surfaced as a bare Error,
+  // i.e. a 500 with no body. Every other guard here answers that case by name.
+  it('refuses a joined aggregate nested inside another instead of failing on overlapping spans', () => {
+    const formula =
+      'SUM({{ref path="orders" field="amount"}} * MAX({{ref path="orders" field="rate"}}))';
+
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('nested', formula)]))).toThrow(
+      BusinessViolationException
+    );
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('nested', formula)]))).toThrow(
+      /nests the aggregate MAX\(\.\.\.\) inside another aggregate/
+    );
+  });
+
+  // The same failure class through the other door: refs are attributed to the INNERMOST containing
+  // call, so an outer call wrapping nothing but a joined one owns no refs and classifies as
+  // own-owner. A joined-only pairing missed it, and it emitted `SUM(COUNT(orders.orders__amount))`
+  // — a warehouse error carrying no metric name.
+  it('refuses a joined aggregate nested inside an own-Data-Mart aggregate', () => {
+    const formula = 'SUM(COUNT({{ref path="orders" field="amount"}}))';
+
+    expect(() => builder.buildBlendedQuery(joinedContext([metricPlan('nested', formula)]))).toThrow(
+      /nests the aggregate COUNT\(\.\.\.\) inside another aggregate/
+    );
+  });
+
+  // Defence in depth: `buildAll` maps 1:1 over the plans, so a formula sleeve cannot go missing
+  // today. If one ever did, "the reference sits inside SOME aggregate" accepted it — a joined SUM
+  // then rendered `SUM(<dedup>.<col>)`, the fan-out-inflated number the sleeve exists to prevent.
+  // Only the shape the planner deliberately leaves in place (a non-DISTINCT joined COUNT) passes.
+  it('refuses a joined SUM whose sleeve went missing rather than reading the dedup CTE', () => {
+    const lost = new TestBlendedWithDriftedSleeve(sleeve => ({
+      ...sleeve,
+      formulaCall: undefined,
+    }));
+
+    expect(() => lost.buildBlendedQuery(joinedContext([metricPlan('roi', ROI_FORMULA)]))).toThrow(
+      /reads \[orders\.amount\] from a joined Data Mart/
+    );
+  });
+
+  // The metric's name is an outer-SELECT alias, never a warehouse column — the scrub that keeps it
+  // out of the main CTE must keep covering a metric that now also owns a sleeve.
+  it('never lets the metric name reach the main raw CTE or the GROUP BY', () => {
+    const { sql } = builder.buildBlendedQuery(
+      joinedContext([metricPlan('roi', ROI_FORMULA)], ['channel', 'roi'].slice(0, 1))
+    );
+
+    expect(extractCteBody(sql, 'main')).not.toContain('roi');
+    expect(sql.slice(sql.lastIndexOf('GROUP BY'))).not.toContain('roi');
   });
 });
 
@@ -3578,8 +5117,9 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
         'AS `organizations__orgId | COUNTUNIQUE`'
     );
     expect(s).toContain(
-      'LEFT JOIN sleeve_organizations__orgId ON (users.users__country = sleeve_organizations__orgId._owox_dim_0 ' +
-        'OR (users.users__country IS NULL AND sleeve_organizations__orgId._owox_dim_0 IS NULL))'
+      'LEFT JOIN sleeve_organizations__orgId ON ((users.users__country) = ' +
+        '(sleeve_organizations__orgId._owox_dim_0) ' +
+        'OR ((users.users__country) IS NULL AND (sleeve_organizations__orgId._owox_dim_0) IS NULL))'
     );
     // the old over-counting path must be gone for this metric:
     expect(s).not.toContain('SUM(organizations.organizations__orgId)');
@@ -3681,10 +5221,10 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
     // the sleeve's projected column — not a raw, untruncated outer ref (which would never
     // equal the sleeve's truncated value and leave the metric NULL for every row).
     expect(s).toContain(
-      'LEFT JOIN sleeve_organizations__orgId ON (DATE_TRUNC(DATE(users.users__country), MONTH) = ' +
-        'sleeve_organizations__orgId._owox_dim_0 OR ' +
-        '(DATE_TRUNC(DATE(users.users__country), MONTH) IS NULL AND ' +
-        'sleeve_organizations__orgId._owox_dim_0 IS NULL))'
+      'LEFT JOIN sleeve_organizations__orgId ON ((DATE_TRUNC(DATE(users.users__country), MONTH)) = ' +
+        '(sleeve_organizations__orgId._owox_dim_0) OR ' +
+        '((DATE_TRUNC(DATE(users.users__country), MONTH)) IS NULL AND ' +
+        '(sleeve_organizations__orgId._owox_dim_0) IS NULL))'
     );
   });
 
@@ -3738,9 +5278,9 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
     expect(normalizeSql(sleeveCte)).toContain('GROUP BY main.main_region');
 
     expect(s).toContain(
-      'LEFT JOIN sleeve_organizations__orgId ON (main.main_region = ' +
-        'sleeve_organizations__orgId._owox_dim_0 OR ' +
-        '(main.main_region IS NULL AND sleeve_organizations__orgId._owox_dim_0 IS NULL))'
+      'LEFT JOIN sleeve_organizations__orgId ON ((main.main_region) = ' +
+        '(sleeve_organizations__orgId._owox_dim_0) OR ' +
+        '((main.main_region) IS NULL AND (sleeve_organizations__orgId._owox_dim_0) IS NULL))'
     );
   });
 

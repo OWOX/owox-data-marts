@@ -1,4 +1,4 @@
-import { getViewportForBounds } from '@xyflow/react';
+import { getViewportForBounds, type Viewport } from '@xyflow/react';
 import type { CanvasGraphBounds } from '../../../shared/canvas/viewport';
 
 export const GRAPH_ZOOM_MAX = 3;
@@ -12,26 +12,27 @@ export interface GraphZoomRange {
 }
 
 /**
- * The zoom a full fit lands on for the given graph bounds and pane size —
+ * The viewport a full fit lands on for the given graph bounds and pane size —
  * computed with React Flow's own getViewportForBounds (the function fitView
  * uses internally), so the value cannot drift from the library's padding
  * semantics.
  *
- * Derived analytically (instead of reading the viewport back after a fit) so
- * the zoom range never freezes on a value captured under transient conditions
- * — a mid-load fit, a pane that was still settling, or a layout that changed
- * after the fit ran.
+ * Derived analytically (instead of asking fitView) because an imperative
+ * fitView only fits nodes whose DOM dimensions are already measured, while
+ * declared node sizes make the graph count as initialized before measurement —
+ * a fit that runs at that point centers on whatever subset happens to be
+ * measured. The layout bounds are complete from the first render.
  */
-export function getFittedGraphZoom(
+export function getFittedGraphViewport(
   bounds: CanvasGraphBounds,
   paneWidth: number,
   paneHeight: number,
   padding: number
-): number {
+): Viewport | null {
   const boundsWidth = bounds.maxX - bounds.minX;
   const boundsHeight = bounds.maxY - bounds.minY;
   if (boundsWidth <= 0 || boundsHeight <= 0 || paneWidth <= 0 || paneHeight <= 0) {
-    return Number.NaN;
+    return null;
   }
 
   return getViewportForBounds(
@@ -41,7 +42,7 @@ export function getFittedGraphZoom(
     GRAPH_ZOOM_MIN,
     GRAPH_ZOOM_MAX,
     padding
-  ).zoom;
+  );
 }
 
 export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {

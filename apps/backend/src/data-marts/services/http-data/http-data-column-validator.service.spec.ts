@@ -4,7 +4,29 @@ import { HttpDataColumnValidator } from './http-data-column-validator.service';
 
 describe('HttpDataColumnValidator', () => {
   const validator = new HttpDataColumnValidator();
-  const columns: ReportingColumns = { native: ['date', 'revenue'], blended: ['orders__cost'] };
+  const columns: ReportingColumns = {
+    native: ['date', 'revenue'],
+    implicitAllNative: ['date', 'revenue'],
+    blended: ['orders__cost'],
+    implicitAllBlended: ['orders__cost'],
+  };
+
+  // The existence check binds against `blended`, never `implicitAllBlended`: a joined calculated
+  // field is a real, visible field of the join tree, so naming it must reach the downstream
+  // refusal that says WHY it cannot be projected — not come back as "Unknown column", which sends
+  // the caller to repair a schema link that is not broken.
+  it('treats a joined calculated field as known, even though a wildcard never expands to it', () => {
+    const withJoinedCalculated: ReportingColumns = {
+      native: ['date'],
+      implicitAllNative: ['date'],
+      blended: ['orders__cost', 'orders__margin'],
+      implicitAllBlended: ['orders__cost'],
+    };
+
+    expect(() =>
+      validator.validate({ selectedColumns: ['orders__margin'] }, withJoinedCalculated)
+    ).not.toThrow();
+  });
 
   it('accepts native and reporting-visible blended columns', () => {
     expect(() =>

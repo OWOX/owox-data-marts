@@ -5,6 +5,7 @@ import { EmailMapper } from './email.mapper.ts';
 import { GoogleSheetsMapper } from './google-sheets.mapper.ts';
 import { LookerStudioMapper } from './looker-studio.mapper.ts';
 import { GoogleChatMapper } from './google-chat.mapper.ts';
+import { ExcelMapper } from './excel.mapper.ts';
 
 export const DestinationMapperFactory = {
   getMapper(type: DataDestinationType): DestinationMapper {
@@ -21,6 +22,8 @@ export const DestinationMapperFactory = {
         return new EmailMapper<MsTeamsDataDestination>(DataDestinationType.MS_TEAMS);
       case DataDestinationType.GOOGLE_CHAT:
         return new GoogleChatMapper();
+      case DataDestinationType.EXCEL:
+        return new ExcelMapper();
       default:
         throw new Error(`Unknown destination type: ${type}`);
     }

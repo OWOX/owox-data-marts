@@ -121,6 +121,56 @@ describe('DataMartMapper', () => {
     expect(response).not.toHaveProperty('qualitySummary');
   });
 
+  describe('toUpdateSchemaResponse', () => {
+    it('carries calculated-field warnings through to the HTTP response body', async () => {
+      const warnings = [
+        { code: 'FORMULA_UNGUARDED_DIVISION', field: 'ctr', message: 'divides without guarding' },
+      ];
+
+      const response = await mapper.toUpdateSchemaResponse({
+        id: 'data-mart-1',
+        title: 'Orders',
+        status: DataMartStatus.PUBLISHED,
+        storage: {},
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        triggersCount: 0,
+        reportsCount: 0,
+        createdByUser: null,
+        businessOwnerUsers: [],
+        technicalOwnerUsers: [],
+        availableForReporting: true,
+        availableForMaintenance: true,
+        contexts: [],
+        warnings,
+      } as never);
+
+      expect(response.warnings).toEqual(warnings);
+    });
+
+    it('returns an empty warnings array on the wire when there is nothing to warn about', async () => {
+      const response = await mapper.toUpdateSchemaResponse({
+        id: 'data-mart-1',
+        title: 'Orders',
+        status: DataMartStatus.PUBLISHED,
+        storage: {},
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        triggersCount: 0,
+        reportsCount: 0,
+        createdByUser: null,
+        businessOwnerUsers: [],
+        technicalOwnerUsers: [],
+        availableForReporting: true,
+        availableForMaintenance: true,
+        contexts: [],
+        warnings: [],
+      } as never);
+
+      expect(response.warnings).toEqual([]);
+    });
+  });
+
   describe('toBatchHealthStatusDomainResponse', () => {
     it('should map items and pick the latest report run if there are multiple', () => {
       const requestedIds = ['mart-1'];

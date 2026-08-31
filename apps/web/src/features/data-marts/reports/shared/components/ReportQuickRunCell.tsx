@@ -12,6 +12,7 @@ import type { DataMartReport } from '../model/types/data-mart-report';
 import { ReportStatusEnum } from '../enums';
 import { useReport } from '../model';
 import { RunUndoToast } from './RunUndoToast';
+import { pullBasedRunHint } from '../../../../data-destination/shared/enums';
 
 const GRACE_PERIOD_MS = 3000;
 
@@ -106,30 +107,39 @@ export function ReportQuickRunCell({ report, onRunSuccess }: ReportQuickRunCellP
   );
 
   const isActive = isPending || isRunning || isOptimisticRunning;
+  // Disabled here is not a missing permission: nobody can start such a run, so the button says
+  // what to do instead. Same sentence as the dropdown item, from the same place.
+  const pullRunHint = pullBasedRunHint(report.dataDestination.type);
   const tooltipText = isPending
     ? 'Starting soon…'
     : isRunning || isOptimisticRunning
       ? 'Report is running…'
-      : 'Run report';
+      : (pullRunHint ?? 'Run report');
 
   return (
     <TooltipProvider>
       <div className='flex h-full w-full items-center justify-center'>
         <Tooltip>
+          {/* The span wraps the button so Radix keeps a hoverable target: the shared Button
+              carries `disabled:pointer-events-none`, and a disabled one would swallow the hover
+              — exactly when the hint matters most, because the button is disabled for a reason
+              no permission explains. Same wrapping as MembersTable. */}
           <TooltipTrigger asChild>
-            <Button
-              onClick={handleRun}
-              variant='ghost'
-              className='dm-card-table-body-row-actionbtn cursor-pointer transition-all disabled:opacity-30'
-              disabled={!canRun || isActive}
-              aria-label={isActive ? tooltipText : `Run report: ${report.title}`}
-            >
-              {isPending ? (
-                <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
-              ) : (
-                <Play className='text-muted-foreground h-4 w-4' aria-hidden='true' />
-              )}
-            </Button>
+            <span className='inline-block'>
+              <Button
+                onClick={handleRun}
+                variant='ghost'
+                className='dm-card-table-body-row-actionbtn cursor-pointer transition-all disabled:opacity-30'
+                disabled={!canRun || isActive}
+                aria-label={isActive ? tooltipText : (pullRunHint ?? `Run report: ${report.title}`)}
+              >
+                {isPending ? (
+                  <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                ) : (
+                  <Play className='text-muted-foreground h-4 w-4' aria-hidden='true' />
+                )}
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side='bottom' role='tooltip'>
             {tooltipText}

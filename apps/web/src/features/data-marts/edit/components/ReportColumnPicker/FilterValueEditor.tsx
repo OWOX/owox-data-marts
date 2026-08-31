@@ -15,6 +15,7 @@ import {
 } from '../../../shared/types/output-config';
 import {
   type FilterOperator,
+  operatorLabelFor,
   operatorsForType,
   isNumberType,
   isDateType,
@@ -75,6 +76,8 @@ function isNKind(kind: RelativeDatePreset['kind']): kind is NKind {
 }
 
 const NO_VALUE_OPS = new Set<FilterOperator>([
+  'is_blank',
+  'is_not_blank',
   'is_empty',
   'is_not_empty',
   'is_null',
@@ -292,7 +295,20 @@ export function FilterValueEditor({
   initialRule,
   onChange,
 }: FilterValueEditorProps) {
-  const operators = operatorsForType(fieldType);
+  // A saved rule may carry an operator the picker no longer offers (the legacy
+  // is_empty/is_null cluster, #6779). Append it so the select renders the rule as
+  // saved; picking any current operator drops it from the menu on the next open.
+  const operators = useMemo(() => {
+    const base = operatorsForType(fieldType);
+    const initialOp = initialRule?.operator as FilterOperator | undefined;
+    if (initialOp && !base.some(o => o.value === initialOp)) {
+      return [
+        ...base,
+        { value: initialOp, label: operatorLabelFor(initialOp, fieldType), shortLabel: '' },
+      ];
+    }
+    return base;
+  }, [fieldType, initialRule]);
   const fallbackOp = operators[0]?.value ?? 'eq';
 
   const [state, setState] = useState<EditorState>(() => getInitialState(initialRule, fallbackOp));

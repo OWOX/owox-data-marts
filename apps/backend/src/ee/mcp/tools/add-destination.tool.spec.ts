@@ -66,6 +66,15 @@ describe('AddDestinationTool', () => {
     expect(() => tool.parseInput(invalid)).toThrow();
   });
 
+  it('does not offer excel, and refuses it at the schema rather than in the handler', () => {
+    // The Excel destination is resolved by the add-in on first use, so this tool has no
+    // creation flow for it. Refusing it here — instead of letting it fall through to the
+    // "no creation flow is implemented" backstop — keeps the option out of what an agent
+    // is shown in the first place, the way the web app leaves it out of its type list.
+    expect(tool.zodSchema.destination_type.options).not.toContain('excel');
+    expect(() => tool.parseInput({ destination_type: 'excel' })).toThrow();
+  });
+
   // No role gate here: creating a destination has no parent entity to check access
   // against (unlike reports/schedules, which check access on the data mart/report they
   // attach to), and the REST API allows any project member (viewer included) to create

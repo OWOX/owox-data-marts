@@ -3,7 +3,7 @@ import { getViewportForBounds } from '@xyflow/react';
 import {
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
-  getFittedGraphZoom,
+  getFittedGraphViewport,
   getGraphZoomRange,
   getNextGraphZoom,
 } from './relationship-canvas-zoom';
@@ -67,30 +67,35 @@ describe('relationship canvas zoom', () => {
     expect(getGraphZoomRange(0).min).toBe(1);
   });
 
-  describe('getFittedGraphZoom', () => {
+  describe('getFittedGraphViewport', () => {
     const bounds = { minX: 0, minY: 0, maxX: 800, maxY: 200 };
     const rect = { x: 0, y: 0, width: 800, height: 200 };
 
-    it('matches the zoom the real fitView math produces', () => {
-      // Asserted against the library function fitView uses internally — an
-      // in-test re-derivation of the padding formula could drift together
+    it('matches the viewport the real fitView math produces', () => {
+      // The automatic first fit applies this viewport directly (fitView would
+      // race node measurement), so it must be byte-equal to the library math —
+      // an in-test re-derivation of the padding formula could drift together
       // with the implementation and hide a mismatch.
       const expected = getViewportForBounds(rect, 1000, 500, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX, 0.1);
-      expect(getFittedGraphZoom(bounds, 1000, 500, 0.1)).toBe(expected.zoom);
+      expect(getFittedGraphViewport(bounds, 1000, 500, 0.1)).toEqual(expected);
       // Sanity-pin the padding semantics of @xyflow v12 (usable pane is
       // pane / (1 + padding), floored per side): 1000 -> 910 usable px.
       expect(expected.zoom).toBeCloseTo(910 / 800, 5);
     });
 
     it('clamps the fitted zoom into the supported range', () => {
-      expect(getFittedGraphZoom(bounds, 20000, 20000, 0)).toBe(GRAPH_ZOOM_MAX);
-      expect(getFittedGraphZoom(bounds, 10, 10, 0)).toBe(GRAPH_ZOOM_MIN);
+      expect(getFittedGraphViewport(bounds, 20000, 20000, 0)?.zoom).toBe(GRAPH_ZOOM_MAX);
+      expect(getFittedGraphViewport(bounds, 10, 10, 0)?.zoom).toBe(GRAPH_ZOOM_MIN);
     });
 
-    it('reports degenerate inputs as NaN so the range falls back', () => {
-      expect(getFittedGraphZoom(bounds, 0, 500, 0.1)).toBeNaN();
-      expect(getFittedGraphZoom({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 1000, 500, 0.1)).toBeNaN();
-      expect(getGraphZoomRange(getFittedGraphZoom(bounds, 0, 0, 0.1)).min).toBe(1);
+    it('returns null for degenerate geometry so the zoom range falls back', () => {
+      expect(getFittedGraphViewport(bounds, 0, 500, 0.1)).toBeNull();
+      expect(getFittedGraphViewport({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 1000, 500, 0.1)).toBe(
+        null
+      );
+      expect(
+        getGraphZoomRange(getFittedGraphViewport(bounds, 0, 0, 0.1)?.zoom ?? Number.NaN).min
+      ).toBe(1);
     });
   });
 });

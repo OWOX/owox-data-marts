@@ -7,7 +7,9 @@ import {
   ReportBuilder,
   ScheduledTriggerBuilder,
   setupReportPrerequisites,
+  EMAIL_REPORT_DESTINATION_CONFIG,
 } from '@owox/test-utils';
+import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
 import type { IdpProvider, Payload } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
 import { ProjectMemberDto } from '../src/idp/dto/domain/project-member.dto';
@@ -60,7 +62,9 @@ describe('Project Data Mart activity list API (e2e)', () => {
       return resolvePayload(token);
     });
 
-    const reportPrereqs = await setupReportPrerequisites(agent);
+    // EMAIL rather than the default Data Studio: this fixture needs a REPORT_RUN trigger, and a
+    // pull-based destination has no server-side run to schedule — the validator refuses it.
+    const reportPrereqs = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
     reportDataMartId = reportPrereqs.dataMartId;
 
     const facade = app.get(IdpProjectionsFacade);
@@ -87,6 +91,7 @@ describe('Project Data Mart activity list API (e2e)', () => {
           .withDataMartId(reportDataMartId)
           .withDataDestinationId(reportPrereqs.dataDestinationId)
           .withTitle('Project activity report')
+          .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
           .build()
       );
     expect(reportRes.status).toBe(201);

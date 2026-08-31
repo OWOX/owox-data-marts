@@ -3,10 +3,10 @@ import { TriggerStatus } from './trigger-status';
 
 // Create a concrete implementation of the abstract ScheduledTrigger class for testing
 class TestScheduledTrigger extends ScheduledTrigger {
-  constructor(cronExpression: string) {
+  constructor(cronExpression: string, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
     super();
     this.cronExpression = cronExpression;
-    this.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    this.timeZone = timeZone;
     this.id = 'test-id';
     this.nextRunTimestamp = null;
     this.lastRunTimestamp = null;
@@ -57,6 +57,31 @@ describe('ScheduledTrigger', () => {
   });
 
   describe('scheduleNextRun', () => {
+    it.each([
+      ['winter', '2026-01-15T10:00:00.000Z', '2026-01-16T09:00:00.000Z'],
+      ['summer', '2026-07-15T10:00:00.000Z', '2026-07-16T09:00:00.000Z'],
+    ])('keeps a daily UTC schedule fixed through %s', (_season, startFrom, expectedNextRun) => {
+      const utcTrigger = new TestScheduledTrigger('0 9 * * *', 'UTC');
+
+      utcTrigger.scheduleNextRun(new Date(startFrom));
+
+      expect(utcTrigger.nextRunTimestamp?.toISOString()).toBe(expectedNextRun);
+    });
+
+    it.each([
+      ['winter', '2026-01-15T10:00:00.000Z', '2026-01-16T09:00:00.000Z'],
+      ['summer', '2026-07-15T10:00:00.000Z', '2026-07-16T08:00:00.000Z'],
+    ])(
+      'applies Europe/London daylight saving behavior in %s',
+      (_season, startFrom, expectedNextRun) => {
+        const londonTrigger = new TestScheduledTrigger('0 9 * * *', 'Europe/London');
+
+        londonTrigger.scheduleNextRun(new Date(startFrom));
+
+        expect(londonTrigger.nextRunTimestamp?.toISOString()).toBe(expectedNextRun);
+      }
+    );
+
     it('should handle hourly cron expression correctly', () => {
       // Arrange - Every hour
       const hourlyTrigger = new TestScheduledTrigger('0 0 * * * *');

@@ -34,7 +34,7 @@ import type {
   TablePatternDefinitionConfig,
   ViewDefinitionConfig,
 } from '../types';
-import { extractApiError, type ApiError } from '../../../../../app/api';
+import { extractApiError, type ApiError, type AxiosRequestConfig } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
 import { pushToDataLayer, trackEvent } from '../../../../../utils';
@@ -628,34 +628,38 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Update data mart schema
-  const updateDataMartSchema = useCallback(async (id: string, schema: DataMartSchema) => {
-    try {
-      dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
-      const response = await dataMartService.updateDataMartSchema(id, { schema });
-      const dataMart = await mapDataMartFromDto(response);
-      dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
-      toast.success('Output schema updated');
-      trackEvent({
-        event: 'data_mart_schema_updated',
-        category: 'DataMart',
-        action: 'UpdateSchema',
-        label: 'Manual',
-      });
-    } catch (error) {
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'UPDATE_DATA_MART_SCHEMA_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'UpdateSchemaError',
-        error: apiError.message,
-      });
-      throw error;
-    }
-  }, []);
+  const updateDataMartSchema = useCallback(
+    async (id: string, schema: DataMartSchema, config?: AxiosRequestConfig) => {
+      try {
+        dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
+        const response = await dataMartService.updateDataMartSchema(id, { schema }, config);
+        const dataMart = await mapDataMartFromDto(response);
+        dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
+        toast.success('Output schema updated');
+        trackEvent({
+          event: 'data_mart_schema_updated',
+          category: 'DataMart',
+          action: 'UpdateSchema',
+          label: 'Manual',
+        });
+        return { warnings: response.warnings ?? [] };
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'UPDATE_DATA_MART_SCHEMA_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'UpdateSchemaError',
+          error: apiError.message,
+        });
+        throw error;
+      }
+    },
+    []
+  );
 
   // Reset state
   const resetManualRunTriggered = useCallback(() => {

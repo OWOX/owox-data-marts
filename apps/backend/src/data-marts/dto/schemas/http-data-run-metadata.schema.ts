@@ -14,6 +14,27 @@ const DataHeaderSchema = z.object({
   type: z.string().optional(),
 });
 
+/**
+ * Where a pulled run put its rows.
+ *
+ * A destination the server writes into is already known here — it was told which document to
+ * open. A pulled one is not: the client asks for rows and places them itself, so without this
+ * a run history can say a report ran but not where, which in a workbook holding several
+ * reports is the part worth knowing.
+ *
+ * Reported by the client and therefore not to be trusted for anything but display. Lengths are
+ * capped because a worksheet may be named anything at all, and this is a route from a user's
+ * keyboard into everyone's run history.
+ */
+export const RunContextSchema = z.object({
+  host: z.string().max(32),
+  documentTitle: z.string().max(256).optional(),
+  sheetId: z.string().max(128).optional(),
+  sheetName: z.string().max(256).optional(),
+});
+
+export type RunContext = z.infer<typeof RunContextSchema>;
+
 export const HttpDataRunMetadataSchema = z.object({
   format: z.literal(HTTP_DATA_FORMAT),
   columns: z.array(z.string()),
@@ -45,6 +66,11 @@ export const HttpDataRunMetadataSchema = z.object({
    * Optional so runs recorded before this field existed still parse.
    */
   dataLastUpdated: SourceDataLastUpdatedSchema.optional(),
+  /**
+   * Optional twice over: runs recorded before this existed have none, and a client that could
+   * not read its own workbook sends none rather than failing the run over it.
+   */
+  runContext: RunContextSchema.optional(),
 });
 
 export type HttpDataRunMetadata = z.infer<typeof HttpDataRunMetadataSchema>;

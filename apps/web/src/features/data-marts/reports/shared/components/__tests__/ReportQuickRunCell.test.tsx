@@ -15,6 +15,7 @@ vi.mock('react-hot-toast', () => ({
 
 import { ReportQuickRunCell } from '../ReportQuickRunCell';
 import type { DataMartReport } from '../../model/types/data-mart-report';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 
 function makeReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
@@ -22,6 +23,9 @@ function makeReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
     title: 'Monthly Revenue',
     canRun: true,
     lastRunStatus: ReportStatusEnum.SUCCESS,
+    // Required by the type; the cast below is what let it be omitted. These cases describe a
+    // destination the server writes into, which is where a run button means what it says.
+    dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
     ...overrides,
   } as DataMartReport;
 }
@@ -95,6 +99,52 @@ describe('ReportQuickRunCell', () => {
   it('disables the button when report canRun is false', () => {
     render(<ReportQuickRunCell report={makeReport({ canRun: false })} />);
     expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  it('says what to do instead when nobody can start the run', () => {
+    // Excel reports are refreshed from the add-in. Disabled with a "Run report" label would
+    // read as a missing permission, which it is not.
+    render(
+      <ReportQuickRunCell
+        report={makeReport({
+          canRun: false,
+          dataDestination: { type: DataDestinationType.EXCEL },
+        } as Partial<DataMartReport>)}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Refresh it from the OWOX add-in in Excel' })
+    ).toBeDisabled();
+  });
+
+  it('shows the hint on hover even though the button is disabled', async () => {
+    // The shared Button carries `disabled:pointer-events-none`, so a tooltip anchored on the
+    // button itself never opens for mouse users — the half of the audience the aria-label above
+    // does not serve. The wrapping span is what keeps the hover target alive.
+    render(
+      <ReportQuickRunCell
+        report={makeReport({
+          canRun: false,
+          dataDestination: { type: DataDestinationType.EXCEL },
+        } as Partial<DataMartReport>)}
+      />
+    );
+
+    const trigger = screen
+      .getByRole('button', { name: 'Refresh it from the OWOX add-in in Excel' })
+      .closest('span');
+    expect(trigger).not.toBeNull();
+
+    fireEvent.pointerEnter(trigger!);
+    fireEvent.mouseEnter(trigger!);
+    fireEvent.focus(trigger!);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('Refresh it from the OWOX add-in in Excel').length
+      ).toBeGreaterThan(0);
+    });
   });
 
   it('does not call toast.custom if Run is clicked while already pending', () => {

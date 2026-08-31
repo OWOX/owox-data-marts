@@ -2,7 +2,13 @@ import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { ResolvedRelationshipChain } from '../interfaces/blended-query-builder.interface';
-import { ColumnTypeResolver, SqlParameter } from '../utils/sql-clause-renderer';
+import {
+  CalculatedFieldRenderOptions,
+  CalculatedFieldPlan,
+  CalculatedPredicateOperand,
+  ColumnTypeResolver,
+  SqlParameter,
+} from '../utils/sql-clause-renderer';
 
 /** One node of the blend tree: a chain plus the chains that join INTO it. */
 export interface BlendTreeNode {
@@ -38,6 +44,51 @@ export interface ValueSleeveGroup {
   metrics: AggregationRule[];
 }
 
+/**
+ * One aggregate call lifted out of a calculated field's formula. `valueSql` is the call's
+ * ARGUMENT rendered against the owner's raw columns; the sleeve dedups it per owner row and
+ * aggregates it with `fn`.
+ *
+ * Deliberately NOT a widening of `ValueSleeveGroup`: v1 builds one sleeve per aggregate call with
+ * no merging, so it needs neither the multi-column slot map nor the merge key — and `fn` is any
+ * aggregate the warehouse's own dialect offers (`FormulaFunctionDialect`), not the report
+ * builder's closed `ReportAggregateFunction` picklist.
+ */
+export interface FormulaSleeveGroup {
+  ownerCteName: string;
+  dimensions: string[];
+  fn: string;
+  /**
+   * The ANSI quantifier of `COUNT(DISTINCT x)`, lifted off the argument by `planFormulaSleeves`. It
+   * belongs to the OUTER aggregate: inside the deduped slot it is a syntax error, and the inner
+   * `DISTINCT (dims, identity, value)` pass does NOT already imply it — that pass keeps one row per
+   * owner ROW, while this counts distinct VALUES across them.
+   */
+  distinct?: boolean;
+  /**
+   * Whether `valueSql` reads the owner's RAW rows (`<owner>_raw`, the fan-out identity source) or
+   * the values its pre-join roll-up already collapsed per join key (`<owner>`). Defaults to raw.
+   *
+   * The caller decides because only it can see which FIELDS the expression reads; the same
+   * `isIdentityPreJoinField` classification the value-sleeve path branches on. A field's declared
+   * pre-join `aggregateFunction` is what that field MEANS once blended, so a formula naming it must
+   * read the same value a report metric on it would — see `buildFormulaSleeveCte`.
+   */
+  isIdentity?: boolean;
+  valueSql: string;
+  /** Output alias of the single pull this sleeve feeds. */
+  alias: string;
+  /**
+   * The calculated field this sleeve serves, for refusals the ANALYST reads.
+   *
+   * `alias` is a synthetic pull name (`_fx_<metric>_<i>`) that appears nowhere in their schema, so
+   * a message naming it sends them looking for a field that does not exist. Optional because a
+   * caller assembling a group by hand — the builder's own specs — has no metric to name; the
+   * refusal then falls back to `alias`, which is at least a string the caller recognises.
+   */
+  metricOutputName?: string;
+}
+
 // One output column a sleeve CTE feeds: the outer query emits `ANY_VALUE(<cte>.<alias>) AS <alias>`
 // for each.
 export interface SleevePull {
@@ -55,6 +106,33 @@ export interface SleevePull {
   coalesceEmptyToZero: boolean;
 }
 
+/**
+ * The ROW-LEVEL calculated fields a sleeve's grain carries, on a channel PARALLEL to its
+ * `dimensions` list rather than inside it.
+ *
+ * The list itself stays `string[]` and a row-level field contributes its output NAME, because ten
+ * of that list's eleven consumers need a resolvable name — and the eleventh,
+ * `groupValueSleeveMetrics`' merge key, joins the list into a string, where an object element
+ * would stringify to `[object Object]` for every entry and silently merge two different grains
+ * into ONE sleeve. That is the only consumer in the set that fails quietly; the rest fail loudly.
+ *
+ * `renderOptions` must be the SAME object the outer SELECT renders its own calculated fields with.
+ * The sleeve joins back on the dimension tuple, so its projected expression has to equal the outer
+ * GROUP BY key byte for byte; one method called with one options object gives that by
+ * construction, while two derivations give it only until one of them changes — and the join-back
+ * then matches nothing.
+ */
+export interface SleeveCalculatedDimensions {
+  /**
+   * The plans that are GROUPING KEYS (`isCalculatedGroupingKey`), by output name, in the order
+   * `renderAggregatedSelect` emits their keys. Row-level is not enough: a row-level field the
+   * report aggregates is not a key, and one left in here gives every sleeve a finer grain than the
+   * outer query — `MetricSleeveBuilder.buildAll` refuses that rather than emitting it.
+   */
+  plans: ReadonlyMap<string, CalculatedFieldPlan>;
+  renderOptions: CalculatedFieldRenderOptions;
+}
+
 // One built sleeve CTE (COUNT_DISTINCT, single-metric value sleeve, a merged multi-metric
 // value-sleeve group, or a joined source's Unique Count) plus every output column it feeds.
 // `pulls.length` is 1 for all but a merged group — the caller emits ONE `ANY_VALUE` SELECT item per
@@ -64,6 +142,13 @@ export interface SleeveResult {
   cteName: string;
   pulls: SleevePull[];
   dimRefs: { column: string; outer: string; sleeve: string }[];
+  /**
+   * Set when this sleeve computes ONE aggregate call of a calculated field's formula. Its pull is
+   * SPLICED into that metric's own expression at the call's site, so the caller must not emit it as
+   * an outer SELECT item of its own — that would project half a metric under a name no header
+   * claims. Everything else about it (the join-back, the grain assertions) is identical.
+   */
+  formulaCall?: { metricOutputName: string; callIndex: number };
   sql: string;
   // bound params from the post-join WHERE rendered INSIDE this sleeve. The
   // caller appends them to `cteParams` at the point the sleeve CTE is added to the WITH
@@ -81,6 +166,14 @@ export interface SleeveFilterOptions {
   filters: FilterRule[];
   resolveColumnType?: ColumnTypeResolver;
   whereParamPrefix: string;
+  /**
+   * The SAME `buildCalculatedPredicateExpressions` map the outer WHERE uses: a filter on a
+   * Calculated Field compares its FORMULA, and the field's name is a SELECT alias no CTE projects.
+   * Without it the sleeve emitted `main.<field>` over a `main` CTE that correctly carries no such
+   * column — and a sleeve that cannot apply the report's predicate is the shape #6766's Critical C1
+   * shipped: the joined metric computed over the UNFILTERED rows.
+   */
+  calculatedExpressions?: ReadonlyMap<string, CalculatedPredicateOperand>;
   /**
    * The restriction to the groups a Totals query keeps (see `GroupRestriction`). The sleeve reads
    * raw rows, so without it a COUNT DISTINCT would count entities whose group the report's metric

@@ -19,10 +19,12 @@ const entrypoints: ReportRunEntrypoint[] = [
     firstStorageBoundary: 'this.resolveAccessor(',
   },
   {
-    name: 'HTTP Data reports',
+    // Excel reports arrive here too: the workbook pulls them over the same endpoint, so the
+    // same entrypoint executes both and the same authorization has to precede both.
+    name: 'HTTP Data and Excel reports',
     file: join(__dirname, '../../use-cases/stream-http-data.service.ts'),
     declaration: 'private async executeStream(',
-    runKinds: [RunKind.HTTP_DATA_RUN],
+    runKinds: [RunKind.HTTP_DATA_RUN, RunKind.EXCEL_REPORT_RUN],
     firstStorageBoundary: 'this.dataMartService.actualizeSchemaInEntityIfExpired(',
   },
   {

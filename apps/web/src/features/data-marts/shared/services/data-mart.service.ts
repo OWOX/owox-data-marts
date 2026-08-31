@@ -14,11 +14,14 @@ import type {
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
+  UpdateDataMartSchemaResponseDto,
   BatchDataMartHealthStatusResponseDto,
   BatchDataLastUpdatedResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
   CreateAiHelperTriggerRequestDto,
   AiHelperTriggerResponseDto,
+  ValidateFormulaRequestDto,
+  ValidateFormulaResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -219,13 +222,46 @@ export class DataMartService extends ApiService {
    * Update a data mart schema
    * @param id Data mart ID
    * @param data Schema update data
-   * @returns Promise with updated data mart
+   * @param config Optional axios config — e.g. `skipErrorToast` for a caller (useCalculatedFieldSave)
+   * that renders its own, field-grouped error UI instead of the generic 400 toast
+   * @returns Promise with the updated data mart, plus non-blocking calculated-field `warnings` on
+   * a successful save
    */
   async updateDataMartSchema(
     id: string,
-    data: UpdateDataMartSchemaRequestDto
-  ): Promise<DataMartResponseDto> {
-    return this.put<DataMartResponseDto>(`/${id}/schema`, data, { timeout: 180000 });
+    data: UpdateDataMartSchemaRequestDto,
+    config?: AxiosRequestConfig
+  ): Promise<UpdateDataMartSchemaResponseDto> {
+    return this.put<UpdateDataMartSchemaResponseDto>(`/${id}/schema`, data, {
+      timeout: 180000,
+      ...config,
+    });
+  }
+
+  /**
+   * Check ONE calculated field's formula without saving anything. The backend runs the same rules
+   * the schema save runs, minus the warehouse dry run, so this is safe to call while the analyst
+   * is still typing.
+   *
+   * Silent by construction: `skipLoadingIndicator` (a global spinner for a keystroke is noise) and
+   * `skipErrorToast` (a live check that cannot reach the server shows nothing — the save still
+   * refuses if the formula is genuinely broken). Pass `signal` to cancel a superseded check.
+   *
+   * @param id Data mart ID
+   * @param data The candidate field: its name, its output type, and the formula in STORED form
+   * @param config Optional axios config — `signal` above all
+   * @returns Promise with the violations this formula would produce, errors and warnings apart
+   */
+  async validateFormula(
+    id: string,
+    data: ValidateFormulaRequestDto,
+    config?: AxiosRequestConfig
+  ): Promise<ValidateFormulaResponseDto> {
+    return this.post<ValidateFormulaResponseDto>(`/${id}/schema/validate-formula`, data, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+      ...config,
+    } as AxiosRequestConfig);
   }
 
   /**

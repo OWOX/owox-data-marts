@@ -5,7 +5,7 @@
 Stop shipping reports. Hire a reporting data analyst for each of the team members.
 OWOX Data Marts automates what reporting data analysts do — governed by data teams, consumed by business users with NO AI Hallycinations.
 
-[**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**💬 Slack**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
+[**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
 ## ✨ Why We Built This
 
@@ -175,7 +175,6 @@ We're building this **with the community**, not just for it.
 - Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md)
 - Check [open Issues](https://github.com/OWOX/owox-data-marts/issues)
 - Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
-- Join our [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
 
 Whether you're adding a new connector, improving docs, or fixing a bug — we'll support and spotlight you.
 

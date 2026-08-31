@@ -162,9 +162,7 @@ export class ConnectorService {
       const config = varConfig as OAuthVar;
 
       const isRequired = config.required === true;
-      const isSecret = config.attributes?.includes('SECRET');
-
-      if (isRequired && isSecret && config.store === 'env') {
+      if (isRequired && config.store === 'env') {
         const envValue = process.env[config.key];
         if (!envValue) {
           return false;

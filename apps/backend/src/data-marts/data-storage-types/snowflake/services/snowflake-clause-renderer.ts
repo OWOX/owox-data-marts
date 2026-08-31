@@ -3,6 +3,7 @@ import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-render
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
+import { SnowflakeFieldType } from '../enums/snowflake-field-type.enum';
 
 // Column references (filter/sort columns) are user-controlled (`FilterRule.column` is
 // only `z.string().min(1)`), so they MUST go through the robust shared escaper that
@@ -51,6 +52,24 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return 'VARCHAR';
   }
 
+  // Three entries because `parseSnowflakeFieldType` collapses every numeric spelling into three
+  // declared types upstream. NUMERIC states its scale: it is a synonym of NUMBER, whose default is
+  // (38,0), so a cast to a bare one truncates every fraction. FLOAT stays FLOAT because
+  // Snowflake's is already 64-bit — there is no narrowing here to avoid, unlike Athena's or Spark's.
+  // Documentation-only, all three: the probe's cast shapes (8c/8d) never ran on Snowflake, which
+  // hit its daily credit cap at 18 of 26 cells.
+  private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
+    [SnowflakeFieldType.INTEGER, 'INTEGER'],
+    [SnowflakeFieldType.FLOAT, 'FLOAT'],
+    [SnowflakeFieldType.NUMERIC, 'NUMERIC(38,18)'],
+  ]);
+
+  public override castTypeForDeclaredType(declaredType: string): string | undefined {
+    return SnowflakeClauseRenderer.CAST_TYPE_BY_DECLARED_TYPE.get(
+      declaredType.trim().toUpperCase()
+    );
+  }
+
   protected validateFragment(clause: RenderedClause): void {
     if (clause.params.length !== 0) {
       throw new Error(
@@ -60,11 +79,20 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  private litCast(value: string | number | boolean | null, columnType?: string): string {
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
+  // disjoint from the date set above, since it is only ever a numeric target.
+  private litCast(
+    value: string | number | boolean | null,
+    columnType?: string,
+    valueCastType?: string
+  ): string {
     const l = formatSnowflakeLiteral(value);
-    return columnType && SnowflakeClauseRenderer.DATE_CAST_TYPES.has(columnType)
-      ? `CAST(${l} AS ${columnType})`
-      : l;
+    const castType =
+      valueCastType ??
+      (columnType && SnowflakeClauseRenderer.DATE_CAST_TYPES.has(columnType)
+        ? columnType
+        : undefined);
+    return castType ? `CAST(${l} AS ${castType})` : l;
   }
 
   protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
@@ -87,13 +115,22 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return `DATE_TRUNC('${unit}', ${expr})`;
   }
 
+  // Snowflake's one-argument TRIM strips only the blank space by default; the explicit
+  // set makes tab/CR/LF-only cells blank too, matching the other dialects (#6779).
+  // Snowflake string literals interpret the \t/\n/\r escapes.
+  protected override blankTrimmedExpression(columnRef: string): string {
+    return `TRIM(${columnRef}, ' \\t\\n\\r')`;
+  }
+
   protected renderFilterFragment(
     rule: FilterRule,
     _paramName: string,
     col: string,
-    columnType?: string
+    columnType?: string,
+    valueCastType?: string
   ): RenderedClause {
-    const lit = (v: string | number | boolean | null): string => this.litCast(v, columnType);
+    const lit = (v: string | number | boolean | null): string =>
+      this.litCast(v, columnType, valueCastType);
     const text = (v: string | number | boolean | null): string => formatSnowflakeLiteral(String(v));
     switch (rule.operator) {
       case 'eq':
@@ -132,6 +169,10 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
           sql: `(${col} IS NULL OR REGEXP_INSTR(${col}, ${text(rule.value)}) = 0)`,
           params: [],
         };
+      case 'is_blank':
+      case 'is_not_blank':
+        return this.renderBlankFragment(rule.operator, col, columnType);
+      // Legacy pair (#6779): accepted for saved configs, no longer offered by pickers.
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':

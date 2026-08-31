@@ -94,7 +94,12 @@ export class GoogleSheetsMapper implements DestinationMapper {
     const creds = formData.credentials as GoogleSheetsFormCredentials;
     const serviceAccount = creds.serviceAccount;
 
-    let credentials: CreateDataDestinationRequestDto['credentials'];
+    // Narrowed to this mapper's own variant: the request union now includes a member without
+    // credentials, so indexing the whole union no longer names a single field.
+    let credentials: Extract<
+      CreateDataDestinationRequestDto,
+      { type: DataDestinationType.GOOGLE_SHEETS }
+    >['credentials'];
     if (serviceAccount?.trim()) {
       try {
         credentials = {

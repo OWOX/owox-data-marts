@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { CalculatedFieldConfig } from '../../calculated-fields/calculated-field.utils';
 import { DataMartSchema } from '../data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from '../enums/data-storage-type.enum';
@@ -14,6 +15,7 @@ interface MergeableField {
   aggregationRole?: string;
   allowedAggregations?: string[];
   status?: DataMartSchemaFieldStatus;
+  calculated?: CalculatedFieldConfig;
 }
 
 interface MergeableSchema {
@@ -48,7 +50,7 @@ export abstract class FlatDataMartSchemaMerger implements DataMartSchemaMerger {
     const existing = existingSchema as unknown as MergeableSchema;
     const incoming = newSchema as unknown as MergeableSchema;
 
-    const mergedFields = mergeFlatSchemaFields(existing.fields, incoming.fields);
+    const mergedFields = mergeFlatSchemaFields(existing.fields, incoming.fields, this.logger);
 
     return {
       ...(existingSchema as DataMartSchema),
@@ -59,12 +61,18 @@ export abstract class FlatDataMartSchemaMerger implements DataMartSchemaMerger {
 
 function mergeFlatSchemaFields(
   existing: MergeableField[],
-  incoming: MergeableField[]
+  incoming: MergeableField[],
+  logger: Logger
 ): MergeableField[] {
   const incomingByName = new Map(incoming.map(f => [f.name, f]));
-  const existingNames = new Set(existing.map(f => f.name));
+  const existingByName = new Map(existing.map(f => [f.name, f]));
 
   const updated = existing.map(existingField => {
+    // Actualisation reconciles the schema with the warehouse. A calculated field has no
+    // warehouse counterpart, so comparing it against the incoming set would mark it
+    // DISCONNECTED on every refresh.
+    if (existingField.calculated) return existingField;
+
     const newField = incomingByName.get(existingField.name);
     if (!newField) {
       return { ...existingField, status: DataMartSchemaFieldStatus.DISCONNECTED };
@@ -85,7 +93,21 @@ function mergeFlatSchemaFields(
     };
   });
 
-  const added = incoming.filter(f => !existingNames.has(f.name));
+  const added = incoming.filter(f => {
+    const existingField = existingByName.get(f.name);
+    if (!existingField) return true;
+
+    // The name is taken by a calculated field, which the map above already carried through
+    // untouched. The user's declaration wins the name, but a same-named warehouse column
+    // silently vanishing is not something to hide — surface it instead of dropping it mute.
+    if (existingField.calculated) {
+      logger.warn(
+        `Data Mart field "${f.name}": a warehouse column of this name cannot be surfaced ` +
+          `because a calculated field already holds the name.`
+      );
+    }
+    return false;
+  });
 
   return [...updated, ...added];
 }

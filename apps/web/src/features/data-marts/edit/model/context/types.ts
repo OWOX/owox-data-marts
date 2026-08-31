@@ -3,6 +3,7 @@ import type {
   CreateDataMartRequestDto,
   RunDataMartRequestDto,
   UpdateDataMartRequestDto,
+  FormulaViolationDto,
 } from '../../../shared/types/api';
 import type {
   SchemaGuardRegistration,
@@ -12,7 +13,7 @@ import type {
 import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartDefinitionConfig } from '../types';
-import type { ApiError } from '../../../../../app/api';
+import type { ApiError, AxiosRequestConfig } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { DataMartRunItem } from '../types';
 
@@ -98,7 +99,17 @@ export interface DataMartContextType extends DataMartState {
   runDataMart: (data: RunDataMartRequestDto) => Promise<string | null>;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
-  updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
+  /**
+   * Returns the save's non-blocking calculated-field `warnings` (empty when there are none) so a
+   * caller like `useCalculatedFieldSave` can surface them — the save already succeeded by the
+   * time they arrive. `config` lets a caller opt out of the generic 400 toast (`skipErrorToast`)
+   * when it renders its own, field-grouped error UI instead.
+   */
+  updateDataMartSchema: (
+    id: string,
+    schema: DataMartSchema,
+    config?: AxiosRequestConfig
+  ) => Promise<{ warnings: FormulaViolationDto[] }>;
   getDataMartRuns: (
     id: string,
     limit?: number,

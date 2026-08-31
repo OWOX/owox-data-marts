@@ -15,6 +15,7 @@ interface ConfigurationListRenderProps {
   isEditingExisting: boolean;
   collapsibleTitle?: string;
   connectorName: string;
+  onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void;
 }
 
 function renderItems(
@@ -24,7 +25,8 @@ function renderItems(
   onSecretEditToggle: (name: string, enable: boolean) => void,
   secretEditing: Record<string, boolean>,
   isEditingExisting: boolean,
-  connectorName: string
+  connectorName: string,
+  onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void
 ) {
   return items.map(specification => {
     const isSecret = Array.isArray(specification.attributes)
@@ -42,6 +44,7 @@ function renderItems(
           onValueChange={onValueChange}
           isEditingExisting={isEditingExisting}
           connectorName={connectorName}
+          onManagedOAuthModeChange={onManagedOAuthModeChange}
         />
       );
     }
@@ -71,6 +74,7 @@ export function ConfigurationListRender({
   secretEditing,
   isEditingExisting,
   connectorName,
+  onManagedOAuthModeChange,
 }: ConfigurationListRenderProps) {
   return collapsibleTitle ? (
     <AppWizardCollapsible title={collapsibleTitle}>
@@ -81,7 +85,8 @@ export function ConfigurationListRender({
         onSecretEditToggle,
         secretEditing,
         isEditingExisting,
-        connectorName
+        connectorName,
+        onManagedOAuthModeChange
       )}
     </AppWizardCollapsible>
   ) : (
@@ -92,7 +97,8 @@ export function ConfigurationListRender({
       onSecretEditToggle,
       secretEditing,
       isEditingExisting,
-      connectorName
+      connectorName,
+      onManagedOAuthModeChange
     )
   );
 }

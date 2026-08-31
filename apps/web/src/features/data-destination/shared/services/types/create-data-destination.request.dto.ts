@@ -23,6 +23,16 @@ export type CreateDataDestinationRequestDto =
   | {
       /** Title of the data destination */
       title: string;
+      /**
+       * Type of the data destination. Excel sends no credentials: the add-in authenticates as
+       * the user and reads its own data, so there is no secret for the server to hold.
+       */
+      type: DataDestinationType.EXCEL;
+      ownerIds?: string[];
+    }
+  | {
+      /** Title of the data destination */
+      title: string;
       /** Type of the data destination */
       type: DataDestinationType.LOOKER_STUDIO;
       /** Minimal credentials object for Looker Studio */

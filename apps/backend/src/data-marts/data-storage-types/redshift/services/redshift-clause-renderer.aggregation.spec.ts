@@ -1,6 +1,7 @@
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import { REPORT_AGGREGATE_FUNCTION_TOKENS } from '../../../dto/schemas/aggregation-labels';
 import { UNIQUE_COUNT_LABEL } from '../../../dto/schemas/aggregation-labels';
+import type { ReportAggregateFunction } from '../../../dto/schemas/aggregate-function.schema';
 
 describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', () => {
   const r = new RedshiftClauseRenderer();
@@ -149,6 +150,162 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       });
       expect(out.selectSql).toContain(`COUNT(DISTINCT "session_id") AS "${UNIQUE_COUNT_LABEL}"`);
       expect(out.selectSql).not.toContain('VARCHAR');
+    });
+  });
+
+  // A row-level calculated field is a dimension: its rendered expression is BYTE-IDENTICAL in
+  // SELECT and GROUP BY, and it lands after every column key. Pinned per dialect because
+  // the quoting the two sides share is this dialect's, and a drift between them is a warehouse
+  // error no stub renderer can show.
+  describe('a ROW-LEVEL calculated field', () => {
+    const rowLevel = {
+      outputName: 'session_key',
+      type: 'VARCHAR',
+      // Redshift's CONCAT takes exactly two arguments; a formula is the analyst's own dialect SQL.
+      formula: '{{ref field="session_id"}} || \'-\' || {{ref field="user_id"}}',
+      level: 'column' as const,
+    };
+    const EXPR = '"session_id" || \'-\' || "user_id"';
+
+    it('projects and groups by the same expression, appended after the column keys', () => {
+      const out = r.renderAggregatedSelect(
+        ['channel', 'revenue'],
+        [{ column: 'revenue', function: 'SUM' }],
+        undefined,
+        { calculatedFields: [rowLevel] }
+      );
+
+      expect(out.selectSql).toContain(`${EXPR} AS "session_key"`);
+      expect(out.groupBySql).toBe(`\nGROUP BY\n  "channel",\n  ${EXPR}`);
+      expect(out.groupByParts).toEqual(['"channel"', EXPR]);
+      expect(out.aliasByColumn.get('session_key')).toBe('"session_key"');
+    });
+
+    it('projects it with no grouping contribution on the plain path', () => {
+      expect(r.renderCalculatedSelectItems([rowLevel])).toEqual([`${EXPR} AS "session_key"`]);
+    });
+
+    // And this is the dialect the decision was made on. The probe wrapped a
+    // day-ambiguous string formula in `CAST(… AS DATE)` here and got `2026-05-01` back for a value
+    // meaning the 5th of August: no error, no NULL, just the wrong month. Uncast, the same shape
+    // raises. So the truncation takes the substituted formula bare.
+    it('truncates the whole expression with this dialect spelling, and no CAST', () => {
+      const visitDay = {
+        outputName: 'visit_day',
+        type: 'DATE',
+        formula: 'DATE({{ref field="visit_ts"}})',
+        level: 'column' as const,
+      };
+      const out = r.renderAggregatedSelect(
+        ['channel'],
+        [],
+        new Map([['visit_day', 'MONTH' as const]]),
+        { calculatedFields: [visitDay] }
+      );
+
+      expect(out.selectSql).toBe(
+        '"channel",\n  DATE_TRUNC(\'month\', DATE("visit_ts")) AS "visit_day"'
+      );
+      expect(out.groupByParts).toEqual(['"channel"', 'DATE_TRUNC(\'month\', DATE("visit_ts"))']);
+      expect(out.selectSql).not.toMatch(/CAST/);
+    });
+
+    // Once the report aggregates it, it leaves the grouping keys entirely. Kept as a key
+    // it emits `COUNT(DISTINCT expr) … GROUP BY expr` — 1 on every row, no error, on any
+    // warehouse. The `||` chain this dialect's formula uses is the body that
+    // precedence fix was about, so the parentheses around the substituted expression matter most
+    // here.
+    it('aggregates it under the labelled alias and drops it from the grouping keys', () => {
+      const out = r.renderAggregatedSelect(
+        ['channel'],
+        [
+          { column: 'session_key', function: 'COUNT_DISTINCT' },
+          { column: 'session_key', function: 'STRING_AGG' },
+        ],
+        undefined,
+        { calculatedFields: [{ ...rowLevel, isAggregatedByReport: true }] }
+      );
+
+      expect(out.selectSql).toContain(`COUNT(DISTINCT (${EXPR})) AS "session_key | COUNTUNIQUE"`);
+      // The dialect's own STRING_AGG spelling, over the PARENTHESISED expression.
+      expect(out.selectSql).toContain(
+        `LISTAGG(CAST((${EXPR}) AS VARCHAR), ', ') AS "session_key | STRINGAGG"`
+      );
+      expect(out.groupByParts).toEqual(['"channel"']);
+      expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
+    });
+
+    // The live wrong number, on the dialect that produces it. `SUM` over a text
+    // expression is not an error here: Redshift coerces the varchar to `Decimal` with SCALE 0 and
+    // truncates EVERY ROW before summing, so probe shape 8a returned `12` where `12.75` is right
+    // (its own words on the neighbouring cell: `Invalid digit, Value 'a', Pos 0, Type: Decimal`).
+    // Shape 8c, the same query with the declared type in the cast, returned `12.75` live.
+    describe('the declared type, imposed where the aggregation does arithmetic', () => {
+      // The probe's fixture: two string columns concatenated to '10.5' and '2.25'. Redshift's
+      // CONCAT is binary-only, so a formula here says `||` — the operator that makes the
+      // parentheses around the substituted expression load-bearing.
+      const NUM_EXPR = '"num_prefix" || "num_suffix"';
+      const numericText = {
+        outputName: 'amount',
+        formula: '{{ref field="num_prefix"}} || {{ref field="num_suffix"}}',
+        level: 'column' as const,
+        isAggregatedByReport: true,
+      };
+      const selectFor = (fn: ReportAggregateFunction, type: string): string =>
+        r.renderAggregatedSelect([], [{ column: 'amount', function: fn }], undefined, {
+          calculatedFields: [{ ...numericText, type }],
+        }).selectSql;
+
+      it('SUM stops truncating: probe 8a returned 12 here, 8c returned 12.75', () => {
+        expect(selectFor('SUM', 'DOUBLE PRECISION')).toBe(
+          `SUM(CAST((${NUM_EXPR}) AS DOUBLE PRECISION)) AS "amount | SUM"`
+        );
+      });
+
+      // The scale is the point on this dialect: a bare DECIMAL is (18,0) here, so an unqualified
+      // cast target would re-create the very truncation the cast exists to remove.
+      it('spells the scale on a DECIMAL declaration instead of re-creating scale 0 inside the cast', () => {
+        expect(selectFor('AVG', 'DECIMAL')).toBe(
+          `AVG(CAST((${NUM_EXPR}) AS DECIMAL(38,18))) AS "amount | AVG"`
+        );
+      });
+
+      it('casts inside PERCENTILE_CONT, which reads the value as a number too', () => {
+        expect(selectFor('P50', 'DOUBLE PRECISION')).toBe(
+          `PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CAST((${NUM_EXPR}) AS DOUBLE PRECISION)) ` +
+            `AS "amount | MEDIAN"`
+        );
+      });
+
+      // Same numeric declaration throughout, so a function wrongly added to the arithmetic set
+      // shows up as a second, nested CAST rather than as nothing.
+      it('leaves COUNT_DISTINCT, MIN/MAX, LISTAGG and ANY_VALUE with the SQL they emit today', () => {
+        expect(selectFor('COUNT_DISTINCT', 'DOUBLE PRECISION')).toContain(
+          `COUNT(DISTINCT (${NUM_EXPR}))`
+        );
+        expect(selectFor('MIN', 'DOUBLE PRECISION')).toContain(`MIN((${NUM_EXPR}))`);
+        expect(selectFor('MAX', 'DOUBLE PRECISION')).toContain(`MAX((${NUM_EXPR}))`);
+        expect(selectFor('STRING_AGG', 'DOUBLE PRECISION')).toContain(
+          `LISTAGG(CAST((${NUM_EXPR}) AS VARCHAR), ', ')`
+        );
+        expect(selectFor('ANY_VALUE', 'DOUBLE PRECISION')).toContain(`ANY_VALUE((${NUM_EXPR}))`);
+      });
+
+      // The no-op half: a declaration this dialect states no cast target for emits exactly the
+      // SQL it emits today — including, deliberately, the truncating one.
+      it('emits no cast for a declared type this dialect states no target for', () => {
+        expect(selectFor('SUM', 'VARCHAR')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
+      });
+
+      // An INTEGER declaration is refused a cast although this dialect states a target for
+      // it. Casting would ROUND every row before summing here — the per-row conversion this slice
+      // exists to remove, and one Spark spells as truncation instead.
+      it('never casts an INTEGER declaration, though the mapping states a target for it', () => {
+        expect(r.castTypeForDeclaredType('INTEGER')).toBe('INTEGER');
+        expect(selectFor('SUM', 'INTEGER')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
+        expect(selectFor('SUM', 'BIGINT')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
+        expect(selectFor('SUM', 'SMALLINT')).toBe(`SUM((${NUM_EXPR})) AS "amount | SUM"`);
+      });
     });
   });
 });

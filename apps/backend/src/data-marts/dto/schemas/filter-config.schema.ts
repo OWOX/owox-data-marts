@@ -58,7 +58,13 @@ const ScalarOperatorEnum = z.enum([
   'not_regex',
 ]);
 
+// is_blank/is_not_blank are the only null/empty operators new configs are offered
+// ("the cell looks empty": NULL, '' and whitespace-only on strings, NULL elsewhere).
+// is_empty/is_not_empty/is_null/is_not_null stay accepted for configs saved before
+// the merge — pickers no longer offer them (#6779).
 const NoValueOperatorEnum = z.enum([
+  'is_blank',
+  'is_not_blank',
   'is_empty',
   'is_not_empty',
   'is_null',

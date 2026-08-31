@@ -133,6 +133,33 @@ describe('ConnectorService', () => {
     });
   });
 
+  describe('isOAuthEnabled', () => {
+    const envKey = 'GOOGLE_CLIENT_ID';
+    const originalValue = process.env[envKey];
+
+    afterEach(() => {
+      if (originalValue === undefined) {
+        delete process.env[envKey];
+      } else {
+        process.env[envKey] = originalValue;
+      }
+    });
+
+    it('requires every required environment variable, including UI variables', async () => {
+      const { service } = createService();
+      delete process.env[envKey];
+
+      await expect(service.isOAuthEnabled('TestConnector', 'AuthType.oauth2')).resolves.toBe(false);
+    });
+
+    it('enables OAuth when all required environment variables are configured', async () => {
+      const { service } = createService();
+      process.env[envKey] = 'client-id';
+
+      await expect(service.isOAuthEnabled('TestConnector', 'AuthType.oauth2')).resolves.toBe(true);
+    });
+  });
+
   describe('validateConnectorExists (via getConnectorSpecification)', () => {
     it('throws for unknown connector name', async () => {
       const { service } = createService();

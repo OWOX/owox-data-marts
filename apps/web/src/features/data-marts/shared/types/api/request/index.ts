@@ -17,3 +17,4 @@ export * from './sql-validation-request.dto';
 export * from './run-data-mart.request.dto';
 export * from './create-ai-helper-trigger.request.dto';
 export * from '../shared/data-mart-metadata-scope.enum';
+export * from './validate-formula.request.dto';

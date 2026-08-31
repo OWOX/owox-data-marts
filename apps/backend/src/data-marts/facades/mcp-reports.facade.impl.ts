@@ -27,7 +27,8 @@ import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/cr
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import type { ReportDto } from '../dto/domain/report.dto';
-import { collectSchemaFieldPaths } from '../data-storage-types/data-mart-schema.utils';
+import { collectSchemaFieldPathDescriptors } from '../data-storage-types/data-mart-schema.utils';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import { joinedUniqueCountSources } from '../dto/schemas/unique-count-sources';
@@ -690,6 +691,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       dateTruncConfig: request.dateTruncConfig ?? null,
       uniqueCountConfig: null,
       accessor: { userId: request.userId, roles: request.roles },
+      dataMartSchemaFields: dataMart.schema?.fields,
     });
   }
 
@@ -704,13 +706,22 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * mapping it to null would make such a report impossible to update at all. Materialize the
    * data mart's reportable columns instead, exactly as the web picker does when a joined
    * source's Unique Count is toggled on while the selection is still implicit (#6792).
+   *
+   * A CALCULATED FIELD is excluded from that materialization: one enters a query only when
+   * someone selects it BY NAME, so `['*']` must never turn into one. This path is
+   * reached exactly when the report has a joined Unique Count — i.e. exactly when it is blended,
+   * where a selected calculated field is refused — so an agent's otherwise innocuous "keep all
+   * fields" update would persist one that fails every later run. The sibling create path maps
+   * `['*']` to `null` and so cannot select one at all; this keeps the two in agreement.
    */
   private toUpdatedColumnConfig(fields: string[], current: ReportDto): ReportColumnConfig {
     const columnConfig = this.toColumnConfig(fields);
     if (columnConfig !== null || joinedUniqueCountSources(current.uniqueCountConfig).length === 0) {
       return columnConfig;
     }
-    const expanded = collectSchemaFieldPaths(current.dataMart.schema?.fields ?? []);
+    const expanded = collectSchemaFieldPathDescriptors(current.dataMart.schema?.fields ?? [])
+      .filter(descriptor => !isCalculatedField(descriptor.field))
+      .map(descriptor => descriptor.name);
     // An empty expansion is an explicit "project nothing", which the validator accepts as a
     // legitimate metrics-only selection — so "all fields" would silently save as "no dimensions"
     // and the report would come back with only its Unique Count columns.

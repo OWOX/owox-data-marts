@@ -45,7 +45,8 @@ import {
 } from './report-execution-policy.resolver';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
-import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import {
   SourceDataLastUpdated,
   unavailableSourceDataLastUpdated,
@@ -272,16 +273,23 @@ export class RunReportService {
 
       let sqlOverride: string | undefined;
       let sqlOverrideParams: SqlParameter[] | undefined;
+      let calculatedFields: CalculatedFieldPlan[] | undefined;
       if (blendingDecision.needsBlending) {
         sqlOverride = blendingDecision.blendedSql;
         sqlOverrideParams = blendingDecision.params;
+        calculatedFields = blendingDecision.calculatedFields;
       } else if (hasOutputControls(report)) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics.
         const composed = await this.reportSqlComposerService.compose(report, accessor);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
+        calculatedFields = composed.calculatedFields;
       }
+      const columnFilter = columnFilterWithoutCalculatedFields(
+        blendingDecision.columnFilter,
+        calculatedFields
+      );
 
       // Persist the exact executed SQL (output controls applied, params inlined as
       // literals — same render as the generated-SQL preview) onto the run record so
@@ -309,12 +317,13 @@ export class RunReportService {
       const reportDataDescription = await reportReader.prepareReportData(report, {
         sqlOverride,
         sqlOverrideParams,
-        columnFilter: blendingDecision.columnFilter,
+        columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
         aggregationConfig: blendingDecision.aggregations ?? report.aggregationConfig ?? undefined,
         uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
         primaryKeyColumns: blendingDecision.primaryKeyColumns,
         uniqueCountSources: blendingDecision.uniqueCountSources,
+        calculatedFields,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
 

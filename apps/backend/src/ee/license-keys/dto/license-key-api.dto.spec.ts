@@ -35,6 +35,13 @@ describe('LicenseConsumptionRequestDto', () => {
       dataDestinationId: 'destination-1',
       dataDestinationType: DataDestinationType.LOOKER_STUDIO,
     },
+    [RunKind.EXCEL_REPORT_RUN]: {
+      ...basePayload,
+      reportId: 'report-1',
+      reportRunId: 'run-1',
+      dataDestinationId: 'destination-1',
+      dataDestinationType: DataDestinationType.EXCEL,
+    },
     [RunKind.EMAIL_BASED_REPORT_RUN]: {
       ...basePayload,
       reportId: 'report-1',

@@ -1,6 +1,7 @@
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DataMartSchema, DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   QueryBuildResult,
@@ -1075,7 +1076,10 @@ function collectFieldList(
 ): DataQualityFieldDescriptor[] {
   const result: DataQualityFieldDescriptor[] = [];
   for (const field of fields) {
-    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    // A calculated field has no warehouse column behind it, so no compiled check may reference
+    // it — it is withheld here the same way a DISCONNECTED field already is.
+    if (isCalculatedField(field) || field.status === DataMartSchemaFieldStatus.DISCONNECTED)
+      continue;
     const path = [...prefix, field.name];
     result.push({
       path,
@@ -1103,7 +1107,9 @@ function collectTopLevelMaterializedFields(
 ): DataQualityFieldDescriptor[] {
   if (!schema) return [];
   return (schema.fields as readonly DataMartSchemaField[])
-    .filter(field => field.status !== DataMartSchemaFieldStatus.DISCONNECTED)
+    .filter(
+      field => !isCalculatedField(field) && field.status !== DataMartSchemaFieldStatus.DISCONNECTED
+    )
     .map(field => ({
       path: [field.name],
       type: String(field.type),

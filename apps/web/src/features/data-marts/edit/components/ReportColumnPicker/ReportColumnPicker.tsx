@@ -1,5 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
@@ -12,11 +11,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { AlertTriangle, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
-import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
+import { useBlendableSchema } from '../../../shared/hooks/useBlendableSchema';
 import type {
   AvailableSource,
-  BlendableSchema,
   BlendedField,
   BlendedGroup,
   NativeField,
@@ -43,6 +40,7 @@ import { OutputSettingsDropdown } from './OutputSettingsDropdown';
 import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
+import type { AggregationDropdownColumn } from './AggregationSettingsDropdown';
 import { fieldDisplayLabel } from './output-controls-display';
 import {
   buildJoinedUniqueCountColumnName,
@@ -62,8 +60,10 @@ import {
 import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
-import { isFilterableType } from './output-controls-operators';
+import { effectiveComparisonType, isFilterableType } from './output-controls-operators';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
+import { describeMissingReferences } from '../../../shared/utils/calculated-field-issues';
+import { isRowLevelCalculatedField } from '../../../shared/utils/calculated-field-level';
 import type { AggregationDraft } from './AggregationEditorPopover';
 import {
   applyAggregationDraft,
@@ -81,16 +81,25 @@ import { PathTree } from './FieldSearchPicker';
 function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] {
   const result: NativeField[] = [];
   for (const field of fields) {
-    if (field.isHiddenForReporting || field.status === 'DISCONNECTED') continue;
+    // A calculated field carries a warehouse-derived status that means nothing for it (mirrors
+    // the backend's own carve-out in `blendable-schema.service.ts`'s `flattenSchemaFields`) — it
+    // is never sourced from the warehouse, so DISCONNECTED must not hide it.
+    // `isHiddenForReporting` still applies to it: that is a real, separate governance
+    // choice, not a warehouse-status artifact.
+    if (field.isHiddenForReporting) continue;
+    if (!field.calculated && field.status === 'DISCONNECTED') continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     result.push({
       name: fullName,
-      type: field.type,
+      // A REPEATED field's element type is not its comparison type — mark it as
+      // ARRAY<T> so the operator menus mirror the backend validator (#6779).
+      type: field.type ? effectiveComparisonType(field.type, field.mode) : field.type,
       alias: field.alias,
       description: field.description,
       isPrimaryKey: field.isPrimaryKey,
       aggregationRole: field.aggregationRole,
       allowedAggregations: field.allowedAggregations,
+      calculated: field.calculated,
     });
     if (field.fields && Array.isArray(field.fields)) {
       result.push(...flattenNativeFields(field.fields, fullName));
@@ -152,15 +161,25 @@ export interface ReportColumnPickerProps {
   outputConfig?: OutputConfig;
   /**
    * `isRepair` marks a change the picker made on its OWN initiative — reconciling a stored config
-   * against a schema that moved under it, not an edit the user performed. Forms must apply it
-   * without marking themselves dirty, or merely opening a report raises an "unsaved changes" guard.
-   * It carries the keys it actually rewrote: the whole config is always passed, but a form that
-   * stores each key separately must not take an untouched one from it — the picker widens an
-   * unset control to `[]` for its own use, and writing that back is a change the user never made.
+   * against a schema that moved under it. Forms must apply it without marking themselves dirty, or
+   * merely opening a report raises an "unsaved changes" guard.
+   *
+   * It carries the keys it actually rewrote: the picker widens an unset control to `[]` for its own
+   * use, and a form that stores keys separately must not write that back.
    */
   onOutputConfigChange?: (config: OutputConfig, options?: OutputConfigRepairOptions) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
+
+/**
+ * One column list feeds both dropdowns; each shape declares only the flags its surfaces read.
+ * All three calculated-field flags are REQUIRED here, so a branch that builds a column without
+ * deciding them fails to compile instead of silently reading as an ordinary column.
+ */
+type DropdownColumn = OutputSettingsDropdownColumn &
+  AggregationDropdownColumn &
+  Required<Pick<OutputSettingsDropdownColumn, 'isJoinedCalculated'>> &
+  Required<Pick<AggregationDropdownColumn, 'isCalculated' | 'isAggregateLevelCalculated'>>;
 
 type ToggleFieldFn = (name: string, checked: boolean) => void;
 type AddFilterFn = (rule: FilterRule) => void;
@@ -184,6 +203,10 @@ interface ColumnAggregation {
   functions: readonly ReportAggregateFunction[];
   bucket: DateTruncUnit | null;
   timeZone: string | null;
+  /** False only for an aggregate-level calculated field — see `dropdownColumns`. */
+  allowDateBucket: boolean;
+  /** False for EITHER level of calculated field — see `dropdownColumns`. */
+  allowBucketTimeZone: boolean;
 }
 
 function renderRowAggregationIcon(
@@ -202,6 +225,8 @@ function renderRowAggregationIcon(
       displayLabel={displayLabel}
       dataMartName={dataMartName}
       allowedAggregations={agg.allowed}
+      allowDateBucket={agg.allowDateBucket}
+      allowBucketTimeZone={agg.allowBucketTimeZone}
       activeFunctions={agg.functions}
       activeBucket={agg.bucket}
       activeTimeZone={agg.timeZone}
@@ -223,7 +248,24 @@ interface NativeFieldRowProps {
   onReplaceFilterAt?: ReplaceFilterAtFn;
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
+  /**
+   * This metric's own broken-reference names — its formula names a field the schema no
+   * longer has. `undefined`/empty means fine. Only consulted for a `field.calculated` row.
+   */
+  brokenReferences?: readonly string[];
 }
+
+/**
+ * A broken calculated field blocks a NEW selection with a hint: `aria-disabled`, never the
+ * `disabled` attribute, which would drop the control out of the tab order and take the explanation
+ * with it, plus a focusable `TooltipTrigger` so the hint reaches keyboard and screen-reader users.
+ *
+ * An already-CHECKED row stays clickable, unlike `UniqueCountRow`, whose own effect prunes a stale
+ * entry. A calculated field's selection lives in the plain `columnConfig` array that nothing else
+ * prunes, so blocking the checkbox would leave a report stuck with no way to clear it.
+ */
+const CALCULATED_FIELD_TRIGGER_BASE_CLASS =
+  'min-w-0 truncate text-left font-mono text-xs underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded';
 
 const NativeFieldRow = memo(function NativeFieldRow({
   field,
@@ -236,7 +278,9 @@ const NativeFieldRow = memo(function NativeFieldRow({
   onReplaceFilterAt,
   aggregation,
   onApplyAggregation,
+  brokenReferences,
 }: NativeFieldRowProps) {
+  const noteId = useId();
   const aggIcon =
     checked &&
     renderRowAggregationIcon(
@@ -266,17 +310,35 @@ const NativeFieldRow = memo(function NativeFieldRow({
       }
     />
   );
-  return (
-    <label className='group/row hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
-      <Checkbox
-        checked={checked}
-        onCheckedChange={c => {
-          onToggleField(field.name, c === true);
-        }}
-      />
-      <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
-        {field.alias ?? field.name}
-      </span>
+
+  const isCalculated = !!field.calculated;
+  const missing = isCalculated ? (brokenReferences ?? []) : [];
+  // The naming sentence is shared with the Data Mart's own output schema, which words the same
+  // verdict; only the call to action differs — a report's reader cannot fix the formula.
+  const missingDescription = describeMissingReferences(missing);
+  const hint = missingDescription
+    ? `${missingDescription}\nReach your analyst to fix it.`
+    : undefined;
+  const blocksToggle = !!hint && !checked;
+  const displayName = field.alias ?? field.name;
+  const describedText = hint ? [hint, field.description].filter(Boolean).join('\n') : undefined;
+
+  const checkbox = (
+    <Checkbox
+      checked={checked}
+      className={cn(blocksToggle && 'cursor-not-allowed opacity-50')}
+      aria-label={hint ? displayName : undefined}
+      aria-disabled={blocksToggle ? true : undefined}
+      aria-describedby={describedText ? noteId : undefined}
+      onCheckedChange={c => {
+        if (blocksToggle) return;
+        onToggleField(field.name, c === true);
+      }}
+    />
+  );
+
+  const rowChildren = (
+    <>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       {/* Fixed height: the actions are conditional, and a row that shows none would otherwise
           sit shorter than its neighbours and grow the moment one appears. */}
@@ -285,7 +347,65 @@ const NativeFieldRow = memo(function NativeFieldRow({
         {aggIcon}
         {filterIcon}
       </span>
-    </label>
+    </>
+  );
+
+  // No hint: identical shape to every other plain field row (one <label> wrapping everything),
+  // so this is the only branch most rows — and every existing row query in this file — ever hit.
+  if (!hint) {
+    return (
+      <label
+        data-slot='native-field-row'
+        className='group/row hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'
+      >
+        {checkbox}
+        <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
+          {displayName}
+        </span>
+        {rowChildren}
+      </label>
+    );
+  }
+
+  // Hinted (a broken formula): a <div>, not a <label> — a label may own exactly one labelable
+  // control, and the checkbox is already it; the trigger below is a second one. Same reasoning,
+  // same shape, as `UniqueCountRow`.
+  return (
+    <>
+      <div
+        data-slot='native-field-row'
+        className='group/row hover:bg-muted/50 flex min-w-0 items-center gap-2 rounded px-1 py-1'
+      >
+        {checkbox}
+        <Tooltip>
+          <TooltipTrigger
+            type='button'
+            title={field.name}
+            className={cn(CALCULATED_FIELD_TRIGGER_BASE_CLASS, 'text-destructive')}
+            {...(blocksToggle
+              ? {}
+              : {
+                  onClick: () => {
+                    onToggleField(field.name, !checked);
+                  },
+                })}
+          >
+            {displayName}
+          </TooltipTrigger>
+          <TooltipContent side='top' className='max-w-xs whitespace-pre-line'>
+            {hint}
+          </TooltipContent>
+        </Tooltip>
+        {rowChildren}
+      </div>
+      {/* Outside the row on purpose: inside the trigger it would be read a second time as part of
+          its accessible name. */}
+      {describedText && (
+        <span id={noteId} className='sr-only whitespace-pre-line'>
+          {describedText}
+        </span>
+      )}
+    </>
   );
 });
 
@@ -311,6 +431,19 @@ interface BlendedFieldRowProps {
   removeOnly?: boolean;
 }
 
+/**
+ * Why a joined Data Mart's formula is refused here, in the words the backend's own refusal uses
+ * (`joinedCalculatedFieldRefusals`). The refusal covers every surface a report can name a column on
+ * — projection, filter, sort, aggregation, date bucket — so the row may only ever clear one.
+ */
+function joinedCalculatedHint(dataMartName: string): string {
+  return (
+    `A calculated field of ${dataMartName}: its formula belongs to that Data Mart and is not ` +
+    'available here, so this report can only read that Data Mart’s real columns.\n' +
+    'Remove it from the report, or add the same calculation to this Data Mart.'
+  );
+}
+
 const BlendedFieldRow = memo(function BlendedFieldRow({
   field,
   checked,
@@ -326,12 +459,18 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   hoverClassName = 'hover:bg-muted/50',
   removeOnly = false,
 }: BlendedFieldRowProps) {
-  const effectiveAddFilter = removeOnly ? undefined : onAddFilter;
-  const effectiveReplaceFilter = removeOnly ? undefined : onReplaceFilterAt;
+  const noteId = useId();
   const dataMartName = field.outputPrefix.trim() || field.sourceDataMartTitle;
+  const hint = field.isCalculated === true ? joinedCalculatedHint(dataMartName) : undefined;
+  // Same shape as an inaccessible source's row: every path that could CREATE a reference is closed,
+  // every path that removes one stays open — a saved selection is the analyst's to clear, and
+  // nothing else prunes `columnConfig` for them.
+  const isRemoveOnly = removeOnly || !!hint;
+  const effectiveAddFilter = isRemoveOnly ? undefined : onAddFilter;
+  const effectiveReplaceFilter = isRemoveOnly ? undefined : onReplaceFilterAt;
   const aggIcon =
     checked &&
-    !removeOnly &&
+    !isRemoveOnly &&
     renderRowAggregationIcon(
       field.name,
       field.type,
@@ -378,23 +517,30 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
         }}
       />
     ) : null;
-  return (
-    <label
-      className={cn(
-        'group/row flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
-        hoverClassName
-      )}
-    >
-      <Checkbox
-        checked={checked}
-        disabled={removeOnly && !checked}
-        onCheckedChange={c => {
-          onToggleField(field.name, c === true);
-        }}
-      />
-      <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
-        {field.alias || field.originalFieldName}
-      </span>
+  const displayName = field.alias || field.originalFieldName;
+  const blocksToggle = !!hint && !checked;
+  const describedText = hint ? [hint, field.description].filter(Boolean).join('\n') : undefined;
+
+  const checkbox = (
+    <Checkbox
+      checked={checked}
+      // `aria-disabled` where the refusal has something to say, and the `disabled` attribute only
+      // where it does not: `disabled` drops the control out of the tab order and takes the
+      // explanation with it. Same split `NativeFieldRow` and `UniqueCountRow` make.
+      disabled={removeOnly && !hint && !checked}
+      className={cn(blocksToggle && 'cursor-not-allowed opacity-50')}
+      aria-label={hint ? displayName : undefined}
+      aria-disabled={blocksToggle ? true : undefined}
+      aria-describedby={describedText ? noteId : undefined}
+      onCheckedChange={c => {
+        if (blocksToggle) return;
+        onToggleField(field.name, c === true);
+      }}
+    />
+  );
+
+  const rowChildren = (
+    <>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       {/* Fixed height: the actions are conditional, and a row that shows none would otherwise
           sit shorter than its neighbours and grow the moment one appears. */}
@@ -403,7 +549,67 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
         {aggIcon}
         {filterIcon}
       </span>
-    </label>
+    </>
+  );
+
+  // No hint: the shape every joined row has always had, one <label> wrapping everything.
+  if (!hint) {
+    return (
+      <label
+        data-slot='blended-field-row'
+        className={cn(
+          'group/row flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
+          hoverClassName
+        )}
+      >
+        {checkbox}
+        <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
+          {displayName}
+        </span>
+        {rowChildren}
+      </label>
+    );
+  }
+
+  // Hinted: a <div>, not a <label> — a label may own exactly one labelable control and the
+  // checkbox is already it. Same shape, same reasoning, as `NativeFieldRow`'s hinted branch.
+  return (
+    <>
+      <div
+        data-slot='blended-field-row'
+        className={cn(
+          'group/row flex min-w-0 items-center gap-2 rounded px-1 py-1',
+          hoverClassName
+        )}
+      >
+        {checkbox}
+        <Tooltip>
+          <TooltipTrigger
+            type='button'
+            title={field.name}
+            className={CALCULATED_FIELD_TRIGGER_BASE_CLASS}
+            {...(blocksToggle
+              ? {}
+              : {
+                  onClick: () => {
+                    onToggleField(field.name, !checked);
+                  },
+                })}
+          >
+            {displayName}
+          </TooltipTrigger>
+          <TooltipContent side='top' className='max-w-xs whitespace-pre-line'>
+            {hint}
+          </TooltipContent>
+        </Tooltip>
+        {rowChildren}
+      </div>
+      {/* Outside the row on purpose: inside the trigger it would be read a second time as part of
+          its accessible name. */}
+      <span id={noteId} className='sr-only whitespace-pre-line'>
+        {describedText}
+      </span>
+    </>
   );
 });
 
@@ -604,28 +810,28 @@ export function ReportColumnPicker({
     setActivePanel(current => (current === panel ? null : panel));
   };
 
-  const { data: schema, isLoading } = useQuery({
-    queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
-    // `getBlendableSchema` CASTS its response rather than mapping it, so the declared shape is a
-    // claim about the wire, not a fact: an older or partial payload arrives with an array missing
-    // and the first unguarded `for…of` takes the whole picker down through the error boundary.
-    // Normalized once here so every reader below can trust the three arrays it is typed to hold.
-    queryFn: async (): Promise<BlendableSchema> => {
-      const raw = (await dataMartRelationshipService.getBlendableSchema(
-        dataMartId
-      )) as Partial<BlendableSchema>;
-      return {
-        ...raw,
-        nativeFields: raw.nativeFields ?? [],
-        blendedFields: raw.blendedFields ?? [],
-        availableSources: raw.availableSources ?? [],
-      } as BlendableSchema;
-    },
-    enabled: !!dataMartId,
-  });
+  const { data: schema, isLoading } = useBlendableSchema(dataMartId);
 
   const nativeFields = useMemo<NativeField[]>(
     () => (schema ? flattenNativeFields(schema.nativeFields as NativeField[]) : []),
+    [schema]
+  );
+
+  // Every native field that is calculated, by NAME, so consumers below can test membership without
+  // re-walking the schema. Declared early because several of them read it in a dependency array,
+  // which is evaluated at render time rather than when the callback runs.
+  const calculatedFieldNames = useMemo(
+    () => new Set(nativeFields.filter(f => f.calculated).map(f => f.name)),
+    [nativeFields]
+  );
+
+  // The backend's own verdict, not a client-side re-derivation: `brokenReferencesOf`
+  // resolves a formula against the Data Mart's RAW schema, deliberately keeping a field hidden for
+  // reporting as a valid reference — this picker's own `nativeFields` has already had those
+  // stripped, so reproducing the check here would misreport every metric over a hidden column as
+  // broken. Keyed by field name; a metric absent from the map has no issue.
+  const calculatedFieldIssuesByName = useMemo(
+    () => new Map((schema?.calculatedFieldIssues ?? []).map(issue => [issue.field, issue.missing])),
     [schema]
   );
 
@@ -640,14 +846,13 @@ export function ReportColumnPicker({
   );
   const hasReportablePrimaryKey = mainPrimaryKeyFields.length > 0;
 
-  // Why each source can or cannot offer the Unique Count metric. Kept in two separately-typed
-  // holders, not one map: the main mart and a joined source are decided by different backend rules
+  // Why each source can or cannot offer the Unique Count metric. Two separately-typed holders
+  // rather than one map: the main mart and a joined source are decided by different backend rules
   // that share vocabulary, and only the tagged states keep one from being stored as the other.
-  // Absent (no schema / not in `availableSources`) = absent from the schema, which is what pruning
-  // acts on. Excluded sources stay on purpose — pruning is for a source the SCHEMA lost, and an
-  // exclusion is reversible. Unlike a selected COLUMN of an excluded source (still projected), the
-  // excluded source's Unique Count IS dropped by the backend, so its row keeps rendering (see
-  // groupedBlendedFields) to say so and to let the user clear it.
+  //
+  // Absent means absent from the schema, which is what pruning acts on. EXCLUDED sources stay —
+  // exclusion is reversible — but the backend does drop an excluded source's Unique Count, so its
+  // row keeps rendering to say so and let the user clear it.
   const mainUniqueCount = useMemo<MainUniqueCountState | undefined>(
     () =>
       schema
@@ -707,9 +912,14 @@ export function ReportColumnPicker({
     return schema.blendedFields.filter(f => includedPaths.has(f.aliasPath) && !f.isHidden);
   }, [schema, includedPaths]);
 
+  // A null `value` means "every native column, implicitly", and the backend's own implicit-all
+  // resolution excludes every calculated field — one is composed only when asked for BY NAME.
+  // Mirrored here because a metric ticked-but-not-selected would render checked while the backend
+  // emits no such column, and would be written into `columnConfig` by the materialization effects
+  // below, turning an unrelated action into a selection nobody asked for.
   const effectiveValue = useMemo<string[]>(() => {
     if (value !== null) return value;
-    return nativeFields.map(f => f.name);
+    return nativeFields.filter(f => !f.calculated).map(f => f.name);
   }, [value, nativeFields]);
 
   const effectiveValueSet = useMemo(() => new Set(effectiveValue), [effectiveValue]);
@@ -730,21 +940,17 @@ export function ReportColumnPicker({
     return names;
   }, [nativeFields, schema]);
 
-  // Unique Count requires a primary key. If a source's PK is later removed, its row goes
-  // disabled, yet the stored source key keeps round-tripping on every save and the backend
-  // rejects (main) or silently drops (joined) it — a trap the user cannot escape through the UI.
-  // Once the schema has loaded, drop the sources that can no longer supply the metric and KEEP
-  // the rest: clearing the whole list would wipe selections that are still perfectly valid.
-  // Gated on `schema` so the empty pre-load field list never clears a legitimate config, and on
-  // `uniqueCountCanKeep` so an availability value the client cannot read never removes anything.
+  // Unique Count requires a primary key, and a source whose PK is later removed keeps
+  // round-tripping its stored key on every save while the backend rejects or silently drops it — a
+  // trap the user cannot escape through the UI. Only the sources that can no longer supply the
+  // metric are dropped; clearing the whole list would wipe selections that are still valid.
   //
-  // A sort rule on a source this repair DROPS is stranded and goes with it: once the name leaves
-  // `uniqueCountConfig` the validator stops treating it as selected, so every later save 400s.
-  // Keyed off the DROPPED sources and nothing else. An EXCLUDED source keeps its config entry
-  // (above), the validator keeps accepting its name deliberately, and the run path drops the rule
-  // in memory per run without persisting — so pruning that one here would silently delete a rule
-  // the user never asked to lose and cannot restore by re-including the source.
-  // Skipped when a real field owns the name — then the rule refers to that field, not the metric.
+  // A sort rule on a DROPPED source goes with it: once the name leaves `uniqueCountConfig` the
+  // validator stops treating it as selected and every later save 400s. Keyed off the dropped
+  // sources alone — an EXCLUDED source keeps its entry, so pruning its rule here would delete
+  // something the user never asked to lose and cannot restore by re-including the source.
+  //
+  // Skipped when a real field owns the name — the rule then refers to that field, not the metric.
   //
   // Flagged `isRepair` because none of this is a user edit: it happens on open, before anyone has
   // touched the form. Marking the form dirty for it both raises a false "unsaved changes" guard and
@@ -829,6 +1035,10 @@ export function ReportColumnPicker({
   const knownSliceKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const f of schema?.blendedFields ?? []) {
+      // Same exclusion as the Slices picker above, and it has to be here too: a slice rule on a
+      // joined calculated field can never be saved, so counting it as KNOWN is what kept
+      // `unresolvedSlices` silent about a report that already carries one.
+      if (f.isCalculated === true) continue;
       if (!f.isHidden) keys.add(f.name);
     }
     return keys;
@@ -977,6 +1187,12 @@ export function ReportColumnPicker({
   const filterableTypeFor = useCallback(
     (fieldName: string): string | undefined => {
       if (!outputControlsAvailable) return undefined;
+      // A calculated field of THIS Data Mart is filterable at either level: the
+      // refusal that used to stand here described a SELECT-list alias, but a predicate's left-hand
+      // side is the formula itself. The declared type is returned untouched — the operator menu is
+      // the one the type resolves to, exactly as for an ordinary column. A JOINED Data
+      // Mart's formula is refused instead by `BlendedFieldRow`'s remove-only path, which keeps an
+      // already-saved rule clearable; suppressing its type here would take that away too.
       const t = fieldTypeByName.get(fieldName);
       if (!t) return undefined;
       return isFilterableType(t) ? t : undefined;
@@ -1056,6 +1272,12 @@ export function ReportColumnPicker({
     for (const field of schema.blendedFields) {
       const entry = byPath.get(field.aliasPath);
       if (!entry || !field.type || field.isHidden) continue;
+      // A JOINED Data Mart's calculated field is refused on every report surface, and the backend
+      // says so with JOINED_CALCULATED_FIELD_UNSUPPORTED. Without this the Slices picker offered
+      // one, it looked healthy all the way through Apply, and only Save failed — every other
+      // surface in this file decides `isCalculated` explicitly, and this loop was the one that
+      // never had to.
+      if (field.isCalculated === true) continue;
       entry.dataMartName ??= field.outputPrefix.trim() || field.sourceDataMartTitle;
       entry.columns.push({
         id: field.name,
@@ -1077,23 +1299,46 @@ export function ReportColumnPicker({
     return Array.from(byPath.values()).filter(s => s.columns.length > 0);
   }, [schema]);
 
-  const dropdownColumns = useMemo<OutputSettingsDropdownColumn[]>(() => {
-    const cols: OutputSettingsDropdownColumn[] = [];
+  const dropdownColumns = useMemo<DropdownColumn[]>(() => {
+    const cols: DropdownColumn[] = [];
     for (const f of nativeFields) {
       if (f.type) {
+        // An AGGREGATE-level formula already IS an aggregate: not a dimension, so it is offered
+        // neither an aggregation nor a date bucket. Both refusals are permanent for that level.
+        const isAggregateLevelCalculated =
+          !!f.calculated && !isRowLevelCalculatedField(f.calculated);
         cols.push({
           name: f.name,
           type: f.type,
           label: fieldDisplayLabel(f.alias, f.name),
           path: f.name.split('.'),
           aggregationRole: f.aggregationRole,
-          allowedAggregations: f.allowedAggregations,
+          // The empty set is forced rather than passed through from `f.allowedAggregations`
+          // (usually unset, which would fall back to the type-derived default and offer one
+          // anyway). A ROW-LEVEL field is a dimension a report may aggregate, so it
+          // resolves like any other column. This override gates the per-row Σ icon and the
+          // field's entry in the Aggregations panel's "add" picker.
+          allowedAggregations: isAggregateLevelCalculated ? [] : f.allowedAggregations,
+          isAggregateLevelCalculated,
+          // Level-agnostic, and gates the bucket TIME ZONE alone — a row-level
+          // formula buckets like the column beside it and is still refused the zone.
+          isCalculated: !!f.calculated,
+          // This Data Mart's own formula, so filterable at either level.
+          isJoinedCalculated: false,
         });
       }
     }
     for (const f of includedBlendedFields) {
       if (!f.type) continue;
       if (!availableSourceByPath.get(f.aliasPath)?.isAccessibleForReporting) continue;
+      // No LEVEL travels with a joined formula, and none is needed: the backend refuses one on
+      // EVERY surface a report can name a column on, whichever level it turned out to be. So all
+      // three flags are raised together, and the aggregation sets are forced empty rather than
+      // left to the type-derived default — an entry offering nothing is what keeps it out of the Σ
+      // menu and out of the Aggregations panel's own picker. `isCalculated` is required on the
+      // wire; absent only on a response cached before it existed, which reads as an ordinary
+      // column.
+      const isCalculated = f.isCalculated === true;
       cols.push({
         name: f.name,
         type: f.type,
@@ -1101,8 +1346,11 @@ export function ReportColumnPicker({
         dataMartName: f.outputPrefix.trim() || f.sourceDataMartTitle,
         path: [...f.aliasPath.split('.'), f.originalFieldName],
         aggregationRole: f.aggregationRole,
-        allowedAggregations: f.allowedAggregations,
-        postJoinAggregations: f.postJoinAggregations,
+        allowedAggregations: isCalculated ? [] : f.allowedAggregations,
+        postJoinAggregations: isCalculated ? [] : f.postJoinAggregations,
+        isCalculated,
+        isAggregateLevelCalculated: isCalculated,
+        isJoinedCalculated: isCalculated,
       });
     }
     return cols;
@@ -1258,6 +1506,10 @@ export function ReportColumnPicker({
         functions: functionsForColumn(col.name, effectiveOutputConfig.aggregationConfig),
         bucket: bucketForColumn(col.name, effectiveOutputConfig.dateTruncConfig),
         timeZone: timeZoneForColumn(col.name, effectiveOutputConfig.dateTruncConfig),
+        allowDateBucket: !col.isAggregateLevelCalculated,
+        // The two flags part company here, and only here: a row-level formula buckets like the
+        // TIMESTAMP column beside it and is still refused the ZONE.
+        allowBucketTimeZone: !col.isCalculated,
       });
     }
     return map;
@@ -1317,9 +1569,9 @@ export function ReportColumnPicker({
 
   function selectAll() {
     if (!schema) return;
-    const selectableSet = new Set(targetSelectableFieldNames);
+    const selectableSet = new Set(selectAllTargetNames);
     const preserved = effectiveValue.filter(name => !selectableSet.has(name));
-    onChange([...targetSelectableFieldNames, ...preserved]);
+    onChange([...selectAllTargetNames, ...preserved]);
   }
 
   function deselectAll() {
@@ -1488,6 +1740,26 @@ export function ReportColumnPicker({
     [searchedNativeFields, searchedBlendedGroups]
   );
 
+  // The names a BULK action must not add to the selection: a metric the backend has already told
+  // us is broken, and a JOINED Data Mart's formula, which it refuses outright. `NativeFieldRow` and
+  // `BlendedFieldRow` block a direct click on those for the same reasons; this is the bulk-path
+  // twin of both guards, built off the SAME facts the rows read, so a field a row refuses to let a
+  // user check by hand can never be swept in by "Select all" (or any bulk action added later).
+  const calculatedFieldsBlockedFromFreshSelection = useMemo(() => {
+    const blocked = new Set<string>();
+    for (const name of calculatedFieldNames) {
+      if (calculatedFieldIssuesByName.has(name)) blocked.add(name);
+    }
+    for (const field of includedBlendedFields) {
+      if (field.isCalculated === true) blocked.add(field.name);
+    }
+    return blocked;
+  }, [calculatedFieldNames, calculatedFieldIssuesByName, includedBlendedFields]);
+
+  const selectAllTargetNames = targetSelectableFieldNames.filter(
+    name => !calculatedFieldsBlockedFromFreshSelection.has(name)
+  );
+
   const mainUniqueCountChecked = activeUniqueCountSources.has(MAIN_UNIQUE_COUNT_SOURCE);
 
   // The main Data Mart's row obeys the same two filters as every field row and every joined
@@ -1520,8 +1792,8 @@ export function ReportColumnPicker({
   }
 
   const allSelected =
-    targetSelectableFieldNames.length > 0 &&
-    targetSelectableFieldNames.every(name => effectiveValueSet.has(name));
+    selectAllTargetNames.length > 0 &&
+    selectAllTargetNames.every(name => effectiveValueSet.has(name));
 
   const showCapabilityFallback =
     !outputControlsSupported &&
@@ -1753,6 +2025,7 @@ export function ReportColumnPicker({
             onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
             aggregation={aggregationByColumn.get(field.name)}
             onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
+            brokenReferences={calculatedFieldIssuesByName.get(field.name)}
           />
         ))}
 

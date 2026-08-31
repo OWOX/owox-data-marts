@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { categorizeFieldType } from '../../../data-marts/dto/schemas/field-type-category';
+import type { CalculatedFieldLevel } from '../../../data-marts/calculated-fields/formula-level';
 import { mcpOperatorNamesForInternal, mcpOperatorsForCategory } from './field-type-matrix';
 
 const DATE_BUCKET_ERROR_CODES = new Set([
@@ -7,6 +8,7 @@ const DATE_BUCKET_ERROR_CODES = new Set([
   'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
   'DATE_TRUNC_INVALID_TIMEZONE',
   'DATE_TRUNC_COLUMN_IS_AGGREGATED',
+  'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD',
 ]);
 
 const NOT_SELECTED_CODES = new Set([
@@ -22,6 +24,30 @@ const AGG_NOT_ALLOWED_CODES = new Set([
 ]);
 
 /**
+ * Every misuse of a Calculated Field has the same recovery shape: the field name is CORRECT —
+ * re-fetching the schema teaches the agent nothing — and the fix is always to stop treating the
+ * formula as an ordinary column. Each code gets its own sentence below; grouped here so the
+ * fallback cannot claim them and print a bare code instead.
+ *
+ * NONE of them forks on the field's `level` any more. A row-level formula is a
+ * dimension the report may both AGGREGATE and BUCKET BY DATE, so the validator
+ * raises the two structural codes for the aggregate level alone and each has one thing to say —
+ * `level` still rides on the wire, and always reads 'metric'. Every branch below therefore claims
+ * its code UNSPLIT: an entry no branch claims is subtracted from the informative fallback by
+ * RECOGNIZED_CODES, so a lone one makes this function return null and the agent gets a bare 400.
+ *
+ * The last member is the odd one and belongs here all the same: JOINED_CALCULATED_FIELD_UNSUPPORTED
+ * carries no `level` at all, because it is a boundary about WHOSE formula it is rather than about
+ * what the formula does — refused identically at both levels.
+ */
+const CALCULATED_FIELD_CODES = [
+  'AGGREGATION_ON_CALCULATED_FIELD',
+  'CALCULATED_FIELD_AS_DIMENSION',
+  'CALCULATED_FIELD_BROKEN_REFERENCES',
+  'JOINED_CALCULATED_FIELD_UNSUPPORTED',
+] as const;
+
+/**
  * Every code the section branches below claim. The informative fallback subtracts
  * this set, so adding a new family means adding its codes HERE (next to the family
  * sets) — not editing a negative list at the bottom of the function. A code both
@@ -31,6 +57,7 @@ const RECOGNIZED_CODES = new Set([
   'FILTER_COLUMN_UNKNOWN',
   'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
   'AGGREGATION_REQUIRES_COLUMN_CONFIG',
+  'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG',
   'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG',
   'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE',
   'UNIQUE_COUNT_FILTER_UNSUPPORTED',
@@ -38,11 +65,14 @@ const RECOGNIZED_CODES = new Set([
   'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED',
   'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE',
   'HAVING_FILTER_NOT_AGGREGATED',
+  'HAVING_FILTER_INVALID_PLACEMENT',
   'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+  'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED',
   'INVALID_OPERATOR_FOR_TYPE',
   ...NOT_SELECTED_CODES,
   ...AGG_NOT_ALLOWED_CODES,
   ...DATE_BUCKET_ERROR_CODES,
+  ...CALCULATED_FIELD_CODES,
 ]);
 
 interface ValidatorErrorEntry {
@@ -52,6 +82,12 @@ interface ValidatorErrorEntry {
   message?: string;
   /** OUTPUT_COLUMN_NAME_COLLISION names the colliding OUTPUT name here, not in `column`. */
   label?: string;
+  /**
+   * Carried by the two structural calculated-field codes. Nothing here READS it any more —
+   * both are raised for the aggregate level alone, so it always says 'metric' — but it stays on the
+   * wire because that is what makes the narrowing visible to a client reading the raw 400.
+   */
+  level?: CalculatedFieldLevel;
   function?: string;
   type?: string;
   operator?: string;
@@ -102,6 +138,82 @@ export function translateOutputControlsError(
     });
   }
 
+  // Calculated Field misuse. Every one of these is a 400 the agent would otherwise see
+  // as an opaque code, and the schema tool advertises an AGGREGATE-level field with an EMPTY
+  // allowedAggregations set (a row-level one now carries its real menu) — so reaching the
+  // aggregation code means the agent treated an already-aggregated value as an ordinary column.
+  // In every case the field name is correct: say so, or the model burns a round trip re-fetching
+  // a schema that was right the first time.
+  const namesOf = (entries: ValidatorErrorEntry[]): string =>
+    [...new Set(entries.map(e => e.column).filter(Boolean))].join(', ');
+
+  // NOT split by level: a row-level field may be aggregated, so the validator raises
+  // this code for the aggregate level alone and there is no second thing to say. Every entry is
+  // claimed regardless of the level it carries — the code is in RECOGNIZED_CODES, so an unclaimed
+  // one would be dropped by the fallback too.
+  //
+  // TWO producers, and each needs its own repair named: `aggregations` (drop the rule) and the
+  // FILTER loop (drop the rule's function). An entry from the second told to "list it in fields"
+  // is advice for a request it did not make, and the agent has no other move to try.
+  const metricAggregations =
+    errors?.filter(e => e.code === 'AGGREGATION_ON_CALCULATED_FIELD') ?? [];
+  if (metricAggregations.length > 0) {
+    const cols = namesOf(metricAggregations);
+    sections.push({
+      code: 'aggregation_on_calculated_field',
+      message: `${cols || 'This field'} is a Calculated Field — a formula that is ALREADY aggregated, so it cannot be aggregated again. If the aggregation is in "aggregations", drop it and just list the field in "fields"; if it is on a filter, drop that filter's function and compare the field itself. Either way it is recomputed correctly at whatever grain your query asks for. The field name is correct, so do not re-fetch the schema.`,
+    });
+  }
+
+  // NOT split by level either, on the same terms as the aggregation code above: a row-level
+  // field may be BUCKETED, so the validator raises this code for the aggregate level
+  // alone and there is no second thing to say. UNSPLIT rather than narrowed to the aggregate
+  // level — this code is in RECOGNIZED_CODES, so an entry no branch claims is subtracted from the
+  // informative fallback too, and a lone one makes this function return null: the agent then gets
+  // the bare 400 with no guidance at all, which is worse than a sentence with a stale reason.
+  const metricDimensions = errors?.filter(e => e.code === 'CALCULATED_FIELD_AS_DIMENSION') ?? [];
+  if (metricDimensions.length > 0) {
+    const cols = namesOf(metricDimensions);
+    sections.push({
+      code: 'calculated_field_as_dimension',
+      message: `${cols || 'This field'} is a Calculated Field and can never be a grouping dimension, so it cannot carry a date bucket. Remove that date_bucket and bucket a real date field instead. The field name is correct, so do not re-fetch the schema.`,
+    });
+  }
+
+  // The metric exists and is spelled right; something its FORMULA reads cannot be computed — a
+  // column that is gone, or (formulas may read formulas) another Calculated Field
+  // further down the chain that is itself broken. Nothing the agent can change fixes either, so
+  // name the one move that exists: a human edits the formula.
+  const brokenMetrics = errors?.filter(e => e.code === 'CALCULATED_FIELD_BROKEN_REFERENCES') ?? [];
+  if (brokenMetrics.length > 0) {
+    const detail = [...new Set(brokenMetrics.map(e => e.message ?? e.column).filter(Boolean))].join(
+      ' '
+    );
+    sections.push({
+      code: 'calculated_field_broken',
+      message: `${detail} This Calculated Field's formula reads something the Data Mart can no longer compute — a column it has lost, or another Calculated Field that is itself broken — so retrying will not help. Drop it from "fields" to get the rest of the answer, and tell the user to open the Data Mart's Output Schema in OWOX and fix the formula.`,
+    });
+  }
+
+  // A JOINED Data Mart's Calculated Field, refused on every surface that can name one.
+  // The schema tool OMITS it from `joined_fields` (it is unusable on all of them), so the name
+  // reached this request from somewhere the published list is not — a guess, or a schema fetched
+  // before that omission landed. The fallback's closing "call get_data_mart_details_by_id if you
+  // need the field types" is still the wrong advice: it reads as a lookup failure rather than as a
+  // boundary, and the validator's message is the only text saying which Data Mart owns the formula
+  // and that only its real columns are readable from here, so it is carried through verbatim.
+  const joinedCalculatedFields =
+    errors?.filter(e => e.code === 'JOINED_CALCULATED_FIELD_UNSUPPORTED') ?? [];
+  if (joinedCalculatedFields.length > 0) {
+    const detail = [
+      ...new Set(joinedCalculatedFields.map(e => e.message ?? e.column).filter(Boolean)),
+    ].join(' ');
+    sections.push({
+      code: 'joined_calculated_field_unsupported',
+      message: `${detail} Remove ${namesOf(joinedCalculatedFields) || 'it'} from "fields", and from any filters, slices, sort, aggregations or date_buckets naming it, then retry — a joined Data Mart's real columns are all available, so select one of those instead. This field is not in the schema's joined_fields at all — that list holds exactly the joined names this Data Mart accepts, so take the replacement from it.`,
+    });
+  }
+
   // Aggregations with fields ['*'] — the validator needs an explicit projection.
   if (errors?.some(e => e.code === 'AGGREGATION_REQUIRES_COLUMN_CONFIG')) {
     sections.push({
@@ -109,6 +221,26 @@ export function translateOutputControlsError(
       message:
         "Aggregations require an explicit column selection: replace fields ['*'] with the exact field list — every aggregated field plus the group-by dimensions — and retry.",
     });
+  }
+
+  // The same requirement an agent is much likelier to hit: filtering on a calculated field while
+  // leaving fields ['*']. The filter groups the report on its own, so the projection cannot stay
+  // implicit — and the agent needs to be told which field caused it, since nothing in its own
+  // request mentions an aggregation.
+  {
+    const filterColumns = (errors ?? [])
+      .filter(e => e.code === 'CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG')
+      .map(e => (e as { column?: string }).column)
+      .filter((column): column is string => typeof column === 'string');
+    if (filterColumns.length > 0) {
+      sections.push({
+        code: 'fields_required_for_calculated_field_filter',
+        message:
+          `Filtering on the calculated field(s) ${filterColumns.map(c => `"${c}"`).join(', ')} ` +
+          "groups the report, so it requires an explicit column selection: replace fields ['*'] " +
+          'with the exact field list the report should show and retry.',
+      });
+    }
   }
 
   // A joined Data Mart's Unique Count with fields ['*'] — the blended builder needs a projection.
@@ -222,13 +354,41 @@ export function translateOutputControlsError(
     });
   }
 
+  // A post-aggregation constraint asked to run PRE-JOIN — over MCP, a `slices` entry. Slices run
+  // on the raw rows before the join, where an aggregate does not exist yet, so the constraint
+  // would apply nowhere at all. Newly reachable since the calculated-field filter refusal
+  // was lifted: an AGGREGATE-level Calculated Field's rule carries no `function`, so it is named by
+  // column alone. Claimed here rather than left to the informative fallback, which prints the bare
+  // code and closes with "call get_data_mart_details_by_id if you need the field types" — a
+  // re-fetch that teaches the agent nothing, since the field name is correct and only its
+  // placement is wrong.
+  const misplacedHaving = errors?.filter(e => e.code === 'HAVING_FILTER_INVALID_PLACEMENT') ?? [];
+  if (misplacedHaving.length > 0) {
+    const rules = misplacedHaving
+      .map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
+      .filter(Boolean)
+      .join(', ');
+    sections.push({
+      code: 'having_filter_invalid_placement',
+      message: `A metric (post-aggregation) constraint${rules ? ` on ${rules}` : ''} is placed as a slice, and slices run BEFORE the join on the raw rows — where that aggregate does not exist yet, so the constraint would apply nowhere. Move it from "slices" to "filters" and retry. The field name is correct, so do not re-fetch the schema.`,
+    });
+  }
+
   // A HAVING constraint on a joined COUNT DISTINCT / SUM / AVG: those metrics are
   // computed in a separate "sleeve" pass, which HAVING is not routed through yet, so the
   // combination is rejected rather than filtered on a stale value. This fires on reports that
   // ran fine before, and for an agent this text is the only recovery signal — name the rule and
   // both ways out.
+  //
+  // ONE section for BOTH codes. The sibling is a Calculated Field whose FORMULA
+  // aggregates a joined source — the same sleeve, the same reason — and it carries no `function`
+  // to name. An agent that hit both would otherwise be handed two explanations of one rule.
   const sleeveHaving =
-    errors?.filter(e => e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED') ?? [];
+    errors?.filter(
+      e =>
+        e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED' ||
+        e.code === 'HAVING_ON_BLENDED_SLEEVE_CALCULATED_FIELD_NOT_SUPPORTED'
+    ) ?? [];
   if (sleeveHaving.length > 0) {
     const rules = sleeveHaving
       .map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
@@ -236,7 +396,7 @@ export function translateOutputControlsError(
       .join(', ');
     sections.push({
       code: 'having_on_joined_metric_not_supported',
-      message: `A metric (HAVING) constraint${rules ? ` on ${rules}` : ''} targets a metric of a JOINED Data Mart (COUNT DISTINCT, SUM or AVG), which is computed at the report's own grain and cannot be filtered on yet. Filter on a column of the main Data Mart, or on a different metric, instead. If this constraint is stored on the report, pass filters: [] to clear it together with the row filters, then re-apply the ones you want.`,
+      message: `A metric (HAVING) constraint${rules ? ` on ${rules}` : ''} targets a metric of a JOINED Data Mart — a joined COUNT DISTINCT, SUM or AVG, or a Calculated Field whose formula aggregates a joined source — which is computed at the report's own grain and cannot be filtered on yet. Filter on a column of the main Data Mart, or on a different metric, instead. If this constraint is stored on the report, pass filters: [] to clear it together with the row filters, then re-apply the ones you want.`,
     });
   }
 
@@ -292,6 +452,11 @@ export function translateOutputControlsError(
             return `field '${e.column}' (type ${e.type}) has no time-of-day component — remove time_zone for this bucket (it only applies to TIMESTAMP/DATETIME fields)`;
           case 'DATE_TRUNC_INVALID_TIMEZONE':
             return `'${e.timeZone}' is not a valid IANA time zone for field '${e.column}' — use e.g. "Europe/Kyiv" or omit time_zone`;
+          // The BUCKET is fine and must not be dropped with the zone, so say which of
+          // the two to remove. Naming another zone is not a retry worth burning: every zone is
+          // refused, on every storage.
+          case 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD':
+            return `field '${e.column}' is a Calculated Field, and a Calculated Field's date bucket cannot carry a time zone on any storage — drop time_zone from this bucket and keep the bucket, or bucket an ordinary date field if you need the zone`;
           case 'DATE_TRUNC_COLUMN_IS_AGGREGATED':
             return `field '${e.column}' is both aggregated and date-bucketed — a field can be one or the other; drop one of the two`;
           default:

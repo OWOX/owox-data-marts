@@ -41,6 +41,7 @@ const PUBSUB_ENV = {
   CONSUMPTION_MCP_QUERY_RUN_TOPIC: 'mcp-topic',
   CONSUMPTION_SHEETS_REPORT_RUN_TOPIC: 'sheets-topic',
   CONSUMPTION_LOOKER_REPORT_RUN_TOPIC: 'looker-topic',
+  CONSUMPTION_EXCEL_REPORT_RUN_TOPIC: 'excel-topic',
   CONSUMPTION_EMAIL_REPORT_RUN_TOPIC: 'email-topic',
   CONSUMPTION_SLACK_REPORT_RUN_TOPIC: 'slack-topic',
   CONSUMPTION_GOOGLE_CHAT_REPORT_RUN_TOPIC: 'google-chat-topic',
@@ -107,6 +108,7 @@ describe('InternalProjectBillingService', () => {
       'CONSUMPTION_PUBSUB_PROJECT_ID',
       'CONSUMPTION_SHEETS_REPORT_RUN_TOPIC',
       'CONSUMPTION_LOOKER_REPORT_RUN_TOPIC',
+      'CONSUMPTION_EXCEL_REPORT_RUN_TOPIC',
       'CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC',
       'CONSUMPTION_MCP_QUERY_RUN_TOPIC',
       'CONSUMPTION_EMAIL_REPORT_RUN_TOPIC',
@@ -317,6 +319,26 @@ describe('InternalProjectBillingService', () => {
       expect(mockPublish).toHaveBeenCalledWith(
         'looker-topic',
         expect.objectContaining({ reportId: 'report-1' })
+      );
+    });
+
+    it('publishes an Excel report run to the Excel topic, keyed by the run it was charged for', async () => {
+      // The run id is the DataMartRun's, not a synthesised one, so a consumption record and the
+      // run in history can be matched afterwards.
+      const service = buildService(PUBSUB_ENV);
+
+      await service.registerExcelReportRunConsumption(
+        fakeReport(DataDestinationType.EXCEL),
+        'data-mart-run-1'
+      );
+
+      expect(mockPublish).toHaveBeenCalledWith(
+        'excel-topic',
+        expect.objectContaining({
+          reportId: 'report-1',
+          reportRunId: 'data-mart-run-1',
+          dataDestinationType: DataDestinationType.EXCEL,
+        })
       );
     });
 

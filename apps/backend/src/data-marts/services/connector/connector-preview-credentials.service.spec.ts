@@ -14,6 +14,7 @@ describe('ConnectorPreviewCredentialsService', () => {
   const createService = () => {
     const credentialInjector = {
       injectSecrets: jest.fn().mockImplementation(config => Promise.resolve(config)),
+      injectOAuthCredentials: jest.fn().mockImplementation(config => Promise.resolve(config)),
     } as unknown as ConnectorCredentialInjectorService;
     const credentials = {
       getCredentialsById: jest.fn(),
@@ -29,6 +30,40 @@ describe('ConnectorPreviewCredentialsService', () => {
       access,
     };
   };
+
+  it('allows project-level Google Sheets OAuth credentials', async () => {
+    const { service, credentials, credentialInjector } = createService();
+    const config = { AuthType: { oauth2: { _source_credential_id: 'oauth-1' } } };
+    (credentials.getCredentialsById as jest.Mock).mockResolvedValue({
+      id: 'oauth-1',
+      projectId: 'proj-1',
+      connectorName: 'GoogleSheets',
+    });
+
+    await service.inject('GoogleSheets', config, context);
+
+    expect(credentialInjector.injectOAuthCredentials).toHaveBeenCalledWith(
+      config,
+      'GoogleSheets',
+      'proj-1'
+    );
+  });
+
+  it('rejects Data-Mart-scoped records used as OAuth credentials', async () => {
+    const { service, credentials } = createService();
+    const config = { AuthType: { oauth2: { _source_credential_id: 'oauth-1' } } };
+    (credentials.getCredentialsById as jest.Mock).mockResolvedValue({
+      id: 'oauth-1',
+      projectId: 'proj-1',
+      connectorName: 'GoogleSheets',
+      dataMartId: 'dm-1',
+      configId: 'config-1',
+    });
+
+    await expect(service.inject('GoogleSheets', config, context)).rejects.toThrow(
+      'The selected credentials cannot be used for this preview'
+    );
+  });
 
   it('allows copied service-account secrets only when the source Data Mart is editable', async () => {
     const { service, credentials, access } = createService();
@@ -80,13 +115,17 @@ describe('ConnectorPreviewCredentialsService', () => {
   it('rejects credentials from another connector', async () => {
     const { service, credentials } = createService();
     (credentials.getCredentialsById as jest.Mock).mockResolvedValue({
-      id: 'secret-1',
+      id: 'oauth-1',
       projectId: 'proj-1',
       connectorName: 'GoogleAds',
     });
 
     await expect(
-      service.inject('GoogleSheets', { _id: 'config-1', _secrets_id: 'secret-1' }, context)
+      service.inject(
+        'GoogleSheets',
+        { AuthType: { oauth2: { _source_credential_id: 'oauth-1' } } },
+        context
+      )
     ).rejects.toThrow('The selected credentials cannot be used for this preview');
   });
 

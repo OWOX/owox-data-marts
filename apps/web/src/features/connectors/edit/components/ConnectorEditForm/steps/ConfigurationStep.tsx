@@ -93,6 +93,7 @@ export function ConfigurationStep({
   // own echo and distinguishes it from a genuine outside change.
   const lastEchoedConfigRef = useRef<Record<string, unknown> | null>(null);
   const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
+  const [managedOAuthModes, setManagedOAuthModes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     trackEvent({
@@ -174,6 +175,16 @@ export function ConfigurationStep({
       [name]: value,
     }));
   };
+
+  const handleManagedOAuthModeChange = useCallback(
+    (specificationName: string, isManaged: boolean) => {
+      setManagedOAuthModes(current => {
+        if (current[specificationName] === isManaged) return current;
+        return { ...current, [specificationName]: isManaged };
+      });
+    },
+    []
+  );
 
   const validateValue = useCallback(
     (value: unknown, spec?: ConnectorSpecificationResponseApiDto): boolean => {
@@ -332,10 +343,25 @@ export function ConfigurationStep({
       return getPriority(a) - getPriority(b);
     });
 
-  const requiredFields = sortedSpecifications.filter(
+  const selectedAuthType = isRecord(configuration.AuthType)
+    ? Object.keys(configuration.AuthType)[0]
+    : undefined;
+  const usesManagedGoogleSheetsOAuth =
+    connector.name === GOOGLE_SHEETS_CONNECTOR_NAME &&
+    selectedAuthType === 'oauth2' &&
+    managedOAuthModes.AuthType;
+  const visibleSpecifications = usesManagedGoogleSheetsOAuth
+    ? sortedSpecifications.filter(spec => spec.name !== 'SpreadsheetId')
+    : sortedSpecifications;
+
+  const requiredFields = visibleSpecifications.filter(
     spec => !spec.attributes?.includes('ADVANCED')
   );
-  const advancedFields = sortedSpecifications.filter(spec => spec.attributes?.includes('ADVANCED'));
+  const advancedFields = visibleSpecifications.filter(spec =>
+    spec.attributes?.includes('ADVANCED')
+  );
+  const managedOAuthModeChangeHandler =
+    connector.name === GOOGLE_SHEETS_CONNECTOR_NAME ? handleManagedOAuthModeChange : undefined;
 
   return (
     <>
@@ -362,6 +388,7 @@ export function ConfigurationStep({
                 secretEditing={secretEditing}
                 isEditingExisting={isEditingExisting}
                 connectorName={connector.name}
+                onManagedOAuthModeChange={managedOAuthModeChangeHandler}
               />
             )}
             {advancedFields.length > 0 && (
@@ -374,6 +401,7 @@ export function ConfigurationStep({
                 secretEditing={secretEditing}
                 isEditingExisting={isEditingExisting}
                 connectorName={connector.name}
+                onManagedOAuthModeChange={managedOAuthModeChangeHandler}
               />
             )}
           </AppWizardStepSection>

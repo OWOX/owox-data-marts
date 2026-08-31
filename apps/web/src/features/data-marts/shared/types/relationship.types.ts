@@ -1,4 +1,5 @@
 import type { UserProjection } from '../../../../shared/types';
+import type { CalculatedFieldConfig } from './data-mart-schema.types';
 
 // Keep this list in sync with `AGGREGATE_FUNCTIONS` on the backend side
 // (`apps/backend/src/data-marts/dto/schemas/aggregate-function.schema.ts`).
@@ -117,6 +118,13 @@ export interface BlendedField {
   alias: string;
   description: string;
   isHidden: boolean;
+  /**
+   * Whether this is a CALCULATED field of the joined Data Mart — a formula, with no column behind
+   * it. It is listed so a client can tell "not there" apart from "there, but not usable from here":
+   * a formula on the main Data Mart may not reference one, and it cannot be selected as a report
+   * column either. Optional on the wire — a response cached before the field existed carries none.
+   */
+  isCalculated?: boolean;
   aggregateFunction: AggregateFunction;
   transitiveDepth: number;
   aliasPath: string;
@@ -159,6 +167,8 @@ export interface BlendedGroup {
 export interface NativeField {
   name: string;
   type?: string;
+  /** BigQuery field mode; 'REPEATED' marks an ARRAY column (other storages omit it). */
+  mode?: string;
   alias?: string;
   description?: string;
   isHiddenForReporting?: boolean;
@@ -168,6 +178,12 @@ export interface NativeField {
   // Aggregation governance (optional; absent → type-derived defaults on the web).
   aggregationRole?: AggregationRole;
   allowedAggregations?: ReportAggregateFunction[];
+  /**
+   * Present only on a calculated field — a field computed from a formula rather than sourced
+   * from the warehouse. The picker never reads `formula` itself; its mere presence is
+   * what rules 1 and 3 (no aggregation control, no blended-report selection) key off.
+   */
+  calculated?: CalculatedFieldConfig;
 }
 
 // Mirror of the backend `JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES` (data-mart-schema.utils.ts): why a
@@ -217,6 +233,21 @@ export interface BlendableSchema {
   mainUniqueCountKeyFields?: string[];
   blendedFields: BlendedField[];
   availableSources: AvailableSource[];
+  /**
+   * Every calculated field of the main Data Mart whose formula references a field the schema no
+   * longer has — resolved backend-side against the Data Mart's RAW schema, never
+   * derivable client-side from `nativeFields` (already stripped of reporting-hidden fields, which
+   * a formula may still legally reference). A metric with no issue is simply absent here. Optional
+   * on the wire for the same reason as the other derived fields above: a response cached before it
+   * existed simply carries none — read as "nothing is broken," the same fail-open default as an
+   * absent entry for a metric this DOES know about.
+   */
+  calculatedFieldIssues?: CalculatedFieldIssue[];
+}
+
+export interface CalculatedFieldIssue {
+  field: string;
+  missing: string[];
 }
 
 export interface BlendedFieldOverride {

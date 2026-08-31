@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { isConnected } from '../../data-mart-schema.utils';
+import { isCalculatedField } from '../../../calculated-fields/calculated-field.utils';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { ReportHeadersGenerator } from '../../interfaces/report-headers-generator.interface';
 import { DataMartSchema } from '../../data-mart-schema.type';
@@ -41,7 +42,10 @@ export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
     const fieldHeaders: ReportDataHeader[] = [];
     const fullPath = parentPath ? `${parentPath}.${field.name}` : field.name;
 
-    if (!isConnected(field)) {
+    // A calculated field has no warehouse column behind it — isConnected() reports it as
+    // "connected" for the available-field lists, but a report header must resolve to a real
+    // projection. Its header (when selected as a metric) is synthesized elsewhere.
+    if (isCalculatedField(field) || !isConnected(field)) {
       return fieldHeaders;
     }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { type ConnectorSpecificationResponseApiDto } from '../../../../../shared/api/types';
 import { AppWizardStepItemOneOf } from '@owox/ui/components/common/wizard';
 import { TabsContent } from '@owox/ui/components/tabs';
@@ -14,6 +14,7 @@ interface ConfigurationOneOfRenderProps {
   onValueChange: (name: string, value: unknown) => void;
   isEditingExisting: boolean;
   connectorName: string;
+  onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void;
 }
 
 export function ConfigurationOneOfRender({
@@ -22,6 +23,7 @@ export function ConfigurationOneOfRender({
   onValueChange,
   isEditingExisting,
   connectorName,
+  onManagedOAuthModeChange,
 }: ConfigurationOneOfRenderProps) {
   const detectSelectedOption = useMemo(() => {
     const configObject = configuration[specification.name];
@@ -56,6 +58,13 @@ export function ConfigurationOneOfRender({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOption, specification.name]);
+
+  const handleManagedOAuthModeChange = useCallback(
+    (isManaged: boolean) => {
+      onManagedOAuthModeChange?.(specification.name, isManaged);
+    },
+    [onManagedOAuthModeChange, specification.name]
+  );
 
   if (!specification.oneOf) {
     return null;
@@ -127,6 +136,7 @@ export function ConfigurationOneOfRender({
                 onValueChange={onValueChange}
                 connectorName={connectorName}
                 isEditingExisting={isEditingExisting}
+                onManagedModeChange={handleManagedOAuthModeChange}
               />
             ) : (
               Object.entries(option.items).map(([itemName, itemSpec]) => {

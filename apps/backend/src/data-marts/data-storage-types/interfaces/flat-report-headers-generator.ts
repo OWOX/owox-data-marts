@@ -1,5 +1,6 @@
 import { DataMartSchema } from '../data-mart-schema.type';
 import { isConnected } from '../data-mart-schema.utils';
+import { isCalculatedField } from '../../calculated-fields/calculated-field.utils';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
 import { ReportHeadersGenerator } from './report-headers-generator.interface';
@@ -19,8 +20,14 @@ export abstract class FlatReportHeadersGenerator implements ReportHeadersGenerat
       throw new Error(`${this.storageName} data mart schema fields are required`);
     }
 
-    return dataMartSchema.fields
-      .filter(field => isConnected(field) && !field.isHiddenForReporting)
-      .map(field => new ReportDataHeader(field.name, field.alias, field.description, field.type));
+    return (
+      dataMartSchema.fields
+        // A calculated field has no warehouse column behind it; isConnected() alone would let it
+        // through, since it reports "connected" for the available-field lists regardless of status.
+        .filter(
+          field => !isCalculatedField(field) && isConnected(field) && !field.isHiddenForReporting
+        )
+        .map(field => new ReportDataHeader(field.name, field.alias, field.description, field.type))
+    );
   }
 }

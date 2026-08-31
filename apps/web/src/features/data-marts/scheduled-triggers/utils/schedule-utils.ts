@@ -1,4 +1,5 @@
 import { cronToScheduleConfig } from '../components/ScheduleConfig/cron-parser';
+import { timezoneService } from '../../../../services/timezone.service';
 
 export interface ScheduleConfig {
   type: 'daily' | 'weekly' | 'monthly' | 'interval' | 'custom';
@@ -23,7 +24,7 @@ export const WEEKDAYS = [
 
 export const getBrowserTimezone = (): string => {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return timezoneService.canonicalizeTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   } catch {
     return 'UTC';
   }

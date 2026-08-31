@@ -6,6 +6,8 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 
 const SECRET_MASK = '**********';
 
+type CredentialReference = { id: string; type: 'oauth' | 'secrets' };
+
 @Injectable()
 export class ConnectorPreviewCredentialsService {
   constructor(
@@ -21,7 +23,15 @@ export class ConnectorPreviewCredentialsService {
   ): Promise<Record<string, unknown>> {
     const previewConfig = this.withoutStoredSecretReferenceForInlineKey(config);
     await this.validateReferences(connectorName, previewConfig, context);
-    return this.credentialInjector.injectSecrets(previewConfig, context.projectId);
+    const configWithSecrets = await this.credentialInjector.injectSecrets(
+      previewConfig,
+      context.projectId
+    );
+    return this.credentialInjector.injectOAuthCredentials(
+      configWithSecrets,
+      connectorName,
+      context.projectId
+    );
   }
 
   private withoutStoredSecretReferenceForInlineKey(
@@ -47,9 +57,10 @@ export class ConnectorPreviewCredentialsService {
     const configId = typeof config._id === 'string' ? config._id : undefined;
     const copiedFrom = this.getCopiedFrom(config);
 
-    for (const credentialId of this.collectSecretReferences(config)) {
-      const credential =
-        await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
+    for (const reference of this.collectReferences(config)) {
+      const credential = await this.connectorSourceCredentialsService.getCredentialsById(
+        reference.id
+      );
 
       if (
         !credential ||
@@ -57,6 +68,16 @@ export class ConnectorPreviewCredentialsService {
         credential.connectorName !== connectorName
       ) {
         throw this.invalidCredentials();
+      }
+
+      if (reference.type === 'oauth') {
+        // Managed OAuth credentials are project-scoped and intentionally match
+        // the access boundary used by connector runs. Data-Mart-scoped secret
+        // records must not be accepted as OAuth credentials for a preview.
+        if (credential.dataMartId || credential.configId) {
+          throw this.invalidCredentials();
+        }
+        continue;
       }
 
       const isCurrentConfig = Boolean(configId) && credential.configId === configId;
@@ -101,18 +122,30 @@ export class ConnectorPreviewCredentialsService {
     return { dataMartId: copiedFrom.dataMartId, configId: copiedFrom.configId };
   }
 
-  private collectSecretReferences(value: unknown, references = new Set<string>()): string[] {
+  private collectReferences(
+    value: unknown,
+    references = new Map<string, CredentialReference>()
+  ): CredentialReference[] {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return Array.from(references.values());
     }
 
     const object = value as Record<string, unknown>;
+    if (typeof object._source_credential_id === 'string') {
+      references.set(`oauth:${object._source_credential_id}`, {
+        id: object._source_credential_id,
+        type: 'oauth',
+      });
+    }
     if (typeof object._secrets_id === 'string') {
-      references.add(object._secrets_id);
+      references.set(`secrets:${object._secrets_id}`, {
+        id: object._secrets_id,
+        type: 'secrets',
+      });
     }
 
     for (const child of Object.values(object)) {
-      this.collectSecretReferences(child, references);
+      this.collectReferences(child, references);
     }
 
     return Array.from(references.values());

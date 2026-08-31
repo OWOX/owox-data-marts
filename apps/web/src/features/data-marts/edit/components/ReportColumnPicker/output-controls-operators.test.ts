@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  effectiveComparisonType,
   operatorsForType,
   isFilterableType,
   isNumberType,
@@ -154,10 +155,26 @@ describe('operatorsForType', () => {
     });
   });
 
-  it('returns no operators for unrecognised (complex/binary) types', () => {
+  // Picker-to-validator regression (#6779): every type outside the known category
+  // sets gets exactly the type-agnostic blank pair — which the backend validator
+  // accepts on every type (TYPE_AGNOSTIC_OPS) and renders as the NULL-only form.
+  it('offers only the blank pair for unrecognised (complex/binary) types', () => {
     for (const t of ['ARRAY', 'MAP', 'STRUCT', 'JSON', 'VARBINARY', 'GEOGRAPHY']) {
-      expect(operatorsForType(t)).toEqual([]);
-      expect(isFilterableType(t)).toBe(false);
+      expect(opValues(t)).toEqual(['is_blank', 'is_not_blank']);
+      expect(isFilterableType(t)).toBe(true);
     }
+  });
+
+  describe('effectiveComparisonType — BigQuery REPEATED columns', () => {
+    it('marks a REPEATED field as ARRAY<T>, which maps to the blank-pair-only menu', () => {
+      expect(effectiveComparisonType('STRING', 'REPEATED')).toBe('ARRAY<STRING>');
+      // The marked type must NOT offer string operators — contains on an
+      // ARRAY<STRING> is rejected by the backend as INVALID_OPERATOR_FOR_TYPE.
+      expect(opValues('ARRAY<STRING>')).toEqual(['is_blank', 'is_not_blank']);
+    });
+    it('leaves non-repeated modes and other storages untouched', () => {
+      expect(effectiveComparisonType('STRING', 'NULLABLE')).toBe('STRING');
+      expect(effectiveComparisonType('STRING', undefined)).toBe('STRING');
+    });
   });
 });

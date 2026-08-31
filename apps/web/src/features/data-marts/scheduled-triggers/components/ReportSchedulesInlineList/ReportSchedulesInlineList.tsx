@@ -22,6 +22,7 @@ import type {
   ScheduledReportRunConfig,
   ScheduledTriggerConfig,
 } from '../../model/trigger-config.types';
+import { getBrowserTimezone } from '../../utils/schedule-utils';
 
 interface ReportSchedulesInlineListProps {
   dataMartId: string;
@@ -68,8 +69,6 @@ function isEqualSchedules(a: ScheduleItem[], b: ScheduleItem[]) {
   }
   return true;
 }
-
-const defaultTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // Defaults reused across the component
 const DEFAULT_CRON = '0 9 * * *';
@@ -228,7 +227,7 @@ export const ReportSchedulesInlineList = forwardRef<
       {
         id: null,
         cron: DEFAULT_CRON,
-        timezone: defaultTimezone(),
+        timezone: getBrowserTimezone(),
         enabled: true,
       },
     ]);
@@ -356,7 +355,7 @@ export const ReportSchedulesInlineList = forwardRef<
         >
           <ScheduleConfig
             cron={DEFAULT_CRON}
-            timezone={defaultTimezone()}
+            timezone={getBrowserTimezone()}
             enabled={false}
             showPreview={false}
             showSaveButton={false}

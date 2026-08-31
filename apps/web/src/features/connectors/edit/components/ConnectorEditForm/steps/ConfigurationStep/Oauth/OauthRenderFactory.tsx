@@ -7,9 +7,11 @@ import { FacebookOauthRender } from './impl/FacebookOauthRender';
 import { TikTokOauthRender } from './impl/TikTokOauthRender';
 import { MicrosoftOauthRender } from './impl/MicrosoftOauthRender';
 import { GoogleAdsOauthRender } from './impl/GoogleAdsOauthRender';
+import { GoogleSheetsOauthRender } from './impl/GoogleSheetsOauthRender';
 import { LinkedInOauthRender } from './impl/LinkedInOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
+  OAuthCallbackResponseDto,
   OAuthStatusResponseDto,
   OAuthSettingsResponseDto,
 } from '../../../../../../shared/api/types/response/oauth.response.dto';
@@ -26,6 +28,7 @@ interface OauthRenderFactoryProps {
   onValueChange: (name: string, value: unknown) => void;
   connectorName: string;
   isEditingExisting?: boolean;
+  onManagedModeChange?: (isManaged: boolean) => void;
 }
 
 export interface OauthRenderComponentProps {
@@ -37,7 +40,9 @@ export interface OauthRenderComponentProps {
   isLoading: boolean;
   status: OAuthStatusResponseDto | null;
   settings: OAuthSettingsResponseDto | null;
-  onOAuthSuccess: (credentials: Record<string, unknown>) => Promise<void>;
+  onOAuthSuccess: (
+    credentials: Record<string, unknown>
+  ) => Promise<OAuthCallbackResponseDto | null>;
 }
 
 export function OauthRenderFactory({
@@ -47,6 +52,7 @@ export function OauthRenderFactory({
   onValueChange,
   connectorName,
   isEditingExisting = false,
+  onManagedModeChange,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
@@ -178,10 +184,12 @@ export function OauthRenderFactory({
           [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
         });
       }
+      return exchanged;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
       console.error('Failed to exchange OAuth credentials:', err);
       setError(message);
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -235,6 +243,10 @@ export function OauthRenderFactory({
   }, [connectorName, fieldPath, getSettings]);
 
   const isOAuthEnabled = Boolean(settings?.isEnabled);
+
+  useEffect(() => {
+    onManagedModeChange?.(!isManualMode && isOAuthEnabled);
+  }, [isManualMode, isOAuthEnabled, onManagedModeChange]);
 
   if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (
@@ -305,6 +317,20 @@ export function OauthRenderFactory({
       case 'GoogleAds':
         return (
           <GoogleAdsOauthRender
+            specification={specification}
+            option={option}
+            configuration={configuration}
+            onValueChange={onValueChange}
+            connectorName={connectorName}
+            isLoading={isLoading}
+            status={status}
+            settings={settings}
+            onOAuthSuccess={handleOAuthSuccess}
+          />
+        );
+      case 'GoogleSheets':
+        return (
+          <GoogleSheetsOauthRender
             specification={specification}
             option={option}
             configuration={configuration}

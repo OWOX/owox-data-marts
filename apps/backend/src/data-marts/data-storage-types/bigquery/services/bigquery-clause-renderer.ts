@@ -3,6 +3,7 @@ import { SqlClauseRenderer, RenderedClause } from '../../utils/sql-clause-render
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
+import { BigQueryFieldType } from '../enums/bigquery-field-type.enum';
 
 @Injectable()
 export class BigQueryClauseRenderer extends SqlClauseRenderer {
@@ -12,6 +13,30 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
 
   public override textCastType(): string {
     return 'STRING';
+  }
+
+  /**
+   * A declared type is a BigQueryFieldType — the API's vocabulary, which GoogleSQL does not answer
+   * to: `CAST(x AS FLOAT)` is `Type not found: FLOAT`, measured live. INT64 rather than the
+   * declared INTEGER for safety, not necessity: `CAST('1' AS INTEGER)` dry-runs clean, but FLOAT
+   * proved an alias accepted elsewhere can still be absent from a CAST, so the canonical name is
+   * the one worth spelling.
+   *
+   * The exact types are BARE here, and MUST stay bare: BigQuery rejects every parameterized type in
+   * a CAST (`Parameterized types are not allowed in CAST expressions`), so harmonising them with
+   * the other four dialects' `(38,18)` would be a hard query error. It is safe as well as forced —
+   * NUMERIC is fixed at (38,9) and BIGNUMERIC at (76.76,38), so neither carries the scale-0 default
+   * those spellings exist to escape.
+   */
+  private static readonly CAST_TYPE_BY_DECLARED_TYPE: ReadonlyMap<string, string> = new Map([
+    [BigQueryFieldType.INTEGER, 'INT64'],
+    [BigQueryFieldType.FLOAT, 'FLOAT64'],
+    [BigQueryFieldType.NUMERIC, 'NUMERIC'],
+    [BigQueryFieldType.BIGNUMERIC, 'BIGNUMERIC'],
+  ]);
+
+  public override castTypeForDeclaredType(declaredType: string): string | undefined {
+    return BigQueryClauseRenderer.CAST_TYPE_BY_DECLARED_TYPE.get(declaredType.trim().toUpperCase());
   }
 
   // Column types whose values carry a time component: relative_date must compare
@@ -29,10 +54,17 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
   // placeholder in CAST(@p AS <type>) so the string is parsed to the column type.
   private static readonly DATE_CAST_TYPES = new Set(['DATE', 'DATETIME', 'TIME', 'TIMESTAMP']);
 
-  private placeholder(paramName: string, columnType?: string): string {
-    return columnType && BigQueryClauseRenderer.DATE_CAST_TYPES.has(columnType)
-      ? `CAST(@${paramName} AS ${columnType})`
-      : `@${paramName}`;
+  // `valueCastType` is the declared type a Calculated Field's comparison imposes —
+  // disjoint from the date set above, since it is only ever a numeric target. It matters most on
+  // this dialect: the SDK types a param from its JS value, so `= 10` and `= '10'` over one field
+  // were measured flipping between `No matching signature for operator =` and the right answer.
+  private placeholder(paramName: string, columnType?: string, valueCastType?: string): string {
+    const castType =
+      valueCastType ??
+      (columnType && BigQueryClauseRenderer.DATE_CAST_TYPES.has(columnType)
+        ? columnType
+        : undefined);
+    return castType ? `CAST(@${paramName} AS ${castType})` : `@${paramName}`;
   }
 
   protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
@@ -75,9 +107,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     rule: FilterRule,
     paramName: string,
     col: string,
-    columnType?: string
+    columnType?: string,
+    valueCastType?: string
   ): RenderedClause {
-    const ph = this.placeholder(paramName, columnType);
+    const ph = this.placeholder(paramName, columnType, valueCastType);
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };
@@ -132,6 +165,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           sql: `(${col} IS NULL OR NOT REGEXP_CONTAINS(${col}, @${paramName}))`,
           params: [{ name: paramName, value: rule.value }],
         };
+      case 'is_blank':
+      case 'is_not_blank':
+        return this.renderBlankFragment(rule.operator, col, columnType);
+      // Legacy pair (#6779): accepted for saved configs, no longer offered by pickers.
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':
@@ -148,7 +185,9 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         const p1 = paramName;
         const p2 = this.nextParamName(paramName);
         return {
-          sql: `${col} BETWEEN ${this.placeholder(p1, columnType)} AND ${this.placeholder(p2, columnType)}`,
+          sql:
+            `${col} BETWEEN ${this.placeholder(p1, columnType, valueCastType)} ` +
+            `AND ${this.placeholder(p2, columnType, valueCastType)}`,
           params: [
             { name: p1, value: rule.value.from },
             { name: p2, value: rule.value.to },
@@ -158,7 +197,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
       case 'in':
       case 'not_in':
         return this.renderInListWithParams(rule, col, paramName, name =>
-          this.placeholder(name, columnType)
+          this.placeholder(name, columnType, valueCastType)
         );
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value, columnType), params: [] };

@@ -3,7 +3,8 @@ import { AbstractBlendedQueryBuilder } from '../abstract-blended-query-builder';
 import { BigQueryClauseRenderer } from '../../bigquery/services/bigquery-clause-renderer';
 import { SleeveResult } from '../../blending/blended-query.types';
 import { MetricSleeveBuilder } from '../../blending/metric-sleeve.builder';
-import { SqlClauseRenderer } from '../../utils/sql-clause-renderer';
+import { ColumnRefResolver, SqlClauseRenderer } from '../../utils/sql-clause-renderer';
+import { createColumnQualifier } from '../../blending/blended-sql-dialect';
 import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
 import { DataMartRelationship } from '../../../entities/data-mart-relationship.entity';
 import { BlendedQueryContext, ResolvedRelationshipChain } from '../blended-query-builder.interface';
@@ -81,6 +82,16 @@ export class TestBlendedWithRenderer extends AbstractBlendedQueryBuilder {
   // these tests can still exercise a single sleeve CTE in isolation.
   sleeves(): MetricSleeveBuilder {
     return this.createSleeveBuilder();
+  }
+
+  /**
+   * The column qualifier the outer query and every sleeve share. Exposed so a spec exercising a
+   * sleeve in isolation renders its calculated dimension through the SAME resolver
+   * `buildBlendedQuery` would hand it, rather than a hand-rolled stand-in that could agree with
+   * the sleeve while disagreeing with the outer GROUP BY.
+   */
+  qualifier(outputAliasToRoot: ReadonlyMap<string, string>): ColumnRefResolver {
+    return createColumnQualifier(this.dialectPort(), outputAliasToRoot);
   }
 
   readonly type = DataStorageType.GOOGLE_BIGQUERY;

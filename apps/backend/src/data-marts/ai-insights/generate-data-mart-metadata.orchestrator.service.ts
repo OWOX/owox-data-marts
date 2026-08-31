@@ -6,6 +6,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { isConnected } from '../data-storage-types/data-mart-schema.utils';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartSampleDataService } from '../services/data-mart-sample-data.service';
@@ -74,8 +75,9 @@ export class GenerateDataMartMetadataOrchestratorService {
     let sampleColumns: string[] | null = null;
     let sampleRows: QueryRow[] | null = null;
     if (request.useSample) {
-      // Disconnected fields aren't in the underlying table/view, so selecting them fails the query.
-      const schemaColumns = schema.fields.filter(isConnected).map(f => f.name);
+      const schemaColumns = schema.fields
+        .filter(f => !isCalculatedField(f) && isConnected(f))
+        .map(f => f.name);
       if (schemaColumns.length === 0) {
         this.logger.warn(
           `Skipping sample fetch for data mart ${request.dataMartId}: no connected schema fields`

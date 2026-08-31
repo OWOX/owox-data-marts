@@ -41,6 +41,10 @@ export class RestrictedProjectBillingService extends ProjectBillingService {
     this.skip(RunKind.EMAIL_BASED_REPORT_RUN);
   }
 
+  public async registerExcelReportRunConsumption(): Promise<void> {
+    this.skip(RunKind.EXCEL_REPORT_RUN);
+  }
+
   public async registerHttpDataRunConsumption(): Promise<void> {
     this.skip(RunKind.HTTP_DATA_RUN);
   }

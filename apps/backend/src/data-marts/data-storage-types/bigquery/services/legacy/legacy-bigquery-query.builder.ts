@@ -28,17 +28,26 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
     queryOptions?: DataMartQueryOptions
   ): Promise<string | QueryBuildResult> {
     // Must mirror the parent BigQueryQueryBuilder's full notion of "needs the OC path":
-    // aggregations / date-trunc buckets / Unique Count count too, not just
+    // aggregations / date-trunc buckets / Unique Count / calculated fields count too, not just
     // filter/sort/limit. Otherwise an aggregated or Totals request with no filter/sort/limit
-    // (e.g. composeTotals: empty sort/limit) bypasses super.buildQuery and
-    // silently drops the GROUP BY, returning ungrouped rows.
+    // (e.g. composeTotals: empty sort/limit) bypasses super.buildQuery and silently drops the
+    // GROUP BY, returning ungrouped rows — and a report selecting only a calculated field emits
+    // SQL without the metric while the reader still synthesizes its header, i.e. a permanently
+    // `null` column on every surface.
+    //
+    // The calculated-metric clause stays LEVEL-BLIND on purpose: this gate is the parent's
+    // `hasOutputControls`, not its aggregated flip. The formula substitution channel lives beyond
+    // it, so a report whose only calculated field is ROW-LEVEL still has to cross it — narrowing
+    // it to aggregating formulas would route that report down the preprocessor path and reproduce
+    // the permanently `null` column above. The level is read one level in, by the parent.
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
       queryOptions?.limit != null ||
       (queryOptions?.aggregations?.length ?? 0) > 0 ||
       (queryOptions?.dateTruncs?.length ?? 0) > 0 ||
-      queryOptions?.uniqueCount === true;
+      queryOptions?.uniqueCount === true ||
+      (queryOptions?.calculatedFields?.length ?? 0) > 0;
 
     // Output controls reference the materialized BQ view (mainTableReference), which is
     // already ODM-preprocessed at view-creation time, so the parent BigQuery builder does

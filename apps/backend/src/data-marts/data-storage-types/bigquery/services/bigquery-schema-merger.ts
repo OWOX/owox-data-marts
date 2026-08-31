@@ -54,6 +54,13 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
     newFieldsMap: FieldsMap
   ): SchemaField[] {
     return existingFields.map(existingField => {
+      // Actualisation reconciles the schema with the warehouse. A calculated field has no
+      // warehouse counterpart, so comparing it against the incoming set would mark it
+      // DISCONNECTED on every refresh. Guarding here — inside the map that recursion re-enters
+      // for every RECORD/STRUCT level via mergeRecordFields — covers a calculated field at any
+      // nesting depth.
+      if (existingField.calculated) return existingField;
+
       const newField = newFieldsMap.get(existingField.name);
 
       if (!newField) {
@@ -178,6 +185,21 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
   }
 
   private getNewFields(newFields: SchemaField[], existingFieldsMap: FieldsMap): SchemaField[] {
-    return newFields.filter(newField => !existingFieldsMap.has(newField.name));
+    return newFields.filter(newField => {
+      const existingField = existingFieldsMap.get(newField.name);
+      if (!existingField) return true;
+
+      // The name is taken by a calculated field, which updateExistingFields already carried
+      // through untouched (see the guard there). The user's declaration wins the name, but a
+      // same-named warehouse column silently vanishing is not something to hide — surface it
+      // instead of dropping it mute.
+      if (existingField.calculated) {
+        this.logger.warn(
+          `Data Mart field "${newField.name}": a warehouse column of this name cannot be ` +
+            `surfaced because a calculated field already holds the name.`
+        );
+      }
+      return false;
+    });
   }
 }

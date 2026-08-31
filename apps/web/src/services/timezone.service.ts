@@ -28,6 +28,19 @@ interface TimezoneData {
   isDST: boolean;
 }
 
+interface TimezonePresentationOverride {
+  canonicalIdentifier: string;
+  displayName: string;
+}
+
+const UTC_TIMEZONE = 'UTC';
+const TIMEZONE_PRESENTATION_OVERRIDES = new Map<string, TimezonePresentationOverride>([
+  ['Etc/UTC', { canonicalIdentifier: UTC_TIMEZONE, displayName: UTC_TIMEZONE }],
+  ['GMT', { canonicalIdentifier: UTC_TIMEZONE, displayName: UTC_TIMEZONE }],
+  ['Etc/GMT', { canonicalIdentifier: UTC_TIMEZONE, displayName: UTC_TIMEZONE }],
+  ['Europe/Kiev', { canonicalIdentifier: 'Europe/Kyiv', displayName: 'Europe/Kyiv' }],
+]);
+
 /**
  * Service for providing timezone data.
  * Currently returns a fixed list of timezones from Intl.supportedValuesOf('timeZone'),
@@ -41,7 +54,71 @@ class TimezoneService {
   getTimezones(): string[] {
     // Currently using the browser's Intl API to get supported timezones
     // This could be replaced with an API call in the future
-    return Intl.supportedValuesOf('timeZone');
+    const runtimeTimezones = Intl.supportedValuesOf('timeZone').map(timezone =>
+      this.canonicalizeTimezone(timezone)
+    );
+
+    return [...new Set([UTC_TIMEZONE, ...runtimeTimezones])];
+  }
+
+  /**
+   * Get the canonical identifier used by timezone selection and new schedule defaults.
+   * @param timezone - Stored timezone identifier
+   * @returns {string} Canonical timezone identifier
+   */
+  canonicalizeTimezone(timezone: string): string {
+    return TIMEZONE_PRESENTATION_OVERRIDES.get(timezone)?.canonicalIdentifier ?? timezone;
+  }
+
+  /**
+   * Check whether two stored timezone identifiers represent the same picker timezone.
+   * @param firstTimezone - First stored timezone identifier
+   * @param secondTimezone - Second stored timezone identifier
+   * @returns {boolean} Whether both identifiers have the same picker representation
+   */
+  areTimezonesEquivalent(firstTimezone: string, secondTimezone: string): boolean {
+    return this.canonicalizeTimezone(firstTimezone) === this.canonicalizeTimezone(secondTimezone);
+  }
+
+  /**
+   * Get canonical and legacy identifiers that should find a picker option.
+   * @param timezone - Canonical or stored timezone identifier
+   * @returns {string[]} Search keywords for the canonical picker option
+   */
+  getTimezoneSearchKeywords(timezone: string): string[] {
+    const canonicalTimezone = this.canonicalizeTimezone(timezone);
+    const aliases = [...TIMEZONE_PRESENTATION_OVERRIDES.entries()]
+      .filter(([, override]) => override.canonicalIdentifier === canonicalTimezone)
+      .map(([alias]) => alias);
+
+    return [...new Set([canonicalTimezone, ...aliases])];
+  }
+
+  /**
+   * Resolve an identifier accepted by the current Intl runtime while keeping
+   * canonical identifiers in picker and persistence boundaries.
+   */
+  private getRuntimeTimezoneIdentifier(timezone: string): string {
+    const canonicalTimezone = this.canonicalizeTimezone(timezone);
+    const aliases = [...TIMEZONE_PRESENTATION_OVERRIDES.entries()]
+      .filter(([, override]) => override.canonicalIdentifier === canonicalTimezone)
+      .map(([alias]) => alias);
+
+    if (aliases.length === 0) {
+      return canonicalTimezone;
+    }
+
+    const candidates = [...new Set([canonicalTimezone, timezone, ...aliases])];
+    for (const candidate of candidates) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+        return candidate;
+      } catch {
+        // Try another known identifier for the same timezone.
+      }
+    }
+
+    return canonicalTimezone;
   }
 
   /**
@@ -77,6 +154,12 @@ class TimezoneService {
    * @returns {number} Offset in minutes from UTC
    */
   getTimezoneOffset(timezone: string, date: Date = new Date()): number {
+    const canonicalTimezone = this.canonicalizeTimezone(timezone);
+    if (canonicalTimezone === UTC_TIMEZONE) {
+      return 0;
+    }
+    const runtimeTimezone = this.getRuntimeTimezoneIdentifier(timezone);
+
     try {
       // Create date formatters for UTC and target timezone
       const utcFormatter = new Intl.DateTimeFormat('en-US', {
@@ -91,7 +174,7 @@ class TimezoneService {
       });
 
       const timezoneFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: timezone,
+        timeZone: runtimeTimezone,
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -127,12 +210,28 @@ class TimezoneService {
   }
 
   /**
+   * Get the user-facing name for a stored timezone identifier.
+   * @param timezone - Stored timezone identifier
+   * @returns {string} User-facing timezone name
+   */
+  getTimezoneDisplayName(timezone: string): string {
+    return (
+      TIMEZONE_PRESENTATION_OVERRIDES.get(timezone)?.displayName ??
+      this.canonicalizeTimezone(timezone)
+    );
+  }
+
+  /**
    * Check if a timezone is currently in daylight saving time
    * @param timezone - Timezone identifier
    * @param date - Date to check (optional, defaults to now)
    * @returns {boolean} Whether timezone is in DST
    */
   isDaylightSavingTime(timezone: string, date: Date = new Date()): boolean {
+    if (this.canonicalizeTimezone(timezone) === UTC_TIMEZONE) {
+      return false;
+    }
+
     try {
       const january = new Date(date.getFullYear(), 0, 1);
       const july = new Date(date.getFullYear(), 6, 1);
@@ -157,11 +256,12 @@ class TimezoneService {
    * @returns {string} Display name
    */
   private getDisplayName(timezone: string, offsetString: string): string {
-    // Replace underscores with spaces and format city names
-    // const parts = timezone.split('/');
-    // const city = parts[parts.length - 1].replace(/_/g, ' ');
+    if (this.canonicalizeTimezone(timezone) === UTC_TIMEZONE) {
+      return `${UTC_TIMEZONE} (${offsetString})`;
+    }
 
-    return `${timezone} (${offsetString})`;
+    const displayTimezone = this.getTimezoneDisplayName(timezone);
+    return `${displayTimezone} (${offsetString})`;
   }
 
   /**
@@ -169,7 +269,9 @@ class TimezoneService {
    * @returns {TimezoneData} Browser timezone data
    */
   getBrowserTimezone(): TimezoneData {
-    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const browserTimezone = this.canonicalizeTimezone(
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+    );
     const now = new Date();
 
     const offsetMinutes = this.getTimezoneOffset(browserTimezone, now);

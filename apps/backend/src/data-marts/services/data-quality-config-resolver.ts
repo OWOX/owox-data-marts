@@ -1,6 +1,7 @@
 import { DataMartSchema, DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import {
   DataQualityCanonicalType,
   isDataQualityGroupingTypeSupported,
@@ -295,7 +296,10 @@ function collectCurrentFields(
 ): CurrentField[] {
   const result: CurrentField[] = [];
   for (const field of fields) {
-    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    // A calculated field has no warehouse column: no check compiled from this list may
+    // reference it, so it is withheld here rather than filtered per-category downstream.
+    if (isCalculatedField(field) || field.status === DataMartSchemaFieldStatus.DISCONNECTED)
+      continue;
     const path = [...prefix, field.name];
     const mode = 'mode' in field && typeof field.mode === 'string' ? field.mode : undefined;
     result.push({

@@ -19,6 +19,7 @@ import {
 const REVERSE_DESTINATION_TYPE_MAP: Record<McpDestinationType, DataDestinationType> = {
   google_sheets: DataDestinationType.GOOGLE_SHEETS,
   looker_studio: DataDestinationType.LOOKER_STUDIO,
+  excel: DataDestinationType.EXCEL,
   email: DataDestinationType.EMAIL,
   slack: DataDestinationType.SLACK,
   teams: DataDestinationType.MS_TEAMS,

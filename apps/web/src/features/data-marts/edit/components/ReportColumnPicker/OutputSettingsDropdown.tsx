@@ -70,6 +70,14 @@ export interface OutputSettingsDropdownColumn {
   allowedAggregations?: ReportAggregateFunction[];
   /** DM-level post-join allowed aggregation set; present only on joined fields. */
   postJoinAggregations?: ReportAggregateFunction[];
+  /**
+   * True for a JOINED Data Mart's calculated field, which the backend refuses on every surface a
+   * report can name a column on (`JOINED_CALCULATED_FIELD_UNSUPPORTED`) — filters included — so it
+   * must never enter the "add filter" picker. NOT raised for this Data Mart's OWN calculated
+   * fields: those are filterable at either level. An EXISTING rule referencing a
+   * refused column still renders normally, since this only gates the addable-columns list.
+   */
+  isJoinedCalculated?: boolean;
 }
 
 function columnToPickerItem(c: OutputSettingsDropdownColumn): FieldPickerItem {
@@ -187,7 +195,9 @@ function FiltersSection({
   onRemoveAt,
 }: FiltersSectionProps) {
   const [pendingColumn, setPendingColumn] = useState<OutputSettingsDropdownColumn | null>(null);
-  const filterableColumns = allColumns.filter(c => isFilterableType(c.type));
+  const filterableColumns = allColumns.filter(
+    c => isFilterableType(c.type) && !c.isJoinedCalculated
+  );
   const columnTypeMap = new Map(allColumns.map(c => [c.name, c.type]));
   const labelByName = new Map(allColumns.map(c => [c.name, c.label]));
   const dataMartByName = new Map(allColumns.map(c => [c.name, c.dataMartName]));
@@ -423,7 +433,10 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
   const selectedColumnSet = new Set(selectedColumns.map(c => c.name));
   const labelByName = new Map(selectedColumns.map(c => [c.name, c.label]));
   const dataMartByName = new Map(selectedColumns.map(c => [c.name, c.dataMartName]));
-  const available = selectedColumns.filter(c => !sortColumns.has(c.name));
+  // The same exclusion FiltersSection makes above: a JOINED Data Mart's calculated field is
+  // refused on every report surface, so offering it here only produces a second rule the save
+  // will reject. Already-sorted ones stay listed so a legacy report can remove them.
+  const available = selectedColumns.filter(c => !sortColumns.has(c.name) && !c.isJoinedCalculated);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 

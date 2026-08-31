@@ -31,11 +31,20 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { syncOwners } from '../utils/sync-owners';
 
 describe('CreateReportService', () => {
+  // The schema is what carries `dataMartSchemaFields` into the validator, and that argument is
+  // what enables every calculated-field refusal at report save. Without it here the assertion
+  // below compares `undefined` against an absent key — which Jest treats as equal, so deleting the
+  // line that passes it left the whole suite green and the refusals silently off.
+  const schemaFields = [
+    { name: 'clicks', type: 'INTEGER' },
+    { name: 'ctr', type: 'FLOAT', calculated: { formula: 'SUM(clicks)', level: 'metric' } },
+  ];
   const dataMart = {
     id: 'dm-1',
     status: DataMartStatus.PUBLISHED,
     projectId: 'proj-1',
     storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    schema: { type: 'bigquery-data-mart-schema', fields: schemaFields },
   };
   const dataDestination = { id: 'dest-1', type: 'LOOKER_STUDIO' };
   const savedReport = { id: 'report-1', createdById: 'user-0', owners: [], ownerIds: [] };
@@ -201,6 +210,8 @@ describe('CreateReportService', () => {
       // A save is where a joined Unique Count source that can never emit its column is refused;
       // the run path re-validates the same config and must keep degrading instead.
       rejectUnavailableUniqueCountSources: true,
+      // Named explicitly: this is the argument every calculated-field refusal at save depends on.
+      dataMartSchemaFields: schemaFields,
     });
   });
 

@@ -13,6 +13,10 @@ interface AggregationRowProps {
   fieldType: string;
   /** Functions the column may be aggregated by; empty → column is orphaned/ungovernable. */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /** Passed straight to the editor: false hides the bucket on an otherwise date-typed column. */
+  allowDateBucket?: boolean;
+  /** Passed straight to the editor: false hides the bucket's time zone (a calculated field). */
+  allowBucketTimeZone?: boolean;
   /** All functions currently assigned to this column (popover edits them together). */
   columnFunctions: readonly ReportAggregateFunction[];
   /** Business-readable label; falls back to the raw column when absent. */
@@ -28,6 +32,8 @@ export function AggregationRow({
   rule,
   fieldType,
   allowedAggregations,
+  allowDateBucket,
+  allowBucketTimeZone,
   columnFunctions,
   displayLabel,
   dataMartName,
@@ -102,6 +108,8 @@ export function AggregationRow({
           displayLabel={displayLabel}
           dataMartName={dataMartName}
           allowedAggregations={allowedAggregations}
+          allowDateBucket={allowDateBucket}
+          allowBucketTimeZone={allowBucketTimeZone}
           initialFunctions={columnFunctions}
           onApply={onApplyDraft}
         />

@@ -20,7 +20,14 @@ function dummyValueFor(op: string): unknown {
   if (op === 'between') return { from: 1, to: 2 };
   if (op === 'in' || op === 'not_in') return ['v'];
   if (op === 'in_last_n_days' || op === 'in_next_n_days') return 7;
-  if (op === 'is_null' || op === 'is_not_null' || op === 'is_empty' || op === 'is_not_empty') {
+  if (
+    op === 'is_blank' ||
+    op === 'is_not_blank' ||
+    op === 'is_null' ||
+    op === 'is_not_null' ||
+    op === 'is_empty' ||
+    op === 'is_not_empty'
+  ) {
     return undefined;
   }
   if (op.startsWith('this_') || op.startsWith('last_')) return undefined;
@@ -56,7 +63,7 @@ describe('field-type-matrix', () => {
     // The translated operators are legal for boolean columns in the validator's own set.
     expect(INTERNAL_OPERATORS_BY_CATEGORY.boolean.has('is_true')).toBe(true);
     expect(INTERNAL_OPERATORS_BY_CATEGORY.boolean.has('is_false')).toBe(true);
-    expect(mcpOperatorsForCategory('boolean')).toEqual(['eq', 'neq', 'is_null', 'is_not_null']);
+    expect(mcpOperatorsForCategory('boolean')).toEqual(['eq', 'neq', 'is_blank', 'is_not_blank']);
   });
 
   it('every non-boolean advertised operator is legal in the validator operator sets', () => {
@@ -78,9 +85,20 @@ describe('field-type-matrix', () => {
     );
     expect(mcpOperatorsForCategory('number')).not.toEqual(expect.arrayContaining(['contains']));
     expect(mcpOperatorsForCategory('string')).toEqual(
-      expect.arrayContaining(['contains', 'starts_with', 'in', 'not_in', 'is_empty'])
+      expect.arrayContaining(['contains', 'starts_with', 'in', 'not_in', 'is_blank'])
     );
     expect(mcpOperatorsForCategory('string')).not.toEqual(expect.arrayContaining(['gt']));
+    // The legacy null/empty cluster is accepted but never advertised (#6779).
+    for (const category of FIELD_TYPE_CATEGORIES) {
+      const advertised = mcpOperatorsForCategory(category);
+      for (const legacy of ['is_empty', 'is_not_empty', 'is_null', 'is_not_null']) {
+        expect({ category, legacy, advertised: advertised.includes(legacy) }).toEqual({
+          category,
+          legacy,
+          advertised: false,
+        });
+      }
+    }
     expect(mcpOperatorsForCategory('date')).toEqual(
       expect.arrayContaining([
         'before',
@@ -98,9 +116,11 @@ describe('field-type-matrix', () => {
     );
     // TIME columns have no relative-date presets.
     expect(mcpOperatorsForCategory('time')).not.toEqual(expect.arrayContaining(['in_last_n_days']));
-    // is_empty/is_not_empty are string-only.
-    expect(mcpOperatorsForCategory('number')).not.toEqual(expect.arrayContaining(['is_empty']));
-    expect(mcpOperatorsForCategory('other')).toEqual(['is_null', 'is_not_null']);
+    // Every category carries the blank pair; 'other' carries nothing else.
+    expect(mcpOperatorsForCategory('number')).toEqual(
+      expect.arrayContaining(['is_blank', 'is_not_blank'])
+    );
+    expect(mcpOperatorsForCategory('other')).toEqual(['is_blank', 'is_not_blank']);
   });
 
   it('aggregation menus stay within the MCP function set, defaults within the menu', () => {

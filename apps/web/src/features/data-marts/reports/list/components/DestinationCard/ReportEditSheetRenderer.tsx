@@ -1,5 +1,5 @@
 import { DataDestinationType } from '../../../../../data-destination/shared/enums';
-import { GoogleSheetsReportEditSheet } from '../../../edit/components/GoogleSheetsReportEditSheet';
+import { ReportEditSheet } from '../../../edit/components/ReportEditSheet';
 import { LookerStudioReportEditSheet } from '../../../edit/components/LookerStudioReportEditSheet';
 import { EmailReportEditSheet } from '../../../edit/components/EmailReportEditSheet';
 import { ReportFormMode } from '../../../shared';
@@ -27,10 +27,13 @@ export function ReportEditSheetRenderer({
   mode,
   initialReport,
 }: ReportEditSheetRendererProps) {
+  // Excel reports are configured exactly like Google Sheets ones — same output controls, same
+  // data mart. The sheet asks for nothing destination-specific, so it serves both.
   switch (destination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
       return (
-        <GoogleSheetsReportEditSheet
+        <ReportEditSheet
           isOpen={isOpen}
           onClose={onClose}
           onSubmitSuccess={onSubmitSuccess}

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BlendableSchemaAccessor,
   BlendableSchemaService,
+  flattenSchemaFields,
   resolveBlendableSchemaAccessor,
 } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
@@ -15,6 +16,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { buildBlendedFieldUnifiedName } from './blended-field-name';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { AvailableSourceDto } from '../dto/domain/blendable-schema.dto';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
@@ -67,6 +69,7 @@ describe('BlendableSchemaService', () => {
   let service: BlendableSchemaService;
   let relationshipService: jest.Mocked<DataMartRelationshipService>;
   let dataMartService: jest.Mocked<DataMartService>;
+  let accessDecisionService: jest.Mocked<AccessDecisionService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -98,6 +101,7 @@ describe('BlendableSchemaService', () => {
     service = module.get<BlendableSchemaService>(BlendableSchemaService);
     relationshipService = module.get(DataMartRelationshipService);
     dataMartService = module.get(DataMartService);
+    accessDecisionService = module.get(AccessDecisionService);
   });
 
   describe('computeBlendableSchema', () => {
@@ -983,9 +987,42 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[0].originalFieldName).toBe('visible');
     });
 
+    // A calculated field of the JOINED Data Mart is a formula, with no warehouse column behind
+    // it. It stays in the payload — a client that only saw it vanish could not explain why — and
+    // the flag is what lets the formula validator and the report column picker refuse it by name
+    // instead of calling it unknown.
+    it('marks a joined Data Mart’s own calculated field with isCalculated', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'orders',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Orders',
+            schema: makeSchema([
+              { name: 'amount', type: 'FLOAT' },
+              {
+                name: 'margin',
+                type: 'FLOAT',
+                calculated: { formula: '{{ref field="amount"}}', level: 'metric' },
+              },
+            ] as never),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.blendedFields.map(f => [f.originalFieldName, f.isCalculated])).toEqual([
+        ['amount', false],
+        ['margin', true],
+      ]);
+    });
+
     describe('uniqueCountAvailability', () => {
       // Wires a single joined source with the given RAW target schema fields and returns the
-      // corresponding availableSources[0], the way Task 8's picker will read it.
+      // corresponding availableSources[0], the way the picker reads it.
       async function computeJoinedAvailableSource(
         fields: Array<Record<string, unknown>>
       ): Promise<AvailableSourceDto> {
@@ -1163,6 +1200,239 @@ describe('BlendableSchemaService', () => {
         ];
 
         await expect(computeMainKey(fields)).resolves.toEqual([]);
+      });
+    });
+
+    // Same reason as `mainUniqueCountKeyFields` above: resolved against the RAW schema, not
+    // `nativeFields`, because a formula may legally reference a field hidden for reporting.
+    describe('calculatedFieldIssues', () => {
+      async function computeIssues(fields: Array<Record<string, unknown>>) {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: {
+              type: 'bigquery-data-mart-schema',
+              fields,
+            } as unknown as DataMart['schema'],
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return result.calculatedFieldIssues;
+      }
+
+      it('reports a calculated field whose formula references a field the schema no longer has', async () => {
+        const fields = [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: {
+              formula: '{{ref field="clicks"}} / {{ref field="deleted_field"}}',
+              level: 'metric',
+            },
+          },
+        ];
+
+        await expect(computeIssues(fields)).resolves.toEqual([
+          { field: 'ctr', missing: ['deleted_field'] },
+        ]);
+      });
+
+      it('omits a calculated field whose references all resolve', async () => {
+        const fields = [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+          },
+        ];
+
+        await expect(computeIssues(fields)).resolves.toEqual([]);
+      });
+
+      // The case this field exists to get right: `nativeFields` has already stripped a
+      // reporting-hidden field, but the raw schema this resolves against still has it, so it
+      // must NOT read as missing.
+      it('does not flag a reference to a field hidden for reporting as missing', async () => {
+        const fields = [
+          { name: 'clicks', type: 'INTEGER', isHiddenForReporting: true },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+          },
+        ];
+
+        await expect(computeIssues(fields)).resolves.toEqual([]);
+      });
+
+      // Both halves ride ONE `missing` array on one hard-blocking channel, so the comment rule has
+      // to be the same on both: a commented-out reference is not SQL, and greying the metric out
+      // for one would apply the rule at random from the analyst's side.
+      it('does not flag an own reference that is commented out', async () => {
+        const fields = [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: {
+              formula: 'SUM({{ref field="clicks"}})\n-- was {{ref field="deleted_field"}}\n',
+              level: 'metric',
+            },
+          },
+        ];
+
+        await expect(computeIssues(fields)).resolves.toEqual([]);
+      });
+
+      it('reports every calculated field that has an issue, not just the first', async () => {
+        const fields = [
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: { formula: '{{ref field="missing_a"}}', level: 'metric' },
+          },
+          {
+            name: 'cpc',
+            type: 'FLOAT',
+            calculated: { formula: '{{ref field="missing_b"}}', level: 'metric' },
+          },
+        ];
+
+        await expect(computeIssues(fields)).resolves.toEqual([
+          { field: 'ctr', missing: ['missing_a'] },
+          { field: 'cpc', missing: ['missing_b'] },
+        ]);
+      });
+
+      // A joined reference goes stale in ways an own reference cannot: the join is deleted, or its
+      // alias is renamed somewhere this Data Mart's cascade never reaches.
+      describe('joined references', () => {
+        async function computeJoinedIssues(
+          formula: string,
+          opts: {
+            alias?: string;
+            field?: string;
+            hidden?: boolean;
+            excluded?: boolean;
+            calculated?: boolean;
+            inaccessible?: boolean;
+          } = {}
+        ) {
+          if (opts.inaccessible) {
+            accessDecisionService.canAccessMany.mockResolvedValue(new Map([['dm-2', false]]));
+          }
+          dataMartService.getByIdAndProjectId.mockResolvedValue(
+            makeDataMart({
+              id: 'dm-1',
+              blendedFieldsConfig: opts.excluded
+                ? { sources: [{ path: opts.alias ?? 'orders', isExcluded: true }] }
+                : undefined,
+              schema: {
+                type: 'bigquery-data-mart-schema',
+                fields: [
+                  { name: 'cost', type: 'FLOAT' },
+                  { name: 'roi', type: 'FLOAT', calculated: { formula, level: 'metric' } },
+                ],
+              } as unknown as DataMart['schema'],
+            })
+          );
+          relationshipService.findByStorageId.mockResolvedValue([
+            makeRelationship({
+              id: 'rel-orders',
+              targetAlias: opts.alias ?? 'orders',
+              targetDataMart: makeDataMart({
+                id: 'dm-2',
+                title: 'Orders',
+                schema: makeSchema([
+                  {
+                    name: opts.field ?? 'amount',
+                    type: 'FLOAT',
+                    ...(opts.hidden ? { isHiddenForReporting: true } : {}),
+                    ...(opts.calculated
+                      ? { calculated: { formula: '{{ref field="gross"}}', level: 'metric' } }
+                      : {}),
+                  },
+                ] as never),
+              }),
+            }),
+          ]);
+          const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+          return result.calculatedFieldIssues;
+        }
+
+        const JOINED = 'SUM({{ref path="orders" field="amount"}})';
+
+        it('omits a metric whose joined reference resolves', async () => {
+          await expect(computeJoinedIssues(JOINED)).resolves.toEqual([]);
+        });
+
+        it('reports a joined reference whose alias names no source any more', async () => {
+          await expect(computeJoinedIssues(JOINED, { alias: 'renamed_orders' })).resolves.toEqual([
+            { field: 'roi', missing: ['orders.amount'] },
+          ]);
+        });
+
+        // The grandparent case the rename cascade deliberately does not repair: the formula is left
+        // pointing at a path that no longer resolves, and this is where the analyst learns that.
+        it('reports a nested path whose renamed grandparent segment is stale', async () => {
+          await expect(
+            computeJoinedIssues('SUM({{ref path="orders.items" field="qty"}})')
+          ).resolves.toEqual([{ field: 'roi', missing: ['orders.items.qty'] }]);
+        });
+
+        it('reports a joined field gone from the source', async () => {
+          await expect(computeJoinedIssues(JOINED, { field: 'total' })).resolves.toEqual([
+            { field: 'roi', missing: ['orders.amount'] },
+          ]);
+        });
+
+        it('reports a joined field hidden from reporting', async () => {
+          await expect(computeJoinedIssues(JOINED, { hidden: true })).resolves.toEqual([
+            { field: 'roi', missing: ['orders.amount'] },
+          ]);
+        });
+
+        // Exclusion is curation, not breakage: the join is still built (`buildRelationshipChains`
+        // ignores `isIncluded`), the formula still renders, and calling it broken would grey out a
+        // metric that works — while an ordinary stored column reference to the same source runs.
+        it('does NOT report a source merely excluded from reporting', async () => {
+          await expect(computeJoinedIssues(JOINED, { excluded: true })).resolves.toEqual([]);
+        });
+
+        // A formula may not read another formula — the joined Data Mart's own calculated field is
+        // no more readable than a local one, and it has no warehouse column behind it at all.
+        it('reports a joined reference to the source’s OWN calculated field', async () => {
+          await expect(computeJoinedIssues(JOINED, { calculated: true })).resolves.toEqual([
+            { field: 'roi', missing: ['orders.amount'] },
+          ]);
+        });
+
+        // The report this metric would feed cannot be built for this user at all, so the picker
+        // must grey it out rather than offer a metric whose every run 400s on access.
+        it('reports a joined reference to a source this user cannot read', async () => {
+          await expect(computeJoinedIssues(JOINED, { inaccessible: true })).resolves.toEqual([
+            { field: 'roi', missing: ['orders.amount'] },
+          ]);
+        });
+
+        it('does not report a joined reference that is commented out', async () => {
+          await expect(
+            computeJoinedIssues(
+              'SUM({{ref field="cost"}})\n-- {{ref path="gone" field="amount"}}\n'
+            )
+          ).resolves.toEqual([]);
+        });
+
+        it('reports the own and joined halves of one formula together', async () => {
+          await expect(
+            computeJoinedIssues(
+              '{{ref field="deleted_field"}} * SUM({{ref path="gone" field="amount"}})'
+            )
+          ).resolves.toEqual([{ field: 'roi', missing: ['deleted_field', 'gone.amount'] }]);
+        });
       });
     });
 
@@ -1360,5 +1630,26 @@ describe('resolveBlendableSchemaAccessor', () => {
         projectId: 'project-1',
       });
     }
+  });
+});
+
+describe('flattenSchemaFields', () => {
+  it('flattenSchemaFields keeps a calculated field', () => {
+    const flat = flattenSchemaFields([
+      {
+        name: 'ctr',
+        type: 'FLOAT',
+        status: DataMartSchemaFieldStatus.DISCONNECTED,
+        calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+      },
+    ] as never);
+    expect(flat.map(f => f.name)).toEqual(['ctr']);
+  });
+
+  it('still drops a plain DISCONNECTED field', () => {
+    const flat = flattenSchemaFields([
+      { name: 'gone', type: 'STRING', status: DataMartSchemaFieldStatus.DISCONNECTED },
+    ] as never);
+    expect(flat).toEqual([]);
   });
 });

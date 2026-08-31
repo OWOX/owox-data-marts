@@ -738,6 +738,62 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('2');
   });
 
+  // A JOINED Data Mart's calculated field is refused on every report surface — the backend answers
+  // JOINED_CALCULATED_FIELD_UNSUPPORTED. The Slices picker offered one anyway, and because
+  // `knownSliceKeys` counted it as a known field the resulting rule never showed as disconnected
+  // either: a healthy-looking slice that Save could not accept and the panel would not explain.
+  it('flags a pre-join slice on a joined calculated field as disconnected', () => {
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__margin',
+          originalFieldName: 'margin',
+          type: 'FLOAT',
+          isCalculated: true,
+        } as never),
+        buildBlendedField({ name: 'b__visible_field', originalFieldName: 'visible_field' }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+    vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(schema);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData([BLENDABLE_SCHEMA_QUERY_KEY, DATA_MART_ID], schema);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    render(
+      <ReportColumnPicker
+        dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
+        storageType={DataStorageType.GOOGLE_BIGQUERY}
+        value={['native_one', 'b__visible_field']}
+        onChange={() => {}}
+        outputConfig={{
+          filterConfig: [
+            { column: 'b__margin', operator: 'eq', value: 'x', placement: 'pre-join' },
+            { column: 'b__visible_field', operator: 'eq', value: 'y', placement: 'pre-join' },
+          ],
+          sortConfig: [],
+          limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: [],
+        }}
+        onOutputConfigChange={() => {}}
+      />,
+      { wrapper }
+    );
+
+    const block = screen.getByText('Disconnected columns').closest('div[class*="border"]');
+    expect(block).not.toBeNull();
+    expect(within(block as HTMLElement).getByText('b__margin')).toBeInTheDocument();
+    // The ordinary joined field beside it still resolves, so the exclusion is the calculated one
+    // and not the whole joined source.
+    expect(within(block as HTMLElement).queryByText('b__visible_field')).not.toBeInTheDocument();
+  });
+
   it('shows a neutral output controls count when all controls resolve', () => {
     const schema = buildSchema();
 
@@ -3265,5 +3321,1000 @@ describe('ReportColumnPicker Unique Count description', () => {
     expect(await tooltipOf(uniqueCountRowOf('Unique Count'))).toHaveTextContent(
       "Unique records, counted by this Data Mart's Primary Key: user_id"
     );
+  });
+});
+
+describe('ReportColumnPicker calculated fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const baseOutputConfig: OutputConfig = {
+    filterConfig: [],
+    sortConfig: [],
+    limitConfig: null,
+    aggregationConfig: [],
+    dateTruncConfig: [],
+    uniqueCountConfig: [],
+  };
+
+  const calcSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ] as unknown[],
+    });
+
+  const blendedSchemaWith = (nativeFields: unknown[]) =>
+    buildSchema({
+      nativeFields,
+      blendedFields: [buildBlendedField({ name: 'b__amount', originalFieldName: 'amount' })],
+      availableSources: [buildAvailableSource()],
+    });
+
+  it('offers a calculated field with no aggregation control', () => {
+    renderPicker(calcSchema(), ['clicks', 'ctr'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    // Sanity contrast: an ordinary numeric field on the same schema does get one.
+    const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+    expect(within(clicksRow).getByRole('button', { name: /aggregation/i })).toBeInTheDocument();
+
+    const ctrRow = screen.getByText('ctr').closest('label') as HTMLElement;
+    expect(within(ctrRow).queryByRole('button', { name: /aggregation/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a broken calculated field disabled, with its reason — not hidden', async () => {
+    const schema = buildSchema({
+      nativeFields: [
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="deleted_field"}}', level: 'metric' },
+        },
+      ] as unknown[],
+      calculatedFieldIssues: [{ field: 'ctr', missing: ['deleted_field'] }],
+    });
+
+    renderPicker(schema, [], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    // Listed, not hidden.
+    expect(screen.getByText('ctr')).toBeInTheDocument();
+    const row = screen.getByText('ctr').closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    const checkbox = within(row).getByRole('checkbox');
+    // `aria-disabled`, never the `disabled` attribute — the same reasoning `UniqueCountRow` uses:
+    // `disabled` would drop the control out of the tab order and take the explanation with it.
+    expect(checkbox).toHaveAttribute('aria-disabled', 'true');
+    expect(checkbox).not.toBeDisabled();
+
+    const trigger = within(row).getByRole('button', { name: 'ctr' });
+    fireEvent.pointerMove(trigger, { pointerType: 'mouse' });
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('deleted_field');
+    expect(tooltip).toHaveTextContent(/missing from the Data Mart, or broken/);
+  });
+
+  it('does not disable a calculated field when the backend reports no issue for it', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ] as unknown[],
+      // `calculatedFieldIssues` omitted entirely — matches a payload predating this field; must
+      // fail OPEN (not read as "everything is broken"), same as an entry simply absent from it.
+    });
+
+    renderPicker(schema, ['ctr'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('ctr').closest('label') as HTMLElement;
+    expect(within(row).getByRole('checkbox')).not.toHaveAttribute('aria-disabled');
+    expect(within(row).getByRole('checkbox')).toBeChecked();
+  });
+
+  it('keeps an already-selected calculated field checked when the picker reopens', () => {
+    renderPicker(calcSchema(), ['clicks', 'ctr']);
+
+    const row = screen.getByText('ctr').closest('label') as HTMLElement;
+    expect(within(row).getByRole('checkbox')).toBeChecked();
+  });
+
+  it('leaves a Data Mart with no calculated fields unaffected', () => {
+    const schema = buildSchema({
+      nativeFields: [{ name: 'clicks', type: 'INTEGER' }] as unknown[],
+    });
+
+    renderPicker(schema, ['clicks'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('clicks').closest('label') as HTMLElement;
+    expect(within(row).getByRole('button', { name: /aggregation/i })).toBeInTheDocument();
+    expect(within(row).getByRole('checkbox')).not.toBeDisabled();
+  });
+
+  // The backend renders a main-owner metric on the blended path too, so blending is no
+  // longer a reason to hold one back from a bulk selection.
+  it('Select all sweeps a calculated field in even when the selection blends', () => {
+    const { onChange } = renderPicker(
+      blendedSchemaWith([
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ]),
+      []
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['clicks', 'ctr', 'b__amount']));
+  });
+
+  it('Select all preserves an already-selected calculated field on a blended report', () => {
+    const { onChange } = renderPicker(
+      blendedSchemaWith([
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ]),
+      ['ctr']
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['clicks', 'ctr', 'b__amount']));
+  });
+
+  it('Select all still includes a calculated field on a Data Mart with no joined sources', () => {
+    const { onChange } = renderPicker(calcSchema(), []);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['clicks', 'ctr']));
+  });
+
+  // A direct click on the row is already blocked (aria-disabled) — but `toggleField` carries no
+  // such guard, and neither does the master checkbox. Without its own exclusion, "Select all"
+  // sweeps a broken metric straight past the row's protection: it renders checked, no longer
+  // disabled (blocking requires `!checked`), masking that it is broken until the save is rejected.
+  it('Select all does not sweep an unselected BROKEN calculated field into the selection, even on an unblended report', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'clicks', type: 'INTEGER' },
+        { name: 'revenue', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="deleted_field"}}', level: 'metric' },
+        },
+      ] as unknown[],
+      calculatedFieldIssues: [{ field: 'ctr', missing: ['deleted_field'] }],
+      // No blendedFields/availableSources — this Data Mart never blends, so the pre-existing
+      // blend-only guard would let `ctr` straight through if brokenness weren't also checked.
+      // `revenue` stays unselected going in, so the master checkbox still reads "Select all
+      // fields" (not already "Deselect all") — excluding `ctr` alone would otherwise leave
+      // `clicks` as the only selectable name, already fully selected.
+    });
+
+    const { onChange } = renderPicker(schema, ['clicks']);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['clicks', 'revenue']));
+    expect(next).not.toContain('ctr');
+  });
+
+  it('Select all preserves an already-selected BROKEN calculated field', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="deleted_field"}}', level: 'metric' },
+        },
+      ] as unknown[],
+      calculatedFieldIssues: [{ field: 'ctr', missing: ['deleted_field'] }],
+    });
+
+    const { onChange } = renderPicker(schema, ['ctr']);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['clicks', 'ctr']));
+  });
+
+  // The v1 limitation is lifted: the blended builder renders the metric from its stored
+  // formula, so a report that already selects a joined field can still take one on.
+  it('offers an unselected calculated field on a report that already spans a joined Data Mart', () => {
+    const schema = blendedSchemaWith([
+      { name: 'clicks', type: 'INTEGER' },
+      {
+        name: 'ctr',
+        type: 'FLOAT',
+        calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+      },
+    ]);
+
+    const { onChange } = renderPicker(schema, ['clicks', 'b__amount'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('ctr').closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    const checkbox = within(row).getByRole('checkbox');
+    expect(checkbox).not.toHaveAttribute('aria-disabled');
+    // No hint to explain a refusal that no longer happens, so the label is a plain one.
+    expect(within(row).queryByRole('button', { name: 'ctr' })).not.toBeInTheDocument();
+
+    fireEvent.click(checkbox);
+
+    expect(onChange.mock.calls.at(-1)?.[0]).toContain('ctr');
+  });
+
+  it('keeps an already-selected calculated field row clickable — and clearable — on a blended report', () => {
+    const schema = blendedSchemaWith([
+      { name: 'clicks', type: 'INTEGER' },
+      {
+        name: 'ctr',
+        type: 'FLOAT',
+        calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+      },
+    ]);
+
+    const { onChange } = renderPicker(schema, ['clicks', 'ctr', 'b__amount'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('ctr').closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    const checkbox = within(row).getByRole('checkbox');
+    expect(checkbox).not.toHaveAttribute('aria-disabled');
+
+    fireEvent.click(checkbox);
+
+    expect(onChange).toHaveBeenCalled();
+    const next = onChange.mock.calls.at(-1)?.[0] as string[];
+    expect(next).not.toContain('ctr');
+  });
+
+  it('does not carry a DISCONNECTED calculated field into the same hiding path as a real dropped column', () => {
+    // A calculated field's `status` is a warehouse-derived artifact that means nothing for it —
+    // it never came from the warehouse. Dropping it from `nativeFields` on DISCONNECTED (as an
+    // ordinary field is) would demote it to a generic "Disconnected columns" fallback entry
+    // instead of its own row — the one thing forbidden: a broken metric must be listed,
+    // disabled, WITH ITS REASON, not folded into the same bucket as a column the schema dropped.
+    const schema = buildSchema({
+      nativeFields: [
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          status: 'DISCONNECTED',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ] as unknown[],
+    });
+
+    renderPicker(schema, ['ctr']);
+
+    // Rendered as its own field row (checkbox present, selectable) — not the "Disconnected
+    // columns" fallback, which the DISCONNECTED status would otherwise route it into.
+    expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
+    const row = screen.getByText('ctr').closest('[data-slot="native-field-row"]');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByRole('checkbox')).toBeChecked();
+  });
+
+  describe('an implicit "all columns" selection (value === null)', () => {
+    it('does not show a calculated field ticked, even though every real native column is', () => {
+      renderPicker(calcSchema(), null);
+
+      const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+      expect(within(clicksRow).getByRole('checkbox')).toBeChecked();
+
+      const ctrRow = screen.getByText('ctr').closest('label') as HTMLElement;
+      expect(within(ctrRow).getByRole('checkbox')).not.toBeChecked();
+    });
+
+    it('does not smuggle a calculated field into columnConfig via the aggregation-materialization side effect', () => {
+      const { onChange } = renderPicker(calcSchema(), null, {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: baseOutputConfig,
+        onOutputConfigChange: () => {},
+      });
+
+      const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(clicksRow).getByRole('button', { name: 'Add aggregation' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'SUM' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+      // Backend's own implicit-all resolution (`implicitAllNativeColumnNames`) excludes every
+      // calculated field — the materialized list here must match it exactly, not include `ctr`.
+      expect(onChange).toHaveBeenCalledWith(['clicks']);
+    });
+
+    it('does not smuggle a calculated field into columnConfig via the joined-Unique-Count materialization side effect', () => {
+      const schema = blendedSchemaWith([
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        },
+      ]);
+
+      const { onChange } = renderPicker(schema, null, {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: baseOutputConfig,
+        onOutputConfigChange: () => {},
+      });
+
+      const expandToggle = screen.queryByRole('button', { name: 'Expand Joined DM' });
+      if (expandToggle) fireEvent.click(expandToggle);
+      const row = joinedUniqueCountRowOf('Joined DM');
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      // Materializing the implicit-all projection must mirror the backend's own
+      // `implicitAllNativeColumnNames`, which leaves every calculated field out: a metric is
+      // composed only when asked for BY NAME, so ticking a Unique Count must not smuggle one in.
+      expect(onChange).toHaveBeenCalledWith(['clicks']);
+    });
+  });
+
+  // Filtering BY a calculated field was refused on both surfaces until that disproved the
+  // published reason: it described a SELECT-list ALIAS, but a predicate's left-hand side is the
+  // formula itself, which every dialect resolves. Which CLAUSE the predicate lands in (WHERE for a
+  // row-level formula, HAVING for an aggregate-level one) is decided by the backend from the
+  // field's level — the picker offers the control at both levels and does not re-derive that.
+  describe('the row offers a filter control at either level', () => {
+    const aggregateLevelSchema = () =>
+      buildSchema({
+        nativeFields: [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+          },
+        ] as unknown[],
+      });
+
+    it('shows the filter icon on an aggregate-level calculated field', () => {
+      renderPicker(aggregateLevelSchema(), ['clicks', 'ctr'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: baseOutputConfig,
+        onOutputConfigChange: () => {},
+      });
+
+      // Sanity contrast: the ordinary INTEGER field beside it gets the same control.
+      const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+      expect(within(clicksRow).getByRole('button', { name: 'Add filter' })).toBeInTheDocument();
+
+      const ctrRow = screen.getByText('ctr').closest('label') as HTMLElement;
+      expect(within(ctrRow).getByRole('button', { name: 'Add filter' })).toBeInTheDocument();
+    });
+
+    // The icon is only the door. This is the rule the backend actually receives, so a change that
+    // renders the control but drops the field's name (or its declared type) still fails here.
+    it('writes the rule an analyst applies to an aggregate-level calculated field', async () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(aggregateLevelSchema(), ['clicks', 'ctr'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: baseOutputConfig,
+        onOutputConfigChange,
+      });
+
+      const ctrRow = screen.getByText('ctr').closest('label') as HTMLElement;
+      fireEvent.click(within(ctrRow).getByRole('button', { name: 'Add filter' }));
+
+      const dialog = await screen.findByRole('dialog');
+      const input = dialog.querySelector('input')!;
+      fireEvent.change(input, { target: { value: '0.5' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+      const [config] = onOutputConfigChange.mock.calls.at(-1) as [OutputConfig];
+      // A FLOAT declaration makes the value a JS number, not the string the input held — the
+      // literal form §1.4 measured deciding between a hard error and the right answer.
+      expect(config.filterConfig).toEqual([{ column: 'ctr', operator: 'eq', value: 0.5 }]);
+    });
+
+    it('offers a calculated field in the Output settings "Add filter" picker', async () => {
+      renderPicker(aggregateLevelSchema(), ['clicks', 'ctr'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: baseOutputConfig,
+        onOutputConfigChange: () => {},
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+      const trigger = screen
+        .getAllByRole('button', { name: /Add filter/ })
+        .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+      fireEvent.click(trigger!);
+
+      const listbox = await screen.findByRole('listbox');
+      expect(within(listbox).getByText('clicks')).toBeInTheDocument();
+      expect(within(listbox).getByText('ctr')).toBeInTheDocument();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // A ROW-LEVEL calculated field (`level: 'column'`), which the backend derives from a formula
+  // with no aggregate call. Two overrides used to treat both levels identically, and they are
+  // answers to DIFFERENT questions:
+  //
+  //   the LEVEL FORK      — aggregation plus the date bucket. A row-level
+  //                         formula IS a dimension: a report may aggregate it AND group it by
+  //                         month or week, exactly like the ordinary column beside it. An
+  //                         aggregate-level one already IS an aggregate — it is not a dimension
+  //                         at all, so it is offered neither, permanently.
+  //   isCalculated: true  — now gates the bucket TIME ZONE only. The filter it used
+  //                         to gate as well is offered at both levels since §1.1.
+  // ---------------------------------------------------------------------------
+  describe('a row-level calculated field', () => {
+    const rowLevelSchema = (calculatedType = 'INTEGER') =>
+      buildSchema({
+        nativeFields: [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'doubled_clicks',
+            type: calculatedType,
+            calculated: { formula: '{{ref field="clicks"}} * 2', level: 'column' },
+          },
+        ] as unknown[],
+      });
+
+    const withOutputControls = {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: baseOutputConfig,
+      onOutputConfigChange: () => {},
+    };
+
+    const openAddPicker = (name: RegExp) => {
+      const trigger = screen
+        .getAllByRole('button', { name })
+        .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+      fireEvent.click(trigger!);
+    };
+
+    it('is listed, enabled and selectable like any other native field', () => {
+      const { onChange } = renderPicker(rowLevelSchema(), ['clicks'], withOutputControls);
+
+      const row = screen
+        .getByText('doubled_clicks')
+        .closest<HTMLElement>('[data-slot="native-field-row"]')!;
+      const checkbox = within(row).getByRole('checkbox');
+      expect(checkbox).not.toHaveAttribute('aria-disabled');
+
+      fireEvent.click(checkbox);
+
+      expect(onChange.mock.calls.at(-1)?.[0]).toContain('doubled_clicks');
+    });
+
+    // The first of the three surfaces the single override gates.
+    it('gets a per-row Σ aggregation control, offering its declared type’s menu', async () => {
+      renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+      expect(within(clicksRow).getByRole('button', { name: /aggregation/i })).toBeInTheDocument();
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+
+      // STRING's governance default — byte-for-byte what a plain STRING column beside it offers,
+      // because both resolve through the same `resolveFieldGovernance`.
+      expect(await screen.findByRole('checkbox', { name: 'COUNT_DISTINCT' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'COUNT' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'STRING_AGG' })).toBeInTheDocument();
+      // Not in STRING's default set, so offering it would mean the menu came from somewhere else.
+      expect(screen.queryByRole('checkbox', { name: 'SUM' })).not.toBeInTheDocument();
+    });
+
+    it('writes the aggregation the analyst applies to it', async () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], {
+        ...withOutputControls,
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+      fireEvent.click(await screen.findByRole('checkbox', { name: 'COUNT_DISTINCT' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+      expect(onOutputConfigChange).toHaveBeenCalled();
+      const [config] = onOutputConfigChange.mock.calls.at(-1) as [OutputConfig];
+      expect(config.aggregationConfig).toEqual([
+        { column: 'doubled_clicks', function: 'COUNT_DISTINCT' },
+      ]);
+      // The field stops being a grouping key and becomes a metric of the query — the consequence
+      // a caller cannot infer, asserted here as the config the backend is actually sent.
+      expect(config.dateTruncConfig).toEqual([]);
+    });
+
+    // The second surface the same override gates.
+    it('is offered in the Aggregations panel’s add picker', async () => {
+      renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+      openAddPicker(/Add aggregation/);
+
+      const listbox = await screen.findByRole('listbox');
+      expect(within(listbox).getByText('clicks')).toBeInTheDocument();
+      expect(within(listbox).getByText('doubled_clicks')).toBeInTheDocument();
+    });
+
+    // The report an agent can already create over MCP, opened in the editor. Before this the
+    // picker forced an empty allowed set, so this rule rendered ORPHANED — red, struck through,
+    // labelled "Column not found in schema", with Edit disabled and only Remove left. The column
+    // is right there and selected; the only offered fix silently turned a metric back into a
+    // grouping key.
+    it('renders an MCP-created aggregation on it as a live rule, not as an orphan', () => {
+      renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], {
+        ...withOutputControls,
+        outputConfig: {
+          ...baseOutputConfig,
+          aggregationConfig: [{ column: 'doubled_clicks', function: 'COUNT_DISTINCT' }],
+        },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+
+      expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Edit disabled/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit aggregation' })).toBeInTheDocument();
+    });
+
+    // The THIRD surface behind the level fork, and the one the date bucket opens: a row-level formula is
+    // a dimension, so a DATE-declared one groups by month or week like the ordinary DATE column
+    // beside it. Until this slice the picker refused it at BOTH levels.
+    it('offers a DATE-typed row-level field the date bucket beside its aggregations', async () => {
+      renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+
+      expect(await screen.findByLabelText('Group by bucket')).toBeInTheDocument();
+      // The wording that exists only once a bucket is the alternative to the functions.
+      expect(screen.getByText('Or aggregate by')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'MIN' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'MAX' })).toBeInTheDocument();
+    });
+
+    it('offers the bucket in the Aggregations panel’s add flow too', async () => {
+      renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+      openAddPicker(/Add aggregation/);
+      const listbox = await screen.findByRole('listbox');
+      fireEvent.click(within(listbox).getByText('doubled_clicks'));
+
+      expect(await screen.findByLabelText('Group by bucket')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'MIN' })).toBeInTheDocument();
+    });
+
+    // The bucket rule's own row, which has no allowed-set gate to hide behind: it must stay live
+    // and editable here, and be refused for the aggregate level further down.
+    it('lets a saved bucket rule on it be reopened and edited', async () => {
+      renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], {
+        ...withOutputControls,
+        outputConfig: {
+          ...baseOutputConfig,
+          dateTruncConfig: [{ column: 'doubled_clicks', unit: 'MONTH' }],
+        },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit date bucket' }));
+
+      expect(await screen.findByLabelText('Group by bucket')).toBeInTheDocument();
+    });
+
+    it('offers it when an existing rule on it is edited', async () => {
+      renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], {
+        ...withOutputControls,
+        outputConfig: {
+          ...baseOutputConfig,
+          aggregationConfig: [{ column: 'doubled_clicks', function: 'MIN' }],
+        },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit aggregation' }));
+
+      expect(await screen.findByLabelText('Group by bucket')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'MIN' })).toBeInTheDocument();
+    });
+
+    // The DECLARED TYPE still decides, and it decides first: a STRING-declared formula reaches no
+    // bucket control at all, so the backend's type refusal is the backstop and not the first line
+    // the analyst meets.
+    it('offers a STRING-declared row-level field no bucket, only its type’s functions', async () => {
+      renderPicker(rowLevelSchema('STRING'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+
+      expect(await screen.findByRole('checkbox', { name: 'COUNT_DISTINCT' })).toBeInTheDocument();
+      expect(screen.queryByLabelText('Group by bucket')).not.toBeInTheDocument();
+      expect(screen.queryByText('Or aggregate by')).not.toBeInTheDocument();
+      expect(screen.getByText('Aggregate by')).toBeInTheDocument();
+    });
+
+    // The contrast that keeps every assertion above honest: an ordinary DATE column on the same
+    // report still gets its bucket. The suppression is about the calculated field, not about the
+    // control having been removed from the product.
+    it('leaves an ordinary DATE column’s bucket alone', async () => {
+      const schema = buildSchema({
+        nativeFields: [
+          { name: 'day', type: 'DATE' },
+          {
+            name: 'doubled_clicks',
+            type: 'DATE',
+            calculated: { formula: '{{ref field="day"}}', level: 'column' },
+          },
+        ] as unknown[],
+      });
+      renderPicker(schema, ['day', 'doubled_clicks'], withOutputControls);
+
+      const dayRow = screen.getByText('day').closest('label') as HTMLElement;
+      fireEvent.click(within(dayRow).getByRole('button', { name: 'Add aggregation' }));
+
+      expect(await screen.findByLabelText('Group by bucket')).toBeInTheDocument();
+      expect(screen.getByText('Or aggregate by')).toBeInTheDocument();
+    });
+
+    // The level fork itself. An aggregate-level field IS an aggregate, so it is offered nothing —
+    // this is what "conditional on the level" has to mean, and a mutation that lifts the override
+    // for BOTH levels passes every assertion above and fails here.
+    it('does not lift the refusal for an AGGREGATE-level field on the same report', async () => {
+      const schema = buildSchema({
+        nativeFields: [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'doubled_clicks',
+            type: 'STRING',
+            calculated: { formula: '{{ref field="clicks"}} * 2', level: 'column' },
+          },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+          },
+        ] as unknown[],
+      });
+      renderPicker(schema, ['clicks', 'doubled_clicks', 'ctr'], withOutputControls);
+
+      const ctrRow = screen.getByText('ctr').closest('label') as HTMLElement;
+      expect(
+        within(ctrRow).queryByRole('button', { name: /aggregation/i })
+      ).not.toBeInTheDocument();
+      const rowLevel = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      expect(within(rowLevel).getByRole('button', { name: /aggregation/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+      openAddPicker(/Add aggregation/);
+      const listbox = await screen.findByRole('listbox');
+      expect(within(listbox).getByText('doubled_clicks')).toBeInTheDocument();
+      expect(within(listbox).queryByText('ctr')).not.toBeInTheDocument();
+    });
+
+    // The bucket half of the same fork, at the ONLY surface where an aggregate-level field can
+    // still REACH a bucket control: a stale rule, saved before the level existed or written over
+    // MCP. Everywhere else the forced-empty allowed set already keeps the field away — it never
+    // enters the add picker, and an aggregation rule on it renders as an orphan with the editor
+    // swapped for a disabled pencil. The bucket rule had no such gate.
+    it('offers a DATE-declared AGGREGATE-level field no bucket, even from a stale rule', () => {
+      const schema = buildSchema({
+        nativeFields: [
+          { name: 'day', type: 'DATE' },
+          {
+            name: 'last_seen',
+            type: 'DATE',
+            calculated: { formula: 'MAX({{ref field="day"}})', level: 'metric' },
+          },
+        ] as unknown[],
+      });
+      renderPicker(schema, ['day', 'last_seen'], {
+        ...withOutputControls,
+        outputConfig: {
+          ...baseOutputConfig,
+          dateTruncConfig: [{ column: 'last_seen', unit: 'MONTH' }],
+        },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+
+      expect(screen.queryByRole('button', { name: 'Edit date bucket' })).not.toBeInTheDocument();
+      const pencil = screen.getByRole('button', { name: /Edit disabled/ });
+      fireEvent.click(pencil);
+      expect(screen.queryByLabelText('Group by bucket')).not.toBeInTheDocument();
+      // Still removable — the analyst's only way out of a rule that can never be saved.
+      expect(screen.getByLabelText('Remove date bucket')).toBeInTheDocument();
+    });
+
+    // A field authored in this session carries no level yet — the save derives it. The aggregate
+    // reading is the one that offers nothing, so an absent level must fall to it rather than
+    // flashing a control the very next response could take away.
+    it('offers nothing to a calculated field carrying NO level', () => {
+      const schema = buildSchema({
+        nativeFields: [
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'doubled_clicks',
+            type: 'STRING',
+            calculated: { formula: '{{ref field="clicks"}} * 2' },
+          },
+        ] as unknown[],
+      });
+      renderPicker(schema, ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      expect(within(row).queryByRole('button', { name: /aggregation/i })).not.toBeInTheDocument();
+    });
+
+    it('gets a filter control, like the ordinary column beside it', () => {
+      renderPicker(rowLevelSchema(), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const clicksRow = screen.getByText('clicks').closest('label') as HTMLElement;
+      expect(within(clicksRow).getByRole('button', { name: 'Add filter' })).toBeInTheDocument();
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      expect(within(row).getByRole('button', { name: 'Add filter' })).toBeInTheDocument();
+    });
+
+    it('is offered in the Output settings "Add filter" picker', async () => {
+      renderPicker(rowLevelSchema(), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+      openAddPicker(/Add filter/);
+
+      const listbox = await screen.findByRole('listbox');
+      expect(within(listbox).getByText('clicks')).toBeInTheDocument();
+      expect(within(listbox).getByText('doubled_clicks')).toBeInTheDocument();
+    });
+
+    // The operator menu comes from the DECLARED type and is NOT narrowed for a calculated
+    // field, even though a MIS-declared date filters the wrong rows on Snowflake and Redshift —
+    // the honest case works on all five storages, and documentation is the agreed mitigation
+    //. `operatorsForType` is what turns the type into the menu (pinned in
+    // output-controls-operators.test.ts), so what is left to pin here is that the picker hands the
+    // editor the DECLARED type untouched: a date-typed value input is only rendered for the DATE
+    // family, and the obvious way to dodge that risk — quietly passing STRING — renders
+    // `type="text"` instead.
+    it('hands the filter editor the declared DATE type, not a narrowed one', async () => {
+      renderPicker(rowLevelSchema('DATE'), ['clicks', 'doubled_clicks'], withOutputControls);
+
+      const row = screen.getByText('doubled_clicks').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add filter' }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog.querySelector('input[type="date"]')).not.toBeNull();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A JOINED Data Mart's calculated field. `BlendedFieldDto.isCalculated` is a required member of the
+// payload and its own description says the field "cannot be selected as an ordinary report column
+// either" — and since then the backend refuses it on EVERY report surface it can be named on
+// (projection, filter, sort, aggregation, date bucket). The picker hardcoded both calculated flags
+// to false for this branch, so it read as an ordinary column and offering it was offering a
+// guaranteed refusal on the report's first run.
+//
+// Unlike the MCP schema, which simply omits it, this picker must still render an ALREADY-SAVED
+// selection: nothing else prunes `columnConfig`, so a row that disappeared would leave a report
+// stuck with a column it cannot clear.
+// ---------------------------------------------------------------------------
+describe('a joined Data Mart’s calculated field', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const withOutputControls = {
+    storageType: DataStorageType.GOOGLE_BIGQUERY,
+    outputConfig: {
+      filterConfig: [],
+      sortConfig: [],
+      limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: [],
+    } as OutputConfig,
+    onOutputConfigChange: () => undefined,
+  };
+
+  const joinedCalculatedSchema = () =>
+    buildSchema({
+      blendedFields: [
+        buildBlendedField({ name: 'b__amount', originalFieldName: 'amount', type: 'FLOAT' }),
+        buildBlendedField({
+          name: 'b__roas',
+          originalFieldName: 'roas',
+          type: 'FLOAT',
+          isCalculated: true,
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+
+  /** The group starts collapsed while nothing in it is selected. */
+  const rowFor = (name: string) => {
+    const expand = screen.queryByRole('button', { name: 'Expand Joined DM' });
+    if (expand) fireEvent.click(expand);
+    return screen.getByText(name).closest<HTMLElement>('[data-slot="blended-field-row"]')!;
+  };
+
+  it('cannot be ticked into a report, while its ordinary neighbour can', () => {
+    const { onChange } = renderPicker(joinedCalculatedSchema(), [], withOutputControls);
+
+    const checkbox = within(rowFor('roas')).getByRole('checkbox');
+    // `aria-disabled`, not `disabled` — the same reasoning `UniqueCountRow` and a broken native
+    // metric's row use: `disabled` drops the control out of the tab order and takes the
+    // explanation with it.
+    expect(checkbox).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(checkbox);
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(within(rowFor('amount')).getByRole('checkbox'));
+    expect(onChange).toHaveBeenCalledWith(['b__amount']);
+  });
+
+  it('says why, naming the Data Mart the formula belongs to', async () => {
+    renderPicker(joinedCalculatedSchema(), [], withOutputControls);
+
+    const trigger = within(rowFor('roas')).getByRole('button', { name: 'roas' });
+    fireEvent.pointerMove(trigger, { pointerType: 'mouse' });
+
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('calculated field of Joined DM');
+    expect(tooltip).toHaveTextContent(/real columns/);
+  });
+
+  // The job the MCP schema does not have. A report saved before this refusal existed still carries
+  // the column, and un-ticking it is the analyst's only way out.
+  it('renders an already-saved selection, checked and clearable', () => {
+    const { onChange } = renderPicker(
+      joinedCalculatedSchema(),
+      ['b__amount', 'b__roas'],
+      withOutputControls
+    );
+
+    const checkbox = within(rowFor('roas')).getByRole('checkbox');
+    expect(checkbox).toBeChecked();
+    expect(checkbox).not.toHaveAttribute('aria-disabled');
+
+    fireEvent.click(checkbox);
+    expect(onChange).toHaveBeenCalledWith(['b__amount']);
+  });
+
+  it('is left out of Select all, which would otherwise sweep it in', () => {
+    const { onChange } = renderPicker(joinedCalculatedSchema(), [], withOutputControls);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Select all/i }));
+
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.calls.at(-1)?.[0]).not.toContain('b__roas');
+  });
+
+  it('is kept out of the Output settings “Add filter” picker', async () => {
+    renderPicker(joinedCalculatedSchema(), ['b__amount', 'b__roas'], withOutputControls);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    const trigger = screen
+      .getAllByRole('button', { name: /Add filter/ })
+      .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+    fireEvent.click(trigger!);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('amount')).toBeInTheDocument();
+    expect(within(listbox).queryByText('roas')).not.toBeInTheDocument();
+  });
+
+  // The row's own control, which the picker-list assertion above cannot see. An
+  // OWN-mart calculated field DOES get this icon, so nothing about "calculated" suppresses it any
+  // more — only the remove-only path a joined formula takes, for the reason the hint gives.
+  it('offers no filter control on the row, while its ordinary neighbour does', () => {
+    renderPicker(joinedCalculatedSchema(), ['b__amount', 'b__roas'], withOutputControls);
+
+    expect(
+      within(rowFor('amount')).getByRole('button', { name: 'Add filter' })
+    ).toBeInTheDocument();
+    expect(
+      within(rowFor('roas')).queryByRole('button', { name: /filter/i })
+    ).not.toBeInTheDocument();
+  });
+
+  // Remove-only, not invisible: a rule saved before the refusal existed is the analyst's to clear,
+  // and nothing else prunes `filterConfig` for them.
+  it('keeps an already-saved filter rule on it removable', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(joinedCalculatedSchema(), ['b__amount', 'b__roas'], {
+      ...withOutputControls,
+      outputConfig: {
+        ...withOutputControls.outputConfig,
+        filterConfig: [{ column: 'b__roas', operator: 'gt', value: 1 }],
+      } as OutputConfig,
+      onOutputConfigChange,
+    });
+
+    fireEvent.click(
+      within(rowFor('roas')).getByRole('button', { name: 'Manage filters and slices' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Remove filter' }));
+
+    const [config] = onOutputConfigChange.mock.calls.at(-1) as [OutputConfig];
+    expect(config.filterConfig).toEqual([]);
+  });
+
+  it('offers no aggregation, even on a saved selection of a numeric one', () => {
+    renderPicker(joinedCalculatedSchema(), ['b__amount', 'b__roas'], withOutputControls);
+
+    // Sanity contrast: the ordinary FLOAT beside it, from the same source, does get one.
+    expect(
+      within(rowFor('amount')).getByRole('button', { name: /aggregation/i })
+    ).toBeInTheDocument();
+    expect(
+      within(rowFor('roas')).queryByRole('button', { name: /aggregation/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('leaves an ordinary joined field untouched', () => {
+    const { onChange } = renderPicker(joinedCalculatedSchema(), [], withOutputControls);
+
+    const checkbox = within(rowFor('amount')).getByRole('checkbox');
+    expect(checkbox).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(checkbox);
+    expect(onChange).toHaveBeenCalledWith(['b__amount']);
+  });
+
+  // A payload cached before `isCalculated` existed carries none at all — that must read as an
+  // ordinary column, not as a refusal for every joined field.
+  it('treats an absent isCalculated as an ordinary column', () => {
+    const { onChange } = renderPicker(
+      buildSchema({
+        blendedFields: [buildBlendedField({ name: 'b__amount', originalFieldName: 'amount' })],
+        availableSources: [buildAvailableSource()],
+      }),
+      [],
+      withOutputControls
+    );
+
+    fireEvent.click(within(rowFor('amount')).getByRole('checkbox'));
+    expect(onChange).toHaveBeenCalledWith(['b__amount']);
   });
 });

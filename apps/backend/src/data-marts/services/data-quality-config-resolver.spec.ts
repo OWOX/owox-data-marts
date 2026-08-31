@@ -22,6 +22,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
       primaryKey?: boolean;
       status?: DataMartSchemaFieldStatus;
       type?: BigQueryFieldType;
+      calculated?: { formula: string; level: 'metric' };
     } = {}
   ) => ({
     name,
@@ -30,6 +31,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
     status: options.status ?? DataMartSchemaFieldStatus.CONNECTED,
     isPrimaryKey: options.primaryKey ?? false,
     isHiddenForReporting: false,
+    ...(options.calculated ? { calculated: options.calculated } : {}),
   });
 
   const schema = (...fields: ReturnType<typeof field>[]): DataMartSchema => ({
@@ -741,5 +743,66 @@ describe('resolveEffectiveDataQualityConfig', () => {
     expect(first.rules.map(rule => rule.key)).toEqual(
       [...first.rules.map(rule => rule.key)].sort((a, b) => a.localeCompare(b))
     );
+  });
+
+  it('never generates a physical-projection rule for a calculated field', () => {
+    const result = resolveForDefinition(
+      null,
+      schema(
+        field('id', { primaryKey: true }),
+        field('ctr', {
+          type: BigQueryFieldType.FLOAT,
+          calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+        })
+      ),
+      []
+    );
+
+    // No FIELD-scoped rule of any category should target the calculated field's path: every
+    // such rule compiles into a SQL expression that would reference `ctr` as a real column.
+    expect(
+      result.rules.some(
+        rule =>
+          rule.scope.type === DataQualityScope.FIELD &&
+          JSON.stringify(rule.scope.fieldPath) === JSON.stringify(['ctr'])
+      )
+    ).toBe(false);
+  });
+
+  it('groups DUPLICATE_ROWS by physical fields only, ignoring a calculated field', () => {
+    const result = resolveForDefinition(
+      null,
+      schema(
+        field('id'),
+        field('ctr', {
+          type: BigQueryFieldType.FLOAT,
+          calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+        })
+      ),
+      []
+    );
+
+    // Still applicable: a real materialized field ('id') remains, so the calculated field being
+    // excluded must not make the whole check inapplicable.
+    expect(
+      findRule(result, DataQualityCategory.DUPLICATE_ROWS, DataQualityScope.DATA_MART)
+    ).toMatchObject({ isApplicable: true });
+  });
+
+  it('marks duplicate rows not applicable when the only field is calculated', () => {
+    const result = resolveForDefinition(
+      null,
+      schema(
+        field('ctr', {
+          type: BigQueryFieldType.FLOAT,
+          calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+        })
+      ),
+      []
+    );
+
+    expect(
+      findRule(result, DataQualityCategory.DUPLICATE_ROWS, DataQualityScope.DATA_MART)
+    ).toMatchObject({ isApplicable: false, notApplicableReason: expect.any(String) });
   });
 });

@@ -7,7 +7,9 @@ import {
   ReportBuilder,
   AUTH_HEADER,
   NONEXISTENT_UUID,
+  EMAIL_REPORT_DESTINATION_CONFIG,
 } from '@owox/test-utils';
+import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
 
 // Tests are order-dependent: Create -> Get -> List -> Update -> Delete -> Verify -> Validation
 describe('Report API (e2e)', () => {
@@ -99,9 +101,33 @@ describe('Report API (e2e)', () => {
     expect(res.body.title).toBe('Updated Report');
   });
 
-  // RPT-07: Fire-and-forget report run
-  it('POST /api/reports/:id/run - triggers a fire-and-forget run', async () => {
+  // RPT-07: A pull destination has no server-side run to start
+  it('POST /api/reports/:id/run - refuses a report whose destination reads its own data', async () => {
+    // This report is on Data Studio, which the server cannot write into: the connector asks for
+    // the data instead. Such a run used to be accepted and then die in the worker with
+    // "No component found for type"; it is now refused where the caller can still see why.
     const res = await agent.post(`/api/reports/${createdId}/run`).set(AUTH_HEADER);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/cannot be run from the server/);
+  });
+
+  // RPT-07b: The same endpoint on a destination the server does write into
+  it('POST /api/reports/:id/run - triggers a fire-and-forget run for a push destination', async () => {
+    const prerequisites = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
+    const reportRes = await agent
+      .post('/api/reports')
+      .set(AUTH_HEADER)
+      .send(
+        new ReportBuilder()
+          .withDataMartId(prerequisites.dataMartId)
+          .withDataDestinationId(prerequisites.dataDestinationId)
+          .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
+          .build()
+      );
+    expect(reportRes.status).toBe(201);
+
+    const res = await agent.post(`/api/reports/${reportRes.body.id}/run`).set(AUTH_HEADER);
 
     expect(res.status).toBe(201);
   });
