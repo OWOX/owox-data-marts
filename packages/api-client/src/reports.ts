@@ -25,6 +25,14 @@ export type OWOXReportOutputSchemaField = {
   title?: string;
   description?: string;
   type?: string;
+  /** The aggregate function the report applies to this column, when it applies one. */
+  aggregateFunction?: string;
+  /**
+   * Calculated fields only. `metric` means the formula AGGREGATES — re-aggregating it is wrong at
+   * any grain, whatever `type` says. `column` means row-level, with no warehouse column behind it.
+   * Absent is an ordinary native column, which may be rolled up.
+   */
+  calculatedFieldLevel?: 'metric' | 'column';
 };
 
 export class ReportsApi {

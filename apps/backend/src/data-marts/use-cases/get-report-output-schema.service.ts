@@ -78,12 +78,16 @@ export class GetReportOutputSchemaService {
       );
     }
 
-    const accessor = { userId: command.userId, roles: command.roles };
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
-
+    // Ahead of the blending decision, not just ahead of the header build: without a stored schema
+    // this request can only end in the exception below, and the decision is the one step here that
+    // still writes — it refreshes a SQL-defined source's view on the joined path. Failing first
+    // keeps a doomed request from touching the warehouse at all.
     if (!report.dataMart.schema) {
       throw new BusinessViolationException('Data mart schema must be provided');
     }
+
+    const accessor = { userId: command.userId, roles: command.roles };
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
 
     // Calculated fields are named by their formula and exist only in the plan that built them.
     //

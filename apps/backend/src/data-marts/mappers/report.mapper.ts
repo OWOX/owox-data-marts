@@ -273,6 +273,11 @@ export class ReportMapper {
       title: header.alias,
       description: header.description,
       type: header.storageFieldType,
+      aggregateFunction: header.aggregateFunction,
+      // Carried rather than dropped: `type` alone cannot separate a non-additive calculated metric
+      // from an ordinary numeric column, and a consumer that re-aggregates the first is wrong at
+      // any grain. See the field's own doc on ReportDataHeader.
+      calculatedFieldLevel: header.calculatedFieldLevel,
     }));
   }
 

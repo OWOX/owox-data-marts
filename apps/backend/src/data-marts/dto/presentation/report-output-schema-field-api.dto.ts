@@ -27,4 +27,20 @@ export class ReportOutputSchemaFieldApiDto {
     required: false,
   })
   type?: string;
+
+  @ApiProperty({
+    description:
+      'The aggregate function the report applies to this column, when it applies one. Absent for a plain projected column.',
+    example: 'SUM',
+    required: false,
+  })
+  aggregateFunction?: string;
+
+  @ApiProperty({
+    description:
+      "Set only for a calculated field, carrying the level its formula was derived to have. `metric` means the formula AGGREGATES: re-aggregating it is wrong at any grain, whatever `type` says. `column` means it is row-level and behaves like a column of its declared type, but no warehouse column backs it. Absent means an ordinary native column, which a consumer may treat as re-summable — so do not read an absent value as 'unknown'.",
+    enum: ['metric', 'column'],
+    required: false,
+  })
+  calculatedFieldLevel?: string;
 }

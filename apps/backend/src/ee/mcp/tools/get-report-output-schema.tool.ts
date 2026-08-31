@@ -19,7 +19,10 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
     "The columns a report's rows will carry, in the order they are projected — the names to put " +
     'above the values the report delivers. Includes the columns a report synthesises (aggregated ' +
     '`revenue | SUM`, Unique Count, calculated fields), which appear in no data mart schema. ' +
-    'Answers from the stored schema and the report config, so it reads no report data.';
+    'Answers from the stored schema and the report config, so it reads no report data. One ' +
+    'caveat behind the read-only hint: for a report that joins other data marts, resolving the ' +
+    "join refreshes each SQL-defined source's technical view, so a repeated call is not free on " +
+    'the warehouse.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -29,6 +32,16 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
         title: z.string().nullable().describe('Alias configured for the column, if any.'),
         description: z.string().nullable(),
         type: z.string().nullable().describe('Storage field type, when it can be derived.'),
+        aggregate_function: z
+          .string()
+          .nullable()
+          .describe('The aggregate function the report applies to this column, if any.'),
+        calculated_field_level: z
+          .enum(['metric', 'column'])
+          .nullable()
+          .describe(
+            'Calculated fields only. `metric` AGGREGATES — never re-aggregate it, whatever `type` says. `column` is row-level with no warehouse column behind it. null is an ordinary native column, which may be rolled up.'
+          ),
       })
     ),
   };
@@ -64,7 +77,14 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
 
     return jsonToolResult({
       report_id: result.reportId,
-      columns: result.columns,
+      columns: result.columns.map(column => ({
+        name: column.name,
+        title: column.title,
+        description: column.description,
+        type: column.type,
+        aggregate_function: column.aggregateFunction,
+        calculated_field_level: column.calculatedFieldLevel,
+      })),
     });
   }
 }

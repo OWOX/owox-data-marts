@@ -129,6 +129,29 @@ describe('ReportsApi.traverseData', () => {
     });
   });
 
+  it('reports malformed NDJSON lines with report and run context', async () => {
+    const requester = {
+      getJson: async () => ({}) as never,
+      getStream: async () => malformedStreamResponse('run-bad'),
+    };
+
+    const traversal = await new ReportsApi(requester).traverseData('report-1');
+
+    const rows = collectRows(traversal);
+    await expect(rows).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(rows).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Malformed NDJSON line 2 in OWOX report data stream',
+      details: {
+        reportId: 'report-1',
+        lineNumber: 2,
+        runId: 'run-bad',
+      },
+    });
+  });
+});
+
+describe('ReportsApi.getOutputSchema', () => {
   it('reads the output schema from the report route and passes the columns through', async () => {
     const calls: Array<{ path: string; query?: Record<string, string> }> = [];
     const columns = [
@@ -212,27 +235,6 @@ describe('ReportsApi.traverseData', () => {
     await expect(schema).rejects.toMatchObject({
       message: 'Failed to read OWOX report output schema',
       details: { reportId: 'report-1' },
-    });
-  });
-
-  it('reports malformed NDJSON lines with report and run context', async () => {
-    const requester = {
-      getJson: async () => ({}) as never,
-      getStream: async () => malformedStreamResponse('run-bad'),
-    };
-
-    const traversal = await new ReportsApi(requester).traverseData('report-1');
-
-    const rows = collectRows(traversal);
-    await expect(rows).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(rows).rejects.toMatchObject({
-      name: 'OWOXApiError',
-      message: 'Malformed NDJSON line 2 in OWOX report data stream',
-      details: {
-        reportId: 'report-1',
-        lineNumber: 2,
-        runId: 'run-bad',
-      },
     });
   });
 });

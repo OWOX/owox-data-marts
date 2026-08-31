@@ -29,11 +29,12 @@ describe('GetReportOutputSchemaService', () => {
     const generateHeadersFromSchema = jest.fn().mockResolvedValue(nativeHeaders);
     const compose = jest.fn().mockResolvedValue({ calculatedFields: undefined });
     const buildCalculatedFieldPlans = jest.fn().mockReturnValue([]);
+    const resolveBlendingDecision = jest
+      .fn()
+      .mockResolvedValue({ needsBlending: false, ...decision });
     const service = new GetReportOutputSchemaService(
       reportRepository as never,
-      {
-        resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false, ...decision }),
-      } as never,
+      { resolveBlendingDecision } as never,
       { compose, buildCalculatedFieldPlans } as never,
       { canAccess: jest.fn().mockResolvedValue(canSee) } as never,
       { generateHeadersFromSchema } as never
@@ -44,6 +45,7 @@ describe('GetReportOutputSchemaService', () => {
       generateHeadersFromSchema,
       compose,
       buildCalculatedFieldPlans,
+      resolveBlendingDecision,
     };
   };
 
@@ -197,12 +199,15 @@ describe('GetReportOutputSchemaService', () => {
     ]);
   });
 
-  it('refuses a Data Mart whose schema was never stored', async () => {
-    const { service, generateHeadersFromSchema } = createService({
+  // The order matters, not just the exception: the blending decision refreshes a SQL-defined
+  // source's view on the joined path, so a request that can only fail must not reach it.
+  it('refuses a Data Mart whose schema was never stored, before resolving any blending', async () => {
+    const { service, generateHeadersFromSchema, resolveBlendingDecision } = createService({
       reportOverrides: { dataMart: { ...report.dataMart, schema: undefined } },
     });
 
     await expect(service.run(command)).rejects.toBeInstanceOf(BusinessViolationException);
+    expect(resolveBlendingDecision).not.toHaveBeenCalled();
     expect(generateHeadersFromSchema).not.toHaveBeenCalled();
   });
 

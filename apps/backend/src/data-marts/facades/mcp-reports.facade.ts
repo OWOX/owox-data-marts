@@ -246,6 +246,14 @@ export interface McpReportOutputSchemaColumn {
   description: string | null;
   /** Storage field type, null when it cannot be derived (e.g. an SQL-override column). */
   type: string | null;
+  /** The aggregate function the report applies to this column; null when it applies none. */
+  aggregateFunction: string | null;
+  /**
+   * Set only for a calculated field: `metric` means the formula aggregates and must NOT be
+   * re-aggregated at any grain, `column` means it is row-level with no warehouse column behind it.
+   * Null is an ordinary native column a consumer may roll up — not "unknown".
+   */
+  calculatedFieldLevel: string | null;
 }
 
 export interface McpGetReportOutputSchemaResponse {

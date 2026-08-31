@@ -178,6 +178,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         title: header.alias ?? null,
         description: header.description ?? null,
         type: header.storageFieldType ?? null,
+        aggregateFunction: header.aggregateFunction ?? null,
+        calculatedFieldLevel: header.calculatedFieldLevel ?? null,
       })),
     };
   }

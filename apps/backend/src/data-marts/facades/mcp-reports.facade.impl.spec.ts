@@ -1948,8 +1948,22 @@ describe('McpReportsFacadeImpl.getReportOutputSchema', () => {
     ).resolves.toEqual({
       reportId: 'report-1',
       columns: [
-        { name: 'date', title: 'Date', description: 'Reporting day', type: BigQueryFieldType.DATE },
-        { name: 'clicks', title: null, description: null, type: null },
+        {
+          name: 'date',
+          title: 'Date',
+          description: 'Reporting day',
+          type: BigQueryFieldType.DATE,
+          aggregateFunction: null,
+          calculatedFieldLevel: null,
+        },
+        {
+          name: 'clicks',
+          title: null,
+          description: null,
+          type: null,
+          aggregateFunction: null,
+          calculatedFieldLevel: null,
+        },
       ],
     });
   });
