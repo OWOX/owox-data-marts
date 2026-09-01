@@ -14,14 +14,15 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       baseUrl: 'https://api.openai.com/v1',
       models: {
         language: [
-          { id: 'gpt-4.1-mini', name: 'GPT-4.1 mini' },
-          { id: 'o4-mini', name: 'o4-mini' },
+          { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' },
+          { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
+          { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
         ],
         embedding: [{ id: 'text-embedding-3-small', name: 'Text Embedding 3 Small' }],
       },
       recommended: {
-        fast: 'gpt-4.1-mini',
-        reasoning: 'o4-mini',
+        fast: 'gpt-5.6-luna',
+        reasoning: 'gpt-5.6-sol',
         embedding: 'text-embedding-3-small',
       },
     },

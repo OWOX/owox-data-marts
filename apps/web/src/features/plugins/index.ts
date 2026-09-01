@@ -30,7 +30,6 @@ export {
   usePluginActions,
   usePluginGallery,
   usePluginInstallations,
-  type StaleVersionSignal,
 } from './hooks/usePlugins';
 export type {
   InstalledPlugin,

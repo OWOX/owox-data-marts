@@ -291,6 +291,30 @@ describe('iframe transport', () => {
       expect(response.headers.get('x-owox-run-id')).toBe('run-7');
     });
 
+    it('cancels the host request when the transferred stream is cancelled after headers', async () => {
+      const host = hostSide();
+      const streamed = new ReadableStream<Uint8Array>();
+      const pending = host.transport.getStream('/api/x');
+      await host.waitForReceived();
+      const requestId = host.received[0].id;
+      host.answer(
+        {
+          id: requestId,
+          ok: true,
+          status: 200,
+          headers: {},
+          stream: streamed,
+        },
+        [streamed]
+      );
+
+      const response = await pending;
+      await response.body?.cancel('not needed');
+      await host.waitForReceived(2);
+
+      expect(host.received[1]).toMatchObject({ kind: 'cancel', targetId: requestId });
+    });
+
     it('reports a stream answer that carries no stream', async () => {
       const host = hostSide();
 

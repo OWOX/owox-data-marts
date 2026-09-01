@@ -100,4 +100,54 @@ describe('parseExternalCredentialManifest', () => {
   ])('rejects %s', (_label, overrides) => {
     expect(parseExternalCredentialManifest(manifest(overrides))).toMatchObject({ ok: false });
   });
+
+  it('reserves then because the SDK proxy cannot expose that handle', () => {
+    const source = JSON.parse(manifest()) as { credential: Record<string, unknown> };
+    source.credential.name = 'then';
+
+    expect(parseExternalCredentialManifest(JSON.stringify(source))).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    [
+      'missing catalogs and recommendations',
+      {
+        adapter: { type: 'openai-compatible', baseUrl: 'https://api.acme.example/v1' },
+      },
+    ],
+    [
+      'recommendation outside the language catalog',
+      {
+        adapter: { type: 'openai-compatible', baseUrl: 'https://api.acme.example/v1' },
+        models: {
+          language: [{ id: 'acme-fast', name: 'Acme Fast' }],
+          embedding: [],
+        },
+        recommended: { fast: 'missing-fast', reasoning: 'acme-fast' },
+      },
+    ],
+    [
+      'embedding recommendation outside the embedding catalog',
+      {
+        adapter: { type: 'openai-compatible', baseUrl: 'https://api.acme.example/v1' },
+        models: {
+          language: [
+            { id: 'acme-fast', name: 'Acme Fast' },
+            { id: 'acme-reasoning', name: 'Acme Reasoning' },
+          ],
+          embedding: [],
+        },
+        recommended: {
+          fast: 'acme-fast',
+          reasoning: 'acme-reasoning',
+          embedding: 'missing-embedding',
+        },
+      },
+    ],
+  ])('rejects an AI definition with %s', (_label, ai) => {
+    const source = JSON.parse(manifest()) as { credential: Record<string, unknown> };
+    source.credential.ai = ai;
+
+    expect(parseExternalCredentialManifest(JSON.stringify(source))).toMatchObject({ ok: false });
+  });
 });

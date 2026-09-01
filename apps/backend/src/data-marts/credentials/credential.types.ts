@@ -165,6 +165,16 @@ export interface CredentialSecret {
 
 export type CredentialAiModelMappings = Record<string, string>;
 export type CredentialAiModelMappingModes = Record<string, 'recommended' | 'override'>;
+export type CredentialAiModelMappingSources = Record<string, 'catalog' | 'manual'>;
+
+export function isCredentialAiModelInCatalog(
+  ai: NonNullable<CredentialDefinitionContract['ai']>,
+  capability: string,
+  modelId: string
+): boolean {
+  const catalog = capability === 'embedding' ? ai.models?.embedding : ai.models?.language;
+  return Boolean(catalog?.some(model => model.id === modelId));
+}
 
 export function resolveCredentialAiModelMappings(
   stored: CredentialAiModelMappings | null,

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource, Table } from 'typeorm';
 import { CreateReusableCredentialTables1787788800000 } from './1787788800000-create-reusable-credential-tables';
 import { AddPluginVersionCredentialRequirements1787788800001 } from './1787788800001-add-plugin-version-credential-requirements';
+import { AddCredentialAiModelMappingSources1787788800002 } from './1787788800002-add-credential-ai-model-mapping-sources';
 
 describe('Reusable Credentials migrations', () => {
   let dataSource: DataSource;
@@ -36,13 +37,16 @@ describe('Reusable Credentials migrations', () => {
     const runner = dataSource.createQueryRunner();
     const core = new CreateReusableCredentialTables1787788800000();
     const plugin = new AddPluginVersionCredentialRequirements1787788800001();
+    const mappingSources = new AddCredentialAiModelMappingSources1787788800002();
 
     await core.up(runner);
     await plugin.up(runner);
+    await mappingSources.up(runner);
 
     expect(await runner.hasTable('credential')).toBe(true);
     expect(await runner.hasTable('credential_consumer_binding')).toBe(true);
     expect(await runner.hasColumn('plugin_version', 'credentialRequirements')).toBe(true);
+    expect(await runner.hasColumn('credential', 'aiModelMappingSources')).toBe(true);
 
     await runner.query(
       `INSERT INTO credential
@@ -66,7 +70,9 @@ describe('Reusable Credentials migrations', () => {
     ])) as Array<{ secret: string }>;
     expect(JSON.parse(stored.secret)).toEqual({ value: 'provider-secret' });
 
+    await mappingSources.down(runner);
     await plugin.down(runner);
+    expect(await runner.hasColumn('credential', 'aiModelMappingSources')).toBe(false);
     await core.down(runner);
     expect(await runner.hasColumn('plugin_version', 'credentialRequirements')).toBe(false);
     expect(await runner.hasTable('credential')).toBe(false);

@@ -103,11 +103,7 @@ export default function PluginDetailsPage() {
   ) => {
     const stale = await install(target.pluginId, target.currentVersionId, credentialSelections);
     if (stale) {
-      setConfirming({
-        ...target,
-        currentSemver: stale.currentSemver,
-        currentVersionId: stale.currentVersionId,
-      });
+      setConfirming(stale);
       return;
     }
 

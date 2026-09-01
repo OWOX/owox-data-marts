@@ -1,8 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { z } from 'zod';
+import { IsZodValid } from '../../../common/validators/is-zod-valid.validator';
 import { PluginUpdateCheckOutcome } from '../../use-cases/run-plugin-update-check.service';
 import { PluginGalleryEntryApiDto } from './plugin-gallery-api.dto';
 import { PluginPublisherDiagnosticsApiDto } from './publication-api.dto';
+
+const CredentialSelectionsSchema = z
+  .record(z.string().trim().min(1).max(255), z.string().uuid().nullable())
+  .refine(value => Object.keys(value).length <= 50, 'too many Credential selections');
 
 export class InstallPluginApiDto {
   @ApiProperty({
@@ -21,7 +27,7 @@ export class InstallPluginApiDto {
     description: 'Credential requirement handle to selected project Credential id.',
   })
   @IsOptional()
-  @IsObject()
+  @IsZodValid(CredentialSelectionsSchema)
   credentialSelections?: Record<string, string | null>;
 }
 

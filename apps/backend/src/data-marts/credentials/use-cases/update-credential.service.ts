@@ -49,7 +49,13 @@ export class UpdateCredentialService {
     }
 
     const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
-    const definition = await this.definitions.getForView(credential);
+    const changesRuntimeContract =
+      input.secret !== undefined ||
+      input.aiModelMappings !== undefined ||
+      input.aiModelMappingModes !== undefined;
+    const definition = changesRuntimeContract
+      ? await this.definitions.getForCredential(credential)
+      : await this.definitions.getForView(credential);
     let validation: CredentialValidationResult | undefined;
 
     if (input.title !== undefined) credential.title = input.title.trim();
@@ -73,10 +79,12 @@ export class UpdateCredentialService {
         {
           mappings: credential.aiModelMappings,
           modes: credential.aiModelMappingModes,
+          sources: credential.aiModelMappingSources,
         }
       );
       credential.aiModelMappings = aiConfiguration.mappings;
       credential.aiModelMappingModes = aiConfiguration.modes;
+      credential.aiModelMappingSources = aiConfiguration.sources;
     }
     await this.credentials.save(credential);
 

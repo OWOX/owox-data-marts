@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { CredentialDefinition } from '../../types';
+import type { Credential, CredentialDefinition } from '../../types';
 import { CredentialForm } from './CredentialForm';
 
 vi.mock('../../../contexts/components/ContextPicker/ContextPicker', () => ({
@@ -50,6 +50,29 @@ const githubDefinition: CredentialDefinition = {
   supportsAi: false,
   ai: null,
   compatibilityLine: null,
+};
+
+const githubCredential: Credential = {
+  id: 'credential-1',
+  projectId: 'project-1',
+  title: 'GitHub production',
+  definition: githubDefinition,
+  secretConfigured: true,
+  definitionConsentRequired: false,
+  enabled: true,
+  availableForUse: true,
+  availableForMaintenance: true,
+  validationState: 'unknown',
+  validationMessage: null,
+  validatedAt: null,
+  lastUsedAt: null,
+  aiModelMappings: null,
+  aiModelMappingModes: null,
+  ownerUsers: [{ userId: 'owner-1', fullName: 'Owner', email: 'owner@example.com', avatar: null }],
+  contexts: [],
+  usedBy: [],
+  createdAt: '2026-08-31T10:00:00.000Z',
+  modifiedAt: '2026-08-31T10:00:00.000Z',
 };
 
 function renderForm(overrides: Partial<React.ComponentProps<typeof CredentialForm>> = {}) {
@@ -170,5 +193,28 @@ describe('CredentialForm', () => {
 
     expect(await screen.findByText('Definition release was not found')).toBeInTheDocument();
     expect(screen.getByLabelText('Public GitHub repository')).toBeInTheDocument();
+  });
+
+  it('submits only dirty fields and hides owner-only controls from a maintenance user', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({
+      credential: githubCredential,
+      definitions: [githubDefinition],
+      canManageAccess: false,
+      onSubmit,
+    });
+
+    expect(screen.queryByText('Ownership')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contexts')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sharing')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'Renamed Credential' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({ title: 'Renamed Credential' });
+    });
   });
 });

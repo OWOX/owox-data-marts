@@ -145,11 +145,16 @@ plugin itself:
 `github`, `openai`, `anthropic`, `gemini`, and `openrouter` are built-in exact definitions. An
 object may set `optional: true`; otherwise installation requires an explicit Credential selection.
 The logical `ai` requirement may declare one or more unique capabilities from `fast`, `reasoning`,
-and `embedding`. The shorthand string `"ai"` means required `fast` AI.
+and `embedding`. It can be satisfied by any selected Credential whose definition implements the AI
+contract and provides the requested mappings; the logical requirement does not select a provider.
+The shorthand string `"ai"` means required `fast` AI.
 
-An external exact requirement uses `@owner/repository`. Credential definition repositories must be
-public in v1; private plugin repositories remain supported, but private Credential definition
-repositories are rejected.
+An external exact requirement uses `@owner/repository`. Credential definition repositories must
+currently be public; private plugin repositories remain supported, but private Credential
+definition repositories are rejected.
+
+See [Credential definitions](credential-definitions.md) for the external definition format,
+release rules, and compatibility contract.
 
 An exact handle exposes a guarded `fetch` implementation. OWOX adds authentication and permits
 only HTTPS requests to origins declared by the selected Credential definition:

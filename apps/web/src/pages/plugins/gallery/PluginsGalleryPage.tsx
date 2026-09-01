@@ -101,11 +101,7 @@ export default function PluginsGalleryPage() {
   ) => {
     const stale = await install(plugin.pluginId, plugin.currentVersionId, credentialSelections);
     if (stale) {
-      setCandidate({
-        ...plugin,
-        currentSemver: stale.currentSemver,
-        currentVersionId: stale.currentVersionId,
-      });
+      setCandidate(stale);
       return;
     }
 

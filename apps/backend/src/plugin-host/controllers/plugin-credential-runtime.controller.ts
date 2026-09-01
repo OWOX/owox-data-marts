@@ -10,7 +10,6 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { once } from 'node:events';
 import type { Request, Response } from 'express';
 import { ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, RequirePluginAuth, type AuthorizationContext } from '../../idp';
@@ -57,9 +56,7 @@ export class PluginCredentialRuntimeController {
     @Req() request: Request
   ): Promise<CredentialFetchResponseApiDto> {
     const binding = await this.resolveBinding(handle, context, 'fetch');
-    const disconnected = new AbortController();
-    const abort = () => disconnected.abort();
-    request.once('aborted', abort);
+    const disconnected = requestAbortSignal(request);
     try {
       const response = await this.fetchService.run(binding, input, {
         signal: disconnected.signal,
@@ -67,7 +64,7 @@ export class PluginCredentialRuntimeController {
       await this.markUsed(binding, context);
       return response;
     } finally {
-      request.off('aborted', abort);
+      disconnected.dispose();
     }
   }
 
@@ -165,9 +162,11 @@ export class PluginCredentialRuntimeController {
         const { done, value } = await reader.read();
         if (done) break;
         if (!response.write(`${JSON.stringify(value)}\n`)) {
-          await once(response, 'drain');
+          await waitForDrain(response, disconnected.signal);
         }
       }
+    } catch (error) {
+      if (!disconnected.signal.aborted) throw error;
     } finally {
       await reader.cancel().catch(() => undefined);
       disconnected.dispose();
@@ -248,10 +247,44 @@ function requestAbortSignal(request: Request): {
   const controller = new AbortController();
   const abort = () => controller.abort();
   request.once('aborted', abort);
+  request.res?.once('close', abort);
+  request.res?.once('error', abort);
   return {
     signal: controller.signal,
     dispose: () => {
       request.off('aborted', abort);
+      request.res?.off('close', abort);
+      request.res?.off('error', abort);
     },
   };
+}
+
+function waitForDrain(response: Response, signal: AbortSignal): Promise<void> {
+  if (signal.aborted || response.destroyed) {
+    return Promise.reject(signal.reason ?? new DOMException('Response closed', 'AbortError'));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      response.off('drain', onDrain);
+      response.off('close', onClose);
+      response.off('error', onError);
+      signal.removeEventListener('abort', onAbort);
+    };
+    const finish = (error?: unknown) => {
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const onDrain = () => finish();
+    const onClose = () => finish(new DOMException('Response closed', 'AbortError'));
+    const onError = (error: Error) => finish(error);
+    const onAbort = () =>
+      finish(signal.reason ?? new DOMException('Response closed', 'AbortError'));
+
+    response.once('drain', onDrain);
+    response.once('close', onClose);
+    response.once('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }

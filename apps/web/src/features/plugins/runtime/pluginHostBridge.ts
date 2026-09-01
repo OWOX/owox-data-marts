@@ -375,7 +375,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
       if (request.kind === 'credentialAi') {
         const response = await forwardCredentialAi(request, signal);
-        reply(response, 'stream' in response ? [response.stream] : []);
+        await replyAndHoldStream(response, signal);
         return;
       }
 
@@ -384,7 +384,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       // failing only after a credential has been minted.
       const serializedBody = serializeJsonBody(request);
       const response = await forward(request, serializedBody, signal);
-      reply(response, 'stream' in response ? [response.stream] : []);
+      await replyAndHoldStream(response, signal);
     } catch (caught) {
       reply({ id, ok: false, error: asErrorPayload(caught) });
     } finally {
@@ -395,6 +395,19 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
   function reply(response: PluginResponse, transfer: Transferable[] = []): void {
     port?.postMessage(response, transfer);
+  }
+
+  async function replyAndHoldStream(response: PluginResponse, signal: AbortSignal): Promise<void> {
+    if (!('stream' in response)) {
+      reply(response);
+      return;
+    }
+
+    const relay = new TransformStream<Uint8Array, Uint8Array>();
+    const completion = response.stream.pipeTo(relay.writable, { signal });
+    const stream = relay.readable;
+    reply({ ...response, stream }, [stream]);
+    await completion.catch(() => undefined);
   }
 
   /** Teardown, whether the caller asked for it or the plugin failed the nonce check. */

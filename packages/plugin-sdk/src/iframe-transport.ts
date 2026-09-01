@@ -19,6 +19,7 @@ interface Pending {
   timer: ReturnType<typeof setTimeout> | null;
   signal?: AbortSignal;
   onAbort?: () => void;
+  cancel: () => void;
 }
 
 export interface IframeRequester {
@@ -55,12 +56,19 @@ export function createIframeRequester(port: MessagePort): IframeRequester {
       return;
     }
 
-    pending.delete(response.id);
     if (waiting.timer) {
       clearTimeout(waiting.timer);
     }
     if (waiting.signal && waiting.onAbort) {
       waiting.signal.removeEventListener('abort', waiting.onAbort);
+    }
+    pending.delete(response.id);
+    if ('stream' in response) {
+      waiting.resolve({
+        ...response,
+        stream: cancellableStream(response.stream, waiting.signal, waiting.cancel),
+      });
+      return;
     }
     waiting.resolve(response);
   };
@@ -104,12 +112,65 @@ export function createIframeRequester(port: MessagePort): IframeRequester {
         reject(signal?.reason ?? new DOMException('The request was aborted', 'AbortError'));
       };
       signal?.addEventListener('abort', onAbort, { once: true });
-      pending.set(id, { resolve, reject, timer, signal, onAbort });
+      pending.set(id, { resolve, reject, timer, signal, onAbort, cancel });
       port.postMessage({ ...request, id } as PluginRequest);
     });
   }
 
   return { send };
+}
+
+function cancellableStream(
+  source: ReadableStream<Uint8Array>,
+  signal: AbortSignal | undefined,
+  cancelHost: () => void
+): ReadableStream<Uint8Array> {
+  const reader = source.getReader();
+  let settled = false;
+  let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+
+  const cleanup = () => {
+    signal?.removeEventListener('abort', onAbort);
+  };
+  const settle = () => {
+    if (settled) return false;
+    settled = true;
+    cleanup();
+    return true;
+  };
+  const onAbort = () => {
+    if (!settle()) return;
+    cancelHost();
+    const reason = signal?.reason ?? new DOMException('The request was aborted', 'AbortError');
+    void reader.cancel(reason).catch(() => undefined);
+    streamController?.error(reason);
+  };
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
+    },
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (settled) return;
+        if (done) {
+          settle();
+          controller.close();
+        } else {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        if (settle()) controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      if (settle()) cancelHost();
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
 }
 
 export function createIframeTransport(

@@ -4,9 +4,11 @@ An external Credential definition describes how OWOX Data Marts authenticates re
 service. It is declarative: the repository cannot provide executable adapter code, callbacks,
 expressions, environment-variable references, or a way to read the stored secret.
 
-Credential definition repositories must be public in v1. Private repositories are rejected before
-OWOX reads their releases or manifest. Supporting private definitions requires an explicit project
-visibility and authorization model and is outside v1.
+For project ownership, sharing, and runtime behavior, see
+[Credentials](../project/credentials.md).
+
+Credential definition repositories must currently be public. Private repositories are rejected
+before OWOX reads their releases or manifest; they are not part of the current product contract.
 
 Put the definition in `plugin.json` at the repository root and publish it through GitHub Releases:
 
@@ -35,14 +37,14 @@ Put the definition in `plugin.json` at the repository root and publish it throug
 ```
 
 `credential.name` is the stable JavaScript-safe property exposed to an exact consumer, such as
-`ctx.credentials.acme`. Built-in names and `ai` are reserved. The only authentication primitive in
-v1 is one opaque secret placed in an HTTP header. Origins must use HTTPS and resolve to public
+`ctx.credentials.acme`. Built-in names and `ai` are reserved. The current authentication contract
+accepts one opaque secret placed in an HTTP header. Origins must use HTTPS and resolve to public
 networks; every initial request and redirect remains inside the declared origin set.
 
-`credential.documentationUrl` is optional. When present, OWOX can show it as the
-**How to get this key** link next to the write-only secret field. It must be a parseable absolute
-HTTPS URL without embedded username or password. OWOX normalizes and exposes this metadata to the
-management UI, but the backend never fetches the documentation URL.
+`credential.documentationUrl` is optional. When present, OWOX can show a documentation link next
+to the write-only secret field. It must be a parseable absolute HTTPS URL without embedded username
+or password. OWOX normalizes and exposes this metadata to the management UI, but the backend never
+fetches the documentation URL.
 
 ## Optional AI contract
 
@@ -92,5 +94,6 @@ replacing origins, changing `credential.name`, removing an existing AI interface
 adapter requires a new compatibility line. Existing Credentials pause until a maintainer accepts
 that new line; their secrets and explicit model overrides remain stored.
 
-OWOX checks known external definitions daily. A temporary GitHub failure or invalid release leaves
-the last accepted definition active.
+OWOX checks known external definitions automatically once per day. There is no separate manual
+update action. A temporary GitHub failure or invalid release leaves the last accepted definition
+active.

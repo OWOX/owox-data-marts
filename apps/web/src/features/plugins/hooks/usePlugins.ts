@@ -76,7 +76,7 @@ export function usePluginInstallations(includeUninstalled = false) {
   return { installations: data ?? EMPTY_INSTALLATIONS, isLoading, isError, refetch };
 }
 
-export interface StaleVersionSignal {
+interface StaleVersionSignal {
   currentVersionId: string | null;
   currentSemver: string | null;
 }
@@ -140,7 +140,7 @@ export function usePluginActions() {
       pluginId: string,
       expectedVersionId: string | null,
       credentialSelections: Readonly<Record<string, string | null>> = {}
-    ): Promise<StaleVersionSignal | null> => {
+    ): Promise<PluginGalleryEntry | null> => {
       try {
         await installMutation.mutateAsync({ pluginId, expectedVersionId, credentialSelections });
         return null;
@@ -148,7 +148,7 @@ export function usePluginActions() {
         const stale = readStaleVersion(caught);
         if (stale) {
           await invalidate();
-          return stale;
+          return pluginsService.getPlugin(pluginId);
         }
 
         toast.error(errorMessage(caught));

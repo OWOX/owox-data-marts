@@ -14,10 +14,12 @@ import { CredentialDefinitionService } from '../services/credential-definition.s
 import { CredentialService } from '../services/credential.service';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
-import type {
-  CredentialAiModelMappingModes,
-  CredentialAiModelMappings,
-  CredentialDefinitionContract,
+import {
+  isCredentialAiModelInCatalog,
+  type CredentialAiModelMappingSources,
+  type CredentialAiModelMappingModes,
+  type CredentialAiModelMappings,
+  type CredentialDefinitionContract,
 } from '../credential.types';
 
 @Injectable()
@@ -58,6 +60,7 @@ export class CreateCredentialService {
         secret: { value: input.secret.value },
         aiModelMappings: aiConfiguration.mappings,
         aiModelMappingModes: aiConfiguration.modes,
+        aiModelMappingSources: aiConfiguration.sources,
         enabled: true,
         availableForUse: input.availableForUse ?? true,
         availableForMaintenance: input.availableForMaintenance ?? false,
@@ -124,25 +127,33 @@ export function normalizeAiConfiguration(
   current?: {
     readonly mappings: CredentialAiModelMappings | null;
     readonly modes: CredentialAiModelMappingModes | null;
+    readonly sources: CredentialAiModelMappingSources | null;
   }
 ): {
   readonly mappings: CredentialAiModelMappings | null;
   readonly modes: CredentialAiModelMappingModes | null;
+  readonly sources: CredentialAiModelMappingSources | null;
 } {
   if (mappings === null) {
     if (modes && Object.keys(modes).length > 0) {
       throw new BadRequestException('AI mapping modes require model mappings');
     }
-    return { mappings: null, modes: null };
+    return { mappings: null, modes: null, sources: null };
   }
 
-  const resolvedMappings: CredentialAiModelMappings = {
-    ...(mappings ?? current?.mappings ?? ai?.recommended ?? {}),
-  };
+  const resolvedMappings: CredentialAiModelMappings = current
+    ? { ...(current.mappings ?? {}), ...(mappings ?? {}) }
+    : { ...(mappings ?? ai?.recommended ?? {}) };
   validateAiMappings(resolvedMappings, ai);
-  const resolvedModes: CredentialAiModelMappingModes = {
-    ...(modes ?? current?.modes ?? inferAiMappingModes(resolvedMappings, ai?.recommended)),
-  };
+  const resolvedModes: CredentialAiModelMappingModes = current
+    ? { ...(current.modes ?? {}), ...(modes ?? {}) }
+    : { ...(modes ?? inferAiMappingModes(resolvedMappings, ai?.recommended)) };
+
+  if (current && mappings) {
+    for (const key of Object.keys(mappings)) {
+      if (!modes || !Object.hasOwn(modes, key)) resolvedModes[key] = 'override';
+    }
+  }
 
   if (!ai && (Object.keys(resolvedMappings).length > 0 || Object.keys(resolvedModes).length > 0)) {
     throw new BadRequestException('This Credential definition does not support AI models');
@@ -165,9 +176,25 @@ export function normalizeAiConfiguration(
     resolvedModes[key] ??= 'override';
   }
 
+  const resolvedSources: CredentialAiModelMappingSources = { ...(current?.sources ?? {}) };
+  for (const [key, modelId] of Object.entries(resolvedMappings)) {
+    const mappingChanged = mappings !== undefined && Object.hasOwn(mappings ?? {}, key);
+    const modeChanged = modes !== undefined && Object.hasOwn(modes ?? {}, key);
+    if (
+      resolvedModes[key] === 'recommended' ||
+      !current ||
+      mappingChanged ||
+      modeChanged ||
+      !resolvedSources[key]
+    ) {
+      resolvedSources[key] =
+        ai && isCredentialAiModelInCatalog(ai, key, modelId) ? 'catalog' : 'manual';
+    }
+  }
+
   return Object.keys(resolvedMappings).length === 0
-    ? { mappings: null, modes: null }
-    : { mappings: resolvedMappings, modes: resolvedModes };
+    ? { mappings: null, modes: null, sources: null }
+    : { mappings: resolvedMappings, modes: resolvedModes, sources: resolvedSources };
 }
 
 function inferAiMappingModes(

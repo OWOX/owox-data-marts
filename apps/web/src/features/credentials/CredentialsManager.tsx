@@ -15,6 +15,7 @@ import { Info, KeyRound, Plus } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { extractApiError } from '../../app/api/extract-api-error.util';
+import { useAuth } from '../idp';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import type { Credential } from './types';
 import { CredentialConfigSheet, CredentialUsedByList } from './components/CredentialConfigSheet';
@@ -23,6 +24,7 @@ import { safeCredentialDocumentationUrl } from './credential-documentation-url';
 import { useCredentialActions, useCredentialDefinitions, useCredentials } from './useCredentials';
 
 export function CredentialsManager() {
+  const { user } = useAuth();
   const { credentials, isLoading, isError, refetch } = useCredentials();
   const { definitions, isLoading: definitionsLoading } = useCredentialDefinitions();
   const actions = useCredentialActions();
@@ -124,6 +126,12 @@ export function CredentialsManager() {
         isOpen={editor.open}
         credential={editor.credential}
         definitions={definitions}
+        canManageAccess={
+          editor.credential === null ||
+          Boolean(user?.roles?.includes('admin')) ||
+          editor.credential.ownerUsers.some(owner => owner.userId === user?.id)
+        }
+        canAddGithubDefinition={Boolean(user?.roles?.includes('admin'))}
         onClose={() => {
           setEditor({ open: false, credential: null });
         }}

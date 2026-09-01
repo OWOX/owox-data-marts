@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,7 @@ import { In, Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import {
+  isCredentialAiModelInCatalog,
   normalizeCredentialRequirement,
   resolveCredentialAiModelMappings,
   type NormalizedCredentialRequirement,
@@ -211,10 +213,15 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
         active: true,
       });
       if (!binding && requirement.optional) continue;
-      await this.resolveBinding({
-        ...request,
-        requirement: request.requirements[index],
-      });
+      try {
+        await this.resolveBinding({
+          ...request,
+          requirement: request.requirements[index],
+        });
+      } catch (error) {
+        if (requirement.optional && isExpectedUnusableCredentialError(error)) continue;
+        throw error;
+      }
       ready.push(requirement);
     }
     return ready;
@@ -277,13 +284,32 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
       credential.aiModelMappingModes,
       definition.contract.ai?.recommended
     );
-    if (requirement.models.some(model => !aiModelMappings?.[model]?.trim())) {
+    if (
+      requirement.models.some(model => {
+        const modelId = aiModelMappings?.[model]?.trim();
+        return (
+          !modelId ||
+          !definition.contract.ai ||
+          (credential.aiModelMappingSources?.[model] === 'catalog' &&
+            !isCredentialAiModelInCatalog(definition.contract.ai, model, modelId))
+        );
+      })
+    ) {
       throw new BadRequestException(
         `Credential ${credential.id} is missing required AI model mappings`
       );
     }
     return { definition, aiModelMappings };
   }
+}
+
+function isExpectedUnusableCredentialError(error: unknown): boolean {
+  return (
+    error instanceof BadRequestException ||
+    error instanceof ConflictException ||
+    error instanceof ForbiddenException ||
+    error instanceof NotFoundException
+  );
 }
 
 function assertUniqueRequirementKeys(requirements: readonly NormalizedCredentialRequirement[]) {

@@ -51,7 +51,9 @@ export class CredentialExternalDefinitionRegistryService {
     const query = this.definitions
       .createQueryBuilder('definition')
       .where('definition.id = :definitionId', { definitionId });
-    if (this.dataSource.options.type !== 'sqlite') query.setLock('pessimistic_write');
+    if (!['sqlite', 'better-sqlite3'].includes(this.dataSource.options.type)) {
+      query.setLock('pessimistic_write');
+    }
     const definition = await query.getOne();
     if (!definition) throw new BadRequestException('Credential definition sync state was lost');
     definition.repoOwner = input.repoOwner;

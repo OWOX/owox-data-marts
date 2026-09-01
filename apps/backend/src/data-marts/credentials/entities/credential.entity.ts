@@ -10,6 +10,7 @@ import {
 import type {
   CredentialAiModelMappings,
   CredentialAiModelMappingModes,
+  CredentialAiModelMappingSources,
   CredentialDefinitionSource,
   CredentialSecret,
 } from '../credential.types';
@@ -47,6 +48,10 @@ export class Credential {
 
   @Column({ type: 'json', nullable: true })
   aiModelMappingModes: CredentialAiModelMappingModes | null;
+
+  /** Distinguishes catalog selections from deliberate advanced manual model ids. */
+  @Column({ type: 'json', nullable: true })
+  aiModelMappingSources: CredentialAiModelMappingSources | null;
 
   @Column({ type: 'boolean', default: true })
   enabled: boolean;

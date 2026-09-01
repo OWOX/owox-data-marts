@@ -662,6 +662,34 @@ describe('plugin host bridge', () => {
       h.bridge.dispose();
     });
 
+    it('keeps a streamed request cancellable after transferring its response', async () => {
+      const upstreamCancelled = vi.fn();
+      const h = await harness(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              cancel: upstreamCancelled,
+            }),
+            { status: 200, headers: { 'content-type': 'application/x-ndjson' } }
+          )
+      );
+
+      const response = await h.send({
+        id: 'stream-request-1',
+        kind: 'api',
+        method: 'GET',
+        path: '/api/data.ndjson',
+        stream: true,
+      });
+      expect(response).toMatchObject({ ok: true });
+
+      h.raw({ id: 'cancel-stream-1', kind: 'cancel', targetId: 'stream-request-1' });
+      await vi.waitFor(() => {
+        expect(upstreamCancelled).toHaveBeenCalled();
+      });
+      h.bridge.dispose();
+    });
+
     // The nonce breach tears the channel down exactly as an unmount does, and a request
     // the plugin got away before failing that check must not outlive it.
     it('aborts a request still in flight when the frame fails the nonce check', async () => {

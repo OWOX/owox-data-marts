@@ -18,4 +18,18 @@ describe('built-in Credential definitions', () => {
     expect(definition?.documentationUrl).toBeDefined();
     expect(new URL(definition!.documentationUrl!).hostname).toBe(hostname);
   });
+
+  it('uses the GPT-5.6 catalog and agreed OpenAI defaults', () => {
+    const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'openai');
+
+    expect(definition?.ai).toMatchObject({
+      models: {
+        language: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-5.6-terra' }, { id: 'gpt-5.6-sol' }],
+      },
+      recommended: {
+        fast: 'gpt-5.6-luna',
+        reasoning: 'gpt-5.6-sol',
+      },
+    });
+  });
 });

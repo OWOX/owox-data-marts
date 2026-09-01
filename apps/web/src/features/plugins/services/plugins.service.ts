@@ -57,10 +57,16 @@ class PluginsService extends ApiService {
     expectedVersionId: string | null,
     credentialSelections: Readonly<Record<string, string | null>> = {}
   ): Promise<PluginInstallation> {
-    return this.post<PluginInstallation>(`/${pluginId}/installation`, {
+    const payload: {
+      expectedVersionId: string | null;
+      credentialSelections?: Readonly<Record<string, string | null>>;
+    } = {
       expectedVersionId,
-      credentialSelections,
-    });
+    };
+    if (Object.keys(credentialSelections).length > 0) {
+      payload.credentialSelections = credentialSelections;
+    }
+    return this.post<PluginInstallation>(`/${pluginId}/installation`, payload);
   }
 
   async uninstall(pluginId: string): Promise<void> {

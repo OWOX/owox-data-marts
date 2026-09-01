@@ -85,6 +85,7 @@ export interface CredentialFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
   onRequestReplaceSecret?: (credential: Credential) => void;
   onRequestAddGithubDefinition?: (repository: string) => Promise<CredentialDefinition>;
+  canManageAccess?: boolean;
 }
 
 export function CredentialForm({
@@ -98,6 +99,7 @@ export function CredentialForm({
   onDirtyChange,
   onRequestReplaceSecret,
   onRequestAddGithubDefinition,
+  canManageAccess = false,
 }: CredentialFormProps) {
   const isEditMode = credential !== null;
   const [addedDefinition, setAddedDefinition] = useState<CredentialDefinition | null>(null);
@@ -217,16 +219,21 @@ export function CredentialForm({
 
     const { mappings, modes } = serializeAiMappings(values);
     if (credential) {
-      await onSubmit({
-        title: values.title,
-        enabled: values.enabled,
-        availableForUse: values.availableForUse,
-        availableForMaintenance: values.availableForMaintenance,
-        ownerIds: values.ownerIds,
-        contextIds: values.contextIds,
-        aiModelMappings: Object.keys(mappings).length > 0 ? mappings : null,
-        aiModelMappingModes: Object.keys(modes).length > 0 ? modes : null,
-      });
+      const dirty = form.formState.dirtyFields;
+      const input: UpdateCredentialRequest = {};
+      if (dirty.title) input.title = values.title;
+      if (dirty.enabled) input.enabled = values.enabled;
+      if (dirty.availableForUse) input.availableForUse = values.availableForUse;
+      if (dirty.availableForMaintenance) {
+        input.availableForMaintenance = values.availableForMaintenance;
+      }
+      if (dirty.ownerIds) input.ownerIds = values.ownerIds;
+      if (dirty.contextIds) input.contextIds = values.contextIds;
+      if (dirty.aiModelMappings || dirty.aiModelMappingModes) {
+        input.aiModelMappings = Object.keys(mappings).length > 0 ? mappings : null;
+        input.aiModelMappingModes = Object.keys(modes).length > 0 ? modes : null;
+      }
+      await onSubmit(input);
       return;
     }
 
@@ -437,7 +444,7 @@ export function CredentialForm({
             </FormSection>
           )}
 
-          {credential && (
+          {credential && canManageAccess && (
             <FormSection title='Ownership' defaultOpen={false} name='credential-ownership'>
               <FormItem>
                 <FormLabel tooltip='Project members responsible for this Credential.'>
@@ -458,7 +465,7 @@ export function CredentialForm({
             </FormSection>
           )}
 
-          {credential && (
+          {credential && canManageAccess && (
             <FormSection title='Contexts' defaultOpen={false} name='credential-contexts'>
               <FormItem>
                 <FormLabel tooltip='Business domain contexts assigned to this Credential.'>
@@ -475,40 +482,42 @@ export function CredentialForm({
             </FormSection>
           )}
 
-          <FormSection title='Sharing' defaultOpen={false} name='credential-sharing'>
-            <FormField
-              control={form.control}
-              name='availableForUse'
-              render={({ field }) => (
-                <FormItem>
-                  <div className='flex items-center justify-between gap-4'>
-                    <FormLabel tooltip='Project members with access can bind this Credential to consumers.'>
-                      Shared for use
-                    </FormLabel>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </div>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='availableForMaintenance'
-              render={({ field }) => (
-                <FormItem>
-                  <div className='flex items-center justify-between gap-4'>
-                    <FormLabel tooltip='Project members with maintenance access can edit this Credential.'>
-                      Shared for maintenance
-                    </FormLabel>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </div>
-                </FormItem>
-              )}
-            />
-          </FormSection>
+          {(!credential || canManageAccess) && (
+            <FormSection title='Sharing' defaultOpen={false} name='credential-sharing'>
+              <FormField
+                control={form.control}
+                name='availableForUse'
+                render={({ field }) => (
+                  <FormItem>
+                    <div className='flex items-center justify-between gap-4'>
+                      <FormLabel tooltip='Project members with access can bind this Credential to consumers.'>
+                        Shared for use
+                      </FormLabel>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='availableForMaintenance'
+                render={({ field }) => (
+                  <FormItem>
+                    <div className='flex items-center justify-between gap-4'>
+                      <FormLabel tooltip='Project members with maintenance access can edit this Credential.'>
+                        Shared for maintenance
+                      </FormLabel>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </FormSection>
+          )}
 
           {credential && (
             <FormSection title='Details' defaultOpen={false} name='credential-details'>

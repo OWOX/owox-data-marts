@@ -4,7 +4,15 @@ import {
   type CredentialDefinitionContract,
 } from '../credential.types';
 
-const RESERVED_NAMES = new Set(['ai', 'openai', 'anthropic', 'gemini', 'openrouter', 'github']);
+const RESERVED_NAMES = new Set([
+  'ai',
+  'openai',
+  'anthropic',
+  'gemini',
+  'openrouter',
+  'github',
+  'then',
+]);
 const BLOCKED_AUTH_HEADERS = new Set([
   'connection',
   'content-length',
@@ -21,6 +29,43 @@ const ModelSchema = z.object({
   id: z.string().trim().min(1).max(255),
   name: z.string().trim().min(1).max(255),
 });
+
+const ExternalAiSchema = z
+  .object({
+    adapter: z.object({
+      type: z.enum(['openai', 'anthropic', 'google', 'openrouter', 'openai-compatible']),
+      baseUrl: z.string().url().startsWith('https://'),
+    }),
+    models: z.object({
+      language: z.array(ModelSchema).min(1).max(100),
+      embedding: z.array(ModelSchema).max(100).default([]),
+    }),
+    recommended: z.object({
+      fast: z.string().trim().min(1),
+      reasoning: z.string().trim().min(1),
+      embedding: z.string().trim().min(1).optional(),
+    }),
+  })
+  .superRefine((ai, context) => {
+    const languageIds = new Set(ai.models.language.map(model => model.id));
+    const embeddingIds = new Set(ai.models.embedding.map(model => model.id));
+    for (const capability of ['fast', 'reasoning'] as const) {
+      if (!languageIds.has(ai.recommended[capability])) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['recommended', capability],
+          message: `${capability} must reference a declared language model`,
+        });
+      }
+    }
+    if (ai.recommended.embedding && !embeddingIds.has(ai.recommended.embedding)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recommended', 'embedding'],
+        message: 'embedding must reference a declared embedding model',
+      });
+    }
+  });
 
 const ExternalCredentialManifestSchema = z.object({
   name: z.string().trim().min(1).max(255),
@@ -60,27 +105,7 @@ const ExternalCredentialManifestSchema = z.object({
         rejectedStatuses: z.array(z.number().int().min(400).max(499)).min(1).max(20).optional(),
       })
       .optional(),
-    ai: z
-      .object({
-        adapter: z.object({
-          type: z.enum(['openai', 'anthropic', 'google', 'openrouter', 'openai-compatible']),
-          baseUrl: z.string().url().startsWith('https://'),
-        }),
-        models: z
-          .object({
-            language: z.array(ModelSchema).max(100).default([]),
-            embedding: z.array(ModelSchema).max(100).default([]),
-          })
-          .optional(),
-        recommended: z
-          .object({
-            fast: z.string().trim().min(1).optional(),
-            reasoning: z.string().trim().min(1).optional(),
-            embedding: z.string().trim().min(1).optional(),
-          })
-          .optional(),
-      })
-      .optional(),
+    ai: ExternalAiSchema.optional(),
   }),
 });
 

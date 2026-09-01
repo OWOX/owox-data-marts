@@ -37,14 +37,16 @@ secret keeps the bindings and consumers use the new value on their next request.
 An AI-capable Credential maps logical `fast`, `reasoning`, and `embedding` capabilities to provider
 model IDs. A mapping can follow the definition's recommended model or override it with a fixed
 provider model ID. Recommended mappings follow compatible definition updates automatically;
-overrides stay unchanged.
+overrides stay unchanged. If an override selected from the definition catalog later disappears,
+consumers that require it need setup again. An advanced manual model ID remains a deliberate manual
+override and does not depend on catalog membership.
 
 ## External definitions
 
 Built-in definitions cover common providers. A maintainer may also add a declarative Credential
-definition from a public GitHub repository. Private definition repositories are not supported in
-v1. OWOX reads immutable release versions and checks for updates
-daily. See [Credential definitions](../plugins/credential-definitions.md) for the authoring contract.
+definition from a public GitHub repository. Private definition repositories are not currently
+supported. OWOX reads immutable release versions and checks for updates daily. See
+[Credential definitions](../plugins/credential-definitions.md) for the authoring contract.
 
 Compatible updates within the accepted version line become current automatically. A new
 compatibility line requires explicit maintainer consent before runtime use resumes. If GitHub is

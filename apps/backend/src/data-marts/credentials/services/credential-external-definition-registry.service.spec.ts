@@ -11,7 +11,7 @@ import type { CredentialDefinitionVersion } from '../entities/credential-definit
 import type { CredentialExternalDefinition } from '../entities/credential-external-definition.entity';
 import { CredentialExternalDefinitionRegistryService } from './credential-external-definition-registry.service';
 
-function setup() {
+function setup(databaseType: 'sqlite' | 'better-sqlite3' | 'mysql' = 'better-sqlite3') {
   const definitions: CredentialExternalDefinition[] = [];
   const versions: CredentialDefinitionVersion[] = [];
   const definitionRepository = {
@@ -37,6 +37,7 @@ function setup() {
           id = parameters.definitionId;
           return builder;
         }),
+        setLock: jest.fn(() => builder),
         getOne: jest.fn(() => Promise.resolve(definitions.find(row => row.id === id) ?? null)),
       };
       return builder;
@@ -61,10 +62,11 @@ function setup() {
     service: new CredentialExternalDefinitionRegistryService(
       definitionRepository as never,
       versionRepository as never,
-      { options: { type: 'sqlite' } } as never
+      { options: { type: databaseType } } as never
     ),
     definitions,
     versions,
+    definitionRepository,
   };
 }
 
@@ -92,6 +94,24 @@ const input = (semver: string, overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('CredentialExternalDefinitionRegistryService', () => {
+  it('does not request an unsupported pessimistic lock from better-sqlite3', async () => {
+    const state = setup('better-sqlite3');
+
+    await state.service.register(input('1.0.0'));
+
+    const builder = state.definitionRepository.createQueryBuilder.mock.results[0]?.value;
+    expect(builder.setLock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the write lock for a database driver that supports it', async () => {
+    const state = setup('mysql');
+
+    await state.service.register(input('1.0.0'));
+
+    const builder = state.definitionRepository.createQueryBuilder.mock.results[0]?.value;
+    expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+  });
+
   it('keeps stable repository identity across rename and automatically advances within a line', async () => {
     const state = setup();
     const first = await state.service.register(input('1.0.0'));

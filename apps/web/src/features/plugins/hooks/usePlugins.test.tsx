@@ -13,6 +13,7 @@ vi.mock('react-hot-toast', () => {
 vi.mock('../services/plugins.service', () => ({
   pluginsService: {
     getGallery: vi.fn(),
+    getPlugin: vi.fn(),
     getInstallations: vi.fn(),
     install: vi.fn(),
     uninstall: vi.fn(),
@@ -59,6 +60,12 @@ describe('usePluginActions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service.install.mockResolvedValue({ installationId: 'i1' });
+    service.getPlugin.mockResolvedValue({
+      pluginId: 'p1',
+      currentVersionId: 'v2',
+      currentSemver: '2.0.0',
+      credentialRequirements: [{ id: 'openai', optional: false }],
+    });
     service.uninstall.mockResolvedValue(undefined);
     service.checkNow.mockResolvedValue({
       outcome: 'updated',
@@ -80,7 +87,7 @@ describe('usePluginActions', () => {
   // Any installed member can move a plugin forward at any moment, so a stale
   // confirmation is an ordinary race, not a failure. The caller re-renders with what is
   // current now; a raw toast would tell the member nothing they can act on.
-  it('reports a stale confirmation as a signal rather than an error', async () => {
+  it('refetches the complete plugin after a stale confirmation', async () => {
     service.install.mockRejectedValue(staleError('2.0.0'));
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
@@ -89,7 +96,14 @@ describe('usePluginActions', () => {
       signal = await result.current.install('p1', 'v1');
     });
 
-    expect(signal).toEqual({ currentVersionId: 'v2', currentSemver: '2.0.0' });
+    expect(signal).toEqual(
+      expect.objectContaining({
+        currentVersionId: 'v2',
+        currentSemver: '2.0.0',
+        credentialRequirements: [{ id: 'openai', optional: false }],
+      })
+    );
+    expect(service.getPlugin).toHaveBeenCalledWith('p1');
     expect(toast.error).not.toHaveBeenCalled();
   });
 

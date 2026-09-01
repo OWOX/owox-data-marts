@@ -3,7 +3,7 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { CredentialConsumerBindingFacadeImpl } from './credential-consumer-binding.facade.impl';
 import { normalizeCredentialRequirement } from '../credential.types';
 
@@ -54,6 +54,8 @@ function setup() {
       credentialService as never
     ),
     bindings,
+    credentials,
+    definitions,
     access,
     credentialService,
   };
@@ -160,6 +162,145 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
         requirement: 'github',
       })
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it.each([
+    ['disabled', new ForbiddenException('disabled')],
+    ['access-revoked', new ForbiddenException('access revoked')],
+    ['consent-pending', new ConflictException('consent pending')],
+  ])('omits an optional handle when its Credential is %s', async (_state, failure) => {
+    const state = setup();
+    state.bindings.findOneBy.mockResolvedValue({
+      credentialId: 'credential-1',
+      requirementKey: 'github',
+      requirementSnapshot: {
+        key: 'github',
+        definitionId: 'github',
+        optional: true,
+        models: [],
+      },
+      active: true,
+    });
+    jest.spyOn(state.facade, 'resolveBinding').mockRejectedValue(failure);
+
+    await expect(
+      state.facade.assertConsumerReady({
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['viewer'],
+        consumerType: 'plugin-installation',
+        consumerId: 'installation-1',
+        requirements: [{ id: 'github', optional: true }],
+      })
+    ).resolves.toEqual([]);
+  });
+
+  it('requires setup when an overridden AI model disappears from the catalog', async () => {
+    const state = setup();
+    state.bindings.findOneBy.mockResolvedValue({
+      credentialId: 'credential-1',
+      requirementKey: 'ai',
+      requirementSnapshot: {
+        key: 'ai',
+        definitionId: null,
+        optional: false,
+        models: ['fast'],
+      },
+      active: true,
+    });
+    state.credentials.findOneBy.mockResolvedValue({
+      ...credential,
+      definitionId: 'openai',
+      aiModelMappings: { fast: 'removed-model' },
+      aiModelMappingModes: { fast: 'override' },
+      aiModelMappingSources: { fast: 'catalog' },
+    });
+    state.definitions.getForCredential.mockResolvedValue({
+      definitionId: 'openai',
+      source: 'builtin',
+      compatibilityLine: null,
+      contract: {
+        id: 'openai',
+        displayName: 'OpenAI',
+        description: '',
+        auth: { type: 'header', label: 'API key', headerName: 'authorization' },
+        origins: ['https://api.openai.com'],
+        ai: {
+          adapter: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          models: {
+            language: [{ id: 'current-model', name: 'Current model' }],
+            embedding: [],
+          },
+          recommended: { fast: 'current-model', reasoning: 'current-model' },
+        },
+      },
+    });
+
+    await expect(
+      state.facade.assertConsumerReady({
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['viewer'],
+        consumerType: 'plugin-installation',
+        consumerId: 'installation-1',
+        requirements: [{ id: 'ai', optional: false, models: ['fast'] }],
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('keeps an advanced manual AI model usable outside the catalog', async () => {
+    const state = setup();
+    state.bindings.findOneBy.mockResolvedValue({
+      credentialId: 'credential-1',
+      requirementKey: 'ai',
+      requirementSnapshot: {
+        key: 'ai',
+        definitionId: null,
+        optional: false,
+        models: ['fast'],
+      },
+      active: true,
+    });
+    state.credentials.findOneBy.mockResolvedValue({
+      ...credential,
+      definitionId: 'openai',
+      aiModelMappings: { fast: 'advanced-preview-model' },
+      aiModelMappingModes: { fast: 'override' },
+      aiModelMappingSources: { fast: 'manual' },
+    });
+    state.definitions.getForCredential.mockResolvedValue({
+      definitionId: 'openai',
+      source: 'builtin',
+      compatibilityLine: null,
+      contract: {
+        id: 'openai',
+        displayName: 'OpenAI',
+        description: '',
+        auth: { type: 'header', label: 'API key', headerName: 'authorization' },
+        origins: ['https://api.openai.com'],
+        ai: {
+          adapter: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          models: {
+            language: [{ id: 'current-model', name: 'Current model' }],
+            embedding: [],
+          },
+          recommended: { fast: 'current-model', reasoning: 'current-model' },
+        },
+      },
+    });
+
+    await expect(
+      state.facade.assertConsumerReady({
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['viewer'],
+        consumerType: 'plugin-installation',
+        consumerId: 'installation-1',
+        requirements: [{ id: 'ai', optional: false, models: ['fast'] }],
+      })
+    ).resolves.toHaveLength(1);
   });
 
   it('deactivates removed or structurally changed requirements without touching stable bindings', async () => {

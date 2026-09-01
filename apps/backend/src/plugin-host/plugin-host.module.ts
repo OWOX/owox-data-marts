@@ -51,6 +51,7 @@ import { CredentialDefinitionUpdateCheckProcessor } from './system-triggers/cred
 import { SuspendPluginService } from './use-cases/suspend-plugin.service';
 import { SyncPluginReleasesService } from './use-cases/sync-plugin-releases.service';
 import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
+import { AddGithubCredentialDefinitionService } from './use-cases/add-github-credential-definition.service';
 import { PluginCollectionsController } from './collections/controllers/plugin-collections.controller';
 import { PluginCollectionAuditEvent } from './collections/entities/plugin-collection-audit-event.collection.entity';
 import { PluginCollectionDocument } from './collections/entities/plugin-collection-document.collection.entity';
@@ -121,6 +122,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     GithubAuthService,
     GithubApiService,
     ExternalCredentialDefinitionSyncService,
+    AddGithubCredentialDefinitionService,
     RemoteUrlValidatorService,
     PluginService,
     PluginVersionService,

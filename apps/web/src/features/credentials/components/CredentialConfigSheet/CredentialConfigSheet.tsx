@@ -29,6 +29,8 @@ export interface CredentialConfigSheetProps {
   onSaveSuccess?: (credential: Credential) => void;
   onRequestReplaceSecret?: (credential: Credential) => void;
   onRequestAddGithubDefinition?: (repository: string) => Promise<CredentialDefinition>;
+  canManageAccess?: boolean;
+  canAddGithubDefinition?: boolean;
 }
 
 export function CredentialConfigSheet({
@@ -42,6 +44,8 @@ export function CredentialConfigSheet({
   onSaveSuccess,
   onRequestReplaceSecret,
   onRequestAddGithubDefinition,
+  canManageAccess,
+  canAddGithubDefinition = false,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -101,9 +105,12 @@ export function CredentialConfigSheet({
           onCancel={handleClose}
           onDirtyChange={handleFormDirtyChange}
           onRequestReplaceSecret={onRequestReplaceSecret}
+          canManageAccess={canManageAccess}
           onRequestAddGithubDefinition={
             onRequestAddGithubDefinition ??
-            (allowedDefinitionIds === undefined ? actions.addGithubDefinition : undefined)
+            (allowedDefinitionIds === undefined && canAddGithubDefinition
+              ? actions.addGithubDefinition
+              : undefined)
           }
         />
         <UnsavedChangesConfirmationDialog
