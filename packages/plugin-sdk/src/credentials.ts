@@ -39,6 +39,7 @@ export type PluginCredentials = Readonly<
   Record<string, CredentialHandle | AiCredentialHandle | undefined>
 > & {
   readonly ai?: AiCredentialHandle;
+  /** Built-ins are repeated here only to give plugin authors exact compile-time handle types. */
   readonly openai?: CredentialHandle;
   readonly anthropic?: CredentialHandle;
   readonly gemini?: CredentialHandle;
@@ -64,21 +65,38 @@ export function createPluginCredentials(
     ])
   );
   const created = new Map<string, CredentialHandle | AiCredentialHandle>();
+  const resolveHandle = (property: string): CredentialHandle | AiCredentialHandle | undefined => {
+    if (property === 'then') return undefined;
+    const descriptor = descriptors.get(property);
+    if (!descriptor) return undefined;
+    const cached = created.get(property);
+    if (cached) return cached;
+    const handle =
+      descriptor.kind === 'exact'
+        ? createExactHandle(requester, property)
+        : createAiHandle(requester, property, descriptor.models);
+    created.set(property, handle);
+    return handle;
+  };
   return new Proxy(Object.create(null) as Record<string, CredentialHandle | AiCredentialHandle>, {
     get(_target, property) {
-      if (typeof property !== 'string' || property === 'then') {
+      return typeof property === 'string' ? resolveHandle(property) : undefined;
+    },
+    has(_target, property) {
+      return typeof property === 'string' && property !== 'then' && descriptors.has(property);
+    },
+    ownKeys() {
+      return [...descriptors.keys()].filter(property => property !== 'then');
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      if (typeof property !== 'string' || property === 'then' || !descriptors.has(property)) {
         return undefined;
       }
-      const descriptor = descriptors.get(property);
-      if (!descriptor) return undefined;
-      const cached = created.get(property);
-      if (cached) return cached;
-      const handle =
-        descriptor.kind === 'exact'
-          ? createExactHandle(requester, property)
-          : createAiHandle(requester, property, descriptor.models);
-      created.set(property, handle);
-      return handle;
+      return {
+        configurable: true,
+        enumerable: true,
+        get: () => resolveHandle(property),
+      };
     },
     set() {
       return false;
@@ -90,7 +108,9 @@ function createExactHandle(requester: IframeRequester, handle: string): Credenti
   return {
     asFetch: () => async (input, init) => {
       const request = new Request(input, init);
-      if (request.signal.aborted) throw request.signal.reason;
+      if (request.signal.aborted) {
+        throw request.signal.reason ?? new DOMException('The request was aborted', 'AbortError');
+      }
 
       const method = request.method.toUpperCase();
       const body =

@@ -18,7 +18,10 @@ import {
   PluginVersionConflictError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
-import { ExternalCredentialDefinitionSyncService } from '../services/external-credential-definition-sync.service';
+import {
+  ExternalCredentialDefinitionSyncService,
+  ExternalCredentialRequirementError,
+} from '../services/external-credential-definition-sync.service';
 import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginCredentialBindingReconciliationService } from '../services/plugin-credential-binding-reconciliation.service';
@@ -275,12 +278,9 @@ export class SyncPluginReleasesService {
         );
       }
     } catch (error) {
+      if (!(error instanceof ExternalCredentialRequirementError)) throw error;
       into.rejections.push(
-        this.rejection(
-          release,
-          ReleaseRejectionCode.MANIFEST_SCHEMA,
-          error instanceof Error ? error.message : 'Credential requirements are invalid'
-        )
+        this.rejection(release, ReleaseRejectionCode.MANIFEST_SCHEMA, castError(error).message)
       );
       return false;
     }

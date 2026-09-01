@@ -109,6 +109,33 @@ describe('parseExternalCredentialManifest', () => {
   });
 
   it.each([
+    ['root', (source: Record<string, unknown>) => (source.unsupported = true), 'unsupported'],
+    [
+      'credential',
+      (source: Record<string, unknown>) =>
+        ((source.credential as Record<string, unknown>).unsupported = true),
+      'credential',
+    ],
+    [
+      'authentication placement',
+      (source: Record<string, unknown>) => {
+        const credential = source.credential as Record<string, unknown>;
+        const authentication = credential.authentication as Record<string, unknown>;
+        (authentication.placement as Record<string, unknown>).unsupported = true;
+      },
+      'credential.authentication.placement',
+    ],
+  ])('rejects unknown fields at %s and reports their path', (_label, mutate, path) => {
+    const source = JSON.parse(manifest()) as Record<string, unknown>;
+    mutate(source);
+
+    expect(parseExternalCredentialManifest(JSON.stringify(source))).toMatchObject({
+      ok: false,
+      detail: expect.stringContaining(path),
+    });
+  });
+
+  it.each([
     [
       'missing catalogs and recommendations',
       {

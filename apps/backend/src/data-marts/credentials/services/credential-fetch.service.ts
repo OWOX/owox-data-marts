@@ -17,6 +17,7 @@ const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const MAX_RESPONSE_BODY_BYTES = 5 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 30_000;
+const HTTP_TOKEN_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 const FORBIDDEN_FETCH_METHODS = new Set(['CONNECT', 'TRACE', 'TRACK']);
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const BLOCKED_REQUEST_HEADERS = new Set([
@@ -77,7 +78,7 @@ export class CredentialFetchService {
     if (
       currentMethod.length === 0 ||
       currentMethod.length > 32 ||
-      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(currentMethod) ||
+      !HTTP_TOKEN_PATTERN.test(currentMethod) ||
       FORBIDDEN_FETCH_METHODS.has(currentMethod)
     ) {
       throw new BadRequestException('Credential request method is not Fetch-compatible');
@@ -172,6 +173,7 @@ export class CredentialFetchService {
       if (
         name.length === 0 ||
         name.length > 255 ||
+        !HTTP_TOKEN_PATTERN.test(name) ||
         typeof value !== 'string' ||
         value.length > 8192 ||
         /[\0\r\n]/.test(value)

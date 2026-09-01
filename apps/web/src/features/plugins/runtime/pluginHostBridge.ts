@@ -41,6 +41,7 @@ const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
  * conformance oracle in `test/contracts/authenticated-api-path-contract.mjs`.
  */
 const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
+const HTTP_TOKEN_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;
 const MAX_CREDENTIAL_HANDLE_LENGTH = 255;
@@ -569,7 +570,7 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
       typeof candidate.method !== 'string' ||
       candidate.method.length === 0 ||
       candidate.method.length > 32 ||
-      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(candidate.method) ||
+      !HTTP_TOKEN_PATTERN.test(candidate.method) ||
       FORBIDDEN_FETCH_METHODS.has(candidate.method.toUpperCase())
     ) {
       throw forbidden('The Credential request method is not Fetch-compatible');
@@ -582,6 +583,7 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
           ([name, value]) =>
             name.length === 0 ||
             name.length > 255 ||
+            !HTTP_TOKEN_PATTERN.test(name) ||
             typeof value !== 'string' ||
             value.length > 8192 ||
             INVALID_HEADER_VALUE_CHARACTER.test(value)

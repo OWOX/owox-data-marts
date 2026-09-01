@@ -86,7 +86,7 @@ export class CredentialExternalDefinitionRegistryService {
       !isCompatibleWithinLine(current.contract, input.contract)
     ) {
       throw new BadRequestException(
-        `Credential definition ${input.semver} changes an incompatible contract within compatibility line ${compatibilityLine}`
+        `Credential definition ${input.semver} changes an incompatible contract within compatibility line ${compatibilityLine}; publish a new compatibility line for this change`
       );
     }
 
@@ -233,8 +233,11 @@ function isCompatibleWithinLine(
     previous.id === next.id &&
     sameSet(previous.origins, next.origins) &&
     previous.auth.type === next.auth.type &&
+    previous.auth.headerName.toLowerCase() === next.auth.headerName.toLowerCase() &&
+    (previous.auth.prefix ?? '') === (next.auth.prefix ?? '') &&
     (!previous.ai || Boolean(next.ai)) &&
-    (!previous.ai || previous.ai.adapter === next.ai?.adapter)
+    (!previous.ai || previous.ai.adapter === next.ai?.adapter) &&
+    (!previous.ai || previous.ai.baseUrl === next.ai?.baseUrl)
   );
 }
 

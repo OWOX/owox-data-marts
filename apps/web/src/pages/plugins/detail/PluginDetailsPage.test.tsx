@@ -132,6 +132,15 @@ describe('PluginDetailsPage', () => {
     expect(checkNow).toHaveBeenCalledWith('p1');
   });
 
+  it('offers Credential configuration instead of reinstall for an installed plugin requirement', () => {
+    plugin = entry({ installationState: 'installed', credentialRequirements: ['github'] });
+
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Configure Credentials' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reinstall' })).toBeNull();
+  });
+
   // §6.3: Check now is open to any project member who can reach the page, not only one
   // who has installed the plugin -- an installation requirement would only delay a check
   // that is scheduled and inevitable anyway.

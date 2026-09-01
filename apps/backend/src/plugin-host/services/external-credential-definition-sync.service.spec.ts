@@ -141,4 +141,31 @@ describe('ExternalCredentialDefinitionSyncService', () => {
       state.service.resolveRequirements(['@acme/first', '@acme/second'])
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('surfaces a rejected newer release instead of silently falling back', async () => {
+    const state = setup();
+    state.github.listReleases.mockResolvedValue([
+      { ...release, githubReleaseId: 'release-2', tagName: 'v1.1.0' },
+      release,
+    ]);
+    state.registry.register.mockRejectedValueOnce(
+      new BadRequestException(
+        'Credential definition 1.1.0 changes an incompatible contract; publish a new compatibility line'
+      )
+    );
+
+    await expect(state.service.syncLocator('@acme/credentials')).rejects.toThrow(
+      'publish a new compatibility line'
+    );
+    expect(state.registry.register).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates transient GitHub failures instead of calling them manifest errors', async () => {
+    const state = setup();
+    const transient = new Error('GitHub unavailable');
+    state.github.getRepo.mockRejectedValue(transient);
+
+    await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toBe(transient);
+    expect(state.registry.register).not.toHaveBeenCalled();
+  });
 });

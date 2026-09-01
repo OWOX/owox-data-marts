@@ -65,6 +65,9 @@ export class UpdateCredentialService {
         throw new BadRequestException(validation.message);
       }
       credential.secret = { value: input.secret.value };
+      credential.validationState = validation.state;
+      credential.validationMessage = validation.message;
+      credential.validatedAt = validation.validatedAt;
     }
     if (input.enabled !== undefined) credential.enabled = input.enabled;
     if (input.availableForUse !== undefined) credential.availableForUse = input.availableForUse;

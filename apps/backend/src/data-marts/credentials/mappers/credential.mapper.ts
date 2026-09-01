@@ -55,9 +55,9 @@ export class CredentialMapper {
       enabled: credential.enabled,
       availableForUse: credential.availableForUse,
       availableForMaintenance: credential.availableForMaintenance,
-      validationState: validation?.state ?? 'unknown',
-      validationMessage: validation?.message ?? null,
-      validatedAt: validation?.validatedAt ?? null,
+      validationState: validation?.state ?? credential.validationState ?? 'unknown',
+      validationMessage: validation?.message ?? credential.validationMessage ?? null,
+      validatedAt: validation?.validatedAt ?? credential.validatedAt ?? null,
       lastUsedAt,
       aiModelMappings: resolveCredentialAiModelMappings(
         credential.aiModelMappings,

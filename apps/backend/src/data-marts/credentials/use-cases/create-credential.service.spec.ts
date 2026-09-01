@@ -41,6 +41,52 @@ describe('normalizeAiConfiguration', () => {
     ).toThrow(BadRequestException);
   });
 
+  it('accepts null only for a non-AI Credential definition', () => {
+    expect(normalizeAiConfiguration(null, null, undefined)).toEqual({
+      mappings: null,
+      modes: null,
+      sources: null,
+    });
+    expect(() => normalizeAiConfiguration(null, null, ai)).toThrow(
+      'AI Credentials require fast and reasoning model mappings'
+    );
+  });
+
+  it('requires exact fast and reasoning keys for AI Credentials', () => {
+    expect(() =>
+      normalizeAiConfiguration({ fast: 'recommended-fast' }, { fast: 'recommended' }, ai)
+    ).toThrow('AI model mapping reasoning is required');
+    expect(() =>
+      normalizeAiConfiguration(
+        {
+          fast: 'recommended-fast',
+          reasoning: 'recommended-reasoning',
+          experimental: 'preview-model',
+        },
+        undefined,
+        ai
+      )
+    ).toThrow('Unsupported AI model mapping experimental');
+  });
+
+  it('rejects a catalog model used for the wrong model kind', () => {
+    const aiWithEmbedding = {
+      ...ai,
+      models: {
+        ...ai.models,
+        embedding: [{ id: 'embedding-model', name: 'Embedding Model' }],
+      },
+    };
+
+    expect(() =>
+      normalizeAiConfiguration(
+        { fast: 'embedding-model', reasoning: 'recommended-reasoning' },
+        { fast: 'override', reasoning: 'recommended' },
+        aiWithEmbedding
+      )
+    ).toThrow('is not compatible with the fast mapping');
+  });
+
   it('treats a mappings-only update as an override and preserves other mappings', () => {
     expect(
       normalizeAiConfiguration({ fast: 'custom-fast' }, undefined, ai, {

@@ -3,6 +3,7 @@ import { DataSource, Table } from 'typeorm';
 import { CreateReusableCredentialTables1787788800000 } from './1787788800000-create-reusable-credential-tables';
 import { AddPluginVersionCredentialRequirements1787788800001 } from './1787788800001-add-plugin-version-credential-requirements';
 import { AddCredentialAiModelMappingSources1787788800002 } from './1787788800002-add-credential-ai-model-mapping-sources';
+import { AddCredentialValidationState1787788800003 } from './1787788800003-add-credential-validation-state';
 
 describe('Reusable Credentials migrations', () => {
   let dataSource: DataSource;
@@ -38,15 +39,20 @@ describe('Reusable Credentials migrations', () => {
     const core = new CreateReusableCredentialTables1787788800000();
     const plugin = new AddPluginVersionCredentialRequirements1787788800001();
     const mappingSources = new AddCredentialAiModelMappingSources1787788800002();
+    const validationState = new AddCredentialValidationState1787788800003();
 
     await core.up(runner);
     await plugin.up(runner);
     await mappingSources.up(runner);
+    await validationState.up(runner);
 
     expect(await runner.hasTable('credential')).toBe(true);
     expect(await runner.hasTable('credential_consumer_binding')).toBe(true);
     expect(await runner.hasColumn('plugin_version', 'credentialRequirements')).toBe(true);
     expect(await runner.hasColumn('credential', 'aiModelMappingSources')).toBe(true);
+    expect(await runner.hasColumn('credential', 'validationState')).toBe(true);
+    expect(await runner.hasColumn('credential', 'validationMessage')).toBe(true);
+    expect(await runner.hasColumn('credential', 'validatedAt')).toBe(true);
 
     await runner.query(
       `INSERT INTO credential
@@ -70,9 +76,25 @@ describe('Reusable Credentials migrations', () => {
     ])) as Array<{ secret: string }>;
     expect(JSON.parse(stored.secret)).toEqual({ value: 'provider-secret' });
 
+    const [validation] = (await runner.query(
+      'SELECT validationState, validationMessage, validatedAt FROM credential WHERE id = ?',
+      ['credential-1']
+    )) as Array<{
+      validationState: string;
+      validationMessage: string | null;
+      validatedAt: string | null;
+    }>;
+    expect(validation).toEqual({
+      validationState: 'unknown',
+      validationMessage: null,
+      validatedAt: null,
+    });
+
+    await validationState.down(runner);
     await mappingSources.down(runner);
     await plugin.down(runner);
     expect(await runner.hasColumn('credential', 'aiModelMappingSources')).toBe(false);
+    expect(await runner.hasColumn('credential', 'validationState')).toBe(false);
     await core.down(runner);
     expect(await runner.hasColumn('plugin_version', 'credentialRequirements')).toBe(false);
     expect(await runner.hasTable('credential')).toBe(false);

@@ -6,7 +6,7 @@ jest.mock('../../../common/helpers/guarded-dispatcher', () => ({
   withGuardedDispatcher: jest.fn((init: RequestInit) => init),
 }));
 
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialFetchService } from './credential-fetch.service';
 
@@ -91,6 +91,20 @@ describe('CredentialFetchService', () => {
 
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'PROPFIND' });
   });
+
+  it.each(['bad name', 'bad:name'])(
+    'rejects invalid request header name %s as a 400',
+    async name => {
+      await expect(
+        new CredentialFetchService().run(binding, {
+          url: 'https://api.github.com/user',
+          method: 'GET',
+          headers: { [name]: 'value' },
+        })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(global.fetch).not.toHaveBeenCalled();
+    }
+  );
 
   it('revalidates the target origin on every redirect', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(

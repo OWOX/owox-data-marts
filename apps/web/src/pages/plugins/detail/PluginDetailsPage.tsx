@@ -111,9 +111,10 @@ export default function PluginDetailsPage() {
   };
 
   const isInstalled = plugin.installationState === 'installed';
+  const isConfiguringCredentials = isInstalled && (plugin.credentialRequirements?.length ?? 0) > 0;
   // Label / confirm path: only a live install says "Reinstall". Uninstalled looks like
   // Install again (dialog), even though the API reactivates the same installation row.
-  const showReinstall = isInstalled;
+  const showReinstall = isInstalled && !isConfiguringCredentials;
   const installation = installations.find(item => item.pluginId === plugin.pluginId);
   const visibility = describeVisibility(plugin.visibleViaScopes);
   // Source URLs travel as untrusted strings; only absolute https becomes an href.
@@ -179,10 +180,14 @@ export default function PluginDetailsPage() {
               {isInstalling
                 ? showReinstall
                   ? 'Reinstalling…'
-                  : 'Installing…'
+                  : isConfiguringCredentials
+                    ? 'Saving…'
+                    : 'Installing…'
                 : showReinstall
                   ? 'Reinstall'
-                  : 'Install'}
+                  : isConfiguringCredentials
+                    ? 'Configure Credentials'
+                    : 'Install'}
             </Button>
 
             <DropdownMenu>
@@ -453,6 +458,7 @@ export default function PluginDetailsPage() {
           }}
           onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
           isInstalling={isInstalling}
+          mode={isConfiguringCredentials ? 'configure' : 'install'}
         />
       )}
     </div>

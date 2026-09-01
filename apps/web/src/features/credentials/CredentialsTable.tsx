@@ -45,6 +45,7 @@ import type { Credential } from './types';
 interface CredentialsTableProps {
   credentials: Credential[];
   canAddCredential: boolean;
+  canMaintainCredential: (credential: Credential) => boolean;
   isValidating: boolean;
   onAddCredential: () => void;
   onValidate: (credential: Credential) => void;
@@ -58,6 +59,7 @@ interface CredentialsTableProps {
 export function CredentialsTable({
   credentials,
   canAddCredential,
+  canMaintainCredential,
   isValidating,
   onAddCredential,
   onValidate,
@@ -87,6 +89,7 @@ export function CredentialsTable({
     () =>
       getCredentialColumns({
         isValidating,
+        canMaintainCredential,
         onValidate,
         onReplaceSecret,
         onEdit,
@@ -96,6 +99,7 @@ export function CredentialsTable({
       }),
     [
       isValidating,
+      canMaintainCredential,
       onAcceptDefinition,
       onDelete,
       onEdit,
@@ -120,6 +124,7 @@ export function CredentialsTable({
     ) {
       return;
     }
+    if (!canMaintainCredential(row.original)) return;
     onEdit(row.original);
   };
 
@@ -177,6 +182,7 @@ export function CredentialsTable({
 
 interface CredentialColumnActions {
   isValidating: boolean;
+  canMaintainCredential: (credential: Credential) => boolean;
   onValidate: (credential: Credential) => void;
   onReplaceSecret: (credential: Credential) => void;
   onEdit: (credential: Credential) => void;
@@ -241,7 +247,10 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
       size: 80,
       enableResizing: false,
       header: ({ table }) => <ToggleColumnsHeader table={table} />,
-      cell: ({ row }) => <CredentialActionsCell credential={row.original} {...actions} />,
+      cell: ({ row }) =>
+        actions.canMaintainCredential(row.original) ? (
+          <CredentialActionsCell credential={row.original} {...actions} />
+        ) : null,
     },
   ];
 }
@@ -252,7 +261,13 @@ function CredentialAvailability({ credential }: { credential: Credential }) {
       <Badge variant={credential.enabled ? 'secondary' : 'outline'}>
         {credential.enabled ? 'Enabled' : 'Disabled'}
       </Badge>
-      {credential.availableForUse && <Badge variant='outline'>Shared for use</Badge>}
+      {credential.availableForUse && credential.availableForMaintenance ? (
+        <Badge variant='outline'>Shared for use and maintenance</Badge>
+      ) : credential.availableForMaintenance ? (
+        <Badge variant='outline'>Shared for maintenance</Badge>
+      ) : credential.availableForUse ? (
+        <Badge variant='outline'>Shared for use</Badge>
+      ) : null}
       {credential.definitionConsentRequired && (
         <Badge variant='destructive'>Definition update pending</Badge>
       )}
@@ -285,23 +300,27 @@ function CredentialActionsCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          <DropdownMenuItem
-            disabled={isValidating}
-            onClick={() => {
-              onValidate(credential);
-            }}
-          >
-            <ShieldCheck className='text-foreground h-4 w-4' aria-hidden='true' />
-            Validate
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              onReplaceSecret(credential);
-            }}
-          >
-            <RefreshCw className='text-foreground h-4 w-4' aria-hidden='true' />
-            Replace secret
-          </DropdownMenuItem>
+          {!credential.definitionConsentRequired && (
+            <>
+              <DropdownMenuItem
+                disabled={isValidating}
+                onClick={() => {
+                  onValidate(credential);
+                }}
+              >
+                <ShieldCheck className='text-foreground h-4 w-4' aria-hidden='true' />
+                Validate
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  onReplaceSecret(credential);
+                }}
+              >
+                <RefreshCw className='text-foreground h-4 w-4' aria-hidden='true' />
+                Replace secret
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuItem
             onClick={() => {
               onEdit(credential);

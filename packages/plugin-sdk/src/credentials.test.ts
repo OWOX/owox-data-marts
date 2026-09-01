@@ -70,6 +70,27 @@ describe('Plugin Credentials', () => {
     expect(credentials.openai).toBeUndefined();
   });
 
+  it('exposes declared handles through normal Record discovery operations', () => {
+    const credentials = createPluginCredentials({ send: vi.fn() }, ['github', 'custom']);
+
+    expect('github' in credentials).toBe(true);
+    expect('openai' in credentials).toBe(false);
+    expect(Object.keys(credentials)).toEqual(['github', 'custom']);
+    expect(JSON.stringify(credentials)).toBe('{"github":{},"custom":{}}');
+  });
+
+  it('rejects an already-aborted fetch with an AbortError even without a reason', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const credentials = createPluginCredentials({ send: vi.fn() }, ['github']);
+
+    await expect(
+      credentials.github!.asFetch()('https://api.github.com/user', {
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('propagates the caller AbortSignal to the Host request', async () => {
     const send = vi.fn((_request, signal?: AbortSignal) => {
       return new Promise<never>((_resolve, reject) => {

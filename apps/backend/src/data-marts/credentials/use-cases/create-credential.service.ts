@@ -64,6 +64,9 @@ export class CreateCredentialService {
         enabled: true,
         availableForUse: input.availableForUse ?? true,
         availableForMaintenance: input.availableForMaintenance ?? false,
+        validationState: validation.state,
+        validationMessage: validation.message,
+        validatedAt: validation.validatedAt,
         createdById: context.userId,
       })
     );
@@ -104,19 +107,26 @@ export function validateAiMappings(
   mappings: CredentialAiModelMappings | null | undefined,
   ai: CredentialDefinitionContract['ai'] | undefined
 ): void {
-  if (mappings == null || Object.keys(mappings).length === 0) return;
+  if (mappings == null || Object.keys(mappings).length === 0) {
+    if (ai) {
+      throw new BadRequestException('AI Credentials require fast and reasoning model mappings');
+    }
+    return;
+  }
   if (!ai) {
     throw new BadRequestException('This Credential definition does not support AI models');
   }
-  if (
-    Object.entries(mappings).some(
-      ([key, value]) =>
-        key.trim().length === 0 || typeof value !== 'string' || value.trim().length === 0
-    )
-  ) {
-    throw new BadRequestException(
-      'AI model mappings must contain non-empty string keys and values'
-    );
+  for (const [key, value] of Object.entries(mappings)) {
+    assertAiCapability(key);
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new BadRequestException('AI model mappings must contain non-empty string values');
+    }
+    assertAiModelKind(ai, key, value);
+  }
+  for (const capability of ['fast', 'reasoning'] as const) {
+    if (!mappings[capability]?.trim()) {
+      throw new BadRequestException(`AI model mapping ${capability} is required`);
+    }
   }
 }
 
@@ -134,17 +144,21 @@ export function normalizeAiConfiguration(
   readonly modes: CredentialAiModelMappingModes | null;
   readonly sources: CredentialAiModelMappingSources | null;
 } {
-  if (mappings === null) {
-    if (modes && Object.keys(modes).length > 0) {
-      throw new BadRequestException('AI mapping modes require model mappings');
+  const hasMappings = mappings != null && Object.keys(mappings).length > 0;
+  const hasModes = modes != null && Object.keys(modes).length > 0;
+  if (!ai) {
+    if (hasMappings || hasModes) {
+      throw new BadRequestException('This Credential definition does not support AI models');
     }
     return { mappings: null, modes: null, sources: null };
+  }
+  if (mappings === null) {
+    throw new BadRequestException('AI Credentials require fast and reasoning model mappings');
   }
 
   const resolvedMappings: CredentialAiModelMappings = current
     ? { ...(current.mappings ?? {}), ...(mappings ?? {}) }
     : { ...(mappings ?? ai?.recommended ?? {}) };
-  validateAiMappings(resolvedMappings, ai);
   const resolvedModes: CredentialAiModelMappingModes = current
     ? { ...(current.modes ?? {}), ...(modes ?? {}) }
     : { ...(modes ?? inferAiMappingModes(resolvedMappings, ai?.recommended)) };
@@ -155,10 +169,8 @@ export function normalizeAiConfiguration(
     }
   }
 
-  if (!ai && (Object.keys(resolvedMappings).length > 0 || Object.keys(resolvedModes).length > 0)) {
-    throw new BadRequestException('This Credential definition does not support AI models');
-  }
   for (const [key, mode] of Object.entries(resolvedModes)) {
+    assertAiCapability(key);
     if (mode !== 'recommended' && mode !== 'override') {
       throw new BadRequestException('AI mapping mode must be recommended or override');
     }
@@ -175,6 +187,7 @@ export function normalizeAiConfiguration(
   for (const key of Object.keys(resolvedMappings)) {
     resolvedModes[key] ??= 'override';
   }
+  validateAiMappings(resolvedMappings, ai);
 
   const resolvedSources: CredentialAiModelMappingSources = { ...(current?.sources ?? {}) };
   for (const [key, modelId] of Object.entries(resolvedMappings)) {
@@ -195,6 +208,27 @@ export function normalizeAiConfiguration(
   return Object.keys(resolvedMappings).length === 0
     ? { mappings: null, modes: null, sources: null }
     : { mappings: resolvedMappings, modes: resolvedModes, sources: resolvedSources };
+}
+
+const AI_CAPABILITIES = new Set(['fast', 'reasoning', 'embedding']);
+
+function assertAiCapability(key: string): void {
+  if (!AI_CAPABILITIES.has(key)) {
+    throw new BadRequestException(`Unsupported AI model mapping ${key}`);
+  }
+}
+
+function assertAiModelKind(
+  ai: NonNullable<CredentialDefinitionContract['ai']>,
+  capability: string,
+  modelId: string
+): void {
+  const oppositeCatalog = capability === 'embedding' ? ai.models?.language : ai.models?.embedding;
+  if (oppositeCatalog?.some(model => model.id === modelId)) {
+    throw new BadRequestException(
+      `AI model ${modelId} is not compatible with the ${capability} mapping`
+    );
+  }
 }
 
 function inferAiMappingModes(

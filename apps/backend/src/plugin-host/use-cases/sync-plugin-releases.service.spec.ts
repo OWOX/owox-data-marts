@@ -13,6 +13,7 @@ import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
+import { ExternalCredentialRequirementError } from '../services/external-credential-definition-sync.service';
 import { SyncPluginReleasesService } from './sync-plugin-releases.service';
 
 const LOCATOR = 'OWOX/example-plugin';
@@ -42,7 +43,7 @@ const MANIFEST = JSON.stringify({
   delivery: { type: 'remote', url: 'https://plugin.example.com' },
 });
 
-function setup() {
+function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock }) {
   const githubApi = {
     getRepo: jest.fn().mockResolvedValue(repo()),
     listReleases: jest.fn().mockResolvedValue([]),
@@ -84,7 +85,8 @@ function setup() {
     pluginService,
     versionService,
     config,
-    credentialBindingReconciliation as never
+    credentialBindingReconciliation as never,
+    externalCredentialDefinitions as never
   );
 
   return {
@@ -94,6 +96,7 @@ function setup() {
     pluginService,
     versionService,
     credentialBindingReconciliation,
+    externalCredentialDefinitions,
   };
 }
 
@@ -126,6 +129,47 @@ describe('SyncPluginReleasesService', () => {
       s.versionService.insertVersionForLease.mockRejectedValue(new Error('database unavailable'));
 
       await expect(run(s)).rejects.toThrow('database unavailable');
+    });
+  });
+
+  describe('external Credential requirement failures', () => {
+    const manifestWithExternalCredential = JSON.stringify({
+      name: 'Example Plugin',
+      description: 'What this plugin does',
+      delivery: { type: 'remote', url: 'https://plugin.example.com' },
+      credentials: ['@acme/credentials'],
+    });
+
+    it('reports a publisher contract error as a manifest rejection', async () => {
+      const external = {
+        resolveRequirements: jest
+          .fn()
+          .mockRejectedValue(new ExternalCredentialRequirementError('definition is invalid')),
+      };
+      const s = setup(external);
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(manifestWithExternalCredential);
+
+      const result = await run(s, false);
+
+      expect(result.report.rejections).toEqual([
+        expect.objectContaining({
+          code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+          detail: 'definition is invalid',
+        }),
+      ]);
+    });
+
+    it('propagates a transient external sync failure without blaming the manifest', async () => {
+      const external = {
+        resolveRequirements: jest.fn().mockRejectedValue(new Error('GitHub unavailable')),
+      };
+      const s = setup(external);
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(manifestWithExternalCredential);
+
+      await expect(run(s, false)).rejects.toThrow('GitHub unavailable');
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
     });
   });
 

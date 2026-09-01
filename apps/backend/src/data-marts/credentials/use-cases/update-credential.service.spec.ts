@@ -20,6 +20,9 @@ function setup() {
     secret: { value: 'old-secret' },
     aiModelMappings: null,
     aiModelMappingModes: null,
+    validationState: 'unknown',
+    validationMessage: null,
+    validatedAt: null,
   };
   const definition = {
     definitionId: 'external-1',
@@ -58,7 +61,7 @@ function setup() {
     {} as never,
     {} as never
   );
-  return { service, definitions, validationProbe };
+  return { service, definitions, validationProbe, credentials, credential };
 }
 
 describe('UpdateCredentialService', () => {
@@ -72,6 +75,13 @@ describe('UpdateCredentialService', () => {
     expect(state.validationProbe.run).toHaveBeenCalledWith(
       expect.objectContaining({ compatibilityLine: '1' }),
       { value: 'new-secret' }
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        validationState: 'verified',
+        validationMessage: 'accepted',
+        validatedAt: expect.any(Date),
+      })
     );
   });
 

@@ -65,6 +65,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.44",
+    "@ai-sdk/provider": "4.0.8",
     "@ai-sdk/google": "4.0.54",
     "@ai-sdk/openai": "4.0.50",
     "@ai-sdk/openai-compatible": "3.0.39",

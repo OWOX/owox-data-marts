@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from '../../data-marts/credentials/services/builtin-credential-definitions';
 import { CredentialExternalDefinitionRegistryService } from '../../data-marts/credentials/services/credential-external-definition-registry.service';
 import { parseExternalCredentialManifest } from '../../data-marts/credentials/services/external-credential-manifest';
@@ -14,6 +15,8 @@ import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 import { GithubApiService } from './github-api.service';
 
+export class ExternalCredentialRequirementError extends BadRequestException {}
+
 @Injectable()
 export class ExternalCredentialDefinitionSyncService {
   constructor(
@@ -26,7 +29,7 @@ export class ExternalCredentialDefinitionSyncService {
     const repo = await this.github.getRepo(ref, GithubReadPolicy.PUBLIC_ONLY);
     if (repo.isPrivate) {
       throw new BadRequestException(
-        'Private GitHub repositories are not supported for Credential definitions in v1'
+        'Private GitHub repositories are not supported for Credential definitions'
       );
     }
     const releases = (await this.github.listReleases(ref, GithubReadPolicy.PUBLIC_ONLY))
@@ -72,16 +75,17 @@ export class ExternalCredentialDefinitionSyncService {
           contract: parsed.contract,
         });
       } catch (error) {
-        rejections.push(
-          `${candidate.semver}: ${error instanceof Error ? error.message : 'definition is invalid'}`
+        if (!(error instanceof BadRequestException)) throw error;
+        throw new ExternalCredentialRequirementError(
+          `${candidate.semver}: ${castError(error).message}`
         );
       }
     }
 
     const current = await this.registry.getCurrentByGithubRepoId(repo.githubRepoId);
     if (current) return current;
-    throw new BadRequestException(
-      rejections[0] ?? 'No eligible Credential definition release was found'
+    throw new ExternalCredentialRequirementError(
+      'No eligible Credential definition release was found'
     );
   }
 
@@ -93,14 +97,23 @@ export class ExternalCredentialDefinitionSyncService {
       const locator = typeof requirement === 'string' ? requirement : requirement.id;
       if (!locator.startsWith('@')) {
         if (locator !== 'ai' && !BUILTIN_CREDENTIAL_DEFINITION_IDS.has(locator)) {
-          throw new BadRequestException(
+          throw new ExternalCredentialRequirementError(
             `Unknown Credential requirement "${locator}"; use ai, a built-in definition, or @owner/repository`
           );
         }
         resolved.push(requirement);
         continue;
       }
-      const definition = await this.syncLocator(locator);
+      let definition: ResolvedCredentialDefinition;
+      try {
+        definition = await this.syncLocator(locator);
+      } catch (error) {
+        if (error instanceof ExternalCredentialRequirementError) throw error;
+        if (error instanceof BadRequestException) {
+          throw new ExternalCredentialRequirementError(castError(error).message);
+        }
+        throw error;
+      }
       const external: ResolvedExternalCredentialRequirement = {
         id: definition.contract.id,
         definitionId: definition.definitionId,
@@ -114,7 +127,7 @@ export class ExternalCredentialDefinitionSyncService {
     for (const requirement of resolved) {
       const key = normalizeCredentialRequirement(requirement).key;
       if (keys.has(key)) {
-        throw new BadRequestException(`Duplicate resolved Credential handle ${key}`);
+        throw new ExternalCredentialRequirementError(`Duplicate resolved Credential handle ${key}`);
       }
       keys.add(key);
     }

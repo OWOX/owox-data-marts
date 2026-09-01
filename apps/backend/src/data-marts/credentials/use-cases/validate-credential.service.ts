@@ -34,6 +34,10 @@ export class ValidateCredentialService {
 
     const definition = await this.definitions.getForCredential(credential);
     const validation = await this.validationProbe.run(definition, credential.secret);
-    return this.view.build(credential, validation);
+    credential.validationState = validation.state;
+    credential.validationMessage = validation.message;
+    credential.validatedAt = validation.validatedAt;
+    await this.credentials.save(credential);
+    return this.view.build(credential);
   }
 }

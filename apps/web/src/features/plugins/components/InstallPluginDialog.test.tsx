@@ -158,6 +158,30 @@ describe('InstallPluginDialog', () => {
     );
   });
 
+  it('uses configuration copy when only installed Credential bindings are changing', () => {
+    credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
+
+    render(
+      <InstallPluginDialog
+        plugin={plugin({ credentialRequirements: ['github'] })}
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isInstalling={false}
+        mode='configure'
+      />
+    );
+
+    expect(screen.getByText('Configure plugin Credentials?')).toBeInTheDocument();
+    expect(
+      screen.getByText('Choose which project Credentials this installed plugin may use.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(
+      screen.getByText('Changing Credential access does not reinstall or clear plugin data.')
+    ).toBeInTheDocument();
+  });
+
   it('shows display metadata and the current SemVer required by §13', () => {
     render(
       <InstallPluginDialog

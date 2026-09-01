@@ -100,6 +100,31 @@ describe('CredentialsTable', () => {
 
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'credential-1' }));
   });
+
+  it('hides mutating actions and row editing from a use-only member', () => {
+    const onEdit = vi.fn();
+    renderCredentials([buildCredential()], '/ui/project-1/credentials', {
+      canMaintainCredential: () => false,
+      onEdit,
+    });
+
+    expect(screen.queryByRole('button', { name: 'Open actions for GitHub key' })).toBeNull();
+    fireEvent.click(screen.getByText('GitHub key'));
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [true, false, 'Shared for use'],
+    [false, true, 'Shared for maintenance'],
+    [true, true, 'Shared for use and maintenance'],
+  ])(
+    'shows the use=%s maintenance=%s sharing state',
+    (availableForUse, availableForMaintenance, label) => {
+      renderCredentials([buildCredential({ availableForUse, availableForMaintenance })]);
+
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  );
 });
 
 function renderCredentials(
@@ -110,6 +135,7 @@ function renderCredentials(
   const props: React.ComponentProps<typeof CredentialsTable> = {
     credentials,
     canAddCredential: true,
+    canMaintainCredential: () => true,
     isValidating: false,
     onAddCredential: vi.fn(),
     onValidate: vi.fn(),

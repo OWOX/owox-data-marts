@@ -325,6 +325,22 @@ describe('plugin host bridge', () => {
       expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
     });
 
+    it.each(['bad name', 'bad:name'])('rejects invalid Credential header name %s', async name => {
+      const h = await harness();
+      const response = await h.send({
+        kind: 'credentialFetch',
+        version: 1,
+        handle: 'github',
+        url: 'https://api.github.com/user',
+        method: 'GET',
+        headers: { [name]: 'value' },
+      });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+    });
+
     it('forwards custom Fetch-compatible provider methods', async () => {
       const h = await harness(async () =>
         Response.json({ status: 204, headers: {}, bodyBase64: '' })
@@ -687,6 +703,38 @@ describe('plugin host bridge', () => {
       await vi.waitFor(() => {
         expect(upstreamCancelled).toHaveBeenCalled();
       });
+      h.bridge.dispose();
+    });
+
+    it('keeps transferred never-ending streams inside the 32-request admission limit', async () => {
+      const h = await harness(
+        async () =>
+          new Response(new ReadableStream<Uint8Array>(), {
+            status: 200,
+            headers: { 'content-type': 'application/x-ndjson' },
+          })
+      );
+
+      for (let index = 0; index < 32; index += 1) {
+        await expect(
+          h.send({
+            id: `stream-${String(index)}`,
+            kind: 'api',
+            method: 'GET',
+            path: `/api/stream/${String(index)}`,
+            stream: true,
+          })
+        ).resolves.toMatchObject({ ok: true });
+      }
+
+      await expect(
+        h.send({ kind: 'api', method: 'GET', path: '/api/stream/blocked' })
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'Too many requests in flight' },
+      });
+      expect(h.fetchMock).toHaveBeenCalledTimes(32);
+
       h.bridge.dispose();
     });
 

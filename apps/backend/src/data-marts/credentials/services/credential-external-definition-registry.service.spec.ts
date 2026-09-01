@@ -148,7 +148,7 @@ describe('CredentialExternalDefinitionRegistryService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('allows compatible metadata, header-placement, and added AI interface changes in a line', async () => {
+  it('allows compatible metadata and an added AI interface within a line', async () => {
     const state = setup();
     await state.service.register(input('1.0.0'));
 
@@ -161,7 +161,8 @@ describe('CredentialExternalDefinitionRegistryService', () => {
             auth: {
               type: 'header',
               label: 'Token',
-              headerName: 'x-api-key',
+              headerName: 'authorization',
+              prefix: 'Bearer ',
             },
             ai: {
               adapter: 'openai-compatible',
@@ -171,5 +172,57 @@ describe('CredentialExternalDefinitionRegistryService', () => {
         })
       )
     ).resolves.toMatchObject({ compatibilityLine: '1' });
+  });
+
+  it.each([
+    [
+      'authentication header',
+      {
+        ...input('1.1.0').contract,
+        auth: { type: 'header' as const, label: 'Token', headerName: 'x-api-key' },
+      },
+    ],
+    [
+      'authentication prefix',
+      {
+        ...input('1.1.0').contract,
+        auth: {
+          type: 'header' as const,
+          label: 'Token',
+          headerName: 'authorization',
+          prefix: 'Token ',
+        },
+      },
+    ],
+    [
+      'AI base URL',
+      {
+        ...input('1.1.0').contract,
+        ai: {
+          adapter: 'openai-compatible' as const,
+          baseUrl: 'https://api.acme.example/v2',
+        },
+      },
+    ],
+  ])('requires a new compatibility line when changing the %s', async (_label, contract) => {
+    const state = setup();
+    await state.service.register(
+      input('1.0.0', {
+        contract:
+          _label === 'AI base URL'
+            ? {
+                ...input('1.0.0').contract,
+                ai: {
+                  adapter: 'openai-compatible',
+                  baseUrl: 'https://api.acme.example/v1',
+                },
+              }
+            : input('1.0.0').contract,
+      })
+    );
+
+    await expect(state.service.register(input('1.1.0', { contract }))).rejects.toThrow(
+      'publish a new compatibility line'
+    );
   });
 });

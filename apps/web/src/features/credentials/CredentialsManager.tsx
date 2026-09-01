@@ -106,6 +106,11 @@ export function CredentialsManager() {
         <CredentialsTable
           credentials={credentials}
           canAddCredential={!definitionsLoading && definitions.length > 0}
+          canMaintainCredential={credential =>
+            Boolean(user?.roles?.includes('admin')) ||
+            credential.availableForMaintenance ||
+            credential.ownerUsers.some(owner => owner.userId === user?.id)
+          }
           isValidating={actions.isValidating}
           onAddCredential={() => {
             setEditor({ open: true, credential: null });

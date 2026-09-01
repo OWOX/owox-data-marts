@@ -12,6 +12,8 @@ import type {
  * traversals legitimately run for minutes.
  */
 const REQUEST_TIMEOUT_MS = 30_000;
+/** Matches the backend provider budget for non-stream AI generation and embedding. */
+const AI_REQUEST_TIMEOUT_MS = 120_000;
 
 interface Pending {
   resolve: (response: PluginResponse) => void;
@@ -84,6 +86,8 @@ export function createIframeRequester(port: MessagePort): IframeRequester {
         return;
       }
       const isStream = 'stream' in request && request.stream === true;
+      const timeoutMs =
+        request.kind === 'credentialAi' ? AI_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 
       const cancel = () => {
         port.postMessage({
@@ -101,7 +105,7 @@ export function createIframeRequester(port: MessagePort): IframeRequester {
             reject(
               new PluginTransportError({ code: 'TIMEOUT', message: 'The host did not answer' })
             );
-          }, REQUEST_TIMEOUT_MS);
+          }, timeoutMs);
 
       const onAbort = () => {
         const waiting = pending.get(id);

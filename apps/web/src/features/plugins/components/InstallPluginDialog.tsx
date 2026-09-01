@@ -25,6 +25,7 @@ interface InstallPluginDialogProps {
   /** Opens the Credential creation flow preconfigured for this requirement. */
   onAddCredential?: (requirement: NormalizedPluginCredentialRequirement) => void;
   isInstalling: boolean;
+  mode?: 'install' | 'configure';
 }
 
 const DO_NOT_GRANT_VALUE = '__none__';
@@ -48,6 +49,7 @@ export function InstallPluginDialog({
   onConfirm,
   onAddCredential,
   isInstalling,
+  mode = 'install',
 }: InstallPluginDialogProps) {
   const { credentials, isLoading: credentialsLoading } = useCredentials();
   const { definitions, isLoading: definitionsLoading } = useCredentialDefinitions();
@@ -87,15 +89,28 @@ export function InstallPluginDialog({
   const ownerHref = safeHttpsUrl(plugin.source.ownerUrl);
   const repositoryHref = safeHttpsUrl(plugin.source.repositoryUrl);
   const repoPath = repositoryHref ? repositoryPath(repositoryHref) : null;
+  const isConfiguring = mode === 'configure';
 
   return (
     <>
       <ConfirmationDialog
         open={open}
         onOpenChange={onOpenChange}
-        title='Install this plugin?'
-        description='Installing is personal. It does not change who else can find this plugin.'
-        confirmLabel={isInstalling ? 'Installing…' : 'Install'}
+        title={isConfiguring ? 'Configure plugin Credentials?' : 'Install this plugin?'}
+        description={
+          isConfiguring
+            ? 'Choose which project Credentials this installed plugin may use.'
+            : 'Installing is personal. It does not change who else can find this plugin.'
+        }
+        confirmLabel={
+          isInstalling
+            ? isConfiguring
+              ? 'Saving…'
+              : 'Installing…'
+            : isConfiguring
+              ? 'Save'
+              : 'Install'
+        }
         confirmDisabled={isInstalling || credentialsLoading || missingDecision}
         variant='outline'
         onConfirm={() => {
@@ -187,7 +202,9 @@ export function InstallPluginDialog({
               Anything it reads can leave OWOX and reach the plugin publisher.
             </Fact>
             <Fact icon={<RotateCcw className='size-4 shrink-0' aria-hidden />}>
-              Reinstalling restores nothing the plugin kept on its own side.
+              {isConfiguring
+                ? 'Changing Credential access does not reinstall or clear plugin data.'
+                : 'Reinstalling restores nothing the plugin kept on its own side.'}
             </Fact>
           </div>
 

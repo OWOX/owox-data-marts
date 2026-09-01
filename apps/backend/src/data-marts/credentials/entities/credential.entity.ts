@@ -13,6 +13,7 @@ import type {
   CredentialAiModelMappingSources,
   CredentialDefinitionSource,
   CredentialSecret,
+  CredentialValidationState,
 } from '../credential.types';
 import { CredentialContext } from './credential-context.entity';
 import { CredentialOwner } from './credential-owner.entity';
@@ -61,6 +62,15 @@ export class Credential {
 
   @Column({ type: 'boolean', default: false })
   availableForMaintenance: boolean;
+
+  @Column({ type: 'varchar', length: 16, default: 'unknown' })
+  validationState: CredentialValidationState;
+
+  @Column({ type: 'varchar', length: 2000, nullable: true })
+  validationMessage: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  validatedAt: Date | null;
 
   /** Audit metadata only. The credential belongs to the project, not this member. */
   @Column({ type: 'varchar', length: 255, nullable: true })

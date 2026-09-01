@@ -71,4 +71,56 @@ describe('CredentialMapper', () => {
       })
     ).toMatchObject({ documentationUrl: null });
   });
+
+  it('maps persisted validation state on an ordinary reload', async () => {
+    const mapper = new CredentialMapper({
+      fetchUserProjectionsList: jest.fn().mockResolvedValue([]),
+    } as unknown as UserProjectionsFetcherService);
+    const validatedAt = new Date('2026-08-31T06:00:00.000Z');
+    const credential = {
+      id: 'credential-1',
+      projectId: 'project-1',
+      title: 'Production GitHub',
+      definitionSource: 'builtin',
+      definitionId: 'github',
+      acceptedCompatibilityLine: null,
+      secret: { value: 'provider-secret' },
+      enabled: true,
+      availableForUse: true,
+      availableForMaintenance: false,
+      validationState: 'verified',
+      validationMessage: 'accepted',
+      validatedAt,
+      aiModelMappings: null,
+      aiModelMappingModes: null,
+      owners: [],
+      contexts: [],
+      createdAt: validatedAt,
+      modifiedAt: validatedAt,
+    } as unknown as Credential;
+
+    await expect(
+      mapper.toDto(
+        credential,
+        {
+          definitionId: 'github',
+          source: 'builtin',
+          compatibilityLine: null,
+          contract: {
+            id: 'github',
+            displayName: 'GitHub',
+            description: '',
+            auth: { type: 'header', label: 'API key', headerName: 'authorization' },
+            origins: ['https://api.github.com'],
+          },
+        },
+        [],
+        null
+      )
+    ).resolves.toMatchObject({
+      validationState: 'verified',
+      validationMessage: 'accepted',
+      validatedAt,
+    });
+  });
 });
