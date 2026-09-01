@@ -128,6 +128,7 @@ describe('buildMergeQuery partition pruning', () => {
       config: {
         DestinationDatasetID: configValue('project.dataset'),
         DestinationTableName: configValue('reddit_ads_report'),
+        logMessage() {},
       },
       uniqueKeyColumns: ['ad_id', 'date'],
       schema: {
@@ -185,14 +186,37 @@ describe('buildMergeQuery partition pruning', () => {
     expect(query).toContain('ON target.id = source.id');
   });
 
-  it('suppresses the predicate when any record lacks a partition value', () => {
-    // A range that misses one record's partition would hide its target row
-    // and produce a duplicate insert, so one gap disables pruning for the
-    // whole batch.
+  it('skips records without a partition value instead of disabling pruning', () => {
+    // A NULL partition value emits SAFE_CAST(NULL ...), which never equals
+    // any target value — the record is INSERT-only either way, so the range
+    // can ignore it and still cover every matchable row.
     const storage = mergeStorage();
     storage.updatedRecordsBuffer['ad_1|2026-08-30'].date = null;
 
+    expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBe(
+      "target.date BETWEEN DATE '2026-08-29' AND DATE '2026-08-31'"
+    );
+  });
+
+  it('emits no predicate when every record lacks a partition value', () => {
+    const storage = mergeStorage();
+    for (const key of Object.keys(storage.updatedRecordsBuffer)) {
+      storage.updatedRecordsBuffer[key].date = null;
+    }
+
     expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBeNull();
+  });
+
+  it('logs the suppression reason once per run, not once per batch', () => {
+    const messages = [];
+    const storage = mergeStorage({ uniqueKeyColumns: ['ad_id'] });
+    storage.config.logMessage = message => messages.push(message);
+
+    storage.buildPartitionPredicate(bufferKeys(storage));
+    storage.buildPartitionPredicate(bufferKeys(storage));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("'date' is not part of the unique key");
   });
 
   it('suppresses the predicate when the partition column is not part of the unique key', () => {
@@ -322,5 +346,147 @@ describe('buildMergeQuery partition pruning', () => {
     expect(storage.buildPartitionPredicate(bufferKeys(storage))).toBe(
       "target.date BETWEEN TIMESTAMP '2026-08-30 10:00:00' AND TIMESTAMP '2026-08-31 09:30:00'"
     );
+  });
+});
+
+describe('getAListOfExistingColumns', () => {
+  // The only production source of isPartitioningColumn — if either parsing
+  // branch stops matching, the predicate silently never fires while every
+  // other test still passes. These two pin the producers.
+  const columnsStorage = () =>
+    Object.assign(Object.create(proto), {
+      config: {
+        DestinationProjectID: configValue('project'),
+        DestinationDatasetName: configValue('dataset'),
+        DestinationDatasetID: configValue('project.dataset'),
+        DestinationTableName: configValue('reddit_ads_report'),
+      },
+    });
+
+  it('marks the partitioning column in the BigQuery row/field result shape', async () => {
+    const storage = columnsStorage();
+    storage.executeQuery = async () => ({
+      rows: [
+        { f: [{ v: 'ad_id' }, { v: 'STRING' }, { v: 'NO' }] },
+        { f: [{ v: 'date' }, { v: 'DATE' }, { v: 'YES' }] },
+      ],
+    });
+
+    const columns = await storage.getAListOfExistingColumns();
+
+    expect(columns.date).toEqual({ name: 'date', type: 'DATE', isPartitioningColumn: true });
+    expect(columns.ad_id.isPartitioningColumn).toBe(false);
+  });
+
+  it('marks the partitioning column in the plain array result shape', async () => {
+    const storage = columnsStorage();
+    storage.executeQuery = async () => [
+      { column_name: 'ad_id', data_type: 'STRING', is_partitioning_column: 'NO' },
+      { column_name: 'date', data_type: 'DATE', is_partitioning_column: 'YES' },
+    ];
+
+    const columns = await storage.getAListOfExistingColumns();
+
+    expect(columns.date.isPartitioningColumn).toBe(true);
+    expect(columns.ad_id.isPartitioningColumn).toBe(false);
+  });
+});
+
+describe('createTableIfItDoesntExist partitioning', () => {
+  const createStorage = schema =>
+    Object.assign(Object.create(proto), {
+      config: {
+        DestinationDatasetID: configValue('project.dataset'),
+        DestinationTableName: configValue('t'),
+        logMessage() {},
+      },
+      uniqueKeyColumns: ['id'],
+      schema,
+      getSelectedFields: () => Object.keys(schema),
+      getColumnType: column => schema[column].type,
+    });
+
+  it('partitions by the flagged DATE column and records it as table truth', async () => {
+    const storage = createStorage({
+      id: { type: 'STRING' },
+      date: { type: 'DATE', GoogleBigQueryPartitioned: true },
+    });
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+
+    const columns = await storage.createTableIfItDoesntExist();
+
+    expect(query).toContain('PARTITION BY date');
+    expect(columns.date.isPartitioningColumn).toBe(true);
+  });
+
+  it('emits TIMESTAMP_TRUNC DDL for a TIMESTAMP partition column', async () => {
+    const storage = createStorage({
+      id: { type: 'STRING' },
+      ts: { type: 'TIMESTAMP', GoogleBigQueryPartitioned: true },
+    });
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+
+    await storage.createTableIfItDoesntExist();
+
+    expect(query).toContain('PARTITION BY TIMESTAMP_TRUNC(ts, DAY)');
+  });
+
+  it('skips partitioning for a non-date flag and says so in the log', async () => {
+    const storage = createStorage({
+      id: { type: 'STRING', GoogleBigQueryPartitioned: true },
+    });
+    const messages = [];
+    storage.config.logMessage = message => messages.push(message);
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+
+    const columns = await storage.createTableIfItDoesntExist();
+
+    expect(query).not.toContain('PARTITION BY');
+    expect(columns.id.isPartitioningColumn).toBeUndefined();
+    expect(messages.some(m => m.includes("Column 'id'"))).toBe(true);
+  });
+});
+
+describe('formatColumnValue date handling', () => {
+  const bare = () => Object.create(proto);
+
+  it('formats a Date in a TIMESTAMP column as a UTC timestamp string', () => {
+    // Previously fell through to String(date) — a locale string that
+    // SAFE_CAST degrades to NULL, silently losing the value.
+    const value = proto.formatColumnValue.call(
+      bare(),
+      new Date('2026-08-30T10:00:00Z'),
+      'TIMESTAMP'
+    );
+
+    expect(value).toBe('2026-08-30 10:00:00');
+  });
+
+  it('recognizes cross-realm Date objects via their constructor name', () => {
+    // instanceof fails across realms (the Apps Script target); the fallback
+    // matches AbstractStorage's sibling helpers.
+    const crossRealmDate = {
+      constructor: { name: 'Date' },
+      toISOString: () => '2026-08-30T00:00:00.000Z',
+    };
+
+    const value = proto.formatColumnValue.call(bare(), crossRealmDate, 'DATE');
+
+    expect(value).toBe('2026-08-30');
+  });
+
+  it('normalizes the T separator for datetime strings in the shared helper', () => {
+    const value = proto.formatColumnValue.call(bare(), '2026-08-30T10:00:00', 'DATETIME');
+
+    expect(value).toBe('2026-08-30 10:00:00');
   });
 });

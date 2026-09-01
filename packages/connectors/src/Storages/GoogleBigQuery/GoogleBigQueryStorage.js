@@ -257,6 +257,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           query += `\nPARTITION BY ${partitionExpression}`;
           // Record table truth for buildPartitionPredicate in same-run flows
           existingColumns[ columnPartitioned ]["isPartitioningColumn"] = true;
+        } else {
+          // A silent skip here would ship a dead flag: the table is created
+          // unpartitioned and every MERGE full-scans with no symptom but cost
+          this.config.logMessage(`Column '${columnPartitioned}' has type '${this.getColumnType(columnPartitioned)}' which cannot be a partition column; creating the table without partitioning`);
         }
       }
 
@@ -593,22 +597,37 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     formatColumnValue(rawValue, columnType) {
 
       if (rawValue === undefined || rawValue === null) {
-
         return null;
-
-      } else if( ( columnType.toUpperCase() == "DATE") && (rawValue instanceof Date) ) {
-
-        return DateUtils.formatDate( rawValue );
-
-      } else if( (columnType.toUpperCase() == "DATETIME") && (rawValue instanceof Date) ) {
-
-        // Format as YYYY-MM-DD HH:MM:SS for BigQuery DATETIME
-        const isoString = rawValue.toISOString();
-        return isoString.replace('T', ' ').substring(0, 19);
-
       }
 
-      return this.obfuscateSpecialCharacters( rawValue );
+      const type = String(columnType).toUpperCase();
+      // instanceof alone fails across realms (the Apps Script target); the
+      // constructor-name fallback matches getUniqueKeyByRecordFields and
+      // stringifyNeastedFields in AbstractStorage
+      const isDateValue = rawValue instanceof Date
+        || (typeof rawValue === "object" && rawValue.constructor && rawValue.constructor.name == "Date");
+
+      if( type == "DATE" && isDateValue ) {
+        return DateUtils.formatDate( rawValue );
+      }
+
+      if( (type == "DATETIME" || type == "TIMESTAMP") && isDateValue ) {
+        // YYYY-MM-DD HH:MM:SS — toISOString is UTC, which is exactly what a
+        // zone-less BigQuery TIMESTAMP literal denotes
+        const isoString = rawValue.toISOString();
+        return isoString.replace('T', ' ').substring(0, 19);
+      }
+
+      const stringValue = this.obfuscateSpecialCharacters( rawValue );
+
+      if( type == "DATETIME" || type == "TIMESTAMP" ) {
+        // 'T' and ' ' separators are equivalent to BigQuery; normalizing in
+        // the shared helper keeps source rows and the partition predicate
+        // comparable by construction rather than by coincidence
+        return stringValue.replace("T", " ");
+      }
+
+      return stringValue;
     }
 
   //---- buildPartitionByExpression ----------------------------------
@@ -636,6 +655,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const [datePart, timePart] = value.split(" ");
       const [year, month, day] = datePart.split("-").map(Number);
       const date = new Date(Date.UTC(year, month - 1, day));
+      // Date.UTC maps years 0-99 to 1900-1999, so this round-trip also
+      // rejects years 0001-0099 (legal in BigQuery, absent in ad data).
+      // Deliberate: the same quirk is what rejects garbage like '0000-00-00'.
       if( date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day ) {
         return false;
       }
@@ -646,6 +668,20 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }
       }
       return true;
+    }
+
+  //---- suppressPartitionPredicate ----------------------------------
+    /**
+     * Logs once per run why partition pruning is off — so a full-scan MERGE
+     * is distinguishable from pruning working as intended — then returns
+     * null for buildPartitionPredicate to pass through.
+     */
+    suppressPartitionPredicate(reason) {
+      if( !this._partitionPredicateSuppressionLogged ) {
+        this._partitionPredicateSuppressionLogged = true;
+        this.config.logMessage(`Partition pruning is disabled for this run (${reason}); MERGE scans the whole table`);
+      }
+      return null;
     }
 
   //---- buildPartitionPredicate -------------------------------------
@@ -663,8 +699,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * Returns null (no predicate, the MERGE falls back to a full table scan)
      * whenever the range cannot be derived safely: the destination table has
      * no partitioning column, that column is not part of the unique key, its
-     * type is not date-like, any record lacks a value, or a value is not a
-     * real calendar date/time in canonical shape.
+     * type is not date-like, no record carries a partition value, or a value
+     * is not a real calendar date/time in canonical shape. Records with a
+     * NULL partition value are skipped instead of suppressing the predicate:
+     * their source rows can only INSERT, so no target range affects them.
+     * Every suppression except the missing partition column logs its reason
+     * once per run via suppressPartitionPredicate().
      *
      * @param {Array} recordKeys - Record keys of the batch being merged
      * @return {string|null} - SQL predicate for the target table, or null
@@ -700,7 +740,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // Without this, a matching target row in an out-of-range partition would
       // be invisible to the MERGE and its source row inserted as a duplicate.
       if( !this.uniqueKeyColumns || !this.uniqueKeyColumns.includes(partitionColumn) ) {
-        return null;
+        return this.suppressPartitionPredicate(`partition column '${partitionColumn}' is not part of the unique key`);
       }
 
       const columnInfo = this.existingColumns[ partitionColumn ];
@@ -708,7 +748,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const columnType = String(columnInfo.type).toUpperCase();
       const literalPattern = DATE_LIKE_LITERALS[ columnType ];
       if( !literalPattern ) {
-        return null;
+        return this.suppressPartitionPredicate(`partition column '${partitionColumn}' has non-date type '${columnInfo.type}'`);
       }
 
       let minValue = null;
@@ -716,16 +756,22 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       for (const key of recordKeys) {
         const record = this.updatedRecordsBuffer[ key ];
-        const formatted = this.formatColumnValue( record ? record[ partitionColumn ] : null, columnType );
-        // 'T' and ' ' separators are equivalent to BigQuery; normalize so a
-        // batch mixing them still has one uniform, comparable shape
-        const value = typeof formatted === "string" ? formatted.replace("T", " ") : formatted;
+        const value = this.formatColumnValue( record ? record[ partitionColumn ] : null, columnType );
 
-        // One unusable value and the whole predicate is off: a range that
-        // misses a record's partition would hide its target row from the
-        // MERGE and insert a duplicate instead of updating it
+        // A record without a partition value emits SAFE_CAST(NULL ...) in its
+        // source row: NULL never equals any target value, so the row is an
+        // INSERT either way and no target range can affect it — skip it
+        // rather than giving up on pruning for the whole batch
+        if( value === null ) {
+          continue;
+        }
+
+        // One malformed value and the whole predicate is off: unlike NULL, a
+        // string this regex rejects may still SAFE_CAST to a real value in
+        // the source row, and a range that misses that row's partition would
+        // hide its target row from the MERGE and insert a duplicate
         if( typeof value !== "string" || !literalPattern.test(value) || !this.isRealCalendarValue(value) ) {
-          return null;
+          return this.suppressPartitionPredicate(`a record value in '${partitionColumn}' is not a canonical date/datetime`);
         }
 
         if( minValue === null || value < minValue ) minValue = value;
@@ -733,7 +779,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       }
 
       if( minValue === null ) {
-        return null;
+        return this.suppressPartitionPredicate(`no record carries a value in partition column '${partitionColumn}'`);
       }
 
       const targetColumn = `target.${this.formatFieldIdentifier(partitionColumn)}`;

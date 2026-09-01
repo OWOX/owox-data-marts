@@ -339,7 +339,9 @@ The flag has two effects:
 Two rules make the filter work:
 
 - The field type must be `DATE`, `DATETIME`, or `TIMESTAMP`. `DATETIME`
-  and `TIMESTAMP` fields get daily partitions via `_TRUNC`.
+  and `TIMESTAMP` fields get daily partitions via `_TRUNC`. Any other type
+  skips partitioning: the table is created unpartitioned and the run log
+  records the skipped column.
 - The node's `uniqueKeys` must include the field. Without it, the MERGE
   skips the filter and scans the whole table on every run.
 
