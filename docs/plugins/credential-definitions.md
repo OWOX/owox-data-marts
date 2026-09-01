@@ -66,11 +66,15 @@ An AI-capable definition selects one trusted Host adapter and supplies model met
         "baseUrl": "https://api.acme.example/v1"
       },
       "models": {
-        "language": [{ "id": "acme-fast", "name": "Acme Fast" }],
+        "language": [
+          { "id": "acme-fast", "name": "Acme Fast" },
+          { "id": "acme-reasoning", "name": "Acme Reasoning" }
+        ],
         "embedding": [{ "id": "acme-embed", "name": "Acme Embed" }]
       },
       "recommended": {
         "fast": "acme-fast",
+        "reasoning": "acme-reasoning",
         "embedding": "acme-embed"
       }
     }
