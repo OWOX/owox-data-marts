@@ -528,7 +528,9 @@ Member publication is the recommended first step for authors. Deployment scope i
 deployment administrators using API keys named in `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`;
 it also requires either one or more `--project-id` choices or `--all-projects`. Use selected
 project IDs when possible: `--all-projects` makes the plugin findable in every current and future
-project, and projects cannot be excluded from that audience.
+project, and projects cannot be excluded from that audience. The operator's side of this — the
+key allowlist, rollout verification, withdrawal and suspension — is covered in
+[Trusted plugins for the whole deployment](./trusted-plugins.md).
 
 A public repository needs no GitHub App setup. For a private repository, publish once and follow
 the installation link returned by OWOX Data Marts to grant the correct GitHub App access, then
