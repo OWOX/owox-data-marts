@@ -31,7 +31,9 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
-    findById: jest.fn().mockResolvedValue({ id: 'v1', semver: '1.0.0' }),
+    findById: jest
+      .fn()
+      .mockResolvedValue({ id: 'v1', semver: '1.0.0', credentialRequirements: [] }),
   } as unknown as jest.Mocked<PluginVersionService>;
 
   const installations = {
@@ -83,6 +85,10 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
     }),
   } as unknown as jest.Mocked<RunPluginUpdateCheckService>;
 
+  const credentialBindings = {
+    replaceBindings: jest.fn().mockResolvedValue(undefined),
+  };
+
   return {
     service: new InstallPluginService(
       pluginService,
@@ -90,13 +96,15 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
       installations,
       audit,
       schedule,
-      check
+      check,
+      credentialBindings as never
     ),
     pluginService,
     installations,
     audit,
     schedule,
     check,
+    credentialBindings,
   };
 }
 
@@ -112,6 +120,9 @@ describe('InstallPluginService', () => {
     expect(s.installations.installOrFind).toHaveBeenCalledWith('p1', 'j1', 'u1');
     expect(result.installedAt).toEqual(result.createdAt);
     expect(result.uninstalledAt).toBeNull();
+    expect(s.credentialBindings.replaceBindings).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerId: 'i1', requirements: [], selections: {} })
+    );
   });
 
   /**

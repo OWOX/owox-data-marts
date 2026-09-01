@@ -43,6 +43,7 @@ describe('MainMenu', () => {
       'Run History',
       'Storages',
       'Destinations',
+      'Credentials',
     ]);
     expect(
       screen.getByRole('link', { name: 'Reports' }).closest('[data-sidebar="menu-sub"]')

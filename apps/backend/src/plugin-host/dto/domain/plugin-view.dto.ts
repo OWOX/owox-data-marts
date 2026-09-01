@@ -1,4 +1,5 @@
 import { PluginPublicationScope } from '../../enums/plugin-publication-scope.enum';
+import type { StoredCredentialRequirement } from '../../../data-marts/credentials/credential.types';
 
 /**
  * Where a plugin comes from, as far as a member is allowed to know.
@@ -52,4 +53,5 @@ export interface PluginGalleryEntryDto {
    * so nothing depends on it being current. Publishing or installing it puts it back.
    */
   readonly nextCheckAt: string | null;
+  readonly credentialRequirements: readonly StoredCredentialRequirement[];
 }

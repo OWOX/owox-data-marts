@@ -30,6 +30,7 @@ export interface PluginHostBridgeOptions {
 }
 
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const FORBIDDEN_FETCH_METHODS = new Set(['CONNECT', 'TRACE', 'TRACK']);
 const API_PATH_PREFIX = '/api/';
 /** Keeps brokered API paths within the same conservative URL size as API-key clients. */
 const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
@@ -42,6 +43,9 @@ const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
 const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;
+const MAX_CREDENTIAL_HANDLE_LENGTH = 255;
+const MAX_CREDENTIAL_BODY_BASE64_LENGTH = 1_500_000;
+const MAX_CREDENTIAL_AI_BODY_LENGTH = 2 * 1024 * 1024;
 /** Re-mint before the token lapses, so a long session never trips over an expiry. */
 const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
@@ -69,6 +73,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   /** The nonce this host sent with host-init, and whether the frame has echoed it back. */
   let nonce: string | undefined;
   let greeted = false;
+  const requestControllers = new Map<string, AbortController>();
   /**
    * Cancels requests already on the wire when the channel goes down.
    *
@@ -135,6 +140,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   async function forward(
     request: Extract<PluginRequest, { kind: 'api' }>,
     serializedBody: string | undefined,
+    signal: AbortSignal,
     retryOnUnauthorized = true
   ): Promise<PluginResponse> {
     const url = resolvePath(request);
@@ -144,7 +150,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // 401 would sign the real user out with full member authority already on the wire.
     const response = await fetch(url.toString(), {
       method: request.method,
-      signal: teardown.signal,
+      signal,
       // A redirect target has not passed resolvePath. Refuse it instead of letting fetch
       // carry the runtime bearer header to an attacker-controlled Location.
       redirect: 'error',
@@ -158,7 +164,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
     if (response.status === 401 && retryOnUnauthorized) {
       await currentToken(true);
-      return forward(request, serializedBody, false);
+      return forward(request, serializedBody, signal, false);
     }
 
     const headers = pickHeaders(response);
@@ -186,6 +192,93 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // Built field by field rather than by spreading anything that touched the request,
     // so the token cannot ride along by accident.
     return { id: request.id, ok: true, status: response.status, headers, body };
+  }
+
+  async function forwardCredential(
+    request: Extract<PluginRequest, { kind: 'credentialFetch' }>,
+    signal: AbortSignal,
+    retryOnUnauthorized = true
+  ): Promise<PluginResponse> {
+    const path = `/api/plugins/runtime/credentials/${encodeURIComponent(request.handle)}/fetch`;
+    const response = await fetch(new URL(path, apiOrigin).toString(), {
+      method: 'POST',
+      signal,
+      redirect: 'error',
+      headers: {
+        'x-owox-authorization': `Bearer ${await currentToken()}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        bodyBase64: request.bodyBase64,
+      }),
+    });
+
+    if (response.status === 401 && retryOnUnauthorized) {
+      await currentToken(true);
+      return forwardCredential(request, signal, false);
+    }
+
+    const body: unknown = await response.json().catch(() => undefined);
+    if (!response.ok) {
+      return { id: request.id, ok: false, error: toErrorPayload(response.status, body) };
+    }
+    return {
+      id: request.id,
+      ok: true,
+      status: response.status,
+      headers: pickHeaders(response),
+      body,
+    };
+  }
+
+  async function forwardCredentialAi(
+    request: Extract<PluginRequest, { kind: 'credentialAi' }>,
+    signal: AbortSignal,
+    retryOnUnauthorized = true
+  ): Promise<PluginResponse> {
+    const path = `/api/plugins/runtime/credentials/${encodeURIComponent(request.handle)}/ai/${request.operation}`;
+    const response = await fetch(new URL(path, apiOrigin).toString(), {
+      method: 'POST',
+      signal,
+      redirect: 'error',
+      headers: {
+        'x-owox-authorization': `Bearer ${await currentToken()}`,
+        'content-type': 'application/json',
+        ...(request.operation === 'stream' ? { accept: 'application/x-ndjson' } : {}),
+      },
+      body: JSON.stringify({
+        version: request.version,
+        model: request.model,
+        options: request.options,
+      }),
+    });
+
+    if (response.status === 401 && retryOnUnauthorized) {
+      await currentToken(true);
+      return forwardCredentialAi(request, signal, false);
+    }
+    if (!response.ok) {
+      return { id: request.id, ok: false, error: await readError(response) };
+    }
+    if (request.operation === 'stream') {
+      return {
+        id: request.id,
+        ok: true,
+        status: response.status,
+        headers: pickHeaders(response),
+        stream: response.body ?? new ReadableStream<Uint8Array>(),
+      };
+    }
+    return {
+      id: request.id,
+      ok: true,
+      status: response.status,
+      headers: pickHeaders(response),
+      body: await response.json(),
+    };
   }
 
   async function handle(candidate: unknown): Promise<void> {
@@ -220,6 +313,13 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       return;
     }
 
+    if (isRecord(candidate) && candidate.kind === 'cancel') {
+      if (typeof candidate.targetId === 'string') {
+        requestControllers.get(candidate.targetId)?.abort();
+      }
+      return;
+    }
+
     // These host-only actions do not occupy API admission slots. Validate their small
     // envelopes and preserve their fire-and-forget behavior even at API capacity.
     if (
@@ -249,10 +349,14 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     }
 
     inFlight += 1;
+    let requestController: AbortController | undefined;
     try {
       // Admission covers validation as well as I/O. In particular, JSON serialization
       // can be attacker-controlled work and must not remain unbounded at capacity.
       const request = validateRequest(candidate);
+      requestController = new AbortController();
+      requestControllers.set(request.id, requestController);
+      const signal = AbortSignal.any([teardown.signal, requestController.signal]);
 
       if (request.kind === 'openExternal') {
         options.onOpenExternal(request.url);
@@ -264,15 +368,27 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         return;
       }
 
+      if (request.kind === 'credentialFetch') {
+        reply(await forwardCredential(request, signal));
+        return;
+      }
+
+      if (request.kind === 'credentialAi') {
+        const response = await forwardCredentialAi(request, signal);
+        reply(response, 'stream' in response ? [response.stream] : []);
+        return;
+      }
+
       // Serialize once, before currentToken, and reuse the immutable string for a 401
       // retry. This both bounds validation work and prevents a second serialization from
       // failing only after a credential has been minted.
       const serializedBody = serializeJsonBody(request);
-      const response = await forward(request, serializedBody);
+      const response = await forward(request, serializedBody, signal);
       reply(response, 'stream' in response ? [response.stream] : []);
     } catch (caught) {
       reply({ id, ok: false, error: asErrorPayload(caught) });
     } finally {
+      if (requestController) requestControllers.delete(id);
       inFlight -= 1;
     }
   }
@@ -293,6 +409,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // Before the token is dropped: an aborted request is one that never finishes
     // carrying it.
     teardown.abort();
+    requestControllers.clear();
     // The token dies with the closure.
     runtimeToken = undefined;
   }
@@ -394,7 +511,9 @@ function usableRequestId(value: unknown): string | undefined {
   return value.id;
 }
 
-function validateRequest(candidate: unknown): PluginRequest {
+type ValidatedPluginRequest = Exclude<PluginRequest, { kind: 'cancel' }>;
+
+function validateRequest(candidate: unknown): ValidatedPluginRequest {
   if (!isRecord(candidate)) {
     throw protocolError('The request envelope is malformed');
   }
@@ -403,14 +522,115 @@ function validateRequest(candidate: unknown): PluginRequest {
     if (typeof candidate.url !== 'string') {
       throw protocolError('The external URL must be a string');
     }
-    return candidate as unknown as PluginRequest;
+    return candidate as unknown as ValidatedPluginRequest;
   }
 
   if (candidate.kind === 'navigate') {
     if (typeof candidate.path !== 'string') {
       throw protocolError('The navigation path must be a string');
     }
-    return candidate as unknown as PluginRequest;
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'credentialFetch') {
+    if (candidate.version !== 1) {
+      throw protocolError('The Credential request version is not supported');
+    }
+    if (
+      typeof candidate.handle !== 'string' ||
+      candidate.handle.length === 0 ||
+      candidate.handle.length > MAX_CREDENTIAL_HANDLE_LENGTH
+    ) {
+      throw protocolError('The Credential handle is invalid');
+    }
+    if (typeof candidate.url !== 'string' || candidate.url.length > 2048) {
+      throw protocolError('The Credential URL is invalid');
+    }
+    try {
+      const url = new URL(candidate.url);
+      if (url.protocol !== 'https:') throw new Error('not https');
+    } catch {
+      throw forbidden('Credential requests must target an absolute HTTPS URL');
+    }
+    if (
+      typeof candidate.method !== 'string' ||
+      candidate.method.length === 0 ||
+      candidate.method.length > 32 ||
+      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(candidate.method) ||
+      FORBIDDEN_FETCH_METHODS.has(candidate.method.toUpperCase())
+    ) {
+      throw forbidden('The Credential request method is not Fetch-compatible');
+    }
+    if (
+      candidate.headers !== undefined &&
+      (!isRecord(candidate.headers) ||
+        Object.entries(candidate.headers).length > 100 ||
+        Object.entries(candidate.headers).some(
+          ([name, value]) =>
+            name.length === 0 ||
+            name.length > 255 ||
+            typeof value !== 'string' ||
+            value.length > 8192 ||
+            INVALID_HEADER_VALUE_CHARACTER.test(value)
+        ))
+    ) {
+      throw protocolError('The Credential request headers are invalid');
+    }
+    if (
+      candidate.bodyBase64 !== undefined &&
+      (typeof candidate.bodyBase64 !== 'string' ||
+        candidate.bodyBase64.length > MAX_CREDENTIAL_BODY_BASE64_LENGTH ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(candidate.bodyBase64))
+    ) {
+      throw protocolError('The Credential request body is invalid');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'credentialAi') {
+    if (candidate.version !== 1) {
+      throw protocolError('The Credential AI request version is not supported');
+    }
+    if (
+      typeof candidate.handle !== 'string' ||
+      candidate.handle.length === 0 ||
+      candidate.handle.length > MAX_CREDENTIAL_HANDLE_LENGTH
+    ) {
+      throw protocolError('The Credential handle is invalid');
+    }
+    if (
+      candidate.operation !== 'generate' &&
+      candidate.operation !== 'stream' &&
+      candidate.operation !== 'embed'
+    ) {
+      throw protocolError('The Credential AI operation is invalid');
+    }
+    if (
+      candidate.model !== 'fast' &&
+      candidate.model !== 'reasoning' &&
+      candidate.model !== 'embedding'
+    ) {
+      throw protocolError('The Credential AI model mapping is invalid');
+    }
+    if (
+      (candidate.operation === 'embed') !== (candidate.model === 'embedding') ||
+      (candidate.operation === 'stream') !== (candidate.stream === true)
+    ) {
+      throw protocolError('The Credential AI operation and model do not match');
+    }
+    if (!isRecord(candidate.options)) {
+      throw protocolError('The Credential AI options are invalid');
+    }
+    try {
+      const serialized = JSON.stringify(candidate.options);
+      if (serialized.length > MAX_CREDENTIAL_AI_BODY_LENGTH) {
+        throw protocolError('The Credential AI options are too large');
+      }
+    } catch (caught) {
+      if (caught instanceof PluginTransportRefusal) throw caught;
+      throw protocolError('The Credential AI options must be JSON-serializable');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
   }
 
   if (candidate.kind !== 'api') {
@@ -482,7 +702,7 @@ function validateRequest(candidate: unknown): PluginRequest {
     throw protocolError('PATCH requests must carry a JSON body');
   }
 
-  return candidate as unknown as PluginRequest;
+  return candidate as unknown as ValidatedPluginRequest;
 }
 
 function serializeJsonBody(request: Extract<PluginRequest, { kind: 'api' }>): string | undefined {

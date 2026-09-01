@@ -104,14 +104,15 @@ const dataMarts = await ctx.owox.dataMarts.list();
 `connect()` completes a handshake with the OWOX Data Marts host. It rejects outside an OWOX Data
 Marts frame or if no host answers within 10 seconds.
 
-| Context value | What it provides |
-| --- | --- |
-| `ctx.owox` | Authenticated [OWOX Data Marts API client](../api/api-client.md), supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). Use the API client documentation to discover available methods. Do not install `@owox/api-client` or provide an API key inside a plugin; the SDK owns its transport, which cannot be replaced or inspected. |
-| `ctx.collections(name)` | Provides a host-managed JSON collection declared by the current plugin version. |
-| `ctx.ui.openExternal(url)` | Asks the host to open an external HTTPS address in a new tab. |
-| `ctx.ui.navigate(path)` | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused. |
-| `ctx.signal` | Aborts when the host tears the plugin down. |
-| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Provides display context without exposing tokens. The member's name and avatar are available through `ctx.owox.auth` when needed. |
+| Context value                              | What it provides                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.owox`                                 | Authenticated [OWOX Data Marts API client](../api/api-client.md), supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). Use the API client documentation to discover available methods. Do not install `@owox/api-client` or provide an API key inside a plugin; the SDK owns its transport, which cannot be replaced or inspected. |
+| `ctx.credentials`                          | Project-owned Credential handles declared by the current plugin version and selected for this installation. Raw secrets never enter the plugin frame.                                                                                                                                                                                                           |
+| `ctx.collections(name)`                    | Provides a host-managed JSON collection declared by the current plugin version.                                                                                                                                                                                                                                                                                 |
+| `ctx.ui.openExternal(url)`                 | Asks the host to open an external HTTPS address in a new tab.                                                                                                                                                                                                                                                                                                   |
+| `ctx.ui.navigate(path)`                    | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused.                                                                                                                                                                     |
+| `ctx.signal`                               | Aborts when the host tears the plugin down.                                                                                                                                                                                                                                                                                                                     |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Provides display context without exposing tokens. The member's name and avatar are available through `ctx.owox.auth` when needed.                                                                                                                                                                                                                               |
 
 See the [API client method reference](../api/api-client.md) and [Support Matrix](../api/coverage.md)
 for currently supported calls. Requests time out after 30 seconds. Streamed reads do not, because
@@ -125,6 +126,58 @@ body)`, `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`, and `getStream
 The generic does not validate the response at runtime, so validate returned data yourself. Paths
 must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
 are refused.
+
+### Use project Credentials
+
+Declare external access in `plugin.json`; do not ask a member to paste a provider secret into the
+plugin itself:
+
+```json
+{
+  "credentials": [
+    "github",
+    { "id": "ai", "models": ["fast", "reasoning"] },
+    { "id": "openai", "optional": true }
+  ]
+}
+```
+
+`github`, `openai`, `anthropic`, `gemini`, and `openrouter` are built-in exact definitions. An
+object may set `optional: true`; otherwise installation requires an explicit Credential selection.
+The logical `ai` requirement may declare one or more unique capabilities from `fast`, `reasoning`,
+and `embedding`. The shorthand string `"ai"` means required `fast` AI.
+
+An external exact requirement uses `@owner/repository`. Credential definition repositories must be
+public in v1; private plugin repositories remain supported, but private Credential definition
+repositories are rejected.
+
+An exact handle exposes a guarded `fetch` implementation. OWOX adds authentication and permits
+only HTTPS requests to origins declared by the selected Credential definition:
+
+```ts
+const github = ctx.credentials.github;
+if (!github) throw new Error('GitHub access is not configured');
+
+const response = await github.asFetch()('https://api.github.com/user');
+```
+
+Logical AI handles implement the Vercel AI SDK provider v4 contract:
+
+```ts
+import { generateText } from 'ai';
+
+const model = ctx.credentials.ai;
+if (!model) throw new Error('Fast AI is not configured');
+
+const result = await generateText({ model, prompt: 'Summarize this report' });
+```
+
+The project maintainer maps `fast`, `reasoning`, and `embedding` to provider models. A plugin sees
+the logical capability, not the provider secret. The common `"ai"` requirement declares `fast`, so
+`ctx.credentials.ai` is itself the fast model and `ctx.credentials.ai.fast` is an alias for it.
+Additional named models are available only when declared. Logical AI never exposes `asFetch()`;
+declare an exact provider if the plugin needs provider-specific APIs. Optional or unusable handles
+are absent from the context, so check a handle before using it.
 
 ## Make the plugin feel native
 
@@ -162,18 +215,45 @@ Use semantic variables and the standard page structure in `src/styles.css`:
   --border: oklch(0.269 0 0);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--background); color: var(--foreground); }
-.dm-page { min-height: 100vh; }
-.dm-page-header { padding: 1.5rem 3rem; }
-.dm-page-header-title { margin: 0; font-size: 1.5rem; font-weight: 500; }
-.dm-page-content { padding: 0 3rem 3rem; }
-.dm-card { padding: 1rem; border: 1px solid var(--border); border-radius: 0.625rem; background: var(--card); }
-.dm-muted { color: var(--muted-foreground); }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+.dm-page {
+  min-height: 100vh;
+}
+.dm-page-header {
+  padding: 1.5rem 3rem;
+}
+.dm-page-header-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+.dm-page-content {
+  padding: 0 3rem 3rem;
+}
+.dm-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--card);
+}
+.dm-muted {
+  color: var(--muted-foreground);
+}
 
 @media (max-width: 640px) {
-  .dm-page-header { padding: 1rem 1.25rem; }
-  .dm-page-content { padding: 0 1.25rem 1.25rem; }
+  .dm-page-header {
+    padding: 1rem 1.25rem;
+  }
+  .dm-page-content {
+    padding: 0 1.25rem 1.25rem;
+  }
 }
 ```
 
@@ -215,7 +295,8 @@ Add `plugin.json` at the repository root:
   "delivery": {
     "type": "remote",
     "url": "https://OWNER.github.io/PLUGIN_NAME/"
-  }
+  },
+  "credentials": []
 }
 ```
 

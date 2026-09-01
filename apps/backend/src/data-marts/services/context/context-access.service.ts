@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -13,6 +13,7 @@ import { ContextService } from './context.service';
 import { AccessDecisionService } from '../access-decision/access-decision.service';
 import { EntityType, OwnerStatus } from '../access-decision/access-decision.types';
 import { UserProvisioningContextSettingsService } from './user-provisioning-context-settings.service';
+import { CredentialContext } from '../../credentials/entities/credential-context.entity';
 
 @Injectable()
 export class ContextAccessService {
@@ -30,7 +31,10 @@ export class ContextAccessService {
     private readonly contextService: ContextService,
     private readonly userProvisioningContextSettingsService: UserProvisioningContextSettingsService,
     @Inject(forwardRef(() => AccessDecisionService))
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    @Optional()
+    @InjectRepository(CredentialContext)
+    private readonly credentialContextRepository?: Repository<CredentialContext>
   ) {}
 
   @Transactional()
@@ -133,6 +137,40 @@ export class ContextAccessService {
     if (contextIds.length > 0) {
       await this.destinationContextRepository.save(
         contextIds.map(contextId => ({ destinationId, contextId }))
+      );
+    }
+  }
+
+  @Transactional()
+  async updateCredentialContexts(
+    credentialId: string,
+    projectId: string,
+    contextIds: string[],
+    userId: string,
+    roles: string[]
+  ): Promise<void> {
+    if (!this.credentialContextRepository) {
+      throw new Error('Credential contexts are not registered');
+    }
+
+    if (!roles.includes('admin')) {
+      const ownerStatus = await this.accessDecisionService.getOwnerStatus(
+        userId,
+        EntityType.CREDENTIAL,
+        credentialId
+      );
+      if (ownerStatus !== OwnerStatus.OWNER) {
+        throw new ForbiddenException(
+          'Only Credential Owners or Project Admins can manage Credential contexts'
+        );
+      }
+    }
+
+    await this.contextService.validateContextIds(contextIds, projectId);
+    await this.credentialContextRepository.delete({ credentialId });
+    if (contextIds.length > 0) {
+      await this.credentialContextRepository.save(
+        contextIds.map(contextId => ({ credentialId, contextId }))
       );
     }
   }
@@ -298,7 +336,9 @@ export class ContextAccessService {
   }
 
   private getEntityContextConfig(entityType: EntityType): {
-    repository: Repository<DataMartContext | StorageContext | DestinationContext>;
+    repository: Repository<
+      DataMartContext | StorageContext | DestinationContext | CredentialContext
+    >;
     entityIdColumn: string;
   } {
     switch (entityType) {
@@ -316,6 +356,14 @@ export class ContextAccessService {
         return {
           repository: this.destinationContextRepository,
           entityIdColumn: 'destination_id',
+        };
+      case EntityType.CREDENTIAL:
+        if (!this.credentialContextRepository) {
+          throw new Error('Credential contexts are not registered');
+        }
+        return {
+          repository: this.credentialContextRepository,
+          entityIdColumn: 'credential_id',
         };
       default:
         throw new Error(`Unsupported entity type for context overlap: ${entityType}`);

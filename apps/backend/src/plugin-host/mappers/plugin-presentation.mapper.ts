@@ -121,7 +121,12 @@ export class PluginPresentationMapper {
     context: AuthorizationContext,
     dto: InstallPluginApiDto
   ): InstallPluginCommand {
-    return new InstallPluginCommand(pluginId, dto.expectedVersionId, context);
+    return new InstallPluginCommand(
+      pluginId,
+      dto.expectedVersionId,
+      context,
+      dto.credentialSelections ?? {}
+    );
   }
 
   toUpdateCommand(pluginId: string, context: AuthorizationContext): UpdatePluginCommand {
@@ -170,6 +175,7 @@ export class PluginPresentationMapper {
       source: this.toSource(plugin),
       addedAt: plugin.createdAt.toISOString(),
       nextCheckAt: plugin.nextUpdateCheckAt?.toISOString() ?? null,
+      credentialRequirements: version?.credentialRequirements ?? [],
     };
   }
 
@@ -188,6 +194,9 @@ export class PluginPresentationMapper {
       source: { ...dto.source },
       addedAt: dto.addedAt,
       nextCheckAt: dto.nextCheckAt,
+      credentialRequirements: dto.credentialRequirements.map(requirement =>
+        typeof requirement === 'string' ? requirement : { ...requirement }
+      ),
     };
   }
 
@@ -256,6 +265,9 @@ export class PluginPresentationMapper {
       displayName: dto.displayName,
       pluginId: dto.pluginId,
       versionId: dto.versionId,
+      credentialHandles: dto.credentialHandles.map(handle =>
+        handle.kind === 'exact' ? { ...handle } : { ...handle, models: [...handle.models] }
+      ),
     };
   }
 

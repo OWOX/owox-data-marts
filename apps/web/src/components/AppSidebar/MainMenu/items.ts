@@ -7,6 +7,7 @@ import {
   HistoryIcon,
   Network,
   Bookmark,
+  KeyRound,
 } from 'lucide-react';
 import type { MainMenuItem } from './types';
 
@@ -52,5 +53,10 @@ export const MainMenuItems: MainMenuItem[] = [
     title: 'Destinations',
     url: '/data-destinations',
     icon: ArchiveRestore,
+  },
+  {
+    title: 'Credentials',
+    url: '/credentials',
+    icon: KeyRound,
   },
 ];

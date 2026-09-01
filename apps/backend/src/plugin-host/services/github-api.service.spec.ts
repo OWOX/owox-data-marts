@@ -5,6 +5,7 @@ import { fetchWithBackoff } from '@owox/internal-helpers';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
+import { GithubReadPolicy } from '../enums/github-read-policy.enum';
 import { GithubApiError, GithubRepoNotFoundError } from '../errors/plugin-host.errors';
 import { GithubApiService } from './github-api.service';
 import { GithubAuthService } from './github-auth.service';
@@ -21,6 +22,10 @@ function service(env: Record<string, string | undefined> = {}): GithubApiService
       mode: GithubAccessMode.ANONYMOUS,
       headers: { Accept: 'application/vnd.github+json' },
     }),
+    getAnonymousAccess: jest.fn(() => ({
+      mode: GithubAccessMode.ANONYMOUS,
+      headers: { Accept: 'application/vnd.github+json' },
+    })),
     buildInstallationUrl: jest.fn(() =>
       env.GITHUB_APP_SLUG
         ? `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`
@@ -106,6 +111,28 @@ describe('GithubApiService', () => {
       route({ '/repos/OWOX/example-plugin': () => status(404) });
 
       await expect(service().getRepo(REF)).rejects.toBeInstanceOf(GithubRepoNotFoundError);
+    });
+
+    it('uses anonymous access for public-only reads even when deployment auth exists', async () => {
+      const api = service(APP_ENV);
+      const auth = (api as unknown as { auth: Record<string, jest.Mock> }).auth;
+      route({ '/repos/OWOX/example-plugin': () => json(repoBody) });
+
+      await expect(api.getRepo(REF, GithubReadPolicy.PUBLIC_ONLY)).resolves.toMatchObject({
+        githubRepoId: '987654321',
+        accessMode: GithubAccessMode.ANONYMOUS,
+      });
+      expect(auth.getAnonymousAccess).toHaveBeenCalled();
+      expect(auth.getRepoAccess).not.toHaveBeenCalled();
+      expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    });
+
+    it('does not expose an App installation hint for a public-only 404', async () => {
+      route({ '/repos/OWOX/example-plugin': () => status(404) });
+
+      await expect(
+        service(APP_ENV).getRepo(REF, GithubReadPolicy.PUBLIC_ONLY)
+      ).rejects.toBeInstanceOf(GithubRepoNotFoundError);
     });
 
     it('surfaces the rate limit reset time instead of a generic failure', async () => {

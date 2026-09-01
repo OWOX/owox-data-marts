@@ -64,6 +64,10 @@
     "dump:apply": "ts-node commands/apply-dump-command.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.44",
+    "@ai-sdk/google": "4.0.54",
+    "@ai-sdk/openai": "4.0.50",
+    "@ai-sdk/openai-compatible": "3.0.39",
     "@aws-sdk/client-athena": "^3.983.0",
     "@aws-sdk/client-redshift-data": "^3.983.0",
     "@aws-sdk/client-s3": "^3.983.0",

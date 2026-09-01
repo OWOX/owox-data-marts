@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
 import { PluginInstallationEntryDto } from '../dto/domain/plugin-installation.dto';
 import { PluginSuspendedError } from '../errors/plugin-host.errors';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
+import {
+  CREDENTIAL_CONSUMER_BINDING_FACADE,
+  type CredentialConsumerBindingFacade,
+} from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
 
 /**
  * The delivery URL for one active installation.
@@ -19,7 +23,9 @@ export class GetPluginInstallationEntryService {
   constructor(
     private readonly installations: PluginInstallationService,
     private readonly pluginService: PluginService,
-    private readonly versionService: PluginVersionService
+    private readonly versionService: PluginVersionService,
+    @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
+    private readonly credentialBindings: CredentialConsumerBindingFacade
   ) {}
 
   async run(command: GetPluginInstallationEntryCommand): Promise<PluginInstallationEntryDto> {
@@ -50,11 +56,29 @@ export class GetPluginInstallationEntryService {
       throw new NotFoundException('No active installation was found');
     }
 
+    const readyRequirements = await this.credentialBindings.assertConsumerReady({
+      projectId: command.context.projectId,
+      userId: command.context.userId,
+      roles: command.context.roles ?? [],
+      consumerType: 'plugin-installation',
+      consumerId: installation.id,
+      requirements: version.credentialRequirements ?? [],
+    });
+
     return {
       deliveryUrl: version.deliveryUrl,
       displayName: version.displayName,
       pluginId: plugin.id,
       versionId: version.id,
+      credentialHandles: readyRequirements.map(requirement =>
+        requirement.definitionId === null
+          ? {
+              name: requirement.key,
+              kind: 'ai' as const,
+              models: requirement.models as Array<'fast' | 'reasoning' | 'embedding'>,
+            }
+          : { name: requirement.key, kind: 'exact' as const }
+      ),
     };
   }
 }

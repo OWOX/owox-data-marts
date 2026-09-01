@@ -20,4 +20,13 @@ export interface PluginInstallationEntryDto {
   /** Stable across renames, transfers and every release -- what a plugin may key on. */
   readonly pluginId: string;
   readonly versionId: string;
+  readonly credentialHandles: readonly PluginCredentialHandleDto[];
 }
+
+export type PluginCredentialHandleDto =
+  | { readonly name: string; readonly kind: 'exact' }
+  | {
+      readonly name: string;
+      readonly kind: 'ai';
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+    };

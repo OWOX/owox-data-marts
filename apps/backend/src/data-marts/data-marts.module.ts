@@ -448,6 +448,30 @@ import { TypeResolver } from '../common/resolver/type-resolver';
 import { DataStorageType } from './data-storage-types/enums/data-storage-type.enum';
 import { PLUGIN_ENTITY_AUTHORIZATION_FACADE } from './facades/plugin-entity-authorization.facade';
 import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-authorization.facade.impl';
+import { Credential } from './credentials/entities/credential.entity';
+import { CredentialOwner } from './credentials/entities/credential-owner.entity';
+import { CredentialContext } from './credentials/entities/credential-context.entity';
+import { CredentialExternalDefinition } from './credentials/entities/credential-external-definition.entity';
+import { CredentialDefinitionVersion } from './credentials/entities/credential-definition-version.entity';
+import { CredentialConsumerBinding } from './credentials/entities/credential-consumer-binding.entity';
+import { CredentialsController } from './credentials/controllers/credentials.controller';
+import { CredentialDefinitionService } from './credentials/services/credential-definition.service';
+import { CredentialService } from './credentials/services/credential.service';
+import { CredentialViewService } from './credentials/services/credential-view.service';
+import { CredentialMapper } from './credentials/mappers/credential.mapper';
+import { CreateCredentialService } from './credentials/use-cases/create-credential.service';
+import { GetCredentialService } from './credentials/use-cases/get-credential.service';
+import { ListCredentialsService } from './credentials/use-cases/list-credentials.service';
+import { UpdateCredentialService } from './credentials/use-cases/update-credential.service';
+import { DeleteCredentialService } from './credentials/use-cases/delete-credential.service';
+import { ValidateCredentialService } from './credentials/use-cases/validate-credential.service';
+import { CREDENTIAL_CONSUMER_BINDING_FACADE } from './credentials/facades/credential-consumer-binding.facade';
+import { CredentialConsumerBindingFacadeImpl } from './credentials/facades/credential-consumer-binding.facade.impl';
+import { CredentialFetchService } from './credentials/services/credential-fetch.service';
+import { CredentialAiService } from './credentials/services/credential-ai.service';
+import { CredentialValidationProbeService } from './credentials/services/credential-validation-probe.service';
+import { CredentialExternalDefinitionRegistryService } from './credentials/services/credential-external-definition-registry.service';
+import { ConsentCredentialDefinitionService } from './credentials/use-cases/consent-credential-definition.service';
 
 @Module({
   imports: [
@@ -505,6 +529,12 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
       MemberRoleContext,
       UserProvisioningContextSettings,
       UserProvisioningContextSettingsContext,
+      Credential,
+      CredentialOwner,
+      CredentialContext,
+      CredentialExternalDefinition,
+      CredentialDefinitionVersion,
+      CredentialConsumerBinding,
     ]),
     CommonModule,
     IdpModule,
@@ -546,8 +576,14 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     ProjectMemberApiKeysController,
     HttpDataController,
     RequestAccessController,
+    CredentialsController,
   ],
   providers: [
+    CredentialConsumerBindingFacadeImpl,
+    {
+      provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
+      useExisting: CredentialConsumerBindingFacadeImpl,
+    },
     PluginEntityAuthorizationFacadeImpl,
     {
       provide: PLUGIN_ENTITY_AUTHORIZATION_FACADE,
@@ -917,8 +953,27 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     HttpDataRequestValidator,
     HttpDataColumnResolver,
     HttpDataColumnValidator,
+    CredentialDefinitionService,
+    CredentialService,
+    CredentialViewService,
+    CredentialMapper,
+    CreateCredentialService,
+    GetCredentialService,
+    ListCredentialsService,
+    UpdateCredentialService,
+    DeleteCredentialService,
+    ValidateCredentialService,
+    CredentialFetchService,
+    CredentialAiService,
+    CredentialValidationProbeService,
+    CredentialExternalDefinitionRegistryService,
+    ConsentCredentialDefinitionService,
   ],
   exports: [
+    CREDENTIAL_CONSUMER_BINDING_FACADE,
+    CredentialFetchService,
+    CredentialAiService,
+    CredentialExternalDefinitionRegistryService,
     PLUGIN_ENTITY_AUTHORIZATION_FACADE,
     InternalProjectBillingService,
     UserProjectionsFetcherService,

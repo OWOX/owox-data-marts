@@ -3,6 +3,11 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["src/protocol.ts", "src/protocol.test.ts"],
+  "include": [
+    "src/credentials.ts",
+    "src/credentials.test.ts",
+    "src/protocol.ts",
+    "src/protocol.test.ts"
+  ],
   "exclude": []
 }

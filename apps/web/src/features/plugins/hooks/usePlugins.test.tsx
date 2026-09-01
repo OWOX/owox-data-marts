@@ -74,7 +74,7 @@ describe('usePluginActions', () => {
       await result.current.install('p1', 'v1');
     });
 
-    expect(service.install).toHaveBeenCalledWith('p1', 'v1');
+    expect(service.install).toHaveBeenCalledWith('p1', 'v1', {});
   });
 
   // Any installed member can move a plugin forward at any moment, so a stale

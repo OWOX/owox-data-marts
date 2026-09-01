@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UninstallPluginCommand } from '../dto/domain/uninstall-plugin.command';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { PluginAuditService } from '../services/plugin-audit.service';
 import { PluginInstallationService } from '../services/plugin-installation.service';
+import {
+  CREDENTIAL_CONSUMER_BINDING_FACADE,
+  type CredentialConsumerBindingFacade,
+} from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
 
 /**
  * Stops a plugin for one member.
@@ -20,7 +24,9 @@ import { PluginInstallationService } from '../services/plugin-installation.servi
 export class UninstallPluginService {
   constructor(
     private readonly installations: PluginInstallationService,
-    private readonly audit: PluginAuditService
+    private readonly audit: PluginAuditService,
+    @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
+    private readonly credentialBindings: CredentialConsumerBindingFacade
   ) {}
 
   @Transactional()
@@ -38,6 +44,12 @@ export class UninstallPluginService {
     if (installation.uninstalledAt === null) {
       await this.installations.uninstall(installation.id);
     }
+
+    await this.credentialBindings.deactivateConsumer(
+      'plugin-installation',
+      installation.id,
+      command.context.projectId
+    );
 
     await this.audit.record({
       pluginId: command.pluginId,

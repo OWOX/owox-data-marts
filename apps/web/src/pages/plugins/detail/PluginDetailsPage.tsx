@@ -97,8 +97,11 @@ export default function PluginDetailsPage() {
    * §13: if the version moved on since this screen rendered, the server refuses and the
    * dialog reappears with the version that is current now.
    */
-  const installPlugin = async (target: PluginGalleryEntry) => {
-    const stale = await install(target.pluginId, target.currentVersionId);
+  const installPlugin = async (
+    target: PluginGalleryEntry,
+    credentialSelections: Readonly<Record<string, string | null>>
+  ) => {
+    const stale = await install(target.pluginId, target.currentVersionId, credentialSelections);
     if (stale) {
       setConfirming({
         ...target,
@@ -172,12 +175,7 @@ export default function PluginDetailsPage() {
                 if (isInstalling) {
                   return;
                 }
-                // Live install: reinstall in place without re-confirming.
-                // not_installed / uninstalled: same Install + dialog path (backend reactivates).
-                if (showReinstall) {
-                  void installPlugin(plugin);
-                  return;
-                }
+                // Every install/restore/reconfigure uses the same explicit Credential grant flow.
                 setConfirming(plugin);
               }}
             >
@@ -457,7 +455,7 @@ export default function PluginDetailsPage() {
               setConfirming(null);
             }
           }}
-          onConfirm={() => void installPlugin(confirming)}
+          onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
           isInstalling={isInstalling}
         />
       )}

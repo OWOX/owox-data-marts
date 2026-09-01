@@ -49,6 +49,7 @@ redirecting paths are refused.
 |                                            |                                                                     |
 | ------------------------------------------ | ------------------------------------------------------------------- |
 | `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it. |
+| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.    |
 | `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                  |
 | `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.            |
 | `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.   |
@@ -56,6 +57,62 @@ redirecting paths are refused.
 | `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                         |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
+
+## Credentials
+
+Declare only the provider access the plugin needs in the release's immutable `plugin.json`:
+
+```json
+{
+  "credentials": [
+    "github",
+    { "id": "ai", "models": ["fast", "reasoning", "embedding"] },
+    { "id": "openai", "optional": true }
+  ]
+}
+```
+
+The installer explicitly selects a project-owned Credential for each requirement. Optional
+requirements may be left unconfigured. A declared handle is absent from `ctx.credentials` until it
+is configured and usable for the current installation.
+
+An exact provider handle exposes only a guarded, authenticated `fetch` implementation. The host
+injects the secret, restricts requests to the definition's HTTPS origins, and never sends the raw
+secret to the plugin frame:
+
+```ts
+const github = ctx.credentials.github;
+if (!github) throw new Error('GitHub access is not configured');
+
+const response = await github.asFetch()('https://api.github.com/user');
+const user = await response.json();
+```
+
+The logical `ai` handle exposes only the model capabilities declared in the manifest. They
+implement the Vercel AI SDK provider v4 contract, so the plugin chooses a capability while the
+project maintainer chooses the underlying provider and provider model:
+
+```ts
+import { generateText } from 'ai';
+
+const model = ctx.credentials.ai;
+if (!model) throw new Error('Fast AI is not configured');
+
+const result = await generateText({ model, prompt: 'Summarize this report' });
+```
+
+The common `"ai"` requirement declares `fast`, so the logical handle itself is the fast model and
+`ctx.credentials.ai.fast` is an alias for the same object. `reasoning` and `embedding` are available
+only when declared. Logical AI does not expose `asFetch()`. Provider-specific APIs require an exact
+provider requirement.
+
+For a dynamic external handle, narrow its type before use:
+
+```ts
+const acme = ctx.credentials.acme;
+if (!acme || !('asFetch' in acme)) throw new Error('Acme access is not configured');
+const response = await acme.asFetch()('https://api.acme.example/v1/items');
+```
 
 ## Collections
 

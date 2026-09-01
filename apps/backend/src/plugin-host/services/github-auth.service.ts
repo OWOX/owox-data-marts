@@ -75,6 +75,11 @@ export class GithubAuthService {
     return this.access(GithubAccessMode.ANONYMOUS);
   }
 
+  /** Credential definitions v1 intentionally bypass every deployment credential. */
+  getAnonymousAccess(): GithubAccess {
+    return this.access(GithubAccessMode.ANONYMOUS);
+  }
+
   /** Where a publisher goes to grant access. Null when this deployment has no App. */
   buildInstallationUrl(): string | null {
     const slug = this.config.githubAppSlug;

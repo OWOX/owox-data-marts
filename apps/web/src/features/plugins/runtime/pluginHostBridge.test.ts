@@ -279,6 +279,150 @@ describe('plugin host bridge', () => {
       );
     });
 
+    it('forwards credentialFetch only to the installation-bound backend operation', async () => {
+      const h = await harness(async () =>
+        Response.json({
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+          bodyBase64: btoa('{"ok":true}'),
+        })
+      );
+
+      const response = await h.send({
+        kind: 'credentialFetch',
+        version: 1,
+        handle: 'github',
+        url: 'https://api.github.com/user',
+        method: 'GET',
+      });
+
+      expect(response).toMatchObject({
+        ok: true,
+        body: { status: 200, bodyBase64: expect.any(String) },
+      });
+      expect(h.fetchMock.mock.calls[0][0]).toBe(
+        `${API_ORIGIN}/api/plugins/runtime/credentials/github/fetch`
+      );
+      const init = h.fetchMock.mock.calls[0][1] as RequestInit;
+      expect(init.headers).toMatchObject({
+        'x-owox-authorization': `Bearer ${RUNTIME_TOKEN}`,
+      });
+      expect(JSON.stringify(response)).not.toContain(RUNTIME_TOKEN);
+    });
+
+    it('rejects malformed credentialFetch before minting a runtime token', async () => {
+      const h = await harness();
+      const response = await h.send({
+        kind: 'credentialFetch',
+        version: 2,
+        handle: 'github',
+        url: 'http://169.254.169.254/latest/meta-data',
+        method: 'GET',
+      } as unknown as PluginRequestInput);
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+    });
+
+    it('forwards custom Fetch-compatible provider methods', async () => {
+      const h = await harness(async () =>
+        Response.json({ status: 204, headers: {}, bodyBase64: '' })
+      );
+
+      await h.send({
+        kind: 'credentialFetch',
+        version: 1,
+        handle: 'github',
+        url: 'https://api.github.com/resource',
+        method: 'PROPFIND',
+      });
+
+      const body = (h.fetchMock.mock.calls[0][1] as RequestInit).body;
+      expect(typeof body).toBe('string');
+      if (typeof body !== 'string') throw new TypeError('Expected a JSON request body');
+      expect(JSON.parse(body)).toMatchObject({ method: 'PROPFIND' });
+    });
+
+    it('forwards logical AI generation only to the installation-bound backend adapter', async () => {
+      const h = await harness(async () =>
+        Response.json({
+          content: [{ type: 'text', text: 'hello' }],
+          finishReason: { unified: 'stop' },
+          usage: {},
+          warnings: [],
+        })
+      );
+
+      const response = await h.send({
+        kind: 'credentialAi',
+        version: 1,
+        handle: 'ai',
+        operation: 'generate',
+        model: 'fast',
+        options: { prompt: [] },
+      });
+
+      expect(response).toMatchObject({ ok: true, body: { content: [{ text: 'hello' }] } });
+      expect(h.fetchMock.mock.calls[0][0]).toBe(
+        `${API_ORIGIN}/api/plugins/runtime/credentials/ai/ai/generate`
+      );
+      expect(h.fetchMock.mock.calls[0][1]).toMatchObject({
+        method: 'POST',
+        redirect: 'error',
+        headers: expect.objectContaining({
+          'x-owox-authorization': `Bearer ${RUNTIME_TOKEN}`,
+        }),
+      });
+    });
+
+    it('keeps logical AI stream chunks transferable', async () => {
+      const h = await harness(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"type":"text-delta"}\n'));
+                controller.close();
+              },
+            }),
+            { headers: { 'content-type': 'application/x-ndjson' } }
+          )
+      );
+
+      const response = await h.send({
+        kind: 'credentialAi',
+        version: 1,
+        handle: 'ai',
+        operation: 'stream',
+        model: 'reasoning',
+        options: { prompt: [] },
+        stream: true,
+      });
+
+      expect(response).toMatchObject({ ok: true, status: 200 });
+      expect('stream' in response ? await new Response(response.stream).text() : '').toBe(
+        '{"type":"text-delta"}\n'
+      );
+    });
+
+    it('rejects mismatched logical AI operations before minting a runtime token', async () => {
+      const h = await harness();
+
+      const response = await h.send({
+        kind: 'credentialAi',
+        version: 1,
+        handle: 'ai',
+        operation: 'embed',
+        model: 'fast',
+        options: { values: ['hello'] },
+      } as unknown as PluginRequestInput);
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+    });
+
     it('forbids fetch redirects so the runtime token cannot follow a cross-origin location', async () => {
       const h = await harness(
         async () =>
@@ -492,6 +636,30 @@ describe('plugin host bridge', () => {
       // An unmount already knows the plugin is gone; telling it would re-render a page
       // that is on its way out.
       expect(h.onBroken).not.toHaveBeenCalled();
+    });
+
+    it('aborts the backend Credential request when the SDK cancels its correlation id', async () => {
+      const { seen, fetchImpl } = hangingFetch();
+      const h = await harness(fetchImpl);
+
+      h.raw({
+        id: 'credential-request-1',
+        kind: 'credentialFetch',
+        version: 1,
+        handle: 'github',
+        url: 'https://api.github.com/user',
+        method: 'GET',
+      });
+      await vi.waitFor(() => {
+        expect(seen.signal).toBeDefined();
+      });
+      expect(seen.signal?.aborted).toBe(false);
+
+      h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'credential-request-1' });
+      await vi.waitFor(() => {
+        expect(seen.signal?.aborted).toBe(true);
+      });
+      h.bridge.dispose();
     });
 
     // The nonce breach tears the channel down exactly as an unmount does, and a request

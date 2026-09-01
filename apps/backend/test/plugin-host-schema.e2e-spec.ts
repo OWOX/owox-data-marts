@@ -147,6 +147,7 @@ describe('Plugin host schema (e2e)', () => {
       description: 'Lease fence',
       deliveryUrl: 'https://plugin.example.com',
       collections: [],
+      credentialRequirements: [],
       releasePublishedAt: null,
     };
 

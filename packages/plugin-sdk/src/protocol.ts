@@ -55,7 +55,17 @@ export interface PluginHostContext {
    */
   readonly userId: string;
   readonly theme: 'light' | 'dark';
+  /** Exact/logical handles that are both declared and configured for this installation. */
+  readonly credentialHandles?: readonly PluginCredentialHandleDescriptor[];
 }
+
+export type PluginCredentialHandleDescriptor =
+  | { readonly name: string; readonly kind: 'exact' }
+  | {
+      readonly name: string;
+      readonly kind: 'ai';
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+    };
 
 /**
  * Query parameters as ordered pairs rather than an object.
@@ -113,6 +123,39 @@ export type PluginRequest =
       query?: PluginQuery;
       stream: true;
     }
+  | {
+      id: string;
+      kind: 'credentialFetch';
+      /** Versioned independently so adding it does not reject protocol-v1 plugins. */
+      version: 1;
+      handle: string;
+      url: string;
+      method: string;
+      headers?: Record<string, string>;
+      bodyBase64?: string;
+    }
+  | {
+      id: string;
+      kind: 'credentialAi';
+      /** Vercel AI SDK provider contract v4, versioned independently of the host protocol. */
+      version: 1;
+      handle: string;
+      operation: 'generate' | 'embed';
+      model: 'fast' | 'reasoning' | 'embedding';
+      options: Record<string, unknown>;
+      stream?: false;
+    }
+  | {
+      id: string;
+      kind: 'credentialAi';
+      version: 1;
+      handle: string;
+      operation: 'stream';
+      model: 'fast' | 'reasoning';
+      options: Record<string, unknown>;
+      stream: true;
+    }
+  | { id: string; kind: 'cancel'; targetId: string }
   | { id: string; kind: 'openExternal'; url: string }
   /**
    * A path inside OWOX, opened in place. Distinct from openExternal on purpose: one

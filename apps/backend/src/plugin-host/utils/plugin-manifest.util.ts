@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from '../../data-marts/credentials/services/builtin-credential-definitions';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 
 export const PluginCollectionEntityTypeSchema = z.enum([
@@ -40,6 +41,17 @@ const PluginCollectionDeclarationSchema = z.object({
     })
     .optional(),
 });
+
+export const PluginCredentialRequirementSchema = z.union([
+  z.string().trim().min(1).max(255),
+  z.object({
+    id: z.string().trim().min(1).max(255),
+    optional: z.boolean().default(false),
+    models: z.array(z.string().trim().min(1).max(255)).max(20).optional(),
+  }),
+]);
+
+export type PluginCredentialRequirement = z.infer<typeof PluginCredentialRequirementSchema>;
 
 const ENTITY_ACTIONS: Record<
   z.infer<typeof PluginCollectionEntityTypeSchema>,
@@ -94,6 +106,7 @@ export const PluginManifestSchema = z
       url: z.string().url().startsWith('https://'),
     }),
     collections: z.array(PluginCollectionDeclarationSchema).max(50).default([]),
+    credentials: z.array(PluginCredentialRequirementSchema).max(50).default([]),
   })
   .superRefine((manifest, context) => {
     const names = new Set<string>();
@@ -117,6 +130,57 @@ export const PluginManifestSchema = z
             });
           }
         }
+      }
+    }
+
+    const credentialKeys = new Set<string>();
+    for (const [index, requirement] of manifest.credentials.entries()) {
+      const key = typeof requirement === 'string' ? requirement : requirement.id;
+      if (key !== 'ai' && !key.startsWith('@') && !BUILTIN_CREDENTIAL_DEFINITION_IDS.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path:
+            typeof requirement === 'string' ? ['credentials', index] : ['credentials', index, 'id'],
+          message: `unknown Credential requirement "${key}"; use ai, a built-in definition, or @owner/repository`,
+        });
+      }
+      if (credentialKeys.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credentials', index],
+          message: `duplicate credential requirement "${key}"`,
+        });
+      }
+      credentialKeys.add(key);
+      if (key === 'ai' && typeof requirement !== 'string' && requirement.models !== undefined) {
+        if (requirement.models.length === 0) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['credentials', index, 'models'],
+            message: 'logical ai models must contain at least one model',
+          });
+        }
+        if (new Set(requirement.models).size !== requirement.models.length) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['credentials', index, 'models'],
+            message: 'logical ai models must be unique',
+          });
+        }
+        if (requirement.models.some(model => !['fast', 'reasoning', 'embedding'].includes(model))) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['credentials', index, 'models'],
+            message: 'ai models must be fast, reasoning, or embedding',
+          });
+        }
+      }
+      if (key !== 'ai' && typeof requirement !== 'string' && requirement.models?.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credentials', index, 'models'],
+          message: 'models are supported only for the logical ai requirement',
+        });
       }
     }
   });

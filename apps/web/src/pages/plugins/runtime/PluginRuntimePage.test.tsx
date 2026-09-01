@@ -68,6 +68,7 @@ describe('PluginRuntimePage', () => {
       displayName: 'Example Plugin',
       pluginId: 'p1',
       versionId: 'v1',
+      credentialHandles: [],
     });
   });
 

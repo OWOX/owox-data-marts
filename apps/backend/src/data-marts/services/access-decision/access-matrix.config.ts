@@ -63,6 +63,15 @@ function allActions(entityType: EntityType): Action[] {
         Action.CONFIGURE_SHARING,
         Action.MANAGE_OWNERS,
       ];
+    case EntityType.CREDENTIAL:
+      return [
+        Action.SEE,
+        Action.USE,
+        Action.EDIT,
+        Action.DELETE,
+        Action.CONFIGURE_SHARING,
+        Action.MANAGE_OWNERS,
+      ];
     default:
       return [];
   }
@@ -475,6 +484,50 @@ const destNonOwnerBuSharedBoth: AccessRule[] = destActions.flatMap(action => {
 });
 
 // ============================================================
+// CREDENTIAL RULES
+// ============================================================
+
+const credentialActions = allActions(EntityType.CREDENTIAL);
+
+const credentialOwnerEditorRules: AccessRule[] = credentialActions.flatMap(action =>
+  expandSharingStates(EntityType.CREDENTIAL, action, Role.EDITOR, OwnerStatus.OWNER, 'any', true)
+);
+
+const credentialOwnerViewerRules: AccessRule[] = credentialActions.flatMap(action =>
+  expandSharingStates(EntityType.CREDENTIAL, action, Role.VIEWER, OwnerStatus.OWNER, 'any', true)
+);
+
+function credentialNonOwnerRules(role: Role, sharingState: SharingState): AccessRule[] {
+  return credentialActions.flatMap(action => {
+    const allowed =
+      sharingState === SharingState.SHARED_FOR_USE
+        ? action === Action.SEE || action === Action.USE
+        : sharingState === SharingState.SHARED_FOR_MAINTENANCE ||
+            sharingState === SharingState.SHARED_FOR_BOTH
+          ? [Action.SEE, Action.USE, Action.EDIT, Action.DELETE].includes(action)
+          : false;
+    return expandSharingStates(
+      EntityType.CREDENTIAL,
+      action,
+      role,
+      OwnerStatus.NON_OWNER,
+      [sharingState],
+      allowed
+    );
+  });
+}
+
+const credentialNonOwnerRulesAll: AccessRule[] = [Role.EDITOR, Role.VIEWER].flatMap(role =>
+  [
+    SharingState.NOT_SHARED,
+    SharingState.SHARED_FOR_USE,
+    SharingState.SHARED_FOR_MAINTENANCE,
+    SharingState.SHARED_FOR_BOTH,
+    SharingState.SHARED_FOR_REPORTING,
+  ].flatMap(state => credentialNonOwnerRules(role, state))
+);
+
+// ============================================================
 // COMBINED ACCESS MATRIX
 // ============================================================
 
@@ -516,4 +569,10 @@ export const ACCESS_MATRIX: AccessRule[] = [
   ...destNonOwnerBuSharedUse,
   ...destNonOwnerBuSharedMaint,
   ...destNonOwnerBuSharedBoth,
+
+  // --- Credential ---
+  ...adminRules(EntityType.CREDENTIAL),
+  ...credentialOwnerEditorRules,
+  ...credentialOwnerViewerRules,
+  ...credentialNonOwnerRulesAll,
 ];

@@ -26,12 +26,14 @@ interface ComboboxProps {
   options: ComboboxOption[];
   value: string;
   onValueChange: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
   placeholder?: string;
   emptyMessage?: string;
   className?: string;
   disabled?: boolean;
-  renderLabel?: (option: ComboboxOption) => React.ReactNode;
   ariaLabel?: string;
+  ariaInvalid?: boolean;
+  renderLabel?: (option: ComboboxOption) => React.ReactNode;
 }
 
 function filterOptions(value: string, search: string, keywords?: string[]): number {
@@ -43,12 +45,14 @@ export function Combobox({
   options,
   value,
   onValueChange,
+  onOpenChange,
   placeholder = 'Select an option',
   emptyMessage = 'No results found.',
   className,
   disabled = false,
-  renderLabel,
   ariaLabel,
+  ariaInvalid,
+  renderLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -61,8 +65,9 @@ export function Combobox({
         setActiveValue(value);
         setSearchQuery('');
       }
+      onOpenChange?.(nextOpen);
     },
-    [value]
+    [onOpenChange, value]
   );
 
   const groupedOptions = React.useMemo(() => {
@@ -100,6 +105,7 @@ export function Combobox({
           role='combobox'
           aria-label={ariaLabel}
           aria-expanded={open}
+          aria-invalid={ariaInvalid}
           className={cn('w-full justify-between', !value && 'text-muted-foreground', className)}
           disabled={disabled}
         >

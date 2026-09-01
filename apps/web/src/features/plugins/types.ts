@@ -47,6 +47,11 @@ export interface PluginGalleryEntry {
    * maintenance. Optional for the same rolling-deploy reason as addedAt.
    */
   nextCheckAt?: string | null;
+  /** Immutable requirements declared by the current plugin version. */
+  credentialRequirements?: (
+    | string
+    | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
+  )[];
 }
 
 export interface InstalledPlugin extends PluginGalleryEntry {
@@ -61,6 +66,10 @@ export interface PluginEntryPoint {
   /** Stable across releases, renames and transfers -- unlike versionId. */
   pluginId: string;
   versionId: string;
+  credentialHandles: (
+    | { name: string; kind: 'exact' }
+    | { name: string; kind: 'ai'; models: ('fast' | 'reasoning' | 'embedding')[] }
+  )[];
 }
 
 export interface PluginRuntimeToken {

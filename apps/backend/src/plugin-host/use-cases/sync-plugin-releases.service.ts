@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
@@ -18,8 +18,10 @@ import {
   PluginVersionConflictError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
+import { ExternalCredentialDefinitionSyncService } from '../services/external-credential-definition-sync.service';
 import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
+import { PluginCredentialBindingReconciliationService } from '../services/plugin-credential-binding-reconciliation.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import {
@@ -33,6 +35,7 @@ import {
   parseReleaseTag,
   sameCompatibilityLine,
 } from '../utils/semver.util';
+import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
 
 /** A release that survived the free checks and is worth spending network calls on. */
 interface Candidate {
@@ -56,7 +59,10 @@ export class SyncPluginReleasesService {
     private readonly remoteUrlValidator: RemoteUrlValidatorService,
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
-    private readonly config: PluginHostConfigService
+    private readonly config: PluginHostConfigService,
+    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService,
+    @Optional()
+    private readonly externalCredentialDefinitions?: ExternalCredentialDefinitionSyncService
   ) {}
 
   async run(command: SyncPluginReleasesCommand): Promise<PluginSyncResultDto> {
@@ -257,6 +263,28 @@ export class SyncPluginReleasesService {
       return false;
     }
 
+    let credentialRequirements: readonly StoredCredentialRequirement[] =
+      manifest.manifest.credentials;
+    try {
+      if (manifest.manifest.credentials.some(requirement => externalLocator(requirement))) {
+        if (!this.externalCredentialDefinitions) {
+          throw new Error('External Credential definitions are not available');
+        }
+        credentialRequirements = await this.externalCredentialDefinitions.resolveRequirements(
+          manifest.manifest.credentials
+        );
+      }
+    } catch (error) {
+      into.rejections.push(
+        this.rejection(
+          release,
+          ReleaseRejectionCode.MANIFEST_SCHEMA,
+          error instanceof Error ? error.message : 'Credential requirements are invalid'
+        )
+      );
+      return false;
+    }
+
     try {
       const inserted = await this.versionService.insertVersionForLease(
         {
@@ -269,6 +297,7 @@ export class SyncPluginReleasesService {
           description: manifest.manifest.description,
           deliveryUrl: manifest.manifest.delivery.url,
           collections: manifest.manifest.collections,
+          credentialRequirements,
           releasePublishedAt: release.publishedAt,
         },
         syncLeaseId
@@ -303,7 +332,7 @@ export class SyncPluginReleasesService {
     syncLeaseId: string
   ): Promise<PluginSyncResultDto> {
     const versions = await this.versionService.findAllByPluginId(plugin.id);
-    const current = versions.reduce<{ id: string; semver: string } | null>(
+    const current = versions.reduce<(typeof versions)[number] | null>(
       (highest, version) =>
         !highest || compareSemver(version.semver, highest.semver) > 0 ? version : highest,
       null
@@ -324,6 +353,13 @@ export class SyncPluginReleasesService {
       syncLeaseId
     );
     if (!saved) throw new PluginSyncLeaseLostError(plugin.id);
+
+    // Batched and outside one mass transaction. Removed or structurally changed
+    // requirements lose their old grants; unchanged stable requirements keep them.
+    await this.credentialBindingReconciliation.reconcile(
+      plugin.id,
+      current?.credentialRequirements ?? []
+    );
 
     return {
       pluginId: plugin.id,
@@ -415,3 +451,7 @@ export class SyncPluginReleasesService {
 type PluginVersionCollections = NonNullable<
   Awaited<ReturnType<PluginVersionService['findById']>>
 >['collections'];
+
+function externalLocator(requirement: string | { id: string }): boolean {
+  return (typeof requirement === 'string' ? requirement : requirement.id).startsWith('@');
+}

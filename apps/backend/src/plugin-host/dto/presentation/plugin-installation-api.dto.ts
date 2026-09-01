@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString } from 'class-validator';
 import { PluginUpdateCheckOutcome } from '../../use-cases/run-plugin-update-check.service';
 import { PluginGalleryEntryApiDto } from './plugin-gallery-api.dto';
 import { PluginPublisherDiagnosticsApiDto } from './publication-api.dto';
@@ -14,6 +14,15 @@ export class InstallPluginApiDto {
   @IsOptional()
   @IsString()
   expectedVersionId: string | null;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string', nullable: true },
+    description: 'Credential requirement handle to selected project Credential id.',
+  })
+  @IsOptional()
+  @IsObject()
+  credentialSelections?: Record<string, string | null>;
 }
 
 export class PluginInstallationApiDto {
@@ -49,6 +58,12 @@ export class PluginEntryApiDto {
   pluginId: string;
 
   @ApiProperty() versionId: string;
+
+  @ApiProperty({ type: [Object] })
+  credentialHandles: Array<
+    | { name: string; kind: 'exact' }
+    | { name: string; kind: 'ai'; models: Array<'fast' | 'reasoning' | 'embedding'> }
+  >;
 }
 
 export class PluginRuntimeTokenApiDto {

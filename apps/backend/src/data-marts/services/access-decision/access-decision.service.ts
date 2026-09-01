@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -14,6 +14,8 @@ import { ACCESS_MATRIX } from './access-matrix.config';
 import { EntityType, Action, Role, OwnerStatus, SharingState } from './access-decision.types';
 import { ContextAccessService } from '../context/context-access.service';
 import { RoleScope } from '../../enums/role-scope.enum';
+import { Credential } from '../../credentials/entities/credential.entity';
+import { CredentialOwner } from '../../credentials/entities/credential-owner.entity';
 
 @Injectable()
 export class AccessDecisionService {
@@ -42,7 +44,13 @@ export class AccessDecisionService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     @Inject(forwardRef(() => ContextAccessService))
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    @Optional()
+    @InjectRepository(Credential)
+    private readonly credentialRepository?: Repository<Credential>,
+    @Optional()
+    @InjectRepository(CredentialOwner)
+    private readonly credentialOwnerRepository?: Repository<CredentialOwner>
   ) {
     this.matrixMap = new Map();
     for (const rule of ACCESS_MATRIX) {
@@ -221,6 +229,13 @@ export class AccessDecisionService {
         });
         return count > 0 ? OwnerStatus.OWNER : OwnerStatus.NON_OWNER;
       }
+      case EntityType.CREDENTIAL: {
+        if (!this.credentialOwnerRepository) return OwnerStatus.NON_OWNER;
+        const count = await this.credentialOwnerRepository.count({
+          where: { credentialId: entityId, userId },
+        });
+        return count > 0 ? OwnerStatus.OWNER : OwnerStatus.NON_OWNER;
+      }
       case EntityType.REPORT: {
         const count = await this.reportOwnerRepository.count({
           where: { reportId: entityId, userId },
@@ -265,6 +280,18 @@ export class AccessDecisionService {
         return this.resolveUseMaintenanceSharing(
           dest.availableForUse,
           dest.availableForMaintenance
+        );
+      }
+      case EntityType.CREDENTIAL: {
+        if (!this.credentialRepository) return SharingState.NOT_SHARED;
+        const credential = await this.credentialRepository.findOne({
+          where: { id: entityId },
+          select: ['id', 'availableForUse', 'availableForMaintenance'],
+        });
+        if (!credential) return SharingState.NOT_SHARED;
+        return this.resolveUseMaintenanceSharing(
+          credential.availableForUse,
+          credential.availableForMaintenance
         );
       }
       default:

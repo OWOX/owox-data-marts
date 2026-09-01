@@ -27,6 +27,7 @@ import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
 import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
 import { pluginsRoutes } from './plugins/routes';
+import { CredentialsPage } from '../pages/credentials/CredentialsPage';
 
 const routes: RouteObject[] = [
   {
@@ -105,6 +106,11 @@ const routes: RouteObject[] = [
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'credentials',
+        element: <CredentialsPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

@@ -38,8 +38,11 @@ export default function PluginHistoryPage() {
    * §13 still holds: if the version moved on after the dialog opened, the server refuses
    * and the dialog reappears with the version that is current now.
    */
-  const restore = async (target: PluginGalleryEntry) => {
-    const stale = await install(target.pluginId, target.currentVersionId);
+  const restore = async (
+    target: PluginGalleryEntry,
+    credentialSelections: Readonly<Record<string, string | null>>
+  ) => {
+    const stale = await install(target.pluginId, target.currentVersionId, credentialSelections);
     if (stale) {
       setConfirming({
         ...target,
@@ -130,7 +133,7 @@ export default function PluginHistoryPage() {
               setConfirming(null);
             }
           }}
-          onConfirm={() => void restore(confirming)}
+          onConfirm={credentialSelections => void restore(confirming, credentialSelections)}
           isInstalling={isInstalling}
         />
       )}

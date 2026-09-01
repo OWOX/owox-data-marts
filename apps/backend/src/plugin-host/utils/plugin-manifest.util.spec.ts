@@ -19,6 +19,7 @@ describe('parsePluginManifest', () => {
         description: 'What this plugin does',
         delivery: { type: 'remote', url: 'https://plugin.example.com' },
         collections: [],
+        credentials: [],
       },
     });
   });
@@ -71,6 +72,55 @@ describe('parsePluginManifest', () => {
 
   it('never throws, whatever it is handed', () => {
     expect(() => parsePluginManifest('\u0000\uFFFF')).not.toThrow();
+  });
+
+  it('accepts exact, logical AI, and optional Credential requirements', () => {
+    expect(
+      parsePluginManifest(
+        raw({
+          credentials: [
+            'github',
+            { id: 'ai', models: ['fast', 'reasoning'] },
+            { id: 'openai', optional: true },
+          ],
+        })
+      )
+    ).toMatchObject({
+      ok: true,
+      manifest: {
+        credentials: [
+          'github',
+          { id: 'ai', optional: false, models: ['fast', 'reasoning'] },
+          { id: 'openai', optional: true },
+        ],
+      },
+    });
+  });
+
+  it('rejects duplicate Credential requirement handles', () => {
+    expect(parsePluginManifest(raw({ credentials: ['github', { id: 'github' }] }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+    });
+  });
+
+  it('rejects an exact Credential requirement that is neither built-in nor a GitHub locator', () => {
+    expect(parsePluginManifest(raw({ credentials: ['stripe'] }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+    });
+  });
+
+  it.each([
+    [{ id: 'ai', models: ['unknown'] }, 'unsupported logical AI model'],
+    [{ id: 'ai', models: [] }, 'empty logical AI model list'],
+    [{ id: 'ai', models: ['fast', 'fast'] }, 'duplicate logical AI model'],
+    [{ id: 'github', models: ['fast'] }, 'models on an exact requirement'],
+  ])('rejects %s (%s)', (requirement, _label) => {
+    expect(parsePluginManifest(raw({ credentials: [requirement] }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+    });
   });
 
   it('accepts a project collection bound to a Data Mart action map', () => {

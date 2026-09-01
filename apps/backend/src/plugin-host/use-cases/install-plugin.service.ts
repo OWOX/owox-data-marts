@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { InstallPluginCommand } from '../dto/domain/install-plugin.command';
 import { PluginInstallationDto } from '../dto/domain/plugin-installation.dto';
@@ -12,6 +12,10 @@ import { PluginUpdateScheduleService } from '../services/plugin-update-schedule.
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
+import {
+  CREDENTIAL_CONSUMER_BINDING_FACADE,
+  type CredentialConsumerBindingFacade,
+} from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
 
 /**
  * Installs a plugin for one member in one project.
@@ -28,7 +32,9 @@ export class InstallPluginService {
     private readonly installations: PluginInstallationService,
     private readonly audit: PluginAuditService,
     private readonly schedule: PluginUpdateScheduleService,
-    private readonly check: RunPluginUpdateCheckService
+    private readonly check: RunPluginUpdateCheckService,
+    @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
+    private readonly credentialBindings: CredentialConsumerBindingFacade
   ) {}
 
   /**
@@ -96,6 +102,20 @@ export class InstallPluginService {
         ? claimed.installation
         : await this.restore(claimed.installation);
     }
+
+    const version = await this.versionService.findById(plugin.currentVersionId);
+    if (!version) {
+      throw new BadRequestException('This plugin has no version available to install yet');
+    }
+    await this.credentialBindings.replaceBindings({
+      projectId: command.context.projectId,
+      userId: command.context.userId,
+      roles: command.context.roles ?? [],
+      consumerType: 'plugin-installation',
+      consumerId: installation.id,
+      requirements: version.credentialRequirements ?? [],
+      selections: command.credentialSelections,
+    });
 
     await this.audit.record({
       pluginId: plugin.id,

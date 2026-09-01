@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { PluginInstallation } from '../entities/plugin-installation.entity';
 
@@ -29,6 +29,22 @@ export class PluginInstallationService {
   /** Every installation this member has ever made in this project, active or not. */
   findByMember(projectId: string, userId: string): Promise<PluginInstallation[]> {
     return this.repository.findBy({ projectId, userId });
+  }
+
+  listActiveByPluginIdAfter(
+    pluginId: string,
+    afterId: string | null,
+    limit: number
+  ): Promise<PluginInstallation[]> {
+    return this.repository.find({
+      where: {
+        pluginId,
+        uninstalledAt: IsNull(),
+        ...(afterId ? { id: MoreThan(afterId) } : {}),
+      },
+      order: { id: 'ASC' },
+      take: limit,
+    });
   }
 
   install(pluginId: string, projectId: string, userId: string): Promise<PluginInstallation> {

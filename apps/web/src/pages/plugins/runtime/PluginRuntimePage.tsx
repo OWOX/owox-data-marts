@@ -100,6 +100,7 @@ export default function PluginRuntimePage() {
         projectId,
         userId: user.id,
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        credentialHandles: data.credentialHandles,
       },
       fetchRuntimeToken: fetchRuntimeToken(resolvedId),
       onOpenExternal: openExternal,

@@ -4,6 +4,7 @@ import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
+import { GithubReadPolicy } from '../enums/github-read-policy.enum';
 import {
   GithubApiError,
   GithubRateLimitedError,
@@ -54,13 +55,19 @@ export class GithubApiService {
    * Redirects are followed: GitHub answers 301 after a rename or transfer, so a stale
    * locator lands on the same numeric id and cannot create a second plugin.
    */
-  async getRepo(ref: GithubRepoRef): Promise<GithubRepoDto> {
-    const access = await this.auth.getRepoAccess(ref);
+  async getRepo(
+    ref: GithubRepoRef,
+    policy: GithubReadPolicy = GithubReadPolicy.CONFIGURED
+  ): Promise<GithubRepoDto> {
+    const access = await this.getAccess(ref, policy);
     const response = await this.request(access, `/repos/${ref.owner}/${ref.name}`, {
       redirect: 'follow',
     });
 
     if (response.status === 404) {
+      if (policy === GithubReadPolicy.PUBLIC_ONLY) {
+        throw new GithubRepoNotFoundError(ref.owner, ref.name);
+      }
       const installationUrl = this.auth.buildInstallationUrl();
       // The access mode is the whole diagnosis and never reaches the response: a private
       // repository read as ANONYMOUS or SERVER_TOKEN answers 404 exactly like one that
@@ -96,8 +103,11 @@ export class GithubApiService {
   }
 
   /** Drafts and prereleases are returned as-is; filtering them is the caller's job. */
-  async listReleases(ref: GithubRepoRef): Promise<GithubReleaseDto[]> {
-    const access = await this.auth.getRepoAccess(ref);
+  async listReleases(
+    ref: GithubRepoRef,
+    policy: GithubReadPolicy = GithubReadPolicy.CONFIGURED
+  ): Promise<GithubReleaseDto[]> {
+    const access = await this.getAccess(ref, policy);
     const releases: GithubReleaseDto[] = [];
 
     for (let page = 1; page <= this.config.maxReleasePages; page++) {
@@ -128,8 +138,12 @@ export class GithubApiService {
    * Null when the tag no longer resolves -- a deleted tag is one ineligible Release,
    * not a failed sync.
    */
-  async resolveCommitSha(ref: GithubRepoRef, tagName: string): Promise<string | null> {
-    const access = await this.auth.getRepoAccess(ref);
+  async resolveCommitSha(
+    ref: GithubRepoRef,
+    tagName: string,
+    policy: GithubReadPolicy = GithubReadPolicy.CONFIGURED
+  ): Promise<string | null> {
+    const access = await this.getAccess(ref, policy);
     // /commits/{ref} dereferences annotated tags in a single call; /git/ref/tags would
     // need a second hop to get from the tag object to its commit.
     const path = `/repos/${ref.owner}/${ref.name}/commits/${encodeURIComponent(tagName)}`;
@@ -148,9 +162,10 @@ export class GithubApiService {
   async getFileAtCommit(
     ref: GithubRepoRef,
     path: string,
-    commitSha: string
+    commitSha: string,
+    policy: GithubReadPolicy = GithubReadPolicy.CONFIGURED
   ): Promise<string | null> {
-    const access = await this.auth.getRepoAccess(ref);
+    const access = await this.getAccess(ref, policy);
     const requestPath = `/repos/${ref.owner}/${ref.name}/contents/${path}?ref=${commitSha}`;
     const response = await this.request(access, requestPath, {
       headers: { ...access.headers, Accept: 'application/vnd.github.raw' },
@@ -171,6 +186,12 @@ export class GithubApiService {
       headers: access.headers,
       ...init,
     });
+  }
+
+  private getAccess(ref: GithubRepoRef, policy: GithubReadPolicy): Promise<GithubAccess> {
+    return policy === GithubReadPolicy.PUBLIC_ONLY
+      ? Promise.resolve(this.auth.getAnonymousAccess())
+      : this.auth.getRepoAccess(ref);
   }
 
   private assertOk(response: Response, path: string, accessMode: GithubAccessMode): void {

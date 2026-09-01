@@ -59,4 +59,12 @@ export class PluginGalleryEntryApiDto {
       'When this deployment checks for a newer version on its own. Null while nothing publishes or installs the plugin, which takes it off daily maintenance.',
   })
   nextCheckAt: string | null;
+
+  @ApiProperty({
+    type: [Object],
+    description: 'Credentials that must be selected before installation.',
+  })
+  credentialRequirements: Array<
+    string | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
+  >;
 }

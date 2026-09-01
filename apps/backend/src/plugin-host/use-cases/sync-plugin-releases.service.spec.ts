@@ -74,16 +74,27 @@ function setup() {
 
   const configService = { get: () => undefined } as unknown as ConfigService;
   const config = new PluginHostConfigService(configService, new PublicOriginService(configService));
+  const credentialBindingReconciliation = {
+    reconcile: jest.fn().mockResolvedValue(undefined),
+  };
 
   const service = new SyncPluginReleasesService(
     githubApi,
     validator,
     pluginService,
     versionService,
-    config
+    config,
+    credentialBindingReconciliation as never
   );
 
-  return { service, githubApi, validator, pluginService, versionService };
+  return {
+    service,
+    githubApi,
+    validator,
+    pluginService,
+    versionService,
+    credentialBindingReconciliation,
+  };
 }
 
 const run = (s: ReturnType<typeof setup>, requireCurrentVersion = true) =>

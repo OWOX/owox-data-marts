@@ -88,6 +88,7 @@ describe('PluginGalleryController OpenAPI', () => {
       // version. Members are told this so that asking for a check reads as accelerating
       // something already scheduled.
       'nextCheckAt',
+      'credentialRequirements',
     ]);
   });
 

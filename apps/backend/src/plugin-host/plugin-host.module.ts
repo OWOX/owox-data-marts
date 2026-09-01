@@ -16,12 +16,16 @@ import { PluginAdminController } from './controllers/plugin-admin.controller';
 import { PluginGalleryController } from './controllers/plugin-gallery.controller';
 import { PluginInstallationsController } from './controllers/plugin-installations.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
+import { PluginCredentialRuntimeController } from './controllers/plugin-credential-runtime.controller';
+import { CredentialDefinitionsGithubController } from './controllers/credential-definitions-github.controller';
 import { GithubApiService } from './services/github-api.service';
+import { ExternalCredentialDefinitionSyncService } from './services/external-credential-definition-sync.service';
 import { GithubAuthService } from './services/github-auth.service';
 import { PLUGIN_INSTALLATION_LOOKUP } from './facades/plugin-installation-lookup.facade';
 import { PluginInstallationLookupFacade } from './facades/plugin-installation-lookup.facade.impl';
 import { PluginAuditService } from './services/plugin-audit.service';
 import { PluginInstallationService } from './services/plugin-installation.service';
+import { PluginCredentialBindingReconciliationService } from './services/plugin-credential-binding-reconciliation.service';
 import { PluginPublicationService } from './services/plugin-publication.service';
 import { PluginUpdateScheduleService } from './services/plugin-update-schedule.service';
 import { PluginVersionService } from './services/plugin-version.service';
@@ -43,6 +47,7 @@ import { PublishPluginService } from './use-cases/publish-plugin.service';
 import { ResumePluginService } from './use-cases/resume-plugin.service';
 import { RunPluginUpdateCheckService } from './use-cases/run-plugin-update-check.service';
 import { PluginUpdateCheckProcessor } from './system-triggers/plugin-update-check.processor';
+import { CredentialDefinitionUpdateCheckProcessor } from './system-triggers/credential-definition-update-check.processor';
 import { SuspendPluginService } from './use-cases/suspend-plugin.service';
 import { SyncPluginReleasesService } from './use-cases/sync-plugin-releases.service';
 import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
@@ -94,6 +99,8 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
   // was answered as a lookup for a plugin named "installations". The gallery goes last.
   controllers: [
     PluginCollectionsController,
+    CredentialDefinitionsGithubController,
+    PluginCredentialRuntimeController,
     PluginPublicationsController,
     PluginAdminController,
     PluginInstallationsController,
@@ -113,6 +120,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginHostConfigService,
     GithubAuthService,
     GithubApiService,
+    ExternalCredentialDefinitionSyncService,
     RemoteUrlValidatorService,
     PluginService,
     PluginVersionService,
@@ -129,9 +137,11 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     SuspendPluginService,
     ResumePluginService,
     PluginInstallationService,
+    PluginCredentialBindingReconciliationService,
     PluginUpdateScheduleService,
     RunPluginUpdateCheckService,
     PluginUpdateCheckProcessor,
+    CredentialDefinitionUpdateCheckProcessor,
     InstallPluginService,
     UninstallPluginService,
     ListInstallationsService,

@@ -45,12 +45,23 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
       displayName: 'Example',
       description: 'x',
       deliveryUrl: 'https://plugin.example.com',
+      credentialRequirements: [],
     }),
   } as unknown as jest.Mocked<PluginVersionService>;
 
+  const credentialBindings = {
+    assertConsumerReady: jest.fn().mockResolvedValue([]),
+  };
+
   return {
-    service: new GetPluginInstallationEntryService(installations, pluginService, versionService),
+    service: new GetPluginInstallationEntryService(
+      installations,
+      pluginService,
+      versionService,
+      credentialBindings as never
+    ),
     installations,
+    credentialBindings,
   };
 }
 
@@ -59,11 +70,36 @@ const entry = (service: GetPluginInstallationEntryService) =>
 
 describe('GetPluginInstallationEntryService', () => {
   it("returns the delivery url for the caller's own live installation", async () => {
-    await expect(entry(setup().service)).resolves.toEqual({
+    const state = setup();
+    await expect(entry(state.service)).resolves.toEqual({
       deliveryUrl: 'https://plugin.example.com',
       displayName: 'Example',
       pluginId: 'p1',
       versionId: 'v1',
+      credentialHandles: [],
+    });
+    expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+      expect.objectContaining({ consumerId: 'i1', requirements: [] })
+    );
+  });
+
+  it('returns capability-scoped handles and omits optional requirements without a binding', async () => {
+    const state = setup();
+    state.credentialBindings.assertConsumerReady.mockResolvedValue([
+      { key: 'github', definitionId: 'github', optional: false, models: [] },
+      {
+        key: 'ai',
+        definitionId: null,
+        optional: false,
+        models: ['fast', 'embedding'],
+      },
+    ]);
+
+    await expect(entry(state.service)).resolves.toMatchObject({
+      credentialHandles: [
+        { name: 'github', kind: 'exact' },
+        { name: 'ai', kind: 'ai', models: ['fast', 'embedding'] },
+      ],
     });
   });
 

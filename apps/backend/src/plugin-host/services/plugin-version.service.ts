@@ -7,6 +7,7 @@ import { PluginVersion } from '../entities/plugin-version.entity';
 import { Plugin } from '../entities/plugin.entity';
 import { PluginVersionConflictError } from '../errors/plugin-host.errors';
 import type { PluginCollectionDeclaration } from '../utils/plugin-manifest.util';
+import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
 
 export interface InsertPluginVersionInput {
   readonly pluginId: string;
@@ -18,6 +19,7 @@ export interface InsertPluginVersionInput {
   readonly description: string;
   readonly deliveryUrl: string;
   readonly collections: readonly PluginCollectionDeclaration[];
+  readonly credentialRequirements: readonly StoredCredentialRequirement[];
   readonly releasePublishedAt: Date | null;
 }
 
@@ -61,6 +63,7 @@ export class PluginVersionService {
         this.repository.create({
           ...input,
           collections: [...input.collections],
+          credentialRequirements: [...input.credentialRequirements],
           deliveryType: 'remote',
         })
       );
