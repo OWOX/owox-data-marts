@@ -136,17 +136,18 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
 
   // '   ' is what the UI sends for a cleared field; accepting it would persist a present
   // override that suppresses the inherited description instead of restoring it.
-  it.each([['spaces', '   '], ['tab', '\t'], ['newline', '\n']])(
-    'rejects a whitespace-only description override (%s)',
-    async (_label, description) => {
-      const errors = await validateDto({
-        blendedFieldsConfig: {
-          sources: [{ path: 'orders', alias: 'Orders', description }],
-        },
-      });
-      expect(errors.length).toBeGreaterThan(0);
-    }
-  );
+  it.each([
+    ['spaces', '   '],
+    ['tab', '\t'],
+    ['newline', '\n'],
+  ])('rejects a whitespace-only description override (%s)', async (_label, description) => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [{ path: 'orders', alias: 'Orders', description }],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
 
   it('trims surrounding whitespace from a description override', () => {
     const instance = transformDto({
