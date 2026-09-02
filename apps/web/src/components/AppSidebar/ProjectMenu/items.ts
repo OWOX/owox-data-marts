@@ -55,6 +55,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     type: 'menu-item',
     title: 'OWOX BI',
     href: 'https://bi.owox.com/',
+    buildHref: projectId => `https://bi.owox.com/ui/app/${projectId}`,
     icon: OWOXBIIcon,
     visible: { flagKey: 'MENU_OWOX_BI_VISIBLE', expectedValue: 'true' },
     group: 'external',

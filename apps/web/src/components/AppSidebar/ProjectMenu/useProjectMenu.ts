@@ -32,6 +32,10 @@ export function useProjectMenu() {
     });
 
     const mappedItems = filteredItems.map(item => {
+      if (id && item.buildHref) {
+        return { ...item, href: item.buildHref(id) } as ProjectMenuItem;
+      }
+
       if (item.group === 'project' && item.href && id) {
         try {
           const updatedHref = item.href.replace('/p/none/', `/p/${id}/`);
