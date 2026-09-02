@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LanguageModelV4 } from '@ai-sdk/provider';
-import { createPluginCredentials } from './credentials.js';
+import { createPluginCredentials, exactCredential, type CredentialHandle } from './credentials.js';
 
 describe('Plugin Credentials', () => {
   it('turns asFetch into a versioned host request and rebuilds the provider Response', async () => {
@@ -17,11 +17,14 @@ describe('Plugin Credentials', () => {
     });
     const credentials = createPluginCredentials({ send }, ['github']);
 
-    const response = await credentials.github!.asFetch()('https://api.github.com/user', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{"name":"test"}',
-    });
+    const response = await exactCredential(credentials, 'github')!.asFetch()(
+      'https://api.github.com/user',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"name":"test"}',
+      }
+    );
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -40,8 +43,10 @@ describe('Plugin Credentials', () => {
   });
 
   it('never exposes a raw secret getter', () => {
-    const handle = createPluginCredentials({ send: vi.fn() }, ['github'])
-      .github as unknown as Record<string, unknown>;
+    const handle = exactCredential(
+      createPluginCredentials({ send: vi.fn() }, ['github']),
+      'github'
+    ) as unknown as Record<string, unknown>;
     expect(Object.keys(handle)).toEqual(['asFetch']);
     expect(handle.secret).toBeUndefined();
     expect(handle.value).toBeUndefined();
@@ -57,7 +62,7 @@ describe('Plugin Credentials', () => {
     });
     const credentials = createPluginCredentials({ send }, ['github']);
 
-    await credentials.github!.asFetch()('https://api.github.com/resource', {
+    await exactCredential(credentials, 'github')!.asFetch()('https://api.github.com/resource', {
       method: 'PROPFIND',
     });
 
@@ -66,8 +71,23 @@ describe('Plugin Credentials', () => {
 
   it('does not create a handle that the current plugin version did not declare', () => {
     const credentials = createPluginCredentials({ send: vi.fn() }, ['github']);
-    expect(credentials.github).toBeDefined();
-    expect(credentials.openai).toBeUndefined();
+    expect(exactCredential(credentials, 'github')).toBeDefined();
+    expect(exactCredential(credentials, 'openai')).toBeUndefined();
+  });
+
+  it('types built-in and external exact handles through the same accessor', () => {
+    const credentials = createPluginCredentials({ send: vi.fn() }, [
+      'github',
+      'acme',
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]);
+
+    const github: CredentialHandle | undefined = exactCredential(credentials, 'github');
+    const acme: CredentialHandle | undefined = exactCredential(credentials, 'acme');
+
+    expect(github).toBeDefined();
+    expect(acme).toBeDefined();
+    expect(exactCredential(credentials, 'ai')).toBeUndefined();
   });
 
   it('exposes declared handles through normal Record discovery operations', () => {
@@ -85,7 +105,7 @@ describe('Plugin Credentials', () => {
     const credentials = createPluginCredentials({ send: vi.fn() }, ['github']);
 
     await expect(
-      credentials.github!.asFetch()('https://api.github.com/user', {
+      exactCredential(credentials, 'github')!.asFetch()('https://api.github.com/user', {
         signal: controller.signal,
       })
     ).rejects.toMatchObject({ name: 'AbortError' });
@@ -99,9 +119,12 @@ describe('Plugin Credentials', () => {
     });
     const credentials = createPluginCredentials({ send }, ['github']);
     const controller = new AbortController();
-    const request = credentials.github!.asFetch()('https://api.github.com/user', {
-      signal: controller.signal,
-    });
+    const request = exactCredential(credentials, 'github')!.asFetch()(
+      'https://api.github.com/user',
+      {
+        signal: controller.signal,
+      }
+    );
 
     controller.abort(new DOMException('cancelled', 'AbortError'));
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });

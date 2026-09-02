@@ -160,7 +160,9 @@ An exact handle exposes a guarded `fetch` implementation. OWOX adds authenticati
 only HTTPS requests to origins declared by the selected Credential definition:
 
 ```ts
-const github = ctx.credentials.github;
+import { exactCredential } from '@owox/plugin-sdk';
+
+const github = exactCredential(ctx.credentials, 'github');
 if (!github) throw new Error('GitHub access is not configured');
 
 const response = await github.asFetch()('https://api.github.com/user');

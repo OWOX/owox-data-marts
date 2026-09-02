@@ -10,6 +10,7 @@ import {
 } from './protocol.js';
 
 export { PLUGIN_PROTOCOL_VERSION } from './protocol.js';
+export { exactCredential } from './credentials.js';
 export type { PluginErrorCode, PluginErrorPayload, PluginHostContext } from './protocol.js';
 export type {
   AiCredentialHandle,

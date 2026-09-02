@@ -39,10 +39,11 @@ Put the definition in `plugin.json` at the repository root and publish it throug
 }
 ```
 
-`credential.name` is the stable JavaScript-safe property exposed to an exact consumer, such as
-`ctx.credentials.acme`. Built-in names and `ai` are reserved. The current authentication contract
-accepts one opaque secret placed in an HTTP header. Origins must use HTTPS and resolve to public
-networks; every initial request and redirect remains inside the declared origin set.
+`credential.name` is the stable JavaScript-safe name passed by an exact consumer to
+`exactCredential(ctx.credentials, 'acme')`. Built-in names and `ai` are reserved. The current
+authentication contract accepts one opaque secret placed in an HTTP header. Origins must use HTTPS
+and resolve to public networks; every initial request and redirect remains inside the declared
+origin set.
 
 `credential.documentationUrl` is optional. When present, OWOX can show a documentation link next
 to the write-only secret field. It must be a parseable absolute HTTPS URL without embedded username

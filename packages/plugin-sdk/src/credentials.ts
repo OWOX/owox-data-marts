@@ -39,13 +39,24 @@ export type PluginCredentials = Readonly<
   Record<string, CredentialHandle | AiCredentialHandle | undefined>
 > & {
   readonly ai?: AiCredentialHandle;
-  /** Built-ins are repeated here only to give plugin authors exact compile-time handle types. */
-  readonly openai?: CredentialHandle;
-  readonly anthropic?: CredentialHandle;
-  readonly gemini?: CredentialHandle;
-  readonly openrouter?: CredentialHandle;
-  readonly github?: CredentialHandle;
 };
+
+/**
+ * Returns any declared exact Credential handle with one stable compile-time type.
+ *
+ * Built-in and external definitions follow the same runtime path, so neither the SDK nor a
+ * plugin needs a hardcoded provider-name list. Logical AI handles deliberately return undefined.
+ */
+export function exactCredential(
+  credentials: PluginCredentials,
+  name: string
+): CredentialHandle | undefined {
+  const handle = credentials[name];
+  if (!handle || !('asFetch' in handle) || typeof handle.asFetch !== 'function') {
+    return undefined;
+  }
+  return handle;
+}
 
 interface CredentialFetchEnvelope {
   readonly status: number;

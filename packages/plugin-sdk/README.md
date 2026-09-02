@@ -81,7 +81,9 @@ injects the secret, restricts requests to the definition's HTTPS origins, and ne
 secret to the plugin frame:
 
 ```ts
-const github = ctx.credentials.github;
+import { exactCredential } from '@owox/plugin-sdk';
+
+const github = exactCredential(ctx.credentials, 'github');
 if (!github) throw new Error('GitHub access is not configured');
 
 const response = await github.asFetch()('https://api.github.com/user');
@@ -106,11 +108,11 @@ The common `"ai"` requirement declares `fast`, so the logical handle itself is t
 only when declared. Logical AI does not expose `asFetch()`. Provider-specific APIs require an exact
 provider requirement.
 
-For a dynamic external handle, narrow its type before use:
+The same accessor resolves a dynamic external handle without an SDK provider-name list:
 
 ```ts
-const acme = ctx.credentials.acme;
-if (!acme || !('asFetch' in acme)) throw new Error('Acme access is not configured');
+const acme = exactCredential(ctx.credentials, 'acme');
+if (!acme) throw new Error('Acme access is not configured');
 const response = await acme.asFetch()('https://api.acme.example/v1/items');
 ```
 
