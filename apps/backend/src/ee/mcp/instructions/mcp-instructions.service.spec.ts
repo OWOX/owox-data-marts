@@ -47,6 +47,18 @@ describe('MCP instructions', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never call add_report again');
   });
 
+  // Without this rule the step-2 "rephrase and try again" advice sends a model into a loop of
+  // searches against a project that has nothing to find.
+  it('tells the assistant what to do when the project has no published data mart', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Empty project:');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('returns getting_started');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Follow getting_started.instructions');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('do not rephrase and retry discovery tools');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'A Data Mart cannot be created or published through MCP'
+    );
+  });
+
   it('round-trips the complete system instructions through MCP initialization', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = new McpServer(

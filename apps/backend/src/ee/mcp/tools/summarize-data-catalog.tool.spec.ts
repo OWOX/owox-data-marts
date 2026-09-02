@@ -112,7 +112,7 @@ describe('SummarizeDataCatalogTool', () => {
     const facade = {
       summarizeDataCatalog: jest.fn().mockResolvedValue({
         projectId: 'project-1',
-        dataMartCount: 0,
+        dataMartCount: 1,
         topDataMartsByConnectivity: [],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
@@ -129,10 +129,43 @@ describe('SummarizeDataCatalogTool', () => {
 
     expect(result.structuredContent).toMatchObject({
       project_id: 'project-1',
-      data_mart_count: 0,
+      data_mart_count: 1,
       top_data_marts_by_connectivity: [],
     });
     expect(result.structuredContent).not.toHaveProperty('project');
+    expect(result.structuredContent).not.toHaveProperty('getting_started');
+  });
+
+  it('replaces the summary instruction with getting-started guidance for an empty catalog', async () => {
+    const facade = {
+      summarizeDataCatalog: jest.fn().mockResolvedValue({
+        projectId: 'project-1',
+        dataMartCount: 0,
+        topDataMartsByConnectivity: [],
+      }),
+      listDataMarts: jest.fn().mockResolvedValue({ dataMarts: [] }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new SummarizeDataCatalogTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toMatchObject({
+      project: { id: 'project-1', title: 'Analytics' },
+      project_id: 'project-1',
+      data_mart_count: 0,
+      top_data_marts_by_connectivity: [],
+      getting_started: {
+        reason: 'no_published_data_marts',
+        can_create_data_marts: false,
+        create_data_mart_url: 'https://app.owox.com/ui/project-1/data-marts/create',
+        draft_data_marts: [],
+      },
+      _instruction: expect.stringContaining('Follow getting_started.instructions'),
+    });
+    expect(result.structuredContent?._instruction).not.toContain('suggest 4-6');
+    expect(facade.listDataMarts).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'project-1', status: 'draft' })
+    );
   });
 
   it('describes read-only summary access without promising rows or freshness', () => {
@@ -150,6 +183,7 @@ describe('SummarizeDataCatalogTool', () => {
         project_id: expect.any(Object),
         data_mart_count: expect.any(Object),
         top_data_marts_by_connectivity: expect.any(Object),
+        getting_started: expect.any(Object),
         _instruction: expect.any(Object),
       }),
       annotations: {

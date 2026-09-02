@@ -13,6 +13,11 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import {
+  buildGettingStarted,
+  gettingStartedSchema,
+  resolveGettingStarted,
+} from './mcp-getting-started.util';
 import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
@@ -47,6 +52,11 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         updated_at: z.string(),
       })
     ),
+    getting_started: gettingStartedSchema
+      .optional()
+      .describe(
+        'Present only when the user sees no published data mart: links and next steps for creating the first one. Relay its instructions instead of retrying discovery.'
+      ),
   };
   readonly annotations = {
     title: 'List Data Marts',
@@ -70,18 +80,23 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
 
   async handler(input: ListDataMartsInput, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = this.parseInput(input);
+    const status = parsed.status ?? 'published';
 
     const [result, projectContext] = await Promise.all([
       this.dataMarts.listDataMarts({
         projectId: context.projectId,
         userId: context.userId,
         roles: context.roles,
-        status: parsed.status ?? 'published',
+        status,
       }),
       tryGetMcpProjectSummary(this.projectContext, context),
     ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const gettingStarted = await this.gettingStartedFor(result.dataMarts.length, status, {
+      publicOrigin,
+      context,
+    });
     const structuredContent = {
       ...(projectContext ? { project: projectContext } : {}),
       data_marts: result.dataMarts.map(dataMart => ({
@@ -92,8 +107,25 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         status: dataMart.status,
         updated_at: dataMart.updatedAt,
       })),
+      ...(gettingStarted ? { getting_started: gettingStarted } : {}),
     };
 
     return jsonToolResult(structuredContent);
+  }
+
+  /**
+   * An empty published list is the empty-project case by itself. An empty draft list says
+   * nothing about published data marts, so that case checks the published catalog first.
+   */
+  private async gettingStartedFor(
+    listedCount: number,
+    status: 'published' | 'draft',
+    { publicOrigin, context }: { publicOrigin: string; context: McpAuthContext }
+  ) {
+    if (listedCount > 0) return undefined;
+    const deps = { dataMarts: this.dataMarts, publicOrigin };
+    return status === 'published'
+      ? buildGettingStarted(deps, context)
+      : resolveGettingStarted(deps, context);
   }
 }

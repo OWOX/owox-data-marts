@@ -8,12 +8,17 @@ import {
 } from '../../../common/search/search.facade';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
+  MCP_DATA_MARTS_FACADE,
+  type McpDataMartsFacade,
+} from '../../../data-marts/facades/mcp-data-marts.facade';
+import {
   MCP_PROJECT_CONTEXT_FACADE,
   type McpProjectContextFacade,
 } from '../../../idp/facades/mcp-project-context.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { gettingStartedSchema, resolveGettingStarted } from './mcp-getting-started.util';
 import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
@@ -46,6 +51,11 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
         relevance_score: z.number(),
       })
     ),
+    getting_started: gettingStartedSchema
+      .optional()
+      .describe(
+        'Present only when the user sees no published data mart at all (not when the search simply found nothing): links and next steps for creating the first one. Relay its instructions instead of rephrasing the search.'
+      ),
   };
   readonly annotations = {
     title: 'Find Relevant Data Marts by Prompt',
@@ -60,7 +70,9 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     private readonly searchFacade: SearchFacade,
     private readonly publicOriginService: PublicOriginService,
     @Inject(MCP_PROJECT_CONTEXT_FACADE)
-    private readonly projectContext: McpProjectContextFacade
+    private readonly projectContext: McpProjectContextFacade,
+    @Inject(MCP_DATA_MARTS_FACADE)
+    private readonly dataMarts: McpDataMartsFacade
   ) {}
 
   parseInput(input: unknown): SearchDataMartsInput {
@@ -83,20 +95,28 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const dataMarts = results
+      .filter(result => result.entityType === SearchableEntityType.DATA_MART)
+      .map(result => ({
+        id: result.entityId,
+        title: result.title,
+        description: result.description ?? '',
+        url: joinPublicOrigin(
+          publicOrigin,
+          buildDataMartUiPath(context.projectId, result.entityId)
+        ),
+        relevance_score: result.finalScore,
+      }));
+    // An empty search result is ambiguous: nothing matched, or there is nothing to match. Only
+    // the latter deserves onboarding guidance, so the catalog itself is checked before guiding.
+    const gettingStarted =
+      dataMarts.length === 0
+        ? await resolveGettingStarted({ dataMarts: this.dataMarts, publicOrigin }, context)
+        : undefined;
     const structuredContent = {
       ...(projectContext ? { project: projectContext } : {}),
-      data_marts: results
-        .filter(result => result.entityType === SearchableEntityType.DATA_MART)
-        .map(result => ({
-          id: result.entityId,
-          title: result.title,
-          description: result.description ?? '',
-          url: joinPublicOrigin(
-            publicOrigin,
-            buildDataMartUiPath(context.projectId, result.entityId)
-          ),
-          relevance_score: result.finalScore,
-        })),
+      data_marts: dataMarts,
+      ...(gettingStarted ? { getting_started: gettingStarted } : {}),
     };
 
     return jsonToolResult(structuredContent);

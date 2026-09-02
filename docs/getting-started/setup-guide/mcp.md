@@ -6,7 +6,7 @@ Use the MCP server to explore your [data marts](../core-concepts.md) in plain la
 
 ## Prerequisites
 
-- An active OWOX Data Marts project with at least one data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart.
+- An active OWOX Data Marts project with at least one published data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart. You can connect before creating one — the assistant then explains what a data mart is and where to create it (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)).
 - One of the supported clients: Claude Desktop or Claude web (claude.ai) — the recommended way to connect — or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
 - A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT. Check your client's current plan requirements.
 
@@ -110,12 +110,13 @@ Returns a high-level summary of the published data mart catalog available to thi
 
 **Returns:**
 
-| Field                            | Description                                                                  |
-| -------------------------------- | ---------------------------------------------------------------------------- |
-| `project_id`                     | Project identifier                                                           |
-| `data_mart_count`                | Number of published data marts visible to you                                |
-| `top_data_marts_by_connectivity` | Data marts ranked by configured relationship connectivity                    |
-| `_instruction`                   | Internal guidance for the assistant on how to summarize the returned catalog |
+| Field                            | Description                                                                                                                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project_id`                     | Project identifier                                                                                                                                                                    |
+| `data_mart_count`                | Number of published data marts visible to you                                                                                                                                         |
+| `top_data_marts_by_connectivity` | Data marts ranked by configured relationship connectivity                                                                                                                             |
+| `getting_started`                | Only when the catalog is empty: links and next steps for creating the first data mart (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)) |
+| `_instruction`                   | Internal guidance for the assistant on how to summarize the returned catalog                                                                                                          |
 
 Each `top_data_marts_by_connectivity` item includes `id`, `title`, `description`, `url`, `relationship_count`, `reports_count`, `triggers_count`, and `updated_at`.
 
@@ -164,6 +165,8 @@ Use this tool to discover available data marts before running queries or buildin
 
 The response also includes `project.id` and `project.title`, so the assistant can state which project its discovery results belong to.
 
+When you see no published data mart, the response also includes `getting_started` — links and next steps for creating the first one (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)).
+
 The list reflects your access: it includes only the data marts your [project role](../../project/roles-and-permissions.md) permits you to see. If a data mart you expect is missing, check your role in that project.
 
 ### `get_relevant_data_marts_by_prompt`
@@ -189,7 +192,7 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 
 The response also includes `project.id` and `project.title`.
 
-Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
+Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned. An empty result usually means nothing matched the prompt; when you see no published data mart at all, the response also includes `getting_started` (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)) so the assistant explains what to do instead of rephrasing the search.
 
 ### `get_data_mart_details_by_id`
 
@@ -618,6 +621,26 @@ The MCP server rejects a request with `401` in these cases. Your AI client may s
 ### A tool reports `Missing MCP scope: mcp:write`
 
 The token does not include the write scope required for tools that create, change, run, or bill something. Disconnect and reconnect the MCP server, then approve the requested scopes during authorization. If your client lets you choose scopes manually, include both `mcp:read` and `mcp:write`.
+
+### The assistant says there are no data marts
+
+MCP works only with **published** data marts that your [project role](../../project/roles-and-permissions.md) lets you see. When there is none, `list_data_marts`, `get_relevant_data_marts_by_prompt`, and `summarize_data_catalog` return `getting_started` instead of a bare empty list, and the assistant explains what a data mart is and what to do next rather than retrying the search or querying data:
+
+| Field                   | Description                                                                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `can_create_data_marts` | Whether your role may create data marts (Project Admin or Technical User)                                                                            |
+| `create_data_mart_url`  | The page in OWOX Data Marts where a new data mart is created                                                                                         |
+| `data_marts_url`        | The Data Marts list of the connected project                                                                                                         |
+| `guides`                | Links to the [core concepts](../core-concepts.md), [connector-based](./connector-data-mart.md), and [SQL-based](./sql-data-mart.md) data mart guides |
+| `draft_data_marts`      | Draft data marts you can see; they become available to MCP once published                                                                            |
+| `instructions`          | Internal guidance the assistant relays to you                                                                                                        |
+
+A data mart cannot be created or published through MCP. To continue:
+
+- **Project Admin or Technical User:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
+- **Business User:** ask a Project Admin or a Technical User of the project to create and publish a data mart and share it with you for reporting.
+
+Then ask the assistant again — no reconnection is needed.
 
 ### The wrong project is connected
 

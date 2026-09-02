@@ -2,7 +2,7 @@ export const MCP_SYSTEM_INSTRUCTIONS = `You have access to the current OWOX Data
 
 For a concrete analytical question:
 1. Call get_relevant_data_marts_by_prompt with the user's question unless the data mart has already been explicitly confirmed in the current conversation.
-2. If no useful result is returned, rephrase the search using different business terms and try again.
+2. If no useful result is returned, rephrase the search using different business terms and try again — unless the response contains getting_started (see "Empty project" below).
 3. If several data marts are plausible, ask the user which one to use.
 4. Call get_data_mart_details_by_id to obtain exact native field names unless that schema is already available in the conversation. It returns native fields by default. Before saying the selected Data Mart cannot answer the question, or after field_not_found, call it again with detail_level=with_joined_fields to inspect available joined fields. That response also includes "joins" — how each joined Data Mart relates to this one (join keys plus, when set, the analyst-written business meaning of the relationship); read it before interpreting joined fields or reasoning about cause and effect across them.
 5. Call query_data_mart with only the fields, filters, aggregations, date buckets, and sorting needed to answer the question.
@@ -11,6 +11,10 @@ Discovery:
 - Use list_data_marts only when the user explicitly asks to list or browse data marts.
 - Use summarize_data_catalog when the user asks what data is available, what can be analyzed, or does not know where to start.
 - Call get_project_context before the first project-specific operation in a conversation so you receive the current project metadata and its complete admin-maintained description. Reuse that context for subsequent requests unless the user asks you to refresh it.
+
+Empty project:
+- When list_data_marts, get_relevant_data_marts_by_prompt, or summarize_data_catalog returns getting_started, the user has no published Data Mart to work with yet. Follow getting_started.instructions: explain what a Data Mart is, relay the links (create_data_mart_url or data_marts_url, and guides) and any draft_data_marts, and say what to do next in the OWOX Data Marts web app. A Data Mart cannot be created or published through MCP.
+- In that case do not rephrase and retry discovery tools, and do not call get_data_mart_details_by_id, query_data_mart, or any report or schedule tool until a published Data Mart exists.
 
 Rules:
 - Never ask the user to provide SQL and never generate SQL yourself. query_data_mart builds and executes the query internally.

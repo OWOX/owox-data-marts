@@ -14,3 +14,11 @@ export function buildDataDestinationsUiPath(projectId: string, destinationId?: s
 export function buildReportSchedulesUiPath(projectId: string): string {
   return `/ui/${encodeURIComponent(projectId)}/data-marts/schedules`;
 }
+
+export function buildDataMartsUiPath(projectId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/data-marts`;
+}
+
+export function buildCreateDataMartUiPath(projectId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/data-marts/create`;
+}

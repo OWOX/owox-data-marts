@@ -156,7 +156,77 @@ describe('ListDataMartsTool', () => {
 
     const result = await tool.handler({}, context);
 
-    expect(result.structuredContent).toEqual({ data_marts: [] });
+    expect(result.structuredContent).toEqual({
+      data_marts: [],
+      getting_started: expect.objectContaining({ reason: 'no_published_data_marts' }),
+    });
+  });
+
+  it('guides the user when the published catalog is empty, naming visible drafts', async () => {
+    const facade = {
+      listDataMarts: jest.fn(async ({ status }: { status: string }) => ({
+        dataMarts:
+          status === 'draft'
+            ? [
+                {
+                  id: 'dm_draft',
+                  title: 'Draft Orders',
+                  description: null,
+                  status: DataMartStatus.DRAFT,
+                  updatedAt: '2026-06-11T10:00:00.000Z',
+                },
+              ]
+            : [],
+      })),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toEqual({
+      project: { id: 'project-1', title: 'Analytics' },
+      data_marts: [],
+      getting_started: expect.objectContaining({
+        reason: 'no_published_data_marts',
+        can_create_data_marts: false,
+        create_data_mart_url: 'https://app.owox.com/ui/project-1/data-marts/create',
+        draft_data_marts: [
+          {
+            id: 'dm_draft',
+            title: 'Draft Orders',
+            url: 'https://app.owox.com/ui/project-1/data-marts/dm_draft/data-setup',
+          },
+        ],
+      }),
+    });
+    expect(facade.listDataMarts).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not guide on an empty draft list while a published data mart exists', async () => {
+    const facade = {
+      listDataMarts: jest.fn(async ({ status }: { status: string }) => ({
+        dataMarts:
+          status === 'published'
+            ? [
+                {
+                  id: 'dm_1',
+                  title: 'Orders',
+                  description: null,
+                  status: DataMartStatus.PUBLISHED,
+                  updatedAt: '2026-06-10T10:00:00.000Z',
+                },
+              ]
+            : [],
+      })),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({ status: 'draft' }, context);
+
+    expect(result.structuredContent).toEqual({
+      project: { id: 'project-1', title: 'Analytics' },
+      data_marts: [],
+    });
   });
 
   // Note: MCP_TOOL_PROVIDER_CLASSES assertion checks the LOCAL test registry snapshot, not
@@ -175,6 +245,7 @@ describe('ListDataMartsTool', () => {
       outputSchema: expect.objectContaining({
         project: expect.any(Object),
         data_marts: expect.any(Object),
+        getting_started: expect.any(Object),
       }),
       annotations: {
         title: 'List Data Marts',

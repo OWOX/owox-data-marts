@@ -13,6 +13,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { buildGettingStarted, gettingStartedSchema } from './mcp-getting-started.util';
 import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
@@ -21,6 +22,9 @@ type SummarizeDataCatalogInput = z.infer<typeof inputSchema>;
 
 const INSTRUCTION =
   'You have received a high-level summary of the published Data Mart catalog available to this MCP connection. Summarize the business areas covered by the listed Data Marts and suggest 4-6 concrete example prompts the user could ask. Do not claim access to data rows, sample values, row counts, or freshness details.';
+
+const EMPTY_CATALOG_INSTRUCTION =
+  'The published Data Mart catalog available to this MCP connection is empty, so there are no business areas to summarize and no example prompts to suggest. Follow getting_started.instructions: explain what a Data Mart is and what the user has to do next in the OWOX Data Marts web app.';
 
 @Injectable()
 export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeDataCatalogInput> {
@@ -44,6 +48,11 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
         updated_at: z.string(),
       })
     ),
+    getting_started: gettingStartedSchema
+      .optional()
+      .describe(
+        'Present only when the catalog is empty: links and next steps for creating the first data mart.'
+      ),
     _instruction: z.string(),
   };
   readonly annotations = {
@@ -78,6 +87,10 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
       tryGetMcpProjectSummary(this.projectContext, context),
     ]);
     const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const gettingStarted =
+      result.dataMartCount === 0
+        ? await buildGettingStarted({ dataMarts: this.dataMarts, publicOrigin }, context)
+        : undefined;
     const structuredContent = {
       ...(projectContext ? { project: projectContext } : {}),
       project_id: result.projectId,
@@ -92,7 +105,8 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
         triggers_count: dataMart.triggersCount,
         updated_at: dataMart.updatedAt,
       })),
-      _instruction: INSTRUCTION,
+      ...(gettingStarted ? { getting_started: gettingStarted } : {}),
+      _instruction: gettingStarted ? EMPTY_CATALOG_INSTRUCTION : INSTRUCTION,
     };
 
     return {
