@@ -916,6 +916,24 @@ describe('GoogleSheetsReportWriter — per-column header notes', () => {
     );
   });
 
+  it('links the A1 note to the report deep link, not to the data mart page', async () => {
+    const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    // The note is read when a sheet stops refreshing, so it must land on the
+    // report itself rather than on the data mart's setup tab.
+    const urlArg = metadataFormatter.buildImportedColumnNote.mock.calls[0][2] as string;
+    expect(urlArg).toBe('https://example.test/ui/proj-1/data-marts/dm-1/reports?reportId=report-1');
+  });
+
   it('does not write the full A1 note when the reader fails before any batch', async () => {
     const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
       availableRowsCount: 11,

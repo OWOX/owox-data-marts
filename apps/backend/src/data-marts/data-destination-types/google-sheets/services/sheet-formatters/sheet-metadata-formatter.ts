@@ -216,14 +216,16 @@ export class SheetMetadataFormatter {
    * The column's own description is placed first (so users see the relevant
    * context immediately), separated by a blank line from the ODM provenance
    * block — marker line, import date, data mart title, and link back to the
-   * OWOX UI. If the description is empty or exceeds
-   * {@link MAX_DESCRIPTION_LENGTH_IN_NOTE} characters, it is omitted or
-   * truncated with an ellipsis to stay within Sheets' note size limit.
+   * OWOX UI. The link points at the *report* that wrote the range rather than
+   * at its data mart: the note is read when a sheet stops refreshing, and the
+   * report is what has to be inspected then. If the description is empty or
+   * exceeds {@link MAX_DESCRIPTION_LENGTH_IN_NOTE} characters, it is omitted
+   * or truncated with an ellipsis to stay within Sheets' note size limit.
    */
   public buildImportedColumnNote(
     description: string | undefined,
     dataMartTitle: string,
-    dataMartUrl: string,
+    reportUrl: string,
     dateFormatted: string,
     isCommunityEdition: boolean
   ): string {
@@ -231,7 +233,7 @@ export class SheetMetadataFormatter {
       `${this.buildOdmMarker(isCommunityEdition)}\n` +
       `Imported at ${dateFormatted}\n` +
       `Data Mart: ${dataMartTitle}\n` +
-      `Data Mart page: ${dataMartUrl}`;
+      `Report page: ${reportUrl}`;
     return this.assembleColumnNote(description, odmInfo);
   }
 

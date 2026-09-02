@@ -145,7 +145,7 @@ describe('SheetMetadataFormatter', () => {
   describe('buildImportedColumnNote', () => {
     const baseArgs = {
       title: 'Test Data Mart',
-      url: 'https://app.owox.com/ui/proj-1/dm-2',
+      url: 'https://app.owox.com/ui/proj-1/data-marts/dm-2/reports?reportId=rep-3',
       date: '2026-04-02 12:00:00 UTC',
     };
 
@@ -165,7 +165,7 @@ describe('SheetMetadataFormatter', () => {
       expect(note).toContain('\n\n--- Imported via OWOX Data Marts ---\n');
       expect(note).toContain('Imported at 2026-04-02 12:00:00 UTC');
       expect(note).toContain(`Data Mart: ${baseArgs.title}`);
-      expect(note).toContain(`Data Mart page: ${baseArgs.url}`);
+      expect(note).toContain(`Report page: ${baseArgs.url}`);
       expect(note.indexOf('Imported at')).toBeGreaterThan(note.indexOf('---'));
     });
 

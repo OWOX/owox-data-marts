@@ -30,7 +30,7 @@ import {
 import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
 import { AppEditionConfig } from '../../../../common/config/app-edition-config.service';
 import { PublicOriginService } from '../../../../common/config/public-origin.service';
-import { buildDataMartUrl } from '../../../../common/helpers/data-mart-url.helper';
+import { buildReportUrl } from '../../../../common/helpers/data-mart-url.helper';
 
 /**
  * Service for writing report data to Google Sheets
@@ -575,23 +575,26 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         //
         // `dataMart` is always the main/home data mart — columns pulled in from
         // joinable data marts only change the column alias, never this note — so
-        // A1 references the original data mart even for blended marts.
+        // A1 references the original data mart even for blended marts. The link
+        // itself points at this report rather than at the data mart: the note is
+        // read when a sheet stops refreshing, and the report is what has to be
+        // inspected then.
         const firstColumnName = this.columnPlan.finalImportedNames[0];
         const firstColumnHeader = this.headersByName.get(firstColumnName);
         const dateFinished = DateTime.now().setZone(this.spreadsheetTimeZone);
         const dateFinishedFormatted = `${dateFinished.toFormat('yyyy LLL d, HH:mm:ss')} ${dateFinished.zoneName}`;
         const isCommunityEdition = !this.appEditionConfig.isEnterpriseEdition();
         const publicOrigin = this.publicOriginService.getPublicOrigin();
-        const dataMartUrl = buildDataMartUrl(
+        const reportUrl = buildReportUrl(
           publicOrigin,
           dataMart.projectId,
           dataMart.id,
-          '/data-setup'
+          this.report.id
         );
         const a1Note = this.metadataFormatter.buildImportedColumnNote(
           firstColumnHeader?.description,
           this.dataMartTitle,
-          dataMartUrl,
+          reportUrl,
           dateFinishedFormatted,
           isCommunityEdition
         );
