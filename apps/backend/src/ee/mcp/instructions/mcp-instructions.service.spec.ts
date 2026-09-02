@@ -69,6 +69,9 @@ describe('MCP instructions', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('allow_similar=true only when the user explicitly');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('update_report returns run.status="queued"');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'never re-sent by an update unless run_immediately=true'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
       'as spreadsheet_id in the following add_report calls'
     );
   });

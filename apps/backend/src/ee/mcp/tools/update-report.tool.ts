@@ -5,7 +5,10 @@ import {
   MCP_REPORTS_FACADE,
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
-import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
+import {
+  MCP_DESTINATION_TYPES,
+  type McpDestinationType,
+} from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import {
@@ -30,6 +33,14 @@ import {
   mapReportSort,
 } from './report-output-controls-input';
 import { rethrowTranslatedOutputControlsError } from './output-controls-error.mapper';
+
+const EMAIL_FAMILY_DESTINATION_TYPES: ReadonlySet<McpDestinationType> = new Set<McpDestinationType>(
+  ['email', 'slack', 'teams', 'google_chat']
+);
+
+function isEmailFamily(type: McpDestinationType): boolean {
+  return EMAIL_FAMILY_DESTINATION_TYPES.has(type);
+}
 
 // The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
@@ -115,7 +126,7 @@ const baseInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Whether to run the report after the update so its destination reflects the change (one billed Report Run). Omit for the default: a push-destination report (Google Sheets, Email, Slack, Microsoft Teams, Google Chat) runs when fields or any output control changed, and does not run for a name-only or message-only change. Set false to update without delivering; set true to also re-deliver after a name or message change. Looker Studio is pull-based: omit or set false; true is rejected.'
+        'Whether to run the report after the update (one billed Report Run). Omit for the default: a Google Sheets report re-runs when fields or any output control changed, so the sheet reflects the change; it does not run for a name-only or message-only change. Email, Slack, Microsoft Teams, and Google Chat reports are NOT re-sent by default, because a run delivers the message to every configured recipient or channel — set true only when the user explicitly wants it sent now. Set false to update a Google Sheets report without refreshing it. Looker Studio is pull-based: omit or set false; true is rejected.'
       ),
   })
   .strict();
@@ -155,7 +166,7 @@ type UpdateReportInput = z.infer<typeof updateReportInputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Use it whenever the user asks to change a report that already exists — including one you created earlier in this conversation ("add a filter", "sort by revenue", "rename it") — instead of creating another report with add_report. Provide at least one change; anything not provided stays unchanged. Returns the report as it is after the update, and by default re-runs a push-destination report when the export changed (run.status="queued" — poll get_report_run_status), so the destination shows the new definition.';
+    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Use it whenever the user asks to change a report that already exists — including one you created earlier in this conversation ("add a filter", "sort by revenue", "rename it") — instead of creating another report with add_report. Provide at least one change; anything not provided stays unchanged. Returns the report as it is after the update, and by default re-runs a Google Sheets report when the export changed (run.status="queued" — poll get_report_run_status), so the sheet shows the new definition; email, Slack, Teams, and Google Chat reports are re-sent only with run_immediately=true.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
@@ -229,22 +240,37 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
     const { run, ...report } = result;
     return jsonToolResult({
       ...report,
-      run: toReportRunOutcomeOutput(run, this.runMessages(run_immediately)),
+      run: toReportRunOutcomeOutput(
+        run,
+        this.runMessages(run_immediately, isEmailFamily(report.destination_type))
+      ),
     });
   }
 
   /**
-   * The not_requested wording depends on WHY: an explicit run_immediately=false
-   * and the default for a name/message-only change call for different advice.
+   * The not_requested wording depends on WHY: an explicit run_immediately=false,
+   * the email-family default (a run would re-send the message), and the default
+   * for a name/message-only change each call for different advice.
    */
-  private runMessages(runImmediately: boolean | undefined): ReportRunOutcomeMessages {
+  private runMessages(
+    runImmediately: boolean | undefined,
+    emailFamily: boolean
+  ): ReportRunOutcomeMessages {
+    let notRequested: string;
+    if (runImmediately === false) {
+      notRequested =
+        'The report was updated without a run because run_immediately was false. The destination still shows the previous data; call run_report when the user wants it refreshed.';
+    } else if (emailFamily) {
+      notRequested =
+        'The report was updated but not re-sent: a run would deliver the message to every configured recipient or channel, so it is not queued by default. Call run_report, or repeat with run_immediately=true, only if the user explicitly wants it sent now.';
+    } else {
+      notRequested =
+        'The report was updated without a run: only its name or message changed, so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.';
+    }
     return {
       queued:
         'The report was updated and a refresh run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report for this refresh.',
-      not_requested:
-        runImmediately === false
-          ? 'The report was updated without a run because run_immediately was false. The destination still shows the previous data; call run_report when the user wants it refreshed.'
-          : 'The report was updated without a run: only its name or message changed, so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.',
+      not_requested: notRequested,
       not_applicable:
         'The report was updated. It uses a pull-based destination, so no run is applicable.',
       failed_to_queue:

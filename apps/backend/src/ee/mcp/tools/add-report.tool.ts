@@ -318,6 +318,12 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
    * Nothing was created. The payload carries the existing report exactly as
    * get_data_mart_reports would list it, so the agent can go straight to
    * update_report with the controls it needs to keep.
+   *
+   * It travels ONLY as text: the MCP SDK client validates `structuredContent`
+   * against the tool's outputSchema even on an error result, and this payload
+   * is deliberately not a created report — with structuredContent set, an
+   * SDK-based client would throw InvalidParams and the agent would never see
+   * existing_report.
    */
   private toSimilarReportError(
     err: McpSimilarReportExistsException,
@@ -333,7 +339,6 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
     };
     return {
       isError: true,
-      structuredContent: payload,
       content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
     };
   }

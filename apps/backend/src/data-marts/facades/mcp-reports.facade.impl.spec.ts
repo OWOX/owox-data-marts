@@ -1528,6 +1528,37 @@ describe('McpReportsFacadeImpl.updateReport', () => {
       built.facade.updateReport({ ...updateRequest, fields: ['channel'], runImmediately: true })
     ).rejects.toThrow('run_immediately is not applicable to Data Studio reports');
     expect(built.runReportService.run).not.toHaveBeenCalled();
+    // The guard must run BEFORE the write: only the first (valid) call reached the service.
+    expect(built.updateReportService.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-send an email-family report by default, only on explicit request', async () => {
+    const built = buildUpdateFacade();
+    const slackReport = {
+      ...currentReport,
+      dataDestinationAccess: { id: 'dest-slack', type: DataDestinationType.SLACK },
+      destinationConfig: {
+        type: 'email-config',
+        subject: 'Digest',
+        templateSource: { type: 'CUSTOM_MESSAGE', config: { messageTemplate: '{{table}}' } },
+        reportCondition: 'ALWAYS',
+      },
+    } as unknown as ReportDto;
+    built.getReportService.run.mockResolvedValue(slackReport);
+    built.updateReportService.run.mockResolvedValue(slackReport);
+
+    // A data change alone must not broadcast to the channel.
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'] })
+    ).resolves.toEqual(
+      expect.objectContaining({ destination_type: 'slack', run: { status: 'not_requested' } })
+    );
+    expect(built.runReportService.run).not.toHaveBeenCalled();
+
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'], runImmediately: true })
+    ).resolves.toEqual(expect.objectContaining({ run: { status: 'queued', run_id: 'run-1' } }));
+    expect(built.runReportService.run).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a call with nothing to update before touching any service', async () => {

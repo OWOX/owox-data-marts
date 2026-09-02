@@ -290,15 +290,18 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       )
     );
 
-    // A refresh run is queued when the export changed, so the destination does
-    // not keep showing rows the report no longer defines; a rename or a message
-    // edit alone delivers nothing new and is not worth a billed run (or a
-    // repeated Slack/email message) unless explicitly requested.
+    // A refresh run is queued by default only for a Google Sheets report whose
+    // export changed, so the sheet does not keep showing rows the report no
+    // longer defines. Email-family reports are NOT re-sent by default: a run
+    // messages every configured recipient or channel, and a "sort by revenue"
+    // tweak must not re-broadcast to third parties unless explicitly asked. A
+    // rename or a message edit alone delivers nothing new for any type.
     const run = await this.queueRunAfterWrite(
       updated.id,
       request,
       destinationType,
-      request.runImmediately ?? exportChanged
+      request.runImmediately ??
+        (exportChanged && destinationType === DataDestinationType.GOOGLE_SHEETS)
     );
 
     return {

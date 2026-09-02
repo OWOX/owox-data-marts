@@ -233,9 +233,10 @@ export interface McpUpdateReportRequest {
   message?: McpUpdateReportMessage;
   /**
    * Whether to enqueue a Report Run after the update so the destination reflects
-   * it. Omitted means: run a push-destination report when the update changed
-   * what it exports (fields or any output control), not for a name-only or
-   * message-only change; never for pull-based destinations.
+   * it. Omitted means: run a Google Sheets report when the update changed what
+   * it exports (fields or any output control); never for a name-only or
+   * message-only change, never for email-family reports (a run re-sends the
+   * message to every recipient or channel), never for pull-based destinations.
    */
   runImmediately?: boolean;
   projectId: string;
@@ -369,7 +370,7 @@ export interface McpReportsFacade {
    * rejected by the implementation, independent of the tool-layer validation.
    * `message` is rejected for non-email-family reports. Returns the report's
    * resulting output controls and the outcome of the refresh run (queued by
-   * default when the export changed and the destination is push-based).
+   * default only for a Google Sheets report whose export changed).
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**

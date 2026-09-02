@@ -97,6 +97,17 @@ describe('UpdateReportTool', () => {
     expect((renameOnly.structuredContent as { run: { message: string } }).run.message).toContain(
       'only its name or message changed'
     );
+
+    // An email-family report is never re-sent by default, whatever changed.
+    facade.updateReport.mockResolvedValue({
+      ...updatedReport,
+      destination_type: 'slack',
+      run: { status: 'not_requested' },
+    } as never);
+    const slack = await tool.handler({ report_id: 'report-1', fields: ['channel'] }, context);
+    expect((slack.structuredContent as { run: { message: string } }).run.message).toContain(
+      'not re-sent'
+    );
   });
 
   it('reports a refresh run that could not be queued without hiding the saved update', async () => {

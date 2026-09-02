@@ -87,7 +87,12 @@ describe('AddReportTool', () => {
     const result = await tool.handler(input, context);
 
     expect(result.isError).toBe(true);
-    expect(result.structuredContent).toEqual({
+    // Text only: an SDK client validates structuredContent against the
+    // outputSchema even on errors, and this payload is not a created report.
+    expect(result).not.toHaveProperty('structuredContent');
+    const [text] = result.content as Array<{ type: string; text: string }>;
+    expect(text.type).toBe('text');
+    expect(JSON.parse(text.text)).toEqual({
       error_code: SIMILAR_REPORT_EXISTS_ERROR_CODE,
       message: expect.stringContaining('call update_report with its report_id'),
       existing_report: {
@@ -95,9 +100,6 @@ describe('AddReportTool', () => {
         report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       },
     });
-    expect(result.content).toEqual([
-      { type: 'text', text: JSON.stringify(result.structuredContent, null, 2) },
-    ]);
   });
 
   it('creates a report and returns the report and sheet links', async () => {
