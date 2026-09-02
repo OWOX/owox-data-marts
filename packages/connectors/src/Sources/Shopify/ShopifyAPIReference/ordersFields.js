@@ -193,6 +193,11 @@ var ordersFields = {
     'type': DATA_TYPES.STRING,
     'graphqlPath': 'sourceName'
   },
+  'checkoutToken': {
+    'description': 'Token of the checkout that created the order. Matches checkout.token in Web Pixel events. Null when the order did not originate from a checkout, for example orders created through the API.',
+    'type': DATA_TYPES.STRING,
+    'graphqlPath': 'checkoutToken'
+  },
   'processedAt': {
     'description': 'The date and time when the order was processed.',
     'type': DATA_TYPES.TIMESTAMP,
