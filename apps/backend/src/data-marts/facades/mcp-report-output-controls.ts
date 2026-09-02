@@ -79,11 +79,14 @@ export function sameFieldSelection(
   a: ReportColumnConfig | undefined,
   b: ReportColumnConfig
 ): boolean {
-  const left = toMcpFields(a);
-  const right = toMcpFields(b);
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every(field => rightSet.has(field));
+  const left = new Set(toMcpFields(a));
+  const right = new Set(toMcpFields(b));
+  // Set sizes, not array lengths: a repeated name is still one field.
+  if (left.size !== right.size) return false;
+  for (const field of left) {
+    if (!right.has(field)) return false;
+  }
+  return true;
 }
 
 /**
