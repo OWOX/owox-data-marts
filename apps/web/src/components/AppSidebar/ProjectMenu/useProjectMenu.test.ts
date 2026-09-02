@@ -15,7 +15,7 @@ const flagsState = vi.hoisted(() => ({
     flags: {
       MENU_OWOX_BI_VISIBLE: 'true',
     } as Record<string, unknown>,
-    callState: 'success' as RequestStatus,
+    callState: 'loaded' as RequestStatus,
   },
 }));
 
