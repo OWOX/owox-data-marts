@@ -180,9 +180,13 @@ successful run replaces it.
 ### Per-column header notes
 
 Each imported column header carries a note (hover the cell in Google Sheets
-to view it). The note begins with the column's Output Schema description (if
-one is set) followed by a provenance block: the data mart name, a link to the
-report that keeps the sheet up to date, and the timestamp of the latest
-refresh. Use these notes to confirm the source and freshness of any column at
-a glance; the link opens that report in OWOX Data Marts, which is where you
-check its schedule or its run history when the sheet stops updating.
+to view it). Every note starts with the column's Output Schema description
+(if one is set), followed by the `--- Imported via OWOX Data Marts ---`
+marker that tells you the column is kept up to date by OWOX.
+
+The **first column of the imported range** carries a full provenance block
+instead of the bare marker: the data mart name, the timestamp of the latest
+refresh, and a link to the report that writes the range. Hover that one cell
+to confirm the source and freshness of the whole range, or to open the report
+in OWOX Data Marts — that is where you check its schedule and run history when
+the sheet stops updating.
