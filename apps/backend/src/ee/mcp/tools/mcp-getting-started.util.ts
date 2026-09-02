@@ -2,6 +2,11 @@ import { castError } from '@owox/internal-helpers';
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
+import { ACCESS_MATRIX } from '../../../data-marts/services/access-decision/access-matrix.config';
+import {
+  Action,
+  EntityType,
+} from '../../../data-marts/services/access-decision/access-decision.types';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import {
   buildCreateDataMartUiPath,
@@ -18,10 +23,17 @@ import { joinPublicOrigin } from './mcp-public-url.util';
 const logger = new Logger('McpGettingStarted');
 
 /**
- * Project roles allowed to create and publish Data Marts in the web app (Project Admin and
- * Technical User). A Business User (`viewer`) can only work with Data Marts shared with them.
+ * Roles that can create a Data Mart. The backend gates creation on STORAGE/USE
+ * (CreateDataMartService), so a role the access matrix lets use a storage in at least one
+ * ownership/sharing state qualifies. Derived from the matrix instead of listed by hand so the
+ * assistant's role advice cannot drift from what the backend enforces — today Project Admin
+ * and Technical User; a Business User (`viewer`) is denied on every state.
  */
-const DATA_MART_CREATOR_ROLES: ReadonlySet<string> = new Set(['admin', 'editor']);
+const DATA_MART_CREATOR_ROLES: ReadonlySet<string> = new Set(
+  ACCESS_MATRIX.filter(
+    rule => rule.entityType === EntityType.STORAGE && rule.action === Action.USE && rule.result
+  ).map(rule => rule.role)
+);
 
 /**
  * Attached to a discovery tool result when the user sees no published Data Mart, so the

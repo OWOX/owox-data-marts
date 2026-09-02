@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
@@ -200,6 +201,29 @@ describe('ListDataMartsTool', () => {
       }),
     });
     expect(facade.listDataMarts).toHaveBeenCalledTimes(2);
+    // The SDK validates structuredContent against outputSchema at call time, so a key required by
+    // gettingStartedSchema but missing from buildGettingStarted would fail every empty project.
+    expect(() => z.object(tool.outputSchema).parse(result.structuredContent)).not.toThrow();
+  });
+
+  it('guides on an empty draft list when no published data mart exists either', async () => {
+    const facade = {
+      listDataMarts: jest.fn().mockResolvedValue({ dataMarts: [] }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({ status: 'draft' }, context);
+
+    expect(result.structuredContent).toEqual({
+      project: { id: 'project-1', title: 'Analytics' },
+      data_marts: [],
+      getting_started: expect.objectContaining({
+        reason: 'no_published_data_marts',
+        draft_data_marts: [],
+      }),
+    });
+    const statuses = facade.listDataMarts.mock.calls.map(([request]) => request.status);
+    expect(statuses).toEqual(['draft', 'published', 'draft']);
   });
 
   it('does not guide on an empty draft list while a published data mart exists', async () => {

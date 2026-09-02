@@ -70,6 +70,21 @@ describe('MCP getting-started guidance', () => {
     expect(guidance.instructions).not.toContain('open create_data_mart_url');
   });
 
+  // The flag mirrors the STORAGE/USE gate of CreateDataMartService; these are the outcomes the
+  // access matrix yields today, so a matrix change that alters them shows up here.
+  it('derives creator roles from the access matrix', async () => {
+    const dataMarts = facadeWith({});
+    const canCreate = async (roles: string[]) =>
+      (await buildGettingStarted({ dataMarts, publicOrigin }, { ...baseContext, roles }))
+        .can_create_data_marts;
+
+    await expect(canCreate(['admin'])).resolves.toBe(true);
+    await expect(canCreate(['editor'])).resolves.toBe(true);
+    await expect(canCreate(['viewer'])).resolves.toBe(false);
+    await expect(canCreate(['viewer', 'editor'])).resolves.toBe(true);
+    await expect(canCreate([])).resolves.toBe(false);
+  });
+
   it('treats an admin as a creator', async () => {
     const guidance = await buildGettingStarted(
       { dataMarts: facadeWith({}), publicOrigin },
