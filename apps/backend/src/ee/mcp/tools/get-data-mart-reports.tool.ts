@@ -12,6 +12,10 @@ import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataDestinationsUiPath, buildReportsUiPath } from './data-mart-ui-path';
 import { joinPublicOrigin } from './mcp-public-url.util';
+import {
+  reportOutputControlsOutputShape,
+  reportSheetInfoOutputShape,
+} from './report-output-controls-output';
 
 const inputSchema = z.object({ data_mart_id: z.string().min(1) }).strict();
 
@@ -21,7 +25,7 @@ type GetDataMartReportsInput = z.infer<typeof inputSchema>;
 export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartReportsInput> {
   readonly name = 'get_data_mart_reports';
   readonly description =
-    'List the reports tied to a data mart in the active OWOX project, including each report destination, run schedules (a report can have any number of schedule triggers), and last run status.';
+    'List the reports tied to a data mart in the active OWOX project, including each report destination, what it exports (fields, filters, slices, aggregations, date_buckets, sort, limit — in add_report/update_report vocabulary), the spreadsheet it writes to (Google Sheets), run schedules (a report can have any number of schedule triggers), and last run status. Call it before add_report to find a report that already exports what the user asks for — especially one with created_by_current_user=true — and change that one with update_report instead of creating a duplicate; reuse its spreadsheet_id when a related export should land in the same Google Sheets document.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     reports: z.array(
@@ -34,6 +38,12 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
         destination_url: z.string().describe('Open the report destination in OWOX.'),
         destination_type: z.enum(MCP_DESTINATION_TYPES),
         owner: z.string().nullable(),
+        created_by_current_user: z
+          .boolean()
+          .describe('True when you (the current MCP user) created this report.'),
+        created_at: z.string().describe('ISO 8601 creation timestamp.'),
+        ...reportOutputControlsOutputShape,
+        ...reportSheetInfoOutputShape,
         schedules: z.array(
           z.object({
             trigger_id: z.string(),

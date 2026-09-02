@@ -5,8 +5,18 @@ import {
   MCP_REPORTS_FACADE,
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
+import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import {
+  reportOutputControlsOutputShape,
+  reportSheetInfoOutputShape,
+} from './report-output-controls-output';
+import {
+  reportRunOutcomeSchema,
+  toReportRunOutcomeOutput,
+  type ReportRunOutcomeMessages,
+} from './report-run-outcome';
 import {
   makeMcpAggregationSchema,
   makeMcpDateBucketSchema,
@@ -101,6 +111,12 @@ const baseInputSchema = z
       .describe(
         'Message changes. Applies only to reports with an email, slack, teams, or google_chat destination; rejected for other types. Provide at least one of subject/body inside. The send condition and recipients are not editable here.'
       ),
+    run_immediately: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether to run the report after the update so its destination reflects the change (one billed Report Run). Omit for the default: a push-destination report (Google Sheets, Email, Slack, Microsoft Teams, Google Chat) runs when fields or any output control changed, and does not run for a name-only or message-only change. Set false to update without delivering; set true to also re-deliver after a name or message change. Looker Studio is pull-based: omit or set false; true is rejected.'
+      ),
   })
   .strict();
 
@@ -119,7 +135,7 @@ export const updateReportInputSchema = baseInputSchema
       input.message !== undefined,
     {
       message:
-        'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message to update',
+        'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message to update (run_immediately alone is not a change)',
     }
   )
   .refine(
@@ -139,11 +155,18 @@ type UpdateReportInput = z.infer<typeof updateReportInputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one change; anything not provided stays unchanged.';
+    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Use it whenever the user asks to change a report that already exists — including one you created earlier in this conversation ("add a filter", "sort by revenue", "rename it") — instead of creating another report with add_report. Provide at least one change; anything not provided stays unchanged. Returns the report as it is after the update, and by default re-runs a push-destination report when the export changed (run.status="queued" — poll get_report_run_status), so the destination shows the new definition.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
     status: z.literal('updated').describe("Always 'updated' on success"),
+    destination_type: z.enum(MCP_DESTINATION_TYPES),
+    name: z.string().describe('Report name after the update'),
+    ...reportOutputControlsOutputShape,
+    ...reportSheetInfoOutputShape,
+    run: reportRunOutcomeSchema.describe(
+      'Outcome of the refresh run queued after the update. The update is saved for every status.'
+    ),
   };
   readonly annotations = {
     title: 'Update Report',
@@ -174,6 +197,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       limit,
       name,
       message,
+      run_immediately,
     } = this.parseInput(input);
 
     // filters and slices are mapped separately: each replaces only its own kind
@@ -189,6 +213,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       limitConfig: limit,
       name,
       message,
+      runImmediately: run_immediately,
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
@@ -201,6 +226,29 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       rethrowTranslatedOutputControlsError(err);
     }
 
-    return jsonToolResult({ report_id: result.report_id, status: result.status });
+    const { run, ...report } = result;
+    return jsonToolResult({
+      ...report,
+      run: toReportRunOutcomeOutput(run, this.runMessages(run_immediately)),
+    });
+  }
+
+  /**
+   * The not_requested wording depends on WHY: an explicit run_immediately=false
+   * and the default for a name/message-only change call for different advice.
+   */
+  private runMessages(runImmediately: boolean | undefined): ReportRunOutcomeMessages {
+    return {
+      queued:
+        'The report was updated and a refresh run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report for this refresh.',
+      not_requested:
+        runImmediately === false
+          ? 'The report was updated without a run because run_immediately was false. The destination still shows the previous data; call run_report when the user wants it refreshed.'
+          : 'The report was updated without a run: only its name or message changed, so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.',
+      not_applicable:
+        'The report was updated. It uses a pull-based destination, so no run is applicable.',
+      failed_to_queue:
+        'The report was updated, but the refresh run could not be queued, so the destination still shows the previous data. Do not call update_report again; retry delivery with run_report using this report_id.',
+    };
   }
 }

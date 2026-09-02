@@ -59,6 +59,20 @@ describe('MCP instructions', () => {
     );
   });
 
+  // The three behaviours the report tools were reworked for (#6847): an agent that
+  // exports through its own file integration, one that creates a second report
+  // for "add a filter", and one that scatters related exports over separate files.
+  it('steers exporting, updating, and grouping reports toward the report tools', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never copy query_data_mart rows into a CSV');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('One report per user request; then change it.');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('error_code similar_report_exists');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('allow_similar=true only when the user explicitly');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('update_report returns run.status="queued"');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'as spreadsheet_id in the following add_report calls'
+    );
+  });
+
   it('round-trips the complete system instructions through MCP initialization', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = new McpServer(
