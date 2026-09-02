@@ -27,7 +27,8 @@ If these checks look correct, match the **Run history** error with the cases bel
 | Account does not exist, account cannot load, or `Unsupported get request` | The Account ID is wrong. It may include `act_`, or the user lacks access. | Enter the numeric Account ID only. Remove `act_`. Confirm Admin, Advertiser, or Analyst access. |
 | Import fails for only one account in a multi-account setup | One Account ID is invalid, or the user lacks access to that account. | Run the Data Mart with one Account ID at a time. Find the failing account. Then fix the ID or Meta access. |
 | `There have been too many calls to this ad-account` (code `80004`, subcode `2446079`) | Meta throttled ads management calls for one ad account. Every account has an hourly call budget. | See [Ad Account Rate Limits](#ad-account-rate-limits). |
-| Rate limit errors, `Application request limit reached`, or `User request limit reached` | Meta throttled requests for the app, user, or ad account. | Wait and rerun later. If the error repeats, reduce run frequency, date range, selected accounts, fields, or breakdowns. |
+| `Application request limit reached` (code `4`, subcode `1504022`) | Meta throttled calls for your Meta app. All Data Marts and tools that use the same app share one hourly budget. | See [App Rate Limits](#app-rate-limits). |
+| `User request limit reached` (code `17`) | Meta throttled calls for the Facebook user who authorized the connection. | Wait one hour. Then follow the steps in [App Rate Limits](#app-rate-limits). |
 | `Please reduce the amount of data you're asking for, then retry your request` or request timeout errors | The request asks Meta for too much data. | Reduce the date range, fields, or breakdowns. Then lower **API Page Limit** in **Advanced settings** and rerun. |
 | Empty results with no obvious API error | The date range has no delivery data. The selected fields may have no values. | Check the same date range in Meta Ads Manager. Then try **Ad Account Insights** with spend, clicks, and impressions. |
 
@@ -50,6 +51,25 @@ After a rate limit error, do this:
 4. Split ad accounts across several Data Marts. Stagger the schedules by an hour.
 5. Lower the run frequency. Catalog endpoints such as Ad Creatives change slowly.
 6. Apply for Advanced Access in your Meta app. This raises the budget to 100 000 calls.
+
+Meta explains the full model in [Marketing API rate limiting](https://developers.facebook.com/docs/marketing-api/overview/rate-limiting).
+
+## App Rate Limits
+
+Meta counts API calls per Meta app in a rolling one-hour window. This budget is separate from the ad account budget above.
+Every Data Mart, script, or third-party tool that uses the same Meta app draws from it.
+
+A run that hits this limit keeps every row it already saved. Incremental mode resumes from the last saved date on the next run.
+
+After an app rate limit error, do this:
+
+1. Wait one hour. Then rerun the Data Mart from **Run history**.
+2. Open **Advanced settings**. Set **Initial Retry Delay** to `60000` and **Max Fetch Retries** to `5`.
+   OWOX reads the delay in milliseconds. A value of `5` means five milliseconds, so retries fire before Meta resets.
+3. Lower **Reimport Lookback Window**. Each extra day multiplies the call count by the number of accounts.
+4. Split ad accounts across several Data Marts. Stagger their schedules by at least one hour.
+5. Move other Data Marts or tools that use the same Meta app to a different time slot.
+6. Apply for Advanced Access in your Meta app. This raises the hourly budget.
 
 Meta explains the full model in [Marketing API rate limiting](https://developers.facebook.com/docs/marketing-api/overview/rate-limiting).
 
