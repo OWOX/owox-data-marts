@@ -194,9 +194,14 @@ var ordersFields = {
     'graphqlPath': 'sourceName'
   },
   'checkoutToken': {
-    'description': 'Token of the checkout that created the order. Matches checkout.token in Web Pixel events. Null when the order did not originate from a checkout, for example orders created through the API.',
+    'description': 'Token of the checkout that created the order. Useful for correlating the order with Web Pixel checkout events. NULL when no checkout is associated.',
     'type': DATA_TYPES.STRING,
     'graphqlPath': 'checkoutToken'
+  },
+  'cartToken': {
+    'description': 'Token of the cart that was used to create the order. NULL when no cart is associated.',
+    'type': DATA_TYPES.STRING,
+    'graphqlPath': 'cartToken'
   },
   'processedAt': {
     'description': 'The date and time when the order was processed.',

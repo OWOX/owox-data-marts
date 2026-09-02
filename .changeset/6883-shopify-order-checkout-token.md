@@ -2,6 +2,6 @@
 'owox': minor
 ---
 
-# Checkout token for Shopify orders
+# Checkout and cart tokens for Shopify orders
 
-The Shopify connector now offers a `checkoutToken` field on the `orders` node. Add `orders checkoutToken` to the Fields list to import it. The value matches `checkout.token` in Shopify Web Pixel events, so you can join orders with `checkout_completed` events. Orders that did not originate from a checkout, such as orders created through the API, have no token and return NULL.
+The Shopify connector now offers `checkoutToken` and `cartToken` fields on the `orders` node. Select them under `orders` in the connector's field picker to import them. `checkoutToken` matches `checkout.token` in Shopify Web Pixel events, so you can join orders with `checkout_completed` events; `cartToken` identifies the cart that produced the order. Orders with no associated checkout or cart return NULL. Orders imported before you enable the fields stay NULL until you re-import them with a backfill run.
