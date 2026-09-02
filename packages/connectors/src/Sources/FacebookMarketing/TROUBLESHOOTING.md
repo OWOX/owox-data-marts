@@ -69,7 +69,6 @@ After an app rate limit error, do this:
 3. Lower **Reimport Lookback Window**. Each extra day multiplies the call count by the number of accounts.
 4. Split ad accounts across several Data Marts. Stagger their schedules by at least one hour.
 5. Move other Data Marts or tools that use the same Meta app to a different time slot.
-6. Apply for Advanced Access in your Meta app. This raises the hourly budget.
 
 Meta explains the full model in [Marketing API rate limiting](https://developers.facebook.com/docs/marketing-api/overview/rate-limiting).
 
