@@ -177,6 +177,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;
     this.MAX_RESPONSE_ELEMENTS = 15000;
+    this.MAX_TRUNCATED_DAYS_IN_WARNING = 10;
     this.BASE_URL = "https://api.linkedin.com/rest/";
   
   }
@@ -335,7 +336,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     const endDate = new Date(params.endDate);
     const accountUrn = `urn:li:sponsoredAccount:${urn}`;
     const encodedUrn = encodeURIComponent(accountUrn);
-    let allResults = [];
+    const allResults = [];
     const uniqueApiFields = this.convertFieldsForApi(params.fields || []);
 
     // LinkedIn API has a limitation - it allows a maximum of fields per request
@@ -348,7 +349,10 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     const truncatedDays = [];
 
     for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
-      let dayTruncated = false;
+      // Field chunks are merged within the day only: rows from different days never share
+      // a dateRange, so merging into the multi-day accumulation would only rescan it.
+      let dayResults = [];
+      let isDayTruncated = false;
 
       // Process each chunk of fields in separate API requests
       for (const fieldChunk of fieldChunks) {
@@ -362,27 +366,42 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         const elements = res.elements || [];
 
         if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
-          dayTruncated = true;
+          isDayTruncated = true;
         }
 
         // Merge results from different chunks into a single dataset
         // Each chunk contains the same rows but different fields
-        allResults = this.mergeAnalyticsResults(allResults, elements);
+        dayResults = this.mergeAnalyticsResults(dayResults, elements);
       }
 
-      if (dayTruncated) {
-        truncatedDays.push(this.formatDateForUrl(day));
+      allResults.push(...dayResults);
+
+      if (isDayTruncated) {
+        truncatedDays.push(this.formatDateFromLinkedInObject(this.toLinkedInDateObject(day)));
       }
     }
 
     if (truncatedDays.length > 0) {
-      this.config.addWarningToCurrentStatus(
-        `adAnalytics responses reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element limit for ${truncatedDays.length} day(s) of ${urn} (e.g. ${truncatedDays[0]}); data for those days may be incomplete`
-      );
+      this.config.addWarningToCurrentStatus(this.buildTruncationWarning(urn, truncatedDays));
     }
 
     // Transform complex dateRange objects to simple Date objects
     return this.transformAnalyticsDateRanges(allResults);
+  }
+
+  /**
+   * Build the user-facing warning for days whose adAnalytics response hit the element cap
+   * @param {string} urn - Account identifier
+   * @param {Array<string>} truncatedDays - Affected days as YYYY-MM-DD strings
+   * @returns {string} - Warning message listing the affected days (bounded)
+   */
+  buildTruncationWarning(urn, truncatedDays) {
+    const listedDays = truncatedDays.slice(0, this.MAX_TRUNCATED_DAYS_IN_WARNING).join(', ');
+    const hiddenCount = truncatedDays.length - this.MAX_TRUNCATED_DAYS_IN_WARNING;
+    const moreSuffix = hiddenCount > 0 ? ` and ${hiddenCount} more` : '';
+
+    return `adAnalytics responses for account ${urn} reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element limit ` +
+      `on ${truncatedDays.length} day(s): ${listedDays}${moreSuffix}; data for those days may be incomplete`;
   }
 
   /**
@@ -458,7 +477,17 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     * @return {string} Formatted date string for LinkedIn API
     */
   formatDateForUrl(date) {
-    return `(year:${date.getFullYear()},month:${date.getMonth() + 1},day:${date.getDate()})`;
+    const { year, month, day } = this.toLinkedInDateObject(date);
+    return `(year:${year},month:${month},day:${day})`;
+  }
+
+  /**
+   * Split a Date into the year/month/day parts LinkedIn uses for dates
+   * @param {Date} date - Date object
+   * @return {{year: number, month: number, day: number}} LinkedIn date object (month is 1-based)
+   */
+  toLinkedInDateObject(date) {
+    return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
   }
 
   /**
@@ -477,34 +506,17 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @returns {Array} - The combined results array
    */
   mergeAnalyticsResults(existingResults, newElements) {
-    // If there are no existing results, return the new elements
-    if (existingResults.length === 0) {
-      return [...newElements];
+    // dateRange and pivotValues uniquely identify a row; elements with the same key come
+    // from different field chunks and are combined into one record, others are appended.
+    const keyOf = element => JSON.stringify([element.dateRange, element.pivotValues]);
+    const mergedByKey = new Map(existingResults.map(element => [keyOf(element), element]));
+
+    for (const newElement of newElements) {
+      const key = keyOf(newElement);
+      mergedByKey.set(key, { ...mergedByKey.get(key), ...newElement });
     }
 
-    const mergedResults = [...existingResults];
-    
-    // For each new element, check if it already exists in the results
-    // The uniqueness of a row is determined by dateRange and pivotValues
-    newElements.forEach(newElem => {
-      // Find existing element with the same dateRange and pivotValues
-      // These two fields uniquely identify each data point in the analytics data
-      const existingIndex = mergedResults.findIndex(existing =>
-        JSON.stringify(existing.dateRange) === JSON.stringify(newElem.dateRange) &&
-        JSON.stringify(existing.pivotValues) === JSON.stringify(newElem.pivotValues)
-      );
-      
-      if (existingIndex >= 0) {
-        // If element with the same key exists, merge its fields with the new element's fields
-        // This combines metrics from different requests into a single comprehensive record
-        mergedResults[existingIndex] = { ...mergedResults[existingIndex], ...newElem };
-      } else {
-        // If no matching element exists, add the new element to the results
-        mergedResults.push(newElem);
-      }
-    });
-    
-    return mergedResults;
+    return [...mergedByKey.values()];
   }
 
   /**
@@ -552,6 +564,32 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    */
   async makeRequest(url) {
     console.log(`LinkedIn Ads API Request URL:`, url);
+    const accessToken = await this.getAccessToken();
+
+    const headers = {
+      "LinkedIn-Version": "202607",
+      "X-RestLi-Protocol-Version": "2.0.0",
+    };
+
+    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${accessToken}`;
+
+    const response = await this.urlFetchWithRetry(authUrl, { headers });
+    const text = await response.getContentText();
+
+    return JSON.parse(text);
+  }
+
+  /**
+   * Get the access token for this run, exchanging the refresh token on first use only.
+   * LinkedIn access tokens are valid for 60 days, so one exchange per run is enough;
+   * exchanging on every request doubled the request count of the per-day analytics loop.
+   * @returns {Promise<string>} - Access token
+   */
+  async getAccessToken() {
+    if (this._isAccessTokenRefreshed) {
+      return this.config.AccessToken.value;
+    }
+
     const clientId = this._getClientId();
     const clientSecret = this._getClientSecret();
     const refreshToken = this._getRefreshToken();
@@ -560,7 +598,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       throw new Error('LinkedIn Ads OAuth credentials are not configured');
     }
 
-    await OAuthUtils.getAccessToken({
+    const accessToken = await OAuthUtils.getAccessToken({
       config: this.config,
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
       formData: {
@@ -570,19 +608,21 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         client_secret: clientSecret
       }
     });
+    this._isAccessTokenRefreshed = true;
 
-    const headers = {
-      "LinkedIn-Version": "202607",
-      "X-RestLi-Protocol-Version": "2.0.0",
-    };
+    return accessToken;
+  }
 
-    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
-
-    const response = await HttpUtils.fetch(authUrl, { headers });
-    const text = await response.getContentText();
-    const result = JSON.parse(text);
-
-    return result;
+  /**
+   * Retry transient LinkedIn failures: rate limits (429), server errors (5xx) and
+   * network-level errors (no status code). Auth errors (401/403) are not retried.
+   * @param {HttpRequestException} error - The error to check
+   * @returns {boolean} True if the request should be retried
+   */
+  isValidToRetry(error) {
+    return !error?.statusCode
+      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
   }
   
   /**

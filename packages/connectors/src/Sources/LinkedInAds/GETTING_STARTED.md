@@ -76,7 +76,7 @@ The process is complete when the **Run history** tab shows the message:
 
 ### Why does my Ad Analytics run finish with a Warning status?
 
-LinkedIn's `adAnalytics` endpoint does not support pagination and caps each response at **15,000 rows**. To avoid silently losing data on long date ranges, the connector fetches analytics **one day at a time**. If a single day's response still reaches that limit (for example, an account with more than 15,000 active creatives), the run finishes with a **Warning** status and names the affected days in the log — data for those days may be incomplete.
+LinkedIn's `adAnalytics` endpoint does not support pagination and caps each response at **15,000 rows**. To avoid silently losing data on long date ranges, the connector fetches analytics **one day at a time**. A single day can still exceed the limit, for example an account with more than 15,000 active creatives. The run then finishes with a **Warning** status and lists the affected days in the log. Data for those days may be incomplete.
 
 ## Access Your Data
 
