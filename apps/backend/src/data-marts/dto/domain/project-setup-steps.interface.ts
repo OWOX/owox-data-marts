@@ -14,6 +14,7 @@ export interface ProjectSetupSteps {
   hasGoogleSheetsDestination: StepState;
   hasGoogleSheetsExtension: StepState;
   hasGoogleSheetsReportRun: StepState;
+  hasMcpQuery: StepState;
 }
 
 export type SetupStepKey = keyof ProjectSetupSteps;
@@ -29,6 +30,7 @@ export const SETUP_STEP_KEYS: SetupStepKey[] = [
   'hasGoogleSheetsDestination',
   'hasGoogleSheetsExtension',
   'hasGoogleSheetsReportRun',
+  'hasMcpQuery',
 ];
 
 /** Steps scoped to user + project (each user tracks independently) */
@@ -36,6 +38,7 @@ export const USER_SCOPED_STEP_KEYS: SetupStepKey[] = [
   'hasReportRun',
   'hasGoogleSheetsExtension',
   'hasGoogleSheetsReportRun',
+  'hasMcpQuery',
 ];
 
 /** Steps scoped to project only (shared across all users) */
@@ -61,5 +64,6 @@ export function createEmptySteps(): ProjectSetupSteps {
     hasGoogleSheetsDestination: { done: false, completedAt: null },
     hasGoogleSheetsExtension: { done: false, completedAt: null },
     hasGoogleSheetsReportRun: { done: false, completedAt: null },
+    hasMcpQuery: { done: false, completedAt: null },
   };
 }

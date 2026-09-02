@@ -16,6 +16,7 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
+import { McpQueryCompletedSuccessfullyEvent } from '../events/mcp-query-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
 import {
   McpQueryRunMetadata,
@@ -663,6 +664,24 @@ export class DataMartRunService {
     });
 
     await this.dataMartRunRepository.save(run);
+
+    // Same reasoning as recordHttpDataRun below: emitted immediately (not on-commit) because this
+    // method is terminal and runs outside a transaction, and wrapped because the local bus is
+    // synchronous — a listener throwing must not turn an already-persisted successful run into a
+    // reported failure.
+    if (record.status === DataMartRunStatus.SUCCESS && record.createdById) {
+      try {
+        this.eventDispatcher.publishLocal(
+          new McpQueryCompletedSuccessfullyEvent(run.id, record.dataMart.id, record.createdById)
+        );
+      } catch (err) {
+        this.logger.warn(
+          `MCP query run ${run.id} was recorded, but announcing it failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
   }
 
   /**

@@ -55,6 +55,7 @@ const setupProgress = {
     hasGoogleSheetsDestination: { done: false, completedAt: null },
     hasGoogleSheetsExtension: { done: false, completedAt: null },
     hasGoogleSheetsReportRun: { done: false, completedAt: null },
+    hasMcpQuery: { done: false, completedAt: null },
   },
 };
 
