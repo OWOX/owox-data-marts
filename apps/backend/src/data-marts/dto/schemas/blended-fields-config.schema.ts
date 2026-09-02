@@ -29,9 +29,13 @@ export const BlendedSourceSchema = z.object({
   isExcluded: z.boolean().optional(),
   // Per-join override of the relationship description. Absent → the join inherits the
   // relationship-level description; an empty override is stored as an absent key, not ''.
-  // Trimmed before the length checks, so a whitespace-only value ("   ") is rejected instead
-  // of persisting as a present override that suppresses the inherited text.
-  description: z.string().trim().min(1).max(10000).optional(),
+  // A blank value ("", "   ") is normalized to absent rather than rejected: this schema also
+  // runs on every entity LOAD via the column transformer, and a throw here would take the
+  // whole data mart down for one bad row. The API DTO is where blank input gets a 400.
+  description: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().max(10000).optional()
+  ),
   fields: z.record(z.string(), BlendedFieldOverrideSchema).optional(),
 });
 export type BlendedSource = z.infer<typeof BlendedSourceSchema>;

@@ -144,20 +144,23 @@ describe('BlendedFieldsConfigSchema', () => {
     expect(() => BlendedFieldsConfigSchema.parse({})).toThrow();
   });
 
-  // The column transformer parses on write, so this is the last guard before storage: a
-  // whitespace-only override would read back as a present description and hide the
-  // inherited one, while the UI treats the same input as "cleared".
+  // The column transformer parses on both write and load. A blank override must not survive
+  // as a present description that hides the inherited one — but it must not throw either,
+  // or one bad row would make its whole data mart unloadable. It normalizes to absent.
   it.each([
+    ['empty', ''],
     ['spaces', '   '],
     ['tab', '\t'],
     ['newline', '\n'],
-  ])('should reject a whitespace-only description override (%s)', (_label, description) => {
-    expect(() =>
-      BlendedFieldsConfigSchema.parse({
+  ])(
+    'should drop a blank description override (%s) instead of storing it',
+    (_label, description) => {
+      const result = BlendedFieldsConfigSchema.parse({
         sources: [{ path: 'orders', alias: 'Orders', description }],
-      })
-    ).toThrow();
-  });
+      });
+      expect(result.sources[0].description).toBeUndefined();
+    }
+  );
 
   it('should trim a description override before storing it', () => {
     const result = BlendedFieldsConfigSchema.parse({
