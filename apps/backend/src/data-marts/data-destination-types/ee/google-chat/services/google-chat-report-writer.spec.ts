@@ -98,8 +98,9 @@ describe('GoogleChatReportWriter', () => {
       textSyntax: 'MARKDOWN',
     });
     expect(payload.fallbackText).toBe('Weekly report — Data Mart: Sales');
+    // The card link opens this report's own panel, not the Data Mart's report list.
     expect(JSON.stringify(payload)).toContain(
-      'https://example.test/ui/project-1/data-marts/data-mart-1/reports'
+      'https://example.test/ui/project-1/data-marts/data-mart-1/reports?reportId=report-1'
     );
     expect(eventDispatcher.publishExternal.mock.calls[0][0].name).toBe(
       'google-chat.report.run.successfully'

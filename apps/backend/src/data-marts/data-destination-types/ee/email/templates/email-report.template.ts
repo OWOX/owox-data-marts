@@ -1,9 +1,10 @@
-import { buildDataMartUrl } from '../../../../../common/helpers/data-mart-url.helper';
+import { buildReportUrl } from '../../../../../common/helpers/data-mart-url.helper';
 
 export interface EmailReportTemplateProps {
   reportBody: string;
   dataMartTitle: string;
   dataMartId: string;
+  reportId: string;
   projectId: string;
   publicOrigin: string;
 }
@@ -19,6 +20,7 @@ export interface EmailReportTemplateProps {
  * @param {string} props.dataMartTitle - The title of the data mart displayed in the footer of the email.
  * @param {string} props.projectId - The project ID used to generate URLs for editing the report.
  * @param {string} props.dataMartId - The data mart ID used to generate URLs for editing the report.
+ * @param {string} props.reportId - The report ID, so the "Edit report" link opens this report rather than the report list.
  * @return {string} The rendered email report HTML as a string.
  */
 export function renderEmailReportTemplate(props: EmailReportTemplateProps): string {
@@ -87,7 +89,7 @@ export function renderEmailReportTemplate(props: EmailReportTemplateProps): stri
                     ${props.dataMartTitle}
                   </td>
                   <td style="vertical-align:middle;text-align:right;font-size:13px;color:#6b7280;">
-                    <a href="${buildDataMartUrl(props.publicOrigin, props.projectId, props.dataMartId, '/reports')}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Edit report</a>
+                    <a href="${buildReportUrl(props.publicOrigin, props.projectId, props.dataMartId, props.reportId)}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Edit report</a>
                   </td>
                 </tr>
               </table>

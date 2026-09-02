@@ -369,6 +369,7 @@ export abstract class BaseEmailReportWriter implements DataDestinationReportWrit
       dataMartId: this.report.dataMart.id,
       dataMartTitle: this.report.dataMart.title,
       projectId: this.report.dataMart.projectId,
+      reportId: this.report.id,
       reportBody: reportHtml,
       publicOrigin: this.publicOriginService.getPublicOrigin(),
     });

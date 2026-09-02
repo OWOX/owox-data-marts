@@ -6,7 +6,7 @@ import {
 } from '../../../../../common/email/shared/email-provider.facade';
 import { OwoxEventDispatcher } from '../../../../../common/event-dispatcher/owox-event-dispatcher';
 import { MarkdownParser } from '../../../../../common/markdown/markdown-parser.service';
-import { buildDataMartUrl } from '../../../../../common/helpers/data-mart-url.helper';
+import { buildReportUrl } from '../../../../../common/helpers/data-mart-url.helper';
 import { DataMartInsightTemplateFacadeImpl } from '../../../../ai-insights/data-mart-insight-template.facade';
 import { Report } from '../../../../entities/report.entity';
 import { InsightTemplateSourceDataService } from '../../../../services/insight-template-source-data.service';
@@ -340,11 +340,11 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       throw new Error('Google Chat webhook credentials are not configured');
     }
 
-    const reportUrl = buildDataMartUrl(
+    const reportUrl = buildReportUrl(
       this.chatPublicOriginService.getPublicOrigin(),
       this.report.dataMart.projectId,
       this.report.dataMart.id,
-      '/reports'
+      this.report.id
     );
     const messages = buildGoogleChatMessages({
       subject: this.emailConfig.subject,
