@@ -324,6 +324,7 @@ export class ProjectSetupProgressService {
       hasReportRun: { done: false, completedAt: null },
       hasGoogleSheetsExtension: { done: false, completedAt: null },
       hasGoogleSheetsReportRun: { done: false, completedAt: null },
+      hasMcpQuery: { done: false, completedAt: null },
     };
 
     const now = new Date().toISOString();
@@ -332,9 +333,10 @@ export class ProjectSetupProgressService {
     // "Google Sheets extension connected" is interpreted as
     // "user successfully ran a report via Google Sheets", not just extension installation.
     // Because of this, both setup steps become completed after the first successful report run.
-    const [hasReportRun, hasGoogleSheetsRun] = await Promise.all([
+    const [hasReportRun, hasGoogleSheetsRun, hasMcpQuery] = await Promise.all([
       this.checkUserReportRunExists(projectId, userId),
       this.checkGoogleSheetsReportRunExists(projectId, userId),
+      this.checkUserMcpQueryExists(projectId, userId),
     ]);
 
     if (hasReportRun) {
@@ -344,6 +346,10 @@ export class ProjectSetupProgressService {
     if (hasGoogleSheetsRun) {
       steps.hasGoogleSheetsExtension = { done: true, completedAt: now };
       steps.hasGoogleSheetsReportRun = { done: true, completedAt: now };
+    }
+
+    if (hasMcpQuery) {
+      steps.hasMcpQuery = { done: true, completedAt: now };
     }
 
     return steps;
@@ -479,6 +485,28 @@ export class ProjectSetupProgressService {
       .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
       .andWhere('run.createdById = :userId', { userId })
       .andWhere('run.type = :type', { type: DataMartRunType.GOOGLE_SHEETS_EXPORT })
+      .limit(1)
+      .getOne();
+    return run !== null;
+  }
+
+  // ── MCP query progress check ──
+
+  private async checkUserMcpQueryExists(projectId: string, userId: string): Promise<boolean> {
+    const dataMarts = await this.dataMartRepository.find({
+      where: { projectId },
+      select: ['id'],
+    });
+    if (dataMarts.length === 0) return false;
+
+    const dataMartIds = dataMarts.map(dm => dm.id);
+    const run = await this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .select('run.id')
+      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
+      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
+      .andWhere('run.createdById = :userId', { userId })
+      .andWhere('run.type = :type', { type: DataMartRunType.MCP_QUERY })
       .limit(1)
       .getOne();
     return run !== null;

@@ -20,6 +20,7 @@ export type OWOXProjectSetupProgressSteps = {
   hasGoogleSheetsDestination: OWOXProjectSetupStepState;
   hasGoogleSheetsExtension: OWOXProjectSetupStepState;
   hasGoogleSheetsReportRun: OWOXProjectSetupStepState;
+  hasMcpQuery: OWOXProjectSetupStepState;
 };
 
 export type OWOXProjectSetupProgress = {
@@ -45,6 +46,7 @@ const PROJECT_SETUP_STEP_KEYS = [
   'hasGoogleSheetsDestination',
   'hasGoogleSheetsExtension',
   'hasGoogleSheetsReportRun',
+  'hasMcpQuery',
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

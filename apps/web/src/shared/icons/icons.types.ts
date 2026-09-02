@@ -21,6 +21,8 @@ import { type MicrosoftAdsIcon } from './microsoft-ads-icon';
 import { type MicrosoftTeamsIcon } from './microsoft-teams-icon';
 import { type GoogleChatIcon } from './google-chat-icon';
 import { type EmailIcon } from './email-icon';
+import { type ClaudeIcon } from './claude-icon';
+import { type ChatGPTIcon } from './chat-gpt-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
@@ -46,5 +48,7 @@ export type LocalIcon =
   | typeof MicrosoftTeamsIcon
   | typeof GoogleChatIcon
   | typeof EmailIcon
+  | typeof ClaudeIcon
+  | typeof ChatGPTIcon
   | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;

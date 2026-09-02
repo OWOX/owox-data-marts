@@ -38,6 +38,7 @@ const EMPTY_PROGRESS: ProjectSetupProgress = {
   [ProgressKey.HAS_GOOGLE_SHEETS_DESTINATION]: { done: false, completedAt: null },
   [ProgressKey.HAS_GOOGLE_SHEETS_EXTENSION]: { done: false, completedAt: null },
   [ProgressKey.HAS_GOOGLE_SHEETS_REPORT_RUN]: { done: false, completedAt: null },
+  [ProgressKey.HAS_MCP_QUERY]: { done: false, completedAt: null },
 };
 
 /**
