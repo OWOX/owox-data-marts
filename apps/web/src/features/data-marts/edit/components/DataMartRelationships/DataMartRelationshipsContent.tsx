@@ -409,18 +409,59 @@ export function DataMartRelationshipsContent({
     ]
   );
 
-  const saveConfigAndRefresh = useCallback(
-    (newConfig: BlendedFieldsConfig) => {
-      setLocalConfig(newConfig);
-      void dataMartRelationshipService
-        .updateBlendedFieldsConfig(dataMartId, newConfig, { skipLoadingIndicator: true })
-        .then(response => {
-          void syncDataMartFromResponse(response);
-          invalidateBlendableSchema();
-        });
-    },
-    [dataMartId, invalidateBlendableSchema, syncDataMartFromResponse]
-  );
+  // Config saves are whole-document PUTs fired from debounced editors (alias, description,
+  // field overrides), so two of them can otherwise be in flight at once and land out of
+  // order — an older config would then win. One request at a time: while one is in flight the
+  // newest config waits its turn, and intermediate ones are dropped because each PUT already
+  // carries the complete config.
+  const isSavingConfigRef = useRef(false);
+  const queuedConfigRef = useRef<BlendedFieldsConfig | null>(null);
+  const savedConfigRef = useRef(localBlendedFieldsConfig);
+  savedConfigRef.current = localBlendedFieldsConfig;
+
+  const runConfigSaveRef = useRef<(config: BlendedFieldsConfig) => void>(() => {
+    /* replaced each render below */
+  });
+  runConfigSaveRef.current = (config: BlendedFieldsConfig) => {
+    isSavingConfigRef.current = true;
+    void dataMartRelationshipService
+      .updateBlendedFieldsConfig(dataMartId, config, { skipLoadingIndicator: true })
+      .then(response => {
+        // A newer config is already queued — only the last response describes the saved state.
+        if (queuedConfigRef.current) return;
+        void syncDataMartFromResponse(response);
+        invalidateBlendableSchema();
+      })
+      .catch(() => {
+        toast.error('Failed to save changes');
+        // The optimistic value must not keep looking saved: fall back to the last state the
+        // server confirmed, unless a newer edit is already on its way.
+        if (!queuedConfigRef.current) {
+          setLocalConfig(savedConfigRef.current);
+          localConfigRef.current = savedConfigRef.current;
+        }
+      })
+      .finally(() => {
+        isSavingConfigRef.current = false;
+        const queued = queuedConfigRef.current;
+        if (queued) {
+          queuedConfigRef.current = null;
+          runConfigSaveRef.current(queued);
+        }
+      });
+  };
+
+  const saveConfigAndRefresh = useCallback((newConfig: BlendedFieldsConfig) => {
+    setLocalConfig(newConfig);
+    // Kept in step synchronously: back-to-back edits read this ref to build the next config,
+    // and the effect that mirrors state into it runs only after the re-render.
+    localConfigRef.current = newConfig;
+    if (isSavingConfigRef.current) {
+      queuedConfigRef.current = newConfig;
+      return;
+    }
+    runConfigSaveRef.current(newConfig);
+  }, []);
 
   const handleCreated = useCallback(
     (newRelationship: DataMartRelationship) => {

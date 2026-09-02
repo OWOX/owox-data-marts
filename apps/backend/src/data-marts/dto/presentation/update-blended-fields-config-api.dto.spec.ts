@@ -7,6 +7,10 @@ async function validateDto(payload: unknown) {
   return validate(instance, { whitelist: true, forbidNonWhitelisted: true });
 }
 
+function transformDto(payload: unknown) {
+  return plainToInstance(UpdateBlendedFieldsConfigApiDto, payload);
+}
+
 describe('UpdateBlendedFieldsConfigApiDto validation', () => {
   it('accepts a valid config', async () => {
     const errors = await validateDto({
@@ -128,6 +132,33 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
       },
     });
     expect(errors.length).toBeGreaterThan(0);
+  });
+
+  // '   ' is what the UI sends for a cleared field; accepting it would persist a present
+  // override that suppresses the inherited description instead of restoring it.
+  it.each([['spaces', '   '], ['tab', '\t'], ['newline', '\n']])(
+    'rejects a whitespace-only description override (%s)',
+    async (_label, description) => {
+      const errors = await validateDto({
+        blendedFieldsConfig: {
+          sources: [{ path: 'orders', alias: 'Orders', description }],
+        },
+      });
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  );
+
+  it('trims surrounding whitespace from a description override', () => {
+    const instance = transformDto({
+      blendedFieldsConfig: {
+        sources: [
+          { path: 'orders', alias: 'Orders', description: '  Orders placed by this customer  ' },
+        ],
+      },
+    });
+    expect(instance.blendedFieldsConfig?.sources[0].description).toBe(
+      'Orders placed by this customer'
+    );
   });
 
   it('rejects a description override longer than 10000 chars', async () => {

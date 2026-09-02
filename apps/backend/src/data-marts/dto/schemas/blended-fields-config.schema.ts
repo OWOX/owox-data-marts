@@ -29,7 +29,9 @@ export const BlendedSourceSchema = z.object({
   isExcluded: z.boolean().optional(),
   // Per-join override of the relationship description. Absent → the join inherits the
   // relationship-level description; an empty override is stored as an absent key, not ''.
-  description: z.string().min(1).max(10000).optional(),
+  // Trimmed before the length checks, so a whitespace-only value ("   ") is rejected instead
+  // of persisting as a present override that suppresses the inherited text.
+  description: z.string().trim().min(1).max(10000).optional(),
   fields: z.record(z.string(), BlendedFieldOverrideSchema).optional(),
 });
 export type BlendedSource = z.infer<typeof BlendedSourceSchema>;

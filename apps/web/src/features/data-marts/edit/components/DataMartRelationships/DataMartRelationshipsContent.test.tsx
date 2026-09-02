@@ -8,6 +8,7 @@ import type {
   DataMartRelationship,
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
+import type { SourceEntry } from './RelationshipAccordionItem';
 import { DataMartRelationshipsContent } from './DataMartRelationshipsContent';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
@@ -20,6 +21,11 @@ interface CanvasStubProps {
   showJoinFields: boolean;
   onViewModeChange: (next: string) => void;
   onRequestFullscreen?: () => void;
+}
+
+interface AccordionStubProps {
+  row: { relationship: DataMartRelationship; rowKey: string };
+  onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
 }
 
 const harness = vi.hoisted(() => {
@@ -79,6 +85,9 @@ const harness = vi.hoisted(() => {
     graph,
     schema,
     canvasProps: { current: null as CanvasStubProps | null },
+    accordionProps: { current: null as AccordionStubProps | null },
+    syncDataMartFromResponse: vi.fn(),
+    toast: { success: vi.fn(), error: vi.fn() },
   };
 });
 
@@ -95,11 +104,16 @@ vi.mock('../../model/context/useDataMartContext', () => {
       storage: { id: 'storage-1' },
       blendedFieldsConfig: { sources: [] },
     },
-    syncDataMartFromResponse: vi.fn(),
+    syncDataMartFromResponse: harness.syncDataMartFromResponse,
     refreshDataMart: vi.fn(),
   };
   return { useDataMartContext: () => context };
 });
+
+vi.mock('react-hot-toast', () => ({
+  default: harness.toast,
+  toast: harness.toast,
+}));
 
 vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   dataMartRelationshipService: {
@@ -115,11 +129,10 @@ vi.mock('./useRelationshipDefinitionTypes', () => ({
 }));
 
 vi.mock('./RelationshipAccordionItem', () => ({
-  RelationshipAccordionItem: ({
-    row,
-  }: {
-    row: { relationship: DataMartRelationship; rowKey: string };
-  }) => <div data-testid='relationship-row'>{row.relationship.targetDataMart.title}</div>,
+  RelationshipAccordionItem: (props: AccordionStubProps) => {
+    harness.accordionProps.current = props;
+    return <div data-testid='relationship-row'>{props.row.relationship.targetDataMart.title}</div>;
+  },
 }));
 
 vi.mock('./RelationshipCanvas', () => ({
@@ -304,5 +317,95 @@ describe('DataMartRelationshipsContent blendable schema', () => {
     });
 
     expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('DataMartRelationshipsContent config saves', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  const source = { aliasPath: 'alpha', alias: 'Alpha' } as SourceEntry;
+
+  const saveDescription = (description: string) => {
+    act(() => {
+      harness.accordionProps.current?.onDescriptionOverrideChange(source, description);
+    });
+  };
+
+  const savedDescriptions = () =>
+    vi
+      .mocked(dataMartRelationshipService)
+      .updateBlendedFieldsConfig.mock.calls.map(
+        ([, config]) => config?.sources.find(entry => entry.path === 'alpha')?.description
+      );
+
+  beforeEach(async () => {
+    vi.mocked(dataMartRelationshipService).updateBlendedFieldsConfig.mockReset();
+    harness.syncDataMartFromResponse.mockClear();
+    harness.toast.error.mockClear();
+    harness.accordionProps.current = null;
+  });
+
+  it('runs one save at a time and sends only the newest queued config', async () => {
+    const first = deferred<unknown>();
+    const service = vi.mocked(dataMartRelationshipService);
+    service.updateBlendedFieldsConfig
+      .mockReturnValueOnce(first.promise as never)
+      .mockResolvedValue({} as never);
+
+    renderContent();
+    await waitFor(() => {
+      expect(harness.accordionProps.current).not.toBeNull();
+    });
+
+    saveDescription('first');
+    expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+
+    // Two more edits land while the first PUT is still open — each one carries the whole
+    // config, so the middle one is dropped rather than queued behind the newest.
+    saveDescription('second');
+    saveDescription('third');
+    expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve({});
+    });
+
+    await waitFor(() => {
+      expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(savedDescriptions()).toEqual(['first', 'third']);
+    // The superseded response must not be applied as the saved state.
+    expect(harness.syncDataMartFromResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns and stops showing the edit as saved when the request fails', async () => {
+    const failing = deferred<unknown>();
+    const service = vi.mocked(dataMartRelationshipService);
+    service.updateBlendedFieldsConfig.mockReturnValueOnce(failing.promise as never);
+
+    renderContent();
+    await waitFor(() => {
+      expect(harness.accordionProps.current).not.toBeNull();
+    });
+
+    saveDescription('doomed');
+
+    await act(async () => {
+      failing.reject(new Error('network down'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(harness.toast.error).toHaveBeenCalledWith('Failed to save changes');
+    });
+    expect(harness.syncDataMartFromResponse).not.toHaveBeenCalled();
   });
 });

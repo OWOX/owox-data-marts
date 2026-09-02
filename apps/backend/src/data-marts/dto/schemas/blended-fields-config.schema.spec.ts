@@ -143,4 +143,25 @@ describe('BlendedFieldsConfigSchema', () => {
   it('should reject missing sources', () => {
     expect(() => BlendedFieldsConfigSchema.parse({})).toThrow();
   });
+
+  // The column transformer parses on write, so this is the last guard before storage: a
+  // whitespace-only override would read back as a present description and hide the
+  // inherited one, while the UI treats the same input as "cleared".
+  it.each([['spaces', '   '], ['tab', '\t'], ['newline', '\n']])(
+    'should reject a whitespace-only description override (%s)',
+    (_label, description) => {
+      expect(() =>
+        BlendedFieldsConfigSchema.parse({
+          sources: [{ path: 'orders', alias: 'Orders', description }],
+        })
+      ).toThrow();
+    }
+  );
+
+  it('should trim a description override before storing it', () => {
+    const result = BlendedFieldsConfigSchema.parse({
+      sources: [{ path: 'orders', alias: 'Orders', description: '  Orders of this company  ' }],
+    });
+    expect(result.sources[0].description).toBe('Orders of this company');
+  });
 });
