@@ -52,7 +52,7 @@ export class GithubRepoNotAccessibleError extends PluginHostError {
   constructor(owner: string, name: string, installationUrl: string) {
     super(
       'GITHUB_REPO_NOT_ACCESSIBLE',
-      `OWOX Data Marts cannot read ${owner}/${name}. Install the OWOX Data Marts GitHub App on it and run the same command again.`,
+      `OWOX Data Marts cannot read ${owner}/${name}. Install the OWOX Data Marts GitHub App on it and try again.`,
       { owner, name, installationUrl }
     );
   }

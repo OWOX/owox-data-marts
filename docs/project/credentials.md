@@ -44,8 +44,9 @@ override and does not depend on catalog membership.
 ## External definitions
 
 Built-in definitions cover common providers. A maintainer may also add a declarative Credential
-definition from a public GitHub repository. Private definition repositories are not currently
-supported. OWOX reads immutable release versions and checks for updates daily. See
+definition from a public or deployment-accessible private GitHub repository. Private definitions
+use the same configured GitHub access as private plugins. OWOX reads immutable release versions
+and checks for updates daily. See
 [Credential definitions](../plugins/credential-definitions.md) for the authoring contract.
 
 Compatible updates within the accepted version line become current automatically. A new

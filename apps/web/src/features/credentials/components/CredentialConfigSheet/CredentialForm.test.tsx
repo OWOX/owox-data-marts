@@ -133,10 +133,10 @@ describe('CredentialForm', () => {
       })
     );
 
-    expect(screen.getByLabelText('Public GitHub repository')).toBeInTheDocument();
+    expect(screen.getByLabelText('GitHub repository')).toBeInTheDocument();
     expect(screen.queryByText('Authentication')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Public GitHub repository'), {
+    fireEvent.change(screen.getByLabelText('GitHub repository'), {
       target: { value: ' @owner/repository ' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Load definition' }));
@@ -145,7 +145,7 @@ describe('CredentialForm', () => {
       expect(onRequestAddGithubDefinition).toHaveBeenCalledWith('@owner/repository');
     });
     expect(await screen.findByText('Personal access token')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Public GitHub repository')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('GitHub repository')).not.toBeInTheDocument();
     expect(screen.queryByText('AI models')).not.toBeInTheDocument();
   });
 
@@ -161,14 +161,12 @@ describe('CredentialForm', () => {
     fireEvent.click(
       await within(document.body).findByRole('option', { name: 'GitHub definition' })
     );
-    fireEvent.change(screen.getByLabelText('Public GitHub repository'), {
+    fireEvent.change(screen.getByLabelText('GitHub repository'), {
       target: { value: 'owner/repository' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Load definition' }));
 
-    expect(
-      await screen.findByText('Enter a public repository as @owner/repository')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Enter a repository as @owner/repository')).toBeInTheDocument();
     expect(onRequestAddGithubDefinition).not.toHaveBeenCalled();
   });
 
@@ -186,13 +184,47 @@ describe('CredentialForm', () => {
     fireEvent.click(
       await within(document.body).findByRole('option', { name: 'GitHub definition' })
     );
-    fireEvent.change(screen.getByLabelText('Public GitHub repository'), {
+    fireEvent.change(screen.getByLabelText('GitHub repository'), {
       target: { value: '@owner/missing' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Load definition' }));
 
     expect(await screen.findByText('Definition release was not found')).toBeInTheDocument();
-    expect(screen.getByLabelText('Public GitHub repository')).toBeInTheDocument();
+    expect(screen.getByLabelText('GitHub repository')).toBeInTheDocument();
+  });
+
+  it('offers the GitHub App installation link for an inaccessible private definition', async () => {
+    const onRequestAddGithubDefinition = vi.fn().mockRejectedValue({
+      response: {
+        data: {
+          code: 'GITHUB_REPO_NOT_ACCESSIBLE',
+          message: 'OWOX Data Marts cannot read owner/private-definition.',
+          errorDetails: {
+            installationUrl: 'https://github.com/apps/owox-data-marts/installations/new',
+          },
+        },
+      },
+    });
+    renderForm({ onRequestAddGithubDefinition });
+
+    fireEvent.pointerDown(screen.getByRole('combobox', { name: 'Provider' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+    fireEvent.click(
+      await within(document.body).findByRole('option', { name: 'GitHub definition' })
+    );
+    fireEvent.change(screen.getByLabelText('GitHub repository'), {
+      target: { value: '@owner/private-definition' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Load definition' }));
+
+    expect(
+      await screen.findByRole('link', {
+        name: 'Give OWOX Data Marts access to this repository',
+      })
+    ).toHaveAttribute('href', 'https://github.com/apps/owox-data-marts/installations/new');
   });
 
   it('submits only dirty fields and hides owner-only controls from a maintenance user', async () => {

@@ -103,6 +103,7 @@ export function CredentialForm({
 }: CredentialFormProps) {
   const isEditMode = credential !== null;
   const [addedDefinition, setAddedDefinition] = useState<CredentialDefinition | null>(null);
+  const [githubInstallationUrl, setGithubInstallationUrl] = useState<string | null>(null);
   const definitionOptions = useMemo(() => {
     const options = [...definitions];
     if (addedDefinition && !options.some(definition => definition.id === addedDefinition.id)) {
@@ -151,6 +152,7 @@ export function CredentialForm({
   }, [form.formState.isDirty, onDirtyChange]);
 
   const selectDefinition = (definition: CredentialDefinition) => {
+    setGithubInstallationUrl(null);
     form.setValue('definitionId', definition.id, {
       shouldDirty: true,
       shouldTouch: true,
@@ -163,6 +165,7 @@ export function CredentialForm({
   };
 
   const handleDefinitionChange = (value: string) => {
+    setGithubInstallationUrl(null);
     if (value === GITHUB_DEFINITION_VALUE) {
       form.setValue('definitionId', value, {
         shouldDirty: true,
@@ -182,11 +185,12 @@ export function CredentialForm({
     if (!GITHUB_REPOSITORY_PATTERN.test(repository)) {
       form.setError('githubRepository', {
         type: 'validate',
-        message: 'Enter a public repository as @owner/repository',
+        message: 'Enter a repository as @owner/repository',
       });
       return;
     }
 
+    setGithubInstallationUrl(null);
     form.clearErrors('githubRepository');
     try {
       const definition = await onRequestAddGithubDefinition?.(repository);
@@ -195,6 +199,12 @@ export function CredentialForm({
       selectDefinition(definition);
     } catch (caught) {
       const apiError = extractApiError(caught);
+      const errorDetails = apiError.errorDetails as { installationUrl?: string } | undefined;
+      setGithubInstallationUrl(
+        apiError.code === 'GITHUB_REPO_NOT_ACCESSIBLE'
+          ? safeCredentialDocumentationUrl(errorDetails?.installationUrl)
+          : null
+      );
       form.setError('githubRepository', {
         type: 'server',
         message: apiError.message ?? 'Could not load the GitHub definition',
@@ -315,13 +325,17 @@ export function CredentialForm({
                 name='githubRepository'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Public GitHub repository</FormLabel>
+                    <FormLabel>GitHub repository</FormLabel>
                     <div className='flex items-start gap-2'>
                       <FormControl>
                         <Input
                           {...field}
                           placeholder='@owner/repository'
                           maxLength={512}
+                          onChange={event => {
+                            field.onChange(event);
+                            setGithubInstallationUrl(null);
+                          }}
                           onKeyDown={event => {
                             if (event.key !== 'Enter') return;
                             event.preventDefault();
@@ -339,9 +353,18 @@ export function CredentialForm({
                       </Button>
                     </div>
                     <FormDescription>
-                      OWOX loads the definition from the latest eligible GitHub Release.
+                      OWOX loads the latest eligible GitHub Release. Private repositories require
+                      configured GitHub access.
                     </FormDescription>
                     <FormMessage />
+                    {githubInstallationUrl && (
+                      <FormDescription>
+                        <ExternalAnchor href={githubInstallationUrl}>
+                          Give OWOX Data Marts access to this repository
+                        </ExternalAnchor>
+                        , then load the definition again.
+                      </FormDescription>
+                    )}
                   </FormItem>
                 )}
               />

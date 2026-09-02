@@ -26,13 +26,8 @@ export class ExternalCredentialDefinitionSyncService {
 
   async syncLocator(locator: string): Promise<ResolvedCredentialDefinition> {
     const ref = parseExternalLocator(locator);
-    const repo = await this.github.getRepo(ref, GithubReadPolicy.PUBLIC_ONLY);
-    if (repo.isPrivate) {
-      throw new BadRequestException(
-        'Private GitHub repositories are not supported for Credential definitions'
-      );
-    }
-    const releases = (await this.github.listReleases(ref, GithubReadPolicy.PUBLIC_ONLY))
+    const repo = await this.github.getRepo(ref, GithubReadPolicy.CONFIGURED);
+    const releases = (await this.github.listReleases(ref, GithubReadPolicy.CONFIGURED))
       .flatMap(release => {
         if (release.isDraft || release.isPrerelease) return [];
         const parsed = parseReleaseTag(release.tagName);
@@ -45,7 +40,7 @@ export class ExternalCredentialDefinitionSyncService {
       const commitSha = await this.github.resolveCommitSha(
         ref,
         candidate.release.tagName,
-        GithubReadPolicy.PUBLIC_ONLY
+        GithubReadPolicy.CONFIGURED
       );
       if (!commitSha) {
         rejections.push(`${candidate.semver}: tag does not resolve to a commit`);
@@ -56,7 +51,7 @@ export class ExternalCredentialDefinitionSyncService {
           ref,
           'plugin.json',
           commitSha,
-          GithubReadPolicy.PUBLIC_ONLY
+          GithubReadPolicy.CONFIGURED
         )
       );
       if (!parsed.ok) {

@@ -75,7 +75,7 @@ export class GithubAuthService {
     return this.access(GithubAccessMode.ANONYMOUS);
   }
 
-  /** Credential definitions v1 intentionally bypass every deployment credential. */
+  /** Used by callers that deliberately restrict a read to public GitHub data. */
   getAnonymousAccess(): GithubAccess {
     return this.access(GithubAccessMode.ANONYMOUS);
   }

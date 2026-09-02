@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { GithubReadPolicy } from '../enums/github-read-policy.enum';
 import { ExternalCredentialDefinitionSyncService } from './external-credential-definition-sync.service';
 
@@ -69,22 +70,22 @@ describe('ExternalCredentialDefinitionSyncService', () => {
     });
     expect(state.github.getRepo).toHaveBeenCalledWith(
       { owner: 'acme', name: 'credentials' },
-      GithubReadPolicy.PUBLIC_ONLY
+      GithubReadPolicy.CONFIGURED
     );
     expect(state.github.listReleases).toHaveBeenCalledWith(
       { owner: 'acme', name: 'credentials' },
-      GithubReadPolicy.PUBLIC_ONLY
+      GithubReadPolicy.CONFIGURED
     );
     expect(state.github.resolveCommitSha).toHaveBeenCalledWith(
       { owner: 'acme', name: 'credentials' },
       'v1.0.0',
-      GithubReadPolicy.PUBLIC_ONLY
+      GithubReadPolicy.CONFIGURED
     );
     expect(state.github.getFileAtCommit).toHaveBeenCalledWith(
       { owner: 'acme', name: 'credentials' },
       'plugin.json',
       'a'.repeat(40),
-      GithubReadPolicy.PUBLIC_ONLY
+      GithubReadPolicy.CONFIGURED
     );
     expect(state.registry.register).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -115,15 +116,31 @@ describe('ExternalCredentialDefinitionSyncService', () => {
     ]);
   });
 
-  it('rejects private repositories before reading their releases or manifest', async () => {
+  it('syncs private repositories through configured GitHub access', async () => {
     const state = setup();
-    state.github.getRepo.mockResolvedValue({ ...repo, isPrivate: true });
+    state.github.getRepo.mockResolvedValue({
+      ...repo,
+      isPrivate: true,
+      accessMode: GithubAccessMode.APP,
+    });
 
-    await expect(state.service.syncLocator('@acme/credentials')).rejects.toThrow(
-      'Private GitHub repositories are not supported'
+    await expect(state.service.syncLocator('@acme/credentials')).resolves.toMatchObject({
+      definitionId: 'definition-1',
+    });
+    expect(state.github.getRepo).toHaveBeenCalledWith(
+      { owner: 'acme', name: 'credentials' },
+      GithubReadPolicy.CONFIGURED
     );
-    expect(state.github.listReleases).not.toHaveBeenCalled();
-    expect(state.github.getFileAtCommit).not.toHaveBeenCalled();
+    expect(state.github.listReleases).toHaveBeenCalledWith(
+      { owner: 'acme', name: 'credentials' },
+      GithubReadPolicy.CONFIGURED
+    );
+    expect(state.github.getFileAtCommit).toHaveBeenCalledWith(
+      { owner: 'acme', name: 'credentials' },
+      'plugin.json',
+      'a'.repeat(40),
+      GithubReadPolicy.CONFIGURED
+    );
   });
 
   it('rejects an exact requirement that is neither built-in nor a GitHub locator', async () => {

@@ -87,6 +87,25 @@ describe('GithubApiService', () => {
       });
     });
 
+    it('reads a private repository through configured GitHub App access', async () => {
+      const api = service(APP_ENV);
+      const auth = (api as unknown as { auth: Record<string, jest.Mock> }).auth;
+      auth.getRepoAccess.mockResolvedValue({
+        mode: GithubAccessMode.APP,
+        headers: { Authorization: 'Bearer ghs_installation' },
+      });
+      route({
+        '/repos/OWOX/example-plugin': () => json({ ...repoBody, private: true }),
+      });
+
+      await expect(api.getRepo(REF)).resolves.toMatchObject({
+        isPrivate: true,
+        accessMode: GithubAccessMode.APP,
+      });
+      expect(auth.getRepoAccess).toHaveBeenCalledWith(REF);
+      expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer ghs_installation');
+    });
+
     // Renames and transfers answer 301, and following it is what makes a stale locator
     // resolve to the same plugin instead of creating a second one.
     it('follows redirects so a renamed repository keeps its identity', async () => {

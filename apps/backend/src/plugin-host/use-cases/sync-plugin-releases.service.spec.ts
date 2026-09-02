@@ -132,7 +132,7 @@ describe('SyncPluginReleasesService', () => {
     });
   });
 
-  describe('external Credential requirement failures', () => {
+  describe('external Credential requirements', () => {
     const manifestWithExternalCredential = JSON.stringify({
       name: 'Example Plugin',
       description: 'What this plugin does',
@@ -158,6 +158,33 @@ describe('SyncPluginReleasesService', () => {
           detail: 'definition is invalid',
         }),
       ]);
+    });
+
+    it('resolves an external requirement while publishing a private plugin through the GitHub App', async () => {
+      const resolvedRequirement = {
+        id: 'acme',
+        definitionId: 'definition-1',
+        optional: false,
+      };
+      const external = {
+        resolveRequirements: jest.fn().mockResolvedValue([resolvedRequirement]),
+      };
+      const s = setup(external);
+      s.githubApi.getRepo.mockResolvedValue(
+        repo({ isPrivate: true, accessMode: GithubAccessMode.APP })
+      );
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(manifestWithExternalCredential);
+
+      const result = await run(s, false);
+
+      expect(result.report.accessMode).toBe(GithubAccessMode.APP);
+      expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
+      expect(external.resolveRequirements).toHaveBeenCalledWith(['@acme/credentials']);
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledWith(
+        expect.objectContaining({ credentialRequirements: [resolvedRequirement] }),
+        'lease-1'
+      );
     });
 
     it('propagates a transient external sync failure without blaming the manifest', async () => {

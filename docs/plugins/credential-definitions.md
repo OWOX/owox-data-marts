@@ -7,8 +7,11 @@ expressions, environment-variable references, or a way to read the stored secret
 For project ownership, sharing, and runtime behavior, see
 [Credentials](../project/credentials.md).
 
-Credential definition repositories must currently be public. Private repositories are rejected
-before OWOX reads their releases or manifest; they are not part of the current product contract.
+Public Credential definition repositories work without deployment credentials. Private
+repositories use the same configured GitHub access as private plugin repositories: the deployment
+GitHub App or, on a self-managed deployment, a `GITHUB_TOKEN` that can read the repository. If the
+deployment cannot read a private repository, install or grant the configured GitHub App access and
+try again.
 
 Put the definition in `plugin.json` at the repository root and publish it through GitHub Releases:
 
