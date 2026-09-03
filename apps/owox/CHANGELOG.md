@@ -4,19 +4,23 @@
 
 ### Minor Changes 0.33.0
 
-- b3d008d: # Calculated Fields in the Output Schema
+![OWOX Data Marts – v0.33.0](https://github.com/user-attachments/assets/daf1137e-334f-44f8-abd2-3a4bfad4be68)
 
-  An analyst can now define a Calculated Field directly in a Data Mart's Output Schema — a formula written in that Data Mart's own warehouse SQL, such as `SUM(clicks) * 1.0 / NULLIF(SUM(impressions), 0)` for a click-through rate. Unlike a ratio hard-coded into a Data Mart's SQL, it recomputes at whatever grain the request asks for, so a report broken down by day, a Google Sheet, a Looker Studio page, an MCP agent, an HTTP Data caller and a report's Totals row all get the true ratio of the sums rather than an average of per-row ratios. Whether the field is a metric or a dimension is read from the formula rather than chosen, and the formula is checked when the schema is saved — every problem names the field it belongs to, and the resulting query is test-run against the warehouse once per save, so a broken formula is caught before anyone builds a report on it. Available on Google BigQuery, AWS Athena, Snowflake, AWS Redshift and Databricks; see [Calculated Fields](https://docs.owox.com/docs/getting-started/setup-guide/calculated-fields/) for what each dialect supports and the limitations to know about.
+- b3d008d: **Calculated Fields in the Output Schema**
 
-- 885b1ba: # Report filters: one "is blank" pair instead of four null/empty operators
+  An analyst can now define a Calculated Field directly in a Data Mart's Output Schema — a formula written in that Data Mart's own warehouse SQL, such as `SUM(clicks) * 1.0 / NULLIF(SUM(impressions), 0)` for a click-through rate. Unlike a ratio hard-coded into a Data Mart's SQL, it recomputes at whatever grain the request asks for, so a report broken down by day, a Google Sheet, a Looker Studio page, an MCP agent, an HTTP Data caller and a report's Totals row all get the true ratio of the sums rather than an average of per-row ratios.
 
-  A blank spreadsheet cell renders identically whether the warehouse holds `NULL`, an empty string, or whitespace — so offering "is empty" and "is null" side by side forced users to guess, and the wrong guess silently returned 0 rows. The filter picker now offers a single pair, **is blank** / **is not blank**, defined by what the cell shows rather than by warehouse state.
+  Whether the field is a metric or a dimension is read from the formula rather than chosen, and the formula is checked when the schema is saved — every problem names the field it belongs to, and the resulting query is test-run against the warehouse once per save, so a broken formula is caught before anyone builds a report on it. Available on Google BigQuery, AWS Athena, Snowflake, AWS Redshift and Databricks; see [Calculated Fields](https://docs.owox.com/docs/getting-started/setup-guide/calculated-fields/) for what each dialect supports and the limitations to know about.
 
-  The pair is type-aware on every supported storage (BigQuery, Athena, Redshift, Snowflake, Databricks): a string column is blank when it is `NULL`, `''`, or whitespace-only; a number, date, time, or boolean column is blank only when `NULL`. The MCP `query_data_mart` and report tools advertise the same single pair, and the Data API accepts `is_blank` / `is_not_blank` in filter rules.
+  **Six changes to the Calculated Field editor** (ad7d572), from feedback on the released version:
+  - **A row-level field keeps its "Σ available" control while its formula is edited.** Touching the formula of a calculated field that is a dimension took that control off the row until the schema was saved, which read as the setting having been lost.
+  - **Unsaved edits survive a background refresh.** The Output Schema editor reset itself whenever the Data Mart was re-read — which happens on its own, without anyone asking — and a formula typed but not yet saved went with it, while a failed save's errors stayed on screen naming a field no longer in the table. It now resets only when the saved schema has actually changed.
+  - **A rejected formula is named where the refusal appears.** Choosing "Save & leave" on the unsaved-changes prompt reported `Request failed with status code 400`, which names neither the field nor the fix. It now names the field the warehouse rejected.
+  - **A calculated field no longer stretches its row.** A formula written over several lines made its row that many lines tall. The row now shows at most two lines — the most it can show without growing — and hovering it shows the whole formula with the author's own line breaks.
+  - **The division warning is about the formula in front of you.** It quoted `NULLIF(SUM(impressions), 0)` whether or not `impressions` appeared anywhere in the formula, and read like a refusal although it blocks nothing. It now quotes the denominator this formula actually divides by, underlines it in the editor, and says plainly that it is advice. It quotes the whole denominator or nothing at all — never a piece of one, since guarding a piece leaves the division just as broken and silences the warning.
+  - **`COALESCE` no longer counts as a guard against that division.** What fails a query is a zero denominator, not a null one — and `COALESCE(SUM(x), 0)` produces exactly the zero that fails it. The message and [the setup guide](https://docs.owox.com/docs/getting-started/setup-guide/calculated-fields/) now say zero rather than "zero or empty", and the guide explains why `COALESCE` does not count. The guide also gains a worked example for rates over a condition, such as an activation rate.
 
-  Nothing saved breaks: reports and API calls that use the previous `is_empty`, `is_not_empty`, `is_null`, or `is_not_null` operators keep working with their exact previous semantics, and saved rules still display under their original names. Only the menus stop offering them.
-
-- a4dc4ff: # Send Data Mart reports to Microsoft Excel
+- a4dc4ff: **Send Reports to Microsoft Excel Destination**
 
   Open the OWOX add-in in a workbook, pick a published Data Mart, and the report's rows land in the worksheet. The report then appears in OWOX Data Marts with its title, its run history and its last-run status, and its columns, filters and sorting can be edited there afterwards.
 
@@ -26,111 +30,45 @@
   - It cannot be run or scheduled from the web app. The web app says so instead of offering a button that would fail; refresh it from the add-in.
   - Refreshing from the add-in _is_ the report running, so the status shown in Excel and in the web app is the same one.
 
-  Runs from Excel are billed as **Excel Report Run**, a sub-consumption unit of Report Run, so they can be told apart from data pulled through the HTTP Data API.
+  Runs from Excel are billed as **Excel Report Run**, a sub-consumption unit of Report Run.
 
-  Reports on a destination that reads its own data — Excel and Data Studio — no longer accept a run request or a schedule that could never succeed. Both were previously accepted and then failed during execution.
+- 47a3dc3: **Reuse project Credentials across plugins**
 
-- cb22b51: # Report output column schema
+  Projects can now store and manage reusable Credentials with owners, sharing, Contexts, operational state, and dependency visibility. Plugins declare exact provider or logical AI requirements and members explicitly select eligible Credentials during installation, while raw secrets remain in the host. External Credential definitions can be added from public GitHub repositories or private repositories available through the deployment's configured GitHub access. Plugin authors use the same typed `exactCredential` helper for built-in and external definitions.
+
+  See [Credentials](https://docs.owox.com/docs/project/credentials/) and [Credential definitions](https://docs.owox.com/docs/plugins/credential-definitions/) for setup and authoring details.
+
+- cb22b51: **Report output column schema**
 
   `GET /reports/:id/output-schema` returns the columns a report's rows will carry — name, title, description and type — including aggregated columns (`revenue | SUM`), Unique Count and calculated fields, which do not exist on the Data Mart schema.
 
   Joined fields in Excel reports now use the same header form as Google Sheets: `Field name (Data Mart name)`, so the field name stays visible in a narrow spreadsheet cell.
 
-- 3c16cd6: # Help videos now stream from Cloudflare instead of GitHub attachments
+- 23f0d09: **Plugin release rejections are now visible, and collection compatibility follows SemVer**
 
-  Three in-product help videos — "SQL to Google Sheets in Minutes", "Data Studio Setup", and "Getting Started with Data Marts" — used to load from GitHub issue-attachment storage. Those URLs redirect through short-lived signed links and fail entirely for clients whose networks block github.com, so the videos could show up broken.
-
-  Now all six help videos use the same Cloudflare Stream player. The three migrated videos keep their previous behavior (autoplay, muted, loop) and their exact aspect ratios.
-
-  The documentation site picks up the same fix: pages that embedded the GitHub-hosted files now render the Cloudflare player, while the repository markdown keeps the GitHub links so videos still play inline on github.com. The Google Sheets destination page also gains the setup walkthrough video.
-
-- dc3b2ad: # Show joined Data Mart details in report column pickers
-
-  Report column pickers in the web app and Google Sheets extension now show each joined Data Mart's description and full join path on hover, using the same user-facing titles as the picker.
-
-- 23f0d09: # Plugin release rejections are now visible, and collection compatibility follows SemVer
-
-  When a plugin's GitHub release was rejected during sync, the reason was stored in the database and communicated nowhere: no log line, no audit detail, nothing in the UI. From the outside it looked like "Check now did nothing" — the plugin stayed on an old version with no explanation.
-
-  Now every publisher-fixable rejection is visible in three places:
-  - **Application logs.** Both the daily check and manual "Check now" log a warning per rejected release, e.g. `owner/plugin: v0.1.2 rejected (COLLECTIONS_INCOMPATIBLE) — Collection "dashboards" cannot change entity binding`. Rejections that are permanent by design (drafts, prereleases, non-SemVer tags) stay out of the log so they cannot bury the one line that matters.
-  - **Audit trail.** The `UPDATE_CHECK` audit record now carries the rejection summary, not only thrown transport errors.
-  - **Plugin page.** Publishers see a "Release issues" card listing each rejected release with its code, reason, and the time of the check, and "Check now" tells a publisher directly when the fresh check rejected a release instead of reporting "up to date".
+  When a plugin's GitHub release was rejected during sync, the reason was stored in the database and communicated nowhere: no log line, no audit detail, nothing in the UI. From the outside it looked like "Check now did nothing" — the plugin stayed on an old version with no explanation. Now every publisher-fixable rejection is visible in three places:
+  - **Application logs** — both the daily check and manual "Check now" log a warning per rejected release, e.g. `owner/plugin: v0.1.2 rejected (COLLECTIONS_INCOMPATIBLE) — Collection "dashboards" cannot change entity binding`. Rejections that are permanent by design (drafts, prereleases, non-SemVer tags) stay out of the log so they cannot bury the one line that matters.
+  - **Audit trail** — the `UPDATE_CHECK` audit record now carries the rejection summary, not only thrown transport errors.
+  - **Plugin page** — publishers see a "Release issues" card listing each rejected release with its code, reason, and the time of the check, and "Check now" tells a publisher directly when the fresh check rejected a release instead of reporting "up to date".
 
   The collection-compatibility safeguard is also back, now gated on SemVer: within a compatibility line a release may add collections and change action mappings, but cannot remove a collection or change its name, scope, or entity binding — the previous version stays current and the reason says how to proceed. Opening a new line waives the check, so a breaking collection change ships by declaring itself as one: a major version bump, or a minor bump while the plugin is still below 1.0.0 (where SemVer promises no stability).
 
-- da26589: # Connector runs interrupted by a restart are reported as a warning
+- 885b1ba: **Report filters: one "is blank" pair instead of four null/empty operators**
 
-  When a server restart stops a connector run, the run resumes by itself and continues from the last day it finished. Run history now shows this as a warning instead of an error, so a restart no longer looks like a failed import. Runs that stop for any other reason are still reported as errors.
+  A blank spreadsheet cell renders identically whether the warehouse holds `NULL`, an empty string, or whitespace — so offering "is empty" and "is null" side by side forced users to guess, and the wrong guess silently returned 0 rows. The filter picker now offers a single pair, **is blank** / **is not blank**, defined by what the cell shows rather than by warehouse state.
 
-- 7667281: Fix the Joinable Data Marts diagram zoom controls dying after opening a data mart page
+  The pair is type-aware on every supported storage (BigQuery, Athena, Redshift, Snowflake, Databricks): a string column is blank when it is `NULL`, `''`, or whitespace-only; a number, date, time, or boolean column is blank only when `NULL`. The MCP `query_data_mart` and report tools advertise the same single pair, and the Data API accepts `is_blank` / `is_not_blank` in filter rules.
 
-  The +/- zoom buttons on the Joinable Data Marts diagram could stop responding until "Fit to view" was pressed, depending on how the page was opened. The allowed zoom range was captured once from a completed fit, so a fit that ran under transient conditions (a still-loading graph or a settling pane) froze the range in an unusable state. The range is now derived from the live graph and pane geometry, small graphs that fit at the maximum zoom keep a usable zoom-out floor, and a corrupted viewport recovers with a full fit instead of ignoring clicks.
+  Nothing saved breaks: reports and API calls that use the previous `is_empty`, `is_not_empty`, `is_null`, or `is_not_null` operators keep working with their exact previous semantics, and saved rules still display under their original names. Only the menus stop offering them.
 
-- f7b099a: # Open the Joinable Data Marts diagram fitted to the whole graph
+- dc3b2ad, 4bfd303: **Join descriptions: shown in the column pickers, and editable per join path**
 
-  Switching to the Graph view could land on a viewport zoomed in on the root card, as if the fit had never run, until "Fit to view" was pressed. The automatic first fit relied on fitView, which only accounts for nodes whose DOM dimensions are already measured — on first mount it ran against a half-measured subset. The initial viewport is now derived from the layout geometry itself, so the Graph view always opens showing the entire diagram, exactly as the "Fit to view" button leaves it.
+  - **Shown in the pickers** (dc3b2ad) — report column pickers in the web app and the Google Sheets extension now show each joined Data Mart's description and full join path on hover, using the same user-facing titles as the picker.
+  - **Editable per join path** (4bfd303) — a join description explains what pulling in another data mart actually means: business users read it in the report column picker, and AI assistants read it over MCP. It was written once on the relationship itself, so every data mart that reached that join showed the same sentence. "Orders placed by this customer" is right in a Customers data mart, but in a Companies data mart that reaches Orders through Customers it explains nothing.
 
-- 47a3dc3: # Reuse project Credentials across plugins
+    The Description tab of an inherited join is now editable. The inherited text stays visible as a placeholder, and whatever you type applies to that join path only — the relationship itself, and every other data mart that inherits it, keep their own wording. Clearing the field, or the new **Reset to inherited** button, falls back to the inherited description. Nothing changes until someone types: a join with no description of its own behaves exactly as before. Wherever a description is shown — the join-path tooltip in the report column picker, and `joins[]` in the MCP data mart details — it is the one that applies to that particular path.
 
-  Projects can now store and manage reusable Credentials with owners, sharing, Contexts, operational
-  state, and dependency visibility. Plugins declare exact provider or logical AI requirements and
-  members explicitly select eligible Credentials during installation, while raw secrets remain in
-  the host. External Credential definitions can be added from public GitHub repositories or private
-  repositories available through the deployment's configured GitHub access. Plugin authors use the
-  same typed `exactCredential` helper for built-in and external definitions.
-
-  See [Credentials](https://docs.owox.com/docs/project/credentials/) and
-  [Credential definitions](https://docs.owox.com/docs/plugins/credential-definitions/) for setup and
-  authoring details.
-
-- 9375f07: # Resumable incremental imports for Microsoft Ads
-
-  Previously, an interrupted incremental run restarted the whole date range from the beginning, so long imports could retry endlessly without ever finishing. The connector now saves its progress after each imported day. An interrupted run resumes from the last completed day instead of starting over.
-
-  The connector also stops early with a clear message when the Account IDs field holds no usable ID, or when Fields references a report the source no longer provides.
-
-- de49dce: # Resumable incremental imports for Google Ads, Reddit Ads, Criteo and X Ads
-
-  Previously, an interrupted incremental run restarted the whole date range from the beginning, so long imports could retry endlessly without ever finishing. These connectors now save their progress as the import advances. An interrupted run resumes from the last completed date instead of starting over.
-
-- 4bfd303: # Join descriptions can now say something different per join path
-
-  A join description explains what pulling in another data mart actually means — business users read it in the report column picker, and AI assistants read it over MCP. It was written once on the relationship itself, so every data mart that reached that join showed the same sentence. "Orders placed by this customer" is right in a Customers data mart, but in a Companies data mart that reaches Orders through Customers it explains nothing.
-
-  The Description tab of an inherited join is now editable. The inherited text stays visible as a placeholder, and whatever you type applies to that join path only — the relationship itself, and every other data mart that inherits it, keep their own wording. Clearing the field, or the new **Reset to inherited** button, falls back to the inherited description.
-
-  Nothing changes until someone types: a join with no description of its own behaves exactly as before. Wherever a description is shown — the join-path tooltip in the report column picker, and `joins[]` in the MCP data mart details — it is the one that applies to that particular path.
-
-- ad7d572: # Calculated Field improvements
-
-  Six changes to the Calculated Field editor, from feedback on the released version.
-
-  **A row-level field keeps its "Σ available" control while its formula is edited.** Touching the formula of a calculated field that is a dimension took that control off the row until the schema was saved, which read as the setting having been lost.
-
-  **Unsaved edits survive a background refresh.** The Output Schema editor reset itself whenever the Data Mart was re-read — which happens on its own, without anyone asking — and a formula typed but not yet saved went with it, while a failed save's errors stayed on screen naming a field no longer in the table. It now resets only when the saved schema has actually changed.
-
-  **A rejected formula is named where the refusal appears.** Choosing "Save & leave" on the unsaved-changes prompt reported `Request failed with status code 400`, which names neither the field nor the fix. It now names the field the warehouse rejected.
-
-  **A calculated field no longer stretches its row.** A formula written over several lines made its row that many lines tall. The row now shows at most two lines — the most it can show without growing — and hovering it shows the whole formula with the author's own line breaks.
-
-  **The division warning is about the formula in front of you.** It quoted `NULLIF(SUM(impressions), 0)` whether or not `impressions` appeared anywhere in the formula, and read like a refusal although it blocks nothing. It now quotes the denominator this formula actually divides by, underlines it in the editor, and says plainly that it is advice. It quotes the whole denominator or nothing at all — never a piece of one, since guarding a piece leaves the division just as broken and silences the warning.
-
-  **`COALESCE` no longer counts as a guard against that division.** What fails a query is a zero denominator, not a null one — and `COALESCE(SUM(x), 0)` produces exactly the zero that fails it. Accepting it meant agreeing with a formula that had guarded nothing. The message and [the setup guide](https://docs.owox.com/docs/getting-started/setup-guide/calculated-fields/) now say zero rather than "zero or empty", and the guide explains why `COALESCE` does not count. The guide also gains a worked example for rates over a condition, such as an activation rate.
-
-- 67f5afa: # Cheaper Incremental Imports into Google BigQuery
-
-  Incremental connector runs into Google BigQuery now read only the days they update. Before, every incremental run scanned the whole destination table, including all of its history. As a table grew, each daily import cost more, even when it brought the same amount of new data. Now the import touches only the partitions for the imported dates, so the cost stays flat over time. This applies to time-series tables partitioned by date, such as ad performance reports. Entity tables without a date column, such as campaign lists, keep their current behavior. Users see lower BigQuery query costs and fewer daily quota errors.
-
-- d013726: # Checkout and cart tokens for Shopify orders
-
-  The Shopify connector now offers `checkoutToken` and `cartToken` fields on the `orders` node. Select them under `orders` in the connector's field picker to import them. `checkoutToken` matches `checkout.token` in Shopify Web Pixel events, so you can join orders with `checkout_completed` events; `cartToken` identifies the cart that produced the order. Orders with no associated checkout or cart return NULL. Orders imported before you enable the fields stay NULL until you re-import them with a backfill run.
-
-- dcf9b52: The OWOX BI link in the project menu now opens the current project in BI instead of the BI home page.
-
-  When you are in a Data Marts project and choose OWOX BI from the project menu, you land in that same project on bi.owox.com.
-
-- 19e9fb8: # Report links point at the report, not at the Data Mart
+- 19e9fb8: **Report links point at the report, not at the Data Mart**
 
   The provenance block in a Google Sheets imported column's note now ends with **Report page** and a link that opens the report itself — the Reports tab with that report's panel already expanded — instead of the Data Mart setup tab.
 
@@ -138,21 +76,56 @@
 
   The **Open report in OWOX Data Marts** button on a Google Chat report card and the **Edit report** link in a report email footer now open the same deep link. Both previously landed on the Data Mart's report list, leaving the reader to pick the right report out of it.
 
-- 94c23bc: # Labeled retry settings in connector Advanced settings
+- d13a90d: **Schedule Data Mart triggers in UTC**
+
+  Scheduled triggers now offer UTC as an explicit fixed-offset timezone with no daylight saving time changes. Existing UTC aliases remain compatible, and legacy Europe/Kiev identifiers are shown as Europe/Kyiv without rewriting saved schedules.
+
+- 67f5afa: **Cheaper incremental imports into Google BigQuery**
+
+  Incremental connector runs into Google BigQuery now read only the days they update. Before, every incremental run scanned the whole destination table, including all of its history, so as a table grew each daily import cost more even when it brought the same amount of new data. Now the import touches only the partitions for the imported dates, so the cost stays flat over time. This applies to time-series tables partitioned by date, such as ad performance reports. Entity tables without a date column, such as campaign lists, keep their current behavior. Users see lower BigQuery query costs and fewer daily quota errors.
+
+- 9375f07, de49dce: **Resumable incremental imports for Microsoft Ads, Google Ads, Reddit Ads, Criteo, and X Ads**
+
+  Previously, an interrupted incremental run restarted the whole date range from the beginning, so long imports could retry endlessly without ever finishing. These connectors now save their progress as the import advances — Microsoft Ads after each imported day (9375f07), and Google Ads, Reddit Ads, Criteo and X Ads as the import advances (de49dce) — so an interrupted run resumes from the last completed date instead of starting over.
+
+  Microsoft Ads also stops early with a clear message when the Account IDs field holds no usable ID, or when Fields references a report the source no longer provides.
+
+- da26589: **Connector runs interrupted by a restart are reported as a warning**
+
+  When a server restart stops a connector run, the run resumes by itself and continues from the last day it finished. Run history now shows this as a warning instead of an error, so a restart no longer looks like a failed import. Runs that stop for any other reason are still reported as errors.
+
+- d013726: **Checkout and cart tokens for Shopify orders**
+
+  The Shopify connector now offers `checkoutToken` and `cartToken` fields on the `orders` node. Select them under `orders` in the connector's field picker to import them. `checkoutToken` matches `checkout.token` in Shopify Web Pixel events, so you can join orders with `checkout_completed` events; `cartToken` identifies the cart that produced the order. Orders with no associated checkout or cart return NULL. Orders imported before you enable the fields stay NULL until you re-import them with a backfill run.
+
+- a25b495: **Connect Google Sheets sources with Google OAuth**
+
+  Users can authorize a Google account and choose a spreadsheet with Google Picker when configuring a Google Sheets source. Service account authentication remains available.
+
+- 94c23bc: **Labeled retry settings in connector Advanced settings**
 
   Every connector's **Advanced settings** form now shows **Max Fetch Retries** and **Initial Retry Delay (ms)** instead of raw keys. The hints state that the delay is in milliseconds and that the retries value counts total attempts, including the first request. This prevents a delay of `5` being read as five seconds when it means five milliseconds.
 
   The Facebook Ads troubleshooting guide now explains Meta's Ads Insights rate limit (code 4, subcode 1504022), the ad-account score limit (code 17, subcode 2446079), and how to adjust these settings after a rate limit error.
 
-- d13a90d: # Schedule Data Mart triggers in UTC
+- f7b099a, 7667281: **Joinable Data Marts diagram opens fitted to the whole graph, and its zoom controls keep working**
 
-  Scheduled triggers now offer UTC as an explicit fixed-offset timezone with no daylight saving time changes. Existing UTC aliases remain compatible, and legacy Europe/Kiev identifiers are shown as Europe/Kyiv without rewriting saved schedules.
+  - **Opens fitted** (f7b099a) — switching to the Graph view could land on a viewport zoomed in on the root card, as if the fit had never run, until "Fit to view" was pressed. The automatic first fit relied on `fitView`, which only accounts for nodes whose DOM dimensions are already measured — on first mount it ran against a half-measured subset. The initial viewport is now derived from the layout geometry itself, so the Graph view always opens showing the entire diagram, exactly as the "Fit to view" button leaves it.
+  - **Zoom controls keep working** (7667281) — the +/- zoom buttons could stop responding until "Fit to view" was pressed, depending on how the page was opened. The allowed zoom range was captured once from a completed fit, so a fit that ran under transient conditions (a still-loading graph or a settling pane) froze the range in an unusable state. The range is now derived from the live graph and pane geometry, small graphs that fit at the maximum zoom keep a usable zoom-out floor, and a corrupted viewport recovers with a full fit instead of ignoring clicks.
 
-- a25b495: # Connect Google Sheets sources with Google OAuth
+- 3c16cd6: **Help videos now stream from Cloudflare instead of GitHub attachments**
 
-  Users can authorize a Google account and choose a spreadsheet with Google Picker when configuring a Google Sheets source. Service account authentication remains available.
+  Three in-product help videos — "SQL to Google Sheets in Minutes", "Data Studio Setup", and "Getting Started with Data Marts" — used to load from GitHub issue-attachment storage. Those URLs redirect through short-lived signed links and fail entirely for clients whose networks block github.com, so the videos could show up broken.
 
-- 8aff351: # Remove obsolete Slack Community links
+  Now all six help videos use the same Cloudflare Stream player. The three migrated videos keep their previous behavior (autoplay, muted, loop) and their exact aspect ratios.
+
+  The documentation site picks up the same fix: pages that embedded the GitHub-hosted files now render the Cloudflare player, while the repository markdown keeps the GitHub links so videos still play inline on github.com. The Google Sheets destination page also gains the setup walkthrough video.
+
+- dcf9b52: **The OWOX BI link opens the current project**
+
+  When you are in a Data Marts project and choose OWOX BI from the project menu, you land in that same project on bi.owox.com instead of the BI home page.
+
+- 8aff351: **Remove obsolete Slack Community links**
 
   The Help menu no longer shows the obsolete Slack Community invitation, and project documentation now directs contributors to GitHub Discussions and Issues instead.
 
