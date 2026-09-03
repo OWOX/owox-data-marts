@@ -349,34 +349,13 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     const truncatedDays = [];
 
     for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
-      // Field chunks are merged within the day only: rows from different days never share
-      // a dateRange, so merging into the multi-day accumulation would only rescan it.
-      let dayResults = [];
-      let isDayTruncated = false;
+      const { rows, isTruncated } = await this.fetchAdAnalyticsForDay({ day, encodedUrn, fieldChunks });
 
-      // Process each chunk of fields in separate API requests
-      for (const fieldChunk of fieldChunks) {
-        const url = this.buildAdAnalyticsUrl({
-          startDate: day,
-          endDate: day,
-          encodedUrn,
-          fields: fieldChunk
-        });
-        const res = await this.makeRequest(url);
-        const elements = res.elements || [];
-
-        if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
-          isDayTruncated = true;
-        }
-
-        // Merge results from different chunks into a single dataset
-        // Each chunk contains the same rows but different fields
-        dayResults = this.mergeAnalyticsResults(dayResults, elements);
+      for (const row of rows) {
+        allResults.push(row);
       }
 
-      allResults.push(...dayResults);
-
-      if (isDayTruncated) {
+      if (isTruncated) {
         truncatedDays.push(this.formatDateFromLinkedInObject(this.toLinkedInDateObject(day)));
       }
     }
@@ -387,6 +366,43 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
 
     // Transform complex dateRange objects to simple Date objects
     return this.transformAnalyticsDateRanges(allResults);
+  }
+
+  /**
+   * Fetch one day of analytics across all field chunks and merge them into single rows
+   * @param {Object} options - Request options
+   * @param {Date} options.day - The day to fetch
+   * @param {string} options.encodedUrn - URL-encoded account URN
+   * @param {Array<Array<string>>} options.fieldChunks - Field chunks, each within the per-request limit
+   * @returns {Promise<{rows: Array, isTruncated: boolean}>} - Merged rows and whether any chunk hit the element cap
+   */
+  async fetchAdAnalyticsForDay({ day, encodedUrn, fieldChunks }) {
+    // Field chunks are merged within the day only: rows from different days never share
+    // a dateRange, so merging into the multi-day accumulation would only rescan it.
+    let rows = [];
+    let isTruncated = false;
+
+    // Process each chunk of fields in separate API requests
+    for (const fieldChunk of fieldChunks) {
+      const url = this.buildAdAnalyticsUrl({
+        startDate: day,
+        endDate: day,
+        encodedUrn,
+        fields: fieldChunk
+      });
+      const res = await this.makeRequest(url);
+      const elements = res.elements || [];
+
+      if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
+        isTruncated = true;
+      }
+
+      // Merge results from different chunks into a single dataset
+      // Each chunk contains the same rows but different fields
+      rows = this.mergeAnalyticsResults(rows, elements);
+    }
+
+    return { rows, isTruncated };
   }
 
   /**

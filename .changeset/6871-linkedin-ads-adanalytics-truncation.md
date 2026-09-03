@@ -8,4 +8,4 @@ Previously, an adAnalytics export over a large date range could silently lose da
 
 If a daily response still reaches 15,000 elements, the import finishes with a Warning status that lists the affected days instead of losing data silently.
 
-The connector also refreshes the LinkedIn access token once per run instead of before every request, and retries rate-limited (429) and server-error (5xx) responses instead of failing the whole import.
+The connector also refreshes the LinkedIn access token once per run instead of before every request. LinkedIn API errors now fail the run instead of silently returning no rows; rate-limit (429) and server (5xx) errors are retried first.
