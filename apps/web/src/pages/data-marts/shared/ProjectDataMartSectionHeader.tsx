@@ -5,8 +5,8 @@ import { useProjectRoute } from '../../../shared/hooks';
 
 interface ProjectDataMartSectionHeaderProps {
   title: string;
-  /** Rendered instead of the plain `<h1>{title}</h1>` — e.g. the Models page's storage picker. */
-  titleSlot?: ReactNode;
+  /** Rendered right after the `<h1>{title}</h1>` — e.g. the Models page's storage picker. */
+  titleAfter?: ReactNode;
   /** Rendered at the row end, alongside the breadcrumb. */
   actions?: ReactNode;
 }
@@ -18,7 +18,7 @@ interface ProjectDataMartSectionHeaderProps {
  */
 export function ProjectDataMartSectionHeader({
   title,
-  titleSlot,
+  titleAfter,
   actions,
 }: ProjectDataMartSectionHeaderProps) {
   const { scope } = useProjectRoute();
@@ -34,7 +34,8 @@ export function ProjectDataMartSectionHeader({
             Data Marts
           </Link>
           <ChevronRight className='text-muted-foreground mt-1 size-4' aria-hidden='true' />
-          {titleSlot ?? <h1 className='inline'>{title}</h1>}
+          <h1 className='inline'>{title}</h1>
+          {titleAfter}
         </div>
         {actions}
       </div>

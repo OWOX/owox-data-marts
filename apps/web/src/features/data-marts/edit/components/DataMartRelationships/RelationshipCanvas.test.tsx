@@ -562,7 +562,7 @@ describe('RelationshipCanvas view settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show join fields' }));
     expect(props.onShowJoinFieldsChange).toHaveBeenCalledWith(true);
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Status dot/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Status/ }));
     expect(props.onObjectLabelsChange).toHaveBeenCalledWith({
       source: false,
       fields: false,

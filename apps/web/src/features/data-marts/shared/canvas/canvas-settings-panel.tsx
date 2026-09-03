@@ -26,8 +26,8 @@ const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string
     helper: 'The field count shown on each object',
   },
   status: {
-    label: 'Status dot',
-    helper: 'The published/draft status dot in the card header',
+    label: 'Status',
+    helper: 'The published/draft indicator',
   },
 };
 

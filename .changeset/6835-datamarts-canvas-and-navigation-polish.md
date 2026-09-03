@@ -11,3 +11,5 @@ On the canvas itself, each Data Mart card now shows a full-height color stripe r
 Opening the canvas with no filters applied now shows all Data Marts, published or draft, connected or not — previously it defaulted to published-only, connected-only.
 
 Long Data Mart names in tables no longer wrap and push rows taller — they truncate with the full name available on hover.
+
+In the Reports table, the Report column now leads, with Data Mart moved to second place.

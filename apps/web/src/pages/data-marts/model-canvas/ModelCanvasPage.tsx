@@ -18,16 +18,13 @@ function ModelCanvasPageContent() {
     <div className='dm-page' data-testid='modelCanvasPage'>
       <ProjectDataMartSectionHeader
         title='Model for'
-        titleSlot={
-          <>
-            <h1 className='inline'>Model for</h1>
-            <ModelCanvasStorageSelect
-              storages={dataStorages}
-              storageId={filters.storageId}
-              onStorageChange={filters.setStorageId}
-              className='-my-2 ml-2 shrink-0'
-            />
-          </>
+        titleAfter={
+          <ModelCanvasStorageSelect
+            storages={dataStorages}
+            storageId={filters.storageId}
+            onStorageChange={filters.setStorageId}
+            className='-my-2 ml-2 shrink-0'
+          />
         }
         actions={
           <RunActivityIndicator

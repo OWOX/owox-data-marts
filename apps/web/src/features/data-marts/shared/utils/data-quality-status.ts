@@ -64,7 +64,7 @@ export const DATA_QUALITY_STATUS_TEXT_CLASSES: Record<DataQualityStatusTone, str
 export const DATA_QUALITY_STATUS_STRIPE_CLASSES: Record<DataQualityStatusTone, string> = {
   neutral: 'bg-muted-foreground/50',
   progress: 'bg-primary',
-  success: 'bg-success',
+  success: 'bg-success-accent',
   warning: 'bg-warning',
   error: 'bg-destructive',
   notice: 'bg-notice',

@@ -254,9 +254,9 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
     updateNodeInternals(id);
   }, [expanded, id, updateNodeInternals]);
 
-  // Object labels mirror the Models canvas: accent stripe + source badge,
-  // field count and status dot toggle independently. The alias badge is join
-  // configuration (not an object label), so it always stays.
+  // Object labels: source badge, field count and status dot toggle
+  // independently. The alias badge is join configuration (not an object
+  // label), so it always stays.
   const labels = data.objectLabels;
   const withSource = !labels.source;
   const withFieldCount = !labels.fields;
@@ -278,9 +278,6 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
         style={{ ...cardStateStyle(data, selected), height: SRC_H, padding: '0 14px' }}
       >
         <IndicatorLabel data={data} />
-        {withSource && (
-          <span className='bg-muted-foreground/50 h-4 w-1 shrink-0 rounded-sm' aria-hidden='true' />
-        )}
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.label}
@@ -312,11 +309,8 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
       <IndicatorLabel data={data} />
       <Handle type='target' position={targetPosition} isConnectable={false} style={SOCKET_STYLE} />
 
-      {/* Header: accent stripe + title + status + actions — mirrors the Models canvas ERD card */}
+      {/* Header: title + status + actions */}
       <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
-        {withSource && (
-          <span className='bg-muted-foreground/50 h-4 w-1 shrink-0 rounded-sm' aria-hidden='true' />
-        )}
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.label}
