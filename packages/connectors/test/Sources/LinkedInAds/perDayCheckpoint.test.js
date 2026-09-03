@@ -30,10 +30,12 @@ const buildConnector = ({
   daysToFetch = 3,
   fetchData = async () => [{ impressions: 1 }],
   saveData = async () => undefined,
+  truncatedAnalyticsDays = {},
 } = {}) => {
   const cursorMovedTo = [];
   const fetched = [];
   const requestedRanges = [];
+  const warnings = [];
 
   const self = Object.create(connectorProto);
   self.runConfig = { type: runType };
@@ -48,6 +50,8 @@ const buildConnector = ({
       if (from) requestedRanges.push([DateUtils.formatDate(from), DateUtils.formatDate(to)]);
       return fetchData({ nodeName, urn, date: from });
     },
+    truncatedAnalyticsDays,
+    buildTruncationWarning: (urn, days) => `${urn} truncated on ${days.join(', ')}`,
   };
   self.getStorageByNode = async () => ({ saveData });
   self.addMissingFieldsToData = data => data;
@@ -57,10 +61,11 @@ const buildConnector = ({
     Fields: { value: JSON.stringify(nodes) },
     CreateEmptyTables: { value: false },
     logMessage: () => {},
+    addWarningToCurrentStatus: message => warnings.push(message),
     updateLastRequstedDate: date => cursorMovedTo.push(DateUtils.formatDate(new Date(date))),
   };
 
-  return { self, cursorMovedTo, fetched, requestedRanges };
+  return { self, cursorMovedTo, fetched, requestedRanges, warnings };
 };
 
 describe('incremental checkpointing', () => {
@@ -82,6 +87,24 @@ describe('incremental checkpointing', () => {
       ['2026-08-11', '2026-08-11'],
       ['2026-08-12', '2026-08-12'],
     ]);
+  });
+
+  it('advances days in UTC so a DST switch on the runner cannot shift or repeat a day', async () => {
+    // Europe switches to summer time on 2026-03-29; local date arithmetic would land
+    // 2026-03-30 at 23:00Z on the 29th and fetch the 29th twice.
+    const { self, requestedRanges, cursorMovedTo } = buildConnector({
+      startDate: new Date('2026-03-28T00:00:00Z'),
+      daysToFetch: 3,
+    });
+
+    await connectorProto.startImportProcess.call(self);
+
+    expect(requestedRanges.map(([from]) => from)).toEqual([
+      '2026-03-28',
+      '2026-03-29',
+      '2026-03-30',
+    ]);
+    expect(cursorMovedTo).toEqual(['2026-03-28', '2026-03-29', '2026-03-30']);
   });
 
   it('keeps the days already imported when a later day fails', async () => {
@@ -154,6 +177,30 @@ describe('multiple accounts', () => {
     );
 
     expect(cursorMovedTo).toEqual(['2026-08-10']);
+  });
+});
+
+describe('truncation reporting', () => {
+  it('emits one warning per account listing its truncated days after the day loop', async () => {
+    const { self, warnings } = buildConnector({
+      urns: 'acc1,acc2',
+      truncatedAnalyticsDays: { acc1: ['2026-08-10', '2026-08-11'], acc2: ['2026-08-12'] },
+    });
+
+    await connectorProto.startImportProcess.call(self);
+
+    expect(warnings).toEqual([
+      'acc1 truncated on 2026-08-10, 2026-08-11',
+      'acc2 truncated on 2026-08-12',
+    ]);
+  });
+
+  it('emits no warning when no day reached the element limit', async () => {
+    const { self, warnings } = buildConnector();
+
+    await connectorProto.startImportProcess.call(self);
+
+    expect(warnings).toEqual([]);
   });
 });
 

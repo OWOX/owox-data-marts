@@ -178,6 +178,9 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     this.MAX_FIELDS_PER_REQUEST = 20;
     this.MAX_RESPONSE_ELEMENTS = 15000;
     this.MAX_TRUNCATED_DAYS_IN_WARNING = 10;
+    // urn -> [YYYY-MM-DD] days whose adAnalytics response hit MAX_RESPONSE_ELEMENTS.
+    // Filled per fetchAdAnalytics call; the connector reports it once per account per run.
+    this.truncatedAnalyticsDays = {};
     this.BASE_URL = "https://api.linkedin.com/rest/";
   
   }
@@ -323,73 +326,33 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   }
 
   /**
-   * Fetch analytics data, handling field limits and data merging
+   * Fetch analytics data for one day, handling field limits and data merging.
+   * The connector calls this once per day on purpose: the adAnalytics endpoint does not
+   * support pagination and caps each response at MAX_RESPONSE_ELEMENTS elements, so a
+   * wider range would be silently truncated. A response that still reaches the cap is
+   * recorded in truncatedAnalyticsDays for the connector to report once per account.
    * @param {string} urn - Account identifier
    * @param {Object} params - Request parameters
-   * @param {string} params.startDate - Start date for analytics data
-   * @param {string} params.endDate - End date for analytics data
+   * @param {Date} params.startDate - The day to fetch (UTC midnight)
+   * @param {Date} params.endDate - The same day as startDate
    * @param {Array} params.fields - Fields to fetch
    * @returns {Array} - Combined array of analytics data
    */
   async fetchAdAnalytics(urn, params) {
     const startDate = new Date(params.startDate);
     const endDate = new Date(params.endDate);
-    const accountUrn = `urn:li:sponsoredAccount:${urn}`;
-    const encodedUrn = encodeURIComponent(accountUrn);
-    const allResults = [];
+    const encodedUrn = encodeURIComponent(`urn:li:sponsoredAccount:${urn}`);
     const uniqueApiFields = this.convertFieldsForApi(params.fields || []);
 
     // LinkedIn API has a limitation - it allows a maximum of fields per request
     // To overcome this, split fields into chunks and make multiple requests
     const fieldChunks = this.prepareAnalyticsFieldChunks(uniqueApiFields);
 
-    // The adAnalytics endpoint does not support pagination and caps each response at
-    // MAX_RESPONSE_ELEMENTS elements, so the requested range is fetched one day at a time
-    // to keep every request under the limit.
-    const truncatedDays = [];
-
-    for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
-      const { rows, isTruncated } = await this.fetchAdAnalyticsForDay({ day, encodedUrn, fieldChunks });
-
-      for (const row of rows) {
-        allResults.push(row);
-      }
-
-      if (isTruncated) {
-        truncatedDays.push(this.formatDateFromLinkedInObject(this.toLinkedInDateObject(day)));
-      }
-    }
-
-    if (truncatedDays.length > 0) {
-      this.config.addWarningToCurrentStatus(this.buildTruncationWarning(urn, truncatedDays));
-    }
-
-    // Transform complex dateRange objects to simple Date objects
-    return this.transformAnalyticsDateRanges(allResults);
-  }
-
-  /**
-   * Fetch one day of analytics across all field chunks and merge them into single rows
-   * @param {Object} options - Request options
-   * @param {Date} options.day - The day to fetch
-   * @param {string} options.encodedUrn - URL-encoded account URN
-   * @param {Array<Array<string>>} options.fieldChunks - Field chunks, each within the per-request limit
-   * @returns {Promise<{rows: Array, isTruncated: boolean}>} - Merged rows and whether any chunk hit the element cap
-   */
-  async fetchAdAnalyticsForDay({ day, encodedUrn, fieldChunks }) {
-    // Field chunks are merged within the day only: rows from different days never share
-    // a dateRange, so merging into the multi-day accumulation would only rescan it.
     let rows = [];
     let isTruncated = false;
 
-    // Process each chunk of fields in separate API requests
     for (const fieldChunk of fieldChunks) {
-      const url = this.buildAdAnalyticsUrl({
-        startDate: day,
-        endDate: day,
-        encodedUrn,
-        fields: fieldChunk
-      });
+      const url = this.buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields: fieldChunk });
       const res = await this.makeRequest(url);
       const elements = res.elements || [];
 
@@ -402,7 +365,13 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       rows = this.mergeAnalyticsResults(rows, elements);
     }
 
-    return { rows, isTruncated };
+    if (isTruncated) {
+      const day = this.formatDateFromLinkedInObject(this.toLinkedInDateObject(startDate));
+      this.truncatedAnalyticsDays[urn] = [...(this.truncatedAnalyticsDays[urn] || []), day];
+    }
+
+    // Transform complex dateRange objects to simple Date objects
+    return this.transformAnalyticsDateRanges(rows);
   }
 
   /**
@@ -498,12 +467,15 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   }
 
   /**
-   * Split a Date into the year/month/day parts LinkedIn uses for dates
+   * Split a Date into the year/month/day parts LinkedIn uses for dates.
+   * Reads the UTC parts: run dates are UTC midnight and the connector logs and checkpoints
+   * them with the UTC DateUtils.formatDate, so the request, the log and the cursor must all
+   * name the same day whatever the runner's time zone.
    * @param {Date} date - Date object
    * @return {{year: number, month: number, day: number}} LinkedIn date object (month is 1-based)
    */
   toLinkedInDateObject(date) {
-    return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+    return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
   }
 
   /**

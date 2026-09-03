@@ -27,6 +27,9 @@ const buildSource = ({ makeRequest } = {}) => {
   return { self, warnings };
 };
 
+// Run dates are UTC midnight (see AbstractConnector), so tests use the same shape.
+const utcDay = day => new Date(Date.UTC(2026, 7, day));
+
 const linkedInDate = day => ({ year: 2026, month: 8, day });
 
 const buildRow = (day, pivotValues, metrics = {}) => ({
@@ -37,8 +40,15 @@ const buildRow = (day, pivotValues, metrics = {}) => ({
 
 const buildFullDay = day => Array.from({ length: 15000 }, (_, i) => buildRow(day, [String(i)]));
 
+const fetchDay = (self, day, fields = ['impressions']) =>
+  sourceProto.fetchAdAnalytics.call(self, URN, {
+    startDate: utcDay(day),
+    endDate: utcDay(day),
+    fields,
+  });
+
 describe('fetchAdAnalytics', () => {
-  it('requests one day at a time so each response stays under the API element limit', async () => {
+  it('requests exactly the given day and records nothing under the element limit', async () => {
     const requestedUrls = [];
     const { self, warnings } = buildSource({
       makeRequest: vi.fn(async url => {
@@ -47,47 +57,31 @@ describe('fetchAdAnalytics', () => {
       }),
     });
 
-    await sourceProto.fetchAdAnalytics.call(self, URN, {
-      startDate: new Date(2026, 7, 1),
-      endDate: new Date(2026, 7, 3),
-      fields: ['impressions'],
-    });
+    await fetchDay(self, 1);
 
-    expect(requestedUrls).toHaveLength(3);
+    expect(requestedUrls).toHaveLength(1);
     expect(requestedUrls[0]).toContain(
       'dateRange=(start:(year:2026,month:8,day:1),end:(year:2026,month:8,day:1))'
     );
-    expect(requestedUrls[1]).toContain(
-      'dateRange=(start:(year:2026,month:8,day:2),end:(year:2026,month:8,day:2))'
-    );
-    expect(requestedUrls[2]).toContain(
-      'dateRange=(start:(year:2026,month:8,day:3),end:(year:2026,month:8,day:3))'
-    );
     expect(warnings).toHaveLength(0);
+    expect(self.truncatedAnalyticsDays).toEqual({});
   });
 
-  it('merges field chunks across the per-day requests', async () => {
+  it('merges field chunks into single rows', async () => {
     const { self } = buildSource({
       makeRequest: vi.fn(async url => ({
         elements: [
-          {
-            dateRange: {
-              start: { year: 2026, month: 8, day: 1 },
-              end: { year: 2026, month: 8, day: 1 },
-            },
-            pivotValues: ['creative'],
-            ...(url.includes('impressions') ? { impressions: 10 } : { clicks: 5 }),
-          },
+          buildRow(
+            1,
+            ['creative'],
+            url.includes('impressions') ? { impressions: 10 } : { clicks: 5 }
+          ),
         ],
       })),
     });
     self.MAX_FIELDS_PER_REQUEST = 3;
 
-    const data = await sourceProto.fetchAdAnalytics.call(self, URN, {
-      startDate: new Date(2026, 7, 1),
-      endDate: new Date(2026, 7, 1),
-      fields: ['impressions', 'clicks'],
-    });
+    const data = await fetchDay(self, 1, ['impressions', 'clicks']);
 
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({
@@ -98,63 +92,60 @@ describe('fetchAdAnalytics', () => {
     });
   });
 
-  it('keeps rows with the same pivot from different days as separate rows', async () => {
-    let requestCount = 0;
-    const { self } = buildSource({
-      makeRequest: vi.fn(async () => {
-        requestCount += 1;
-        return { elements: [buildRow(requestCount, ['creative'], { impressions: requestCount })] };
-      }),
-    });
-
-    const data = await sourceProto.fetchAdAnalytics.call(self, URN, {
-      startDate: new Date(2026, 7, 1),
-      endDate: new Date(2026, 7, 2),
-      fields: ['impressions'],
-    });
-
-    expect(data.map(row => [row.dateRangeStart, row.impressions])).toEqual([
-      ['2026-08-01', 1],
-      ['2026-08-02', 2],
-    ]);
-  });
-
-  it('warns with the affected day in YYYY-MM-DD format when a day response reaches the API element limit', async () => {
+  it('records a day whose response reaches the element limit instead of warning per call', async () => {
     const { self, warnings } = buildSource({
       makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
     });
 
-    await sourceProto.fetchAdAnalytics.call(self, URN, {
-      startDate: new Date(2026, 7, 1),
-      endDate: new Date(2026, 7, 1),
-      fields: ['impressions'],
-    });
+    await fetchDay(self, 1);
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('15000');
-    expect(warnings[0]).toContain(URN);
-    expect(warnings[0]).toContain('1 day(s): 2026-08-01;');
+    expect(warnings).toHaveLength(0);
+    expect(self.truncatedAnalyticsDays).toEqual({ [URN]: ['2026-08-01'] });
   });
 
-  it('lists at most 10 truncated days and counts the rest', async () => {
-    let requestCount = 0;
-    const { self, warnings } = buildSource({
-      makeRequest: vi.fn(async () => {
-        requestCount += 1;
-        return { elements: buildFullDay(requestCount) };
-      }),
+  it('accumulates truncated days per account across calls', async () => {
+    const { self } = buildSource({
+      makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
     });
 
-    await sourceProto.fetchAdAnalytics.call(self, URN, {
-      startDate: new Date(2026, 7, 1),
-      endDate: new Date(2026, 7, 12),
-      fields: ['impressions'],
-    });
+    await fetchDay(self, 1);
+    await fetchDay(self, 2);
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('12 day(s): 2026-08-01, 2026-08-02');
-    expect(warnings[0]).toContain('2026-08-10 and 2 more;');
-    expect(warnings[0]).not.toContain('2026-08-11');
+    expect(self.truncatedAnalyticsDays).toEqual({ [URN]: ['2026-08-01', '2026-08-02'] });
+  });
+});
+
+describe('buildTruncationWarning', () => {
+  it('names the account, the limit and the day', () => {
+    const warning = sourceProto.buildTruncationWarning.call(buildSource().self, URN, [
+      '2026-08-01',
+    ]);
+
+    expect(warning).toContain('15000');
+    expect(warning).toContain(URN);
+    expect(warning).toContain('1 day(s): 2026-08-01;');
+  });
+
+  it('lists at most 10 days and counts the rest', () => {
+    const days = Array.from({ length: 12 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
+
+    const warning = sourceProto.buildTruncationWarning.call(buildSource().self, URN, days);
+
+    expect(warning).toContain('12 day(s): 2026-08-01, 2026-08-02');
+    expect(warning).toContain('2026-08-10 and 2 more;');
+    expect(warning).not.toContain('2026-08-11');
+  });
+});
+
+describe('formatDateForUrl', () => {
+  it('reads the UTC date so the request names the same day as the UTC cursor on any runner', () => {
+    // 23:30Z on Jul 31 is already Aug 1 in local time on a UTC+ runner.
+    const formatted = sourceProto.formatDateForUrl.call(
+      sourceProto,
+      new Date('2026-07-31T23:30:00Z')
+    );
+
+    expect(formatted).toBe('(year:2026,month:7,day:31)');
   });
 });
 

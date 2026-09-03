@@ -63,8 +63,10 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
     }
 
     for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
+      // UTC arithmetic: start dates are UTC midnight, so this never drifts across DST
+      // and the day fetched, logged and checkpointed is the same calendar day.
       const date = new Date(startDate);
-      date.setDate(date.getDate() + dayOffset);
+      date.setUTCDate(date.getUTCDate() + dayOffset);
 
       for (const nodeName of timeSeriesNodes) {
         for (const urn of urns) {
@@ -81,6 +83,19 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(date);
       }
+    }
+
+    this.reportTruncatedAnalytics();
+  }
+
+  /**
+   * Emit one warning per account for the days whose adAnalytics response hit LinkedIn's
+   * element cap. The Source records them per call; reporting here keeps a saturated
+   * account to a single warning per run instead of one warning per day.
+   */
+  reportTruncatedAnalytics() {
+    for (const [urn, days] of Object.entries(this.source.truncatedAnalyticsDays)) {
+      this.config.addWarningToCurrentStatus(this.source.buildTruncationWarning(urn, days));
     }
   }
 
