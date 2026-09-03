@@ -2,7 +2,7 @@
 
 ## 0.33.0
 
-### Patch Changes
+### Patch Changes 0.33.0
 
 - Updated dependencies [a4dc4ff]
   - @owox/api-client@0.33.0

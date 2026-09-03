@@ -2,7 +2,7 @@
 
 ## 0.33.0
 
-### Minor Changes
+### Minor Changes 0.33.0
 
 - a4dc4ff: # Send Data Mart reports to Microsoft Excel
 

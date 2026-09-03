@@ -2,7 +2,7 @@
 
 ## 0.33.0
 
-### Minor Changes
+### Minor Changes 0.33.0
 
 - b3d008d: # Calculated Fields in the Output Schema
 
@@ -156,7 +156,7 @@
 
   The Help menu no longer shows the obsolete Slack Community invitation, and project documentation now directs contributors to GitHub Discussions and Issues instead.
 
-### Patch Changes
+### Patch Changes 0.33.0
 
 - @owox/internal-helpers@0.33.0
 - @owox/idp-protocol@0.33.0
@@ -379,7 +379,7 @@
   - **Manage Data Mart run lifecycles through the API client** — `@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()` methods. Starting and cancelling require Technical User access; listing and inspecting require Business User access. `start()` accepts typed incremental or manual-backfill options, including connector-specific fields; manual-backfill `data` is optional for connectors without backfill fields. The client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied and rejects `data` on implicit or explicit incremental runs before sending a request, while the backend HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`, so it no longer overrides the backend API's 2 MiB transport ceiling.
   - **Scoped list pagination** — defaults to 100 items when omitted and preserves valid caller-provided limits and offsets without silently capping them. The scoped list method rejects unknown, zero or negative limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's safe range before authentication or network access. Project-wide `runs.list()` pagination remains unchanged and relies on server normalization. Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments that omit Data Quality fields, and Data Quality response validation tolerates additive server fields while still checking known values. Existing typed integrations need no migration.
 
-### Patch Changes
+### Patch Changes 0.32.0
 
 - 715c6f7: # Plugin publishing no longer fails during a safe synchronization cooldown
 
@@ -2695,6 +2695,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2702,6 +2703,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
