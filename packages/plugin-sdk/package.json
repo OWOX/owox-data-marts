@@ -1,6 +1,6 @@
 {
   "name": "@owox/plugin-sdk",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "description": "SDK for building OWOX Data Marts plugins",
   "type": "module",
   "author": "OWOX",
