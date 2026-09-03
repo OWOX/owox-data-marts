@@ -18,71 +18,122 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
    */
   async startImportProcess() {
     const urns = FormatUtils.parseIds(this.config.AccountURNs.value, {prefix: 'urn:li:sponsoredAccount:'});
-    const dataSources = FormatUtils.parseFields(this.config.Fields.value);
+    const fields = FormatUtils.parseFields(this.config.Fields.value);
+    const nodeNames = Object.keys(fields);
+    const isTimeSeries = nodeName => ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName]);
+    const timeSeriesNodes = nodeNames.filter(isTimeSeries);
+    const catalogNodes = nodeNames.filter(nodeName => !isTimeSeries(nodeName));
 
-    for (const nodeName in dataSources) {
-      await this.processNode({
-        nodeName,
-        urns,
-        fields: dataSources[nodeName] || []
-      });
-    }
-  }
-
-  /**
-   * Process a specific node (data entity)
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {Array} options.urns - URNs to process
-   * @param {Array} options.fields - Fields to fetch
-   */
-  async processNode({ nodeName, urns, fields }) {
-    const isTimeSeriesNode = ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName]);
-    const dateInfo = this.prepareDateRangeIfNeeded(nodeName, isTimeSeriesNode);
-
-    if (isTimeSeriesNode && !dateInfo) {
-      return; // Skip processing if date range preparation failed
-    }
-
-    await this.fetchAndSaveData({
-      nodeName,
-      urns,
-      fields,
-      isTimeSeriesNode,
-      ...dateInfo
-    });
-
-    // Update LastRequestedDate only for time series data and incremental runs
-    if (isTimeSeriesNode && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.updateLastRequstedDate(dateInfo.endDate);
-    }
-  }
-
-  /**
-   * Fetch data from source and save to storage
-   * @param {Object} options - Fetching options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {Array} options.urns - URNs to process
-   * @param {Array} options.fields - Fields to fetch
-   * @param {boolean} options.isTimeSeriesNode - Whether node is time series
-   * @param {string} [options.startDate] - Start date for time series data
-   * @param {string} [options.endDate] - End date for time series data
-   */
-  async fetchAndSaveData({ nodeName, urns, fields, isTimeSeriesNode, startDate, endDate }) {
-    for (const urn of urns) {
-      console.log(`Processing ${nodeName} for ${urn}${isTimeSeriesNode ? ` from ${startDate} to ${endDate}` : ''}`);
-
-      const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
-      const data = await this.source.fetchData(nodeName, urn, params);
-
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}` : `No records have been fetched`);
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
-        await storage.saveData(preparedData);
+    for (const nodeName of catalogNodes) {
+      for (const urn of urns) {
+        await this.processCatalogNode({
+          nodeName,
+          urn,
+          fields: fields[nodeName] || []
+        });
       }
     }
+
+    await this.processTimeSeriesNodes({ urns, timeSeriesNodes, fields });
+  }
+
+  /**
+   * Imports every time series node for every account, one date at a time.
+   *
+   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * date is complete for *all* accounts and nodes, so a run interrupted midway
+   * resumes from the last fully imported date instead of restarting the range.
+   * It also keeps memory bounded to one day of analytics instead of the whole range.
+   *
+   * @param {Object} options - Processing options
+   * @param {Array<string>} options.urns - Account URNs to import
+   * @param {Array<string>} options.timeSeriesNodes - Names of the time series nodes to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
+   */
+  async processTimeSeriesNodes({ urns, timeSeriesNodes, fields }) {
+    if (!timeSeriesNodes.length) {
+      return;
+    }
+
+    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
+
+    if (daysToFetch <= 0) {
+      this.config.logMessage('No days to fetch for time series data');
+      return;
+    }
+
+    for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + dayOffset);
+
+      for (const nodeName of timeSeriesNodes) {
+        for (const urn of urns) {
+          await this.processTimeSeriesDay({
+            nodeName,
+            urn,
+            date,
+            fields: fields[nodeName] || []
+          });
+        }
+      }
+
+      // Every account and node stored this date, so the cursor can move past it.
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(date);
+      }
+    }
+  }
+
+  /**
+   * Fetch and store a single day of a time series node for one account
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.urn - Account URN
+   * @param {Date} options.date - The day to import
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processTimeSeriesDay({ nodeName, urn, date, fields }) {
+    const formattedDate = DateUtils.formatDate(date);
+
+    this.config.logMessage(`Start importing data for ${formattedDate}: ${urn}/${nodeName}`);
+
+    const data = await this.source.fetchData(nodeName, urn, { fields, startDate: date, endDate: date });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn} on ${formattedDate}` : `No records have been fetched`);
+
+    await this.saveNodeData({ nodeName, fields, data });
+  }
+
+  /**
+   * Fetch and store a catalog node (e.g. adCampaigns, creatives) for one account
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.urn - Account URN
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processCatalogNode({ nodeName, urn, fields }) {
+    const data = await this.source.fetchData(nodeName, urn, { fields });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}` : `No records have been fetched`);
+
+    await this.saveNodeData({ nodeName, fields, data });
+  }
+
+  /**
+   * Save fetched rows to the node's storage, creating an empty table when configured to
+   * @param {Object} options - Save options
+   * @param {string} options.nodeName - Name of the node
+   * @param {Array<string>} options.fields - Fields selected for the node
+   * @param {Array} options.data - Fetched rows
+   */
+  async saveNodeData({ nodeName, fields, data }) {
+    if (!data.length && !this.config.CreateEmptyTables?.value) {
+      return;
+    }
+
+    const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+    const storage = await this.getStorageByNode(nodeName);
+    await storage.saveData(preparedData);
   }
 
   /**
@@ -117,30 +168,6 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
     }
 
     return this.storages[nodeName];
-  }
-
-  /**
-   * Prepare date range for time series nodes
-   * @param {string} nodeName - Name of the node
-   * @param {boolean} isTimeSeriesNode - Whether node is time series
-   * @returns {Object|null} - Date range object or null if skipped
-   */
-  prepareDateRangeIfNeeded(nodeName, isTimeSeriesNode) {
-    if (!isTimeSeriesNode) {
-      return null;
-    }
-    
-    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-    if (daysToFetch <= 0) {
-      console.log(`Skipping ${nodeName} as daysToFetch is ${daysToFetch}`);
-      return null;
-    }
-    
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToFetch - 1);
-    console.log(`Processing time series data from ${startDate} to ${endDate}`);
-    
-    return { startDate, endDate };
   }
 
 };
