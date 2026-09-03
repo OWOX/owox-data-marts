@@ -46,13 +46,15 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       models: {
         language: [
           { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
-          { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' },
+          { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+          { id: 'claude-opus-5', name: 'Claude Opus 5' },
+          { id: 'claude-fable-5-1', name: 'Claude Fable 5.1' },
         ],
         embedding: [],
       },
       recommended: {
         fast: 'claude-haiku-4-5-20251001',
-        reasoning: 'claude-sonnet-4-5-20250929',
+        reasoning: 'claude-fable-5-1',
       },
     },
   },
@@ -68,14 +70,15 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
       models: {
         language: [
-          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+          { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite' },
+          { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+          { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview' },
         ],
         embedding: [{ id: 'gemini-embedding-001', name: 'Gemini Embedding' }],
       },
       recommended: {
-        fast: 'gemini-2.5-flash',
-        reasoning: 'gemini-2.5-pro',
+        fast: 'gemini-3.8-flash',
+        reasoning: 'gemini-3.1-pro-preview',
         embedding: 'gemini-embedding-001',
       },
     },
@@ -92,14 +95,15 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       baseUrl: 'https://openrouter.ai/api/v1',
       models: {
         language: [
-          { id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 mini' },
-          { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
+          { id: 'openai/gpt-5.6-luna', name: 'GPT-5.6 Luna' },
+          { id: 'anthropic/claude-fable-5.1', name: 'Claude Fable 5.1' },
         ],
-        embedding: [],
+        embedding: [{ id: 'openai/text-embedding-3-large', name: 'Text Embedding 3 Large' }],
       },
       recommended: {
-        fast: 'openai/gpt-4.1-mini',
-        reasoning: 'anthropic/claude-sonnet-4.5',
+        fast: 'openai/gpt-5.6-luna',
+        reasoning: 'anthropic/claude-fable-5.1',
+        embedding: 'openai/text-embedding-3-large',
       },
     },
   },
