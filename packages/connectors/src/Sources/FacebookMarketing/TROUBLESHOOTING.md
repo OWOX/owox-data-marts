@@ -27,8 +27,8 @@ If these checks look correct, match the **Run history** error with the cases bel
 | Account does not exist, account cannot load, or `Unsupported get request` | The Account ID is wrong. It may include `act_`, or the user lacks access. | Enter the numeric Account ID only. Remove `act_`. Confirm Admin, Advertiser, or Analyst access. |
 | Import fails for only one account in a multi-account setup | One Account ID is invalid, or the user lacks access to that account. | Run the Data Mart with one Account ID at a time. Find the failing account. Then fix the ID or Meta access. |
 | `There have been too many calls to this ad-account` (code `80004`, subcode `2446079`) | Meta throttled ads management calls for one ad account. Every account has an hourly call budget. | See [Ad Account Rate Limits](#ad-account-rate-limits). |
-| `Application request limit reached` (code `4`, subcode `1504022`) | Meta throttled calls for your Meta app. All Data Marts and tools that use the same app share one hourly budget. | See [App Rate Limits](#app-rate-limits). |
-| `User request limit reached` (code `17`) | Meta throttled calls for the Facebook user who authorized the connection. | Wait one hour. Then follow the steps in [App Rate Limits](#app-rate-limits). |
+| `Application request limit reached` or `There have been too many calls from this app` (code `4`, subcode `1504022`) | Meta throttled Ads Insights calls. Meta counts this load per app and per ad account. | See [App Rate Limits](#app-rate-limits). |
+| `User request limit reached` (code `17`, subcode `2446079`) | Meta throttled API calls for one ad account. Meta scores each call and blocks the account for a few minutes. | Wait five minutes, then rerun. If it repeats, see [Ad Account Rate Limits](#ad-account-rate-limits). |
 | `Please reduce the amount of data you're asking for, then retry your request` or request timeout errors | The request asks Meta for too much data. | Reduce the date range, fields, or breakdowns. Then lower **API Page Limit** in **Advanced settings** and rerun. |
 | Empty results with no obvious API error | The date range has no delivery data. The selected fields may have no values. | Check the same date range in Meta Ads Manager. Then try **Ad Account Insights** with spend, clicks, and impressions. |
 
@@ -56,21 +56,24 @@ Meta explains the full model in [Marketing API rate limiting](https://developers
 
 ## App Rate Limits
 
-Meta counts API calls per Meta app in a rolling one-hour window. This budget is separate from the ad account budget above.
-Every Data Mart, script, or third-party tool that uses the same Meta app draws from it.
+Meta throttles Ads Insights calls per Meta app and per ad account. Meta sizes this budget by query load, not by a fixed call count.
+Wide date ranges, many fields, breakdowns, and many ad accounts all raise the load.
+Every Data Mart, script, or third-party tool that uses the same Meta app draws from the app budget.
 
 A run that hits this limit keeps every row it already saved. Incremental mode resumes from the last saved date on the next run.
 
 After an app rate limit error, do this:
 
-1. Wait one hour. Then rerun the Data Mart from **Run history**.
-2. Open **Advanced settings**. Set **Initial Retry Delay** to `60000` and **Max Fetch Retries** to `5`.
-   OWOX reads the delay in milliseconds. A value of `5` means five milliseconds, so retries fire before Meta resets.
-3. Lower **Reimport Lookback Window**. Each extra day multiplies the call count by the number of accounts.
-4. Split ad accounts across several Data Marts. Stagger their schedules by at least one hour.
-5. Move other Data Marts or tools that use the same Meta app to a different time slot.
+1. Wait one hour. Then start a **Manual Run** from the Data Mart.
+2. Open **Advanced settings**. Set **Initial Retry Delay (ms)** to `60000` and **Max Fetch Retries** to `5`.
+   The waits double each time, so the retries span roughly 15 minutes. This rides out a short throttle, not a full block.
+   The value is in milliseconds. A value of `5` means five milliseconds, so retries fire before Meta resets.
+3. Reduce insights load. Remove fields you do not report on. Drop breakdowns you do not need.
+4. Lower **Reimport Lookback Window**. Each extra day multiplies the call count by the number of accounts.
+5. Split ad accounts across several Data Marts. Stagger their schedules by at least one hour.
+6. Move other Data Marts or tools that use the same Meta app to a different time slot.
 
-Meta explains the full model in [Marketing API rate limiting](https://developers.facebook.com/docs/marketing-api/overview/rate-limiting).
+Meta explains the full model in [Marketing API rate limiting](https://developers.facebook.com/docs/marketing-api/overview/rate-limiting) and [Insights API best practices](https://developers.facebook.com/docs/marketing-api/insights/best-practices/).
 
 ## Still Blocked
 
