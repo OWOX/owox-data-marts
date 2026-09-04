@@ -108,4 +108,18 @@ describe('Project setup progress API', () => {
     });
     await expect(result).rejects.toBeInstanceOf(OWOXApiError);
   });
+
+  it('normalizes setup progress from deployments that predate hasMcpQuery', async () => {
+    const { hasMcpQuery: _hasMcpQuery, ...stepsWithoutMcpQuery } = setupProgress.steps;
+    const response = { ...setupProgress, steps: stepsWithoutMcpQuery };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.project.getSetupProgress()).resolves.toEqual(setupProgress);
+  });
 });

@@ -202,7 +202,8 @@ export const SETUP_GROUPS: SetupGroup[] = [
   {
     id: GroupId.REPORT,
     title: 'Get data to your report',
-    description: 'Create a destination, report, and run it to get results.',
+    description:
+      'Create a destination, report, run it to get results, and connect an AI assistant.',
     stepIds: [
       SetupStepId.CREATE_DESTINATION,
       SetupStepId.CREATE_REPORT,
@@ -215,11 +216,13 @@ export const SETUP_GROUPS: SetupGroup[] = [
   {
     id: GroupId.ENABLE_GOOGLE_SHEETS,
     title: 'Enable Google Sheets',
-    description: 'Let your team build reports and add columns in Google Sheets without SQL.',
+    description:
+      'Let your team build reports and add columns in Google Sheets without SQL, and connect an AI assistant.',
     stepIds: [
       SetupStepId.CREATE_GOOGLE_SHEETS_DESTINATION,
       SetupStepId.INSTALL_GOOGLE_SHEETS_EXTENSION,
       SetupStepId.CREATE_RUN_REPORT_FROM_EXTENSION,
+      SetupStepId.CONNECT_AI_ASSISTANT,
     ],
     isConditional: true,
     showCondition: (user: User | null) => hasSheetsUseCase(user),

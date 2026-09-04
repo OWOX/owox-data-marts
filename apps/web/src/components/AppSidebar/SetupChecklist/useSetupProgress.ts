@@ -112,7 +112,7 @@ export const setupProgressKeys = {
  */
 export async function fetchSetupProgress(): Promise<ProjectSetupProgress> {
   const response = await setupProgressService.getProgress();
-  return response.steps;
+  return { ...EMPTY_PROGRESS, ...response.steps };
 }
 
 /**
