@@ -5,10 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
-import { isEmailConfig } from '../data-destination-types/data-destination-config.guards';
+import {
+  isEmailConfig,
+  isGoogleSheetsConfig,
+} from '../data-destination-types/data-destination-config.guards';
 import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
 import { ReportCondition } from '../data-destination-types/enums/report-condition.enum';
 import {
@@ -24,6 +28,7 @@ import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { GetReportOutputSchemaCommand } from '../dto/domain/get-report-output-schema.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
+import { AddGoogleSheetToSpreadsheetCommand } from '../dto/domain/google-sheets/add-google-sheet-to-spreadsheet.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
@@ -32,7 +37,10 @@ import { collectSchemaFieldPathDescriptors } from '../data-storage-types/data-ma
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
-import { joinedUniqueCountSources } from '../dto/schemas/unique-count-sources';
+import {
+  joinedUniqueCountSources,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -52,6 +60,7 @@ import { CreateReportService } from '../use-cases/create-report.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
 import { GetReportOutputSchemaService } from '../use-cases/get-report-output-schema.service';
 import { GetReportService } from '../use-cases/get-report.service';
+import { AddGoogleSheetToSpreadsheetService } from '../use-cases/google-sheets/add-google-sheet-to-spreadsheet.service';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import { RunReportService } from '../use-cases/run-report.service';
@@ -59,6 +68,11 @@ import { UpdateReportService } from '../use-cases/update-report.service';
 import { toReportRunType } from '../utils/report-run-type';
 import { extractRunErrorMessage } from '../utils/run-error-message';
 import { toMcpDestinationType } from './mcp-destination-type';
+import {
+  isUiOnlyFilterRule,
+  sameFieldSelection,
+  toMcpOutputControls,
+} from './mcp-report-output-controls';
 import {
   McpAddReportRequest,
   McpAddReportResult,
@@ -70,9 +84,13 @@ import {
   McpGetReportOutputSchemaResponse,
   McpGetReportRunStatusRequest,
   McpGetReportRunStatusResponse,
+  McpReportRunOutcome,
   McpReportRunStatus,
   McpReportScheduleItem,
+  McpReportSheetInfo,
   McpReportsFacade,
+  McpReportSummary,
+  McpSimilarReportExistsException,
   McpRunReportRequest,
   McpRunReportResponse,
   McpUpdateReportMessage,
@@ -150,7 +168,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly reportAccessService: ReportAccessService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly reportService: ReportService,
-    private readonly getReportOutputSchemaService: GetReportOutputSchemaService
+    private readonly getReportOutputSchemaService: GetReportOutputSchemaService,
+    private readonly addGoogleSheetToSpreadsheetService: AddGoogleSheetToSpreadsheetService
   ) {}
 
   /**
@@ -195,19 +214,17 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
+    const hasExportInput =
+      request.fields !== undefined ||
+      request.postJoinFilters !== undefined ||
+      request.preJoinFilters !== undefined ||
+      request.aggregationConfig !== undefined ||
+      request.dateTruncConfig !== undefined ||
+      request.sortConfig !== undefined ||
+      request.limitConfig !== undefined;
     // The facade is a public interface, so the "at least one change" invariant
     // is enforced here as well, not only by the tool-layer input schema.
-    if (
-      request.fields === undefined &&
-      request.postJoinFilters === undefined &&
-      request.preJoinFilters === undefined &&
-      request.aggregationConfig === undefined &&
-      request.dateTruncConfig === undefined &&
-      request.sortConfig === undefined &&
-      request.limitConfig === undefined &&
-      request.name === undefined &&
-      request.message === undefined
-    ) {
+    if (!hasExportInput && request.name === undefined && request.message === undefined) {
       throw new BadRequestException(
         'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
       );
@@ -243,7 +260,46 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
           )
         : current.destinationConfig;
 
-    await this.updateReportService.run(
+    const destinationType = current.dataDestinationAccess.type;
+    if (request.runImmediately === true && isPullBasedDataDestinationType(destinationType)) {
+      throw new BadRequestException(
+        `run_immediately is not applicable to ${toHumanReadable(destinationType)} reports: ` +
+          'they are pull-based and cannot be run through MCP'
+      );
+    }
+
+    const next = {
+      columnConfig:
+        request.fields !== undefined
+          ? this.toUpdatedColumnConfig(request.fields, current)
+          : (current.columnConfig ?? null),
+      filterConfig: this.mergeFilterConfig(
+        current.filterConfig ?? null,
+        request.preJoinFilters,
+        request.postJoinFilters
+      ),
+      sortConfig:
+        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
+      limitConfig:
+        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
+      aggregationConfig:
+        request.aggregationConfig !== undefined
+          ? request.aggregationConfig
+          : (current.aggregationConfig ?? null),
+      dateTruncConfig:
+        request.dateTruncConfig !== undefined
+          ? request.dateTruncConfig
+          : (current.dateTruncConfig ?? null),
+    };
+    // Compared the way UpdateReportService decides whether to invalidate its
+    // cache — serialized, so a re-sent identical control is NOT a change. An
+    // agent that echoes the stored fields back must not trigger an external
+    // write and a billed run for a definition that did not move.
+    const definitionChanged = (Object.keys(next) as Array<keyof typeof next>).some(
+      key => JSON.stringify(next[key]) !== JSON.stringify(current[key] ?? null)
+    );
+
+    const updated = await this.updateReportService.run(
       new UpdateReportCommand(
         request.reportId,
         request.projectId,
@@ -253,36 +309,55 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         current.dataDestinationAccess.id,
         destinationConfig,
         undefined,
-        request.fields !== undefined
-          ? this.toUpdatedColumnConfig(request.fields, current)
-          : (current.columnConfig ?? null),
-        this.mergeFilterConfig(
-          current.filterConfig ?? null,
-          request.preJoinFilters,
-          request.postJoinFilters
-        ),
-        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
-        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
-        request.aggregationConfig !== undefined
-          ? request.aggregationConfig
-          : (current.aggregationConfig ?? null),
-        request.dateTruncConfig !== undefined
-          ? request.dateTruncConfig
-          : (current.dateTruncConfig ?? null),
+        next.columnConfig,
+        next.filterConfig,
+        next.sortConfig,
+        next.limitConfig,
+        next.aggregationConfig,
+        next.dateTruncConfig,
         current.uniqueCountConfig
       )
     );
 
-    return { report_id: request.reportId, status: 'updated' };
+    // A refresh run is queued by default only for a Google Sheets report whose
+    // export ACTUALLY changed, so the sheet does not keep showing rows the
+    // report no longer defines. Email-family reports are NOT re-sent by
+    // default: a run messages every configured recipient or channel, and a
+    // "sort by revenue" tweak must not re-broadcast to third parties unless
+    // explicitly asked. A rename, a message edit, or re-sent identical controls
+    // deliver nothing new for any type.
+    const run = await this.queueRunAfterWrite(
+      updated.id,
+      request,
+      destinationType,
+      request.runImmediately ??
+        (definitionChanged && destinationType === DataDestinationType.GOOGLE_SHEETS)
+    );
+
+    return {
+      report_id: updated.id,
+      status: 'updated',
+      destination_type: toMcpDestinationType(destinationType),
+      name: updated.title,
+      ...toMcpOutputControls(updated),
+      ...this.toSheetInfo(updated),
+      run,
+    };
   }
 
   /**
    * Replaces the report's filter rules PER PLACEMENT: `filters` (post-join) and
    * `slices` (pre-join) are independent controls, so touching one must not wipe
-   * the stored rules of the other — an agent that never saw the report's current
-   * slices could not restore them (no read tool exposes output controls). Rules
-   * without a `placement` (e.g. created in the UI) count as post-join, matching
-   * how the query engine applies them.
+   * the stored rules of the other. Rules without a `placement` (e.g. created in
+   * the UI) count as post-join, matching how the query engine applies them.
+   *
+   * Within a placement, only the rules the MCP vocabulary can EXPRESS are
+   * replaced. A rule created in the OWOX UI that it cannot express — a
+   * post-aggregation (HAVING) constraint, a regex, a calendar preset such as
+   * "today" — is kept as stored: the agent cannot re-send it, so replacing it
+   * would silently drop a constraint and broaden what the report delivers. The
+   * read path lists such rules under `ui_only_filters`, and they are changed or
+   * removed in the OWOX UI.
    */
   private mergeFilterConfig(
     current: FilterConfig,
@@ -293,14 +368,16 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       return current;
     }
     const currentRules = current ?? [];
+    const currentPreJoin = currentRules.filter(rule => rule.placement === 'pre-join');
+    const currentPostJoin = currentRules.filter(rule => rule.placement !== 'pre-join');
     const nextPreJoin =
       preJoinReplacement !== undefined
-        ? (preJoinReplacement ?? [])
-        : currentRules.filter(rule => rule.placement === 'pre-join');
+        ? [...currentPreJoin.filter(isUiOnlyFilterRule), ...(preJoinReplacement ?? [])]
+        : currentPreJoin;
     const nextPostJoin =
       postJoinReplacement !== undefined
-        ? (postJoinReplacement ?? [])
-        : currentRules.filter(rule => rule.placement !== 'pre-join');
+        ? [...currentPostJoin.filter(isUiOnlyFilterRule), ...(postJoinReplacement ?? [])]
+        : currentPostJoin;
     const merged = [...nextPreJoin, ...nextPostJoin];
     return merged.length ? merged : null;
   }
@@ -390,6 +467,21 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       this.assertNoMessage(destination.type, request);
     }
 
+    if (
+      request.spreadsheetId !== undefined &&
+      destination.type !== DataDestinationType.GOOGLE_SHEETS
+    ) {
+      throw new BadRequestException(
+        'The spreadsheet_id parameter applies only to Google Sheets destinations; ' +
+          `the target destination is ${toHumanReadable(destination.type)}`
+      );
+    }
+
+    // Looker Studio has its own one-report-per-pair rule (see addLookerStudioReport).
+    if (!request.allowSimilar && destination.type !== DataDestinationType.LOOKER_STUDIO) {
+      await this.assertNoSimilarReport(request);
+    }
+
     let created: McpCreatedReport;
     switch (destination.type) {
       case DataDestinationType.GOOGLE_SHEETS:
@@ -424,35 +516,91 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     request: McpAddReportRequest,
     destinationType: DataDestinationType
   ): Promise<McpAddReportResult> {
+    const initial_run = await this.queueRunAfterWrite(
+      created.report_id,
+      request,
+      destinationType,
+      request.runImmediately !== false
+    );
+    return { ...created, initial_run };
+  }
+
+  /**
+   * Queues a Report Run after a committed write (create or update). The write
+   * stands whatever happens here: a destination that cannot be pushed reports
+   * `not_applicable`, a caller that did not want a run gets `not_requested`,
+   * and an enqueue failure is returned as `failed_to_queue` with the message so
+   * the caller retries with run_report instead of repeating the write.
+   */
+  private async queueRunAfterWrite(
+    reportId: string,
+    context: { projectId: string; userId: string; roles: string[] },
+    destinationType: DataDestinationType,
+    wanted: boolean
+  ): Promise<McpReportRunOutcome> {
     if (!MCP_RUN_REPORT_DESTINATION_TYPE_SET.has(destinationType)) {
-      return { ...created, initial_run: { status: 'not_applicable' } };
+      return { status: 'not_applicable' };
     }
 
-    if (request.runImmediately === false) {
-      return { ...created, initial_run: { status: 'not_requested' } };
+    if (!wanted) {
+      return { status: 'not_requested' };
     }
 
     try {
       const run = await this.runReport({
-        projectId: request.projectId,
-        userId: request.userId,
-        roles: request.roles,
-        reportId: created.report_id,
+        projectId: context.projectId,
+        userId: context.userId,
+        roles: context.roles,
+        reportId,
       });
-      return {
-        ...created,
-        initial_run: { status: 'queued', run_id: run.runId },
-      };
+      return { status: 'queued', run_id: run.runId };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Report run could not be queued';
+      const cause = castError(error);
       this.logger.error(
-        `Report ${created.report_id} was created by add_report but its initial run could not be queued`,
-        error instanceof Error ? error.stack : String(error)
+        `Report ${reportId} was written by an MCP report tool but its run could not be queued`,
+        cause.stack
       );
-      return {
-        ...created,
-        initial_run: { status: 'failed_to_queue', error: message },
-      };
+      return { status: 'failed_to_queue', error: cause.message };
+    }
+  }
+
+  /**
+   * The "add a filter" request must land on the report the user just created,
+   * not on a second one: a report exporting the SAME fields from the same data
+   * mart to the same destination, created by the same user, is treated as that
+   * report. Filters and the other output controls are deliberately not part of
+   * the match — they are exactly what the follow-up request changes. Two kinds
+   * of report are never "that report": one carrying a Unique Count metric,
+   * which add_report cannot produce and update_report cannot remove, so the
+   * plain report the caller asked for is genuinely different; and one the
+   * caller can no longer edit (creator identity is not current access — owners
+   * change), because directing them to update_report would end in a 403.
+   * Runs BEFORE any side effect, so a refused Google Sheets report creates no
+   * file. The newest match is reported, being the one the conversation most
+   * likely means.
+   */
+  private async assertNoSimilarReport(request: McpAddReportRequest): Promise<void> {
+    const wantedColumns = this.toColumnConfig(request.fields);
+    const reports = await this.listReportsByDataMartService.run(
+      new ListReportsByDataMartCommand(
+        request.dataMartId,
+        request.projectId,
+        request.userId,
+        request.roles
+      )
+    );
+    const similar = reports
+      .filter(
+        report =>
+          report.dataDestinationAccess.id === request.destinationId &&
+          report.createdByUser?.userId === request.userId &&
+          report.canEditConfig &&
+          normalizeUniqueCountSources(report.uniqueCountConfig).length === 0 &&
+          sameFieldSelection(report.columnConfig, wantedColumns)
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    if (similar) {
+      throw new McpSimilarReportExistsException(this.toReportSummary(similar, request.dataMartId));
     }
   }
 
@@ -624,16 +772,29 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     //    unauthorized caller must not be able to trigger it at all.
     await this.assertCanCreateReport(request, columnConfig);
 
-    // 2. Auto-create the Google Sheet.
-    const sheet = await this.createGoogleSheetDocumentService.run(
-      new CreateGoogleSheetDocumentCommand(
-        request.destinationId,
-        request.projectId,
-        name,
-        request.userId,
-        request.userEmail
-      )
-    );
+    // 2. Auto-create the Google Sheet — a new file, or a new sheet (tab) of the
+    //    spreadsheet the caller named so related exports share one document.
+    const sheet =
+      request.spreadsheetId !== undefined
+        ? await this.addGoogleSheetToSpreadsheetService.run(
+            new AddGoogleSheetToSpreadsheetCommand(
+              request.destinationId,
+              request.projectId,
+              request.spreadsheetId,
+              name,
+              request.userId,
+              request.userEmail
+            )
+          )
+        : await this.createGoogleSheetDocumentService.run(
+            new CreateGoogleSheetDocumentCommand(
+              request.destinationId,
+              request.projectId,
+              name,
+              request.userId,
+              request.userEmail
+            )
+          );
 
     // 3. Create the report pointing at the freshly-created sheet. Omitting
     //    ownerIds makes the service default ownership to the requesting user.
@@ -665,9 +826,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       destination_type: toMcpDestinationType(DataDestinationType.GOOGLE_SHEETS),
       owner: report.createdByUser?.email ?? null,
       status: 'created',
+      spreadsheet_id: sheet.spreadsheetId,
       sheet_url: buildGoogleSheetUrl(sheet.spreadsheetId, sheet.sheetId),
-      placed_in_root: sheet.placedInRoot,
-      shared_with_requester: sheet.sharedWithRequester,
+      // Folder placement describes a NEW file only. Sharing is reported for
+      // both: granted (new file) or confirmed (existing spreadsheet).
+      ...('placedInRoot' in sheet && { placed_in_root: sheet.placedInRoot }),
+      ...('sharedWithRequester' in sheet && { shared_with_requester: sheet.sharedWithRequester }),
     };
   }
 
@@ -792,20 +956,51 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
     return {
       reports: reports.map(report => ({
-        report_id: report.id,
-        data_mart_id: request.dataMartId,
-        name: report.title,
-        destination_id: report.dataDestinationAccess.id,
-        destination_type: toMcpDestinationType(report.dataDestinationAccess.type),
+        ...this.toReportSummary(report, request.dataMartId),
         // Report the creator as the owner (consistent with list_destinations):
         // the owners relation has no stable ordering.
         owner: report.createdByUser?.email ?? null,
+        created_by_current_user: report.createdByUser?.userId === request.userId,
         schedules: (triggersByReportId.get(report.id) ?? []).map(trigger =>
           this.toScheduleItem(trigger)
         ),
         last_run_at: report.lastRunAt?.toISOString() ?? null,
         last_run_status: report.lastRunStatus ?? null,
       })),
+    };
+  }
+
+  /**
+   * The identity and definition of a report in the vocabulary of the report
+   * tools — what an agent needs to recognise a report it created and to update
+   * it without wiping controls it never saw.
+   */
+  private toReportSummary(report: ReportDto, dataMartId: string): McpReportSummary {
+    return {
+      report_id: report.id,
+      data_mart_id: dataMartId,
+      name: report.title,
+      destination_id: report.dataDestinationAccess.id,
+      destination_type: toMcpDestinationType(report.dataDestinationAccess.type),
+      created_at: report.createdAt.toISOString(),
+      ...toMcpOutputControls(report),
+      ...this.toSheetInfo(report),
+    };
+  }
+
+  /** Spreadsheet identifiers of a Google Sheets report; empty for any other type. */
+  private toSheetInfo(report: ReportDto): McpReportSheetInfo {
+    if (
+      report.dataDestinationAccess.type !== DataDestinationType.GOOGLE_SHEETS ||
+      !report.destinationConfig ||
+      !isGoogleSheetsConfig(report.destinationConfig)
+    ) {
+      return {};
+    }
+    const { spreadsheetId, sheetId } = report.destinationConfig;
+    return {
+      spreadsheet_id: spreadsheetId,
+      sheet_url: buildGoogleSheetUrl(spreadsheetId, sheetId),
     };
   }
 

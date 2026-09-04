@@ -296,6 +296,23 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Lists who a file is shared with (Drive `permissions.list`), so a caller can
+   * tell whether a given person can open it WITHOUT granting anything. Requires a
+   * Drive scope on the underlying auth; errors propagate for the caller to classify.
+   */
+  public async listFilePermissions(fileId: string): Promise<drive_v3.Schema$Permission[]> {
+    const drive = this.getDriveService();
+    const res = await this.executeWithRetry(() =>
+      drive.permissions.list({
+        fileId,
+        fields: 'permissions(type,emailAddress,domain,role)',
+        supportsAllDrives: true,
+      })
+    );
+    return res.data.permissions ?? [];
+  }
+
+  /**
    * Reads Drive folder metadata to validate write access for the auto-creation
    * flow. Returns a structured result instead of throwing, so callers can build
    * precise messages. A failed lookup (folder missing, not shared, or no access)

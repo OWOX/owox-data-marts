@@ -8,6 +8,9 @@ jest.mock('../use-cases/create-report.service', () => ({ CreateReportService: je
 jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({
   CreateGoogleSheetDocumentService: jest.fn(),
 }));
+jest.mock('../use-cases/google-sheets/add-google-sheet-to-spreadsheet.service', () => ({
+  AddGoogleSheetToSpreadsheetService: jest.fn(),
+}));
 jest.mock('../use-cases/get-report.service', () => ({
   GetReportService: jest.fn(),
 }));
@@ -71,6 +74,7 @@ import type { ReportAccessService } from '../services/report-access.service';
 import type { ReportService } from '../services/report.service';
 import type { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import type { CreateReportService } from '../use-cases/create-report.service';
+import type { AddGoogleSheetToSpreadsheetService } from '../use-cases/google-sheets/add-google-sheet-to-spreadsheet.service';
 import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import type { DeleteReportService } from '../use-cases/delete-report.service';
 import type { GetReportOutputSchemaService } from '../use-cases/get-report-output-schema.service';
@@ -82,13 +86,32 @@ import type { ListReportsByDataMartService } from '../use-cases/list-reports-by-
 import type { RunReportService } from '../use-cases/run-report.service';
 import type { UpdateReportService } from '../use-cases/update-report.service';
 import { McpReportsFacadeImpl } from './mcp-reports.facade.impl';
+import { McpSimilarReportExistsException } from './mcp-reports.facade';
+
+const EMPTY_OUTPUT_CONTROLS = {
+  fields: ['*'],
+  unique_count_sources: [],
+  filters: [],
+  slices: [],
+  aggregations: [],
+  date_buckets: [],
+  sort: [],
+  limit: null,
+};
 
 function buildReport(overrides: {
   id: string;
   title?: string;
   destinationId?: string;
   destinationType?: DataDestinationType;
+  destinationConfig?: Record<string, unknown>;
   createdByEmail?: string | null;
+  createdByUserId?: string;
+  createdAt?: Date;
+  columnConfig?: string[] | null;
+  filterConfig?: FilterConfig;
+  uniqueCountConfig?: string[] | boolean | null;
+  canEditConfig?: boolean;
   lastRunAt?: Date;
   lastRunStatus?: ReportRunStatus;
 }): ReportDto {
@@ -99,10 +122,19 @@ function buildReport(overrides: {
       id: overrides.destinationId ?? 'dest-1',
       type: overrides.destinationType ?? DataDestinationType.GOOGLE_SHEETS,
     },
+    destinationConfig: overrides.destinationConfig,
     createdByUser:
       overrides.createdByEmail === null
         ? null
-        : { email: overrides.createdByEmail ?? 'creator@owox.com' },
+        : {
+            userId: overrides.createdByUserId ?? 'creator-1',
+            email: overrides.createdByEmail ?? 'creator@owox.com',
+          },
+    createdAt: overrides.createdAt ?? new Date('2026-06-01T00:00:00.000Z'),
+    columnConfig: overrides.columnConfig,
+    filterConfig: overrides.filterConfig,
+    uniqueCountConfig: overrides.uniqueCountConfig,
+    canEditConfig: overrides.canEditConfig ?? true,
     lastRunAt: overrides.lastRunAt,
     lastRunStatus: overrides.lastRunStatus,
   } as unknown as ReportDto;
@@ -203,6 +235,9 @@ function createMocks() {
     getReportOutputSchemaService: {
       run: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<GetReportOutputSchemaService>,
+    addGoogleSheetToSpreadsheetService: {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<AddGoogleSheetToSpreadsheetService>,
   };
 }
 
@@ -237,7 +272,8 @@ function createFacade(overrides?: {
       mocks.reportAccessService,
       mocks.outputControlsValidator,
       mocks.reportService,
-      mocks.getReportOutputSchemaService
+      mocks.getReportOutputSchemaService,
+      mocks.addGoogleSheetToSpreadsheetService
     ),
     ...mocks,
   };
@@ -294,7 +330,10 @@ describe('McpReportsFacadeImpl', () => {
         name: 'Weekly revenue',
         destination_id: 'dest-99',
         destination_type: 'teams',
+        created_at: '2026-06-01T00:00:00.000Z',
+        ...EMPTY_OUTPUT_CONTROLS,
         owner: 'ann@owox.com',
+        created_by_current_user: false,
         schedules: [
           {
             trigger_id: 'trigger-1',
@@ -309,6 +348,48 @@ describe('McpReportsFacadeImpl', () => {
         last_run_status: ReportRunStatus.SUCCESS,
       },
     ]);
+  });
+
+  it('exposes what each report exports, its spreadsheet, and whether the caller created it', async () => {
+    const { facade } = createFacade({
+      reports: [
+        buildReport({
+          id: 'r1',
+          createdByUserId: 'user-1',
+          destinationConfig: { type: 'google-sheets-config', spreadsheetId: 'ss-1', sheetId: 7 },
+          columnConfig: ['channel', 'revenue'],
+          filterConfig: [
+            { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+            { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' },
+          ],
+        }),
+        buildReport({
+          id: 'r2',
+          destinationType: DataDestinationType.SLACK,
+          destinationConfig: { type: 'email-config', subject: 's' },
+        }),
+      ],
+      triggers: [],
+    });
+
+    const result = await facade.getDataMartReports(request);
+
+    expect(result.reports[0]).toEqual(
+      expect.objectContaining({
+        report_id: 'r1',
+        created_by_current_user: true,
+        fields: ['channel', 'revenue'],
+        filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
+        slices: [{ field: 'source', operator: 'eq', value: 'ga4' }],
+        spreadsheet_id: 'ss-1',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=7',
+      })
+    );
+    expect(result.reports[1]).toEqual(
+      expect.objectContaining({ report_id: 'r2', created_by_current_user: false, fields: ['*'] })
+    );
+    expect(result.reports[1]).not.toHaveProperty('spreadsheet_id');
+    expect(result.reports[1]).not.toHaveProperty('sheet_url');
   });
 
   it('returns every schedule of a report, ordered by creation time', async () => {
@@ -504,7 +585,205 @@ describe('McpReportsFacadeImpl.addReport', () => {
       owner: 'ann@owox.com',
       status: 'created',
       initial_run: { status: 'not_requested' },
+      spreadsheet_id: 'ss-1',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+    });
+  });
+
+  it('adds a sheet to an existing spreadsheet when spreadsheetId is given', async () => {
+    const {
+      facade,
+      addGoogleSheetToSpreadsheetService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    addGoogleSheetToSpreadsheetService.run.mockResolvedValue({
+      spreadsheetId: 'ss-existing',
+      sheetId: 4242,
+      sheetTitle: 'Weekly revenue',
+    });
+    createReportService.run.mockResolvedValue({
+      id: 'report-2',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport({ ...addRequest, spreadsheetId: 'ss-existing' });
+
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(addGoogleSheetToSpreadsheetService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationId: 'dest-1',
+        projectId: 'project-1',
+        spreadsheetId: 'ss-existing',
+        title: 'Weekly revenue',
+      })
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: {
+          type: 'google-sheets-config',
+          spreadsheetId: 'ss-existing',
+          sheetId: 4242,
+        },
+      })
+    );
+    expect(result).toEqual({
+      report_id: 'report-2',
+      destination_type: 'google_sheets',
+      owner: 'ann@owox.com',
+      status: 'created',
+      initial_run: { status: 'not_requested' },
+      spreadsheet_id: 'ss-existing',
+      sheet_url: 'https://docs.google.com/spreadsheets/d/ss-existing/edit#gid=4242',
+    });
+    // Placement and sharing describe a new file; a sheet inherits both.
+    expect(result).not.toHaveProperty('placed_in_root');
+    expect(result).not.toHaveProperty('shared_with_requester');
+  });
+
+  it('rejects spreadsheetId for a non-Google-Sheets destination before any side effect', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-slack',
+      type: DataDestinationType.SLACK,
+    } as never);
+
+    await expect(
+      facade.addReport({
+        ...addRequest,
+        destinationId: 'dest-slack',
+        spreadsheetId: 'ss-1',
+        message: { body: '{{table}}' },
+      })
+    ).rejects.toThrow('The spreadsheet_id parameter applies only to Google Sheets destinations');
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  describe('similar-report guard', () => {
+    const existing = buildReport({
+      id: 'report-existing',
+      title: 'Weekly revenue',
+      createdByUserId: 'user-1',
+      createdAt: new Date('2026-06-02T00:00:00.000Z'),
+      columnConfig: ['revenue', 'channel'],
+      filterConfig: [{ column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' }],
+      destinationConfig: { type: 'google-sheets-config', spreadsheetId: 'ss-1', sheetId: 0 },
+    });
+
+    it("refuses a report duplicating the caller's own field selection, before the sheet exists", async () => {
+      const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+        reports: [existing],
+        triggers: [],
+      });
+
+      const failure = await facade.addReport(addRequest).catch(error => error);
+
+      expect(failure).toBeInstanceOf(McpSimilarReportExistsException);
+      expect(failure.message).toContain('"Weekly revenue" (report_id report-existing)');
+      expect(failure.existingReport).toEqual(
+        expect.objectContaining({
+          report_id: 'report-existing',
+          data_mart_id: 'dm-1',
+          destination_type: 'google_sheets',
+          fields: ['revenue', 'channel'],
+          filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
+          spreadsheet_id: 'ss-1',
+        })
+      );
+      expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+      expect(createReportService.run).not.toHaveBeenCalled();
+    });
+
+    it('names the newest match when several qualify', async () => {
+      const older = buildReport({
+        id: 'report-older',
+        createdByUserId: 'user-1',
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        columnConfig: ['channel', 'revenue'],
+      });
+      const { facade } = createFacade({ reports: [older, existing], triggers: [] });
+
+      const failure = await facade.addReport(addRequest).catch(error => error);
+
+      expect(failure.existingReport.report_id).toBe('report-existing');
+    });
+
+    it.each([
+      ['another user created it', { createdByUserId: 'someone-else' }],
+      ['it exports different fields', { columnConfig: ['channel'] }],
+      ['it exports to another destination', { destinationId: 'dest-other' }],
+      // Creator identity is not current access: update_report would 403.
+      ['the caller can no longer edit it', { canEditConfig: false }],
+      // add_report cannot produce a Unique Count, update_report cannot drop it.
+      ['it carries a Unique Count metric', { uniqueCountConfig: ['orders'] }],
+      ['it carries the legacy main Unique Count', { uniqueCountConfig: true }],
+    ])('creates the report when %s', async (_reason, overrides) => {
+      const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+        reports: [
+          buildReport({
+            id: 'report-existing',
+            createdByUserId: 'user-1',
+            columnConfig: ['revenue', 'channel'],
+            ...overrides,
+          }),
+        ],
+        triggers: [],
+      });
+      createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+
+      await expect(facade.addReport(addRequest)).resolves.toEqual(
+        expect.objectContaining({ report_id: 'report-1' })
+      );
+    });
+
+    it('creates the report anyway when allowSimilar is set', async () => {
+      const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+        reports: [existing],
+        triggers: [],
+      });
+      createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+
+      await expect(facade.addReport({ ...addRequest, allowSimilar: true })).resolves.toEqual(
+        expect.objectContaining({ report_id: 'report-1' })
+      );
+    });
+
+    it('does not treat a metrics-only report (empty projection) as an all-fields duplicate', async () => {
+      const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+        reports: [buildReport({ id: 'metrics-only', createdByUserId: 'user-1', columnConfig: [] })],
+        triggers: [],
+      });
+      createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+
+      await expect(facade.addReport({ ...addRequest, fields: ['*'] })).resolves.toEqual(
+        expect.objectContaining({ report_id: 'report-1' })
+      );
+    });
+
+    it("treats ['*'] and no projection as the same selection", async () => {
+      const { facade } = createFacade({
+        reports: [buildReport({ id: 'all-fields', createdByUserId: 'user-1', columnConfig: null })],
+        triggers: [],
+      });
+
+      await expect(facade.addReport({ ...addRequest, fields: ['*'] })).rejects.toThrow(
+        McpSimilarReportExistsException
+      );
     });
   });
 
@@ -1137,16 +1416,30 @@ describe('McpReportsFacadeImpl.updateReport', () => {
   const currentReport = {
     id: 'report-1',
     title: 'Old name',
-    dataDestinationAccess: { id: 'dest-1' },
+    dataDestinationAccess: { id: 'dest-1', type: DataDestinationType.GOOGLE_SHEETS },
     destinationConfig: { type: 'google-sheets-config', spreadsheetId: 'ss-1', sheetId: 0 },
     columnConfig: ['channel', 'revenue'],
     filterConfig: [{ column: 'channel', operator: 'eq', value: 'ads' }],
-    sortConfig: [{ column: 'revenue', direction: 'DESC' }],
+    sortConfig: [{ column: 'revenue', direction: 'desc' }],
     limitConfig: 100,
-    aggregationConfig: { groupBy: ['channel'] },
-    dateTruncConfig: { column: 'date', unit: 'month' },
+    aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+    dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
     uniqueCountConfig: undefined,
   } as unknown as ReportDto;
+
+  const currentReportOutput = {
+    destination_type: 'google_sheets',
+    fields: ['channel', 'revenue'],
+    unique_count_sources: [],
+    filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
+    slices: [],
+    aggregations: [{ field: 'revenue', function: 'SUM' }],
+    date_buckets: [{ field: 'date', unit: 'MONTH' }],
+    sort: [{ field: 'revenue', direction: 'desc' }],
+    limit: 100,
+    spreadsheet_id: 'ss-1',
+    sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+  };
 
   function buildUpdateFacade() {
     const built = createFacade({ reports: [], triggers: [] });
@@ -1188,7 +1481,195 @@ describe('McpReportsFacadeImpl.updateReport', () => {
         dateTruncConfig: currentReport.dateTruncConfig,
       })
     );
-    expect(result).toEqual({ report_id: 'report-1', status: 'updated' });
+    expect(result).toEqual({
+      report_id: 'report-1',
+      status: 'updated',
+      name: 'Old name',
+      ...currentReportOutput,
+      // A rename delivers nothing new, so no run is queued by default.
+      run: { status: 'not_requested' },
+    });
+  });
+
+  it('re-runs a push report by default when the export changed', async () => {
+    const { facade, runReportService } = buildUpdateFacade();
+
+    const result = await facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+    expect(runReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ reportId: 'report-1', runType: RunType.manual })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'updated',
+        fields: ['channel', 'revenue'],
+        run: { status: 'queued', run_id: 'run-1' },
+      })
+    );
+  });
+
+  it('keeps UI-only rules when filters are replaced, so adding a filter never broadens the data', async () => {
+    const built = buildUpdateFacade();
+    const having = { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' } as const;
+    const regexSlice = {
+      column: 'name',
+      operator: 'regex',
+      value: '^a',
+      placement: 'pre-join',
+    } as const;
+    const today = { column: 'date', operator: 'relative_date', value: { kind: 'today' } } as const;
+    const stored = {
+      ...currentReport,
+      filterConfig: [
+        { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+        having,
+        regexSlice,
+        today,
+      ],
+    } as unknown as ReportDto;
+    built.getReportService.run.mockResolvedValue(stored);
+    built.updateReportService.run.mockResolvedValue(stored);
+
+    // The core "add a filter" flow: the agent sends the expressible filters it
+    // saw plus the new one. The HAVING rule and the calendar preset (post-join)
+    // survive, and the untouched slice keeps its regex.
+    await built.facade.updateReport({
+      ...updateRequest,
+      postJoinFilters: [
+        { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+        { column: 'country', operator: 'eq', value: 'UA', placement: 'post-join' },
+      ],
+    });
+
+    expect(built.updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          regexSlice,
+          having,
+          today,
+          { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+          { column: 'country', operator: 'eq', value: 'UA', placement: 'post-join' },
+        ],
+      })
+    );
+
+    // Clearing the expressible filters still keeps every UI-only rule.
+    await built.facade.updateReport({ ...updateRequest, postJoinFilters: null });
+    expect(built.updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [regexSlice, having, today] })
+    );
+
+    // Replacing slices keeps the UI-only slice and every post-join rule.
+    await built.facade.updateReport({
+      ...updateRequest,
+      preJoinFilters: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+    });
+    expect(built.updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          regexSlice,
+          { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' },
+          { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+          having,
+          today,
+        ],
+      })
+    );
+  });
+
+  it('does not re-run when the re-sent controls equal the stored definition', async () => {
+    const { facade, runReportService, updateReportService } = buildUpdateFacade();
+
+    // Same fields and the same filter, echoed back exactly as stored.
+    const result = await facade.updateReport({
+      ...updateRequest,
+      fields: ['channel', 'revenue'],
+      postJoinFilters: [{ column: 'channel', operator: 'eq', value: 'ads' }],
+    });
+
+    expect(updateReportService.run).toHaveBeenCalledTimes(1);
+    expect(runReportService.run).not.toHaveBeenCalled();
+    expect(result.run).toEqual({ status: 'not_requested' });
+  });
+
+  it('honours an explicit runImmediately for a name-only or a data change', async () => {
+    const { facade, runReportService } = buildUpdateFacade();
+
+    await expect(
+      facade.updateReport({ ...updateRequest, name: 'New name', runImmediately: true })
+    ).resolves.toEqual(expect.objectContaining({ run: { status: 'queued', run_id: 'run-1' } }));
+    await expect(
+      facade.updateReport({ ...updateRequest, fields: ['channel'], runImmediately: false })
+    ).resolves.toEqual(expect.objectContaining({ run: { status: 'not_requested' } }));
+    expect(runReportService.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the update as partial success when the refresh run cannot be queued', async () => {
+    const { facade, runReportService, updateReportService } = buildUpdateFacade();
+    runReportService.run.mockResolvedValue(undefined as never);
+
+    const result = await facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+    expect(updateReportService.run).toHaveBeenCalled();
+    expect(result.run).toEqual({
+      status: 'failed_to_queue',
+      error: 'Report is already running or pending',
+    });
+  });
+
+  it('reports a pull-based report as not applicable and rejects runImmediately=true for it', async () => {
+    const built = buildUpdateFacade();
+    const lookerReport = {
+      ...currentReport,
+      dataDestinationAccess: { id: 'dest-ls', type: DataDestinationType.LOOKER_STUDIO },
+      destinationConfig: { type: 'looker-studio-connector-config', cacheLifetime: 300 },
+    } as unknown as ReportDto;
+    built.getReportService.run.mockResolvedValue(lookerReport);
+    built.updateReportService.run.mockResolvedValue(lookerReport);
+
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'] })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        destination_type: 'looker_studio',
+        run: { status: 'not_applicable' },
+      })
+    );
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'], runImmediately: true })
+    ).rejects.toThrow('run_immediately is not applicable to Data Studio reports');
+    expect(built.runReportService.run).not.toHaveBeenCalled();
+    // The guard must run BEFORE the write: only the first (valid) call reached the service.
+    expect(built.updateReportService.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-send an email-family report by default, only on explicit request', async () => {
+    const built = buildUpdateFacade();
+    const slackReport = {
+      ...currentReport,
+      dataDestinationAccess: { id: 'dest-slack', type: DataDestinationType.SLACK },
+      destinationConfig: {
+        type: 'email-config',
+        subject: 'Digest',
+        templateSource: { type: 'CUSTOM_MESSAGE', config: { messageTemplate: '{{table}}' } },
+        reportCondition: 'ALWAYS',
+      },
+    } as unknown as ReportDto;
+    built.getReportService.run.mockResolvedValue(slackReport);
+    built.updateReportService.run.mockResolvedValue(slackReport);
+
+    // A data change alone must not broadcast to the channel.
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'] })
+    ).resolves.toEqual(
+      expect.objectContaining({ destination_type: 'slack', run: { status: 'not_requested' } })
+    );
+    expect(built.runReportService.run).not.toHaveBeenCalled();
+
+    await expect(
+      built.facade.updateReport({ ...updateRequest, fields: ['channel'], runImmediately: true })
+    ).resolves.toEqual(expect.objectContaining({ run: { status: 'queued', run_id: 'run-1' } }));
+    expect(built.runReportService.run).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a call with nothing to update before touching any service', async () => {

@@ -28,6 +28,17 @@ describe('GetDataMartReportsTool', () => {
         destination_id: 'dest-1',
         destination_type: 'google_sheets' as const,
         owner: 'ann@owox.com',
+        created_by_current_user: true,
+        created_at: '2026-06-01T00:00:00.000Z',
+        fields: ['channel', 'revenue'],
+        filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
+        slices: [],
+        aggregations: [],
+        date_buckets: [],
+        sort: [],
+        limit: null,
+        spreadsheet_id: 'ss-1',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
         schedules: [
           {
             trigger_id: 'trigger-1',

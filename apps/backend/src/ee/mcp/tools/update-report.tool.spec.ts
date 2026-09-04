@@ -16,13 +16,41 @@ describe('UpdateReportTool', () => {
     authFlow: 'mcp',
   };
 
-  it('updates a report and returns the minimal PRD shape', async () => {
+  const updatedReport = {
+    report_id: 'report-1',
+    status: 'updated' as const,
+    destination_type: 'google_sheets' as const,
+    name: 'New name',
+    fields: ['channel'],
+    filters: [],
+    slices: [],
+    aggregations: [],
+    date_buckets: [],
+    sort: [],
+    limit: null,
+    spreadsheet_id: 'ss-1',
+    sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+  };
+
+  it('updates a report and returns its resulting definition plus the queued refresh run', async () => {
     const facade = {
-      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+      updateReport: jest.fn().mockResolvedValue({
+        ...updatedReport,
+        run: { status: 'queued', run_id: 'run-1' },
+      }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
-    const structuredContent = { report_id: 'report-1', status: 'updated' };
+    const structuredContent = {
+      ...updatedReport,
+      run: {
+        status: 'queued',
+        run_id: 'run-1',
+        should_poll: true,
+        message:
+          'The report was updated and a refresh run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report for this refresh.',
+      },
+    };
 
     await expect(
       tool.handler({ report_id: 'report-1', name: 'New name', fields: ['channel'] }, context)
@@ -45,9 +73,73 @@ describe('UpdateReportTool', () => {
     });
   });
 
+  it('explains a skipped run differently for an explicit opt-out and a name-only change', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({
+        ...updatedReport,
+        run: { status: 'not_requested' },
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    const optOut = await tool.handler(
+      { report_id: 'report-1', fields: ['channel'], run_immediately: false },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ runImmediately: false })
+    );
+    expect((optOut.structuredContent as { run: { message: string } }).run.message).toContain(
+      'because run_immediately was false'
+    );
+
+    const renameOnly = await tool.handler({ report_id: 'report-1', name: 'New name' }, context);
+    expect((renameOnly.structuredContent as { run: { message: string } }).run.message).toContain(
+      'what it exports did not change'
+    );
+
+    // An email-family report is never re-sent by default, whatever changed.
+    facade.updateReport.mockResolvedValue({
+      ...updatedReport,
+      destination_type: 'slack',
+      run: { status: 'not_requested' },
+    } as never);
+    const slack = await tool.handler({ report_id: 'report-1', fields: ['channel'] }, context);
+    expect((slack.structuredContent as { run: { message: string } }).run.message).toContain(
+      'not re-sent'
+    );
+  });
+
+  it('reports a refresh run that could not be queued without hiding the saved update', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({
+        ...updatedReport,
+        run: { status: 'failed_to_queue', error: 'Report is already running or pending' },
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    const result = await tool.handler({ report_id: 'report-1', fields: ['channel'] }, context);
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual(
+      expect.objectContaining({
+        status: 'updated',
+        run: expect.objectContaining({
+          status: 'failed_to_queue',
+          should_poll: false,
+          error: 'Report is already running or pending',
+          message: expect.stringContaining('retry delivery with run_report'),
+        }),
+      })
+    );
+  });
+
   it('passes the message group through to the facade', async () => {
     const facade = {
-      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+      updateReport: jest
+        .fn()
+        .mockResolvedValue({ ...updatedReport, run: { status: 'not_requested' } }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
@@ -66,7 +158,9 @@ describe('UpdateReportTool', () => {
 
   it('maps filters and slices independently per placement, and [] into null (remove that kind)', async () => {
     const facade = {
-      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+      updateReport: jest
+        .fn()
+        .mockResolvedValue({ ...updatedReport, run: { status: 'not_requested' } }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
@@ -98,7 +192,9 @@ describe('UpdateReportTool', () => {
 
   it('maps replacement aggregations, date buckets, sort, and limit; [] clears each', async () => {
     const facade = {
-      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+      updateReport: jest
+        .fn()
+        .mockResolvedValue({ ...updatedReport, run: { status: 'not_requested' } }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
@@ -140,7 +236,9 @@ describe('UpdateReportTool', () => {
 
   it('passes an in filter through to the facade (natively supported)', async () => {
     const facade = {
-      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+      updateReport: jest
+        .fn()
+        .mockResolvedValue({ ...updatedReport, run: { status: 'not_requested' } }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
@@ -167,6 +265,16 @@ describe('UpdateReportTool', () => {
         filters: [{ field: 'purchases', operator: 'eq', value: 0 }],
       })
     ).not.toThrow();
+    // Report-only aggregate functions a UI-created report may carry must round-trip.
+    expect(() =>
+      tool.parseInput({
+        report_id: 'report-1',
+        aggregations: [
+          { field: 'tags', function: 'STRING_AGG' },
+          { field: 'status', function: 'ANY_VALUE' },
+        ],
+      })
+    ).not.toThrow();
     // An explicit empty array is a valid change: it removes every filter.
     expect(() => tool.parseInput({ report_id: 'report-1', filters: [] })).not.toThrow();
   });
@@ -176,6 +284,10 @@ describe('UpdateReportTool', () => {
 
     expect(() => tool.parseInput({ report_id: 'report-1' })).toThrow(
       'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message'
+    );
+    // run_immediately alone changes nothing about the report.
+    expect(() => tool.parseInput({ report_id: 'report-1', run_immediately: true })).toThrow(
+      'Provide at least one of'
     );
     expect(() => tool.parseInput({ name: 'New name' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', fields: [] })).toThrow();
@@ -209,7 +321,8 @@ describe('UpdateReportTool', () => {
         title: 'Update Report',
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        // The refresh run reaches Google Sheets / email / chat — same as run_report.
+        openWorldHint: true,
       },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toContain('UpdateReportTool');

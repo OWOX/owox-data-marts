@@ -2,8 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpReportsFacade } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
+import { McpSimilarReportExistsException } from '../../../data-marts/facades/mcp-reports.facade';
 import { McpToolRegistry } from './mcp-tool.registry';
-import { AddReportTool } from './add-report.tool';
+import { AddReportTool, SIMILAR_REPORT_EXISTS_ERROR_CODE } from './add-report.tool';
 import { MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
 
 describe('AddReportTool', () => {
@@ -28,6 +29,98 @@ describe('AddReportTool', () => {
     name: 'Weekly revenue',
   };
   const queuedInitialRun = { status: 'queued' as const, run_id: 'run-1' };
+
+  it('passes spreadsheet_id and allow_similar through to the facade', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-2',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        initial_run: queuedInitialRun,
+        spreadsheet_id: 'ss-1',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=4242',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler(
+      { ...input, spreadsheet_id: ' ss-1 ', allow_similar: true },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({ spreadsheetId: 'ss-1', allowSimilar: true })
+    );
+    expect(result.structuredContent).toEqual(
+      expect.objectContaining({
+        report_id: 'report-2',
+        spreadsheet_id: 'ss-1',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=4242',
+      })
+    );
+  });
+
+  it('returns the similar-report refusal as a structured error carrying the existing report', async () => {
+    const existingReport = {
+      report_id: 'report-existing',
+      data_mart_id: 'dm-1',
+      name: 'Weekly revenue',
+      destination_id: 'dest-1',
+      destination_type: 'google_sheets' as const,
+      created_at: '2026-06-01T00:00:00.000Z',
+      fields: ['channel', 'revenue'],
+      filters: [],
+      slices: [],
+      aggregations: [],
+      date_buckets: [],
+      sort: [],
+      limit: null,
+      spreadsheet_id: 'ss-1',
+      sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+    };
+    const facade = {
+      addReport: jest.fn().mockRejectedValue(new McpSimilarReportExistsException(existingReport)),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler(input, context);
+
+    expect(result.isError).toBe(true);
+    // Text only: an SDK client validates structuredContent against the
+    // outputSchema even on errors, and this payload is not a created report.
+    expect(result).not.toHaveProperty('structuredContent');
+    const [text] = result.content as Array<{ type: string; text: string }>;
+    expect(text.type).toBe('text');
+    const payload = JSON.parse(text.text);
+    expect(payload).toEqual({
+      error_code: SIMILAR_REPORT_EXISTS_ERROR_CODE,
+      message: expect.stringContaining('call update_report with its report_id'),
+      existing_report: {
+        ...existingReport,
+        report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
+      },
+    });
+    // Google Sheets: the update refreshes the sheet on its own.
+    expect(payload.message).toContain('re-runs a Google Sheets report by default');
+    expect(payload.message).not.toContain('does NOT re-send');
+
+    // Email family: the agent must not claim a message was re-sent.
+    facade.addReport.mockRejectedValue(
+      new McpSimilarReportExistsException({
+        ...existingReport,
+        destination_type: 'slack',
+        spreadsheet_id: undefined,
+        sheet_url: undefined,
+      })
+    );
+    const slack = await tool.handler({ ...input, message: { body: '{{table}}' } }, context);
+    const slackMessage = JSON.parse((slack.content as Array<{ text: string }>)[0].text)
+      .message as string;
+    expect(slackMessage).toContain('does NOT re-send an email or chat report');
+    expect(slackMessage).toContain('run_immediately=true');
+    expect(slackMessage).not.toContain('re-runs a Google Sheets report');
+  });
 
   it('creates a report and returns the report and sheet links', async () => {
     const facade = {

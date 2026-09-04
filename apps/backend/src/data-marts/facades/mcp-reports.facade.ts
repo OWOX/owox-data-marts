@@ -4,7 +4,9 @@ import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import type { McpDestinationType } from './mcp-destination-type';
+import type { McpReportOutputControls } from './mcp-report-output-controls';
 
 export const MCP_REPORTS_FACADE = Symbol('MCP_REPORTS_FACADE');
 
@@ -31,14 +33,37 @@ export interface McpReportScheduleItem {
   last_run_at: string | null;
 }
 
-export interface McpReportListItem {
+/**
+ * Google Sheets identifiers of a report, so an agent can hand the user the sheet
+ * link and put a follow-up export into the SAME document (add_report
+ * `spreadsheetId`). Present only for Google Sheets reports.
+ */
+export interface McpReportSheetInfo {
+  spreadsheet_id?: string;
+  sheet_url?: string;
+}
+
+/**
+ * What identifies and defines a report, shared by the list item and the
+ * similar-report error: enough for an agent to recognise "the report I created a
+ * moment ago" and to build an update_report call that keeps what it does not
+ * mean to change.
+ */
+export interface McpReportSummary extends McpReportOutputControls, McpReportSheetInfo {
   report_id: string;
   /** Id of the parent data mart, echoed so each item is self-describing. */
   data_mart_id: string;
   name: string;
   destination_id: string;
   destination_type: McpDestinationType;
+  /** ISO 8601 creation timestamp. */
+  created_at: string;
+}
+
+export interface McpReportListItem extends McpReportSummary {
   owner: string | null;
+  /** True when the requesting MCP user created the report. */
+  created_by_current_user: boolean;
   /** All REPORT_RUN schedules of the report; empty when unscheduled. */
   schedules: McpReportScheduleItem[];
   /** ISO 8601 timestamp of the report's last run, or `null` when it never ran. */
@@ -95,6 +120,17 @@ export interface McpAddReportRequest {
    * means true for push destinations and false for pull-based destinations.
    */
   runImmediately?: boolean;
+  /**
+   * Google Sheets only: add the report as a new sheet (tab) of this existing
+   * spreadsheet instead of creating a new file. Rejected for other types.
+   */
+  spreadsheetId?: string;
+  /**
+   * Skip the similar-report guard: by default a report is refused when the
+   * requesting user already has one exporting the same fields from the same
+   * data mart to the same destination (see McpSimilarReportExistsException).
+   */
+  allowSimilar?: boolean;
   projectId: string;
   userId: string;
   /** Requesting user email — the auto-created sheet is shared with them (best-effort). */
@@ -102,11 +138,37 @@ export interface McpAddReportRequest {
   roles: string[];
 }
 
-export type McpAddReportInitialRunResult =
+/**
+ * Thrown by addReport when the requesting user already has a report with the
+ * same field selection on the same data mart and destination — the case where
+ * "add a filter" should become update_report, not a second report. Carries the
+ * existing report so the caller can name it and update it.
+ */
+export class McpSimilarReportExistsException extends BusinessViolationException {
+  constructor(readonly existingReport: McpReportSummary) {
+    super(
+      `A report exporting the same fields already exists: "${existingReport.name}" ` +
+        `(report_id ${existingReport.report_id}), created by you on this data mart and destination. ` +
+        'Change it with update_report instead of creating another one, or pass allow_similar=true ' +
+        'if the user explicitly wants a separate report.',
+      { reportId: existingReport.report_id }
+    );
+    this.name = 'McpSimilarReportExistsException';
+  }
+}
+
+/**
+ * Outcome of a Report Run a write tool queues on the caller's behalf (the first
+ * run of add_report, the refresh run of update_report). The report change is
+ * committed for every outcome.
+ */
+export type McpReportRunOutcome =
   | { status: 'queued'; run_id: string }
   | { status: 'not_requested' }
   | { status: 'not_applicable' }
   | { status: 'failed_to_queue'; error: string };
+
+export type McpAddReportInitialRunResult = McpReportRunOutcome;
 
 export interface McpAddReportResult {
   report_id: string;
@@ -116,11 +178,17 @@ export interface McpAddReportResult {
   status: 'created';
   /** Outcome of the automatic first run. The report exists for every outcome. */
   initial_run: McpAddReportInitialRunResult;
-  /** Link to the auto-created Google Sheet. Google Sheets destinations only. */
+  /** Id of the spreadsheet the report writes to. Google Sheets destinations only. */
+  spreadsheet_id?: string;
+  /** Link to the report's sheet (tab). Google Sheets destinations only. */
   sheet_url?: string;
-  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only. */
+  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only, new files only. */
   placed_in_root?: boolean;
-  /** False when the created sheet could not be shared with the requesting user. Google Sheets destinations only. */
+  /**
+   * New file: false when it could not be shared with the requesting user.
+   * Existing spreadsheet: false when their access could not be confirmed
+   * (never granted). Google Sheets destinations only.
+   */
   shared_with_requester?: boolean;
 }
 
@@ -167,14 +235,30 @@ export interface McpUpdateReportRequest {
   name?: string;
   /** Message changes — only valid when the report's destination is email-family. */
   message?: McpUpdateReportMessage;
+  /**
+   * Whether to enqueue a Report Run after the update so the destination reflects
+   * it. Omitted means: run a Google Sheets report when the update changed what
+   * it exports (fields or any output control); never for a name-only or
+   * message-only change, never for email-family reports (a run re-sends the
+   * message to every recipient or channel), never for pull-based destinations.
+   */
+  runImmediately?: boolean;
   projectId: string;
   userId: string;
   roles: string[];
 }
 
-export interface McpUpdateReportResult {
+/**
+ * The report as it is AFTER the update — the agent confirms the resulting
+ * export instead of trusting the diff it sent — plus the outcome of the
+ * refresh run.
+ */
+export interface McpUpdateReportResult extends McpReportOutputControls, McpReportSheetInfo {
   report_id: string;
   status: 'updated';
+  destination_type: McpDestinationType;
+  name: string;
+  run: McpReportRunOutcome;
 }
 
 export interface McpDeleteReportRequest {
@@ -272,6 +356,11 @@ export interface McpReportsFacade {
    * the send condition is not exposed and defaults to "send always". Push
    * destinations queue their first run by default unless `runImmediately` is
    * false; `initial_run` reports the queue outcome for every created report.
+   * Unless `allowSimilar` is set, a report whose field selection duplicates one
+   * the requesting user already created on the same data mart and destination
+   * is refused with McpSimilarReportExistsException — before any side effect.
+   * Google Sheets with `spreadsheetId`: adds a sheet to that spreadsheet instead
+   * of creating a new file.
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
@@ -283,7 +372,9 @@ export interface McpReportsFacade {
    * (destination, owners, send condition, …) is preserved as-is.
    * At least one change must be provided — a call with nothing to change is
    * rejected by the implementation, independent of the tool-layer validation.
-   * `message` is rejected for non-email-family reports.
+   * `message` is rejected for non-email-family reports. Returns the report's
+   * resulting output controls and the outcome of the refresh run (queued by
+   * default only for a Google Sheets report whose export changed).
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**

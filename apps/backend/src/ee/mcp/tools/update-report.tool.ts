@@ -5,12 +5,25 @@ import {
   MCP_REPORTS_FACADE,
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
+import {
+  MCP_DESTINATION_TYPES,
+  type McpDestinationType,
+} from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import {
-  makeMcpAggregationSchema,
+  reportOutputControlsOutputShape,
+  reportSheetInfoOutputShape,
+} from './report-output-controls-output';
+import {
+  reportRunOutcomeSchema,
+  toReportRunOutcomeOutput,
+  type ReportRunOutcomeMessages,
+} from './report-run-outcome';
+import {
   makeMcpDateBucketSchema,
   makeMcpFilterSchema,
+  makeMcpReportAggregationSchema,
   makeMcpSortSchema,
 } from './query-data-mart.input';
 import {
@@ -20,6 +33,14 @@ import {
   mapReportSort,
 } from './report-output-controls-input';
 import { rethrowTranslatedOutputControlsError } from './output-controls-error.mapper';
+
+const EMAIL_FAMILY_DESTINATION_TYPES: ReadonlySet<McpDestinationType> = new Set<McpDestinationType>(
+  ['email', 'slack', 'teams', 'google_chat']
+);
+
+function isEmailFamily(type: McpDestinationType): boolean {
+  return EMAIL_FAMILY_DESTINATION_TYPES.has(type);
+}
 
 // The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
@@ -38,19 +59,19 @@ const baseInputSchema = z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters (stored slices are untouched) — including any post-aggregation (HAVING) constraints created in the OWOX UI, which cannot be expressed over MCP; pass [] to remove every row filter; omit to keep current.'
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters MCP can express (stored slices are untouched); rules created in the OWOX UI that MCP cannot express — post-aggregation (HAVING) constraints, regex, calendar presets such as today or last month — are kept automatically and listed as ui_only_filters. Copy the filters to keep from get_data_mart_reports; pass [] to remove every expressible row filter; omit to keep current.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices (stored row filters are untouched); pass [] to remove every slice; omit to keep current.'
+        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices MCP can express (stored row filters and UI-only slices are untouched); pass [] to remove every expressible slice; omit to keep current.'
       ),
     aggregations: z
-      .array(makeMcpAggregationSchema())
+      .array(makeMcpReportAggregationSchema())
       .optional()
       .describe(
-        'Replacement aggregations, same as query_data_mart\'s "aggregations". Each aggregated field must also appear in the report\'s column selection. Replaces ALL current aggregations; pass [] to remove them; omit to keep current.'
+        'Replacement aggregations, same as query_data_mart\'s "aggregations" plus the report-only STRING_AGG and ANY_VALUE. Each aggregated field must also appear in the report\'s column selection. Replaces ALL current aggregations — copy the ones to keep from get_data_mart_reports; pass [] to remove them; omit to keep current.'
       ),
     date_buckets: z
       .array(makeMcpDateBucketSchema())
@@ -101,6 +122,12 @@ const baseInputSchema = z
       .describe(
         'Message changes. Applies only to reports with an email, slack, teams, or google_chat destination; rejected for other types. Provide at least one of subject/body inside. The send condition and recipients are not editable here.'
       ),
+    run_immediately: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether to run the report after the update (one billed Report Run). Omit for the default: a Google Sheets report re-runs when what it exports actually changed (fields or any output control differ from the stored definition), so the sheet reflects the change; it does not run for a name-only or message-only change or for re-sent identical controls. Email, Slack, Microsoft Teams, and Google Chat reports are NOT re-sent by default, because a run delivers the message to every configured recipient or channel — set true only when the user explicitly wants it sent now. Set false to update a Google Sheets report without refreshing it. Looker Studio is pull-based: omit or set false; true is rejected.'
+      ),
   })
   .strict();
 
@@ -119,7 +146,7 @@ export const updateReportInputSchema = baseInputSchema
       input.message !== undefined,
     {
       message:
-        'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message to update',
+        'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message to update (run_immediately alone is not a change)',
     }
   )
   .refine(
@@ -139,17 +166,26 @@ type UpdateReportInput = z.infer<typeof updateReportInputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one change; anything not provided stays unchanged.';
+    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Use it whenever the user asks to change a report that already exists — including one you created earlier in this conversation ("add a filter", "sort by revenue", "rename it") — instead of creating another report with add_report. Provide at least one change; anything not provided stays unchanged. Returns the report as it is after the update, and by default re-runs a Google Sheets report when the export changed (run.status="queued" — poll get_report_run_status), so the sheet shows the new definition; email, Slack, Teams, and Google Chat reports are re-sent only with run_immediately=true.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
     status: z.literal('updated').describe("Always 'updated' on success"),
+    destination_type: z.enum(MCP_DESTINATION_TYPES),
+    name: z.string().describe('Report name after the update'),
+    ...reportOutputControlsOutputShape,
+    ...reportSheetInfoOutputShape,
+    run: reportRunOutcomeSchema.describe(
+      'Outcome of the refresh run queued after the update. The update is saved for every status.'
+    ),
   };
   readonly annotations = {
     title: 'Update Report',
     readOnlyHint: false,
     destructiveHint: false,
-    openWorldHint: false,
+    // The refresh run writes to the customer's Google Sheet or delivers an
+    // email / chat message — the same external side effect run_report has.
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
 
@@ -174,6 +210,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       limit,
       name,
       message,
+      run_immediately,
     } = this.parseInput(input);
 
     // filters and slices are mapped separately: each replaces only its own kind
@@ -189,6 +226,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       limitConfig: limit,
       name,
       message,
+      runImmediately: run_immediately,
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
@@ -201,6 +239,44 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       rethrowTranslatedOutputControlsError(err);
     }
 
-    return jsonToolResult({ report_id: result.report_id, status: result.status });
+    const { run, ...report } = result;
+    return jsonToolResult({
+      ...report,
+      run: toReportRunOutcomeOutput(
+        run,
+        this.runMessages(run_immediately, isEmailFamily(report.destination_type))
+      ),
+    });
+  }
+
+  /**
+   * The not_requested wording depends on WHY: an explicit run_immediately=false,
+   * the email-family default (a run would re-send the message), and the default
+   * for a name/message-only change each call for different advice.
+   */
+  private runMessages(
+    runImmediately: boolean | undefined,
+    emailFamily: boolean
+  ): ReportRunOutcomeMessages {
+    let notRequested: string;
+    if (runImmediately === false) {
+      notRequested =
+        'The report was updated without a run because run_immediately was false. The destination still shows the previous data; call run_report when the user wants it refreshed.';
+    } else if (emailFamily) {
+      notRequested =
+        'The report was updated but not re-sent: a run would deliver the message to every configured recipient or channel, so it is not queued by default. Call run_report, or repeat with run_immediately=true, only if the user explicitly wants it sent now.';
+    } else {
+      notRequested =
+        'The report was updated without a run: what it exports did not change (only the name or message changed, or the same controls were re-sent), so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.';
+    }
+    return {
+      queued:
+        'The report was updated and a refresh run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report for this refresh.',
+      not_requested: notRequested,
+      not_applicable:
+        'The report was updated. It uses a pull-based destination, so no run is applicable.',
+      failed_to_queue:
+        'The report was updated, but the refresh run could not be queued, so the destination still shows the previous data. Do not call update_report again; retry delivery with run_report using this report_id.',
+    };
   }
 }

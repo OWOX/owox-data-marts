@@ -5,7 +5,10 @@ import {
   type FilterConfig,
   type FilterRule,
 } from '../../../data-marts/dto/schemas/filter-config.schema';
-import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
+import {
+  REPORT_AGGREGATE_FUNCTIONS,
+  type ReportAggregateFunction,
+} from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import type { AggregationConfig } from '../../../data-marts/dto/schemas/aggregation-config.schema';
 import {
   DATE_TRUNC_UNITS,
@@ -153,6 +156,19 @@ export const makeMcpAggregationSchema = () =>
   z.object({
     field: z.string().min(1),
     function: z.enum(MCP_AGGREGATE_FUNCTIONS),
+  });
+
+/**
+ * The report tools accept EVERY persisted aggregate function, not only the query subset: a
+ * report created in the OWOX UI may carry STRING_AGG or ANY_VALUE, and update_report replaces
+ * the whole aggregation list — with the query vocabulary an agent could never round-trip such a
+ * report (it would have to drop those rules to change any other). query_data_mart keeps the
+ * narrower menu; it answers questions, and those two functions are not analytical answers.
+ */
+export const makeMcpReportAggregationSchema = () =>
+  z.object({
+    field: z.string().min(1),
+    function: z.enum(REPORT_AGGREGATE_FUNCTIONS),
   });
 
 export const makeMcpDateBucketSchema = () =>
@@ -434,11 +450,12 @@ export function mapMcpFiltersToRules(
 }
 
 export function mapMcpAggregations(
-  aggregations: Array<{ field: string; function: string }> = []
+  aggregations: Array<{ field: string; function: string }> = [],
+  allowed: readonly string[] = MCP_AGGREGATE_FUNCTIONS
 ): AggregationConfig {
   if (!aggregations.length) return null;
   return aggregations.map(a => {
-    if (!(MCP_AGGREGATE_FUNCTIONS as readonly string[]).includes(a.function)) {
+    if (!allowed.includes(a.function)) {
       throw new UnsupportedAggregationError(a.function);
     }
     return { column: a.field, function: a.function as ReportAggregateFunction };
