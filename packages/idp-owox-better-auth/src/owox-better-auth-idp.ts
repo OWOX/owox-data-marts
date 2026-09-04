@@ -480,12 +480,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-in', { path: req.path, queryState });
       clearAuthFlowCookies(res, req);
-      return this.redirectToPlatform(
-        req,
-        res,
-        this.config.idpOwox.idpConfig.platformSignInUrl,
-        true
-      );
+      return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
 
     if (!queryState) {
@@ -603,16 +598,15 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     params: AuthFlowParams,
     authenticatedUserId?: string
   ): AuthFlowParams {
-    if (
-      !params.projectRedirectUserId ||
-      !authenticatedUserId ||
-      params.projectRedirectUserId === authenticatedUserId
-    ) {
+    if (!params.projectRedirectUserId) {
+      return params;
+    }
+    if (authenticatedUserId && params.projectRedirectUserId === authenticatedUserId) {
       return params;
     }
 
-    this.logger.info('Discarding project redirect owned by a different user', {
-      authenticatedUserId,
+    this.logger.info('Discarding user-bound project redirect', {
+      reason: authenticatedUserId ? 'different-user' : 'unknown-user',
     });
     return {
       ...params,
@@ -875,32 +869,33 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private async redirectToPlatform(
     req: e.Request,
     res: e.Response,
-    authUrl: string,
-    bindGeneratedProjectRedirectToUser = false
+    authUrl: string
   ): Promise<void | e.Response> {
     const params = extractAuthFlowParams(req);
-    const createsProjectRedirect = Boolean(params.projectId && !params.appRedirectTo);
+    const generatedProjectId = params.projectId && !params.appRedirectTo ? params.projectId : null;
     let projectRedirectUserId = params.projectRedirectUserId;
-    if (createsProjectRedirect && bindGeneratedProjectRedirectToUser) {
-      const refreshToken = extractRefreshToken(req);
-      if (refreshToken) {
-        try {
-          const payload = await this.tokenFacade.parseToken(refreshToken);
-          projectRedirectUserId = payload?.userId;
-        } catch (error: unknown) {
-          this.logger.warn(
-            'Failed to bind generated project redirect to the current user',
-            { path: req.path },
-            error instanceof Error ? error : undefined
-          );
-        }
+    let preserveGeneratedProjectRedirect = true;
+    const refreshToken = generatedProjectId ? extractRefreshToken(req) : undefined;
+    if (refreshToken) {
+      const payload = await this.tokenFacade.parseToken(refreshToken);
+      if (payload) {
+        projectRedirectUserId = payload.userId;
+      } else {
+        preserveGeneratedProjectRedirect = false;
+        projectRedirectUserId = undefined;
+        this.logger.warn(
+          'Discarding unbound project redirect because the current user is unknown',
+          { path: req.path }
+        );
       }
     }
     const enhancedParams = {
       ...params,
+      projectId:
+        generatedProjectId && !preserveGeneratedProjectRedirect ? undefined : params.projectId,
       appRedirectTo:
-        params.projectId && !params.appRedirectTo
-          ? `/auth/idp-start?projectId=${encodeURIComponent(params.projectId)}`
+        generatedProjectId && preserveGeneratedProjectRedirect
+          ? `/auth/idp-start?projectId=${encodeURIComponent(generatedProjectId)}`
           : params.appRedirectTo,
       projectRedirectUserId,
     };

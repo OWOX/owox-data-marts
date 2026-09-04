@@ -6,7 +6,7 @@ import { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
 function createCallbackProvider(params: {
-  authenticatedUserId: string;
+  authenticatedUserId?: string;
   appRedirectTo: string;
   projectRedirectUserId?: string;
 }): { provider: OwoxBetterAuthIdp; callback: RouteHandler } {
@@ -26,11 +26,15 @@ function createCallbackProvider(params: {
       },
     }),
     setTokenToCookie: jest.fn(),
-    parseToken: jest.fn().mockResolvedValue({
-      userId: params.authenticatedUserId,
-      projectId: 'current-project',
-      email: 'user@example.com',
-    }),
+    parseToken: jest.fn().mockResolvedValue(
+      params.authenticatedUserId
+        ? {
+            userId: params.authenticatedUserId,
+            projectId: 'current-project',
+            email: 'user@example.com',
+          }
+        : null
+    ),
   };
   const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
     betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
@@ -135,11 +139,115 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     });
   });
 
+  it('binds a generated project redirect from the sign-up fallback', async () => {
+    const tokenFacade = {
+      parseToken: jest.fn().mockResolvedValue({
+        userId: 'current-user',
+        projectId: 'current-project',
+      }),
+    };
+    const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      tokenFacade,
+      config: {
+        idpOwox: {
+          idpConfig: {
+            platformSignUpUrl: 'https://platform.test/auth/sign-up',
+            allowedRedirectOrigins: [],
+          },
+        },
+      },
+      logger: {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      },
+    }) as OwoxBetterAuthIdp;
+    const persistedParams = encodeURIComponent(JSON.stringify({ projectId: 'current-project' }));
+    const request = {
+      path: `${AUTH_BASE_PATH}/sign-up`,
+      protocol: 'https',
+      hostname: 'app.test',
+      headers: {
+        cookie: `idp-owox-params=${persistedParams}; refreshToken=current-refresh-token`,
+      },
+      query: {},
+    } as unknown as Request;
+    const response = createResponse();
+
+    await provider.signUpMiddleware(request, response, jest.fn());
+
+    expect(tokenFacade.parseToken).toHaveBeenCalledWith('current-refresh-token');
+    const paramsCookieCall = (response.cookie as jest.Mock).mock.calls.find(
+      call => call[0] === 'idp-owox-params'
+    );
+    const params = JSON.parse(decodeURIComponent(paramsCookieCall?.[1] as string));
+    expect(params).toMatchObject({
+      appRedirectTo: '/auth/idp-start?projectId=current-project',
+      projectRedirectUserId: 'current-user',
+    });
+  });
+
+  it('discards a generated project redirect when its user cannot be resolved', async () => {
+    const tokenFacade = {
+      parseToken: jest.fn().mockResolvedValue(null),
+    };
+    const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      tokenFacade,
+      config: {
+        idpOwox: {
+          idpConfig: {
+            platformSignInUrl: 'https://platform.test/auth/sign-in',
+            allowedRedirectOrigins: [],
+          },
+        },
+      },
+      logger: {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      },
+    }) as OwoxBetterAuthIdp;
+    const persistedParams = encodeURIComponent(JSON.stringify({ projectId: 'previous-project' }));
+    const request = {
+      path: `${AUTH_BASE_PATH}/sign-in`,
+      protocol: 'https',
+      hostname: 'app.test',
+      headers: {
+        cookie: `idp-owox-state=old-state; idp-owox-params=${persistedParams}; refreshToken=unverifiable-refresh-token`,
+      },
+      query: { state: 'new-state' },
+    } as unknown as Request;
+    const response = createResponse();
+
+    await provider.signInMiddleware(request, response, jest.fn());
+
+    const redirectUrl = (response.redirect as jest.Mock).mock.calls[0]?.[0] as string;
+    expect(redirectUrl).not.toContain('projectId');
+    expect(redirectUrl).not.toContain('app-redirect-to');
+    expect(response.cookie).not.toHaveBeenCalledWith(
+      'idp-owox-params',
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it('discards an automatic project redirect after a different user signs in', async () => {
     const { callback } = createCallbackProvider({
       authenticatedUserId: 'credential-user',
       appRedirectTo: '/auth/idp-start?projectId=microsoft-project',
       projectRedirectUserId: 'microsoft-user',
+    });
+    const response = createResponse();
+
+    await callback(createCallbackRequest(), response);
+
+    expect(response.redirect).toHaveBeenCalledWith('/');
+  });
+
+  it('discards a bound project redirect when the callback user cannot be resolved', async () => {
+    const { callback } = createCallbackProvider({
+      appRedirectTo: '/auth/idp-start?projectId=previous-project',
+      projectRedirectUserId: 'previous-user',
     });
     const response = createResponse();
 
