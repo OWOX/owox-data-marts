@@ -1,5 +1,46 @@
 # owox
 
+## 0.34.0
+
+### Minor Changes
+
+- 93ed7ea: # MCP: guidance for projects without Data Marts
+
+  When a project has no published Data Mart visible to the connected user, the MCP discovery tools (`list_data_marts`, `get_relevant_data_marts_by_prompt`, and `summarize_data_catalog`) now return `getting_started` instead of a bare empty list: a link to create the first Data Mart in OWOX Data Marts, the setup guides, the user's draft Data Marts that still need publishing, and instructions the assistant relays to the user. The guidance depends on the user's role: Project Admins and Technical Users are walked through creating and publishing a Data Mart, while Business Users are advised to ask them for one.
+
+  The MCP system instructions tell the assistant to stop rephrasing searches or querying data in that case and to explain what to do next in the web app instead, so a new user hears where to start rather than "no data found".
+
+- cce4c7e: # Model Canvas and Data Mart navigation polish
+
+  The Model Canvas page (formerly "Models") now opens straight into your data model: with a single storage, it's selected automatically instead of asking you to pick one first. When you do need to switch, the storage picker moved up into the page header as a clear "Model for [Storage]" title, and a "Data Marts" breadcrumb takes you back to the list in one click — the same breadcrumb now appears on the Reports, Triggers, Run History, and Insights pages too.
+
+  On the canvas itself, each Data Mart card now shows a full-height color stripe reflecting its Data Quality status, so you can spot cards with warnings or errors at a glance instead of opening each one. Downloading the canvas (as an image, JSON, or OKF Markdown) is now a dedicated button in the toolbar instead of being tucked inside the Actions menu, and bulk actions like Publish and Delete now state exactly how many Data Marts they'll affect.
+
+  Opening the canvas with no filters applied now shows all Data Marts, published or draft, connected or not — previously it defaulted to published-only, connected-only.
+
+  Long Data Mart names in tables no longer wrap and push rows taller — they truncate with the full name available on hover.
+
+  In the Reports table, the Report column now leads, with Data Mart moved to second place.
+
+- 3f5b6e6: # Fix LinkedIn Ads adAnalytics silently dropping data when response exceeds 15,000 elements
+
+  Previously, an adAnalytics export over a large date range could silently lose data: the endpoint does not support pagination and caps its response at 15,000 elements, so campaigns from the beginning of the period were missing from the result. The connector now fetches, saves, and checkpoints analytics one day at a time, so a single day cannot exceed the limit, and an interrupted run resumes from the last completed day instead of restarting the whole range.
+
+  If a daily response still reaches 15,000 elements, the import finishes with a Warning status that lists the affected days instead of losing data silently.
+
+  The connector also refreshes the LinkedIn access token once per run instead of before every request. LinkedIn API errors now fail the run instead of silently returning no rows; rate-limit (429) and server (5xx) errors are retried first.
+
+  Analytics days are now computed in UTC, so the day the connector requests always matches the day it logs and checkpoints, regardless of the runner's time zone.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.34.0
+- @owox/idp-protocol@0.34.0
+- @owox/idp-better-auth@0.34.0
+- @owox/idp-owox-better-auth@0.34.0
+- @owox/backend@0.34.0
+- @owox/web@0.34.0
+
 ## 0.33.0
 
 ### Minor Changes 0.33.0
@@ -62,7 +103,6 @@
   Nothing saved breaks: reports and API calls that use the previous `is_empty`, `is_not_empty`, `is_null`, or `is_not_null` operators keep working with their exact previous semantics, and saved rules still display under their original names. Only the menus stop offering them.
 
 - dc3b2ad, 4bfd303: **Join descriptions: shown in the column pickers, and editable per join path**
-
   - **Shown in the pickers** (dc3b2ad) — report column pickers in the web app and the Google Sheets extension now show each joined Data Mart's description and full join path on hover, using the same user-facing titles as the picker.
   - **Editable per join path** (4bfd303) — a join description explains what pulling in another data mart actually means: business users read it in the report column picker, and AI assistants read it over MCP. It was written once on the relationship itself, so every data mart that reached that join showed the same sentence. "Orders placed by this customer" is right in a Customers data mart, but in a Companies data mart that reaches Orders through Customers it explains nothing.
 
@@ -109,7 +149,6 @@
   The Facebook Ads troubleshooting guide now explains Meta's Ads Insights rate limit (code 4, subcode 1504022), the ad-account score limit (code 17, subcode 2446079), and how to adjust these settings after a rate limit error.
 
 - f7b099a, 7667281: **Joinable Data Marts diagram opens fitted to the whole graph, and its zoom controls keep working**
-
   - **Opens fitted** (f7b099a) — switching to the Graph view could land on a viewport zoomed in on the root card, as if the fit had never run, until "Fit to view" was pressed. The automatic first fit relied on `fitView`, which only accounts for nodes whose DOM dimensions are already measured — on first mount it ran against a half-measured subset. The initial viewport is now derived from the layout geometry itself, so the Graph view always opens showing the entire diagram, exactly as the "Fit to view" button leaves it.
   - **Zoom controls keep working** (7667281) — the +/- zoom buttons could stop responding until "Fit to view" was pressed, depending on how the page was opened. The allowed zoom range was captured once from a completed fit, so a fit that ran under transient conditions (a still-loading graph or a settling pane) froze the range in an unusable state. The range is now derived from the live graph and pane geometry, small graphs that fit at the maximum zoom keep a usable zoom-out floor, and a corrupted viewport recovers with a full fit instead of ignoring clicks.
 
@@ -2668,7 +2707,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2676,7 +2714,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
