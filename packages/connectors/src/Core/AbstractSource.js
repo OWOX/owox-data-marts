@@ -24,14 +24,14 @@ var AbstractSource = class AbstractSource {
           requiredType: "number",
           default: 3,
           label: "Max Fetch Retries",
-          description: "Total attempts for a failed API request, including the first request, before the run stops",
+          description: "Total attempts for a failed request, including the first one, before the run stops. Applies both to reading from the source and to saving into the destination storage",
           attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         InitialRetryDelay: {
           requiredType: "number",
           default: 5000,
           label: "Initial Retry Delay (ms)",
-          description: "Delay before the first retry in milliseconds. Each retry doubles the delay",
+          description: "Delay before the first retry in milliseconds. Each retry doubles the delay. Applies both to reading from the source and to saving into the destination storage",
           attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         }
       });
@@ -197,7 +197,7 @@ var AbstractSource = class AbstractSource {
      * @return {number} Delay in milliseconds
      */
     calculateBackoff(attemptNumber) {
-      return this.config.InitialRetryDelay.value * Math.pow(2, attemptNumber - 1) * (0.5 + Math.random());
+      return AsyncUtils.backoffDelay(this.config.InitialRetryDelay.value, attemptNumber);
     }
     //----------------------------------------------------------------
 
