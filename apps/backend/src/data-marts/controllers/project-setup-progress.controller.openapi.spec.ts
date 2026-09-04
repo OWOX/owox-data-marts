@@ -92,9 +92,10 @@ describe('ProjectSetupProgressController OpenAPI', () => {
       'hasGoogleSheetsDestination',
       'hasGoogleSheetsExtension',
       'hasGoogleSheetsReportRun',
+      'hasMcpQuery',
     ]);
     expect(Object.values(stepsSchema.properties)).toEqual(
-      Array(10).fill({ $ref: '#/components/schemas/ProjectSetupStepStateApiDto' })
+      Array(11).fill({ $ref: '#/components/schemas/ProjectSetupStepStateApiDto' })
     );
 
     expect(resolveRef('#/components/schemas/ProjectSetupStepStateApiDto')).toMatchObject({

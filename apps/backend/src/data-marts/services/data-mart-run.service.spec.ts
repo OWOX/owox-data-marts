@@ -11,6 +11,7 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
+import { McpQueryCompletedSuccessfullyEvent } from '../events/mcp-query-completed-successfully.event';
 import { RoleScope } from '../enums/role-scope.enum';
 import {
   DataMartRunService,
@@ -651,6 +652,104 @@ describe('DataMartRunService', () => {
       const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
       expect(saved.status).toBe(DataMartRunStatus.FAILED);
       expect(saved.errors).toEqual(['query timed out']);
+    });
+
+    it('announces a successful MCP query run so onboarding can see it', async () => {
+      const { service, eventDispatcher } = createService();
+
+      await service.recordMcpQueryRun({
+        runId: 'run-mcp-success',
+        dataMart: fakeDataMart(),
+        createdById: 'user-42',
+        startedAt: new Date('2026-07-01T10:00:00.000Z'),
+        status: DataMartRunStatus.SUCCESS,
+        metadata: { columns: [], rowCount: 0, truncated: false },
+      });
+
+      expect(eventDispatcher.publishLocal).toHaveBeenCalledTimes(1);
+      const event = (eventDispatcher.publishLocal as jest.Mock).mock.calls[0][0];
+      expect(event.payload).toMatchObject({
+        dataMartRunId: 'run-mcp-success',
+        dataMartId: 'dm-1',
+        userId: 'user-42',
+      });
+    });
+
+    it('stays silent when the MCP query run failed', async () => {
+      const { service, eventDispatcher } = createService();
+
+      await service.recordMcpQueryRun({
+        runId: 'run-mcp-fail-2',
+        dataMart: fakeDataMart(),
+        createdById: 'user-1',
+        startedAt: new Date(),
+        status: DataMartRunStatus.FAILED,
+        metadata: { columns: [], rowCount: 0, truncated: false },
+        errors: ['query timed out'],
+      });
+
+      expect(eventDispatcher.publishLocal).not.toHaveBeenCalled();
+    });
+
+    it('survives the real dispatcher outside a transaction', async () => {
+      // Same reasoning as recordHttpDataRun's equivalent test: publishLocal, not
+      // publishLocalOnCommit, because this method is terminal and never transactional.
+      const { dataMartRunRepository, systemClock } = createService();
+      const emitter = new EventEmitter2();
+      const heard: McpQueryCompletedSuccessfullyEvent[] = [];
+      emitter.on('mcp-query.completed.successfully', (event: McpQueryCompletedSuccessfullyEvent) =>
+        heard.push(event)
+      );
+
+      const withRealDispatcher = new DataMartRunService(
+        dataMartRunRepository,
+        systemClock,
+        new OwoxEventDispatcher(
+          { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
+          emitter
+        )
+      );
+
+      await expect(
+        withRealDispatcher.recordMcpQueryRun({
+          runId: 'run-mcp-real-dispatcher',
+          dataMart: fakeDataMart(),
+          createdById: 'user-42',
+          startedAt: new Date('2026-07-01T10:00:00.000Z'),
+          status: DataMartRunStatus.SUCCESS,
+          metadata: { columns: [], rowCount: 0, truncated: false },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(heard).toHaveLength(1);
+    });
+
+    it('is not broken by a listener that throws', async () => {
+      const { dataMartRunRepository, systemClock } = createService();
+      const emitter = new EventEmitter2();
+      emitter.on('mcp-query.completed.successfully', () => {
+        throw new Error('onboarding write failed');
+      });
+
+      const withRealDispatcher = new DataMartRunService(
+        dataMartRunRepository,
+        systemClock,
+        new OwoxEventDispatcher(
+          { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
+          emitter
+        )
+      );
+
+      await expect(
+        withRealDispatcher.recordMcpQueryRun({
+          runId: 'run-mcp-listener-throws',
+          dataMart: fakeDataMart(),
+          createdById: 'user-42',
+          startedAt: new Date('2026-07-01T10:00:00.000Z'),
+          status: DataMartRunStatus.SUCCESS,
+          metadata: { columns: [], rowCount: 0, truncated: false },
+        })
+      ).resolves.toBeUndefined();
     });
   });
 

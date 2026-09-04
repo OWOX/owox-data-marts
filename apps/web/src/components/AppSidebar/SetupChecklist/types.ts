@@ -24,6 +24,7 @@ export enum ProgressKey {
   HAS_GOOGLE_SHEETS_DESTINATION = 'hasGoogleSheetsDestination',
   HAS_GOOGLE_SHEETS_EXTENSION = 'hasGoogleSheetsExtension',
   HAS_GOOGLE_SHEETS_REPORT_RUN = 'hasGoogleSheetsReportRun',
+  HAS_MCP_QUERY = 'hasMcpQuery',
 }
 
 export type ProjectSetupProgress = Record<ProgressKey, SetupStepProgress>;
@@ -56,6 +57,7 @@ export enum SetupStepId {
   CREATE_GOOGLE_SHEETS_DESTINATION = 'create_google_sheets_destination',
   INSTALL_GOOGLE_SHEETS_EXTENSION = 'install_google_sheets_extension',
   CREATE_RUN_REPORT_FROM_EXTENSION = 'create_run_report_from_extension',
+  CONNECT_AI_ASSISTANT = 'connect_ai_assistant',
 }
 
 export interface SetupStep {

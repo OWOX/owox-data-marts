@@ -20,6 +20,8 @@ export type OWOXProjectSetupProgressSteps = {
   hasGoogleSheetsDestination: OWOXProjectSetupStepState;
   hasGoogleSheetsExtension: OWOXProjectSetupStepState;
   hasGoogleSheetsReportRun: OWOXProjectSetupStepState;
+  /** Absent on older compatible deployments. */
+  hasMcpQuery?: OWOXProjectSetupStepState;
 };
 
 export type OWOXProjectSetupProgress = {
@@ -45,6 +47,7 @@ const PROJECT_SETUP_STEP_KEYS = [
   'hasGoogleSheetsDestination',
   'hasGoogleSheetsExtension',
   'hasGoogleSheetsReportRun',
+  'hasMcpQuery',
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,7 +97,13 @@ function parseProjectSetupProgress(response: unknown): OWOXProjectSetupProgress 
     );
   }
 
-  const steps = response.steps;
+  // Absent on older compatible deployments — normalize instead of rejecting an
+  // otherwise-valid payload from a server released before this step existed.
+  const steps =
+    response.steps.hasMcpQuery === undefined
+      ? { ...response.steps, hasMcpQuery: { done: false, completedAt: null } }
+      : response.steps;
+
   if (
     !PROJECT_SETUP_STEP_KEYS.every(key => isProjectSetupStepState(steps[key])) ||
     !Object.values(steps).every(isProjectSetupStepState)
@@ -105,7 +114,7 @@ function parseProjectSetupProgress(response: unknown): OWOXProjectSetupProgress 
     );
   }
 
-  return response as OWOXProjectSetupProgress;
+  return { ...response, steps } as OWOXProjectSetupProgress;
 }
 
 export class ProjectApi {
