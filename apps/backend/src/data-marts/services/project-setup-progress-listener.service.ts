@@ -66,6 +66,7 @@ export class ProjectSetupProgressListenerService {
   @OnEvent('mcp-query.completed.successfully', { async: true })
   async onMcpQuerySuccess(event: McpQueryCompletedSuccessfullyEvent): Promise<void> {
     const { dataMartId, userId } = event.payload;
+    if (!userId) return;
 
     const projectId = await this.progressService.resolveProjectIdByDataMartId(dataMartId);
     if (!projectId) return;

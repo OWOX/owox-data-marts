@@ -2,9 +2,9 @@
 'owox': minor
 ---
 
-# Setup checklist: a clearer step for connecting Claude or ChatGPT
+# Setup checklist: new step to connect Claude or ChatGPT
 
-The onboarding Setup Checklist step for connecting an AI assistant now explains what you get from it: ask questions about your data in plain language and get answers drawn straight from your published Data Marts and their analyst-approved definitions, instead of numbers an assistant guessed on its own.
+The onboarding Setup Checklist has a new step for connecting an AI assistant: ask questions about your data in plain language and get answers drawn straight from your published Data Marts and their analyst-approved definitions, instead of numbers an assistant guessed on its own.
 
 The step offers two equal choices — **Claude** and **ChatGPT**. Each button opens that assistant's OWOX Data Marts connector page in a new tab, where you sign in and enable the connection, and a link to the [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/) walks through it end to end.
 

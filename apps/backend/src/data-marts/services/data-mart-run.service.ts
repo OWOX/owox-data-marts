@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { castError } from '@owox/internal-helpers';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
@@ -622,10 +623,11 @@ export class DataMartRunService {
     // transaction, and `publishLocalOnCommit` throws outright when there is none to hook into —
     // after the row is already saved. The save above is the commit this announces.
     //
-    // Contained, because the local bus is synchronous: a listener that throws would come back
-    // out of `emit()` and reach the caller, which reads any throw from here as "the run was not
-    // recorded" and skips billing. The rows are already delivered and the run is already
-    // persisted by this point — an onboarding step failing must not cost the project's unit.
+    // Contained anyway: today's listener is registered with `{ async: true }`, and Nest's
+    // default `suppressErrors` means a throw inside it never comes back out of `emit()`. That is
+    // a property of the current subscriber, not a guarantee — a synchronous or non-suppressing
+    // listener added later would propagate straight out and read here as "the run was not
+    // recorded," skipping billing for a run that is already persisted. Keep the guard.
     if (record.status === DataMartRunStatus.SUCCESS && record.report && record.createdById) {
       try {
         this.eventDispatcher.publishLocal(
@@ -638,9 +640,7 @@ export class DataMartRunService {
         );
       } catch (err) {
         this.logger.warn(
-          `Report run ${run.id} was recorded, but announcing it failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`
+          `Report run ${run.id} was recorded, but announcing it failed: ${castError(err).message}`
         );
       }
     }
@@ -665,10 +665,11 @@ export class DataMartRunService {
 
     await this.dataMartRunRepository.save(run);
 
-    // Same reasoning as recordHttpDataRun below: emitted immediately (not on-commit) because this
-    // method is terminal and runs outside a transaction, and wrapped because the local bus is
-    // synchronous — a listener throwing must not turn an already-persisted successful run into a
-    // reported failure.
+    // Same reasoning as recordHttpDataRun above: emitted immediately (not on-commit) because this
+    // method is terminal and runs outside a transaction. The try/catch guards against a future
+    // synchronous or non-suppressing subscriber — today's listener is async with suppressErrors,
+    // so it won't actually throw back here, but an already-persisted successful run must never
+    // be turned into a reported failure if one ever does.
     if (record.status === DataMartRunStatus.SUCCESS && record.createdById) {
       try {
         this.eventDispatcher.publishLocal(
@@ -676,9 +677,7 @@ export class DataMartRunService {
         );
       } catch (err) {
         this.logger.warn(
-          `MCP query run ${run.id} was recorded, but announcing it failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`
+          `MCP query run ${run.id} was recorded, but announcing it failed: ${castError(err).message}`
         );
       }
     }

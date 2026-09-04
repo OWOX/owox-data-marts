@@ -64,12 +64,13 @@ export class ProjectSetupProgressService {
     projectId: string,
     userId: string
   ): Promise<{ projectProgress: ProjectSetupProgress; mergedSteps: ProjectSetupSteps }> {
-    const [initialProjectProgress, userProgress] = await Promise.all([
+    const [initialProjectProgress, initialUserProgress] = await Promise.all([
       this.getOrInitializeProject(projectId),
       this.getOrInitializeUser(projectId, userId),
     ]);
 
     let projectProgress = initialProjectProgress;
+    let userProgress = initialUserProgress;
 
     // Lazy check: if hasTeammatesInvited is not yet done, check IDP for >1 members
     if (!projectProgress.steps.hasTeammatesInvited.done) {
@@ -78,6 +79,23 @@ export class ProjectSetupProgressService {
         projectProgress = await this.mutateProjectStepsWithRetry(projectId, steps => {
           if (steps.hasTeammatesInvited.done) return false;
           steps.hasTeammatesInvited = {
+            done: true,
+            completedAt: new Date().toISOString(),
+          };
+          return true;
+        });
+      }
+    }
+
+    // Lazy check: computeUserInitialState only runs once, when the user-progress row is
+    // first created, so a row created before hasMcpQuery existed never re-derives it from
+    // past runs. Mirrors the hasTeammatesInvited check above.
+    if (!userProgress.steps.hasMcpQuery?.done) {
+      const hasMcpQuery = await this.checkUserMcpQueryExists(projectId, userId);
+      if (hasMcpQuery) {
+        userProgress = await this.mutateUserStepsWithRetry(projectId, userId, steps => {
+          if (steps.hasMcpQuery?.done) return false;
+          steps.hasMcpQuery = {
             done: true,
             completedAt: new Date().toISOString(),
           };
@@ -328,15 +346,16 @@ export class ProjectSetupProgressService {
     };
 
     const now = new Date().toISOString();
+    const dataMartIds = await this.getProjectDataMartIds(projectId);
 
     // Note: In the current onboarding logic,
     // "Google Sheets extension connected" is interpreted as
     // "user successfully ran a report via Google Sheets", not just extension installation.
     // Because of this, both setup steps become completed after the first successful report run.
     const [hasReportRun, hasGoogleSheetsRun, hasMcpQuery] = await Promise.all([
-      this.checkUserReportRunExists(projectId, userId),
-      this.checkGoogleSheetsReportRunExists(projectId, userId),
-      this.checkUserMcpQueryExists(projectId, userId),
+      this.hasSuccessfulUserRun(dataMartIds, userId, REPORT_RUN_TYPES),
+      this.hasSuccessfulUserRun(dataMartIds, userId, [DataMartRunType.GOOGLE_SHEETS_EXPORT]),
+      this.hasSuccessfulUserRun(dataMartIds, userId, [DataMartRunType.MCP_QUERY]),
     ]);
 
     if (hasReportRun) {
@@ -411,14 +430,38 @@ export class ProjectSetupProgressService {
     return count > 0;
   }
 
-  private async checkReportExists(projectId: string): Promise<boolean> {
+  /** Data Mart ids owned by the project — the shared prerequisite for every per-run check below. */
+  private async getProjectDataMartIds(projectId: string): Promise<string[]> {
     const dataMarts = await this.dataMartRepository.find({
       where: { projectId },
       select: ['id'],
     });
-    if (dataMarts.length === 0) return false;
+    return dataMarts.map(dm => dm.id);
+  }
 
-    const dataMartIds = dataMarts.map(dm => dm.id);
+  private async hasSuccessfulUserRun(
+    dataMartIds: string[],
+    userId: string,
+    types: DataMartRunType[]
+  ): Promise<boolean> {
+    if (dataMartIds.length === 0) return false;
+
+    const run = await this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .select('run.id')
+      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
+      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
+      .andWhere('run.createdById = :userId', { userId })
+      .andWhere('run.type IN (:...types)', { types })
+      .limit(1)
+      .getOne();
+    return run !== null;
+  }
+
+  private async checkReportExists(projectId: string): Promise<boolean> {
+    const dataMartIds = await this.getProjectDataMartIds(projectId);
+    if (dataMartIds.length === 0) return false;
+
     const report = await this.reportRepository
       .createQueryBuilder('report')
       .select('report.id')
@@ -426,26 +469,6 @@ export class ProjectSetupProgressService {
       .limit(1)
       .getOne();
     return report !== null;
-  }
-
-  private async checkUserReportRunExists(projectId: string, userId: string): Promise<boolean> {
-    const dataMarts = await this.dataMartRepository.find({
-      where: { projectId },
-      select: ['id'],
-    });
-    if (dataMarts.length === 0) return false;
-
-    const dataMartIds = dataMarts.map(dm => dm.id);
-    const run = await this.dataMartRunRepository
-      .createQueryBuilder('run')
-      .select('run.id')
-      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
-      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
-      .andWhere('run.createdById = :userId', { userId })
-      .andWhere('run.type IN (:...types)', { types: REPORT_RUN_TYPES })
-      .limit(1)
-      .getOne();
-    return run !== null;
   }
 
   private async checkTeammatesInvited(projectId: string): Promise<boolean> {
@@ -467,48 +490,10 @@ export class ProjectSetupProgressService {
     return count > 0;
   }
 
-  private async checkGoogleSheetsReportRunExists(
-    projectId: string,
-    userId: string
-  ): Promise<boolean> {
-    const dataMarts = await this.dataMartRepository.find({
-      where: { projectId },
-      select: ['id'],
-    });
-    if (dataMarts.length === 0) return false;
-
-    const dataMartIds = dataMarts.map(dm => dm.id);
-    const run = await this.dataMartRunRepository
-      .createQueryBuilder('run')
-      .select('run.id')
-      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
-      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
-      .andWhere('run.createdById = :userId', { userId })
-      .andWhere('run.type = :type', { type: DataMartRunType.GOOGLE_SHEETS_EXPORT })
-      .limit(1)
-      .getOne();
-    return run !== null;
-  }
-
   // ── MCP query progress check ──
 
   private async checkUserMcpQueryExists(projectId: string, userId: string): Promise<boolean> {
-    const dataMarts = await this.dataMartRepository.find({
-      where: { projectId },
-      select: ['id'],
-    });
-    if (dataMarts.length === 0) return false;
-
-    const dataMartIds = dataMarts.map(dm => dm.id);
-    const run = await this.dataMartRunRepository
-      .createQueryBuilder('run')
-      .select('run.id')
-      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
-      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
-      .andWhere('run.createdById = :userId', { userId })
-      .andWhere('run.type = :type', { type: DataMartRunType.MCP_QUERY })
-      .limit(1)
-      .getOne();
-    return run !== null;
+    const dataMartIds = await this.getProjectDataMartIds(projectId);
+    return this.hasSuccessfulUserRun(dataMartIds, userId, [DataMartRunType.MCP_QUERY]);
   }
 }

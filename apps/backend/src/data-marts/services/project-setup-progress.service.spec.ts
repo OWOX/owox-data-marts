@@ -54,7 +54,9 @@ describe('ProjectSetupProgressService', () => {
   };
 
   it('normalizes old persisted steps before returning merged progress', async () => {
-    const { service, progressRepository, userProgressRepository } = createService();
+    const { service, progressRepository, userProgressRepository, dataMartRepository } =
+      createService();
+    dataMartRepository.find.mockResolvedValue([]);
 
     progressRepository.findOne.mockResolvedValue({
       id: 'progress-1',
@@ -130,17 +132,19 @@ describe('ProjectSetupProgressService', () => {
     dataMartRepository.find.mockResolvedValue([{ id: 'dm-1' }] as DataMart[]);
 
     dataMartRunRepository.createQueryBuilder.mockImplementation(() => {
-      let requestedType: DataMartRunType | undefined;
+      let requestedTypes: DataMartRunType[] | undefined;
       const qb = {
         select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn((_clause: string, params?: Record<string, unknown>) => {
-          if (params && 'type' in params) requestedType = params.type as DataMartRunType;
+          if (params && 'types' in params) requestedTypes = params.types as DataMartRunType[];
           return qb;
         }),
         limit: jest.fn().mockReturnThis(),
         getOne: jest.fn(() =>
-          Promise.resolve(requestedType === DataMartRunType.MCP_QUERY ? { id: 'run-1' } : null)
+          Promise.resolve(
+            requestedTypes?.includes(DataMartRunType.MCP_QUERY) ? { id: 'run-1' } : null
+          )
         ),
       };
       return qb as unknown as ReturnType<Repository<DataMartRun>['createQueryBuilder']>;
