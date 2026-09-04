@@ -9,6 +9,48 @@ function quoteBigQueryIdentifier(identifier) {
   return `\`${String(identifier).replace(/`/g, '``')}\``;
 }
 
+/**
+ * BigQuery error reasons that Google documents as worth retrying: the query was fine,
+ * the service could not run it right now.
+ *
+ * A reason outside this list is not by itself grounds for a retry, but it does not veto
+ * one either — the status code is still consulted, so a transient fault whose reason we
+ * did not enumerate is not abandoned. In practice the permanent reasons (invalidQuery,
+ * notFound, accessDenied, quotaExceeded) arrive with a 4xx, so they surface immediately.
+ * That includes 'invalidQuery' for an oversized query, which the MERGE loop then handles
+ * by halving the batch.
+ */
+const RETRYABLE_BIGQUERY_REASONS = [
+  'backendError',
+  'internalError',
+  'jobBackendError',
+  'jobInternalError',
+  'rateLimitExceeded',
+];
+
+/**
+ * Transport-level failures with no BigQuery reason attached: the request never reached
+ * the service, or its answer never came back.
+ */
+const RETRYABLE_BIGQUERY_ERROR_CODES = [500, 502, 503, 504, 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'];
+
+const DEFAULT_MAX_QUERY_ATTEMPTS = 3;
+const DEFAULT_INITIAL_RETRY_DELAY_MS = 5000;
+
+/**
+ * Reads a retry setting that comes from user configuration. Config validation only checks
+ * `typeof value === 'number'`, and NaN passes that — which would leave the retry loop with
+ * a comparison that is never true. Anything not a real number falls back to the default.
+ *
+ * @param {*} value - The configured value
+ * @param {number} fallback - Used when the value is not a finite number
+ * @param {number} minimum - Lower bound applied to a finite value
+ * @return {number} A usable setting
+ */
+function retrySettingOrDefault(value, fallback, minimum) {
+  return Number.isFinite(value) ? Math.max(minimum, value) : fallback;
+}
+
 function normalizeBigQueryType(type) {
   const normalized = String(type || '').toUpperCase();
   const aliases = {
@@ -928,9 +970,92 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         useLegacySql: false,
       };
 
-      const [job] = await bigqueryClient.createQueryJob(options);
-      const [rows] = await job.getQueryResults();
-      return rows;
+      // Both are guaranteed finite here, so the exit condition below always becomes true.
+      const maxAttempts = retrySettingOrDefault(
+        this.config.MaxFetchRetries?.value,
+        DEFAULT_MAX_QUERY_ATTEMPTS,
+        1
+      );
+      const initialRetryDelay = retrySettingOrDefault(
+        this.config.InitialRetryDelay?.value,
+        DEFAULT_INITIAL_RETRY_DELAY_MS,
+        0
+      );
+
+      // A retry reuses the job it already submitted rather than sending a new one: the
+      // statement has already been handed to BigQuery, so resubmitting would run it a
+      // second time — paying for the scan twice and letting two mutations of the same
+      // rows overlap. Only a failure that happened before a job existed submits one.
+      //
+      // A job that fails on BigQuery's side is reported by createQueryJob, which inspects
+      // the job's status, so those attempts leave `job` unset and do resubmit. What gets
+      // polled again is the case this guards: the job was accepted and only the wait for
+      // its results failed.
+      let job = null;
+
+      for (let attempt = 1; ; attempt++) {
+        try {
+          if (!job) {
+            const [createdJob] = await bigqueryClient.createQueryJob(options);
+            job = createdJob;
+          }
+
+          const [rows] = await job.getQueryResults();
+          return rows;
+        } catch (error) {
+          if (attempt >= maxAttempts || !this._isRetryableBigQueryError(error)) {
+            throw error;
+          }
+
+          const delay = AsyncUtils.backoffDelay(initialRetryDelay, attempt);
+          const reason = this._bigQueryErrorReasons(error)[0] || error.code || 'unknown error';
+
+          this.config.logMessage(
+            `BigQuery query failed (${reason}), retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 1} of ${maxAttempts})`
+          );
+
+          await AsyncUtils.delay(delay);
+        }
+      }
+    }
+
+  //---- _bigQueryErrorReasons ---------------------------------------
+    /**
+     * Reason codes BigQuery attached to a failure, e.g. ['backendError'].
+     * Empty for transport-level errors, which carry no reason.
+     *
+     * @param {Error} error - The error thrown by the BigQuery client
+     * @return {Array<string>} The reason codes, in the order BigQuery reported them
+     */
+    _bigQueryErrorReasons(error) {
+      if (!error || !Array.isArray(error.errors)) {
+        return [];
+      }
+
+      return error.errors.map(item => item && item.reason).filter(Boolean);
+    }
+
+  //---- _isRetryableBigQueryError -----------------------------------
+    /**
+     * Whether a failed query is worth running again. A failure matching neither a known
+     * reason nor a transient status code is treated as permanent, so a new failure mode
+     * surfaces to the user instead of silently consuming the configured attempts.
+     *
+     * @param {Error} error - The error thrown by the BigQuery client
+     * @return {boolean} True when the same query may succeed on another attempt
+     */
+    _isRetryableBigQueryError(error) {
+      if (!error) {
+        return false;
+      }
+
+      const reasons = this._bigQueryErrorReasons(error);
+
+      if (reasons.some(reason => RETRYABLE_BIGQUERY_REASONS.includes(reason))) {
+        return true;
+      }
+
+      return RETRYABLE_BIGQUERY_ERROR_CODES.includes(error.code);
     }
 
   //---- obfuscateSpecialCharacters ----------------------------------

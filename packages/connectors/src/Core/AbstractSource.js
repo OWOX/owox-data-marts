@@ -197,7 +197,7 @@ var AbstractSource = class AbstractSource {
      * @return {number} Delay in milliseconds
      */
     calculateBackoff(attemptNumber) {
-      return this.config.InitialRetryDelay.value * Math.pow(2, attemptNumber - 1) * (0.5 + Math.random());
+      return AsyncUtils.backoffDelay(this.config.InitialRetryDelay.value, attemptNumber);
     }
     //----------------------------------------------------------------
 
