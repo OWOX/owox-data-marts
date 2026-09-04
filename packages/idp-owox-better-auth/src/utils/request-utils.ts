@@ -60,6 +60,7 @@ const optionalExtraParams = z.preprocess(value => {
 export const AuthFlowParamsSchema = z.object({
   redirectTo: optionalStringParam,
   appRedirectTo: optionalStringParam,
+  projectRedirectUserId: optionalStringParam,
   source: optionalStringParam,
   clientId: optionalStringParam,
   codeChallenge: optionalStringParam,
@@ -299,6 +300,11 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const appRedirectTo =
     (typeof req.query?.['app-redirect-to'] === 'string' && req.query['app-redirect-to']) ||
     undefined;
+  const resolvedAppRedirectTo = appRedirectTo || cookieParams.appRedirectTo;
+  const projectRedirectUserId =
+    resolvedAppRedirectTo && resolvedAppRedirectTo === cookieParams.appRedirectTo
+      ? cookieParams.projectRedirectUserId
+      : undefined;
   const source = typeof req.query?.source === 'string' ? req.query.source : undefined;
   const clientId = typeof req.query?.clientId === 'string' ? req.query.clientId : undefined;
   const codeChallenge =
@@ -311,7 +317,8 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
 
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
-    appRedirectTo: appRedirectTo || cookieParams.appRedirectTo,
+    appRedirectTo: resolvedAppRedirectTo,
+    projectRedirectUserId,
     source: source || cookieParams.source,
     clientId: clientId || cookieParams.clientId,
     codeChallenge: codeChallenge || cookieParams.codeChallenge,

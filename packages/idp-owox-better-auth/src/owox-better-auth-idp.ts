@@ -398,18 +398,22 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         );
 
         const callbackAuthFlowParams = response.authFlowParams ?? extractAuthFlowParams(req);
-        const redirectTarget = this.resolveExistingRefreshRedirect(callbackAuthFlowParams);
+        const payload = await this.tokenFacade.parseToken(response.accessToken);
+        const resolvedAuthFlowParams = this.resolveUserBoundProjectRedirect(
+          callbackAuthFlowParams,
+          payload?.userId
+        );
+        const redirectTarget = this.resolveExistingRefreshRedirect(resolvedAuthFlowParams);
         this.logger.info('Completed IDP callback', {
           path: req.path,
           redirectTarget,
-          redirectTo: callbackAuthFlowParams.redirectTo,
-          appRedirectTo: callbackAuthFlowParams.appRedirectTo,
+          redirectTo: resolvedAuthFlowParams.redirectTo,
+          appRedirectTo: resolvedAuthFlowParams.appRedirectTo,
         });
 
         clearAuthFlowCookies(res, req);
 
         // Check if onboarding questionnaire should be shown
-        const payload = await this.tokenFacade.parseToken(response.accessToken);
         if (payload) {
           try {
             await this.onboardingService.evaluateAndSetOnboardingStatus(
@@ -588,6 +592,27 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       sanitizeRedirectParam(params.appRedirectTo, allowedRedirectOrigins) ??
       '/'
     );
+  }
+
+  private resolveUserBoundProjectRedirect(
+    params: AuthFlowParams,
+    authenticatedUserId?: string
+  ): AuthFlowParams {
+    if (!params.projectRedirectUserId) {
+      return params;
+    }
+    if (authenticatedUserId && params.projectRedirectUserId === authenticatedUserId) {
+      return params;
+    }
+
+    this.logger.info('Discarding user-bound project redirect', {
+      reason: authenticatedUserId ? 'different-user' : 'unknown-user',
+    });
+    return {
+      ...params,
+      appRedirectTo: undefined,
+      projectRedirectUserId: undefined,
+    };
   }
 
   async signUpMiddleware(
@@ -847,12 +872,32 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     authUrl: string
   ): Promise<void | e.Response> {
     const params = extractAuthFlowParams(req);
+    const generatedProjectId = params.projectId && !params.appRedirectTo ? params.projectId : null;
+    let projectRedirectUserId = params.projectRedirectUserId;
+    let preserveGeneratedProjectRedirect = true;
+    const refreshToken = generatedProjectId ? extractRefreshToken(req) : undefined;
+    if (refreshToken) {
+      const payload = await this.tokenFacade.parseToken(refreshToken);
+      if (payload) {
+        projectRedirectUserId = payload.userId;
+      } else {
+        preserveGeneratedProjectRedirect = false;
+        projectRedirectUserId = undefined;
+        this.logger.warn(
+          'Discarding unbound project redirect because the current user is unknown',
+          { path: req.path }
+        );
+      }
+    }
     const enhancedParams = {
       ...params,
+      projectId:
+        generatedProjectId && !preserveGeneratedProjectRedirect ? undefined : params.projectId,
       appRedirectTo:
-        params.projectId && !params.appRedirectTo
-          ? `/auth/idp-start?projectId=${encodeURIComponent(params.projectId)}`
+        generatedProjectId && preserveGeneratedProjectRedirect
+          ? `/auth/idp-start?projectId=${encodeURIComponent(generatedProjectId)}`
           : params.appRedirectTo,
+      projectRedirectUserId,
     };
     persistAuthFlowParams(req, res, enhancedParams);
     const platformUrl = buildPlatformEntryUrl({

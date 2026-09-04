@@ -72,6 +72,7 @@ describe('request-utils', () => {
       JSON.stringify({
         redirectTo: '/platform',
         appRedirectTo: '/app',
+        projectRedirectUserId: 'user-1',
         source: SOURCE.PLATFORM,
         clientId: 'cid',
         codeChallenge: 'challenge',
@@ -85,6 +86,7 @@ describe('request-utils', () => {
     expect(extractAuthFlowParams(req)).toMatchObject({
       redirectTo: '/platform',
       appRedirectTo: '/app',
+      projectRedirectUserId: 'user-1',
       source: SOURCE.PLATFORM,
       clientId: 'cid',
       codeChallenge: 'challenge',
@@ -97,6 +99,7 @@ describe('request-utils', () => {
       serializeAuthFlowParams({
         redirectTo: '/platform',
         appRedirectTo: '/app',
+        projectRedirectUserId: 'user-1',
         source: SOURCE.PLATFORM,
         projectId: 'project_1',
         extraParams: { ui_locales: 'en-US' },
@@ -105,6 +108,7 @@ describe('request-utils', () => {
       JSON.stringify({
         redirectTo: '/platform',
         appRedirectTo: '/app',
+        projectRedirectUserId: 'user-1',
         source: SOURCE.PLATFORM,
         projectId: 'project_1',
         extraParams: { ui_locales: 'en-US' },
@@ -137,6 +141,7 @@ describe('request-utils', () => {
       JSON.stringify({
         redirectTo: '/oauth/authorize?client_id=stale-client&state=stale-state',
         appRedirectTo: '/oauth/authorize?client_id=stale-client&state=stale-state',
+        projectRedirectUserId: 'stale-user',
         source: SOURCE.PLATFORM,
       })
     );
@@ -152,6 +157,23 @@ describe('request-utils', () => {
       redirectTo: '/oauth/authorize?client_id=fresh-client&state=fresh-state',
       appRedirectTo: '/oauth/authorize?client_id=fresh-client&state=fresh-state',
       source: SOURCE.PLATFORM,
+    });
+    expect(extractAuthFlowParams(req).projectRedirectUserId).toBeUndefined();
+  });
+
+  it('keeps a project redirect owner when the query continues the same redirect', () => {
+    const appRedirectTo = '/auth/idp-start?projectId=project_1';
+    const payload = encodeURIComponent(
+      JSON.stringify({ appRedirectTo, projectRedirectUserId: 'user-1' })
+    );
+    const req = {
+      headers: { cookie: `idp-owox-params=${payload};` },
+      query: { 'app-redirect-to': appRedirectTo },
+    } as unknown as Request;
+
+    expect(extractAuthFlowParams(req)).toMatchObject({
+      appRedirectTo,
+      projectRedirectUserId: 'user-1',
     });
   });
 
