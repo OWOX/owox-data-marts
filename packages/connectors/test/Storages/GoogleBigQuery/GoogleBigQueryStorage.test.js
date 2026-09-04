@@ -692,10 +692,121 @@ describe('executeQuery transient-error retries', () => {
     expect(attemptCount()).toBe(2);
   });
 
-  it('polls the job it already submitted instead of running the statement twice', async () => {
-    // The statement is already with BigQuery once createQueryJob resolves. Resubmitting
+  it('resubmits the statement when the job failed after BigQuery accepted it', async () => {
+    // createQueryJob does not wait for the job: a MERGE that BigQuery accepts and then
+    // fails while running resolves the insert and reports the failure from
+    // getQueryResults. That job is DONE with an errorResult, so polling it again returns
+    // the same error forever — the statement has to be sent again.
+    let jobsCreated = 0;
+    let resultAttempts = 0;
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        MaxFetchRetries: configValue(3),
+        InitialRetryDelay: configValue(1000),
+        logMessage() {},
+      },
+      getBigQueryClient: () => ({
+        createQueryJob: async () => {
+          jobsCreated += 1;
+          return [
+            {
+              getQueryResults: async () => {
+                resultAttempts += 1;
+                if (resultAttempts === 1) {
+                  throw apiError('backendError');
+                }
+                return [[{ ok: true }]];
+              },
+            },
+          ];
+        },
+      }),
+    });
+    const originalDelay = globalThis.AsyncUtils.delay;
+    globalThis.AsyncUtils.delay = async () => {};
+
+    try {
+      const rows = await proto.executeQuery.call(storage, 'MERGE INTO t ...');
+
+      expect(rows).toEqual([{ ok: true }]);
+      expect(jobsCreated).toBe(2);
+      expect(resultAttempts).toBe(2);
+    } finally {
+      globalThis.AsyncUtils.delay = originalDelay;
+    }
+  });
+
+  it('gives up on a job that keeps failing during execution, without polling it twice', async () => {
+    // Every attempt must be a fresh statement; re-polling the same dead job would burn
+    // the attempts on an answer that cannot change.
+    let jobsCreated = 0;
+    const pollsPerJob = [];
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        MaxFetchRetries: configValue(3),
+        InitialRetryDelay: configValue(1000),
+        logMessage() {},
+      },
+      getBigQueryClient: () => ({
+        createQueryJob: async () => {
+          jobsCreated += 1;
+          const index = pollsPerJob.push(0) - 1;
+          return [
+            {
+              getQueryResults: async () => {
+                pollsPerJob[index] += 1;
+                throw apiError('internalError');
+              },
+            },
+          ];
+        },
+      }),
+    });
+    const originalDelay = globalThis.AsyncUtils.delay;
+    globalThis.AsyncUtils.delay = async () => {};
+
+    try {
+      await expect(proto.executeQuery.call(storage, 'MERGE INTO t ...')).rejects.toThrow();
+
+      expect(jobsCreated).toBe(3);
+      expect(pollsPerJob).toEqual([1, 1, 1]);
+    } finally {
+      globalThis.AsyncUtils.delay = originalDelay;
+    }
+  });
+
+  it('retries a job-level rate limit, which the client library never retries itself', async () => {
+    // jobRateLimitExceeded arrives with a 400, so shouldRetryRequest ignores it, but
+    // Google documents it as a retry-with-backoff condition.
+    const { storage, waited, attemptCount } = retryingStorage({
+      failures: 1,
+      error: apiError('jobRateLimitExceeded', 400),
+    });
+    withRecordedDelays(waited);
+
+    await proto.executeQuery.call(storage, 'MERGE INTO t ...');
+
+    expect(attemptCount()).toBe(2);
+  });
+
+  it('caps a single backoff wait so an outage cannot park the run for an hour', async () => {
+    // MaxFetchRetries has no maximum and the run holds a concurrency slot while it
+    // sleeps, so the doubling needs a ceiling.
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const { storage, waited } = retryingStorage({ failures: Infinity, retries: 8 });
+    withRecordedDelays(waited);
+
+    await expect(proto.executeQuery.call(storage, 'MERGE INTO t ...')).rejects.toThrow();
+
+    expect(Math.max(...waited)).toBe(60000);
+    expect(waited).toEqual([1000, 2000, 4000, 8000, 16000, 32000, 60000]);
+    randomSpy.mockRestore();
+  });
+
+  it('polls the job it already submitted when the failure carries no BigQuery reason', async () => {
+    // A dropped socket says nothing about the job, which may still be running. Resubmitting
     // would run the MERGE a second time: the scan is paid for twice, and two mutations of
-    // the same rows can overlap.
+    // the same rows can overlap. Contrast the reasoned failures above, which must resubmit.
     let jobsCreated = 0;
     let resultAttempts = 0;
     const storage = Object.assign(Object.create(proto), {

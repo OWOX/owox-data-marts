@@ -10,15 +10,18 @@ function quoteBigQueryIdentifier(identifier) {
 }
 
 /**
- * BigQuery error reasons that Google documents as worth retrying: the query was fine,
+ * BigQuery error reasons that Google documents as worth retrying: the statement was fine,
  * the service could not run it right now.
  *
- * A reason outside this list is not by itself grounds for a retry, but it does not veto
- * one either — the status code is still consulted, so a transient fault whose reason we
- * did not enumerate is not abandoned. In practice the permanent reasons (invalidQuery,
- * notFound, accessDenied, quotaExceeded) arrive with a 4xx, so they surface immediately.
- * That includes 'invalidQuery' for an oversized query, which the MERGE loop then handles
- * by halving the batch.
+ * These are the reasons the client library never retries on its own. Its `shouldRetryRequest`
+ * acts on the HTTP status of a single request, so it cannot see a job that was accepted and
+ * then failed while running — which is the case this list exists for.
+ *
+ * A reason outside this list is not by itself grounds for a retry, but it does not veto one
+ * either: a reason-less transport failure is still classified by its code. The permanent
+ * reasons (invalidQuery, notFound, accessDenied, quotaExceeded) arrive with a 4xx, so they
+ * surface immediately. That includes 'invalidQuery' for an oversized query, which the MERGE
+ * loop then handles by halving the batch.
  */
 const RETRYABLE_BIGQUERY_REASONS = [
   'backendError',
@@ -26,16 +29,28 @@ const RETRYABLE_BIGQUERY_REASONS = [
   'jobBackendError',
   'jobInternalError',
   'rateLimitExceeded',
+  'jobRateLimitExceeded',
 ];
 
 /**
- * Transport-level failures with no BigQuery reason attached: the request never reached
- * the service, or its answer never came back.
+ * Transport-level failures with no BigQuery reason attached: the answer to a request never
+ * came back, so whatever it was asking about may still be fine.
+ *
+ * HTTP statuses are deliberately absent. @google-cloud/common already retries 408/429/5xx
+ * through `shouldRetryRequest`, so listing them here would only stack a second ladder on
+ * top of the client's own and report the total as one attempt.
  */
-const RETRYABLE_BIGQUERY_ERROR_CODES = [500, 502, 503, 504, 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'];
+const RETRYABLE_BIGQUERY_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'];
 
 const DEFAULT_MAX_QUERY_ATTEMPTS = 3;
 const DEFAULT_INITIAL_RETRY_DELAY_MS = 5000;
+
+/**
+ * Ceiling for a single backoff wait. `MaxFetchRetries` has no maximum, and a run holds one
+ * of the project's concurrent slots while it sleeps, so uncapped doubling lets one BigQuery
+ * outage park a run for over an hour before it reports the failure.
+ */
+const MAX_RETRY_DELAY_MS = 60000;
 
 /**
  * Reads a retry setting that comes from user configuration. Config validation only checks
@@ -982,15 +997,19 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         0
       );
 
-      // A retry reuses the job it already submitted rather than sending a new one: the
-      // statement has already been handed to BigQuery, so resubmitting would run it a
-      // second time — paying for the scan twice and letting two mutations of the same
-      // rows overlap. Only a failure that happened before a job existed submits one.
+      // Whether a retry resubmits the statement or polls the job again turns on what
+      // failed, because createQueryJob does not wait for the job to finish. It only
+      // inspects `status.errors` on the insert response, and a MERGE that BigQuery
+      // accepts comes back RUNNING — so a job that fails during execution resolves
+      // createQueryJob successfully and reports the failure through getQueryResults.
       //
-      // A job that fails on BigQuery's side is reported by createQueryJob, which inspects
-      // the job's status, so those attempts leave `job` unset and do resubmit. What gets
-      // polled again is the case this guards: the job was accepted and only the wait for
-      // its results failed.
+      //   - The error carries a BigQuery reason: the job reached a terminal state.
+      //     Polling it again returns the same error forever, so the statement has to be
+      //     sent again. That is safe — a failed DML job commits nothing, so there is no
+      //     half-applied MERGE to overlap with.
+      //   - The error carries no reason: a transport fault, and the job it was asking
+      //     about may still be running. Poll that job again rather than paying for a
+      //     second scan and letting two mutations of the same rows overlap.
       let job = null;
 
       for (let attempt = 1; ; attempt++) {
@@ -1007,8 +1026,18 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             throw error;
           }
 
-          const delay = AsyncUtils.backoffDelay(initialRetryDelay, attempt);
-          const reason = this._bigQueryErrorReasons(error)[0] || error.code || 'unknown error';
+          const reasons = this._bigQueryErrorReasons(error);
+
+          // BigQuery answered, so the job is finished and failed. Drop it and resubmit.
+          if (reasons.length > 0) {
+            job = null;
+          }
+
+          const delay = Math.min(
+            AsyncUtils.backoffDelay(initialRetryDelay, attempt),
+            MAX_RETRY_DELAY_MS
+          );
+          const reason = reasons[0] || error.code || 'unknown error';
 
           this.config.logMessage(
             `BigQuery query failed (${reason}), retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 1} of ${maxAttempts})`
@@ -1038,7 +1067,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- _isRetryableBigQueryError -----------------------------------
     /**
      * Whether a failed query is worth running again. A failure matching neither a known
-     * reason nor a transient status code is treated as permanent, so a new failure mode
+     * reason nor a network-level code is treated as permanent, so a new failure mode
      * surfaces to the user instead of silently consuming the configured attempts.
      *
      * @param {Error} error - The error thrown by the BigQuery client
