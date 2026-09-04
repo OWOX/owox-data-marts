@@ -110,6 +110,8 @@ function buildReport(overrides: {
   createdAt?: Date;
   columnConfig?: string[] | null;
   filterConfig?: FilterConfig;
+  uniqueCountConfig?: string[] | boolean | null;
+  canEditConfig?: boolean;
   lastRunAt?: Date;
   lastRunStatus?: ReportRunStatus;
 }): ReportDto {
@@ -131,6 +133,8 @@ function buildReport(overrides: {
     createdAt: overrides.createdAt ?? new Date('2026-06-01T00:00:00.000Z'),
     columnConfig: overrides.columnConfig,
     filterConfig: overrides.filterConfig,
+    uniqueCountConfig: overrides.uniqueCountConfig,
+    canEditConfig: overrides.canEditConfig ?? true,
     lastRunAt: overrides.lastRunAt,
     lastRunStatus: overrides.lastRunStatus,
   } as unknown as ReportDto;
@@ -711,6 +715,11 @@ describe('McpReportsFacadeImpl.addReport', () => {
       ['another user created it', { createdByUserId: 'someone-else' }],
       ['it exports different fields', { columnConfig: ['channel'] }],
       ['it exports to another destination', { destinationId: 'dest-other' }],
+      // Creator identity is not current access: update_report would 403.
+      ['the caller can no longer edit it', { canEditConfig: false }],
+      // add_report cannot produce a Unique Count, update_report cannot drop it.
+      ['it carries a Unique Count metric', { uniqueCountConfig: ['orders'] }],
+      ['it carries the legacy main Unique Count', { uniqueCountConfig: true }],
     ])('creates the report when %s', async (_reason, overrides) => {
       const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
         reports: [
@@ -1495,6 +1504,75 @@ describe('McpReportsFacadeImpl.updateReport', () => {
         status: 'updated',
         fields: ['channel', 'revenue'],
         run: { status: 'queued', run_id: 'run-1' },
+      })
+    );
+  });
+
+  it('keeps UI-only rules when filters are replaced, so adding a filter never broadens the data', async () => {
+    const built = buildUpdateFacade();
+    const having = { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' } as const;
+    const regexSlice = {
+      column: 'name',
+      operator: 'regex',
+      value: '^a',
+      placement: 'pre-join',
+    } as const;
+    const today = { column: 'date', operator: 'relative_date', value: { kind: 'today' } } as const;
+    const stored = {
+      ...currentReport,
+      filterConfig: [
+        { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+        having,
+        regexSlice,
+        today,
+      ],
+    } as unknown as ReportDto;
+    built.getReportService.run.mockResolvedValue(stored);
+    built.updateReportService.run.mockResolvedValue(stored);
+
+    // The core "add a filter" flow: the agent sends the expressible filters it
+    // saw plus the new one. The HAVING rule and the calendar preset (post-join)
+    // survive, and the untouched slice keeps its regex.
+    await built.facade.updateReport({
+      ...updateRequest,
+      postJoinFilters: [
+        { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+        { column: 'country', operator: 'eq', value: 'UA', placement: 'post-join' },
+      ],
+    });
+
+    expect(built.updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          regexSlice,
+          having,
+          today,
+          { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+          { column: 'country', operator: 'eq', value: 'UA', placement: 'post-join' },
+        ],
+      })
+    );
+
+    // Clearing the expressible filters still keeps every UI-only rule.
+    await built.facade.updateReport({ ...updateRequest, postJoinFilters: null });
+    expect(built.updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [regexSlice, having, today] })
+    );
+
+    // Replacing slices keeps the UI-only slice and every post-join rule.
+    await built.facade.updateReport({
+      ...updateRequest,
+      preJoinFilters: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+    });
+    expect(built.updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          regexSlice,
+          { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' },
+          { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
+          having,
+          today,
+        ],
       })
     );
   });

@@ -59,13 +59,13 @@ const baseInputSchema = z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters (stored slices are untouched) — including any post-aggregation (HAVING) constraints created in the OWOX UI, which cannot be expressed over MCP; pass [] to remove every row filter; omit to keep current.'
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters MCP can express (stored slices are untouched); rules created in the OWOX UI that MCP cannot express — post-aggregation (HAVING) constraints, regex, calendar presets such as today or last month — are kept automatically and listed as ui_only_filters. Copy the filters to keep from get_data_mart_reports; pass [] to remove every expressible row filter; omit to keep current.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices (stored row filters are untouched); pass [] to remove every slice; omit to keep current.'
+        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices MCP can express (stored row filters and UI-only slices are untouched); pass [] to remove every expressible slice; omit to keep current.'
       ),
     aggregations: z
       .array(makeMcpReportAggregationSchema())

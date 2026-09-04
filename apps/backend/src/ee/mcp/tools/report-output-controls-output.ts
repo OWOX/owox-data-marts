@@ -10,11 +10,7 @@ import { z } from 'zod';
 const filterOutputSchema = () =>
   z.object({
     field: z.string(),
-    operator: z
-      .string()
-      .describe(
-        'query_data_mart operator vocabulary where expressible; a rule created in the OWOX UI with a preset MCP cannot express (e.g. today, regex) is returned as stored — keep such a rule by omitting the control, not by re-sending it.'
-      ),
+    operator: z.string().describe('query_data_mart operator vocabulary.'),
     value: z.unknown().optional(),
   });
 
@@ -31,15 +27,27 @@ export const reportOutputControlsOutputShape = {
     ),
   filters: z
     .array(filterOutputSchema())
-    .describe('Row filters applied on every run, in add_report/update_report vocabulary.'),
+    .describe(
+      'Row filters applied on every run that update_report "filters" can replace, in add_report/update_report vocabulary.'
+    ),
   slices: z
     .array(filterOutputSchema())
-    .describe('Pre-join filters of a blended report; empty for non-blended reports.'),
-  post_aggregation_filters: z
-    .array(filterOutputSchema().extend({ function: z.string() }))
+    .describe(
+      'Pre-join filters of a blended report that update_report "slices" can replace; empty for non-blended reports.'
+    ),
+  ui_only_filters: z
+    .array(
+      filterOutputSchema().extend({
+        placement: z.enum(['pre-join', 'post-join']),
+        function: z
+          .string()
+          .optional()
+          .describe('Set for a post-aggregation (HAVING) rule: the aggregate it constrains.'),
+      })
+    )
     .optional()
     .describe(
-      'Present only when the report has post-aggregation (HAVING) rules created in the OWOX UI. They cannot be set over MCP, and update_report "filters" replaces them.'
+      'Present only when the report also applies rules created in the OWOX UI that MCP cannot express (post-aggregation constraints, regex, calendar presets such as today or last month). update_report keeps them untouched whatever you send in filters/slices; they are changed or removed in the OWOX UI. Returned as stored — never re-send them.'
     ),
   aggregations: z.array(z.object({ field: z.string(), function: z.string() })),
   date_buckets: z.array(

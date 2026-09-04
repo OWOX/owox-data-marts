@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
@@ -36,7 +37,10 @@ import { collectSchemaFieldPathDescriptors } from '../data-storage-types/data-ma
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
-import { joinedUniqueCountSources } from '../dto/schemas/unique-count-sources';
+import {
+  joinedUniqueCountSources,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -64,7 +68,11 @@ import { UpdateReportService } from '../use-cases/update-report.service';
 import { toReportRunType } from '../utils/report-run-type';
 import { extractRunErrorMessage } from '../utils/run-error-message';
 import { toMcpDestinationType } from './mcp-destination-type';
-import { sameFieldSelection, toMcpOutputControls } from './mcp-report-output-controls';
+import {
+  isUiOnlyFilterRule,
+  sameFieldSelection,
+  toMcpOutputControls,
+} from './mcp-report-output-controls';
 import {
   McpAddReportRequest,
   McpAddReportResult,
@@ -340,10 +348,16 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   /**
    * Replaces the report's filter rules PER PLACEMENT: `filters` (post-join) and
    * `slices` (pre-join) are independent controls, so touching one must not wipe
-   * the stored rules of the other — an agent that never saw the report's current
-   * slices could not restore them (no read tool exposes output controls). Rules
-   * without a `placement` (e.g. created in the UI) count as post-join, matching
-   * how the query engine applies them.
+   * the stored rules of the other. Rules without a `placement` (e.g. created in
+   * the UI) count as post-join, matching how the query engine applies them.
+   *
+   * Within a placement, only the rules the MCP vocabulary can EXPRESS are
+   * replaced. A rule created in the OWOX UI that it cannot express — a
+   * post-aggregation (HAVING) constraint, a regex, a calendar preset such as
+   * "today" — is kept as stored: the agent cannot re-send it, so replacing it
+   * would silently drop a constraint and broaden what the report delivers. The
+   * read path lists such rules under `ui_only_filters`, and they are changed or
+   * removed in the OWOX UI.
    */
   private mergeFilterConfig(
     current: FilterConfig,
@@ -354,14 +368,16 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       return current;
     }
     const currentRules = current ?? [];
+    const currentPreJoin = currentRules.filter(rule => rule.placement === 'pre-join');
+    const currentPostJoin = currentRules.filter(rule => rule.placement !== 'pre-join');
     const nextPreJoin =
       preJoinReplacement !== undefined
-        ? (preJoinReplacement ?? [])
-        : currentRules.filter(rule => rule.placement === 'pre-join');
+        ? [...currentPreJoin.filter(isUiOnlyFilterRule), ...(preJoinReplacement ?? [])]
+        : currentPreJoin;
     const nextPostJoin =
       postJoinReplacement !== undefined
-        ? (postJoinReplacement ?? [])
-        : currentRules.filter(rule => rule.placement !== 'pre-join');
+        ? [...currentPostJoin.filter(isUiOnlyFilterRule), ...(postJoinReplacement ?? [])]
+        : currentPostJoin;
     const merged = [...nextPreJoin, ...nextPostJoin];
     return merged.length ? merged : null;
   }
@@ -539,12 +555,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       });
       return { status: 'queued', run_id: run.runId };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Report run could not be queued';
+      const cause = castError(error);
       this.logger.error(
         `Report ${reportId} was written by an MCP report tool but its run could not be queued`,
-        error instanceof Error ? error.stack : String(error)
+        cause.stack
       );
-      return { status: 'failed_to_queue', error: message };
+      return { status: 'failed_to_queue', error: cause.message };
     }
   }
 
@@ -553,10 +569,15 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * not on a second one: a report exporting the SAME fields from the same data
    * mart to the same destination, created by the same user, is treated as that
    * report. Filters and the other output controls are deliberately not part of
-   * the match — they are exactly what the follow-up request changes. Runs
-   * BEFORE any side effect, so a refused Google Sheets report creates no file.
-   * The newest match is reported, being the one the conversation most likely
-   * means.
+   * the match — they are exactly what the follow-up request changes. Two kinds
+   * of report are never "that report": one carrying a Unique Count metric,
+   * which add_report cannot produce and update_report cannot remove, so the
+   * plain report the caller asked for is genuinely different; and one the
+   * caller can no longer edit (creator identity is not current access — owners
+   * change), because directing them to update_report would end in a 403.
+   * Runs BEFORE any side effect, so a refused Google Sheets report creates no
+   * file. The newest match is reported, being the one the conversation most
+   * likely means.
    */
   private async assertNoSimilarReport(request: McpAddReportRequest): Promise<void> {
     const wantedColumns = this.toColumnConfig(request.fields);
@@ -573,6 +594,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         report =>
           report.dataDestinationAccess.id === request.destinationId &&
           report.createdByUser?.userId === request.userId &&
+          report.canEditConfig &&
+          normalizeUniqueCountSources(report.uniqueCountConfig).length === 0 &&
           sameFieldSelection(report.columnConfig, wantedColumns)
       )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
@@ -758,7 +781,9 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
               request.destinationId,
               request.projectId,
               request.spreadsheetId,
-              name
+              name,
+              request.userId,
+              request.userEmail
             )
           )
         : await this.createGoogleSheetDocumentService.run(
@@ -803,8 +828,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       status: 'created',
       spreadsheet_id: sheet.spreadsheetId,
       sheet_url: buildGoogleSheetUrl(sheet.spreadsheetId, sheet.sheetId),
-      // Placement and sharing describe a NEW file only; a sheet added to an
-      // existing spreadsheet inherits both from it, so the keys are omitted.
+      // Folder placement describes a NEW file only. Sharing is reported for
+      // both: granted (new file) or confirmed (existing spreadsheet).
       ...('placedInRoot' in sheet && { placed_in_root: sheet.placedInRoot }),
       ...('sharedWithRequester' in sheet && { shared_with_requester: sheet.sharedWithRequester }),
     };

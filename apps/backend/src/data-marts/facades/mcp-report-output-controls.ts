@@ -15,9 +15,8 @@ import { buildJoinedUniqueCountColumnName } from '../services/blended-field-name
  * One stored filter rule, spelled in the vocabulary the report tools ACCEPT
  * (`filters` / `slices` of add_report, update_report and query_data_mart), so an
  * agent can copy it back verbatim. `operator` is a plain string rather than the
- * MCP enum: a rule created in the OWOX UI may use a preset the MCP vocabulary
- * cannot express (`today`, `regex`, …) — such a rule is returned as stored, and
- * the agent must keep it by omitting the control rather than re-sending it.
+ * MCP enum because the same shape also carries a UI-only rule (see
+ * {@link McpReportUiOnlyFilter}) as stored.
  */
 export interface McpReportFilter {
   field: string;
@@ -26,12 +25,15 @@ export interface McpReportFilter {
 }
 
 /**
- * A stored rule that filters an AGGREGATED value after grouping (`HAVING`). It can
- * only be created in the OWOX UI, and the report tools cannot express it — it is
- * exposed so the agent knows that replacing `filters` wipes it (see update_report).
+ * A stored rule the report tools cannot express — created in the OWOX UI: a
+ * post-aggregation (`HAVING`) constraint (`function` set), a regex, or a calendar
+ * preset such as "today". Listed so the agent knows what the report also
+ * applies; update_report keeps these rules untouched (see mergeFilterConfig),
+ * and they are changed or removed in the OWOX UI.
  */
-export interface McpReportHavingFilter extends McpReportFilter {
-  function: string;
+export interface McpReportUiOnlyFilter extends McpReportFilter {
+  placement: 'pre-join' | 'post-join';
+  function?: string;
 }
 
 export interface McpReportAggregation {
@@ -69,12 +71,12 @@ export interface McpReportOutputControls {
    * sources. Set only in the OWOX UI; update_report preserves it.
    */
   unique_count_sources: string[];
-  /** Post-join (row) filter rules. Empty when the report exports all rows. */
+  /** Post-join (row) filter rules the tools can express. Empty when none. */
   filters: McpReportFilter[];
-  /** Pre-join (slice) rules of a blended report. Empty for non-blended reports. */
+  /** Pre-join (slice) rules of a blended report the tools can express. */
   slices: McpReportFilter[];
-  /** UI-only post-aggregation rules; present only when the report has some. */
-  post_aggregation_filters?: McpReportHavingFilter[];
+  /** Rules the tools cannot express; present only when the report has some. */
+  ui_only_filters?: McpReportUiOnlyFilter[];
   aggregations: McpReportAggregation[];
   date_buckets: McpReportDateBucket[];
   sort: McpReportSort[];
@@ -160,24 +162,56 @@ export function toMcpFilter(rule: FilterRule): McpReportFilter {
   }
 }
 
+/** Calendar presets the MCP vocabulary has no operator for. */
+const UI_ONLY_RELATIVE_DATE_KINDS: ReadonlySet<string> = new Set([
+  'today',
+  'yesterday',
+  'last_month',
+  'last_n_months',
+]);
+
 /**
- * Splits stored rules the way the tools take them: pre-join rules are `slices`,
- * post-join rules are `filters` (a rule without a placement — e.g. created in the
- * UI — counts as post-join, matching how the query engine applies it), and rules
- * with an aggregate `function` are the UI-only HAVING constraints.
+ * True for a stored rule that no report-tool call can re-send: a post-aggregation
+ * (HAVING) constraint, a regex, or a calendar preset outside the MCP vocabulary.
+ * Mirror of what {@link toMcpFilter} cannot translate — keep the two together.
+ */
+export function isUiOnlyFilterRule(rule: FilterRule): boolean {
+  if (rule.function) return true;
+  switch (rule.operator) {
+    case 'regex':
+    case 'not_regex':
+      return true;
+    case 'relative_date':
+      return UI_ONLY_RELATIVE_DATE_KINDS.has(rule.value.kind);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Splits stored rules the way the tools take them: expressible pre-join rules are
+ * `slices`, expressible post-join rules are `filters` (a rule without a placement
+ * — e.g. created in the UI — counts as post-join, matching how the query engine
+ * applies it), and everything the tools cannot express is `ui_only_filters`, each
+ * tagged with its placement so the agent can see the whole definition.
  */
 export function toMcpFilterGroups(filterConfig: FilterConfig | undefined): {
   filters: McpReportFilter[];
   slices: McpReportFilter[];
-  post_aggregation_filters?: McpReportHavingFilter[];
+  ui_only_filters?: McpReportUiOnlyFilter[];
 } {
   const filters: McpReportFilter[] = [];
   const slices: McpReportFilter[] = [];
-  const having: McpReportHavingFilter[] = [];
+  const uiOnly: McpReportUiOnlyFilter[] = [];
   for (const rule of filterConfig ?? []) {
-    if (rule.function) {
-      having.push({ ...toMcpFilter(rule), function: rule.function });
-    } else if (rule.placement === 'pre-join') {
+    const placement = rule.placement === 'pre-join' ? 'pre-join' : 'post-join';
+    if (isUiOnlyFilterRule(rule)) {
+      uiOnly.push({
+        ...toMcpFilter(rule),
+        placement,
+        ...(rule.function !== undefined && { function: rule.function }),
+      });
+    } else if (placement === 'pre-join') {
       slices.push(toMcpFilter(rule));
     } else {
       filters.push(toMcpFilter(rule));
@@ -186,7 +220,7 @@ export function toMcpFilterGroups(filterConfig: FilterConfig | undefined): {
   return {
     filters,
     slices,
-    ...(having.length > 0 && { post_aggregation_filters: having }),
+    ...(uiOnly.length > 0 && { ui_only_filters: uiOnly }),
   };
 }
 

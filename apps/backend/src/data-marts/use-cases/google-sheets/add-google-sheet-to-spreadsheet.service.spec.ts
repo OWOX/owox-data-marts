@@ -6,11 +6,15 @@ import { GoogleApiException } from '../../exceptions/google-oauth.exceptions';
 import { AddGoogleSheetToSpreadsheetService } from './add-google-sheet-to-spreadsheet.service';
 
 const SPREADSHEET_ID = 'spread-1';
+const REQUESTER = 'ann@owox.com';
 
 function build(opts: {
   sheets?: { sheetId: number; title: string }[];
   destinationType?: DataDestinationType;
-  adapter?: null;
+  client?: null;
+  driveCapable?: boolean;
+  permissions?: Array<{ type: string; emailAddress?: string; domain?: string }>;
+  idpEmail?: string | null;
 }) {
   const adapter = {
     getSpreadsheet: jest.fn().mockResolvedValue({
@@ -23,6 +27,9 @@ function build(opts: {
         (spreadsheet: { sheets: { properties: { title: string } }[] }, title: string) =>
           spreadsheet.sheets.find(s => s.properties.title === title)
       ),
+    listFilePermissions: jest
+      .fn()
+      .mockResolvedValue(opts.permissions ?? [{ type: 'user', emailAddress: REQUESTER }]),
     addSheet: jest.fn().mockResolvedValue(4242),
   };
   const destination = {
@@ -33,20 +40,40 @@ function build(opts: {
     getByIdAndProjectId: jest.fn().mockResolvedValue(destination),
   };
   const adapterFactory = {
-    createFromDestination: jest.fn().mockResolvedValue(opts.adapter === null ? undefined : adapter),
+    createWithDriveScope: jest
+      .fn()
+      .mockResolvedValue(
+        opts.client === null ? undefined : { adapter, driveCapable: opts.driveCapable ?? true }
+      ),
+  };
+  const idpProjectionsFacade = {
+    getUserProjection: jest
+      .fn()
+      .mockResolvedValue(
+        opts.idpEmail === null ? undefined : { email: opts.idpEmail ?? REQUESTER }
+      ),
   };
   const service = new AddGoogleSheetToSpreadsheetService(
     dataDestinationService as never,
-    adapterFactory as never
+    adapterFactory as never,
+    idpProjectionsFacade as never
   );
-  return { service, adapter, dataDestinationService, adapterFactory };
+  return { service, adapter, dataDestinationService, adapterFactory, idpProjectionsFacade };
 }
 
-const command = (title = 'Paid channel ad spend') =>
-  new AddGoogleSheetToSpreadsheetCommand('dest-1', 'proj-1', SPREADSHEET_ID, title);
+// `null` = the token carried no email (a default parameter would swallow `undefined`).
+const command = (title = 'Paid channel ad spend', email: string | null = REQUESTER) =>
+  new AddGoogleSheetToSpreadsheetCommand(
+    'dest-1',
+    'proj-1',
+    SPREADSHEET_ID,
+    title,
+    'user-1',
+    email ?? undefined
+  );
 
 describe('AddGoogleSheetToSpreadsheetService', () => {
-  it('adds a sheet named after the report to the spreadsheet', async () => {
+  it('adds a sheet named after the report to a spreadsheet shared with the requester', async () => {
     const { service, adapter, dataDestinationService, adapterFactory } = build({
       sheets: [{ sheetId: 0, title: 'Paid channel profit and revenue' }],
     });
@@ -54,15 +81,17 @@ describe('AddGoogleSheetToSpreadsheetService', () => {
     const result = await service.run(command());
 
     expect(dataDestinationService.getByIdAndProjectId).toHaveBeenCalledWith('dest-1', 'proj-1');
-    expect(adapterFactory.createFromDestination).toHaveBeenCalledWith(
+    expect(adapterFactory.createWithDriveScope).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'dest-1' })
     );
     expect(adapter.getSpreadsheet).toHaveBeenCalledWith(SPREADSHEET_ID);
+    expect(adapter.listFilePermissions).toHaveBeenCalledWith(SPREADSHEET_ID);
     expect(adapter.addSheet).toHaveBeenCalledWith(SPREADSHEET_ID, 'Paid channel ad spend');
     expect(result).toEqual({
       spreadsheetId: SPREADSHEET_ID,
       sheetId: 4242,
       sheetTitle: 'Paid channel ad spend',
+      sharedWithRequester: true,
     });
   });
 
@@ -89,6 +118,84 @@ describe('AddGoogleSheetToSpreadsheetService', () => {
       )
     );
     expect(adapter.addSheet).not.toHaveBeenCalled();
+  });
+
+  describe('requester access (checked, never granted)', () => {
+    // The id may come from another user's report; the destination account could
+    // still add the tab, leaving the requester with a link they cannot open.
+    it('refuses a spreadsheet confirmed not to be shared with the requester, before writing', async () => {
+      const { service, adapter } = build({
+        permissions: [{ type: 'user', emailAddress: 'owner@example.com' }],
+      });
+
+      await expect(service.run(command())).rejects.toThrow(
+        /is not shared with you \(ann@owox.com\).*omit spreadsheet_id to create a new file/
+      );
+      expect(adapter.addSheet).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a domain grant', [{ type: 'domain', domain: 'owox.com' }]],
+      ['an anyone-with-the-link grant', [{ type: 'anyone' }]],
+      ['a case-insensitive user match', [{ type: 'user', emailAddress: 'Ann@OWOX.com' }]],
+    ])('confirms access through %s', async (_label, permissions) => {
+      const { service } = build({ permissions });
+
+      await expect(service.run(command())).resolves.toEqual(
+        expect.objectContaining({ sharedWithRequester: true })
+      );
+    });
+
+    it('does not claim denial when a group grant cannot be expanded', async () => {
+      const { service, adapter } = build({
+        permissions: [{ type: 'group', emailAddress: 'analysts@owox.com' }],
+      });
+
+      await expect(service.run(command())).resolves.toEqual(
+        expect.objectContaining({ sharedWithRequester: false })
+      );
+      expect(adapter.addSheet).toHaveBeenCalled();
+    });
+
+    it('proceeds unconfirmed when the token has no Drive scope', async () => {
+      const { service, adapter } = build({ driveCapable: false });
+
+      await expect(service.run(command())).resolves.toEqual(
+        expect.objectContaining({ sharedWithRequester: false })
+      );
+      expect(adapter.listFilePermissions).not.toHaveBeenCalled();
+    });
+
+    it('proceeds unconfirmed when the sharing lookup fails', async () => {
+      const { service, adapter } = build({});
+      adapter.listFilePermissions.mockRejectedValue(
+        Object.assign(new Error('insufficient scope'), { code: 403 })
+      );
+
+      await expect(service.run(command())).resolves.toEqual(
+        expect.objectContaining({ sharedWithRequester: false })
+      );
+    });
+
+    it('resolves the requester email through the IDP when the token carries none', async () => {
+      const { service, idpProjectionsFacade } = build({
+        permissions: [{ type: 'user', emailAddress: 'owner@example.com' }],
+      });
+
+      await expect(service.run(command('Sheet', null))).rejects.toThrow(
+        'is not shared with you (ann@owox.com)'
+      );
+      expect(idpProjectionsFacade.getUserProjection).toHaveBeenCalledWith('user-1');
+    });
+
+    it('proceeds unconfirmed when no requester email can be resolved', async () => {
+      const { service, adapter } = build({ idpEmail: null });
+
+      await expect(service.run(command('Sheet', null))).resolves.toEqual(
+        expect.objectContaining({ sharedWithRequester: false })
+      );
+      expect(adapter.listFilePermissions).not.toHaveBeenCalled();
+    });
   });
 
   it('explains an inaccessible spreadsheet with the remedy', async () => {
@@ -146,7 +253,7 @@ describe('AddGoogleSheetToSpreadsheetService', () => {
   });
 
   it('rejects a destination without any usable credentials', async () => {
-    const { service } = build({ adapter: null });
+    const { service } = build({ client: null });
 
     await expect(service.run(command())).rejects.toThrow(BadRequestException);
   });

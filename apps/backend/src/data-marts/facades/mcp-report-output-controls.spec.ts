@@ -1,6 +1,7 @@
 import { mapMcpFiltersToRules } from '../../ee/mcp/tools/query-data-mart.input';
 import type { FilterRule } from '../dto/schemas/filter-config.schema';
 import {
+  isUiOnlyFilterRule,
   sameFieldSelection,
   toMcpFields,
   toMcpFilter,
@@ -86,14 +87,45 @@ describe('mcp-report-output-controls', () => {
     });
   });
 
+  describe('isUiOnlyFilterRule', () => {
+    it.each<[string, FilterRule]>([
+      ['a HAVING rule', { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' }],
+      ['a regex', { column: 'name', operator: 'regex', value: '^a' }],
+      ['a not_regex', { column: 'name', operator: 'not_regex', value: '^a' }],
+      ['today', { column: 'date', operator: 'relative_date', value: { kind: 'today' } }],
+      ['last month', { column: 'date', operator: 'relative_date', value: { kind: 'last_month' } }],
+      [
+        'last n months',
+        { column: 'date', operator: 'relative_date', value: { kind: 'last_n_months', n: 2 } },
+      ],
+    ])('recognises %s as UI-only', (_label, rule) => {
+      expect(isUiOnlyFilterRule(rule)).toBe(true);
+    });
+
+    it.each<[string, FilterRule]>([
+      ['eq', { column: 'channel', operator: 'eq', value: 'ads' }],
+      ['is_blank', { column: 'country', operator: 'is_blank' }],
+      ['in', { column: 'channel', operator: 'in', value: ['a'] }],
+      ['this_week', { column: 'date', operator: 'relative_date', value: { kind: 'this_week' } }],
+      [
+        'last n days',
+        { column: 'date', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
+      ],
+    ])('treats %s as expressible', (_label, rule) => {
+      expect(isUiOnlyFilterRule(rule)).toBe(false);
+    });
+  });
+
   describe('toMcpFilterGroups', () => {
-    it('splits rules by placement and keeps HAVING rules apart', () => {
+    it('splits expressible rules by placement and sets UI-only rules apart with theirs', () => {
       const groups = toMcpFilterGroups([
         { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' },
         { column: 'channel', operator: 'eq', value: 'ads', placement: 'post-join' },
         // No placement — created in the UI — counts as post-join.
         { column: 'country', operator: 'is_not_blank' },
         { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' },
+        { column: 'name', operator: 'regex', value: '^a', placement: 'pre-join' },
+        { column: 'date', operator: 'relative_date', value: { kind: 'today' } },
       ]);
 
       expect(groups).toEqual({
@@ -102,15 +134,22 @@ describe('mcp-report-output-controls', () => {
           { field: 'channel', operator: 'eq', value: 'ads' },
           { field: 'country', operator: 'is_not_blank' },
         ],
-        post_aggregation_filters: [
-          { field: 'revenue', operator: 'gt', value: 100, function: 'SUM' },
+        ui_only_filters: [
+          { field: 'revenue', operator: 'gt', value: 100, placement: 'post-join', function: 'SUM' },
+          { field: 'name', operator: 'regex', value: '^a', placement: 'pre-join' },
+          {
+            field: 'date',
+            operator: 'relative_date',
+            value: { kind: 'today' },
+            placement: 'post-join',
+          },
         ],
       });
     });
 
-    it('omits post_aggregation_filters when there are none', () => {
+    it('omits ui_only_filters when there are none', () => {
       expect(toMcpFilterGroups(null)).toEqual({ filters: [], slices: [] });
-      expect(toMcpFilterGroups(undefined)).not.toHaveProperty('post_aggregation_filters');
+      expect(toMcpFilterGroups(undefined)).not.toHaveProperty('ui_only_filters');
     });
   });
 

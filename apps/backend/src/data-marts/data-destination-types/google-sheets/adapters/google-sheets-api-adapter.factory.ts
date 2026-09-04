@@ -67,6 +67,46 @@ export class GoogleSheetsApiAdapterFactory {
     return new GoogleSheetsApiAdapter(credentials);
   }
 
+  /**
+   * Like {@link createFromDestination}, but for a caller that needs Drive
+   * metadata (sharing, permissions) on top of Sheets operations. A Service
+   * Account gets a separately minted Drive-scoped JWT — the narrow SHEETS_SCOPE
+   * client used everywhere else is left untouched; an OAuth client is Drive-
+   * capable only when the stored token was granted a Drive scope, which
+   * `driveCapable` reports so the caller can degrade instead of failing.
+   */
+  async createWithDriveScope(
+    destination: DataDestination
+  ): Promise<{ adapter: GoogleSheetsApiAdapter; driveCapable: boolean } | undefined> {
+    let resolvedCredentials: unknown;
+    try {
+      resolvedCredentials = await this.credentialsResolver.resolve(destination);
+    } catch {
+      this.logger.debug(`No credentials found for destination ${destination.id}, will try OAuth`);
+    }
+    const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
+    if (parsed.success && parsed.data.serviceAccountKey) {
+      const jwt = GoogleSheetsApiAdapter.createServiceAccountClient(
+        parsed.data.serviceAccountKey,
+        GoogleSheetsApiAdapter.SERVICE_ACCOUNT_DRIVE_CREATE_SCOPES
+      );
+      return { adapter: new GoogleSheetsApiAdapter(undefined, jwt), driveCapable: true };
+    }
+    const adapter = await this.createWithOAuth(undefined, destination.id);
+    if (!adapter) {
+      return undefined;
+    }
+    const scopes =
+      (destination.credential?.credentials as { scope?: string } | undefined)?.scope?.split(' ') ??
+      [];
+    const driveCapable = scopes.some(
+      scope =>
+        scope === 'https://www.googleapis.com/auth/drive' ||
+        scope === 'https://www.googleapis.com/auth/drive.file'
+    );
+    return { adapter, driveCapable };
+  }
+
   async createFromDestination(
     destination: DataDestination
   ): Promise<GoogleSheetsApiAdapter | undefined> {

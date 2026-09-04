@@ -231,7 +231,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       .boolean()
       .optional()
       .describe(
-        'Google Sheets only, new files only. False when the sheet could not be shared with you; opening the link may require requesting access.'
+        'Google Sheets only. New file: false when the sheet could not be shared with you. Existing spreadsheet (spreadsheet_id): false when your access to it could not be confirmed. Either way, opening the link may require requesting access — say so to the user.'
       ),
   };
   readonly annotations = {

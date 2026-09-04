@@ -184,7 +184,11 @@ export interface McpAddReportResult {
   sheet_url?: string;
   /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only, new files only. */
   placed_in_root?: boolean;
-  /** False when the created sheet could not be shared with the requesting user. Google Sheets destinations only. */
+  /**
+   * New file: false when it could not be shared with the requesting user.
+   * Existing spreadsheet: false when their access could not be confirmed
+   * (never granted). Google Sheets destinations only.
+   */
   shared_with_requester?: boolean;
 }
 
