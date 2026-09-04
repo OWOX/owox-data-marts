@@ -52,21 +52,12 @@ export class AddGoogleSheetToSpreadsheetService {
 
     const { spreadsheetId } = command;
     const spreadsheet = await adapter.getSpreadsheet(spreadsheetId).catch((error: unknown) => {
-      const cause = castError(error);
-      // A transient Google fault (429/5xx) is not an access problem — sending the
-      // user to fix sharing that was never broken would erode trust in the message.
-      const status = GoogleSheetsApiAdapter.httpStatusOf(cause);
-      if (status === 429 || (status !== undefined && status >= 500)) {
-        throw new GoogleApiException(
-          'Google Sheets is temporarily unavailable. Please try again in a few minutes.',
-          cause
-        );
-      }
-      throw new BusinessViolationException(
+      throw this.translateGoogleError(
+        error,
+        spreadsheetId,
         `Can't open Google spreadsheet ${spreadsheetId} with this destination's Google account. ` +
           'Check that the spreadsheet exists and is shared with the connected account with Editor access, ' +
-          `or omit spreadsheet_id to create a new file. Details: ${cause.message}`,
-        { spreadsheetId }
+          'or omit spreadsheet_id to create a new file.'
       );
     });
 
@@ -79,11 +70,40 @@ export class AddGoogleSheetToSpreadsheetService {
       );
     }
 
-    const sheetId = await adapter.addSheet(spreadsheetId, title);
+    // Reading metadata succeeds with Viewer access; only the write reveals that
+    // the connected account cannot edit. Translate that failure with the same
+    // remedy — otherwise the most common permission problem surfaces as a raw
+    // Google error while the friendly message above never fires.
+    const sheetId = await adapter.addSheet(spreadsheetId, title).catch((error: unknown) => {
+      throw this.translateGoogleError(
+        error,
+        spreadsheetId,
+        `Can't add a sheet to Google spreadsheet ${spreadsheetId}: the destination's connected Google ` +
+          'account needs Editor access to it (Viewer is not enough). Share the spreadsheet with that ' +
+          'account as an editor, or omit spreadsheet_id to create a new file.'
+      );
+    });
     this.logger.log(
       `Added sheet "${title}" (gid ${sheetId}) to spreadsheet ${spreadsheetId} for destination ${destination.id}`
     );
 
     return new AddedGoogleSheetDto(spreadsheetId, sheetId, title);
+  }
+
+  /**
+   * A transient Google fault (429/5xx) is not an access problem — sending the
+   * user to fix sharing that was never broken would erode trust in the message.
+   * Anything else (403, 404, an unknown status) is reported with the remedy.
+   */
+  private translateGoogleError(error: unknown, spreadsheetId: string, remedy: string): Error {
+    const cause = castError(error);
+    const status = GoogleSheetsApiAdapter.httpStatusOf(cause);
+    if (status === 429 || (status !== undefined && status >= 500)) {
+      return new GoogleApiException(
+        'Google Sheets is temporarily unavailable. Please try again in a few minutes.',
+        cause
+      );
+    }
+    return new BusinessViolationException(`${remedy} Details: ${cause.message}`, { spreadsheetId });
   }
 }

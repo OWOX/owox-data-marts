@@ -3,6 +3,7 @@ import type { AggregationConfig } from '../../../data-marts/dto/schemas/aggregat
 import type { DateTruncConfig } from '../../../data-marts/dto/schemas/date-trunc-config.schema';
 import type { FilterConfig } from '../../../data-marts/dto/schemas/filter-config.schema';
 import type { SortConfig } from '../../../data-marts/dto/schemas/sort-config.schema';
+import { REPORT_AGGREGATE_FUNCTIONS } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import {
   mapMcpAggregations,
   mapMcpDateBuckets,
@@ -68,7 +69,8 @@ export function mapReportAggregations(
 ): AggregationConfig | undefined {
   if (aggregations === undefined) return undefined;
   try {
-    return mapMcpAggregations(aggregations);
+    // Reports accept the full persisted vocabulary (see makeMcpReportAggregationSchema).
+    return mapMcpAggregations(aggregations, REPORT_AGGREGATE_FUNCTIONS);
   } catch (err) {
     wrapMappingError(err);
   }

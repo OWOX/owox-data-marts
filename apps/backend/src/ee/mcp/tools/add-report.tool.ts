@@ -7,7 +7,10 @@ import {
   McpSimilarReportExistsException,
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
-import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
+import {
+  MCP_DESTINATION_TYPES,
+  type McpDestinationType,
+} from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { reportSheetInfoOutputShape } from './report-output-controls-output';
@@ -16,9 +19,9 @@ import { buildReportsUiPath } from './data-mart-ui-path';
 import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
 import {
-  makeMcpAggregationSchema,
   makeMcpDateBucketSchema,
   makeMcpFilterSchema,
+  makeMcpReportAggregationSchema,
   makeMcpSortSchema,
 } from './query-data-mart.input';
 import {
@@ -63,6 +66,25 @@ const INITIAL_RUN_MESSAGES = {
  */
 export const SIMILAR_REPORT_EXISTS_ERROR_CODE = 'similar_report_exists';
 
+/**
+ * What an update_report call will and will not deliver for the existing report's
+ * destination — the agent must not tell the user a message was re-sent when the
+ * default for email-family reports is to update silently.
+ */
+function refreshGuidanceFor(destinationType: McpDestinationType): string {
+  switch (destinationType) {
+    case 'google_sheets':
+      return 'update_report re-runs a Google Sheets report by default when the export changes, so the sheet refreshes on its own.';
+    case 'email':
+    case 'slack':
+    case 'teams':
+    case 'google_chat':
+      return 'update_report does NOT re-send an email or chat report: the message is delivered again only with run_immediately=true, so pass it only if the user explicitly wants it sent now.';
+    default:
+      return 'update_report does not run this destination type; it only changes the report definition.';
+  }
+}
+
 // Exported for the JSON-Schema advertising contract spec (mcp-operator-advertising.spec.ts).
 export const addReportInputSchema = z
   .object({
@@ -87,11 +109,11 @@ export const addReportInputSchema = z
         'Pre-join filters, same as query_data_mart\'s "slices": narrow a JOINED data mart before it is blended in. Only applicable to blended data marts; criteria on the main data mart belong in "filters".'
       ),
     aggregations: z
-      .array(makeMcpAggregationSchema())
+      .array(makeMcpReportAggregationSchema())
       .min(1)
       .optional()
       .describe(
-        'Aggregations applied on every report run, same as query_data_mart\'s "aggregations". Each aggregated field must also appear in fields; fields that are neither aggregated nor bucketed become group-by dimensions. Omit to export raw rows.'
+        'Aggregations applied on every report run, same as query_data_mart\'s "aggregations" plus the report-only STRING_AGG and ANY_VALUE. Each aggregated field must also appear in fields; fields that are neither aggregated nor bucketed become group-by dimensions. Omit to export raw rows.'
       ),
     date_buckets: z
       .array(makeMcpDateBucketSchema())
@@ -333,8 +355,8 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       error_code: SIMILAR_REPORT_EXISTS_ERROR_CODE,
       message:
         `${err.message} The existing report's current fields and output controls are in existing_report: ` +
-        'to change what it exports, call update_report with its report_id, sending only the controls that change ' +
-        '(update_report re-runs a push report by default, so the destination refreshes). Tell the user which report you reused.',
+        'to change what it exports, call update_report with its report_id, sending only the controls that change. ' +
+        `${refreshGuidanceFor(err.existingReport.destination_type)} Tell the user which report you reused.`,
       existing_report: { ...err.existingReport, report_url: reportUrl },
     };
     return {

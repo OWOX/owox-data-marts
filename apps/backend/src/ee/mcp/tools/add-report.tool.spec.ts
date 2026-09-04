@@ -92,7 +92,8 @@ describe('AddReportTool', () => {
     expect(result).not.toHaveProperty('structuredContent');
     const [text] = result.content as Array<{ type: string; text: string }>;
     expect(text.type).toBe('text');
-    expect(JSON.parse(text.text)).toEqual({
+    const payload = JSON.parse(text.text);
+    expect(payload).toEqual({
       error_code: SIMILAR_REPORT_EXISTS_ERROR_CODE,
       message: expect.stringContaining('call update_report with its report_id'),
       existing_report: {
@@ -100,6 +101,25 @@ describe('AddReportTool', () => {
         report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       },
     });
+    // Google Sheets: the update refreshes the sheet on its own.
+    expect(payload.message).toContain('re-runs a Google Sheets report by default');
+    expect(payload.message).not.toContain('does NOT re-send');
+
+    // Email family: the agent must not claim a message was re-sent.
+    facade.addReport.mockRejectedValue(
+      new McpSimilarReportExistsException({
+        ...existingReport,
+        destination_type: 'slack',
+        spreadsheet_id: undefined,
+        sheet_url: undefined,
+      })
+    );
+    const slack = await tool.handler({ ...input, message: { body: '{{table}}' } }, context);
+    const slackMessage = JSON.parse((slack.content as Array<{ text: string }>)[0].text)
+      .message as string;
+    expect(slackMessage).toContain('does NOT re-send an email or chat report');
+    expect(slackMessage).toContain('run_immediately=true');
+    expect(slackMessage).not.toContain('re-runs a Google Sheets report');
   });
 
   it('creates a report and returns the report and sheet links', async () => {

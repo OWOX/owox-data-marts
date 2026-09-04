@@ -95,7 +95,7 @@ describe('UpdateReportTool', () => {
 
     const renameOnly = await tool.handler({ report_id: 'report-1', name: 'New name' }, context);
     expect((renameOnly.structuredContent as { run: { message: string } }).run.message).toContain(
-      'only its name or message changed'
+      'what it exports did not change'
     );
 
     // An email-family report is never re-sent by default, whatever changed.
@@ -265,6 +265,16 @@ describe('UpdateReportTool', () => {
         filters: [{ field: 'purchases', operator: 'eq', value: 0 }],
       })
     ).not.toThrow();
+    // Report-only aggregate functions a UI-created report may carry must round-trip.
+    expect(() =>
+      tool.parseInput({
+        report_id: 'report-1',
+        aggregations: [
+          { field: 'tags', function: 'STRING_AGG' },
+          { field: 'status', function: 'ANY_VALUE' },
+        ],
+      })
+    ).not.toThrow();
     // An explicit empty array is a valid change: it removes every filter.
     expect(() => tool.parseInput({ report_id: 'report-1', filters: [] })).not.toThrow();
   });
@@ -311,7 +321,8 @@ describe('UpdateReportTool', () => {
         title: 'Update Report',
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        // The refresh run reaches Google Sheets / email / chat — same as run_report.
+        openWorldHint: true,
       },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toContain('UpdateReportTool');

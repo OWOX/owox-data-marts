@@ -10,10 +10,11 @@ import {
 
 describe('mcp-report-output-controls', () => {
   describe('toMcpFields / sameFieldSelection', () => {
-    it("spells an absent or empty projection as ['*']", () => {
+    it("spells an absent projection as ['*'] and keeps an explicit empty one", () => {
       expect(toMcpFields(undefined)).toEqual(['*']);
       expect(toMcpFields(null)).toEqual(['*']);
-      expect(toMcpFields([])).toEqual(['*']);
+      // A metrics-only Unique Count report projects no dimension column.
+      expect(toMcpFields([])).toEqual([]);
       expect(toMcpFields(['a', 'b'])).toEqual(['a', 'b']);
     });
 
@@ -28,6 +29,12 @@ describe('mcp-report-output-controls', () => {
       expect(sameFieldSelection(null, null)).toBe(true);
       expect(sameFieldSelection(undefined, null)).toBe(true);
       expect(sameFieldSelection(null, ['channel'])).toBe(false);
+    });
+
+    it('does not confuse a metrics-only (empty) projection with all fields', () => {
+      expect(sameFieldSelection([], null)).toBe(false);
+      expect(sameFieldSelection(null, [])).toBe(false);
+      expect(sameFieldSelection([], [])).toBe(true);
     });
   });
 
@@ -120,6 +127,7 @@ describe('mcp-report-output-controls', () => {
         })
       ).toEqual({
         fields: ['date', 'revenue'],
+        unique_count_sources: [],
         filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
         slices: [],
         aggregations: [{ field: 'revenue', function: 'SUM' }],
@@ -129,9 +137,23 @@ describe('mcp-report-output-controls', () => {
       });
     });
 
+    it('describes a metrics-only Unique Count report as projecting nothing but its metrics', () => {
+      expect(toMcpOutputControls({ columnConfig: [], uniqueCountConfig: ['orders', ''] })).toEqual(
+        expect.objectContaining({
+          fields: [],
+          unique_count_sources: ['orders__unique_count', 'unique_count'],
+        })
+      );
+      // Legacy boolean shape = the main data mart only.
+      expect(toMcpOutputControls({ uniqueCountConfig: true }).unique_count_sources).toEqual([
+        'unique_count',
+      ]);
+    });
+
     it('spells an unconfigured report as all fields, no controls, no cap', () => {
       expect(toMcpOutputControls({})).toEqual({
         fields: ['*'],
+        unique_count_sources: [],
         filters: [],
         slices: [],
         aggregations: [],

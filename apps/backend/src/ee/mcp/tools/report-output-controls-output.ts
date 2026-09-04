@@ -21,7 +21,14 @@ const filterOutputSchema = () =>
 export const reportOutputControlsOutputShape = {
   fields: z
     .array(z.string())
-    .describe("Column names the report exports, or ['*'] when it exports every field."),
+    .describe(
+      "Column names the report exports, or ['*'] when it exports every field. [] is a metrics-only report: no dimension column, only its Unique Count metric(s)."
+    ),
+  unique_count_sources: z
+    .array(z.string())
+    .describe(
+      "Unique Count metrics the report carries: 'unique_count' for its own data mart, '<source>__unique_count' for joined sources (the names get_data_mart_details_by_id lists). Set only in the OWOX UI; update_report keeps them."
+    ),
   filters: z
     .array(filterOutputSchema())
     .describe('Row filters applied on every run, in add_report/update_report vocabulary.'),

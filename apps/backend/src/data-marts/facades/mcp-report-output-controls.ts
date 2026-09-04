@@ -3,6 +3,13 @@ import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { FilterConfig, FilterRule } from '../dto/schemas/filter-config.schema';
 import type { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
+import type { UniqueCountConfig } from '../dto/schemas/unique-count-config.schema';
+import {
+  MAIN_UNIQUE_COUNT_SOURCE,
+  UNIQUE_COUNT_FIELD_TOKEN,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
+import { buildJoinedUniqueCountColumnName } from '../services/blended-field-name';
 
 /**
  * One stored filter rule, spelled in the vocabulary the report tools ACCEPT
@@ -49,8 +56,19 @@ export interface McpReportSort {
  * filters?) and send an update that preserves what it does not mean to change.
  */
 export interface McpReportOutputControls {
-  /** Column names the report projects; `['*']` when it exports every field. */
+  /**
+   * Column names the report projects; `['*']` when it exports every field.
+   * `[]` is a real selection, not "all": a metrics-only report projects no
+   * dimension column and carries only its Unique Count metric(s).
+   */
   fields: string[];
+  /**
+   * Unique Count metrics the report carries, under the names the agent already
+   * knows: `unique_count` for the report's own data mart, and the same
+   * `<source>__unique_count` names get_data_mart_details_by_id lists for joined
+   * sources. Set only in the OWOX UI; update_report preserves it.
+   */
+  unique_count_sources: string[];
   /** Post-join (row) filter rules. Empty when the report exports all rows. */
   filters: McpReportFilter[];
   /** Pre-join (slice) rules of a blended report. Empty for non-blended reports. */
@@ -67,8 +85,21 @@ export interface McpReportOutputControls {
 /** The domain "all fields" marker, as add_report/update_report spell it. */
 export const MCP_ALL_FIELDS = ['*'] as const;
 
+/**
+ * `null` (no projection) is "every field"; an ARRAY is the projection as stored —
+ * including `[]`, the explicit "no dimension columns" of a metrics-only Unique
+ * Count report, which must not read as "all fields".
+ */
 export function toMcpFields(columnConfig: ReportColumnConfig | undefined): string[] {
-  return columnConfig && columnConfig.length > 0 ? [...columnConfig] : [...MCP_ALL_FIELDS];
+  return columnConfig ? [...columnConfig] : [...MCP_ALL_FIELDS];
+}
+
+export function toMcpUniqueCountSources(config: UniqueCountConfig | undefined): string[] {
+  return normalizeUniqueCountSources(config).map(source =>
+    source === MAIN_UNIQUE_COUNT_SOURCE
+      ? UNIQUE_COUNT_FIELD_TOKEN
+      : buildJoinedUniqueCountColumnName(source)
+  );
 }
 
 /**
@@ -182,9 +213,11 @@ export function toMcpOutputControls(report: {
   dateTruncConfig?: DateTruncConfig | null;
   sortConfig?: SortConfig | null;
   limitConfig?: number | null;
+  uniqueCountConfig?: UniqueCountConfig;
 }): McpReportOutputControls {
   return {
     fields: toMcpFields(report.columnConfig),
+    unique_count_sources: toMcpUniqueCountSources(report.uniqueCountConfig),
     ...toMcpFilterGroups(report.filterConfig),
     aggregations: toMcpAggregations(report.aggregationConfig),
     date_buckets: toMcpDateBuckets(report.dateTruncConfig),

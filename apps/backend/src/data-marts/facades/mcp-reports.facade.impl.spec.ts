@@ -90,6 +90,7 @@ import { McpSimilarReportExistsException } from './mcp-reports.facade';
 
 const EMPTY_OUTPUT_CONTROLS = {
   fields: ['*'],
+  unique_count_sources: [],
   filters: [],
   slices: [],
   aggregations: [],
@@ -749,6 +750,22 @@ describe('McpReportsFacadeImpl.addReport', () => {
       );
     });
 
+    it('does not treat a metrics-only report (empty projection) as an all-fields duplicate', async () => {
+      const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+        reports: [buildReport({ id: 'metrics-only', createdByUserId: 'user-1', columnConfig: [] })],
+        triggers: [],
+      });
+      createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+
+      await expect(facade.addReport({ ...addRequest, fields: ['*'] })).resolves.toEqual(
+        expect.objectContaining({ report_id: 'report-1' })
+      );
+    });
+
     it("treats ['*'] and no projection as the same selection", async () => {
       const { facade } = createFacade({
         reports: [buildReport({ id: 'all-fields', createdByUserId: 'user-1', columnConfig: null })],
@@ -1404,6 +1421,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
   const currentReportOutput = {
     destination_type: 'google_sheets',
     fields: ['channel', 'revenue'],
+    unique_count_sources: [],
     filters: [{ field: 'channel', operator: 'eq', value: 'ads' }],
     slices: [],
     aggregations: [{ field: 'revenue', function: 'SUM' }],
@@ -1479,6 +1497,21 @@ describe('McpReportsFacadeImpl.updateReport', () => {
         run: { status: 'queued', run_id: 'run-1' },
       })
     );
+  });
+
+  it('does not re-run when the re-sent controls equal the stored definition', async () => {
+    const { facade, runReportService, updateReportService } = buildUpdateFacade();
+
+    // Same fields and the same filter, echoed back exactly as stored.
+    const result = await facade.updateReport({
+      ...updateRequest,
+      fields: ['channel', 'revenue'],
+      postJoinFilters: [{ column: 'channel', operator: 'eq', value: 'ads' }],
+    });
+
+    expect(updateReportService.run).toHaveBeenCalledTimes(1);
+    expect(runReportService.run).not.toHaveBeenCalled();
+    expect(result.run).toEqual({ status: 'not_requested' });
   });
 
   it('honours an explicit runImmediately for a name-only or a data change', async () => {

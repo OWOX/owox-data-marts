@@ -206,7 +206,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
-    const exportChanged =
+    const hasExportInput =
       request.fields !== undefined ||
       request.postJoinFilters !== undefined ||
       request.preJoinFilters !== undefined ||
@@ -216,7 +216,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       request.limitConfig !== undefined;
     // The facade is a public interface, so the "at least one change" invariant
     // is enforced here as well, not only by the tool-layer input schema.
-    if (!exportChanged && request.name === undefined && request.message === undefined) {
+    if (!hasExportInput && request.name === undefined && request.message === undefined) {
       throw new BadRequestException(
         'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
       );
@@ -260,6 +260,37 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       );
     }
 
+    const next = {
+      columnConfig:
+        request.fields !== undefined
+          ? this.toUpdatedColumnConfig(request.fields, current)
+          : (current.columnConfig ?? null),
+      filterConfig: this.mergeFilterConfig(
+        current.filterConfig ?? null,
+        request.preJoinFilters,
+        request.postJoinFilters
+      ),
+      sortConfig:
+        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
+      limitConfig:
+        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
+      aggregationConfig:
+        request.aggregationConfig !== undefined
+          ? request.aggregationConfig
+          : (current.aggregationConfig ?? null),
+      dateTruncConfig:
+        request.dateTruncConfig !== undefined
+          ? request.dateTruncConfig
+          : (current.dateTruncConfig ?? null),
+    };
+    // Compared the way UpdateReportService decides whether to invalidate its
+    // cache — serialized, so a re-sent identical control is NOT a change. An
+    // agent that echoes the stored fields back must not trigger an external
+    // write and a billed run for a definition that did not move.
+    const definitionChanged = (Object.keys(next) as Array<keyof typeof next>).some(
+      key => JSON.stringify(next[key]) !== JSON.stringify(current[key] ?? null)
+    );
+
     const updated = await this.updateReportService.run(
       new UpdateReportCommand(
         request.reportId,
@@ -270,38 +301,29 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         current.dataDestinationAccess.id,
         destinationConfig,
         undefined,
-        request.fields !== undefined
-          ? this.toUpdatedColumnConfig(request.fields, current)
-          : (current.columnConfig ?? null),
-        this.mergeFilterConfig(
-          current.filterConfig ?? null,
-          request.preJoinFilters,
-          request.postJoinFilters
-        ),
-        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
-        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
-        request.aggregationConfig !== undefined
-          ? request.aggregationConfig
-          : (current.aggregationConfig ?? null),
-        request.dateTruncConfig !== undefined
-          ? request.dateTruncConfig
-          : (current.dateTruncConfig ?? null),
+        next.columnConfig,
+        next.filterConfig,
+        next.sortConfig,
+        next.limitConfig,
+        next.aggregationConfig,
+        next.dateTruncConfig,
         current.uniqueCountConfig
       )
     );
 
     // A refresh run is queued by default only for a Google Sheets report whose
-    // export changed, so the sheet does not keep showing rows the report no
-    // longer defines. Email-family reports are NOT re-sent by default: a run
-    // messages every configured recipient or channel, and a "sort by revenue"
-    // tweak must not re-broadcast to third parties unless explicitly asked. A
-    // rename or a message edit alone delivers nothing new for any type.
+    // export ACTUALLY changed, so the sheet does not keep showing rows the
+    // report no longer defines. Email-family reports are NOT re-sent by
+    // default: a run messages every configured recipient or channel, and a
+    // "sort by revenue" tweak must not re-broadcast to third parties unless
+    // explicitly asked. A rename, a message edit, or re-sent identical controls
+    // deliver nothing new for any type.
     const run = await this.queueRunAfterWrite(
       updated.id,
       request,
       destinationType,
       request.runImmediately ??
-        (exportChanged && destinationType === DataDestinationType.GOOGLE_SHEETS)
+        (definitionChanged && destinationType === DataDestinationType.GOOGLE_SHEETS)
     );
 
     return {

@@ -104,6 +104,29 @@ describe('AddGoogleSheetToSpreadsheetService', () => {
     expect(adapter.addSheet).not.toHaveBeenCalled();
   });
 
+  // Viewer access reads the metadata fine; only the write fails — the remedy must still show up.
+  it('explains a write refused with Viewer access, after a successful read', async () => {
+    const { service, adapter } = build({});
+    adapter.addSheet.mockRejectedValue(
+      Object.assign(new Error('The caller does not have permission'), { code: 403 })
+    );
+
+    const failure = await service.run(command()).catch(error => error);
+
+    expect(failure).toBeInstanceOf(BusinessViolationException);
+    expect(failure.message).toMatch(
+      /Can't add a sheet to Google spreadsheet spread-1: .*Editor access.*omit spreadsheet_id.*Details: The caller does not have permission/
+    );
+    expect(adapter.getSpreadsheet).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a transient fault during the write as unavailable', async () => {
+    const { service, adapter } = build({});
+    adapter.addSheet.mockRejectedValue(Object.assign(new Error('Backend Error'), { code: 503 }));
+
+    await expect(service.run(command())).rejects.toThrow(GoogleApiException);
+  });
+
   it('reports a transient Google fault as unavailable, not as an access problem', async () => {
     const { service, adapter } = build({});
     adapter.getSpreadsheet.mockRejectedValue(

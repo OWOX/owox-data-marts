@@ -21,9 +21,9 @@ import {
   type ReportRunOutcomeMessages,
 } from './report-run-outcome';
 import {
-  makeMcpAggregationSchema,
   makeMcpDateBucketSchema,
   makeMcpFilterSchema,
+  makeMcpReportAggregationSchema,
   makeMcpSortSchema,
 } from './query-data-mart.input';
 import {
@@ -68,10 +68,10 @@ const baseInputSchema = z
         'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices (stored row filters are untouched); pass [] to remove every slice; omit to keep current.'
       ),
     aggregations: z
-      .array(makeMcpAggregationSchema())
+      .array(makeMcpReportAggregationSchema())
       .optional()
       .describe(
-        'Replacement aggregations, same as query_data_mart\'s "aggregations". Each aggregated field must also appear in the report\'s column selection. Replaces ALL current aggregations; pass [] to remove them; omit to keep current.'
+        'Replacement aggregations, same as query_data_mart\'s "aggregations" plus the report-only STRING_AGG and ANY_VALUE. Each aggregated field must also appear in the report\'s column selection. Replaces ALL current aggregations — copy the ones to keep from get_data_mart_reports; pass [] to remove them; omit to keep current.'
       ),
     date_buckets: z
       .array(makeMcpDateBucketSchema())
@@ -126,7 +126,7 @@ const baseInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Whether to run the report after the update (one billed Report Run). Omit for the default: a Google Sheets report re-runs when fields or any output control changed, so the sheet reflects the change; it does not run for a name-only or message-only change. Email, Slack, Microsoft Teams, and Google Chat reports are NOT re-sent by default, because a run delivers the message to every configured recipient or channel — set true only when the user explicitly wants it sent now. Set false to update a Google Sheets report without refreshing it. Looker Studio is pull-based: omit or set false; true is rejected.'
+        'Whether to run the report after the update (one billed Report Run). Omit for the default: a Google Sheets report re-runs when what it exports actually changed (fields or any output control differ from the stored definition), so the sheet reflects the change; it does not run for a name-only or message-only change or for re-sent identical controls. Email, Slack, Microsoft Teams, and Google Chat reports are NOT re-sent by default, because a run delivers the message to every configured recipient or channel — set true only when the user explicitly wants it sent now. Set false to update a Google Sheets report without refreshing it. Looker Studio is pull-based: omit or set false; true is rejected.'
       ),
   })
   .strict();
@@ -183,7 +183,9 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
     title: 'Update Report',
     readOnlyHint: false,
     destructiveHint: false,
-    openWorldHint: false,
+    // The refresh run writes to the customer's Google Sheet or delivers an
+    // email / chat message — the same external side effect run_report has.
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
 
@@ -265,7 +267,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
         'The report was updated but not re-sent: a run would deliver the message to every configured recipient or channel, so it is not queued by default. Call run_report, or repeat with run_immediately=true, only if the user explicitly wants it sent now.';
     } else {
       notRequested =
-        'The report was updated without a run: only its name or message changed, so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.';
+        'The report was updated without a run: what it exports did not change (only the name or message changed, or the same controls were re-sent), so there was nothing new to deliver. Call run_report, or repeat with run_immediately=true, if the user wants it re-delivered anyway.';
     }
     return {
       queued:
