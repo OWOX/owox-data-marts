@@ -38,6 +38,8 @@ The field selector keeps the required unique-key fields selected for the chosen 
 - [**GETTING STARTED**](GETTING_STARTED.md) – quick and easy setup guide.
 - [**README**](README.md) – general information about the source.
 - [**CREDENTIALS**](CREDENTIALS.md) – detailed guides for each step of the data retrieval process.
+- [**ENDPOINTS AND FIELDS**](ENDPOINTS_AND_FIELDS.md) – every endpoint and field, with types and required flags.
+- [**TROUBLESHOOTING**](TROUBLESHOOTING.md) – fix import, permission, and destination table errors.
 - [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) – troubleshooting common issues.
 
 ## Support & Feedback
