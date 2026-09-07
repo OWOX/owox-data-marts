@@ -1003,13 +1003,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // accepts comes back RUNNING — so a job that fails during execution resolves
       // createQueryJob successfully and reports the failure through getQueryResults.
       //
-      //   - The error carries a BigQuery reason: the job reached a terminal state.
-      //     Polling it again returns the same error forever, so the statement has to be
-      //     sent again. That is safe — a failed DML job commits nothing, so there is no
-      //     half-applied MERGE to overlap with.
-      //   - The error carries no reason: a transport fault, and the job it was asking
-      //     about may still be running. Poll that job again rather than paying for a
-      //     second scan and letting two mutations of the same rows overlap.
+      // Once a job exists, only the job itself can say which happened: a failed job and
+      // a failed poll of a healthy job both arrive as a reasoned error. Getting it wrong
+      // either abandons a live job or runs a second copy of the statement beside it, so
+      // the job is asked rather than inferred.
       let job = null;
 
       for (let attempt = 1; ; attempt++) {
@@ -1028,8 +1025,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
           const reasons = this._bigQueryErrorReasons(error);
 
-          // BigQuery answered, so the job is finished and failed. Drop it and resubmit.
-          if (reasons.length > 0) {
+          // Nothing left to poll: the statement has to be sent again.
+          if (job && (await this._hasJobFinishedWithError(job))) {
             job = null;
           }
 
@@ -1062,6 +1059,33 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       }
 
       return error.errors.map(item => item && item.reason).filter(Boolean);
+    }
+
+  //---- _hasJobFinishedWithError ------------------------------------
+    /**
+     * Whether BigQuery considers this job finished and failed, so that polling it again
+     * can only return the same error.
+     *
+     * The error alone does not answer this. A transient 5xx on `GET /queries/{id}` carries
+     * `backendError` in its body, and a per-user `rateLimitExceeded` on the poll describes
+     * the request, not the job — both while the statement keeps running. This is the same
+     * check the client library's own `poll_` makes.
+     *
+     * A job whose status cannot be read counts as not failed: polling a finished job again
+     * wastes an attempt, while resubmitting beside a running one pays for a second scan and
+     * lets two mutations of the same rows overlap.
+     *
+     * @param {object} job - The job returned by createQueryJob
+     * @return {Promise<boolean>} True when the job is DONE and carries an errorResult
+     */
+    async _hasJobFinishedWithError(job) {
+      try {
+        const [metadata] = await job.getMetadata();
+
+        return metadata?.status?.state === 'DONE' && Boolean(metadata.status.errorResult);
+      } catch {
+        return false;
+      }
     }
 
   //---- _isRetryableBigQueryError -----------------------------------

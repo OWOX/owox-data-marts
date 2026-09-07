@@ -505,6 +505,13 @@ describe('executeQuery transient-error retries', () => {
       }
     );
 
+  // What job.getMetadata() returns for a job BigQuery has finished and failed, versus one
+  // it is still running. The retry loop asks the job which of the two it is.
+  const failedJobMetadata = {
+    status: { state: 'DONE', errorResult: { reason: 'backendError' } },
+  };
+  const runningJobMetadata = { status: { state: 'RUNNING' } };
+
   const retryingStorage = ({ failures, error = apiError('backendError'), retries = 3 } = {}) => {
     const waited = [];
     const messages = [];
@@ -710,6 +717,7 @@ describe('executeQuery transient-error retries', () => {
           jobsCreated += 1;
           return [
             {
+              getMetadata: async () => [failedJobMetadata],
               getQueryResults: async () => {
                 resultAttempts += 1;
                 if (resultAttempts === 1) {
@@ -753,6 +761,7 @@ describe('executeQuery transient-error retries', () => {
           const index = pollsPerJob.push(0) - 1;
           return [
             {
+              getMetadata: async () => [failedJobMetadata],
               getQueryResults: async () => {
                 pollsPerJob[index] += 1;
                 throw apiError('internalError');
@@ -803,6 +812,89 @@ describe('executeQuery transient-error retries', () => {
     randomSpy.mockRestore();
   });
 
+  it('keeps polling when the poll failed but the job behind it is still running', async () => {
+    // A transient 5xx on GET /queries/{id} carries backendError in its body, and a
+    // per-user rate limit on the poll describes the request rather than the job. Neither
+    // says the statement stopped, so resubmitting would run a second MERGE beside a live
+    // one — the error is not evidence, the job's own status is.
+    let jobsCreated = 0;
+    let resultAttempts = 0;
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        MaxFetchRetries: configValue(3),
+        InitialRetryDelay: configValue(1000),
+        logMessage() {},
+      },
+      getBigQueryClient: () => ({
+        createQueryJob: async () => {
+          jobsCreated += 1;
+          return [
+            {
+              getMetadata: async () => [runningJobMetadata],
+              getQueryResults: async () => {
+                resultAttempts += 1;
+                if (resultAttempts === 1) {
+                  throw apiError('backendError');
+                }
+                return [[{ ok: true }]];
+              },
+            },
+          ];
+        },
+      }),
+    });
+    const originalDelay = globalThis.AsyncUtils.delay;
+    globalThis.AsyncUtils.delay = async () => {};
+
+    try {
+      const rows = await proto.executeQuery.call(storage, 'MERGE INTO t ...');
+
+      expect(rows).toEqual([{ ok: true }]);
+      expect(jobsCreated).toBe(1);
+      expect(resultAttempts).toBe(2);
+    } finally {
+      globalThis.AsyncUtils.delay = originalDelay;
+    }
+  });
+
+  it('keeps the job when its status cannot be read, rather than running the statement twice', async () => {
+    // An unreadable status is not proof the job died. Polling a finished job again costs
+    // one attempt; resubmitting beside a running one costs a duplicate MERGE.
+    let jobsCreated = 0;
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        MaxFetchRetries: configValue(3),
+        InitialRetryDelay: configValue(1000),
+        logMessage() {},
+      },
+      getBigQueryClient: () => ({
+        createQueryJob: async () => {
+          jobsCreated += 1;
+          return [
+            {
+              getMetadata: async () => {
+                throw new Error('metadata unavailable');
+              },
+              getQueryResults: async () => {
+                throw apiError('backendError');
+              },
+            },
+          ];
+        },
+      }),
+    });
+    const originalDelay = globalThis.AsyncUtils.delay;
+    globalThis.AsyncUtils.delay = async () => {};
+
+    try {
+      await expect(proto.executeQuery.call(storage, 'MERGE INTO t ...')).rejects.toThrow();
+
+      expect(jobsCreated).toBe(1);
+    } finally {
+      globalThis.AsyncUtils.delay = originalDelay;
+    }
+  });
+
   it('polls the job it already submitted when the failure carries no BigQuery reason', async () => {
     // A dropped socket says nothing about the job, which may still be running. Resubmitting
     // would run the MERGE a second time: the scan is paid for twice, and two mutations of
@@ -820,6 +912,7 @@ describe('executeQuery transient-error retries', () => {
           jobsCreated += 1;
           return [
             {
+              getMetadata: async () => [runningJobMetadata],
               getQueryResults: async () => {
                 resultAttempts += 1;
                 if (resultAttempts === 1) {
