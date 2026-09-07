@@ -23,6 +23,8 @@
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "docs:tiktok-fields": "node scripts/generate-tiktok-fields-doc.mjs",
+    "docs:tiktok-fields:check": "node scripts/generate-tiktok-fields-doc.mjs --check",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,json}\"",
