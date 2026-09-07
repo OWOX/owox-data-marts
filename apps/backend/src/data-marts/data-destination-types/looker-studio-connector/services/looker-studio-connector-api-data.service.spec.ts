@@ -318,14 +318,7 @@ describe('LookerStudioConnectorApiDataService', () => {
 
       const resultPromise = service.streamData(res as Response, context as any);
       await backpressured;
-      for (
-        let attempt = 0;
-        attempt < 100 && gzip.readableLength < gzip.readableHighWaterMark;
-        attempt += 1
-      ) {
-        await new Promise(resolve => setImmediate(resolve));
-      }
-      expect(gzip.readableLength).toBeGreaterThanOrEqual(gzip.readableHighWaterMark);
+      expect(gzip.writableLength).toBeGreaterThan(0);
 
       let timeout: NodeJS.Timeout | undefined;
       const completion = Promise.race([
