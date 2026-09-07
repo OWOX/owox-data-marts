@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import { pipeline } from 'node:stream/promises';
 import * as zlib from 'zlib';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
@@ -347,9 +348,20 @@ export class LookerStudioConnectorApiDataService {
     bytesWritten: number;
   }> {
     const { schema, reader, fieldIndexMap, rowLimit } = context;
+    const prefix = Buffer.from(`{"schema":${JSON.stringify(schema)},"rows":[`, 'utf8');
+    const suffix = Buffer.from(`],"filtersApplied":[]}`, 'utf8');
+
+    if (prefix.byteLength + suffix.byteLength > MAX_BYTES_LIMIT) {
+      throw new BusinessViolationException(
+        `Looker Studio response schema exceeds the size limit (${MAX_BYTES_LIMIT} bytes)`
+      );
+    }
+
+    if (res.closed) {
+      throw new Error('Streaming aborted: response closed');
+    }
 
     const gzip = zlib.createGzip({ level: 3 });
-    gzip.setDefaultEncoding('utf-8');
 
     // Set headers for JSON streaming
     res.setHeader('Content-Type', 'application/json');
@@ -357,86 +369,103 @@ export class LookerStudioConnectorApiDataService {
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    // Pipe gzip stream to response
-    gzip.pipe(res);
-
-    // Write opening JSON structure with schema
-    gzip.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
+    const streamCompletion = pipeline(gzip, res);
+    streamCompletion.catch(() => undefined);
 
     let totalRows = 0;
-    let isFirstBatch = true;
+    let bytesWritten = prefix.byteLength;
     let nextBatchId: string | undefined | null = undefined;
     let limitExceeded = false;
     let limitReason: string | undefined;
 
-    do {
-      if (res.closed) {
-        this.logger.warn('Streaming aborted: response closed');
-        break;
-      }
+    try {
+      await this.writeGzipChunk(gzip, prefix);
 
-      const remainingRows = rowLimit - totalRows;
-      const batchSize = Math.min(STREAMING_BATCH_SIZE, remainingRows);
-
-      const batch = await reader.readReportDataBatch(nextBatchId, batchSize);
-
-      // Format all rows in the batch
-      const rowsToWrite = Math.min(batch.dataRows.length, rowLimit - totalRows);
-      const formattedRows: DataRow[] = [];
-
-      for (let i = 0; i < rowsToWrite; i++) {
-        formattedRows.push({
-          values: fieldIndexMap.map(index => this.convertToFieldValue(batch.dataRows[i][index])),
-        });
-      }
-
-      // Write entire batch as single chunk (much faster than row-by-row)
-      if (formattedRows.length > 0) {
-        const batchJson = formattedRows.map(row => JSON.stringify(row)).join(',');
-        gzip.write(isFirstBatch ? batchJson : ',' + batchJson);
-        isFirstBatch = false;
-        totalRows += formattedRows.length;
-      }
-
-      nextBatchId = batch.nextDataBatchId;
-
-      // Check if we've reached the row limit
-      if (totalRows >= rowLimit) {
-        if (nextBatchId) {
-          const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
-          this.logger.warn(
-            `Row limit reached during streaming (${limitType}): returned ${totalRows} rows (more data available)`
-          );
-          limitExceeded = true;
-          limitReason = `Row limit reached (${rowLimit} rows)`;
+      do {
+        if (res.closed) {
+          throw new Error('Streaming aborted: response closed');
         }
-        break;
-      }
 
-      if (gzip.bytesWritten >= MAX_BYTES_LIMIT) {
-        if (nextBatchId) {
-          this.logger.warn(
-            `Size limit reached during streaming: returned ${totalRows} rows, data size: ${gzip.bytesWritten} bytes`
-          );
+        const remainingRows = rowLimit - totalRows;
+        const batchSize = Math.min(STREAMING_BATCH_SIZE, remainingRows);
+
+        const batch = await reader.readReportDataBatch(nextBatchId, batchSize);
+        if (res.closed) {
+          throw new Error('Streaming aborted: response closed');
         }
-        limitExceeded = true;
-        limitReason = limitReason ?? `Size limit reached (${MAX_BYTES_LIMIT} bytes gzipped)`;
-        break;
-      }
-    } while (nextBatchId);
 
-    // Write closing JSON structure
-    gzip.write(`],"filtersApplied":[]}`);
-    gzip.end();
+        const rowsToWrite = Math.min(batch.dataRows.length, rowLimit - totalRows);
+        const batchJson: string[] = [];
+
+        for (let i = 0; i < rowsToWrite; i++) {
+          const row: DataRow = {
+            values: fieldIndexMap.map(index => this.convertToFieldValue(batch.dataRows[i][index])),
+          };
+          const serializedRow = `${totalRows === 0 ? '' : ','}${JSON.stringify(row)}`;
+          const rowBytes = Buffer.byteLength(serializedRow, 'utf8');
+
+          if (bytesWritten + rowBytes + suffix.byteLength > MAX_BYTES_LIMIT) {
+            limitExceeded = true;
+            limitReason = `Size limit reached (${MAX_BYTES_LIMIT} bytes)`;
+            break;
+          }
+
+          batchJson.push(serializedRow);
+          bytesWritten += rowBytes;
+          totalRows += 1;
+        }
+
+        if (batchJson.length > 0) {
+          await this.writeGzipChunk(gzip, Buffer.from(batchJson.join(''), 'utf8'));
+        }
+
+        nextBatchId = batch.nextDataBatchId;
+
+        if (limitExceeded) {
+          this.logger.warn(
+            `Size limit reached during streaming: returned ${totalRows} rows, data size: ${bytesWritten} bytes`
+          );
+          break;
+        }
+
+        if (totalRows >= rowLimit) {
+          const hasMoreData = Boolean(nextBatchId) || batch.dataRows.length > rowsToWrite;
+          if (hasMoreData) {
+            const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
+            this.logger.warn(
+              `Row limit reached during streaming (${limitType}): returned ${totalRows} rows (more data available)`
+            );
+            limitExceeded = true;
+            limitReason = `Row limit reached (${rowLimit} rows)`;
+          }
+          break;
+        }
+      } while (nextBatchId);
+
+      await this.writeGzipChunk(gzip, suffix);
+      bytesWritten += suffix.byteLength;
+      gzip.end();
+      await streamCompletion;
+    } catch (error) {
+      gzip.destroy();
+      await streamCompletion.catch(() => undefined);
+      throw error;
+    }
 
     this.logger.log(
-      `Streaming completed: ${totalRows} rows sent, data size: ${gzip.bytesWritten} bytes`
+      `Streaming completed: ${totalRows} rows sent, data size: ${bytesWritten} bytes`
     );
     return {
       rowCount: totalRows,
       limitExceeded,
       limitReason,
-      bytesWritten: gzip.bytesWritten,
+      bytesWritten,
     };
+  }
+
+  private writeGzipChunk(gzip: zlib.Gzip, chunk: Buffer): Promise<void> {
+    return new Promise((resolve, reject) => {
+      gzip.write(chunk, error => (error ? reject(error) : resolve()));
+    });
   }
 }

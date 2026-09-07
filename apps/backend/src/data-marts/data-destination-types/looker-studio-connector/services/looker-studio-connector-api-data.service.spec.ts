@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { PassThrough } from 'stream';
+import { PassThrough, Writable } from 'stream';
 import * as zlib from 'zlib';
 import { Test } from '@nestjs/testing';
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
@@ -185,6 +185,123 @@ describe('LookerStudioConnectorApiDataService', () => {
   });
 
   describe('streamData', () => {
+    it('reports the exact UTF-8 byte size of the JSON body', async () => {
+      const { res, chunks } = createMockResponse();
+
+      const context = {
+        schema: [{ name: 'emoji 🚀', dataType: FieldDataType.STRING }],
+        reader: {
+          readReportDataBatch: jest.fn().mockResolvedValue({
+            dataRows: [['Hello 😀']],
+            nextDataBatchId: null,
+          }),
+        },
+        fieldIndexMap: [0],
+        rowLimit: 1_000_000,
+      };
+
+      const streamResultPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const result = await streamResultPromise;
+      const body = zlib.gunzipSync(Buffer.concat(chunks));
+
+      expect(result.bytesWritten).toBe(body.byteLength);
+    });
+
+    it('does not write a UTF-8 row that would exceed the Apps Script response limit', async () => {
+      const { res, chunks } = createMockResponse();
+
+      const context = {
+        schema: [{ name: 'field1', dataType: FieldDataType.STRING }],
+        reader: {
+          readReportDataBatch: jest.fn().mockResolvedValue({
+            dataRows: [['kept'], ['🚀'.repeat(13_000_000)]],
+            nextDataBatchId: null,
+          }),
+        },
+        fieldIndexMap: [0],
+        rowLimit: 2,
+      };
+
+      const streamResultPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const result = await streamResultPromise;
+      const body = zlib.gunzipSync(Buffer.concat(chunks));
+
+      expect(result.limitExceeded).toBe(true);
+      expect(result.rowCount).toBe(1);
+      expect(body.byteLength).toBeLessThanOrEqual(49 * 1024 * 1024);
+      expect(JSON.parse(body.toString()).rows).toEqual([{ values: ['kept'] }]);
+    });
+
+    it('does not resolve before the compressed response finishes', async () => {
+      let releaseFirstWrite!: () => void;
+      let markFirstWriteStarted!: () => void;
+      const firstWriteStarted = new Promise<void>(resolve => {
+        markFirstWriteStarted = resolve;
+      });
+      let shouldBlockWrite = true;
+      const res = new Writable({
+        write(_chunk, _encoding, callback) {
+          if (shouldBlockWrite) {
+            shouldBlockWrite = false;
+            releaseFirstWrite = callback;
+            markFirstWriteStarted();
+            return;
+          }
+          callback();
+        },
+      }) as Writable & Partial<Response>;
+      res.setHeader = jest.fn().mockReturnThis();
+
+      const context = {
+        schema: [{ name: 'field1', dataType: FieldDataType.STRING }],
+        reader: {
+          readReportDataBatch: jest.fn().mockResolvedValue({
+            dataRows: [['value1']],
+            nextDataBatchId: null,
+          }),
+        },
+        fieldIndexMap: [0],
+        rowLimit: 1_000_000,
+      };
+
+      let resolved = false;
+      const resultPromise = service.streamData(res as Response, context as any).then(result => {
+        resolved = true;
+        return result;
+      });
+
+      await firstWriteStarted;
+      await Promise.resolve();
+
+      expect(resolved).toBe(false);
+      releaseFirstWrite();
+      await resultPromise;
+      expect(res.writableFinished).toBe(true);
+    });
+
+    it('rejects when the response closes while a batch is loading', async () => {
+      const res = new PassThrough() as PassThrough & Partial<Response>;
+      res.setHeader = jest.fn().mockReturnThis();
+      res.resume();
+
+      const context = {
+        schema: [{ name: 'field1', dataType: FieldDataType.STRING }],
+        reader: {
+          readReportDataBatch: jest.fn().mockImplementation(async () => {
+            res.destroy();
+            await new Promise(resolve => setImmediate(resolve));
+            return { dataRows: [], nextDataBatchId: null };
+          }),
+        },
+        fieldIndexMap: [0],
+        rowLimit: 1_000_000,
+      };
+
+      await expect(service.streamData(res as Response, context as any)).rejects.toThrow();
+    });
+
     it('should stream JSON response with correct structure', async () => {
       const { res, chunks, headers } = createMockResponse();
 
