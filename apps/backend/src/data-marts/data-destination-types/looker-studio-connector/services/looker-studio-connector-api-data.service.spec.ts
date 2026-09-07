@@ -281,6 +281,69 @@ describe('LookerStudioConnectorApiDataService', () => {
       expect(res.writableFinished).toBe(true);
     });
 
+    it('rejects when the response closes during a backpressured gzip write', async () => {
+      let destinationWrites = 0;
+      let markBackpressured!: () => void;
+      const backpressured = new Promise<void>(resolve => {
+        markBackpressured = resolve;
+      });
+      let gzip!: zlib.Gzip;
+      const res = new Writable({
+        highWaterMark: 1,
+        write(_chunk, _encoding, callback) {
+          destinationWrites += 1;
+          if (destinationWrites === 1) {
+            callback();
+            return;
+          }
+          markBackpressured();
+        },
+      }) as Writable & Partial<Response>;
+      res.setHeader = jest.fn().mockReturnThis();
+      res.once('pipe', source => {
+        gzip = source as zlib.Gzip;
+      });
+
+      const context = {
+        schema: [{ name: 'field1', dataType: FieldDataType.STRING }],
+        reader: {
+          readReportDataBatch: jest.fn().mockResolvedValue({
+            dataRows: [[Array.from({ length: 100_000 }, (_, i) => i.toString(36)).join(',')]],
+            nextDataBatchId: null,
+          }),
+        },
+        fieldIndexMap: [0],
+        rowLimit: 1_000_000,
+      };
+
+      const resultPromise = service.streamData(res as Response, context as any);
+      await backpressured;
+      for (
+        let attempt = 0;
+        attempt < 100 && gzip.readableLength < gzip.readableHighWaterMark;
+        attempt += 1
+      ) {
+        await new Promise(resolve => setImmediate(resolve));
+      }
+      expect(gzip.readableLength).toBeGreaterThanOrEqual(gzip.readableHighWaterMark);
+
+      let timeout: NodeJS.Timeout | undefined;
+      const completion = Promise.race([
+        resultPromise,
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('streamData remained pending')), 1_000);
+        }),
+      ]);
+
+      res.destroy(new Error('client disconnected'));
+
+      try {
+        await expect(completion).rejects.toThrow('client disconnected');
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    });
+
     it('rejects when the response closes while a batch is loading', async () => {
       const res = new PassThrough() as PassThrough & Partial<Response>;
       res.setHeader = jest.fn().mockReturnThis();

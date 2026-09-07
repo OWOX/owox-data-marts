@@ -379,7 +379,7 @@ export class LookerStudioConnectorApiDataService {
     let limitReason: string | undefined;
 
     try {
-      await this.writeGzipChunk(gzip, prefix);
+      await this.writeGzipChunk(gzip, prefix, streamCompletion);
 
       do {
         if (res.closed) {
@@ -416,7 +416,11 @@ export class LookerStudioConnectorApiDataService {
         }
 
         if (batchJson.length > 0) {
-          await this.writeGzipChunk(gzip, Buffer.from(batchJson.join(''), 'utf8'));
+          await this.writeGzipChunk(
+            gzip,
+            Buffer.from(batchJson.join(''), 'utf8'),
+            streamCompletion
+          );
         }
 
         nextBatchId = batch.nextDataBatchId;
@@ -442,7 +446,7 @@ export class LookerStudioConnectorApiDataService {
         }
       } while (nextBatchId);
 
-      await this.writeGzipChunk(gzip, suffix);
+      await this.writeGzipChunk(gzip, suffix, streamCompletion);
       bytesWritten += suffix.byteLength;
       gzip.end();
       await streamCompletion;
@@ -463,9 +467,16 @@ export class LookerStudioConnectorApiDataService {
     };
   }
 
-  private writeGzipChunk(gzip: zlib.Gzip, chunk: Buffer): Promise<void> {
-    return new Promise((resolve, reject) => {
-      gzip.write(chunk, error => (error ? reject(error) : resolve()));
-    });
+  private writeGzipChunk(
+    gzip: zlib.Gzip,
+    chunk: Buffer,
+    streamCompletion: Promise<void>
+  ): Promise<void> {
+    return Promise.race([
+      new Promise<void>((resolve, reject) => {
+        gzip.write(chunk, error => (error ? reject(error) : resolve()));
+      }),
+      streamCompletion,
+    ]);
   }
 }
