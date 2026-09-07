@@ -56,6 +56,9 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
   const storageLoadGenerationRef = useRef(0);
   const mountedRef = useRef(false);
   const filters = useModelCanvasFilters();
+  // Destructured so the auto-select effect below can depend on the stable
+  // setter directly instead of the filters object, which is recreated each render.
+  const { setStorageId } = filters;
   const { navigate, scope, projectId } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
@@ -97,8 +100,8 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
 
   useEffect(() => {
     if (storageKnown || dataStorages.length !== 1) return;
-    filters.setStorageId(dataStorages[0].id);
-  }, [storageKnown, dataStorages, filters.setStorageId]);
+    setStorageId(dataStorages[0].id);
+  }, [storageKnown, dataStorages, setStorageId]);
 
   const filteredTopology = useMemo(
     () => (topology ? filterCanvasData(topology, filters.status, filters.rel) : null),

@@ -70,7 +70,26 @@ function buildFallbackPositions(
   return positions;
 }
 
-export function runDagreLayout(
+/**
+ * Only the edge topology drives dagre's ranking: parallel edges between the same
+ * ordered pair and self-loops add nothing to it, but they make dagre route extra
+ * dummy nodes that can land on a real node's centre and throw "Not possible to
+ * find intersection inside of the rectangle". Collapsing them is a safe retry.
+ */
+function simplifyEdgesForLayout(edges: DagreLayoutEdge[]): DagreLayoutEdge[] {
+  const seenPairs = new Set<string>();
+  const simplified: DagreLayoutEdge[] = [];
+  for (const edge of edges) {
+    if (edge.sourceId === edge.targetId) continue;
+    const pairKey = `${edge.sourceId} -> ${edge.targetId}`;
+    if (seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
+    simplified.push(edge);
+  }
+  return simplified;
+}
+
+function layoutWithDagre(
   nodes: DagreLayoutNode[],
   edges: DagreLayoutEdge[],
   direction: CanvasDirection
@@ -78,8 +97,6 @@ export function runDagreLayout(
   const positions = new Map<string, PathPoint>();
   const routes = new Map<string, PathPoint[]>();
   const labelPositions = new Map<string, PathPoint>();
-
-  if (nodes.length === 0) return { positions, routes, labelPositions };
 
   const g = new dagre.graphlib.Graph<GraphLabel, NodeLabel, EdgeLabel>({ multigraph: true });
   g.setGraph({ rankdir: direction === 'horizontal' ? 'LR' : 'TB' });
@@ -96,16 +113,7 @@ export function runDagreLayout(
     g.setEdge(edge.sourceId, edge.targetId, edgeLabel, edge.id);
   }
 
-  try {
-    dagre.layout(g);
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-    return {
-      positions: buildFallbackPositions(nodes, direction),
-      routes,
-      labelPositions,
-    };
-  }
+  dagre.layout(g);
 
   for (const nodeId of g.nodes()) {
     const n = g.node(nodeId);
@@ -114,6 +122,9 @@ export function runDagreLayout(
   }
 
   for (const edge of edges) {
+    // A collapsed retry graph (see `simplifyEdgesForLayout`) drops some edges,
+    // so the lookup can miss even though the type says otherwise.
+    if (!g.hasEdge(edge.sourceId, edge.targetId, edge.id)) continue;
     const ed = g.edge({ v: edge.sourceId, w: edge.targetId, name: edge.id });
 
     const interiorPoints = (ed.points ?? []).slice(1, -1);
@@ -125,4 +136,39 @@ export function runDagreLayout(
   }
 
   return { positions, routes, labelPositions };
+}
+
+export function runDagreLayout(
+  nodes: DagreLayoutNode[],
+  edges: DagreLayoutEdge[],
+  direction: CanvasDirection
+): DagreLayoutResult {
+  if (nodes.length === 0) {
+    return { positions: new Map(), routes: new Map(), labelPositions: new Map() };
+  }
+
+  try {
+    return layoutWithDagre(nodes, edges, direction);
+  } catch {
+    // Dagre throws on graphs it cannot rank cleanly: a RangeError when a deep
+    // graph exhausts its recursion, or a plain Error ("Not possible to find
+    // intersection inside of the rectangle") when dense parallel edges or
+    // cycles collapse two connected nodes onto one point. Retry once on the
+    // ranking-only topology, which clears most of these, before falling back to
+    // a deterministic grid: anything is better than the exception taking down
+    // the whole page.
+    const simplified = simplifyEdgesForLayout(edges);
+    if (simplified.length < edges.length) {
+      try {
+        return layoutWithDagre(nodes, simplified, direction);
+      } catch {
+        // fall through to the grid
+      }
+    }
+    return {
+      positions: buildFallbackPositions(nodes, direction),
+      routes: new Map(),
+      labelPositions: new Map(),
+    };
+  }
 }

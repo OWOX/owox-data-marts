@@ -127,6 +127,40 @@ describe.each([
   });
 });
 
+it.each(['horizontal', 'vertical'] as const)(
+  'recovers a layout instead of throwing when Dagre cannot rank the raw graph (%s)',
+  direction => {
+    // Reduced from a real Models canvas that crashed the page: dense parallel
+    // edges (n3 -> n6 three times) converging with n2/n7 make Dagre place two
+    // connected nodes on the same point, and `dagre.layout` throws
+    // "Not possible to find intersection inside of the rectangle". The retry on
+    // the collapsed topology clears it.
+    const ids = ['n1', 'n2', 'n3', 'n6', 'n7'];
+    const nodes: DagreLayoutNode[] = ids.map(id => ({ id, width: NODE_W, height: NODE_H }));
+    const edges: DagreLayoutEdge[] = [
+      { id: 'e4', sourceId: 'n3', targetId: 'n6' },
+      { id: 'e10', sourceId: 'n7', targetId: 'n3' },
+      { id: 'e11', sourceId: 'n3', targetId: 'n6' },
+      { id: 'e13', sourceId: 'n1', targetId: 'n7' },
+      { id: 'e14', sourceId: 'n2', targetId: 'n6' },
+      { id: 'e15', sourceId: 'n3', targetId: 'n6' },
+      { id: 'e17', sourceId: 'n2', targetId: 'n7' },
+    ];
+
+    const result = runDagreLayout(nodes, edges, direction);
+
+    expect(result.positions.size).toBe(nodes.length);
+    for (const node of nodes) {
+      expect(result.positions.has(node.id)).toBe(true);
+    }
+    expect(uniquePositions(result.positions)).toBe(true);
+    for (const position of result.positions.values()) {
+      expect(Number.isFinite(position.x)).toBe(true);
+      expect(Number.isFinite(position.y)).toBe(true);
+    }
+  }
+);
+
 it('keeps a deep graph renderable when Dagre exhausts the call stack', () => {
   const nodes = Array.from({ length: 2_000 }, (_, index) => ({
     id: `node-${index}`,
