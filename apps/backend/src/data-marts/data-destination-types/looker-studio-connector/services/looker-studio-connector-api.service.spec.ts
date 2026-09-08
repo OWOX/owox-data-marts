@@ -2,12 +2,14 @@ import { Response } from 'express';
 import { Report } from '../../../entities/report.entity';
 import { GetDataRequest } from '../schemas/get-data.schema';
 import { GetSchemaRequest } from '../schemas/get-schema.schema';
+import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../enums/project-blocked-reason.enum';
 
 // Mock external modules before importing service
 jest.mock('@owox/internal-helpers', () => ({
   createProducer: jest.fn(),
+  castError: (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
   BaseEvent: class {
     constructor(public payload: unknown) {}
   },
@@ -174,6 +176,40 @@ describe('LookerStudioConnectorApiService', () => {
 
       expect(projectBilling.verifyCanPerformOperations).not.toHaveBeenCalled();
       expect(schemaService.getSchema).toHaveBeenCalledWith(request, report, cachedReader);
+    });
+
+    it('logs cached reader failures with report context', async () => {
+      const request = createMockSchemaRequest();
+      const report = createMockReport();
+      const queryError = new Error('Query execution failed');
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      cacheService.getOrCreateCachedReader.mockRejectedValue(queryError);
+
+      await expect(service.getSchema(request)).rejects.toThrow('Query execution failed');
+
+      expect((service as any).logger.error).toHaveBeenCalledWith(
+        'Failed to read Data Mart data for Looker Studio: Query execution failed',
+        queryError.stack,
+        {
+          reportId: 'report-1',
+          dataMartId: 'datamart-1',
+          projectId: 'project-1',
+        }
+      );
+    });
+
+    it('preserves cached reader business errors with their code and details', async () => {
+      const request = createMockSchemaRequest();
+      const report = createMockReport();
+      const queryError = new BusinessViolationException(
+        'Query execution failed',
+        { reason: 'missing column' },
+        'QUERY_EXECUTION_FAILED'
+      );
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      cacheService.getOrCreateCachedReader.mockRejectedValue(queryError);
+
+      await expect(service.getSchema(request)).rejects.toBe(queryError);
     });
   });
 

@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
@@ -271,7 +272,28 @@ export class LookerStudioConnectorApiService {
       report.createdById
     );
 
-    return this.cacheService.getOrCreateCachedReader(report, accessor);
+    try {
+      return await this.cacheService.getOrCreateCachedReader(report, accessor);
+    } catch (error) {
+      const cause = castError(error);
+      this.logger.error(
+        `Failed to read Data Mart data for Looker Studio: ${cause.message}`,
+        cause.stack,
+        {
+          reportId: report.id,
+          dataMartId: report.dataMart.id,
+          projectId: report.dataMart.projectId,
+        }
+      );
+      if (error instanceof BusinessViolationException) {
+        throw error;
+      }
+      throw new BusinessViolationException(
+        'Failed to read data from this Data Mart. ' +
+          'Check the Data Mart query and storage access, or contact the Data Mart owner. ' +
+          `Details: ${cause.message}`
+      );
+    }
   }
 
   /**

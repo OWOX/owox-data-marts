@@ -284,6 +284,28 @@ describe('Looker Studio Connector (e2e)', () => {
       expect(revenueField.dataType).toBe('NUMBER');
     });
 
+    it('returns guidance and the query error when cached reader creation fails', async () => {
+      mockCacheService.getOrCreateCachedReader.mockRejectedValueOnce(
+        new Error('Query execution failed: Column missing_field cannot be resolved')
+      );
+
+      const res = await postLooker('/api/external/looker/get-schema', {
+        connectionConfig: {
+          deploymentUrl: 'http://localhost',
+          destinationId,
+          destinationSecretKey,
+        },
+        request: {
+          configParams: { destinationId, reportId },
+        },
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        'Failed to read data from this Data Mart. Check the Data Mart query and storage access, or contact the Data Mart owner. Details: Query execution failed: Column missing_field cannot be resolved'
+      );
+    });
+
     // LS-05
     // Flow: JWT → OK → validateAndExtractRequestData() → OK
     //   → ReportService.getByIdAndLookerStudioSecret('non-existent', secret) → null
