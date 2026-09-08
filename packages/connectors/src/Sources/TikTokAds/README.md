@@ -1,56 +1,57 @@
 # TikTok Ads Source
 
-The **TikTok Ads Source** allows you to transfer raw data from TikTok advertising service. Use this data for in-depth analysis and reporting.
+Use this connector to import TikTok Ads data into an OWOX Data Mart.
 
-## Getting Started
+You can:
 
-To begin, check out [**GETTING STARTED.md**](GETTING_STARTED.md) for step-by-step instructions.
+- Import daily performance metrics at the advertiser, campaign, ad group, or ad level.
+- Pull a country breakdown of daily performance.
+- Import advertiser, campaign, ad group, and ad metadata.
+- Import custom audience metadata.
+- Run manual backfills.
+- Schedule recurring connector runs.
 
-## Available Data
+## Prerequisites
 
-| Node | Description | Destination table |
-| --- | --- | --- |
-| `advertiser` | Advertiser account details, including name, company, and currency. | `tiktok_ads_advertiser` |
-| `campaigns` | Campaign settings, status, budget, and schedule. | `tiktok_ads_campaigns` |
-| `ad_groups` | Ad group settings, bid strategy, optimization goal, placement, and targeting schedule. | `tiktok_ads_ad_groups` |
-| `ads` | Individual ad creatives, statuses, and campaign/ad group links. | `tiktok_ads_ads` |
-| `ad_insights` | Daily performance metrics at the selected TikTok Ads data level. | `tiktok_ads_ad_insights` |
-| `ad_insights_by_country` | Daily performance metrics at the selected TikTok Ads data level, broken down by country. | `tiktok_ads_ad_insights_by_country` |
-| `audiences` | Custom audiences, including type, size, validity status, and expiration. | `tiktok_ads_audiences` |
+- A [TikTok for Business](https://ads.tiktok.com/) account.
+- A TikTok advertiser account you can access.
+- An OWOX Data Marts storage.
 
-## Data Level for Performance Nodes
+Connect with OAuth, or with an access token from your own TikTok developer app. See [Credentials](CREDENTIALS.md).
 
-`Data Level` controls the reporting grain for `ad_insights` and `ad_insights_by_country`. The default is `AUCTION_AD`.
+See the OWOX guide to [add a storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
-| Data Level | `ad_insights` unique key fields | `ad_insights_by_country` unique key fields |
-| --- | --- | --- |
-| `AUCTION_ADVERTISER` | `stat_time_day`, `advertiser_id` | `stat_time_day`, `country_code`, `advertiser_id` |
-| `AUCTION_CAMPAIGN` | `campaign_id`, `stat_time_day`, `advertiser_id` | `campaign_id`, `stat_time_day`, `country_code`, `advertiser_id` |
-| `AUCTION_ADGROUP` | `adgroup_id`, `stat_time_day`, `advertiser_id` | `adgroup_id`, `stat_time_day`, `country_code`, `advertiser_id` |
-| `AUCTION_AD` | `ad_id`, `stat_time_day`, `advertiser_id` | `ad_id`, `stat_time_day`, `country_code`, `advertiser_id` |
+If you create your first connector, read the OWOX guide to [create a connector-based Data Mart](https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/).
 
-`advertiser_id` is always a unique key: `AdvertiserIDs` can list several advertisers writing into the same destination table, and only `advertiser_id` tells their rows apart at `AUCTION_ADVERTISER`, which has no other per-advertiser dimension.
+## Choose a Reporting Grain
 
-The field selector keeps the required unique-key fields selected for the chosen data level, so choose the data level before customizing fields. If a connector has already loaded data, changing `Data Level` can make new rows merge against a different key structure in the same destination table. Use a new Data Mart or destination table when changing the reporting grain.
+**Data Level** sets the reporting grain for the two performance endpoints. Choose it before
+you select fields. OWOX pins the matching unique-key fields so rows merge correctly. The
+default is `AUCTION_AD`.
+
+> ⚠️ Do not change **Data Level** after a run has loaded data into a table. New rows would
+> merge on a different key structure. Use a new Data Mart or a new destination table instead.
+
+For the unique keys per level, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md#data-level-and-unique-keys).
 
 ## Table of Contents
 
-- [**GETTING STARTED**](GETTING_STARTED.md) – quick and easy setup guide.
-- [**README**](README.md) – general information about the source.
-- [**CREDENTIALS**](CREDENTIALS.md) – detailed guides for each step of the data retrieval process.
-- [**ENDPOINTS AND FIELDS**](ENDPOINTS_AND_FIELDS.md) – every endpoint and field, with types and required flags.
-- [**TROUBLESHOOTING**](TROUBLESHOOTING.md) – fix import, permission, and destination table errors.
-- [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) – troubleshooting common issues.
+- [**Credentials**](CREDENTIALS.md): connect with OAuth or an access token.
+- [**Getting Started**](GETTING_STARTED.md): create and run the Data Mart.
+- [**Endpoints and Fields**](ENDPOINTS_AND_FIELDS.md): choose endpoints and fields.
+- [**Troubleshooting**](TROUBLESHOOTING.md): fix import, permission, and destination table errors.
+- [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a): check community answers.
 
 ## Support & Feedback
 
-- If you encounter an issue, please check the [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) section first.
-- To report a bug, open an [**issue**](https://github.com/OWOX/owox-data-marts/issues)
-- Have an idea or want a new integration? Submit a [**feature request**](https://github.com/OWOX/owox-data-marts/discussions)
+- Check [**Troubleshooting**](TROUBLESHOOTING.md) first.
+- Search [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) for existing answers.
+- Open an [**issue**](https://github.com/OWOX/owox-data-marts/issues) to report a bug.
+- Submit a [**feature request**](https://github.com/OWOX/owox-data-marts/discussions) to request a change.
 
 ## Other Data Sources
 
-Looking for other data sources? Check out our [full list of data sources](../../../../../README.md#data-sources).
+Looking for other data sources? See the [full list of data sources](../../../../../README.md#data-sources).
 
 ## License
 
