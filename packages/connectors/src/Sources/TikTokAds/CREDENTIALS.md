@@ -22,7 +22,7 @@ advertiser account. Without access, TikTok returns a permission error or empty r
 2. Log in with a TikTok account that can access the advertiser account.
 3. Approve access for the advertiser accounts you want to import.
 
-TikTok returns the advertiser accounts your user can reach. OWOX stores the token and
+TikTok returns the advertiser accounts your user can reach. OWOX Data Marts stores the token and
 lists those advertiser IDs.
 
 Then enter the **Advertiser IDs** you want to import. Separate several IDs with commas.
@@ -86,7 +86,7 @@ Next, select the permission scopes. Use the search bar, or browse the list:
 | Audience Management | `Read Custom Audiences` |
 | Reporting | All reporting levels |
 
-OWOX only reads data. The connector never creates or changes campaigns, ad groups, or ads.
+The connector only reads data. It never creates or changes campaigns, ad groups, or ads.
 
 Click **Submit** to send the app for review.
 

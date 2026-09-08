@@ -1,15 +1,14 @@
 # TikTok Ads Source
 
-Use this connector to import TikTok Ads data into an OWOX Data Mart.
+Use this connector to import TikTok Ads data into your data warehouse.
 
 You can:
 
-- Import daily performance metrics at the advertiser, campaign, ad group, or ad level.
-- Pull a country breakdown of daily performance.
-- Import advertiser, campaign, ad group, and ad metadata.
-- Import custom audience metadata.
-- Run manual backfills.
-- Schedule recurring connector runs.
+- Land raw TikTok Ads data in your own warehouse — BigQuery, Snowflake, Redshift, Athena, or Databricks.
+- Report at the grain you need: advertiser, campaign, ad group, or ad.
+- Break daily performance down by country.
+- Pull campaign, ad group, ad, and custom audience metadata alongside the numbers.
+- Backfill any date range, then schedule the connector once and let it run.
 
 ## Prerequisites
 
@@ -26,8 +25,8 @@ If you create your first connector, read the OWOX guide to [create a connector-b
 ## Choose a Reporting Grain
 
 **Data Level** sets the reporting grain for the two performance endpoints. Choose it before
-you select fields. OWOX pins the matching unique-key fields so rows merge correctly. The
-default is `AUCTION_AD`.
+you select fields. The field selector pins the matching unique-key fields, so rows merge
+correctly. The default is `AUCTION_AD`.
 
 > ⚠️ Do not change **Data Level** after a run has loaded data into a table. New rows would
 > merge on a different key structure. Use a new Data Mart or a new destination table instead.

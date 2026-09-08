@@ -6,13 +6,11 @@ Use this guide to create a Facebook Ads Data Mart.
 
 Check these items before you create the Data Mart:
 
-- You have set up OWOX Data Marts.
-- You have at least one OWOX storage.
-- You can access the target Facebook ad account.
-- You know the numeric Facebook Account ID.
+- You have set up [OWOX Data Marts](https://docs.owox.com/docs/getting-started/quick-start/).
+- You have at least one [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
+- You can access the target ad account in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).
+- You know the numeric [Facebook Account ID](#set-up-the-connector).
 - You chose an authentication method in [Credentials](CREDENTIALS.md).
-
-For storage setup, see [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
 For a general connector walkthrough, see [Connector-based Data Mart](https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/).
 
@@ -53,17 +51,17 @@ Then fill in **Account IDs**. Use numeric ad account IDs only, without the `act_
 
 1. Choose an endpoint.
 2. Select fields, or keep the defaults.
-3. Enter the target dataset.
+3. Enter the target dataset, or keep the default.
 4. Click **Finish**.
 5. Click **Publish & Run Data Mart**.
 
-OWOX writes the connector tables into this destination. Your storage sets the field label, such as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see [Supported Storages](https://docs.owox.com/docs/storages/supported-storages/).
+The connector writes its tables into your storage. The field label depends on your storage, such as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see [Supported Storages](https://docs.owox.com/docs/storages/supported-storages/).
 
 For spend, clicks, impressions, conversions, and ROAS, choose **Ad Account Insights**.
 
 For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
-If OWOX disables **Publish & Run Data Mart**, check the storage. OWOX cannot publish a Data Mart until the selected storage has valid settings. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
+**Publish & Run Data Mart** stays inactive until your storage has valid settings. Open the storage, check its settings, then come back to this step. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
 ![Configure Data Import screen with Facebook Ads endpoint, fields, and dataset settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5975a655-aeea-4ec6-d5f6-f74cb5db4500/public)
 
@@ -75,7 +73,7 @@ You can run the Data Mart manually after setup. You can also [schedule connector
 
 Choose **Manual run → Incremental load**.
 
-On the first incremental run, OWOX imports data from the first day of the previous month through today. After a successful incremental run, OWOX stores the last requested date. On later incremental runs, OWOX starts from that date minus **Reimport Lookback Window**. This lookback helps refresh recently changed Facebook Ads metrics.
+The first incremental run imports data from the first day of the previous month through today. Each successful incremental run saves the last requested date. Later runs start from that date minus **Reimport Lookback Window**. This lookback refreshes recently changed Facebook Ads metrics.
 
 ![Manual run menu showing the Incremental load option](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e7e0db3e-5088-4372-515c-ae22e961a200/public)
 
@@ -91,7 +89,7 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-OWOX imports both the start date and the end date. If you leave **End Date** empty, OWOX uses today.
+The import includes both the start date and the end date. Leave **End Date** empty to import through today.
 
 ![Backfill dialog with Start Date, End Date, and Run button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b8a71ff2-60a1-4b8e-135b-4bf8b30d4600/public)
 

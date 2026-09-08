@@ -1,6 +1,6 @@
 # Facebook Marketing Supported Endpoints and Fields
 
-This page lists the Facebook Marketing endpoints and fields in the Facebook Ads connector. Use it to choose an endpoint and fields. Each endpoint lists its destination table, unique keys, and Meta reference. OWOX requests Meta Graph API version `v25.0`.
+This page lists the Facebook Marketing endpoints and fields in the Facebook Ads connector. Use it to choose an endpoint and fields. Each endpoint lists its destination table, unique keys, and Meta reference. The connector requests Meta Graph API version `v25.0`.
 
 ## Which Endpoint Should I Choose?
 
@@ -34,10 +34,10 @@ This page lists the Facebook Marketing endpoints and fields in the Facebook Ads 
 
 ## Field Table Notes
 
-- **Connector field**: the field name in OWOX. OWOX writes it to the destination table.
-- **Meta API field**: the field expression that OWOX requests from Meta. Nested fields use expressions such as `creative.id`.
-- **Data type**: the type that OWOX uses in the destination schema.
-- **Unique keys**: OWOX uses them to match rows during loading and adds them to every request automatically, so you do not need to select them as fields.
+- **Connector field**: the field name in OWOX Data Marts. The connector writes it to the destination table.
+- **Meta API field**: the field expression that the connector requests from Meta. Nested fields use expressions such as `creative.id`.
+- **Data type**: the type that the connector uses in the destination schema.
+- **Unique keys**: the connector uses them to match rows during loading and adds them to every request automatically, so you do not need to select them as fields.
 - Insights endpoints return daily rows at the ad, ad set, or campaign level. Breakdown endpoints add the listed breakdown fields.
 
 ## Account and Ad Object Fields

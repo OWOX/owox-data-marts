@@ -1,14 +1,15 @@
 # Facebook Ads Source
 
-Use this connector to import Facebook Ads data into an OWOX Data Mart.
+Use this connector to import Facebook Ads data into your data warehouse.
 
 You can:
 
-- Import ad-level performance data.
-- Import ad account, ad, and creative metadata.
-- Pull age, gender, country, device, placement, URL asset, product, and region breakdowns.
-- Run manual backfills.
-- Schedule recurring connector runs.
+- Land raw Facebook Ads data in your own warehouse — BigQuery, Snowflake, Redshift, Athena, or Databricks.
+- Report at the grain you need: ad, ad set, or campaign.
+- Split performance by age, gender, country, device, placement, URL asset, product, or region.
+- Pull ad account, ad, and creative metadata alongside the numbers.
+- Backfill any date range, then schedule the connector once and let it run.
+- Run it on your own infrastructure — open source under the MIT license.
 
 ## Prerequisites
 
