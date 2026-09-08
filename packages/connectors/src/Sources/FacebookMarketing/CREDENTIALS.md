@@ -7,7 +7,7 @@ You can connect in two ways:
 1. [**OAuth**](#oauth): use this method when **Continue with Facebook** appears.
 2. [**Access Token**](#access-token): use this method for manual setup.
 
-OAuth gives most users the shortest path. OWOX renews supported OAuth credentials while Meta keeps the grant valid. Manual setup requires a Meta app, an access token, an App ID, and an App Secret.
+OAuth gives most users the shortest path. OWOX Data Marts renews supported OAuth credentials while Meta keeps the grant valid. Manual setup requires a Meta app, an access token, an App ID, and an App Secret.
 
 > **Self-hosted deployments:** If the **Continue with Facebook** button is not available, use the **Access Token** method.
 
@@ -80,12 +80,12 @@ Use this method when you need manual credentials. You will create a Meta app and
 
 Build the authorization URL from the template below. Replace only `YOUR_APP_ID` with your **App ID**.
 
-OWOX requests both permissions because endpoints read different API areas:
+The connector requests both permissions because endpoints read different API areas:
 
 - `ads_read` covers reporting endpoints: **Ad Account Insights**, its breakdown variants by **Age and Gender**, **Country**, **Device Platform**, **Link URL Asset**, **Product ID**, **Publisher Platform and Position**, and **Region**, plus **Ad Insights by Ad Set** and **Ad Insights by Campaign**.
 - `ads_management` covers ad account and ad object endpoints: **Ad Account**, **Ad Account User**, **Ad Account Ads**, **Ad Account Ad Creatives**, and **Ad Object (formerly Ad Group)**.
 
-OWOX only reads data from these endpoints. The connector does not create or change ads. OWOX includes `ads_management` so the same token can read supported ad account and ad object data.
+The connector only reads data from these endpoints. It does not create or change ads. It includes `ads_management` so the same token can read supported ad account and ad object data.
 
 The URL requests both permissions in the `scope` parameter:
 
@@ -145,15 +145,15 @@ Click **Send**. The response contains your **Access Token**.
 
 ![API client response panel showing the returned access_token value](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/79df572a-9f78-4b0f-dad9-fa7626908d00/public)
 
-Copy the **Access Token** and store it securely. OWOX needs the **Access Token**, **App ID**, and **App Secret** to create a long-lived token.
+Copy the **Access Token** and store it securely. The connector needs the **Access Token**, **App ID**, and **App Secret** to create a long-lived token.
 
 > **Facebook access tokens can expire in about 60 days.**
-> OWOX uses the **App ID** and **App Secret** to exchange and refresh the token.
+> The connector uses the **App ID** and **App Secret** to exchange and refresh the token.
 > If Meta invalidates the token or permissions change, repeat Steps 2-3.
 
 ## Step 4: Use the Credentials
 
-You now have the **App ID**, **App Secret**, and **Access Token**. OWOX needs all three credentials. Use them in the Data Mart setup, and follow [Getting Started](GETTING_STARTED.md) to fill in the connector fields.
+You now have the **App ID**, **App Secret**, and **Access Token**. The connector needs all three credentials. Use them in the Data Mart setup, and follow [Getting Started](GETTING_STARTED.md) to fill in the connector fields.
 
 ## Troubleshooting Credential Setup
 

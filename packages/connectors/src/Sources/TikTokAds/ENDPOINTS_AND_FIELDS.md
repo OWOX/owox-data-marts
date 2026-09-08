@@ -4,7 +4,7 @@
 
 This page lists the TikTok Ads endpoints and fields in the connector. Use it to choose an
 endpoint and fields. Each endpoint lists its destination table, unique keys, and TikTok
-reference. OWOX requests TikTok Business API version `v1.3`.
+reference. The connector requests TikTok Business API version `v1.3`.
 
 ## Which Endpoint Should I Choose?
 
@@ -31,7 +31,7 @@ reference. OWOX requests TikTok Business API version `v1.3`.
 ## Data Level and Unique Keys
 
 **Data Level** sets the reporting grain for the two performance endpoints. Choose it before
-you select fields. OWOX pins the matching unique-key fields so rows merge correctly.
+you select fields. The field selector pins the matching unique-key fields, so rows merge correctly.
 
 | Data Level | `ad_insights` unique keys | `ad_insights_by_country` unique keys |
 | --- | --- | --- |
@@ -49,10 +49,10 @@ rows apart.
 
 ## Field Table Notes
 
-- **Connector field**: the field name in OWOX. OWOX writes it to the destination table.
-- **Data type**: the type OWOX uses in the destination schema.
-- **Required**: `Yes (unique key)` means OWOX always requests the field and pins it in the
-  selector. On performance endpoints, some fields are required only at certain Data Levels.
+- **Connector field**: the field name in OWOX Data Marts. The connector writes it to the destination table.
+- **Data type**: the type the connector uses in the destination schema.
+- **Required**: `Yes (unique key)` means the connector always requests the field, and the
+  selector pins it. On performance endpoints, some fields are required only at certain Data Levels.
 - Fields marked **Required** cannot be removed. A run fails with
   `Missing required unique fields` if one is missing.
 
