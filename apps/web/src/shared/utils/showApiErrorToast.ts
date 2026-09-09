@@ -76,8 +76,11 @@ export function showApiErrorToast(
   // The output-controls validator uses a different envelope (`details.errors`) than
   // BusinessViolation (`errorDetails.error`). It was dropped entirely, so a rejected report
   // showed only "Output controls validation failed" — no column, no reason, nothing to act on.
+  // The validator now writes the same summary into `message` itself (for the clients and the run
+  // history that never read `details`), in this exact shape — so append it only when the server
+  // message does not already carry it.
   const validationDetails = formatValidationErrors(apiError?.details?.errors);
-  if (validationDetails) {
+  if (validationDetails && !message.includes(validationDetails)) {
     message = `${message}. ${validationDetails}`;
   }
 

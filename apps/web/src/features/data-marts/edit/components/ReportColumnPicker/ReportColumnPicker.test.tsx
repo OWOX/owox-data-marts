@@ -1021,6 +1021,155 @@ describe('ReportColumnPicker aggregation', () => {
     ).not.toBeInTheDocument();
   });
 
+  describe('unchecking a column prunes the rules set on it', () => {
+    const configured = (): OutputConfig => ({
+      filterConfig: [{ column: 'revenue', operator: 'gt', value: 0 }] as never,
+      sortConfig: [
+        { column: 'revenue', direction: 'desc' },
+        { column: 'native_one', direction: 'asc' },
+      ],
+      limitConfig: null,
+      aggregationConfig: [
+        { column: 'revenue', function: 'SUM' },
+        { column: 'native_one', function: 'COUNT' },
+      ],
+      dateTruncConfig: [{ column: 'ordered_at', unit: 'MONTH' }],
+      uniqueCountConfig: [],
+    });
+
+    it('drops the aggregation and the sort on the unchecked row, keeps its filter, as a user edit', () => {
+      const onOutputConfigChange = vi.fn();
+      const { onChange } = renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: configured(),
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('revenue').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onChange).toHaveBeenCalledWith(['native_one', 'ordered_at']);
+      expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+      // The second argument is absent: this is the user's own edit, and the form must dirty.
+      expect(onOutputConfigChange.mock.calls[0]).toHaveLength(1);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...configured(),
+        // COUNT on native_one still groups the report, so the sort on revenue cannot resolve.
+        sortConfig: [{ column: 'native_one', direction: 'asc' }],
+        aggregationConfig: [{ column: 'native_one', function: 'COUNT' }],
+      });
+    });
+
+    it('drops the date bucket on the unchecked row', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: configured(),
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('ordered_at').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({ ...configured(), dateTruncConfig: [] });
+    });
+
+    it('keeps the sort on the unchecked row once nothing groups the report any more', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(aggSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          ...configured(),
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          dateTruncConfig: [],
+        },
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('revenue').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...configured(),
+        aggregationConfig: [],
+        dateTruncConfig: [],
+      });
+    });
+
+    it('prunes for every row "Select all" unchecks, in one change', () => {
+      const onOutputConfigChange = vi.fn();
+      const { onChange } = renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: configured(),
+        onOutputConfigChange,
+      });
+
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Deselect all fields' }));
+
+      expect(onChange).toHaveBeenCalledWith([]);
+      expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...configured(),
+        // Nothing groups the report any more, so the sorts stay valid on the plain projection.
+        aggregationConfig: [],
+        dateTruncConfig: [],
+      });
+    });
+
+    it('does not touch the output config when the unchecked row carries no rule', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: { ...configured(), dateTruncConfig: [] },
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('ordered_at').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).not.toHaveBeenCalled();
+    });
+
+    it('drops the aggregation and the sort on an unchecked row-level calculated field', () => {
+      const schema = buildSchema({
+        nativeFields: [
+          { name: 'native_one', type: 'STRING' },
+          { name: 'clicks', type: 'INTEGER' },
+          {
+            name: 'clicks_x2',
+            type: 'INTEGER',
+            calculated: { formula: '{{ref field="clicks"}} * 2', level: 'column' },
+          },
+        ] as unknown[],
+      });
+      const onOutputConfigChange = vi.fn();
+      renderPicker(schema, ['native_one', 'clicks_x2'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          filterConfig: [],
+          sortConfig: [{ column: 'clicks_x2', direction: 'asc' }],
+          limitConfig: null,
+          aggregationConfig: [{ column: 'clicks_x2', function: 'SUM' }],
+          dateTruncConfig: [],
+          uniqueCountConfig: [],
+        },
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('clicks_x2').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      });
+    });
+  });
+
   it('materializes columnConfig to the explicit selection when an aggregation is applied while columns are implicit (null = all)', async () => {
     const { onChange } = renderPicker(aggSchema(), null, {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
@@ -1795,12 +1944,29 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
     expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
   });
 
-  it('still flags a sort on an UNSELECTED real field named "Unique Count" when the toggle is off', () => {
+  // An ungrouped report with an explicit selection may sort by any column of the schema, so the
+  // unselected real field resolves the sort as itself — the synthetic never enters into it.
+  it('does not flag a sort on an UNSELECTED real field named "Unique Count" on an ungrouped report', () => {
     renderPicker(collisionSchema(), ['id'], {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       outputConfig: {
         ...baseOutputConfig,
         uniqueCountConfig: [],
+        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+  });
+
+  it('flags a sort on an UNSELECTED real field named "Unique Count" once the report aggregates, with the toggle off', () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: [],
+        aggregationConfig: [{ column: 'id', function: 'COUNT' }],
         sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
       },
       onOutputConfigChange: vi.fn(),

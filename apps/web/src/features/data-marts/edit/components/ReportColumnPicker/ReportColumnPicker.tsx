@@ -74,6 +74,7 @@ import {
 import { buildColumnSearchResult, matchesColumnSearch } from './report-column-search';
 import { SearchButton } from './SearchButton';
 import { PathTree } from './FieldSearchPicker';
+import { isAggregatedShape, pruneRulesForDeselectedColumns } from './output-controls-cleanup';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -836,6 +837,17 @@ export function ReportColumnPicker({
     () => new Set(nativeFields.filter(f => f.calculated).map(f => f.name)),
     [nativeFields]
   );
+  // The AGGREGATE-level subset: selecting or filtering on one of these turns the query into a
+  // GROUP BY on its own, which decides what a sort may name (`isAggregatedShape`).
+  const aggregateCalculatedFieldNames = useMemo(
+    () =>
+      new Set(
+        nativeFields
+          .filter(f => f.calculated && !isRowLevelCalculatedField(f.calculated))
+          .map(f => f.name)
+      ),
+    [nativeFields]
+  );
 
   // The backend's own verdict, not a client-side re-derivation: `brokenReferencesOf`
   // resolves a formula against the Data Mart's RAW schema, deliberately keeping a field hidden for
@@ -1139,6 +1151,32 @@ export function ReportColumnPicker({
     [selectableFieldNames]
   );
 
+  // The ONE way a column leaves the selection, for every checkbox that can uncheck it — the row
+  // checkboxes go through `toggleField`, "Select all" goes through `deselectAll`. The rules that
+  // hung on the column go with it (`pruneRulesForDeselectedColumns`): an aggregation or a date
+  // bucket on a column the report no longer prints used to stay behind, invisible on the row, and
+  // fail the next save and every scheduled run. A user edit, not a repair: the form must dirty.
+  const applyDeselection = useCallback(
+    (current: readonly string[], next: string[]) => {
+      const nextSet = new Set(next);
+      const removed = new Set(current.filter(name => !nextSet.has(name)));
+      onChange(next);
+      if (removed.size === 0 || !onOutputConfigChange) return;
+      const pruned = pruneRulesForDeselectedColumns(effectiveOutputConfig, removed, {
+        selectedNames: nextSet,
+        calculatedFields: { all: calculatedFieldNames, aggregate: aggregateCalculatedFieldNames },
+      });
+      if (pruned.changed.length > 0) onOutputConfigChange(pruned.config);
+    },
+    [
+      onChange,
+      onOutputConfigChange,
+      effectiveOutputConfig,
+      calculatedFieldNames,
+      aggregateCalculatedFieldNames,
+    ]
+  );
+
   const toggleField = useCallback<ToggleFieldFn>(
     (fieldName, checked) => {
       const current = valueRef.current;
@@ -1146,10 +1184,10 @@ export function ReportColumnPicker({
         if (current.includes(fieldName)) return;
         onChange(orderBySelectable([...current, fieldName]));
       } else {
-        onChange(orderBySelectable(current.filter(name => name !== fieldName)));
+        applyDeselection(current, orderBySelectable(current.filter(name => name !== fieldName)));
       }
     },
-    [onChange, orderBySelectable]
+    [onChange, orderBySelectable, applyDeselection]
   );
 
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
@@ -1423,24 +1461,41 @@ export function ReportColumnPicker({
     return cols;
   }, [activeUniqueCountSources, uniqueCountIsEmitted, knownFieldNames, availableSourceByPath]);
 
-  // Shared with the disconnected-controls badge so a suppressed synthetic can never be reported
-  // as still supplying the column.
-  const syntheticSortColumnNames = useMemo(
-    () => new Set(syntheticSortColumns.map(c => c.name)),
-    [syntheticSortColumns]
+  // Whether the report renders as a GROUP BY query — mirrors the backend's own shape decision, so
+  // the sort menu below offers exactly what the validator will accept.
+  const isAggregated = useMemo(
+    () =>
+      isAggregatedShape(effectiveOutputConfig, effectiveValueSet, aggregateCalculatedFieldNames),
+    [effectiveOutputConfig, effectiveValueSet, aggregateCalculatedFieldNames]
   );
 
   // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
   // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
   // filter or aggregation on it has no column to bind to and the backend rejects it. So it
   // must stay out of dropdownColumns / selectedDropdownColumns, which feed those surfaces.
-  const sortColumns = useMemo(
-    () =>
-      syntheticSortColumns.length === 0
+  //
+  // What else a sort may name depends on the query's SHAPE, decided the way the backend decides
+  // it: a grouped query (aggregations, date buckets, a Unique Count, an aggregate-level formula)
+  // resolves ORDER BY through its output aliases, so only a SELECTED column is sortable; so does
+  // an implicit "all native columns" projection, which never prints a blended column. An
+  // ungrouped query with an explicit selection orders by ANY column of the schema, exactly like a
+  // filter — minus a calculated field that is not selected, which renders as a SELECT alias the
+  // query would not have.
+  const sortColumns = useMemo(() => {
+    const base =
+      isAggregated || value === null
         ? selectedDropdownColumns
-        : [...selectedDropdownColumns, ...syntheticSortColumns],
-    [selectedDropdownColumns, syntheticSortColumns]
-  );
+        : dropdownColumns.filter(c => !c.isCalculated || effectiveValueSet.has(c.name));
+    return syntheticSortColumns.length === 0 ? base : [...base, ...syntheticSortColumns];
+  }, [
+    isAggregated,
+    value,
+    selectedDropdownColumns,
+    dropdownColumns,
+    effectiveValueSet,
+    syntheticSortColumns,
+  ]);
+  const sortColumnNames = useMemo(() => new Set(sortColumns.map(c => c.name)), [sortColumns]);
 
   const controlsCount = useMemo(() => {
     return (
@@ -1543,21 +1598,18 @@ export function ReportColumnPicker({
       }
     }
 
-    return effectiveOutputConfig.sortConfig.some(rule => {
-      // A real selected field resolves the sort regardless of its name — check that first so
-      // a schema field literally named "Unique Count" is never hijacked by the synthetic case.
-      if (effectiveValueSet.has(rule.column) && knownFieldNames.has(rule.column)) return false;
-      // Otherwise a synthetic metric can still supply the column, matching the backend's
-      // validateSort (which adds each enabled source's name to the selected set).
-      return !syntheticSortColumnNames.has(rule.column);
-    });
+    // A sort resolves when its column is on the sort menu for the report's current shape — a
+    // real field the shape allows (selected, or any schema column on an ungrouped explicit
+    // projection) or an enabled synthetic metric. A real selected field named "Unique Count"
+    // is on that menu as itself, so the synthetic case can never hijack it. Mirrors the
+    // backend's validateSort, which reads the same shape.
+    return effectiveOutputConfig.sortConfig.some(rule => !sortColumnNames.has(rule.column));
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    syntheticSortColumnNames,
+    sortColumnNames,
     knownFieldNames,
     knownSliceKeys,
-    effectiveValueSet,
   ]);
 
   const referencedFieldNames = useMemo(() => {
@@ -1589,7 +1641,10 @@ export function ReportColumnPicker({
   function deselectAll() {
     if (!schema) return;
     const selectableSet = new Set(targetSelectableFieldNames);
-    onChange(effectiveValue.filter(name => !selectableSet.has(name)));
+    applyDeselection(
+      effectiveValue,
+      effectiveValue.filter(name => !selectableSet.has(name))
+    );
   }
 
   const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
