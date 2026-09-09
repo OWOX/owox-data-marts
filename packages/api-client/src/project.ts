@@ -20,8 +20,7 @@ export type OWOXProjectSetupProgressSteps = {
   hasGoogleSheetsDestination: OWOXProjectSetupStepState;
   hasGoogleSheetsExtension: OWOXProjectSetupStepState;
   hasGoogleSheetsReportRun: OWOXProjectSetupStepState;
-  /** Absent on older compatible deployments. */
-  hasMcpQuery?: OWOXProjectSetupStepState;
+  hasMcpQuery: OWOXProjectSetupStepState;
 };
 
 export type OWOXProjectSetupProgress = {
