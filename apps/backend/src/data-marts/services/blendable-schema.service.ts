@@ -119,6 +119,7 @@ interface CollectContext {
   branchDmIds: Set<string>;
   depth: number;
   storageType: DataStorageType;
+  includeDraftTargets: boolean;
 }
 
 @Injectable()
@@ -132,7 +133,8 @@ export class BlendableSchemaService {
   async computeBlendableSchema(
     dataMartId: string,
     projectId: string,
-    accessor: BlendableSchemaAccessor
+    accessor: BlendableSchemaAccessor,
+    options: { includeDraftTargets?: boolean } = {}
   ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
     const nativeFields = (dataMart.schema?.fields ?? []).filter(
@@ -167,6 +169,7 @@ export class BlendableSchemaService {
       branchDmIds,
       depth: 1,
       storageType: dataMart.storage.type,
+      includeDraftTargets: options.includeDraftTargets === true,
     });
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
@@ -260,9 +263,10 @@ export class BlendableSchemaService {
         );
       }
 
-      // Reports cannot join against an unfinalized schema, so a draft target — and any
-      // descendants reachable only through it — must not surface in the picker.
-      if (rel.targetDataMart.status !== DataMartStatus.PUBLISHED) continue;
+      // Reports cannot join against an unfinalized schema. The relationship editor opts in so an
+      // analyst can configure a draft from its saved output schema before publishing it.
+      if (!ctx.includeDraftTargets && rel.targetDataMart.status !== DataMartStatus.PUBLISHED)
+        continue;
 
       if (ctx.branchDmIds.has(rel.targetDataMart.id)) continue;
 

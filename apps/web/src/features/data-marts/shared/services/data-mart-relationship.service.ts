@@ -80,13 +80,15 @@ class DataMartRelationshipService extends ApiService {
   /**
    * Get the blendable schema for a data mart.
    * @param dataMartId Data mart ID
+   * @param params Optional view controls; draft targets are excluded by default.
    * @param config Optional axios config (e.g. `skipLoadingIndicator` for silent refreshes)
    */
   async getBlendableSchema(
     dataMartId: string,
+    params?: { includeDraftTargets?: boolean },
     config?: AxiosRequestConfig
   ): Promise<BlendableSchema> {
-    return this.get<BlendableSchema>(`/${dataMartId}/blendable-schema`, undefined, config);
+    return this.get<BlendableSchema>(`/${dataMartId}/blendable-schema`, params, config);
   }
 
   /**

@@ -31,7 +31,7 @@ describe('GetBlendableSchemaService', () => {
   it('returns blendable schema when user has SEE access on DataMart', async () => {
     const { service, blendableSchemaService, accessDecisionService } = createService(true);
 
-    const command = new GetBlendableSchemaCommand('dm-1', 'proj-1', 'user-1', ['viewer']);
+    const command = new GetBlendableSchemaCommand('dm-1', 'proj-1', 'user-1', ['viewer'], true);
 
     const result = await service.run(command);
 
@@ -43,10 +43,15 @@ describe('GetBlendableSchemaService', () => {
       Action.SEE,
       'proj-1'
     );
-    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith('dm-1', 'proj-1', {
-      userId: 'user-1',
-      roles: ['viewer'],
-    });
+    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1',
+      {
+        userId: 'user-1',
+        roles: ['viewer'],
+      },
+      { includeDraftTargets: true }
+    );
     expect(result).toBe(blendableSchema);
   });
 

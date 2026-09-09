@@ -428,13 +428,15 @@ export class DataMartMapper {
 
   toGetBlendableSchemaCommand(
     dataMartId: string,
-    context: AuthorizationContext
+    context: AuthorizationContext,
+    includeDraftTargets = false
   ): GetBlendableSchemaCommand {
     return new GetBlendableSchemaCommand(
       dataMartId,
       context.projectId,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      includeDraftTargets
     );
   }
 

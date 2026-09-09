@@ -187,6 +187,51 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toEqual([]);
     });
 
+    it('includes configured draft targets for relationship editing', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          blendedFieldsConfig: {
+            sources: [
+              {
+                path: 'b',
+                alias: 'Draft output',
+                description: 'Draft join description',
+              },
+            ],
+          },
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-ab',
+          targetAlias: 'b',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-b',
+            status: DataMartStatus.DRAFT,
+            schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor, {
+        includeDraftTargets: true,
+      });
+
+      expect(result.availableSources).toEqual([
+        expect.objectContaining({
+          aliasPath: 'b',
+          defaultAlias: 'Draft output',
+          joinDescription: 'Draft join description',
+          fieldCount: 1,
+        }),
+      ]);
+      expect(result.blendedFields).toEqual([
+        expect.objectContaining({ aliasPath: 'b', originalFieldName: 'b_field' }),
+      ]);
+    });
+
     it('still exposes a draft root data mart, only filters draft relationship targets', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(
         makeDataMart({

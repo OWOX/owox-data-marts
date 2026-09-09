@@ -311,6 +311,11 @@ describe('DataMartRelationshipsContent blendable schema', () => {
     await waitFor(() => {
       expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
     });
+    expect(service.getBlendableSchema).toHaveBeenCalledWith(
+      'dm-1',
+      { includeDraftTargets: true },
+      { skipLoadingIndicator: true }
+    );
 
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });

@@ -215,9 +215,12 @@ export function DataMartRelationshipsContent({
     void loadRelationships();
   }, [loadRelationships]);
 
-  // Shared with the other cards on this page (the schema editor's formula autocomplete reads the
-  // same entry): one fetch, one copy, and `invalidateBlendableSchema` below refreshes all of them.
-  const { data: blendableSchema } = useBlendableSchema(dataMartId);
+  // This editor needs draft targets so their saved output schemas and per-join overrides remain
+  // configurable before publish. The query key keeps this edit-only payload separate from the
+  // report/formula readers, while `invalidateBlendableSchema` still refreshes both variants.
+  const { data: blendableSchema } = useBlendableSchema(dataMartId, {
+    includeDraftTargets: true,
+  });
 
   const sourceList = useMemo(() => {
     if (!blendableSchema) return [];

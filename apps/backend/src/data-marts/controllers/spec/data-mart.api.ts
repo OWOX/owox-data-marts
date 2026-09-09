@@ -353,6 +353,13 @@ export function GetBlendableSchemaSpec() {
         'Returns native fields, blended fields pulled from joined DataMarts, and the list of available sources reachable via relationships.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiQuery({
+      name: 'includeDraftTargets',
+      required: false,
+      schema: { type: 'boolean', default: false },
+      description:
+        'Include draft relationship targets for configuration. Reporting consumers should keep the default so only published targets are returned.',
+    }),
     ApiOkResponse({ type: BlendableSchemaDto })
   );
 }
