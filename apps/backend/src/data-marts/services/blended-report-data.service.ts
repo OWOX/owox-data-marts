@@ -47,6 +47,7 @@ import { UserProjectionsFetcherService } from './user-projections-fetcher.servic
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { buildJoinedUniqueCountColumnName } from './blended-field-name';
+import { collectKnownOutputColumns, withoutUnknownSortColumns } from './known-output-columns.util';
 import {
   calculatedDependencyPlans,
   calculatedFieldLevelOf,
@@ -105,6 +106,39 @@ export class BlendedReportDataService {
     // up in `referencedColumns` — it has to be carried separately all the way to the chain builder.
     const uniqueCountAliasPaths = new Set(joinedUniqueCountSources(report.uniqueCountConfig));
 
+    // A sort on a column the schema no longer offers is dropped here rather than failing the run:
+    // ORDER BY changes the order of the rows, never their values, and a scheduled run never opens
+    // the editor that shows the rule as orphaned — the reasoning the stale Unique Count sort below
+    // is dropped by. Only this path degrades; the save paths validate the stored config and reject
+    // it, and an aggregation or date bucket on such a column still fails below, loudly, because
+    // it WOULD change the values. Resolved ahead of the validator, whose own answer to an unknown
+    // sort column is the disconnected error, and against the very set it reads. The schema this
+    // costs is one every report with a sort resolves below anyway.
+    let blendableSchema = precomputedBlendableSchema;
+    let sortConfig = report.sortConfig ?? null;
+    if (sortConfig && sortConfig.length > 0) {
+      blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      );
+      const hasActualizedSchema =
+        blendableSchema.nativeFields.length > 0 || blendableSchema.blendedFields.length > 0;
+      if (hasActualizedSchema) {
+        const { kept, dropped } = withoutUnknownSortColumns(
+          sortConfig,
+          collectKnownOutputColumns(blendableSchema)
+        );
+        if (dropped.length > 0) {
+          sortConfig = kept;
+          this.logger.warn(
+            `Data Mart ${dataMart.id}: dropped the sort on ${dropped.map(c => `"${c}"`).join(', ')} — ` +
+              'the column is missing from the current output schema'
+          );
+        }
+      }
+    }
+
     // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
     await this.outputControlsValidator.validateForReport({
       storageType: dataMart.storage.type,
@@ -112,14 +146,14 @@ export class BlendedReportDataService {
       projectId: dataMart.projectId,
       columnConfig: columnConfig ?? null,
       filterConfig: report.filterConfig ?? null,
-      sortConfig: report.sortConfig ?? null,
+      sortConfig,
       limitConfig: report.limitConfig ?? null,
       aggregationConfig: report.aggregationConfig ?? null,
       dateTruncConfig: report.dateTruncConfig ?? null,
       uniqueCountConfig: report.uniqueCountConfig ?? null,
       accessor,
       dataMartSchemaFields: dataMart.schema?.fields,
-      precomputedBlendableSchema,
+      precomputedBlendableSchema: blendableSchema,
     });
 
     const postJoinFilterColumns: string[] = [];
@@ -131,7 +165,7 @@ export class BlendedReportDataService {
         postJoinFilterColumns.push(rule.column);
       }
     }
-    const sortColumns = (report.sortConfig ?? []).map(s => s.column);
+    const sortColumns = (sortConfig ?? []).map(s => s.column);
     const hasPreJoinFilters = preJoinFilterColumns.length > 0;
     // Totals only — a persisted `Report` never carries a restriction (see composeTotals).
     const groupRestriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
@@ -155,13 +189,11 @@ export class BlendedReportDataService {
         return { needsBlending: false, primaryKeyColumns };
       }
 
-      const blendableSchema =
-        precomputedBlendableSchema ??
-        (await this.blendableSchemaService.computeBlendableSchema(
-          dataMart.id,
-          dataMart.projectId,
-          accessor
-        ));
+      blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      );
       const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
       const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
         blendedFieldsByName.has(c)
@@ -180,13 +212,11 @@ export class BlendedReportDataService {
       );
     }
 
-    const blendableSchema =
-      precomputedBlendableSchema ??
-      (await this.blendableSchemaService.computeBlendableSchema(
-        dataMart.id,
-        dataMart.projectId,
-        accessor
-      ));
+    blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
+      dataMart.id,
+      dataMart.projectId,
+      accessor
+    );
 
     const fieldIndex = buildBlendedFieldIndex(blendableSchema);
     const preJoinAliasPaths = new Set<string>(
@@ -375,22 +405,24 @@ export class BlendedReportDataService {
     const stalePaths = [...uniqueCountAliasPaths].filter(
       path => !uniqueCountSources.some(source => source.aliasPath === path)
     );
-    const sortConfig =
-      stalePaths.length > 0
-        ? this.withoutStaleUniqueCountSorts(
-            report.sortConfig ?? [],
-            stalePaths,
-            dataMart,
-            blendedFieldsByName
-          )
-        : report.sortConfig;
+    const sortBeforeUniqueCountPrune = sortConfig;
+    if (stalePaths.length > 0) {
+      sortConfig = this.withoutStaleUniqueCountSorts(
+        sortConfig ?? [],
+        stalePaths,
+        dataMart,
+        blendedFieldsByName
+      );
+    }
     // A column silently leaving a nightly export shifts every formula to its right, and nothing
     // else in this path says a word about it.
     if (stalePaths.length > 0) {
       this.logger.warn(
         `Data Mart ${dataMart.id}: dropped the Unique Count column of ${stalePaths.join(', ')} — ` +
           'the source is gone, excluded from reporting, or has no usable primary key' +
-          (sortConfig?.length === report.sortConfig?.length ? '' : ', and its sort rule with it')
+          (sortConfig?.length === sortBeforeUniqueCountPrune?.length
+            ? ''
+            : ', and its sort rule with it')
       );
     }
 

@@ -70,6 +70,7 @@ import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule } from '../dto/domain/filter-clause';
 import { isAggregateLevel, type CalculatedFieldLevel } from '../calculated-fields/formula-level';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import { collectKnownOutputColumns } from './known-output-columns.util';
 
 // DATE_TYPES that carry a time-of-day component (TIMESTAMP, DATETIME, etc.).
 // A timeZone conversion is only meaningful for these — applying it to a pure
@@ -245,6 +246,40 @@ function unusableUniqueCountKeyReason(
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (TYPE_AGNOSTIC_OPS.has(operator)) return true;
   return INTERNAL_OPERATORS_BY_CATEGORY[categorizeFieldType(fieldType)].has(operator);
+}
+
+export const OUTPUT_CONTROLS_VALIDATION_FAILED = 'Output controls validation failed';
+
+/** How many errors the message names before counting the rest — the web toast's own cap. */
+const MAX_SUMMARISED_VALIDATION_ERRORS = 3;
+
+/** `AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD` → `Aggregation function not allowed for field`. */
+function humanizeValidationCode(code: string): string {
+  const words = code.toLowerCase().replace(/_/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * The validator's structured errors as one readable sentence, in EXACTLY the shape the web
+ * toast renders `details.errors` in (`showApiErrorToast.ts`): an error's own `message` where it
+ * has one (written for a human, and the only place recovery advice lives), otherwise the rule
+ * that rejected it and the column it rejected. Byte-identical output is what lets the toast
+ * recognise the summary inside the message and not print it twice.
+ */
+export function summarizeValidationErrors(errors: readonly ValidationError[]): string {
+  const parts = errors.map(error => {
+    if ('message' in error && error.message.trim()) return error.message.trim();
+    const column = 'column' in error ? error.column : 'label' in error ? error.label : undefined;
+    const fn = 'function' in error ? error.function : undefined;
+    const target = fn && column ? `${fn}(${column})` : column;
+    const rule = humanizeValidationCode(error.code);
+    return target ? `${rule}: ${target}.` : `${rule}.`;
+  });
+  // De-duplicate: several rules can fail for the same reason and repeating it is noise.
+  const unique = [...new Set(parts)];
+  if (unique.length <= MAX_SUMMARISED_VALIDATION_ERRORS) return unique.join(' ');
+  const hidden = unique.length - MAX_SUMMARISED_VALIDATION_ERRORS;
+  return `${unique.slice(0, MAX_SUMMARISED_VALIDATION_ERRORS).join(' ')} (+${hidden} more)`;
 }
 
 @Injectable()
@@ -920,18 +955,18 @@ export class OutputControlsValidatorService {
 
       if (hasActualizedSchema) {
         const homeFieldTypes = new Map<string, string>();
-        const knownOutputColumns = new Set<string>();
         const connectedNativeNames: string[] = [];
         for (const native of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
           homeFieldTypes.set(native.name, native.type);
-          knownOutputColumns.add(native.name);
           connectedNativeNames.push(native.name);
         }
         for (const blended of blendableSchema.blendedFields) {
           if (blended.isHidden) continue;
           homeFieldTypes.set(blended.name, blended.type);
-          knownOutputColumns.add(blended.name);
         }
+        // Shared with the run path, which drops a sort on a name outside this set where this
+        // method reports it as disconnected — the two must read the same schema the same way.
+        const knownOutputColumns = collectKnownOutputColumns(blendableSchema);
 
         // Run ahead of the ordinary filter/sort/aggregation checks, so a metric that is misused or
         // broken is reported as such rather than as a stale "unknown column" that sends the caller
@@ -1049,17 +1084,15 @@ export class OutputControlsValidatorService {
           errors.push({ code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED', ...refusal });
         }
 
-        // Unique Count is always a KNOWN sort target, so a stale sort left after disabling the
-        // toggle is SORT_COLUMN_NOT_SELECTED rather than the harsher DISCONNECTED_REPORT_COLUMNS,
-        // which is reserved for names absent from the schema entirely.
+        // Every Unique Count output name the schema can produce: the main label and one per joined
+        // source. Keyed off the SCHEMA rather than the config: all of them are already KNOWN
+        // (`collectKnownOutputColumns`), so a stale sort left after disabling the toggle or
+        // unticking a source is SORT_COLUMN_NOT_SELECTED rather than the harsher
+        // DISCONNECTED_REPORT_COLUMNS, which is reserved for names absent from the schema entirely.
         const uniqueCountOutputColumns = new Set<string>([UNIQUE_COUNT_LABEL]);
-        // Same rule per joined source, keyed off the SCHEMA rather than the config for exactly the
-        // reason above: unticking a source must leave its stale sort on the 400, not on the
-        // disconnected message. A source the schema no longer offers stays disconnected.
         for (const source of blendableSchema.availableSources ?? []) {
           uniqueCountOutputColumns.add(buildJoinedUniqueCountColumnName(source.aliasPath));
         }
-        for (const name of uniqueCountOutputColumns) knownOutputColumns.add(name);
 
         // A filter naming one of those columns is rejected HERE, and its rule is kept out of
         // validateFilters below: unknown to the field index, it would otherwise become
@@ -1156,41 +1189,84 @@ export class OutputControlsValidatorService {
           );
         }
         if (parsedSort.length > 0) {
-          // With no explicit columnConfig the projection is `SELECT *` over the home
-          // mart's NATIVE fields only — blended output aliases are NOT projected, and
-          // the blended run path rejects output controls without an explicit column
-          // selection. Validate sort against that same native-only set so a sort on a
-          // blended column is caught here at save time instead of failing at run time.
-          //
-          // MINUS every calculated field: it has no warehouse column, so `SELECT *`
-          // cannot project it and it is composed only when named. `connectedNativeNames` carries
-          // it — `isConnected` answers true for a formula — so without this subtraction a sort on
-          // a metric counted as selected, saved without a word, and then emitted
-          // `SELECT * … ORDER BY src.ctr` on every run. Resolved through the one function that
-          // already answers "what does an implicit-all selection contain", rather than a second
-          // spelling of the same rule.
-          const selectedSet = new Set(
-            args.columnConfig ?? implicitAllNativeColumnNames(blendableSchema)
-          );
-          // Unique Count is a synthetic metric column (COUNT(DISTINCT <pk>)), not a
-          // projected field — allow sorting by it whenever it's enabled. Each joined source's
-          // metric is the same shape, and its sort resolves to the same outer SELECT alias, so it
-          // is selected on exactly the same terms. The SQL-safe name, never the display label.
-          if (hasMainUniqueCount(args.uniqueCountConfig)) selectedSet.add(UNIQUE_COUNT_LABEL);
-          // Every CONFIGURED source, on the main metric's terms above — deliberately NOT gated on
-          // the source still being emittable: `resolveUniqueCountSources` drops a source that lost
-          // its key or its reporting inclusion, and the run path drops the stale sort rule with it
-          // (BlendedReportDataService), so failing the rule here would 400 every scheduled run of
-          // a report that no editor is ever opened on.
-          for (const aliasPath of joinedUniqueCountSources(args.uniqueCountConfig)) {
-            selectedSet.add(buildJoinedUniqueCountColumnName(aliasPath));
+          const sortRules = parsedSort.filter(rule => !joinedCalculatedColumns.has(rule.column));
+          // What a sort may name depends on the SHAPE the builders give the query, decided here on
+          // the same condition they branch on (`renderAggregatedQuery`, the blended builder's
+          // `aggregated`): a GROUP BY query resolves ORDER BY through its output aliases, so a sort
+          // there can only name a projected dimension, an aggregated metric or a Unique Count —
+          // anything else renders as a bare column outside GROUP BY, a warehouse error. An
+          // AGGREGATE-level calculated field forces that shape on its own, selected or filtered on,
+          // with no aggregation rule in sight.
+          const forcesAggregation = (column: string): boolean => {
+            const field = calculated.get(column);
+            return (
+              field !== undefined &&
+              isAggregateLevel(calculatedFieldLevelOf(field, metricSchemaFields))
+            );
+          };
+          const isAggregatedShape =
+            aggregationsToValidate.length > 0 ||
+            dateTruncsToValidate.length > 0 ||
+            hasMainUniqueCount(args.uniqueCountConfig) ||
+            joinedUniqueCountSources(args.uniqueCountConfig).length > 0 ||
+            (args.columnConfig ?? []).some(forcesAggregation) ||
+            routedFilters.some(rule => forcesAggregation(rule.column));
+
+          if (isAggregatedShape) {
+            // With no explicit columnConfig the projection is `SELECT *` over the home mart's
+            // NATIVE fields only (the one aggregated shape that allows it is a main Unique Count on
+            // its own), MINUS every calculated field: it has no warehouse column, so `SELECT *`
+            // cannot project it and it is composed only when named. Resolved through the one
+            // function that already answers "what does an implicit-all selection contain".
+            const selectedSet = new Set(
+              args.columnConfig ?? implicitAllNativeColumnNames(blendableSchema)
+            );
+            // Unique Count is a synthetic metric column (COUNT(DISTINCT <pk>)), not a
+            // projected field — allow sorting by it whenever it's enabled. Each joined source's
+            // metric is the same shape, and its sort resolves to the same outer SELECT alias, so it
+            // is selected on exactly the same terms. The SQL-safe name, never the display label.
+            if (hasMainUniqueCount(args.uniqueCountConfig)) selectedSet.add(UNIQUE_COUNT_LABEL);
+            // Every CONFIGURED source, on the main metric's terms above — deliberately NOT gated on
+            // the source still being emittable: `resolveUniqueCountSources` drops a source that
+            // lost its key or its reporting inclusion, and the run path drops the stale sort rule
+            // with it (BlendedReportDataService), so failing the rule here would 400 every
+            // scheduled run of a report that no editor is ever opened on.
+            for (const aliasPath of joinedUniqueCountSources(args.uniqueCountConfig)) {
+              selectedSet.add(buildJoinedUniqueCountColumnName(aliasPath));
+            }
+            errors.push(...this.validateSort(sortRules, selectedSet));
+          } else if (hasColumnConfig) {
+            // An ungrouped query with an explicit projection resolves ORDER BY against the source
+            // row — the flat builders qualify or quote the bare column, the blended one carries
+            // every sorted column into its CTE (`referencedColumns`) — so a sort on a column the
+            // report does not print is valid SQL, exactly like a filter on one. Two names stay
+            // out: a calculated field that is not selected (it renders as a SELECT alias, and only
+            // a selected one is planned, so the resolver would fall back to `src.<name>`, a column
+            // the warehouse does not have) and a Unique Count output name (the metric is off in
+            // this shape, so the alias does not exist; a real field owning the name IS that
+            // field). A name absent from the schema is still reported below as disconnected.
+            const sortableColumns = new Set(knownOutputColumns);
+            for (const name of calculated.keys()) {
+              if (!selectedColumns.has(name)) sortableColumns.delete(name);
+            }
+            for (const name of uniqueCountOutputColumns) {
+              if (isUniqueCountColumn(name)) sortableColumns.delete(name);
+            }
+            errors.push(...this.validateSort(sortRules, sortableColumns));
+          } else {
+            // With no explicit columnConfig the projection is `SELECT *` over the home mart's
+            // NATIVE fields only — blended output aliases are NOT projected, and the blended run
+            // path rejects output controls without an explicit column selection. Validate sort
+            // against that same native-only set so a sort on a blended column is caught here at
+            // save time instead of failing at run time. MINUS every calculated field, for the
+            // reason given on the aggregated branch: `SELECT * … ORDER BY src.ctr` names nothing.
+            errors.push(
+              ...this.validateSort(
+                sortRules,
+                new Set(implicitAllNativeColumnNames(blendableSchema))
+              )
+            );
           }
-          errors.push(
-            ...this.validateSort(
-              parsedSort.filter(rule => !joinedCalculatedColumns.has(rule.column)),
-              selectedSet
-            )
-          );
         }
         if (aggregationsToValidate.length > 0) {
           // Post-join aggregation over the (flat) blended result is an outer GROUP BY
@@ -1286,7 +1362,7 @@ export class OutputControlsValidatorService {
 
         const disconnectedOutputControlRefs = this.collectDisconnectedOutputControlRefs(
           errors,
-          parsedSort,
+          { sort: parsedSort, aggregations: parsedAggregations, dateTruncs: parsedDateTruncs },
           knownOutputColumns
         );
         if (disconnectedOutputControlRefs.length > 0) {
@@ -1301,7 +1377,11 @@ export class OutputControlsValidatorService {
   private throwIfInvalid(errors: ValidationError[]): void {
     if (errors.length > 0) {
       throw new BadRequestException({
-        message: 'Output controls validation failed',
+        // The summary rides in `message` and not only in `details`: a failed scheduled run stores
+        // the exception's message alone (`BaseReportRun.markAsUnsuccessful`), and so does every
+        // client that never learned the `details.errors` envelope. Same shape as the web toast's
+        // own rendering of `details.errors`, so the toast can recognise it and not repeat it.
+        message: `${OUTPUT_CONTROLS_VALIDATION_FAILED}. ${summarizeValidationErrors(errors)}`,
         details: { errors },
       });
     }
@@ -1349,9 +1429,26 @@ export class OutputControlsValidatorService {
     return allowedByColumn;
   }
 
+  /**
+   * Every output-control rule that names a column the schema no longer offers, on ONE diagnosis.
+   *
+   * Sort, aggregation and date-bucket rules are read RAW rather than through the errors above:
+   * for a column that is gone from the schema those checks answer `*_COLUMN_NOT_SELECTED` (the
+   * column left the projection with the schema) or `type: 'unknown'` (it did not), and both send
+   * the caller to add or re-type a column that no longer exists. The disconnected diagnosis names
+   * the column and says how to repair it, so it takes precedence — the throw it feeds happens
+   * before the accumulated errors are raised.
+   *
+   * A Unique Count output name and a joined calculated field are KNOWN (added to
+   * `knownOutputColumns` / present as a non-hidden blended field) and keep their own refusals.
+   */
   private collectDisconnectedOutputControlRefs(
     errors: ValidationError[],
-    sort: SortRule[],
+    rules: {
+      sort: SortRule[];
+      aggregations: AggregationRule[];
+      dateTruncs: DateTruncRule[];
+    },
     knownOutputColumns: ReadonlySet<string>
   ): string[] {
     const refs: string[] = [];
@@ -1369,7 +1466,7 @@ export class OutputControlsValidatorService {
       }
     }
 
-    for (const rule of sort) {
+    for (const rule of [...rules.sort, ...rules.aggregations, ...rules.dateTruncs]) {
       if (!knownOutputColumns.has(rule.column)) {
         refs.push(rule.column);
       }

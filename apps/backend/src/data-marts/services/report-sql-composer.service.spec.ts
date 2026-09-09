@@ -95,6 +95,34 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
+  // The blending decision already pruned this for the validator; the composer reads the STORED
+  // report again, so it prunes again from the same schema, or ORDER BY would name a column the
+  // warehouse no longer has and fail the run over its row order.
+  it('drops a sort on a column missing from the schema before building the query', async () => {
+    const { service, queryBuilderFacade } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1'
+    );
+    const report = buildReport({
+      columnConfig: ['a'],
+      sortConfig: [
+        { column: 'ghost', direction: 'desc' },
+        { column: 'a', direction: 'asc' },
+      ],
+      dataMart: {
+        id: 'dm-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        schema: { fields: [{ name: 'a', type: 'STRING', status: 'CONNECTED' }] },
+      },
+    } as unknown as Partial<Report>);
+
+    await service.compose(report, { userId: 'user-1', roles: ['admin'] });
+
+    const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+    expect(options.sort).toEqual([{ column: 'a', direction: 'asc' }]);
+  });
+
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
     const { service, blendedReportDataService } = createService({
       needsBlending: false,

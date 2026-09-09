@@ -123,20 +123,58 @@ describe('Output controls API (e2e)', () => {
     });
   });
 
-  it('PUT rejects sort on existing non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
+  it('PUT accepts a sort on a known column that is not in columnConfig for an ungrouped report', async () => {
+    // Without aggregations ORDER BY resolves against the source row, so sorting by a known but
+    // unselected column is valid SQL — symmetric with a filter on one.
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
       .send({
-        title: 'Bad sort',
+        title: 'Sort by unselected',
         dataDestinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['col_a'],
         sortConfig: [{ column: 'col_b', direction: 'asc' }],
       });
 
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      columnConfig: ['col_a'],
+      sortConfig: [{ column: 'col_b', direction: 'asc' }],
+    });
+  });
+
+  it('PUT rejects a sort on a non-selected column once the report aggregates (SORT_COLUMN_NOT_SELECTED)', async () => {
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Bad grouped sort',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        aggregationConfig: [{ column: 'col_a', function: 'COUNT' }],
+        sortConfig: [{ column: 'col_b', direction: 'asc' }],
+      });
+
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.body)).toContain('SORT_COLUMN_NOT_SELECTED');
+  });
+
+  it('PUT reports an aggregation on a column missing from the schema as a disconnected column', async () => {
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Aggregation on a gone column',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a', 'col_gone'],
+        aggregationConfig: [{ column: 'col_gone', function: 'COUNT' }],
+      });
+
+    expectDisconnectedColumns(res, ['col_gone']);
+    expect(JSON.stringify(res.body)).not.toContain('AGGREGATION_COLUMN_NOT_SELECTED');
   });
 
   it('PUT with filter on a column missing from the data mart schema reports disconnected columns', async () => {

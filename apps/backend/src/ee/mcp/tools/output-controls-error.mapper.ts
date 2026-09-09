@@ -319,7 +319,7 @@ export function translateOutputControlsError(
     const cols = [...new Set(missing.map(e => e.column).filter(Boolean))].join(', ');
     sections.push({
       code: 'field_not_selected',
-      message: `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`,
+      message: `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated or bucketed field must also be listed in "fields", and so must every sorted field once the report aggregates (aggregations, date_buckets, or a calculated field that aggregates); an ungrouped report with an explicit "fields" list may sort by any field of the data mart. Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`,
     });
   }
 
