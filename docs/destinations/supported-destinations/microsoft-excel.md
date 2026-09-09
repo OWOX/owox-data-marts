@@ -20,8 +20,6 @@ Scheduled refresh is not available, and you cannot create Excel reports from the
 | Admin deployment path | Microsoft 365 admin center → **Settings** → **Integrated apps**. This is the recommended route. The older **Add-ins** page under Integrated apps is the fallback. A global admin assigns the add-in to a user, a group, or the whole tenant. |
 | Licensing for central deployment | Microsoft 365 Business (Basic, Standard, Premium), Office 365 Enterprise (E1, E3, E5, F3), or Microsoft 365 Enterprise (E3, E5, F3). |
 | Identity and mailbox | Users sign in to Microsoft 365 with organizational credentials and have Exchange Online mailboxes. The subscription directory must live in, or federate to, Microsoft Entra ID. Central deployment does not work with on-premises Exchange. |
-| Exchange config | The deploying admin and receiving users need an Exchange Online version that supports OAuth. Verify per user with `Test-OAuthConnectivity`. Also run `Get-OrganizationConfig \| fl AppsForOfficeEnabled`. If it returns `False`, no add-ins activate for anyone in the organization. |
-| Minimum build for central deployment | Windows: version 1704 or later. Mac: version 15.34 or later. |
 | Network | Your proxy or firewall must allow the OWOX-hosted add-in domain and Microsoft's Marketplace and CDN endpoints. The listing declares that the app can read and change the document and send data over the internet. Flag this for security review. |
 
 ---
