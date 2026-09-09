@@ -1,5 +1,4 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { castError } from '@owox/internal-helpers';
 import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
@@ -7,6 +6,7 @@ import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-ev
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
+import { DataMartReadFailedException } from '../../../errors/data-mart-read-failed.error';
 import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
 import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-sql';
@@ -272,28 +272,7 @@ export class LookerStudioConnectorApiService {
       report.createdById
     );
 
-    try {
-      return await this.cacheService.getOrCreateCachedReader(report, accessor);
-    } catch (error) {
-      const cause = castError(error);
-      this.logger.error(
-        `Failed to read Data Mart data for Looker Studio: ${cause.message}`,
-        cause.stack,
-        {
-          reportId: report.id,
-          dataMartId: report.dataMart.id,
-          projectId: report.dataMart.projectId,
-        }
-      );
-      if (error instanceof BusinessViolationException) {
-        throw error;
-      }
-      throw new BusinessViolationException(
-        'Failed to read data from this Data Mart. ' +
-          'Check the Data Mart query and storage access, or contact the Data Mart owner. ' +
-          `Details: ${cause.message}`
-      );
-    }
+    return this.cacheService.getOrCreateCachedReader(report, accessor);
   }
 
   /**
@@ -365,7 +344,9 @@ export class LookerStudioConnectorApiService {
       const { response } = await this.dataService.getData(request, report, cachedReader, true);
       return response;
     } catch (error) {
-      this.logger.error('Failed to get sample data:', error);
+      if (!(error instanceof DataMartReadFailedException)) {
+        this.logger.error('Failed to get sample data:', error);
+      }
       throw error;
     }
   }
@@ -505,11 +486,13 @@ export class LookerStudioConnectorApiService {
     error: Error | string,
     reportRunLogger?: ReportRunLogger
   ) {
-    reportRun.markAsUnsuccessful(error);
+    reportRun.markAsUnsuccessful(
+      error instanceof DataMartReadFailedException ? error.cause : error
+    );
     await this.saveReportRunResultSafely(reportRun, reportRunLogger);
     if (error instanceof ProjectOperationBlockedException) {
       this.logger.warn(`Report ${reportRun.getReportId()} execution restricted: ${error.message}`);
-    } else {
+    } else if (!(error instanceof DataMartReadFailedException)) {
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
     }
 

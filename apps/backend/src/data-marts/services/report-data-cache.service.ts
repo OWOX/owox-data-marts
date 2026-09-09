@@ -1,4 +1,5 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Inject, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { FindOptionsWhere, Repository, MoreThan, LessThan } from 'typeorm';
@@ -20,6 +21,8 @@ import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataMartReadFailedException } from '../errors/data-mart-read-failed.error';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -171,8 +174,28 @@ export class ReportDataCacheService {
     this.logger.debug(`Cache miss for report ${report.id}, creating new reader`);
 
     const reader = await this.readerResolver.resolve(report.dataMart.storage.type);
-    const dataDescription = await reader.prepareReportData(report, options);
-    await reader.readReportDataBatch(undefined, 1);
+    let dataDescription: CachedReaderData['dataDescription'];
+    try {
+      dataDescription = await reader.prepareReportData(report, options);
+      await reader.readReportDataBatch(undefined, 1);
+    } catch (error) {
+      if (error instanceof BusinessViolationException || error instanceof HttpException) {
+        throw error;
+      }
+
+      const cause = castError(error);
+      this.logger.error(
+        `Failed to read Data Mart data while creating a cached reader: ${cause.message}`,
+        cause.stack,
+        {
+          reportId: report.id,
+          dataMartId: report.dataMart.id,
+          projectId: report.dataMart.projectId,
+        }
+      );
+
+      throw new DataMartReadFailedException(cause);
+    }
     const readerState = reader.getState();
 
     const cacheLifetime = this.getCacheLifetime(report);
