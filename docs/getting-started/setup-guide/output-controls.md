@@ -131,7 +131,9 @@ To remove a sort rule, click the **×** on its row.
 
 Sort runs before the row limit.
 
-> You can only sort by columns that are selected in **Report Columns**. Sorting by an unselected column fails validation. If you sort by a joined column, that column must be explicitly checked in the column picker — reports without an explicit selection run as `SELECT *` over native fields only.
+> A report that does not aggregate can sort by any column of the Data Mart, selected or not — the same way a filter works. Once the report aggregates (an aggregation, a date bucket, a Unique Count, or a calculated field that aggregates), it can only sort by columns that are selected in **Report Columns**; sorting by an unselected column then fails validation. A calculated field is sortable only while it is selected. If you sort by a joined column, the report must have an explicit column selection — reports without one run as `SELECT *` over native fields only.
+>
+> Unchecking a column removes the aggregation and date bucket set on it, and the sort rule on it when the report aggregates. Filters and slices stay: they apply whether or not the column is printed.
 
 ![Edit report panel with all four sections configured. Filters: category is Home, product_name is Coffee Machine. Slices: order_timestamp from CRM Data after "2026-06-01". Sort: two rules — 1. category ascending, 2. payment_method descending. An arrow points to the "+ Add sort by" button. Limit shows All rows.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c0a3ff65-cf83-4609-7042-1ecf549ca100/public)
 
@@ -175,18 +177,22 @@ Output controls reference columns by name. Rename or remove a column in the Data
 
 Open **Edit report**. The column picker groups the missing columns under a red **Disconnected columns** label with a ⚠ icon. Hover the icon to see:
 
-> _They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema._
+> _They are missing from the current Data Mart output schema. Uncheck them and remove any filter, sort, aggregation or date bucket rule that references them, or contact your analyst to restore the schema._
 
 You have two options:
 
-- **Uncheck the disconnected columns** — this removes them from the report selection only. It does not clear filter, slice, or sort rules that reference them. Open the Filters, Slices, and Sort sections, delete those rules too, then save.
+- **Uncheck the disconnected columns** — this removes them from the report selection together with the aggregation, date bucket, and sort rules set on them. Filter and slice rules that reference them stay: open the Filters and Slices sections, delete those rules too, then save.
 - **Restore the schema** — does the column still belong? Ask whoever manages the Data Mart to add it back. Then reopen the report.
 
 ![Edit report panel with a red "Disconnected columns" group at the top of the column list, containing order_date with a checked checkbox. A tooltip is open showing "They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema." The remaining columns (order_id, customer_id, order_timestamp, product_id, product_name, category, customer_name, country) are listed below and appear valid.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6616af2b-e216-406b-b11a-e876b17df900/public)
 
 ### Validation error on save
 
-A filter, slice, or sort rule may still point to a disconnected column. Save the report, and OWOX blocks it with **"Output controls validation failed"**. Open the report, remove the affected rules from the Filters, Slices, or Sort sections, then save again.
+A filter, slice, sort, aggregation, or date bucket rule may still point to a disconnected column. Save the report, and OWOX blocks it with a **Disconnected columns** error that names the columns. Open the report, remove the affected rules from the Filters, Slices, Sort, or Aggregations sections, then save again.
+
+A scheduled run of such a report drops a sort rule on a disconnected column and continues — the order of the rows changes, their values do not. An aggregation or date bucket on a disconnected column fails the run with the same error, since it would change the values.
+
+Other validation errors block the save with **"Output controls validation failed"** followed by the rules that failed and the columns they name.
 
 !["Output controls validation failed" error banner at the top of the page. The edit report panel shows the Sort section with two rules — category and payment_method — both highlighted in red with warning icons.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2342964b-37d0-4123-32c8-2a1ddbe6d400/public)
 
