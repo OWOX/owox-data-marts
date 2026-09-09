@@ -9,6 +9,23 @@ import { BaseTable } from '../../../../../../shared/components/Table';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
 import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { ReportStatusEnum } from '../../../shared/enums';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+
+/**
+ * Opens Excel with the OWOX add-in loaded, installing it first for a user who does not have it.
+ * Microsoft's documented installation link for a Marketplace-published add-in: `linkid` names the
+ * Excel-on-the-web endpoint, `templateid` is the add-in's Marketplace asset ID, and `templatetitle`
+ * the name shown while it loads. Carries no UTM parameters — the redirect is Microsoft's and the
+ * destination is Excel, not a page of ours.
+ *
+ * Deliberately the add-in rather than the documentation page: an Excel report can only be created
+ * in the add-in, so this is the step that gets closest to what the empty state is asking for. It
+ * always opens Excel on the web, and it is a dead end for a tenant whose administrator disabled the
+ * Marketplace store — those users are served by the documentation link on the Excel destination's
+ * own description.
+ */
+const EXCEL_ADD_IN_URL =
+  'https://go.microsoft.com/fwlink/?linkid=2261819&templateid=WA200011946&templatetitle=OWOX%20Data%20Marts';
 
 interface ReportsTableProps {
   destination: DataDestination;
@@ -119,7 +136,10 @@ export function ReportsTable({ destination, onEditReport, onAddReport }: Reports
             </>
           ) : (
             <p className='text-muted-foreground text-sm font-medium'>
-              Create your first report from the OWOX add-in in Excel
+              Create your first report from the{' '}
+              <ExternalAnchor className='underline' href={EXCEL_ADD_IN_URL}>
+                OWOX add-in in Excel
+              </ExternalAnchor>
             </p>
           )}
         </div>
