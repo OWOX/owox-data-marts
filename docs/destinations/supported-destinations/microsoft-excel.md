@@ -1,166 +1,220 @@
 # Microsoft Excel
 
-Use **Microsoft Excel** as a Destination so business users can browse published Data Marts, create a report, and refresh it without leaving the workbook.
+Use **Microsoft Excel** as a Destination. You can browse published Data Marts, create a report, and refresh it inside the workbook.
 
-You do not create this destination in the OWOX web app. Install the add-in, sign in, and build a report — the destination appears automatically and stores no credentials. The add-in reads the report using your OWOX access and writes the rows into the worksheet you opened it from.
+You do not create this destination in the OWOX web app. Install the **OWOX Data Marts** add-in from the [Office Add-ins store](https://marketplace.microsoft.com/en-us/product/WA200011946) inside Excel, sign in, and build a report. The destination then appears in your **Destinations** list and stores no credentials. The add-in reads the report with your OWOX access and writes rows into a worksheet in your workbook.
 
-A workbook is not reachable from a server, so refresh happens in Excel with the workbook open. Scheduled refresh is not offered, and Excel reports cannot be created from the Destinations tab.
+Scheduled refresh is not available, and you cannot create Excel reports from the **Destinations** tab.
 
 ---
 
-## Prerequisites
+## Requirements
 
-- An [OWOX Data Marts](https://app.owox.com) account with at least one **published** Data Mart. The add-in reads what you already have; it does not create Data Marts. See [Quick Start](../../getting-started/quick-start.md) if you are setting OWOX up for the first time.
-- Excel on the web, Microsoft 365 on Windows or Mac, or Excel 2019 or later on Mac. Perpetual Windows builds (2016, 2019, 2021) are not supported.
+| Requirement | Details |
+|---|---|
+| OWOX account | An account at [app.owox.com](https://app.owox.com) with access to at least one **published** Data Mart. New to OWOX? Start with the [Quick Start](../../getting-started/quick-start.md). |
+| Matching email | The Microsoft account in Excel must use the same email as your OWOX profile. Microsoft must verify that email. |
+| Excel version | Excel on the web, Microsoft 365 on Windows or Mac, or Excel 2019 or later on Mac. The add-in does not support perpetual Excel 2019 and 2021 on **Windows**. |
+| Account type | A work or school account, or a personal Microsoft account. |
+| Marketplace access | If your organization turned off Marketplace access for users, you cannot self-install. Admins control this with the setting that turns Microsoft Marketplace on or off for all apps except Outlook. An admin must then deploy the add-in centrally. |
+| Admin deployment path | Microsoft 365 admin center → **Settings** → **Integrated apps**. This is the recommended route. The older **Add-ins** page under Integrated apps is the fallback. A global admin assigns the add-in to a user, a group, or the whole tenant. |
+| Licensing for central deployment | Microsoft 365 Business (Basic, Standard, Premium), Office 365 Enterprise (E1, E3, E5, F3), or Microsoft 365 Enterprise (E3, E5, F3). |
+| Identity and mailbox | Users sign in to Microsoft 365 with organizational credentials and have Exchange Online mailboxes. The subscription directory must live in, or federate to, Microsoft Entra ID. Central deployment does not work with on-premises Exchange. |
+| Exchange config | The deploying admin and receiving users need an Exchange Online version that supports OAuth. Verify per user with `Test-OAuthConnectivity`. Also run `Get-OrganizationConfig \| fl AppsForOfficeEnabled`. If it returns `False`, no add-ins activate for anyone in the organization. |
+| Minimum build for central deployment | Windows: version 1704 or later. Mac: version 15.34 or later. |
+| Network | Your proxy or firewall must allow the OWOX-hosted add-in domain and Microsoft's Marketplace and CDN endpoints. The listing declares that the app can read and change the document and send data over the internet. Flag this for security review. |
 
 ---
 
 ## Install the add-in
 
-The add-in is installed from a **manifest** — a small XML file that tells Excel where the add-in lives and what it may do. You download it once and add it to Excel; the add-in itself is served by OWOX and updates on its own.
+### From the Office Add-ins store
 
-Installing from a manifest is a standard Microsoft mechanism, not a workaround. Organizations use it to deploy add-ins that are not published to the store, to pilot a version before rolling it out, and to install add-ins where access to AppSource is restricted.
+The store lives inside Excel. It is not the Windows **Microsoft Store** app.
 
-### Step 1. Download the manifest
-
-Download **[manifest.xml](https://addins.owox.com/excel/manifest.xml)** and keep it somewhere you can find again — you will point Excel at this file, and on Windows and Mac it has to stay in place.
-
-> 💡 Right-click the link and choose _Save link as…_. A browser that displays the XML instead of downloading it has still fetched the right file — use _Save page as…_.
-
-### Step 2. Add it to Excel
-
-The steps differ per platform. Excel on the web is the quickest, and a good way to confirm everything works before installing it on a desktop.
-
-#### Excel on the web
-
-1. Open a workbook at [excel.cloud.microsoft](https://excel.cloud.microsoft).
+1. Open any workbook.
 2. On the **Home** tab, select **Add-ins**.
-3. In the dialog, select **More Add-ins** → the **My Add-ins** tab.
-4. Select **Upload My Add-in** in the top right.
-5. **Browse** to `manifest.xml`, then select **Upload**.
+3. Select **More Add-ins**, then open the **Store** tab.
+4. Search for **OWOX Data Marts** and select **Add**.
+5. Review the license and privacy terms, then select **Continue**.
 
-The **OWOX Data Marts** tab appears on the ribbon.
+> 💡 Older desktop builds show the store under **Insert** → **Get Add-ins** instead.
 
-> The upload applies to the browser you are in. Signing in from another browser or another machine means uploading the manifest there too.
+![Office Add-ins dialog in Excel with the Store tab open, OWOX Data Marts in the search results, and the Add button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/728b8894-403e-4d10-9661-510227c4d600/w=800)
 
-#### Excel on Windows
+The **OWOX Data Marts** tab appears on the ribbon. Select **Launch sidebar** to open the task pane. Excel may ask you to trust the add-in on first launch. That prompt is expected.
 
-Windows installs add-ins from a **shared folder** that you register as a trusted catalog, rather than from a file you pick each time.
+> 💡 You can also start from the [Microsoft Marketplace listing](https://marketplace.microsoft.com/en-us/product/WA200011946). Select **Get it now** and follow the prompts to open Excel.
 
-1. Create a folder for the manifest, for example `C:\OWOX\addin`, and put `manifest.xml` in it.
-2. Right-click the folder → **Properties** → **Sharing** → **Share…**, share it with yourself, and copy the resulting network path (it looks like `\\YOUR-PC\addin`).
-3. In Excel, go to **File** → **Options** → **Trust Center** → **Trust Center Settings…** → **Trusted Add-in Catalogs**.
-4. Paste the network path into **Catalog Url**, select **Add catalog**, tick **Show in Menu**, then **OK**.
-5. **Close and reopen Excel** — the catalog is read at startup.
-6. Go to **Home** → **Add-ins** → **More Add-ins** → **SHARED FOLDER**, select **OWOX Data Marts**, then **Add**.
+The add-in installs per Microsoft account. It follows you to every device where you sign in with the same account.
 
-> ⚠️ The path in step 4 must be the **network** path (`\\...`), not the local one (`C:\...`). A local path is accepted by the dialog and then shows an empty catalog.
+![OWOX Data Marts listing on Microsoft Marketplace with the Get it now button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1c6cf455-867a-4ece-9f0f-2a0f38603300/w=800)
 
-#### Excel on Mac
+### For your organization
 
-1. Open a Finder window and press **⌘⇧G**.
-2. Go to:
+Administrators can install the add-in for selected users, groups, or the whole tenant. Check the central deployment rows in [Requirements](#requirements) first.
 
-   ```text
-   ~/Library/Containers/com.microsoft.Excel/Data/Documents/wef
-   ```
+1. Open the [Microsoft 365 admin center](https://admin.microsoft.com).
+2. Go to **Settings** → **Integrated apps** → **Get apps**.
+3. Search for **OWOX Data Marts** and select **Get it now**.
+4. Choose the users or groups, review permissions, and select **Finish deployment**.
 
-   If the `wef` folder does not exist, create it.
+Deployed add-ins can take up to 24 hours to appear on the ribbon. Ask users to fully restart Excel after that.
 
-3. Copy `manifest.xml` into that folder.
-4. **Close and reopen Excel.**
-5. Go to **Home** → **Add-ins** → **More Add-ins** → **My Add-ins**, select **OWOX Data Marts**, then **Add**.
+### Sign in
 
-### Step 3. Sign in
+1. Select **Launch sidebar** on the **OWOX Data Marts** ribbon tab.
+2. Select **Sign in**. The add-in uses the Microsoft account Excel already uses.
+3. OWOX matches that account to your profile by verified email address.
 
-Select **Launch** on the **OWOX Data Marts** ribbon tab. The add-in signs you in with the Microsoft account Excel is already using, and matches it to your OWOX account **by verified email address** — so the Microsoft account you use in Excel must be the one your OWOX account was created with.
+Excel on the web signs you in silently for workbooks in OneDrive for Business or SharePoint Online. Other workbooks open a Microsoft sign-in window instead. Both are normal.
 
-Depending on your account and where the workbook is stored, Excel either signs you in without asking or opens a sign-in window once. Both are normal.
+If Excel is not signed in, or uses the wrong account, sign in to Excel first. On desktop, go to **File** → **Account**. On the web, use the profile icon in the top-right corner. Then open the task pane again.
+
+![Excel with the OWOX Data Marts ribbon tab active and the task pane showing the Sign in button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/61dc2d2c-edc1-428b-acbe-f006f78b6400/w=800)
 
 ---
 
-## Create your first report
+## Work with reports
 
-1. Open the worksheet you want the data in — or let the add-in add one for you with **Create report**.
-2. Pick a published Data Mart, choose columns and any filters, then **Create & Run**.
-3. The rows land in the sheet, with column names taken from your Output Schema and each header carrying a note describing the column.
+### Create a report
 
-To refresh later, use **Refresh this sheet** or **Refresh all** on the ribbon.
+1. Choose where the data goes. Select **Add report** in the task pane to use the active worksheet. Select **New report** on the ribbon to add a worksheet first.
+2. In the task pane, pick a published Data Mart.
+3. Choose columns, filters, and sort order. See [Report Output Controls](../../getting-started/setup-guide/output-controls.md) for what each control does.
+4. Select **Create & Run**.
+
+The rows land in the sheet. Column names and descriptions come from the Data Mart, as your data team defined them. Each header carries a note with the description.
+
+The add-in binds the report to that worksheet. Later refreshes write into the same sheet.
+
+![Excel with the New report ribbon button and the Add report button in the OWOX Data Marts task pane highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9d5f35b0-7f40-4120-596c-333802385c00/w=800)
+
+### Refresh a report
+
+Use the ribbon buttons on the **OWOX Data Marts** tab:
+
+- **Refresh current report** reruns the report bound to the active worksheet.
+- **Refresh all reports** reruns every report in the workbook.
+
+You can also open **All reports** in the task pane and refresh a report from the list.
+
+A refresh clears the whole bound sheet, then writes the rows again. Anything you typed on that sheet disappears, including formulas and formatting. Keep your own formulas on another sheet and reference the report sheet from there.
+
+### Share the workbook
+
+Anyone who opens the workbook sees the values from the last refresh. The cells hold plain data, so no add-in is needed to read them.
+
+To refresh, a colleague needs the add-in and an OWOX account with access to the Data Mart. The report bindings travel with the workbook, so they refresh the same sheets.
+
+### Column header notes
+
+Each header note holds the column description from the Data Mart. On Windows and Mac, the add-in sizes the note to fit its text. Excel on the web cannot resize notes, so drag the note's edge to read the rest.
+
+### Copy or delete a sheet
+
+- Copying a worksheet copies its report binding. The add-in refreshes the copy you are viewing. When neither copy is active, it picks one of them. Delete the copy you do not need.
+- Deleting a bound sheet removes the binding. The report stays in **All reports**, but a refresh reports that it lost the sheet.
+
+### Limits
+
+- No scheduled refresh. Refresh runs only while the workbook is open in Excel.
+- One report per worksheet.
+- Excel holds about 1,048,576 rows per sheet. Narrow large Data Marts with filters before you run them.
+- Reports read what your OWOX access allows. Ask a Data Mart owner to publish a Data Mart you cannot see.
 
 ---
 
-## Keeping it up to date
+## Update the add-in
 
-You do not reinstall to get a new version. The manifest points at OWOX-hosted files, so improvements arrive the next time the task pane is opened. You only download the manifest again if we tell you the manifest itself has changed — a new ribbon button, for example.
+Store installs update automatically. You never reinstall to get a new version.
 
----
+## Remove the add-in
 
-## Removing the add-in
-
-- **Web:** **Home** → **Add-ins** → **More Add-ins** → **My Add-ins**, then remove **OWOX Data Marts**.
-- **Windows:** remove the catalog under **Trust Center** → **Trusted Add-in Catalogs**, then restart Excel.
-- **Mac:** delete `manifest.xml` from the `wef` folder, then restart Excel.
+- **Store install:** go to **Home** → **Add-ins** → **More Add-ins** → **My Add-ins**. Select **⋯** next to **OWOX Data Marts**, then **Remove**.
+- **Admin deployment:** the administrator removes it under **Integrated apps**.
 
 ---
 
 ## Troubleshooting
 
-Most problems fall into three groups: Excel cannot load the add-in, the add-in cannot sign you in, or OWOX does not recognise the account you signed in with. Work down the section that matches what you see.
+Find the symptom you see and follow the fix.
 
-### The add-in does not appear after installing
+### I cannot find the add-in in the store
 
-**On Windows, the shared folder is empty.** The catalog path must be the **network** path (`\\YOUR-PC\addin`), not the local one (`C:\OWOX\addin`). The dialog accepts a local path and then lists nothing. Fix the path, then close and reopen Excel — catalogs are read at startup.
+**Your tenant blocks store add-ins.** Some organizations turn off the Office Add-ins store. Ask your Microsoft 365 administrator to [deploy the add-in centrally](#for-your-organization).
 
-**On Mac or Windows, nothing changed.** Both platforms read the manifest when Excel starts. A restart means quitting Excel entirely, not just closing the workbook.
+**Excel disables the Add button, or says your admin turned off the store.** Same cause, same fix.
 
-**Your organization blocks it.** Some tenants disable add-ins that are not centrally deployed. If installing appears to work but the add-in never lists, ask your Microsoft 365 administrator whether add-in installation is restricted — they can deploy it for everyone from the admin center using the same manifest.
+**You searched the Windows Microsoft Store app.** The add-in lives in the store inside Excel. See [Install the add-in](#from-the-office-add-ins-store).
+
+### My admin deployed it, but it is not on my ribbon
+
+Central deployment can take up to 24 hours to reach every user. After that:
+
+1. Quit Excel completely, not just the workbook.
+2. Reopen Excel and check the **Home** tab.
+3. Ask the administrator to confirm you belong to an assigned user or group.
 
 ### The task pane opens blank
 
-Usually a cached page pointing at files that no longer exist. Clearing the Office cache fixes it:
+Excel cached an old page. Try these in order:
 
-- **Web:** hard-refresh the browser tab, or open the workbook in a private window.
-- **Windows:** delete the contents of `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\`, then restart Excel.
-- **Mac:** delete the contents of `~/Library/Containers/com.microsoft.Excel/Data/Library/Caches/`, then restart Excel.
+1. Close every Office app, then reopen Excel.
+2. **Web:** hard-refresh the browser tab, or open the workbook in a private window.
+3. **Windows:** delete the contents of `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\`, then restart Excel. Ask IT if the folder is locked.
+4. **Mac:** delete the contents of `~/Library/Containers/com.microsoft.Excel/Data/Library/Caches/`, then restart Excel.
 
-If it is still blank, the add-in can describe the host it is running on. Open the task pane's developer console and run:
+Still blank on the web? Press **F12**, open the **Console** tab, and run:
 
 ```js
 owoxHostDiagnostics();
 ```
 
-It prints the Office platform, the highest Excel API version available, and which capabilities are present. Include that output if you contact support — it is the difference between an Excel that cannot do something and one that simply did not.
+The output lists the Office platform, the Excel API version, and available capabilities. Include it when you contact support. On Windows or Mac, skip this step and contact support directly.
 
 ### Sign-in does not complete
 
-**A window opens and closes without signing you in.** Close the task pane and open it again, then press the sign-in button rather than waiting. A sign-in window has to be opened by a button press; if the press is spent elsewhere the browser refuses the window.
+**A window opens and closes without signing you in.** Close the task pane, open it again, and press **Sign in** yourself. Browsers only allow a sign-in window that a button press opens.
 
-**Nothing happens on the web.** Excel on the web can only sign you in silently for workbooks stored in SharePoint Online or OneDrive for Business. For a workbook stored anywhere else — including most personal accounts — a sign-in window opens instead. That is the normal path, not a fallback that failed.
+**Nothing happens on the web.** Excel on the web signs you in silently only for workbooks in SharePoint Online or OneDrive for Business. Other workbooks open a sign-in window. That is the normal path.
 
-**"This copy of Excel cannot sign you in."** The Excel build is older than the add-in supports. The add-in needs Excel API 1.12, which is where the feature that binds a report to a worksheet arrives. Excel on the web, Microsoft 365 on Windows and Mac, and Excel 2019 or later on Mac all qualify; perpetual Windows builds (2016, 2019, 2021) do not.
+**"Need admin approval" appears.** Your organization requires admin consent before an add-in can sign users in. Ask your Microsoft 365 administrator to grant consent for **OWOX Data Marts** under **Microsoft Entra ID** → **Enterprise applications**. Sign in again after they approve.
+
+**"This copy of Excel cannot sign you in."** Your Excel build is too old. See [Requirements](#requirements).
 
 ### "OWOX does not recognise this account"
 
-Sign-in succeeded with Microsoft and then OWOX declined it. The two systems are matched **by verified email address**, so:
+Microsoft signed you in, but OWOX declined the account. OWOX matches accounts by verified email address.
 
-- **The email is not the one OWOX knows you by.** Check which account Excel is signed in as — the add-in shows it under the ⋯ menu — and compare it with the email on your OWOX profile. They must be the same address.
-- **The email is not verified on the Microsoft side.** Some accounts, especially personal ones, carry an address Microsoft has not verified. OWOX cannot accept an unverified address as identity. Verifying the email with Microsoft, or signing in with your work account, resolves it.
-- **You have no OWOX account yet.** The add-in cannot create one. Sign up at [app.owox.com](https://app.owox.com) first, then sign in again.
+- **Different email.** Open the **⋯** menu in the task pane to see the signed-in account. Compare it with your OWOX profile email. They must match.
+- **Unverified email.** Personal Microsoft accounts often carry an unverified address. Verify it with Microsoft, or sign in with your work account.
+- **No OWOX account.** The add-in cannot create one. Sign up at [app.owox.com](https://app.owox.com), then sign in again.
 
-### Notes on column headers look cut off
+### A report run fails or returns no rows
 
-Excel gives a note a fixed box and does not grow it to fit. The add-in sizes each note to its text on desktop, but **Excel on the web does not support setting a note's size at all** — the text is there, and dragging the note's edge reveals the rest.
+The task pane shows the error from OWOX. Common causes:
+
+- **The Data Mart is unpublished, or you lost access.** Ask the Data Mart owner in OWOX.
+- **The storage connection or query failed.** Your data team fixes it in OWOX. Run the report again after the Data Mart runs there.
+- **The filters exclude every row.** Edit the report and loosen the filters.
+- **The result is too large for Excel.** Narrow the report with filters.
+
+### Header notes look cut off
+
+Excel on the web cannot resize notes. The full text is there. Drag the note's edge to reveal it.
 
 ### A refresh reports nothing, or the wrong sheet changed
 
-**The report is not linked to a worksheet in this workbook.** Refreshing a report opened from **All reports** writes into the sheet that report is bound to. If the binding is gone — the sheet was deleted, or the report was created in a different workbook — the add-in says so rather than guessing, because writing begins by clearing the sheet.
+**The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh starts by clearing the sheet.
 
-**Two sheets answer to the same report.** Copying a worksheet copies its binding with it. The add-in refreshes the sheet you are looking at when it is one of them; otherwise it takes the first. Delete the binding you do not want by removing the copied sheet.
+**Two sheets share one report.** Copying a worksheet copies its binding. Delete the copy you do not need.
 
 ### Still stuck
 
-Contact support with:
+Contact us at `bi@owox.com` or open a thread in [GitHub Discussions](https://github.com/OWOX/owox-data-marts/discussions). Include:
 
-- what you did and what you saw, including exact error text;
-- the output of `owoxHostDiagnostics()`;
-- whether you are on the web, Windows or Mac, and whether the workbook is in OneDrive/SharePoint or stored locally.
+- what you did and what you saw, with exact error text;
+- the output of `owoxHostDiagnostics()` if you are on the web;
+- your platform: web, Windows, or Mac;
+- where the workbook lives: OneDrive, SharePoint, or a local disk.
