@@ -5,6 +5,7 @@ import {
   closeTestApp,
   setupReportPrerequisites,
   AUTH_HEADER,
+  setDataMartSchema,
 } from '@owox/test-utils';
 import { SqlDryRunExecutorFacade } from 'src/data-marts/data-storage-types/facades/sql-dry-run-executor.facade';
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
@@ -92,32 +93,25 @@ describe('Formula live validation API (e2e)', () => {
     const prereqs = await setupReportPrerequisites(agent);
     dataMartId = prereqs.dataMartId;
 
-    const schemaRes = await agent
-      .put(`/api/data-marts/${dataMartId}/schema`)
-      .set(AUTH_HEADER)
-      .send({
-        schema: {
-          type: 'bigquery-data-mart-schema',
-          fields: [
-            { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-            { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-            // A metric that already exists, so a request can be shown breaking something other
-            // than the field it names.
-            {
-              name: 'roas',
-              type: 'FLOAT',
-              mode: 'NULLABLE',
-              status: 'CONNECTED',
-              calculated: {
-                formula:
-                  'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
-                level: 'metric',
-              },
-            },
-          ],
+    await setDataMartSchema(agent, app, dataMartId, {
+      type: 'bigquery-data-mart-schema',
+      fields: [
+        { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+        { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+        // A metric that already exists, so a request can be shown breaking something other
+        // than the field it names.
+        {
+          name: 'roas',
+          type: 'FLOAT',
+          mode: 'NULLABLE',
+          status: 'CONNECTED',
+          calculated: {
+            formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
+            level: 'metric',
+          },
         },
-      });
-    expect(schemaRes.status).toBe(200);
+      ],
+    });
   }, 120_000);
 
   afterAll(async () => {

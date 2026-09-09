@@ -18,6 +18,7 @@ test-utils/
     │   ├── setup-published-data-mart.ts      # setupPublishedDataMart() — SQL definition chain
     │   ├── setup-connector-data-mart.ts      # setupConnectorDataMart() — CONNECTOR definition chain
     │   ├── setup-report-prerequisites.ts     # setupReportPrerequisites() — storage+DM+dest+report
+    │   ├── set-data-mart-schema.ts           # setDataMartSchema() — seed + save an output schema
     │   └── truncate-all-tables.ts            # truncateAllTables() — cleanup helper
     └── fixtures/
         ├── index.ts
@@ -192,6 +193,21 @@ const { storageId, dataMartId, dataDestinationId } = await setupReportPrerequisi
 Uses LOOKER_STUDIO destination type because GOOGLE_SHEETS credential validation calls real Google APIs and will fail in test environments.
 
 **Returns:** `{ storageId: string, dataMartId: string, dataDestinationId: string }`
+
+#### `setDataMartSchema(agent, app, dataMartId, schema)`
+
+Writes an output schema with the field statuses given, then saves it through `PUT /api/data-marts/:id/schema`.
+
+```typescript
+await setDataMartSchema(agent, app, dataMartId, {
+  type: 'bigquery-data-mart-schema',
+  fields: [{ name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' }],
+});
+```
+
+Field statuses are server-owned: the save keeps every native field it cannot verify against the storage `DISCONNECTED`, and test storages have no warehouse to actualize against. The helper seeds the schema straight into the database first (the same bypass `setupConnectorDataMart` uses for storage config), so the save carries the seeded statuses forward and calculated fields still go through the real validation.
+
+**Returns:** the `PUT` response.
 
 #### `truncateAllTables(dataSource)`
 

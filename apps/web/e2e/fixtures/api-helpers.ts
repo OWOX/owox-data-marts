@@ -39,19 +39,22 @@ export function resetDatabase(): void {
   }
 }
 
+function openTestDatabase() {
+  const dbPath = process.env.SQLITE_DB_PATH;
+  if (!dbPath) throw new Error('SQLITE_DB_PATH not set — cannot seed the test database');
+
+  const esmRequire = createRequire(import.meta.url);
+  const Database = esmRequire('better-sqlite3');
+  return new Database(resolve(dbPath));
+}
+
 /**
  * Seeds storage config and a dummy credential directly in the SQLite DB.
  * Required for CONNECTOR definitions — the update-storage API validates
  * against real cloud services, so we bypass it by writing to the DB file.
  */
 function seedStorageConfig(storageId: string): void {
-  const dbPath = process.env.SQLITE_DB_PATH;
-  if (!dbPath) throw new Error('SQLITE_DB_PATH not set — cannot seed storage config');
-
-  const absPath = resolve(dbPath);
-  const esmRequire = createRequire(import.meta.url);
-  const Database = esmRequire('better-sqlite3');
-  const db = new Database(absPath);
+  const db = openTestDatabase();
 
   try {
     const credentialId = randomUUID();
@@ -63,6 +66,24 @@ function seedStorageConfig(storageId: string): void {
       JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }),
       credentialId,
       storageId
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Field statuses are server-owned: the save keeps every native field it cannot verify against
+ * the storage DISCONNECTED, and the e2e storage has no warehouse, so the schema is seeded with
+ * the statuses given before it is saved through the API.
+ */
+function seedDataMartSchema(dataMartId: string, schema: Record<string, unknown>): void {
+  const db = openTestDatabase();
+
+  try {
+    db.prepare(`UPDATE data_mart SET schema = ? WHERE id = ?`).run(
+      JSON.stringify(schema),
+      dataMartId
     );
   } finally {
     db.close();
@@ -104,12 +125,15 @@ export class ApiHelpers {
   }
 
   /**
-   * Writes the output schema directly. `fields` is the storage-specific field list — BigQuery's
-   * shape here, matching the `bigquery-data-mart-schema` type the default test storage uses.
+   * Seeds the output schema with the statuses given, then saves it through the API so calculated
+   * fields get the real save. `fields` is the storage-specific field list — BigQuery's shape here,
+   * matching the `bigquery-data-mart-schema` type the default test storage uses.
    */
   async setSchema(dataMartId: string, fields: Record<string, unknown>[]): Promise<void> {
+    const schema = { type: 'bigquery-data-mart-schema', fields };
+    seedDataMartSchema(dataMartId, schema);
     const res = await this.page.request.put(`/api/data-marts/${dataMartId}/schema`, {
-      data: { schema: { type: 'bigquery-data-mart-schema', fields } },
+      data: { schema },
     });
     expect(res.ok()).toBeTruthy();
   }

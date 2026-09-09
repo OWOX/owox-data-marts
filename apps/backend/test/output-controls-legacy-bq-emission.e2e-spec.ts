@@ -11,6 +11,7 @@ import {
   signLookerPayload,
   mockGoogleJwkFetch,
   restoreGoogleJwkFetch,
+  setDataMartSchema,
 } from '@owox/test-utils';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
@@ -160,30 +161,19 @@ describe('Output controls — Legacy BigQuery SQL emission (e2e)', () => {
         definition: { sqlQuery: 'SELECT id, created_at FROM events' },
       });
 
-    await agent
-      .put(`/api/data-marts/${dataMartId}/schema`)
-      .set(AUTH_HEADER)
-      .send({
-        schema: {
-          type: 'bigquery-data-mart-schema',
-          fields: [
-            {
-              name: 'id',
-              type: 'INTEGER',
-              mode: 'NULLABLE',
-              status: 'CONNECTED',
-              isPrimaryKey: false,
-            },
-            {
-              name: 'created_at',
-              type: 'TIMESTAMP',
-              mode: 'NULLABLE',
-              status: 'CONNECTED',
-              isPrimaryKey: false,
-            },
-          ],
+    await setDataMartSchema(agent, app, dataMartId, {
+      type: 'bigquery-data-mart-schema',
+      fields: [
+        { name: 'id', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED', isPrimaryKey: false },
+        {
+          name: 'created_at',
+          type: 'TIMESTAMP',
+          mode: 'NULLABLE',
+          status: 'CONNECTED',
+          isPrimaryKey: false,
         },
-      });
+      ],
+    });
 
     expect((await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER)).status).toBe(
       200

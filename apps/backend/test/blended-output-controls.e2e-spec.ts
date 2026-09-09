@@ -48,7 +48,7 @@ describe('Blended output controls full-flow (e2e)', () => {
     ]);
     app = testApp.app;
     agent = testApp.agent;
-    prereqs = await setupBlendedReportPrerequisites(agent, { withSchemas: true });
+    prereqs = await setupBlendedReportPrerequisites(agent, { withSchemas: true, app });
   }, 60_000);
 
   afterAll(async () => {

@@ -2,13 +2,18 @@ import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMart } from '../entities/data-mart.entity';
-import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import { calculatedFieldsOf, isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import {
   CalculatedFieldValidatorService,
   DryRunContext,
 } from '../calculated-fields/calculated-field-validator.service';
 import { FormulaViolations } from '../calculated-fields/formula-violations';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import type {
+  DataMartSchema,
+  DataMartSchemaField,
+} from '../data-storage-types/data-mart-schema.type';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataMartSchemaParserFacade } from '../data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartSchemaResult } from '../dto/domain/update-data-mart-schema-result.dto';
@@ -55,6 +60,7 @@ export class UpdateDataMartSchemaService {
       command.schema,
       dataMart.storage.type
     );
+    applyServerOwnedFieldStatuses(parsed, dataMart.schema);
 
     // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
     // reads `ctx.dataMart.schema` to find each metric's formula, so the context below must carry
@@ -168,5 +174,39 @@ export class UpdateDataMartSchemaService {
   private async saveAndInvalidate(dataMart: DataMart): Promise<void> {
     await this.dataMartService.save(dataMart);
     await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
+  }
+}
+
+function applyServerOwnedFieldStatuses(
+  schema: DataMartSchema,
+  persistedSchema: DataMartSchema | undefined
+): void {
+  // Connection status is derived by schema actualization. A manual API save may only carry the
+  // last server-owned value forward; a new warehouse field starts disconnected.
+  const persistedFields = persistedSchema?.type === schema.type ? persistedSchema.fields : [];
+  applyFieldStatuses(schema.fields, persistedFields);
+}
+
+function applyFieldStatuses(
+  fields: DataMartSchemaField[],
+  persistedFields: readonly DataMartSchemaField[]
+): void {
+  const persistedByName = new Map(persistedFields.map(field => [field.name, field]));
+
+  for (const field of fields) {
+    const persistedField = persistedByName.get(field.name);
+    field.status = isCalculatedField(field)
+      ? DataMartSchemaFieldStatus.CONNECTED
+      : persistedField && !isCalculatedField(persistedField)
+        ? persistedField.status
+        : DataMartSchemaFieldStatus.DISCONNECTED;
+
+    if ('fields' in field && field.fields) {
+      const persistedNestedFields =
+        persistedField && 'fields' in persistedField && persistedField.fields
+          ? persistedField.fields
+          : [];
+      applyFieldStatuses(field.fields, persistedNestedFields);
+    }
   }
 }

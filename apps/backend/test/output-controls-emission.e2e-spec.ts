@@ -12,6 +12,7 @@ import {
   signLookerPayload,
   mockGoogleJwkFetch,
   restoreGoogleJwkFetch,
+  setDataMartSchema,
 } from '@owox/test-utils';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
@@ -112,18 +113,13 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
       .set(AUTH_HEADER)
       .send({ definitionType: 'TABLE', definition: { fullyQualifiedName: 'testdb.events' } });
 
-    await agent
-      .put(`/api/data-marts/${dataMartId}/schema`)
-      .set(AUTH_HEADER)
-      .send({
-        schema: {
-          type: 'athena-data-mart-schema',
-          fields: [
-            { name: 'id', type: 'INTEGER', status: 'CONNECTED', isPrimaryKey: false },
-            { name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED', isPrimaryKey: false },
-          ],
-        },
-      });
+    await setDataMartSchema(agent, app, dataMartId, {
+      type: 'athena-data-mart-schema',
+      fields: [
+        { name: 'id', type: 'INTEGER', status: 'CONNECTED', isPrimaryKey: false },
+        { name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED', isPrimaryKey: false },
+      ],
+    });
 
     expect((await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER)).status).toBe(
       200

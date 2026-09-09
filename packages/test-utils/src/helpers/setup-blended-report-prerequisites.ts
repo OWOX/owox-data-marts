@@ -1,9 +1,11 @@
+import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER } from '../constants';
 import { StorageBuilder } from '../fixtures/storage.builder';
 import { DataMartBuilder } from '../fixtures/data-mart.builder';
 import { DataDestinationBuilder } from '../fixtures/data-destination.builder';
 import { ReportBuilder } from '../fixtures/report.builder';
+import { setDataMartSchema } from './set-data-mart-schema';
 import { DataDestinationType } from '../../../../apps/backend/src/data-marts/data-destination-types/enums/data-destination-type.enum';
 
 /**
@@ -74,32 +76,22 @@ export const ORGS_SCHEMA = {
 
 // ── Options ─────────────────────────────────────────────────────────────────
 
-export interface SetupBlendedReportOptions {
-  /**
-   * When true, sets real BigQuery schemas on all three data marts via
-   * `PUT /api/data-marts/:id/schema`.  This unlocks native-column validation
-   * paths (FILTER_COLUMN_UNKNOWN, SORT_COLUMN_NOT_SELECTED on native columns)
-   * and allows BlendableSchemaService to run without any mock.
-   *
-   * Default: false — preserves the original bootstrap behaviour (empty schema,
-   * fast, does not break suites that mock the schema service themselves).
-   */
-  withSchemas?: boolean;
-}
-
-// ── Helper: set schema via real API ─────────────────────────────────────────
-
-async function setSchema(
-  agent: supertest.Agent,
-  dataMartId: string,
-  schema: Record<string, unknown>
-): Promise<void> {
-  const res = await agent
-    .put(`/api/data-marts/${dataMartId}/schema`)
-    .set(AUTH_HEADER)
-    .send({ schema });
-  expect(res.status).toBe(200);
-}
+export type SetupBlendedReportOptions =
+  | { withSchemas?: false }
+  | {
+      /**
+       * Sets real BigQuery schemas on all three data marts through
+       * {@link setDataMartSchema}.  This unlocks native-column validation
+       * paths (FILTER_COLUMN_UNKNOWN, SORT_COLUMN_NOT_SELECTED on native columns)
+       * and allows BlendableSchemaService to run without any mock.
+       *
+       * Omitted: preserves the original bootstrap behaviour (empty schema,
+       * fast, does not break suites that mock the schema service themselves).
+       */
+      withSchemas: true;
+      /** The test app the schemas are seeded into. */
+      app: INestApplication;
+    };
 
 /**
  * Bootstraps a fully-wired blended report through the REST API only.
@@ -135,7 +127,7 @@ async function setSchema(
  *   returned `reportId` across `it` blocks is the intended usage pattern.
  *
  * @param agent  A supertest agent bound to a running test NestJS app.
- * @param opts   Optional configuration.  Pass `{ withSchemas: true }` to seed
+ * @param opts   Optional configuration.  Pass `{ withSchemas: true, app }` to seed
  *               BigQuery schemas on all three data marts so native-column filter
  *               and sort validation paths are exercisable without mocking
  *               BlendableSchemaService.
@@ -191,13 +183,13 @@ export async function setupBlendedReportPrerequisites(
   const orgsDataMartId = await createPublishedDataMart('Blended Test - orgs');
 
   // ── Step 3b (opt-in): Seed real BigQuery schemas ──────────────────────────
-  //   When withSchemas is true, set typed field schemas via the real API so
+  //   When withSchemas is true, seed typed field schemas so
   //   BlendableSchemaService.computeBlendableSchema returns native + blended
   //   fields without any mock.  This unlocks native-column validation paths.
   if (opts.withSchemas) {
-    await setSchema(agent, mainDataMartId, EVENTS_SCHEMA);
-    await setSchema(agent, usersDataMartId, USERS_SCHEMA);
-    await setSchema(agent, orgsDataMartId, ORGS_SCHEMA);
+    await setDataMartSchema(agent, opts.app, mainDataMartId, EVENTS_SCHEMA);
+    await setDataMartSchema(agent, opts.app, usersDataMartId, USERS_SCHEMA);
+    await setDataMartSchema(agent, opts.app, orgsDataMartId, ORGS_SCHEMA);
   }
 
   // ── Step 4: Create relationships on the home data mart ────────────────────

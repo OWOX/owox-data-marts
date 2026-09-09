@@ -8,6 +8,7 @@ import {
   DataDestinationBuilder,
   ReportBuilder,
   AUTH_HEADER,
+  setDataMartSchema,
 } from '@owox/test-utils';
 import { DataDestinationType } from 'src/data-marts/data-destination-types/enums/data-destination-type.enum';
 import { CreateViewService } from 'src/data-marts/use-cases/create-view.service';
@@ -63,19 +64,13 @@ describe('Output controls API (e2e)', () => {
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;
 
-    const schemaRes = await agent
-      .put(`/api/data-marts/${dataMartId}/schema`)
-      .set(AUTH_HEADER)
-      .send({
-        schema: {
-          type: 'bigquery-data-mart-schema',
-          fields: [
-            { name: 'col_a', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
-            { name: 'col_b', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
-          ],
-        },
-      });
-    expect(schemaRes.status).toBe(200);
+    await setDataMartSchema(agent, app, dataMartId, {
+      type: 'bigquery-data-mart-schema',
+      fields: [
+        { name: 'col_a', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+        { name: 'col_b', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+      ],
+    });
 
     // Seed baseline report. LOOKER_STUDIO destinations use a deterministic
     // UUID v5 derived from (dataMartId, dataDestinationId), so there can be
@@ -312,11 +307,7 @@ describe('Output controls API (e2e)', () => {
         ],
       ];
       for (const [id, schema] of schemas) {
-        const res = await agent
-          .put(`/api/data-marts/${id}/schema`)
-          .set(AUTH_HEADER)
-          .send({ schema });
-        expect(res.status).toBe(200);
+        await setDataMartSchema(agent, app, id, schema);
       }
 
       // A LOOKER_STUDIO report id is a UUID v5 of (dataMartId, dataDestinationId), so the
@@ -484,6 +475,14 @@ describe('Output controls API (e2e)', () => {
       cmDataMartId = prereqs.dataMartId;
       cmDataDestinationId = prereqs.dataDestinationId;
 
+      await setDataMartSchema(agent, app, cmDataMartId, {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+        ],
+      });
+
       const createRes = await agent
         .post('/api/reports')
         .set(AUTH_HEADER)
@@ -648,46 +647,28 @@ describe('Output controls API (e2e)', () => {
       const prereqs = await setupBlendedReportPrerequisites(agent);
       blendMainDataMartId = prereqs.mainDataMartId;
 
-      const mainSchemaRes = await agent
-        .put(`/api/data-marts/${prereqs.mainDataMartId}/schema`)
-        .set(AUTH_HEADER)
-        .send({
-          schema: {
-            type: 'bigquery-data-mart-schema',
-            fields: [
-              { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-              { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-              {
-                name: 'ctr',
-                type: 'FLOAT',
-                mode: 'NULLABLE',
-                status: 'CONNECTED',
-                calculated: { formula: CTR_FORMULA, level: 'metric' },
-              },
-            ],
+      await setDataMartSchema(agent, app, prereqs.mainDataMartId, {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            mode: 'NULLABLE',
+            status: 'CONNECTED',
+            calculated: { formula: CTR_FORMULA, level: 'metric' },
           },
-        });
-      expect(mainSchemaRes.status).toBe(200);
+        ],
+      });
 
       // A declared primary key is what makes `users` an available Unique Count source at all.
-      const usersSchemaRes = await agent
-        .put(`/api/data-marts/${prereqs.usersDataMartId}/schema`)
-        .set(AUTH_HEADER)
-        .send({
-          schema: {
-            type: 'bigquery-data-mart-schema',
-            fields: [
-              {
-                name: 'id',
-                type: 'STRING',
-                mode: 'NULLABLE',
-                status: 'CONNECTED',
-                isPrimaryKey: true,
-              },
-            ],
-          },
-        });
-      expect(usersSchemaRes.status).toBe(200);
+      await setDataMartSchema(agent, app, prereqs.usersDataMartId, {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED', isPrimaryKey: true },
+        ],
+      });
 
       // A fresh destination: the prerequisites' own report already owns the
       // (mainDataMartId, dataDestinationId) pair used by its deterministic LOOKER_STUDIO UUID.
