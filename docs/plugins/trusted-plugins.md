@@ -71,9 +71,10 @@ Check a project that had no plugins before:
 2. The plugin is in the Gallery with the **Verified** badge and the expected current version.
 3. Install it and open it once with a regular member account.
 
-Members see a link to the plugin's repository on its page, and anyone can follow it. Before
-publishing deployment-wide, make sure the repository's default branch and README describe the
-plugin as it is actually released.
+For a public repository, members see a link to it on the plugin page, and anyone can follow it;
+a private repository is shown as **Private repository** with no link. Before publishing a public
+repository deployment-wide, make sure its default branch and README describe the plugin as it is
+actually released.
 
 ## Withdraw or suspend
 
