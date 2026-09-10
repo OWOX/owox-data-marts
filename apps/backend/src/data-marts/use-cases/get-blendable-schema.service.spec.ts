@@ -55,6 +55,19 @@ describe('GetBlendableSchemaService', () => {
     expect(result).toBe(blendableSchema);
   });
 
+  it('keeps draft targets excluded by default', async () => {
+    const { service, blendableSchemaService } = createService(true);
+
+    await service.run(new GetBlendableSchemaCommand('dm-1', 'proj-1', 'user-1', ['viewer']));
+
+    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1',
+      { userId: 'user-1', roles: ['viewer'] },
+      { includeDraftTargets: false }
+    );
+  });
+
   it('throws ForbiddenException when user lacks SEE on DataMart', async () => {
     const { service } = createService(false);
 

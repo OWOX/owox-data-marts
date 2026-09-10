@@ -188,6 +188,11 @@ describe('BlendableSchemaService', () => {
     });
 
     it('includes configured draft targets for relationship editing', async () => {
+      const draftDataMart = makeDataMart({
+        id: 'dm-b',
+        status: DataMartStatus.DRAFT,
+        schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+      });
       dataMartService.getByIdAndProjectId.mockResolvedValue(
         makeDataMart({
           id: 'dm-a',
@@ -207,10 +212,15 @@ describe('BlendableSchemaService', () => {
           id: 'rel-ab',
           targetAlias: 'b',
           sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: draftDataMart,
+        }),
+        makeRelationship({
+          id: 'rel-bc',
+          targetAlias: 'c',
+          sourceDataMart: draftDataMart,
           targetDataMart: makeDataMart({
-            id: 'dm-b',
-            status: DataMartStatus.DRAFT,
-            schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+            id: 'dm-c',
+            schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
           }),
         }),
       ]);
@@ -225,10 +235,88 @@ describe('BlendableSchemaService', () => {
           defaultAlias: 'Draft output',
           joinDescription: 'Draft join description',
           fieldCount: 1,
+          depth: 1,
+        }),
+        expect.objectContaining({
+          aliasPath: 'b.c',
+          fieldCount: 1,
+          depth: 2,
         }),
       ]);
       expect(result.blendedFields).toEqual([
         expect.objectContaining({ aliasPath: 'b', originalFieldName: 'b_field' }),
+        expect.objectContaining({ aliasPath: 'b.c', originalFieldName: 'c_field' }),
+      ]);
+    });
+
+    it('keeps calculated-field issues report-safe when draft targets are included', async () => {
+      const draftDataMart = makeDataMart({
+        id: 'dm-b',
+        status: DataMartStatus.DRAFT,
+        schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+      });
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'mixed_total',
+                type: 'FLOAT',
+                calculated: {
+                  formula:
+                    'SUM({{ref path="b" field="b_field"}}) + SUM({{ref path="b.c" field="c_field"}}) + SUM({{ref path="d" field="d_field"}})',
+                  level: 'metric',
+                },
+              },
+            ],
+          } as unknown as DataMart['schema'],
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-ab',
+          targetAlias: 'b',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: draftDataMart,
+        }),
+        makeRelationship({
+          id: 'rel-bc',
+          targetAlias: 'c',
+          sourceDataMart: draftDataMart,
+          targetDataMart: makeDataMart({
+            id: 'dm-c',
+            schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
+          }),
+        }),
+        makeRelationship({
+          id: 'rel-ad',
+          targetAlias: 'd',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-d',
+            schema: makeSchema([{ name: 'd_field', type: 'FLOAT' }]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor, {
+        includeDraftTargets: true,
+      });
+
+      expect(
+        result.blendedFields.map(({ aliasPath, originalFieldName }) => ({
+          aliasPath,
+          originalFieldName,
+        }))
+      ).toEqual([
+        { aliasPath: 'b', originalFieldName: 'b_field' },
+        { aliasPath: 'b.c', originalFieldName: 'c_field' },
+        { aliasPath: 'd', originalFieldName: 'd_field' },
+      ]);
+      expect(result.calculatedFieldIssues).toEqual([
+        { field: 'mixed_total', missing: ['b.b_field', 'b.c.c_field'] },
       ]);
     });
 

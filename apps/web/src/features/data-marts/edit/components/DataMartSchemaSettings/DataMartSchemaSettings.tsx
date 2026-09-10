@@ -230,10 +230,9 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     reset: resetCalculatedFieldFeedback,
   } = useCalculatedFieldSave(saveSchemaMutation);
 
-  // The joined Data Marts' fields a calculated field's formula may reference. Read through the
-  // shared query, so this page holds ONE copy of the blendable schema however many of its cards
-  // need it, and a relationship change invalidated by any of them refreshes what the formula
-  // editor offers too.
+  // The joined Data Marts' fields a calculated field's formula may reference. Report-safe readers
+  // share this default query entry, and a relationship change invalidates every cached variant so
+  // the formula editor refreshes too.
   //
   // The STATUS travels with them: an empty list from a failed request must not read as "this Data
   // Mart joins nothing", or the editor refuses a correct joined reference and blames the analyst

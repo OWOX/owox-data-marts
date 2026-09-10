@@ -174,10 +174,34 @@ export class BlendableSchemaService {
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
 
+    let issueSources = availableSources;
+    let issueFields = blendedFields;
+    if (options.includeDraftTargets === true) {
+      const publishedSources: AvailableSourceDto[] = [];
+      this.collectBlendedFields({
+        sourceId: dataMartId,
+        parentPath: '',
+        sourcesByPath,
+        relationshipsBySource,
+        result: [],
+        availableSources: publishedSources,
+        branchDmIds,
+        depth: 1,
+        storageType: dataMart.storage.type,
+        includeDraftTargets: false,
+      });
+      const publishedPaths = new Set(publishedSources.map(source => source.aliasPath));
+      issueSources = availableSources.filter(source => publishedPaths.has(source.aliasPath));
+      issueFields = blendedFields.filter(field => publishedPaths.has(field.aliasPath));
+    }
+
     const rawSchemaFields = dataMart.schema?.fields ?? [];
-    // The join tree this very call just walked — so a formula's joined reference is checked against
-    // the SAME tree the report builder will route it through, on the one payload the picker reads.
-    const joinedReferenceIndex = buildJoinedReferenceIndex({ availableSources, blendedFields });
+    // Draft fields may be returned for relationship editing, but formulas remain report-safe: the
+    // report builder cannot route through a draft target, so neither may this health verdict.
+    const joinedReferenceIndex = buildJoinedReferenceIndex({
+      availableSources: issueSources,
+      blendedFields: issueFields,
+    });
 
     return {
       nativeFields,

@@ -399,7 +399,9 @@ export function SourceFieldsTable({
                   className='text-center text-gray-400'
                   style={{ whiteSpace: 'nowrap' }}
                 >
-                  No fields match the current filter
+                  {fields.length === 0
+                    ? 'No fields are available in the source Data Mart'
+                    : 'No fields match the current filter'}
                 </TableCell>
               </TableRow>
             )}
