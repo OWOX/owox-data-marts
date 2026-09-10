@@ -2,6 +2,9 @@ import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER } from '../constants';
 
+const backendDir = require('path').dirname(require.resolve('@owox/backend/package.json'));
+const { DataSource } = require(require.resolve('typeorm', { paths: [backendDir] }));
+
 /**
  * Field statuses are server-owned (a save keeps unverified native fields DISCONNECTED) and the e2e
  * storages have no warehouse to actualize against, so the schema is written straight into the DB
@@ -13,8 +16,6 @@ export async function setDataMartSchema(
   dataMartId: string,
   schema: Record<string, unknown>
 ): Promise<supertest.Response> {
-  const backendDir = require('path').dirname(require.resolve('@owox/backend/package.json'));
-  const { DataSource } = require(require.resolve('typeorm', { paths: [backendDir] }));
   await app
     .get(DataSource)
     .query('UPDATE data_mart SET schema = ? WHERE id = ?', [JSON.stringify(schema), dataMartId]);

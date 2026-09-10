@@ -8,7 +8,7 @@ export class UpdateDataMartSchemaApiDto {
     type: () => Object,
     required: true,
     description:
-      'Updated schema of the data mart. Field connection statuses are server-owned: omit them, and any value sent by an older client is ignored. The saved schema carries the last status the server derived; a new native field starts DISCONNECTED until schema actualization (POST /data-marts/{id}/schema-actualize-triggers) verifies it against the storage.',
+      'Updated schema of the data mart. Field connection statuses are server-owned: omit them, and any value sent by an older client is ignored. The saved schema carries the last status the server derived; a new native field starts DISCONNECTED until schema actualization (POST /api/data-marts/{dataMartId}/schema-actualize-triggers) verifies it against the storage.',
   })
   @IsNotEmptyObject()
   schema: DataMartSchemaUpdate;
