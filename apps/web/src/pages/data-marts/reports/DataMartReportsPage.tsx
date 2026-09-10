@@ -4,6 +4,7 @@ import { useParams } from 'react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
+import { Cog } from 'lucide-react';
 import { extractApiError } from '../../../app/api';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../features/data-destination';
 import { DataMartContext } from '../../../features/data-marts/edit/model/context/context';
@@ -20,6 +21,7 @@ import { ReportQuickRunCell } from '../../../features/data-marts/reports/shared'
 import type { DataMartReport } from '../../../features/data-marts/reports/shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../features/data-marts/reports/shared/enums';
 import { reportService } from '../../../features/data-marts/reports/shared/services';
+import { PromoBlock } from '../../../shared/components/PromoBlock/PromoBlock';
 import { BaseTable, SortableHeader, ToggleColumnsHeader } from '../../../shared/components/Table';
 import {
   applyFiltersToData,
@@ -40,6 +42,8 @@ import { buildProjectDataMartContextValue } from '../shared/projectDataMartConte
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
+import { AiAssistantHintCard } from './AiAssistantHintCard';
+import { ConnectAiAssistantPromoActions } from './ConnectAiAssistantPromoActions';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 import {
   ReportGeneratedSqlAction,
@@ -492,41 +496,53 @@ export default function DataMartReportsPage() {
           ) : error ? (
             <div className='dm-card-block text-destructive text-sm'>{error}</div>
           ) : reports.length === 0 ? (
-            <div className='dm-card'>
-              <ProjectDataMartEmptyState variant='reports' />
+            <div className='flex flex-col gap-0.5'>
+              <div className='dm-card'>
+                <ProjectDataMartEmptyState variant='reports' />
+              </div>
+              <AiAssistantHintCard />
             </div>
           ) : (
-            <div className='dm-card' data-testid='projectReportsTable'>
-              <BaseTable
-                tableId={PROJECT_REPORTS_TABLE_ID}
-                table={table}
-                ariaLabel='Project Data Mart Reports'
-                paginationProps={{ displaySelected: false }}
-                renderToolbarLeft={() => (
-                  <>
-                    <ProjectDataMartTableFilters
-                      appliedState={appliedState}
-                      config={filtersConfig}
-                      onApply={apply}
-                      onClear={clear}
-                    />
-                    <ProjectDataMartTableSearch value={searchQuery} onChange={setSearchQuery} />
-                  </>
-                )}
-                renderEmptyState={() => (
-                  <div
-                    className='flex h-32 items-center justify-center text-center'
-                    role='status'
-                    aria-live='polite'
-                  >
-                    No reports found for accessible Data Marts
-                  </div>
-                )}
-                onRowClick={row => {
-                  if (row.original.canEditConfig) {
-                    handleEditReport(row.original);
-                  }
-                }}
+            <div className='flex flex-col gap-4'>
+              <div className='dm-card' data-testid='projectReportsTable'>
+                <BaseTable
+                  tableId={PROJECT_REPORTS_TABLE_ID}
+                  table={table}
+                  ariaLabel='Project Data Mart Reports'
+                  paginationProps={{ displaySelected: false }}
+                  renderToolbarLeft={() => (
+                    <>
+                      <ProjectDataMartTableFilters
+                        appliedState={appliedState}
+                        config={filtersConfig}
+                        onApply={apply}
+                        onClear={clear}
+                      />
+                      <ProjectDataMartTableSearch value={searchQuery} onChange={setSearchQuery} />
+                    </>
+                  )}
+                  renderEmptyState={() => (
+                    <div
+                      className='flex h-32 items-center justify-center text-center'
+                      role='status'
+                      aria-live='polite'
+                    >
+                      No reports found for accessible Data Marts
+                    </div>
+                  )}
+                  onRowClick={row => {
+                    if (row.original.canEditConfig) {
+                      handleEditReport(row.original);
+                    }
+                  }}
+                />
+              </div>
+              <PromoBlock
+                icon={Cog}
+                size='compact'
+                title='Get answers in Claude or ChatGPT'
+                description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
+                actions={<ConnectAiAssistantPromoActions />}
               />
             </div>
           )}

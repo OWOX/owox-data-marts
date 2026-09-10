@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { ExternalLinkIcon } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -17,8 +18,15 @@ export interface PromoBlockProps {
   description?: string;
   subtitle?: string;
 
-  primaryAction: Action;
+  primaryAction?: Action;
   secondaryAction?: Action;
+
+  /**
+   * Custom actions node. When provided it replaces the built-in
+   * primary/secondary buttons — use it for calls to action the two-button model
+   * can't express (e.g. multiple equal links with icons).
+   */
+  actions?: ReactNode;
 
   className?: string;
 
@@ -88,6 +96,7 @@ export function PromoBlock({
   subtitle,
   primaryAction,
   secondaryAction,
+  actions,
   className,
   size = 'default',
   backgroundImageLight,
@@ -142,7 +151,7 @@ export function PromoBlock({
 
     description: cn(
       'text-muted-foreground leading-relaxed dark:text-white/80',
-      isCompact ? 'text-sm mb-4 xl:mb-8' : 'text-base md:text-lg mb-8'
+      isCompact ? 'text-sm mb-4 3xl:mb-8' : 'text-base md:text-lg mb-8'
     ),
 
     actions: cn(
@@ -191,14 +200,17 @@ export function PromoBlock({
           <h2 className={styles.title}>{title}</h2>
           {description && <p className={styles.description}>{description}</p>}
 
-          <div className={styles.actions}>
-            {renderAction(primaryAction, { size: isCompact ? 'sm' : 'lg' })}
-            {secondaryAction &&
-              renderAction(secondaryAction, {
-                variant: 'outline',
-                size: isCompact ? 'sm' : 'lg',
-              })}
-          </div>
+          {actions ??
+            (primaryAction && (
+              <div className={styles.actions}>
+                {renderAction(primaryAction, { size: isCompact ? 'sm' : 'lg' })}
+                {secondaryAction &&
+                  renderAction(secondaryAction, {
+                    variant: 'outline',
+                    size: isCompact ? 'sm' : 'lg',
+                  })}
+              </div>
+            ))}
         </div>
 
         {/* Visual */}
