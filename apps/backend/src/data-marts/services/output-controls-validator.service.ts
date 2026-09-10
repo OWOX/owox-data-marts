@@ -70,7 +70,10 @@ import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule } from '../dto/domain/filter-clause';
 import { isAggregateLevel, type CalculatedFieldLevel } from '../calculated-fields/formula-level';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
-import { collectKnownOutputColumns } from './known-output-columns.util';
+import {
+  collectKnownOutputColumns,
+  uniqueCountOutputColumnNames,
+} from './known-output-columns.util';
 
 // DATE_TYPES that carry a time-of-day component (TIMESTAMP, DATETIME, etc.).
 // A timeZone conversion is only meaningful for these — applying it to a pure
@@ -1084,15 +1087,11 @@ export class OutputControlsValidatorService {
           errors.push({ code: 'JOINED_CALCULATED_FIELD_UNSUPPORTED', ...refusal });
         }
 
-        // Every Unique Count output name the schema can produce: the main label and one per joined
-        // source. Keyed off the SCHEMA rather than the config: all of them are already KNOWN
-        // (`collectKnownOutputColumns`), so a stale sort left after disabling the toggle or
+        // Every name in this set is also KNOWN (`collectKnownOutputColumns` adds the same ones
+        // through the same function), so a stale sort left after disabling the toggle or
         // unticking a source is SORT_COLUMN_NOT_SELECTED rather than the harsher
         // DISCONNECTED_REPORT_COLUMNS, which is reserved for names absent from the schema entirely.
-        const uniqueCountOutputColumns = new Set<string>([UNIQUE_COUNT_LABEL]);
-        for (const source of blendableSchema.availableSources ?? []) {
-          uniqueCountOutputColumns.add(buildJoinedUniqueCountColumnName(source.aliasPath));
-        }
+        const uniqueCountOutputColumns = uniqueCountOutputColumnNames(blendableSchema);
 
         // A filter naming one of those columns is rejected HERE, and its rule is kept out of
         // validateFilters below: unknown to the field index, it would otherwise become
@@ -1213,13 +1212,20 @@ export class OutputControlsValidatorService {
             routedFilters.some(rule => forcesAggregation(rule.column));
 
           if (isAggregatedShape) {
-            // With no explicit columnConfig the projection is `SELECT *` over the home mart's
-            // NATIVE fields only (the one aggregated shape that allows it is a main Unique Count on
-            // its own), MINUS every calculated field: it has no warehouse column, so `SELECT *`
-            // cannot project it and it is composed only when named. Resolved through the one
-            // function that already answers "what does an implicit-all selection contain".
+            // With no explicit columnConfig the only aggregated shape that is valid here is a main
+            // Unique Count on its own (aggregations, date buckets and a joined Unique Count all
+            // demand an explicit projection above), and that shape projects NO dimensions: the
+            // run composes an empty column list and the builder renders the bare
+            // COUNT(DISTINCT key), so a sort on a native column would be an ORDER BY outside the
+            // GROUP BY — a warehouse error on every run. Modelled on the projection
+            // `validateOutputColumnNames` uses below: nothing for a metrics-only read, otherwise
+            // the implicit-all native set MINUS every calculated field (it has no warehouse
+            // column, so `SELECT *` cannot project it and it is composed only when named).
             const selectedSet = new Set(
-              args.columnConfig ?? implicitAllNativeColumnNames(blendableSchema)
+              args.columnConfig ??
+                (isMetricsOnlyProjection(parsedAggregations, args.uniqueCountConfig)
+                  ? []
+                  : implicitAllNativeColumnNames(blendableSchema))
             );
             // Unique Count is a synthetic metric column (COUNT(DISTINCT <pk>)), not a
             // projected field — allow sorting by it whenever it's enabled. Each joined source's

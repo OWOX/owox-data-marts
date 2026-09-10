@@ -9,6 +9,7 @@ import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-q
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
@@ -29,12 +30,7 @@ describe('ReportSqlComposerService', () => {
     }) as unknown as Report;
 
   const createService = (
-    decision: {
-      needsBlending: boolean;
-      blendedSql?: string;
-      columnFilter?: string[];
-      blendedDataHeaders?: ReportDataHeader[];
-    },
+    decision: BlendingDecision,
     builtSql = 'SELECT built FROM dm',
     capabilitySupported = true
   ) => {
@@ -51,6 +47,9 @@ describe('ReportSqlComposerService', () => {
       isSupported: jest.fn().mockReturnValue(capabilitySupported),
     };
     const blendableSchemaService = { computeBlendableSchema: jest.fn() };
+    // The composer validates the REPORT's own config before deriving a Totals restriction from
+    // its HAVING rules (that precondition used to hold by call order alone).
+    const outputControlsValidator = { validateForReport: jest.fn().mockResolvedValue(undefined) };
 
     const service = new ReportSqlComposerService(
       blendedReportDataService as never,
@@ -58,9 +57,7 @@ describe('ReportSqlComposerService', () => {
       tableReferenceService as never,
       capabilityService as never,
       blendableSchemaService as never,
-      // The composer validates the REPORT's own config before deriving a Totals restriction from
-      // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      outputControlsValidator as never
     );
 
     return {
@@ -69,6 +66,7 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade,
       tableReferenceService,
       capabilityService,
+      outputControlsValidator,
     };
   };
 
@@ -95,16 +93,8 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
-  // The blending decision already pruned this for the validator; the composer reads the STORED
-  // report again, so it prunes again from the same schema, or ORDER BY would name a column the
-  // warehouse no longer has and fail the run over its row order. The LIMIT travels untouched:
-  // under it the delivered rows may now differ, but clearing it would make the run unbounded.
-  it('drops a sort on a column missing from the schema before building the query, keeping the limit', async () => {
-    const { service, queryBuilderFacade } = createService(
-      { needsBlending: false, columnFilter: ['a'] },
-      'SELECT 1'
-    );
-    const report = buildReport({
+  const reportWithStaleSort = () =>
+    buildReport({
       columnConfig: ['a'],
       sortConfig: [
         { column: 'ghost', direction: 'desc' },
@@ -119,11 +109,79 @@ describe('ReportSqlComposerService', () => {
       },
     } as unknown as Partial<Report>);
 
-    await service.compose(report, { userId: 'user-1', roles: ['admin'] });
+  // A run's decision was resolved with degradation on and settled the sort; the composer applies
+  // THAT list rather than pruning the stored one again from a narrower set. The LIMIT travels
+  // untouched: under it the delivered rows may now differ, but clearing it would make the run
+  // unbounded.
+  it("applies the decision's sort instead of the stored one, keeping the limit", async () => {
+    const { service, queryBuilderFacade } = createService(
+      {
+        needsBlending: false,
+        columnFilter: ['a'],
+        sort: [{ column: 'a', direction: 'asc' }],
+      },
+      'SELECT 1'
+    );
+
+    await service.compose(reportWithStaleSort(), { userId: 'user-1', roles: ['admin'] });
 
     const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
     expect(options.sort).toEqual([{ column: 'a', direction: 'asc' }]);
     expect(options.limit).toBe(10);
+  });
+
+  // No `sort` on the decision means no degradation was applied: the stored rules were validated
+  // as they are, so they render as they are — the composer never second-guesses the validator.
+  it('falls back to the stored sort when the decision carries none', async () => {
+    const { service, queryBuilderFacade } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1'
+    );
+
+    await service.compose(reportWithStaleSort(), { userId: 'user-1', roles: ['admin'] });
+
+    const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+    expect(options.sort).toEqual([
+      { column: 'ghost', direction: 'desc' },
+      { column: 'a', direction: 'asc' },
+    ]);
+    expect(options.limit).toBe(10);
+  });
+
+  // Totals never sort, so a stale stored sort is the rows path's business — degraded on a run,
+  // rejected on a save. Re-validating it behind the HAVING restriction would fail Totals over a
+  // clause Totals never render.
+  it('validates the report behind a HAVING restriction without its stored sort', async () => {
+    const { service, outputControlsValidator } = createService({
+      needsBlending: false,
+      columnFilter: ['revenue'],
+    });
+    const report = buildReport({
+      columnConfig: ['country', 'revenue'],
+      aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+      filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 10 }],
+      sortConfig: [{ column: 'ghost', direction: 'desc' }],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'project-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        schema: {
+          fields: [
+            { name: 'country', type: 'STRING', status: 'CONNECTED' },
+            { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+          ],
+        },
+      },
+    } as unknown as Partial<Report>);
+
+    const totals = await service.composeTotals(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(totals).not.toBeNull();
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledTimes(1);
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({ filterConfig: report.filterConfig, sortConfig: null })
+    );
   });
 
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {

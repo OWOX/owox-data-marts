@@ -1202,9 +1202,15 @@ describe('StreamHttpDataService', () => {
         implicitAllBlended: ['orders__cost'],
       }
     );
+    // An ad-hoc plan's sort names were just checked against the current schema, so nothing
+    // degrades here — an unknown one is the caller's own mistake and must stay a 400: the
+    // options slot stays empty.
     expect(blended.resolveBlendingDecision).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),
-      { userId: 'user-1', roles: ['viewer'] }
+      { userId: 'user-1', roles: ['viewer'] },
+      undefined,
+      undefined,
+      undefined
     );
   });
 
@@ -1316,6 +1322,37 @@ describe('StreamHttpDataService', () => {
       const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
       expect(readPlan).not.toHaveProperty('dataDestination');
       expect(usesSuffixedJoinedFieldNames(readPlan)).toBe(false);
+    });
+
+    it('resolves the decision with stale-sort degradation on (a stored report, no editor open)', async () => {
+      // A saved report pulled over this endpoint is executed as stored: a sort on a column the
+      // schema has since lost must degrade (row order, never values) rather than fail the read,
+      // exactly as it does on a scheduled run. The ad-hoc Data Mart path above never sets this.
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: null,
+        sortConfig: [{ column: 'ghost', direction: 'desc' }],
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+
+      // The degraded decision carries the sort the query applied; the run record must say the
+      // same, not the stored list, or Run History claims an order the rows never had.
+      blended.resolveBlendingDecision.mockResolvedValueOnce({ needsBlending: false, sort: [] });
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(blended.resolveBlendingDecision.mock.calls.at(-1)![4]).toEqual({
+        degradeStaleSort: true,
+      });
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({ metadata: expect.objectContaining({ sort: [] }) })
+      );
     });
 
     it('rejects with NotFoundException for a report belonging to another project, and does no work', async () => {
@@ -1846,6 +1883,7 @@ describe('deriveStreamPlanContext', () => {
       reportId: 'report-1',
       metadataColumns: ['date'],
       captureExecutionSql: true,
+      degradesStaleSort: true,
     });
   });
 
@@ -1858,5 +1896,6 @@ describe('deriveStreamPlanContext', () => {
 
     expect(context.reportId).toBeUndefined();
     expect(context.captureExecutionSql).toBe(false);
+    expect(context.degradesStaleSort).toBe(false);
   });
 });

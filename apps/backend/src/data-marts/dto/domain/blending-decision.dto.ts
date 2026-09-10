@@ -8,6 +8,7 @@ import {
   ResolvedRelationshipChain,
 } from '../../data-storage-types/interfaces/blended-query-builder.interface';
 import { AggregationRule } from '../schemas/aggregation-config.schema';
+import { SortRule } from '../schemas/sort-config.schema';
 
 export interface BlendingDecision {
   needsBlending: boolean;
@@ -25,6 +26,14 @@ export interface BlendingDecision {
    * no longer has.
    */
   aggregations?: AggregationRule[];
+  /**
+   * The sort the readers must apply. Set on every decision built with degradation on
+   * (`BlendingDecisionOptions.degradeStaleSort`): the stored rules minus those whose column the
+   * schema no longer offers — an empty list included, which means "the stored rules all went".
+   * Absent when no degradation was applied; readers then use the stored `sortConfig` as it is,
+   * which the validator inside the decision has just accepted.
+   */
+  sort?: SortRule[] | null;
   /**
    * The main Data Mart's CURRENT primary key, on every decision (blended or not). Readers gate the
    * `Unique Count` header on it so the header and the SQL column disappear together.

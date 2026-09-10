@@ -4455,6 +4455,74 @@ describe('OutputControlsValidatorService', () => {
         response.details.errors.some(e => e.code === 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY')
       ).toBe(true);
     });
+
+    // A main Unique Count with no explicit projection projects NO dimensions — the run composes an
+    // empty column list and the builder renders the bare COUNT(DISTINCT key) — so a sort on a
+    // native column would be an ORDER BY outside the GROUP BY and fail on the warehouse.
+    it('rejects sorting by a native column under a main Unique Count with NO projection → SORT_COLUMN_NOT_SELECTED', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'country', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'country', direction: 'asc' }],
+          limitConfig: null,
+          uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      // The column exists on the schema: a not-selected 400, never the disconnected diagnosis.
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column?: string }[] };
+      };
+      expect(response.details.errors).toEqual([
+        { code: 'SORT_COLUMN_NOT_SELECTED', column: 'country' },
+      ]);
+    });
+
+    it('accepts sorting by "Unique Count" under a main Unique Count with NO projection', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'country', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+          limitConfig: null,
+          uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
   });
 
   // #6792 + #6764: a joined source's `<aliasPath>__unique_count` is sortable exactly like the main

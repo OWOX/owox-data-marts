@@ -248,7 +248,13 @@ export class RunReportService {
       // receive the result via PrepareReportDataOptions.
       const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(
         report,
-        accessor
+        accessor,
+        undefined,
+        undefined,
+        // A STORED report executing on a schedule or by hand: no editor is open to fix a sort
+        // whose column the schema has since lost, so the decision drops that rule (row order,
+        // never values) instead of failing the run over it.
+        { degradeStaleSort: true }
       );
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
 
@@ -280,8 +286,14 @@ export class RunReportService {
         calculatedFields = blendingDecision.calculatedFields;
       } else if (hasOutputControls(report)) {
         // Non-blended report with output controls — compose the full SQL + params here so
-        // the reader doesn't need to know about output-controls semantics.
-        const composed = await this.reportSqlComposerService.compose(report, accessor);
+        // the reader doesn't need to know about output-controls semantics. The decision above
+        // is handed in rather than resolved again: it already fetched the schema, validated the
+        // config and settled the sort, and the composer applies that sort as given.
+        const composed = await this.reportSqlComposerService.compose(
+          report,
+          accessor,
+          blendingDecision
+        );
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
         calculatedFields = composed.calculatedFields;
@@ -290,6 +302,13 @@ export class RunReportService {
         blendingDecision.columnFilter,
         calculatedFields
       );
+
+      // The run record snapshots the output controls IN FORCE: a degraded decision carries the
+      // stored sort minus the rules it dropped, and Run History would otherwise claim an order
+      // the delivered rows never had, right beside the executed SQL that shows they did not.
+      if (blendingDecision.sort !== undefined && dataMartRun?.reportDefinition?.outputConfig) {
+        dataMartRun.reportDefinition.outputConfig.sortConfig = blendingDecision.sort ?? undefined;
+      }
 
       // Persist the exact executed SQL (output controls applied, params inlined as
       // literals — same render as the generated-SQL preview) onto the run record so

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { DataMart } from '../entities/data-mart.entity';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
@@ -52,10 +52,6 @@ import {
   type AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
 import { UNIQUE_COUNT_LABEL } from '../dto/schemas/aggregation-labels';
-import {
-  collectKnownNativeOutputColumns,
-  withoutUnknownSortColumns,
-} from './known-output-columns.util';
 import { categorizeFieldType } from '../dto/schemas/field-type-category';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
@@ -68,8 +64,6 @@ type SchemaFieldDescriptor = ReturnType<typeof collectSchemaFieldPathDescriptors
 
 @Injectable()
 export class ReportSqlComposerService {
-  private readonly logger = new Logger(ReportSqlComposerService.name);
-
   constructor(
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
@@ -107,6 +101,10 @@ export class ReportSqlComposerService {
      * own header source, and leaving its name in `columnFilter` too double-emits it. */
     calculatedFields?: CalculatedFieldPlan[];
   }> {
+    // A decision resolved HERE serves an ad-hoc caller — an MCP or HTTP query, the Generated SQL
+    // preview, a save dry run — so it carries no degrade option: a stale sort must come back as
+    // the validator's disconnected error. A stored report's run resolves its own decision, with
+    // degradation on, and hands it in as `precomputedDecision`.
     const decision =
       precomputedDecision ??
       (await this.blendedReportDataService.resolveBlendingDecision(
@@ -260,22 +258,14 @@ export class ReportSqlComposerService {
     const pkFields = getMainUniqueCountKeyFields(schemaFields);
     const uniqueCount = hasMainUniqueCount(report.uniqueCountConfig);
 
-    // A sort on a column the schema no longer offers is dropped rather than failing the run —
-    // the same degradation `BlendedReportDataService.resolveBlendingDecision` applied ahead of
-    // the validator. This path reads the STORED report again, so it prunes again, from the same
-    // schema: ORDER BY changes the order of the rows, never their values, and a scheduled run
-    // never opens the editor that shows the rule as orphaned.
-    const storedSort = report.sortConfig ?? undefined;
-    const knownSort =
-      storedSort && schemaFields.length > 0
-        ? withoutUnknownSortColumns(storedSort, collectKnownNativeOutputColumns(schemaFields))
-        : { kept: storedSort, dropped: [] as string[] };
-    if (knownSort.dropped.length > 0) {
-      this.logger.warn(
-        `Data Mart ${dataMart.id}: dropped the sort on ${knownSort.dropped.map(c => `"${c}"`).join(', ')} — ` +
-          'the column is missing from the current output schema'
-      );
-    }
+    // The decision owns the stale-sort question. A run resolved it with degradation on and hands
+    // the pruned list here (an empty one included); every other caller's decision carries no
+    // `sort`, and the stored rules — which the validator inside the decision just accepted —
+    // apply as they are. Pruning again here would answer from a narrower set (native names only)
+    // than the decision's, and on an ad-hoc query or a preview it would hide the very drift the
+    // validator was meant to report.
+    const storedSort =
+      decision.sort !== undefined ? decision.sort : (report.sortConfig ?? undefined);
     // `primaryKeyColumns` comes from the CURRENT schema and `uniqueCountConfig` from the STORED
     // report, so removing the mart's PK after saving leaves them disagreeing: the renderer omits
     // the Unique Count metric, while a stored sort on that label still emits
@@ -283,8 +273,8 @@ export class ReportSqlComposerService {
     // editor prunes this on open, but scheduled runs never load the editor.
     const sortConfig =
       uniqueCount && pkFields.length === 0
-        ? (knownSort.kept ?? []).filter(rule => rule.column !== UNIQUE_COUNT_LABEL)
-        : knownSort.kept;
+        ? (storedSort ?? []).filter(rule => rule.column !== UNIQUE_COUNT_LABEL)
+        : storedSort;
 
     const queryResult = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
@@ -393,7 +383,10 @@ export class ReportSqlComposerService {
         projectId: report.dataMart.projectId,
         columnConfig: report.columnConfig ?? null,
         filterConfig: report.filterConfig ?? null,
-        sortConfig: report.sortConfig ?? null,
+        // The totals plan never sorts, and a stale stored sort is the rows path's business —
+        // degraded on a run, rejected on a save. Validating it here would fail Totals over a
+        // clause Totals never render.
+        sortConfig: null,
         limitConfig: report.limitConfig ?? null,
         aggregationConfig: report.aggregationConfig ?? null,
         dateTruncConfig: report.dateTruncConfig ?? null,

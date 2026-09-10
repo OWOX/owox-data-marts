@@ -871,6 +871,64 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBe('SELECT * FROM t WHERE a = 1');
   });
 
+  // The run record must describe the sort the query applied, not the one stored: a degraded
+  // decision dropped a rule, and Run History would otherwise claim an order the rows never had.
+  it('records the degraded sort on reportDefinition.outputConfig when the decision dropped a rule', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.sortConfig = [
+      { column: 'ghost', direction: 'desc' },
+      { column: 'a', direction: 'asc' },
+    ] as never;
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: false,
+      sort: [{ column: 'a', direction: 'asc' }],
+    });
+    reportSqlComposerService.compose.mockResolvedValue({ sql: 'SELECT * FROM t ORDER BY a' });
+    reportSqlComposerService.inlineStaticSql.mockReturnValue('SELECT * FROM t ORDER BY a');
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = {
+      title: 'Report',
+      outputConfig: { sortConfig: report.sortConfig },
+    } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(
+      (dataMartRun.reportDefinition as unknown as { outputConfig: { sortConfig: unknown } })
+        .outputConfig.sortConfig
+    ).toEqual([{ column: 'a', direction: 'asc' }]);
+  });
+
   // Orchestrator-level pin for hasOutputControls' calculated-metric branch: a report with NO
   // filter/sort/aggregation/dateTrunc/limit/uniqueCount — only a calculated field selected in
   // columnConfig — must still reach ReportSqlComposerService.compose. Before that predicate was
@@ -905,10 +963,8 @@ describe('RunReportService', () => {
         ],
       },
     } as never;
-    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
-      needsBlending: false,
-      columnFilter: ['clicks', 'ctr'],
-    });
+    const decision = { needsBlending: false, columnFilter: ['clicks', 'ctr'] };
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue(decision);
     const calculatedField = {
       outputName: 'ctr',
       type: 'FLOAT',
@@ -949,11 +1005,23 @@ describe('RunReportService', () => {
       dataMartRun
     );
 
+    // The decision is resolved ONCE, with degradation on (a stored report runs here, no editor
+    // open to fix a stale sort), and handed to the composer — which applies the decision's sort
+    // rather than fetching the schema, validating and pruning all over again.
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      { degradeStaleSort: true }
+    );
     // The metric alone flipped hasOutputControls — compose() was reached with no other control set.
-    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(report, {
-      userId: 'user-1',
-      roles: ['admin'],
-    });
+    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      decision
+    );
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       report,
       expect.objectContaining({

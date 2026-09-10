@@ -561,6 +561,52 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
   });
 
+  // The badge and the sort row answer to the backend, not to the sort menu: an excluded source's
+  // fields are never offered, but a stored sort on a selected one still resolves and runs.
+  it('does not flag a sort on a selected column of an EXCLUDED source as disconnected', () => {
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'c__excluded_field',
+          originalFieldName: 'excluded_field',
+          aliasPath: 'c',
+          targetAlias: 'c',
+          sourceRelationshipId: 'rel-c',
+          sourceDataMartId: 'dm-c',
+        }),
+      ],
+      availableSources: [
+        buildAvailableSource({
+          aliasPath: 'c',
+          relationshipId: 'rel-c',
+          dataMartId: 'dm-c',
+          isIncluded: false,
+        }),
+      ],
+    });
+
+    renderPicker(schema, ['native_one', 'c__excluded_field'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [{ column: 'c__excluded_field', direction: 'asc' }],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Output controls count')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+
+    expect(screen.getByText('c__excluded_field')).not.toHaveClass('line-through');
+    expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+  });
+
   it('shows a filter-only reference to a missing column as a disconnected row with its filter', () => {
     const schema = buildSchema();
     vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(schema);
@@ -1169,6 +1215,37 @@ describe('ReportColumnPicker aggregation', () => {
       });
     });
 
+    // A HAVING rule is a condition on SUM(revenue), not on revenue: once the aggregation goes the
+    // backend refuses the orphaned pair, while the row filter holds whether or not the column is
+    // printed.
+    it('drops the HAVING filter with the aggregation it filters, keeps the row filter', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(aggSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          ...configured(),
+          filterConfig: [
+            { column: 'revenue', operator: 'gt', value: 0 },
+            { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' },
+          ],
+          sortConfig: [],
+          dateTruncConfig: [],
+        },
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('revenue').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...configured(),
+        filterConfig: [{ column: 'revenue', operator: 'gt', value: 0 }],
+        sortConfig: [],
+        aggregationConfig: [{ column: 'native_one', function: 'COUNT' }],
+        dateTruncConfig: [],
+      });
+    });
+
     // A disconnected row: the column is gone from the schema, so its sort can never resolve and
     // goes with the uncheck even though the plain report would keep a sort on a live column.
     it('drops the sort on an unchecked disconnected column of a plain report', () => {
@@ -1200,6 +1277,147 @@ describe('ReportColumnPicker aggregation', () => {
         aggregationConfig: [],
         dateTruncConfig: [],
         uniqueCountConfig: [],
+      });
+    });
+  });
+
+  // An ungrouped report with an explicit selection orders by ANY column of the schema, exactly
+  // like a filter — the flat builders resolve ORDER BY against the source row. The exception
+  // renders as a name the query does not have: a calculated field is a SELECT alias planned only
+  // when selected. The moment the report groups, ORDER BY resolves through the printed columns
+  // only, and the sort goes with the edit that grouped it.
+  // A rule that was orphaned before the edit is not the edit's to remove: it stays struck through
+  // in the Sort section for the user, whatever unrelated click follows.
+  it('leaves a stale sort on a missing column alone when another column is checked', () => {
+    const onOutputConfigChange = vi.fn();
+    const { onChange } = renderPicker(aggSchema(), ['native_one'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [{ column: 'ghost', direction: 'asc' }],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('revenue').closest('label') as HTMLElement;
+    fireEvent.click(within(row).getByRole('checkbox'));
+
+    expect(onChange).toHaveBeenCalledWith(['native_one', 'revenue']);
+    expect(onOutputConfigChange).not.toHaveBeenCalled();
+  });
+
+  describe('a sort on an unselected column', () => {
+    const flatSchema = () =>
+      buildSchema({
+        nativeFields: [
+          { name: 'native_one', type: 'STRING' },
+          { name: 'revenue', type: 'INTEGER' },
+          { name: 'country', type: 'STRING' },
+          {
+            name: 'doubled_revenue',
+            type: 'INTEGER',
+            calculated: { formula: 'revenue * 2', level: 'column' },
+          },
+          {
+            name: 'ctr',
+            type: 'INTEGER',
+            calculated: { formula: 'SUM(revenue) / COUNT(*)', level: 'metric' },
+          },
+        ] as unknown[],
+      });
+
+    const sortedByCountry = (): OutputConfig => ({
+      filterConfig: [],
+      sortConfig: [
+        { column: 'country', direction: 'asc' },
+        { column: 'revenue', direction: 'desc' },
+      ],
+      limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: [],
+    });
+
+    const openSortPicker = () => {
+      const trigger = screen
+        .getAllByRole('button', { name: /Add sort by/ })
+        .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+      fireEvent.click(trigger!);
+    };
+
+    it('is offered for a native column but not for a row-level calculated field', async () => {
+      renderPicker(flatSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: { ...sortedByCountry(), sortConfig: [] },
+        onOutputConfigChange: vi.fn(),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+      openSortPicker();
+
+      const listbox = await screen.findByRole('listbox');
+      expect(within(listbox).getByText('country')).toBeInTheDocument();
+      expect(within(listbox).getByText('revenue')).toBeInTheDocument();
+      expect(within(listbox).queryByText('doubled_revenue')).not.toBeInTheDocument();
+    });
+
+    it('is not flagged as disconnected while nothing groups the report', () => {
+      renderPicker(flatSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: sortedByCountry(),
+        onOutputConfigChange: vi.fn(),
+      });
+
+      expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+      expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+    });
+
+    // The twin of the deselect pruning: the aggregation is what retracts the sort, so it goes
+    // with the same edit instead of staying behind as a rule the badge flags and the save refuses.
+    it('goes with the aggregation that makes the report group, as the same user edit', async () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(flatSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: sortedByCountry(),
+        onOutputConfigChange,
+      });
+
+      const revenueRow = screen.getByText('revenue').closest('label') as HTMLElement;
+      fireEvent.click(within(revenueRow).getByRole('button', { name: 'Add aggregation' }));
+      fireEvent.click(await screen.findByRole('checkbox', { name: 'SUM' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+      expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+      // No second argument: the user's own edit, and the form must dirty.
+      expect(onOutputConfigChange.mock.calls[0]).toHaveLength(1);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...sortedByCountry(),
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+      });
+    });
+
+    it('goes when an aggregate-level calculated field is checked, which groups the report on its own', () => {
+      const onOutputConfigChange = vi.fn();
+      const { onChange } = renderPicker(flatSchema(), ['native_one', 'revenue'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: sortedByCountry(),
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('ctr').closest<HTMLElement>('[data-slot="native-field-row"]')!;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onChange).toHaveBeenCalledWith(['native_one', 'revenue', 'ctr']);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...sortedByCountry(),
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
       });
     });
   });
@@ -1999,6 +2217,112 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
     const listbox = await screen.findByRole('listbox');
     expect(within(listbox).getByText('id')).toBeInTheDocument();
     expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  // Unchecking it leaves a sort the flat report cannot resolve (the blended builder strips the
+  // name from its CTEs as if it were the synthetic alias), so the sort goes with the uncheck like
+  // any rule on a column that only resolves while selected.
+  it('prunes the sort on a REAL field named "Unique Count" when it is unchecked on an ungrouped report', () => {
+    const onOutputConfigChange = vi.fn();
+    const { onChange } = renderPicker(collisionSchema(), ['id', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        sortConfig: [
+          { column: 'id', direction: 'asc' },
+          { column: 'Unique Count', direction: 'asc' },
+        ],
+      },
+      onOutputConfigChange,
+    });
+
+    // The real field's row, not the metric's row beside it, which reads the same label.
+    const row = screen
+      .getAllByText('Unique Count')
+      .map(node => node.closest<HTMLElement>('[data-slot="native-field-row"]'))
+      .find(Boolean)!;
+    fireEvent.click(within(row).getByRole('checkbox'));
+
+    expect(onChange).toHaveBeenCalledWith(['id']);
+    expect(onOutputConfigChange).toHaveBeenCalledWith({
+      ...baseOutputConfig,
+      sortConfig: [{ column: 'id', direction: 'asc' }],
+    });
+  });
+
+  describe('turning the metric on or off re-resolves the sorts', () => {
+    // A flat report may sort by an unselected column; the metric turns it into a GROUP BY, whose
+    // ORDER BY resolves through the printed columns only — the sort goes with the toggle instead
+    // of staying behind for the badge to flag and the save to refuse.
+    it('drops a sort on an unselected column when the metric is turned on', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(pkSchema(), ['id'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          ...baseOutputConfig,
+          sortConfig: [
+            { column: 'name', direction: 'asc' },
+            { column: 'id', direction: 'desc' },
+          ],
+        },
+        onOutputConfigChange,
+      });
+
+      fireEvent.click(within(uniqueCountRowOf('Unique Count')).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...baseOutputConfig,
+        uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+        sortConfig: [{ column: 'id', direction: 'desc' }],
+      });
+    });
+
+    // Resolved against the metrics the NEXT config emits: turning the toggle on is the fix for a
+    // stored sort on the metric, not the edit that deletes it.
+    it('keeps a stored sort on the metric when the toggle that resolves it is turned on', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(pkSchema(), ['id', 'name'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          ...baseOutputConfig,
+          sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+        },
+        onOutputConfigChange,
+      });
+
+      expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+      fireEvent.click(within(uniqueCountRowOf('Unique Count')).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...baseOutputConfig,
+        uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      });
+    });
+
+    it('drops the sort on the metric when the toggle is turned off', () => {
+      const onOutputConfigChange = vi.fn();
+      renderPicker(pkSchema(), ['id', 'name'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          ...baseOutputConfig,
+          uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+          sortConfig: [
+            { column: 'Unique Count', direction: 'desc' },
+            { column: 'name', direction: 'asc' },
+          ],
+        },
+        onOutputConfigChange,
+      });
+
+      fireEvent.click(within(uniqueCountRowOf('Unique Count')).getByRole('checkbox'));
+
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        ...baseOutputConfig,
+        sortConfig: [{ column: 'name', direction: 'asc' }],
+      });
+    });
   });
 
   it('does not offer a duplicate "Unique Count" entry when a real field already owns the name', async () => {

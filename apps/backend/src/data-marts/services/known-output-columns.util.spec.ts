@@ -1,6 +1,7 @@
 import {
   collectKnownNativeOutputColumns,
   collectKnownOutputColumns,
+  uniqueCountOutputColumnNames,
   withoutUnknownSortColumns,
 } from './known-output-columns.util';
 
@@ -48,6 +49,20 @@ describe('known-output-columns.util', () => {
       expect(known.has('Unique Count')).toBe(true);
       expect(known.has('orders__unique_count')).toBe(true);
       expect(known.has('orders_items__unique_count')).toBe(true);
+    });
+  });
+
+  describe('uniqueCountOutputColumnNames', () => {
+    it('names the main Unique Count and one per offered joined source, off the schema alone', () => {
+      expect([
+        ...uniqueCountOutputColumnNames({
+          availableSources: [{ aliasPath: 'orders' }, { aliasPath: 'orders.items' }],
+        } as never),
+      ]).toEqual(['Unique Count', 'orders__unique_count', 'orders_items__unique_count']);
+    });
+
+    it('still names the main Unique Count when the schema offers no joined source', () => {
+      expect([...uniqueCountOutputColumnNames({ availableSources: [] })]).toEqual(['Unique Count']);
     });
   });
 

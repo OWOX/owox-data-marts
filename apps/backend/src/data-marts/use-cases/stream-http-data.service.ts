@@ -125,6 +125,15 @@ interface StreamPlanContext {
   reportId: string | undefined;
   captureExecutionSql: boolean;
   projectsByResolvedHeaders: boolean;
+  /**
+   * Whether the blending decision may drop a stored sort on a column the schema no longer
+   * offers. Only a STORED report's read does (the Sheets / Looker Studio / Excel pull of a saved
+   * report): no editor is open there to fix the rule, and the run would otherwise fail over row
+   * order alone. An ad-hoc Data Mart query has just had its sort names checked by
+   * HttpDataColumnValidator against the current schema, so an unknown one there is the caller's
+   * own mistake and stays a 400.
+   */
+  degradesStaleSort: boolean;
 }
 
 /**
@@ -152,6 +161,7 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
         reportId: undefined,
         captureExecutionSql: false,
         projectsByResolvedHeaders: false,
+        degradesStaleSort: false,
       };
     case 'report':
       return {
@@ -159,6 +169,7 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
         reportId: plan.reportId,
         captureExecutionSql: true,
         projectsByResolvedHeaders: true,
+        degradesStaleSort: true,
       };
     default:
       return assertNever(plan);
@@ -395,7 +406,8 @@ export class StreamHttpDataService {
       const plan = await buildPlan(dataMart);
       const { readPlan } = plan;
       const planContext = deriveStreamPlanContext(plan);
-      const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders } = planContext;
+      const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders, degradesStaleSort } =
+        planContext;
       reportId = planContext.reportId ?? reportId;
 
       baseMetadata = {
@@ -414,8 +426,18 @@ export class StreamHttpDataService {
 
       const decision = await this.blendedReportDataService.resolveBlendingDecision(
         readPlan,
-        accessor
+        accessor,
+        undefined,
+        undefined,
+        // See StreamPlanContext.degradesStaleSort: on for a stored report's read only.
+        degradesStaleSort ? { degradeStaleSort: true } : undefined
       );
+      // The run record must describe the sort the query APPLIED: a degraded decision carries the
+      // stored rules minus the ones it dropped, and journalling the stored list beside the
+      // executed SQL would claim an order the rows never had.
+      if (decision.sort !== undefined) {
+        baseMetadata = { ...baseMetadata, sort: decision.sort ?? undefined };
+      }
 
       if (decision.needsBlending && !decision.blendedSql) {
         throw new InternalServerErrorException('Blended SQL was not produced for this Data Mart');

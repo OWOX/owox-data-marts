@@ -49,7 +49,16 @@ export class ReportDataCacheService {
     report: Report,
     accessor: BlendableSchemaAccessor
   ): Promise<{ options: PrepareReportDataOptions; decision: BlendingDecision }> {
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(
+      report,
+      accessor,
+      undefined,
+      undefined,
+      // The cache is filled for a STORED report (a Looker Studio pull): nobody is in the editor
+      // to repair a sort on a column the schema has since lost, so that rule degrades (row
+      // order, never values) instead of failing the fetch.
+      { degradeStaleSort: true }
+    );
 
     let sqlOverride = decision.needsBlending ? decision.blendedSql : undefined;
     let sqlOverrideParams = decision.needsBlending ? decision.params : undefined;

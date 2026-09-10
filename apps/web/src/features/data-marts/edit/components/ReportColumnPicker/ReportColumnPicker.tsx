@@ -41,7 +41,7 @@ import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
 import type { AggregationDropdownColumn } from './AggregationSettingsDropdown';
-import { fieldDisplayLabel } from './output-controls-display';
+import { DISCONNECTED_COLUMNS_ADVICE, fieldDisplayLabel } from './output-controls-display';
 import {
   buildJoinedUniqueCountColumnName,
   UNIQUE_COUNT_LABEL,
@@ -74,7 +74,14 @@ import {
 import { buildColumnSearchResult, matchesColumnSearch } from './report-column-search';
 import { SearchButton } from './SearchButton';
 import { PathTree } from './FieldSearchPicker';
-import { isAggregatedShape, pruneRulesForDeselectedColumns } from './output-controls-cleanup';
+import {
+  isSortResolvable,
+  pruneRulesForDeselectedColumns,
+  withoutHavingFiltersOrphanedBy,
+  withoutUnresolvableSorts,
+  type SortResolutionBefore,
+  type SortResolutionContext,
+} from './output-controls-cleanup';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -964,6 +971,14 @@ export function ReportColumnPicker({
     return names;
   }, [nativeFields, schema]);
 
+  // Calculated fields of JOINED Data Marts: the backend refuses them on every report surface,
+  // so a sort on one never resolves, selected or not.
+  const joinedCalculatedNames = useMemo(
+    () =>
+      new Set((schema?.blendedFields ?? []).filter(f => f.isCalculated === true).map(f => f.name)),
+    [schema]
+  );
+
   // Unique Count requires a primary key, and a source whose PK is later removed keeps
   // round-tripping its stored key on every save while the backend rejects or silently drops it — a
   // trap the user cannot escape through the UI. Only the sources that can no longer supply the
@@ -1151,32 +1166,204 @@ export function ReportColumnPicker({
     [selectableFieldNames]
   );
 
-  // The ONE way a column leaves the selection, for every checkbox that can uncheck it — the row
-  // checkboxes go through `toggleField`, "Select all" goes through `deselectAll`. The rules that
-  // hung on the column go with it (`pruneRulesForDeselectedColumns`): an aggregation or a date
-  // bucket on a column the report no longer prints used to stay behind, invisible on the row, and
-  // fail the next save and every scheduled run. A user edit, not a repair: the form must dirty.
-  const applyDeselection = useCallback(
+  // The sources whose Unique Count is CONFIGURED and still able to supply the metric — what the
+  // rows render as ticked. Deliberately wider than `uniqueCountIsEmitted`: an excluded source stays
+  // here so its row keeps rendering and stays clearable, and its row is marked not-emitted instead.
+  const activeUniqueCountSources = useMemo(() => {
+    if (!outputControlsAvailable) return new Set<string>();
+    return new Set(effectiveOutputConfig.uniqueCountConfig.filter(uniqueCountCanKeep));
+  }, [outputControlsAvailable, effectiveOutputConfig.uniqueCountConfig, uniqueCountCanKeep]);
+
+  // The synthetic Unique Count columns a sort rule may resolve to — one per source whose metric is
+  // actually emitted, keyed by the SQL name and shown under the display label. Same
+  // `uniqueCountIsEmitted` gate the pruning effect above uses, so a name this list refuses to offer
+  // is always one that effect clears.
+  //
+  // A source whose SQL name a real schema field already owns is skipped on top of that (the backend
+  // has a dedicated OUTPUT_COLUMN_NAME_COLLISION error for it): if that field is selected, appending
+  // the synthetic would duplicate the entry and collide on FieldSearchPicker's `key={item.value}`;
+  // if it is merely present, emitting the name would produce an ORDER BY ambiguous between the outer
+  // SELECT alias and the base column, whose precedence is unspecified across dialects.
+  //
+  // A function of the source list, not of the rendered config alone: the Unique Count toggle
+  // resolves the sorts against the metrics the NEXT config emits, and this is the one place that
+  // decides which those are.
+  const syntheticSortColumnsFor = useCallback(
+    (sources: Iterable<string>): OutputSettingsDropdownColumn[] => {
+      const cols: OutputSettingsDropdownColumn[] = [];
+      // Two sources CAN land on one SQL name — the alias path `a.b` and a top-level alias `a_b` both
+      // build `a_b__unique_count`. The backend refuses that save with OUTPUT_COLUMN_NAME_COLLISION,
+      // but the picker still renders first, and two entries under one `key={item.value}` take
+      // FieldSearchPicker down through the error boundary before the user can read the message.
+      const taken = new Set<string>();
+      for (const source of sources) {
+        if (!uniqueCountIsEmitted(source)) continue;
+        const name = uniqueCountColumnName(source);
+        if (knownFieldNames.has(name) || taken.has(name)) continue;
+        taken.add(name);
+        const joined =
+          source === MAIN_UNIQUE_COUNT_SOURCE ? undefined : availableSourceByPath.get(source);
+        cols.push({
+          name,
+          type: 'INTEGER',
+          // Bare, like the picker row. This list is FLAT, so the source is named on the second line
+          // instead — same shape an ordinary joined field's entry has. Two joins to one Data Mart
+          // share a display alias, so the alias path is what tells their entries apart.
+          label: UNIQUE_COUNT_LABEL,
+          ...(joined
+            ? {
+                dataMartName: joined.defaultAlias.trim() || joined.title,
+                path: [...source.split('.'), UNIQUE_COUNT_LABEL],
+              }
+            : {}),
+        });
+      }
+      return cols;
+    },
+    [uniqueCountIsEmitted, knownFieldNames, availableSourceByPath]
+  );
+  const syntheticSortColumns = useMemo(
+    () => syntheticSortColumnsFor(activeUniqueCountSources),
+    [syntheticSortColumnsFor, activeUniqueCountSources]
+  );
+
+  // The Unique Count names a sort RESOLVES to — wider than the ones the menu OFFERS. The backend
+  // accepts a sort on every configured source that can still be kept, emitted or not (a source
+  // merely excluded from reporting keeps its entry, and the run path drops the rule with the
+  // metric instead of failing), so the badge must not flag it and an unrelated edit must not
+  // prune it; the menu stays gated on emission, since offering a name the SQL will not print
+  // only creates a rule the run then drops. A real field owning the name is that field.
+  const sortableUniqueCountNamesFor = useCallback(
+    (sources: Iterable<string>): Set<string> =>
+      new Set(
+        [...sources]
+          .filter(uniqueCountCanKeep)
+          .map(uniqueCountColumnName)
+          .filter(name => !knownFieldNames.has(name))
+      ),
+    [uniqueCountCanKeep, knownFieldNames]
+  );
+  const sortableUniqueCountNames = useMemo(
+    () => sortableUniqueCountNamesFor(effectiveOutputConfig.uniqueCountConfig),
+    [sortableUniqueCountNamesFor, effectiveOutputConfig.uniqueCountConfig]
+  );
+
+  // Every Unique Count output name the schema can produce — the main label and one per joined
+  // source, metric on or off. A real field owning one of these is sortable only while selected:
+  // the blended builder strips every unselected such name from the columns it carries into its
+  // CTEs, taking it for the synthetic alias, and the backend refuses the sort on the same grounds.
+  const uniqueCountOutputNames = useMemo(
+    () =>
+      new Set(
+        [MAIN_UNIQUE_COUNT_SOURCE, ...availableSourceByPath.keys()].map(uniqueCountColumnName)
+      ),
+    [availableSourceByPath]
+  );
+
+  // Everything a sort rule is resolved against — ONE context, read by the sort menu, the
+  // disconnected badge and every writer that prunes, so the three can never disagree on a rule.
+  // `knownNames` deliberately carries the fields of sources EXCLUDED from reporting: they are not
+  // offered on the menu, but a stored sort on one still resolves on the backend, and the badge
+  // once flagged exactly that sort because the menu was the only set it had to check against.
+  const sortResolution = useMemo<SortResolutionContext>(
+    () => ({
+      selectedNames: effectiveValueSet,
+      hasExplicitColumns: value !== null,
+      knownNames: knownFieldNames,
+      calculatedFields: { all: calculatedFieldNames, aggregate: aggregateCalculatedFieldNames },
+      uniqueCountOutputNames,
+      syntheticSortNames: new Set([
+        ...syntheticSortColumns.map(c => c.name),
+        ...sortableUniqueCountNames,
+      ]),
+      joinedCalculatedNames,
+    }),
+    [
+      effectiveValueSet,
+      value,
+      knownFieldNames,
+      calculatedFieldNames,
+      aggregateCalculatedFieldNames,
+      uniqueCountOutputNames,
+      syntheticSortColumns,
+      sortableUniqueCountNames,
+      joinedCalculatedNames,
+    ]
+  );
+
+  // The report as rendered — what a rule the next edit breaks used to resolve against.
+  const sortResolutionBefore = useMemo<SortResolutionBefore>(
+    () => ({ config: effectiveOutputConfig, ctx: sortResolution }),
+    [effectiveOutputConfig, sortResolution]
+  );
+
+  // The backend's verdict on one sort rule in the report's current shape.
+  const resolvesSort = useCallback(
+    (column: string): boolean => isSortResolvable(column, effectiveOutputConfig, sortResolution),
+    [effectiveOutputConfig, sortResolution]
+  );
+
+  // Every user edit that can change what a sort resolves against commits through here, and the
+  // sorts that THIS edit breaks go with it. An ungrouped report with an explicit selection may
+  // sort by any column of the schema, selected or not; the moment an aggregation, a date bucket, a
+  // Unique Count or a selected aggregate-level formula turns it into a GROUP BY, ORDER BY resolves
+  // through the printed columns only, and such a sort would stay behind as a rule no row shows and
+  // fail the next save — the twin of the pruning a deselect does. A rule that was ALREADY orphaned
+  // is not touched: it is not this edit's doing, the Sort section shows it struck through with its
+  // Remove button, and a stored sort the on-open repair deliberately keeps must not vanish under an
+  // unrelated click. Only the Output controls panel's own edits stay out of here, for the same
+  // reason: what an edit there does to a sort is in plain view. A user edit, not a repair: the
+  // form must dirty. `overrides` let a writer resolve against the state it is about to produce
+  // (the next selection, the next Unique Count metrics) rather than the rendered one.
+  const commitOutputConfig = useCallback(
+    (next: OutputConfig, overrides: Partial<SortResolutionContext> = {}) => {
+      if (!onOutputConfigChange) return;
+      // A HAVING filter is bound to the aggregation it filters: removing that aggregation from a
+      // row's menu or the Aggregations panel takes the filter with it, as unchecking the column
+      // does — the backend refuses a HAVING whose pair names no aggregation of the report.
+      const { config: withoutOrphanedHaving } = withoutHavingFiltersOrphanedBy(
+        sortResolutionBefore.config,
+        next
+      );
+      onOutputConfigChange(
+        withoutUnresolvableSorts(
+          withoutOrphanedHaving,
+          { ...sortResolution, ...overrides },
+          sortResolutionBefore
+        ).config
+      );
+    },
+    [onOutputConfigChange, sortResolution, sortResolutionBefore]
+  );
+
+  // The ONE way the selection changes, for every checkbox that can change it — the row checkboxes
+  // go through `toggleField`, "Select all" through `selectAll` and `deselectAll`. The rules that
+  // hung on an unchecked column go with it (`pruneRulesForDeselectedColumns`): an aggregation or a
+  // date bucket on a column the report no longer prints used to stay behind, invisible on the row,
+  // and fail the next save and every scheduled run. A checked column can only widen what resolves
+  // — except an AGGREGATE-level formula, which groups the query on its own — so both directions
+  // re-resolve the sorts against the NEXT selection. A user edit, not a repair: the form must
+  // dirty.
+  const applySelection = useCallback(
     (current: readonly string[], next: string[]) => {
       const nextSet = new Set(next);
       const removed = new Set(current.filter(name => !nextSet.has(name)));
       onChange(next);
-      if (removed.size === 0 || !onOutputConfigChange) return;
-      const pruned = pruneRulesForDeselectedColumns(effectiveOutputConfig, removed, {
-        selectedNames: nextSet,
-        knownNames: knownFieldNames,
-        calculatedFields: { all: calculatedFieldNames, aggregate: aggregateCalculatedFieldNames },
-      });
+      if (!onOutputConfigChange) return;
+      // Explicit from here on: an edit only ever materialises a null selection, never keeps it.
+      const context = { ...sortResolution, selectedNames: nextSet, hasExplicitColumns: true };
+      const pruned =
+        removed.size > 0
+          ? pruneRulesForDeselectedColumns(
+              effectiveOutputConfig,
+              removed,
+              context,
+              sortResolutionBefore
+            )
+          : withoutUnresolvableSorts(effectiveOutputConfig, context, sortResolutionBefore);
       if (pruned.changed.length > 0) onOutputConfigChange(pruned.config);
     },
-    [
-      onChange,
-      onOutputConfigChange,
-      effectiveOutputConfig,
-      knownFieldNames,
-      calculatedFieldNames,
-      aggregateCalculatedFieldNames,
-    ]
+    [onChange, onOutputConfigChange, effectiveOutputConfig, sortResolution, sortResolutionBefore]
   );
 
   const toggleField = useCallback<ToggleFieldFn>(
@@ -1184,12 +1371,12 @@ export function ReportColumnPicker({
       const current = valueRef.current;
       if (checked) {
         if (current.includes(fieldName)) return;
-        onChange(orderBySelectable([...current, fieldName]));
+        applySelection(current, orderBySelectable([...current, fieldName]));
       } else {
-        applyDeselection(current, orderBySelectable(current.filter(name => name !== fieldName)));
+        applySelection(current, orderBySelectable(current.filter(name => name !== fieldName)));
       }
     },
-    [onChange, orderBySelectable, applyDeselection]
+    [orderBySelectable, applySelection]
   );
 
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
@@ -1252,39 +1439,38 @@ export function ReportColumnPicker({
     [outputControlsAvailable, fieldTypeByName]
   );
 
+  // The row filter icons' three edits. A filter on an AGGREGATE-level formula groups the query, so
+  // they commit through `commitOutputConfig` like every other edit made outside the panel.
   const handleAddFilter = useCallback<AddFilterFn>(
     rule => {
-      if (!onOutputConfigChange) return;
-      onOutputConfigChange({
+      commitOutputConfig({
         ...effectiveOutputConfig,
         filterConfig: [...effectiveOutputConfig.filterConfig, rule],
       });
     },
-    [effectiveOutputConfig, onOutputConfigChange]
+    [effectiveOutputConfig, commitOutputConfig]
   );
 
   const handleRemoveFilterAt = useCallback<RemoveFilterAtFn>(
     globalIndex => {
-      if (!onOutputConfigChange) return;
-      onOutputConfigChange({
+      commitOutputConfig({
         ...effectiveOutputConfig,
         filterConfig: effectiveOutputConfig.filterConfig.filter((_, i) => i !== globalIndex),
       });
     },
-    [effectiveOutputConfig, onOutputConfigChange]
+    [effectiveOutputConfig, commitOutputConfig]
   );
 
   const handleReplaceFilterAt = useCallback<ReplaceFilterAtFn>(
     (globalIndex, rule) => {
-      if (!onOutputConfigChange) return;
-      onOutputConfigChange({
+      commitOutputConfig({
         ...effectiveOutputConfig,
         filterConfig: effectiveOutputConfig.filterConfig.map((existing, i) =>
           i === globalIndex ? rule : existing
         ),
       });
     },
-    [effectiveOutputConfig, onOutputConfigChange]
+    [effectiveOutputConfig, commitOutputConfig]
   );
 
   const toggleUniqueCountSource = useCallback(
@@ -1292,21 +1478,40 @@ export function ReportColumnPicker({
       if (!onOutputConfigChange) return;
       const current = effectiveOutputConfig.uniqueCountConfig;
       if (checked === current.includes(source)) return;
-      onOutputConfigChange({
-        ...effectiveOutputConfig,
-        uniqueCountConfig: checked
-          ? [...current, source]
-          : current.filter(existing => existing !== source),
-      });
+      const uniqueCountConfig = checked
+        ? [...current, source]
+        : current.filter(existing => existing !== source);
       // A JOINED source's Unique Count is built by the blended query builder, which requires an
       // EXPLICIT column projection: the backend rejects a null columnConfig with one. While
       // columns are still implicit ("all selected" = null — the default of a brand-new report),
       // materialize them to the current explicit selection so the report stays runnable.
-      if (checked && source !== MAIN_UNIQUE_COUNT_SOURCE && value === null) {
-        onChange(effectiveValue);
-      }
+      const materializes = checked && source !== MAIN_UNIQUE_COUNT_SOURCE && value === null;
+      commitOutputConfig(
+        { ...effectiveOutputConfig, uniqueCountConfig },
+        {
+          hasExplicitColumns: value !== null || materializes,
+          // Against the metrics the NEXT config carries: the one just enabled is a sort target
+          // from here on (a stored sort on its name, flagged until now, resolves again instead of
+          // going), and the one just disabled is not — its sort goes, like a sort on any column
+          // the report stops producing.
+          syntheticSortNames: new Set([
+            ...syntheticSortColumnsFor(uniqueCountConfig).map(column => column.name),
+            ...sortableUniqueCountNamesFor(uniqueCountConfig),
+          ]),
+        }
+      );
+      if (materializes) onChange(effectiveValue);
     },
-    [effectiveOutputConfig, onOutputConfigChange, value, onChange, effectiveValue]
+    [
+      effectiveOutputConfig,
+      onOutputConfigChange,
+      commitOutputConfig,
+      syntheticSortColumnsFor,
+      sortableUniqueCountNamesFor,
+      value,
+      onChange,
+      effectiveValue,
+    ]
   );
 
   const joinedSources = useMemo<JoinedSource[]>(() => {
@@ -1413,106 +1618,18 @@ export function ReportColumnPicker({
     [dropdownColumns, effectiveValueSet]
   );
 
-  // The sources whose Unique Count is CONFIGURED and still able to supply the metric — what the
-  // rows render as ticked. Deliberately wider than `uniqueCountIsEmitted`: an excluded source stays
-  // here so its row keeps rendering and stays clearable, and its row is marked not-emitted instead.
-  const activeUniqueCountSources = useMemo(() => {
-    if (!outputControlsAvailable) return new Set<string>();
-    return new Set(effectiveOutputConfig.uniqueCountConfig.filter(uniqueCountCanKeep));
-  }, [outputControlsAvailable, effectiveOutputConfig.uniqueCountConfig, uniqueCountCanKeep]);
-
-  // The synthetic Unique Count columns a sort rule may resolve to — one per source whose metric is
-  // actually emitted, keyed by the SQL name and shown under the display label. Same
-  // `uniqueCountIsEmitted` gate the pruning effect above uses, so a name this list refuses to offer
-  // is always one that effect clears.
-  //
-  // A source whose SQL name a real schema field already owns is skipped on top of that (the backend
-  // has a dedicated OUTPUT_COLUMN_NAME_COLLISION error for it): if that field is selected, appending
-  // the synthetic would duplicate the entry and collide on FieldSearchPicker's `key={item.value}`;
-  // if it is merely present, emitting the name would produce an ORDER BY ambiguous between the outer
-  // SELECT alias and the base column, whose precedence is unspecified across dialects.
-  const syntheticSortColumns = useMemo<OutputSettingsDropdownColumn[]>(() => {
-    const cols: OutputSettingsDropdownColumn[] = [];
-    // Two sources CAN land on one SQL name — the alias path `a.b` and a top-level alias `a_b` both
-    // build `a_b__unique_count`. The backend refuses that save with OUTPUT_COLUMN_NAME_COLLISION,
-    // but the picker still renders first, and two entries under one `key={item.value}` take
-    // FieldSearchPicker down through the error boundary before the user can read the message.
-    const taken = new Set<string>();
-    for (const source of activeUniqueCountSources) {
-      if (!uniqueCountIsEmitted(source)) continue;
-      const name = uniqueCountColumnName(source);
-      if (knownFieldNames.has(name) || taken.has(name)) continue;
-      taken.add(name);
-      const joined =
-        source === MAIN_UNIQUE_COUNT_SOURCE ? undefined : availableSourceByPath.get(source);
-      cols.push({
-        name,
-        type: 'INTEGER',
-        // Bare, like the picker row. This list is FLAT, so the source is named on the second line
-        // instead — same shape an ordinary joined field's entry has. Two joins to one Data Mart
-        // share a display alias, so the alias path is what tells their entries apart.
-        label: UNIQUE_COUNT_LABEL,
-        ...(joined
-          ? {
-              dataMartName: joined.defaultAlias.trim() || joined.title,
-              path: [...source.split('.'), UNIQUE_COUNT_LABEL],
-            }
-          : {}),
-      });
-    }
-    return cols;
-  }, [activeUniqueCountSources, uniqueCountIsEmitted, knownFieldNames, availableSourceByPath]);
-
-  // Whether the report renders as a GROUP BY query — mirrors the backend's own shape decision, so
-  // the sort menu below offers exactly what the validator will accept.
-  const isAggregated = useMemo(
-    () =>
-      isAggregatedShape(effectiveOutputConfig, effectiveValueSet, aggregateCalculatedFieldNames),
-    [effectiveOutputConfig, effectiveValueSet, aggregateCalculatedFieldNames]
-  );
-
   // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
   // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
   // filter or aggregation on it has no column to bind to and the backend rejects it. So it
   // must stay out of dropdownColumns / selectedDropdownColumns, which feed those surfaces.
   //
-  // What else a sort may name depends on the query's SHAPE, decided the way the backend decides
-  // it: a grouped query (aggregations, date buckets, a Unique Count, an aggregate-level formula)
-  // resolves ORDER BY through its output aliases, so only a SELECTED column is sortable; so does
-  // an implicit "all native columns" projection, which never prints a blended column. An
-  // ungrouped query with an explicit selection orders by ANY column of the schema, exactly like a
-  // filter — minus two kinds of column that are sortable only while selected: a calculated field,
-  // which renders as a SELECT alias the query would not have, and a real field that owns a Unique
-  // Count output name, which the blended builder strips from its CTEs when unselected on the
-  // assumption it is the synthetic alias. The backend refuses both the same way.
-  const uniqueCountOutputNames = useMemo(
-    () =>
-      new Set([
-        UNIQUE_COUNT_LABEL,
-        ...[...availableSourceByPath.keys()].map(buildJoinedUniqueCountColumnName),
-      ]),
-    [availableSourceByPath]
-  );
+  // What else a sort may name is the shape's call — `isSortResolvable`, the verdict the
+  // disconnected badge and every pruning writer read too, so the menu never offers a sort the
+  // badge would flag, and never withholds one it would pass.
   const sortColumns = useMemo(() => {
-    const base =
-      isAggregated || value === null
-        ? selectedDropdownColumns
-        : dropdownColumns.filter(
-            c =>
-              effectiveValueSet.has(c.name) ||
-              (!c.isCalculated && !uniqueCountOutputNames.has(c.name))
-          );
+    const base = dropdownColumns.filter(c => resolvesSort(c.name));
     return syntheticSortColumns.length === 0 ? base : [...base, ...syntheticSortColumns];
-  }, [
-    isAggregated,
-    value,
-    selectedDropdownColumns,
-    dropdownColumns,
-    effectiveValueSet,
-    uniqueCountOutputNames,
-    syntheticSortColumns,
-  ]);
-  const sortColumnNames = useMemo(() => new Set(sortColumns.map(c => c.name)), [sortColumns]);
+  }, [dropdownColumns, resolvesSort, syntheticSortColumns]);
 
   const controlsCount = useMemo(() => {
     return (
@@ -1540,23 +1657,31 @@ export function ReportColumnPicker({
         effectiveOutputConfig.aggregationConfig,
         effectiveOutputConfig.dateTruncConfig
       );
-      onOutputConfigChange({
-        ...effectiveOutputConfig,
-        aggregationConfig: next.aggregationConfig,
-        dateTruncConfig: next.dateTruncConfig,
-      });
       // Aggregated / date-bucketed reports require an EXPLICIT column projection: the backend
       // rejects a null columnConfig with aggregations (renderAggregatedSelect iterates the
       // column list). While columns are still implicit ("all selected" = null), materialize
-      // them to the current explicit selection so the report stays saveable.
-      if (
-        (next.aggregationConfig.length > 0 || next.dateTruncConfig.length > 0) &&
-        value === null
-      ) {
-        onChange(effectiveValue);
-      }
+      // them to the current explicit selection so the report stays saveable — and resolve the
+      // sorts against that explicit selection, the one the saved report will carry.
+      const materializes =
+        value === null && (next.aggregationConfig.length > 0 || next.dateTruncConfig.length > 0);
+      commitOutputConfig(
+        {
+          ...effectiveOutputConfig,
+          aggregationConfig: next.aggregationConfig,
+          dateTruncConfig: next.dateTruncConfig,
+        },
+        { hasExplicitColumns: value !== null || materializes }
+      );
+      if (materializes) onChange(effectiveValue);
     },
-    [effectiveOutputConfig, onOutputConfigChange, value, onChange, effectiveValue]
+    [
+      effectiveOutputConfig,
+      onOutputConfigChange,
+      commitOutputConfig,
+      value,
+      onChange,
+      effectiveValue,
+    ]
   );
 
   // The Aggregations panel edits the same config but bypasses handleApplyAggregation, so it
@@ -1566,15 +1691,13 @@ export function ReportColumnPicker({
   const handleAggregationPanelChange = useCallback(
     (config: OutputConfig) => {
       if (!onOutputConfigChange) return;
-      onOutputConfigChange(config);
-      if (
-        (config.aggregationConfig.length > 0 || config.dateTruncConfig.length > 0) &&
-        value === null
-      ) {
-        onChange(effectiveValue);
-      }
+      const materializes =
+        value === null &&
+        (config.aggregationConfig.length > 0 || config.dateTruncConfig.length > 0);
+      commitOutputConfig(config, { hasExplicitColumns: value !== null || materializes });
+      if (materializes) onChange(effectiveValue);
     },
-    [onOutputConfigChange, value, onChange, effectiveValue]
+    [onOutputConfigChange, commitOutputConfig, value, onChange, effectiveValue]
   );
 
   // Resolved allowed-set + currently-assigned functions/bucket, keyed by column name.
@@ -1615,16 +1738,15 @@ export function ReportColumnPicker({
       }
     }
 
-    // A sort resolves when its column is on the sort menu for the report's current shape — a
-    // real field the shape allows (selected, or any schema column on an ungrouped explicit
-    // projection) or an enabled synthetic metric. A real selected field named "Unique Count"
-    // is on that menu as itself, so the synthetic case can never hijack it. Mirrors the
-    // backend's validateSort, which reads the same shape.
-    return effectiveOutputConfig.sortConfig.some(rule => !sortColumnNames.has(rule.column));
+    // A sort resolves when the backend's validateSort would accept it in the report's current
+    // shape (`isSortResolvable`) — NOT when it is on the sort menu: a field of a source excluded
+    // from reporting is never offered, yet a stored sort on it runs. A real selected field named
+    // "Unique Count" resolves as itself, so the synthetic case can never hijack it.
+    return effectiveOutputConfig.sortConfig.some(rule => !resolvesSort(rule.column));
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    sortColumnNames,
+    resolvesSort,
     knownFieldNames,
     knownSliceKeys,
   ]);
@@ -1652,13 +1774,13 @@ export function ReportColumnPicker({
     if (!schema) return;
     const selectableSet = new Set(selectAllTargetNames);
     const preserved = effectiveValue.filter(name => !selectableSet.has(name));
-    onChange([...selectAllTargetNames, ...preserved]);
+    applySelection(effectiveValue, [...selectAllTargetNames, ...preserved]);
   }
 
   function deselectAll() {
     if (!schema) return;
     const selectableSet = new Set(targetSelectableFieldNames);
-    applyDeselection(
+    applySelection(
       effectiveValue,
       effectiveValue.filter(name => !selectableSet.has(name))
     );
@@ -1965,6 +2087,7 @@ export function ReportColumnPicker({
             value={effectiveOutputConfig}
             onChange={onOutputConfigChange}
             sortColumns={sortColumns}
+            isSortResolvable={resolvesSort}
             allColumns={dropdownColumns}
             joinedSources={joinedSources}
           />
@@ -2025,10 +2148,7 @@ export function ReportColumnPicker({
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-xs'>
                   <div className='space-y-1'>
-                    <p>
-                      They are missing from the current Data Mart output schema. Uncheck them to
-                      remove them from the report, or contact your analyst to restore the schema.
-                    </p>
+                    <p>{DISCONNECTED_COLUMNS_ADVICE}</p>
                   </div>
                 </TooltipContent>
               </Tooltip>

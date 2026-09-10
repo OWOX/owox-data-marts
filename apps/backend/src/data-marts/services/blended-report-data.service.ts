@@ -71,6 +71,18 @@ import {
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 
+export interface BlendingDecisionOptions {
+  /**
+   * Drop a stored sort rule whose column the current schema no longer offers, instead of letting
+   * the validator refuse the whole report over it. Passed ONLY by the paths that execute a STORED
+   * report — a scheduled or manual run, the Looker Studio cache fill, the report stream — where no
+   * editor is open to fix the rule. Every other caller (a save dry run, an ad-hoc MCP or HTTP
+   * query, the Generated SQL preview, the output-schema describe) leaves it off and gets the
+   * validator's disconnected error, so the caller learns about the drift.
+   */
+  degradeStaleSort?: boolean;
+}
+
 @Injectable()
 export class BlendedReportDataService {
   private readonly logger = new Logger(BlendedReportDataService.name);
@@ -94,7 +106,8 @@ export class BlendedReportDataService {
     precomputedBlendableSchema?: BlendableSchemaDto,
     // Shared across the several compositions one save-time dry run makes, so a SQL-defined Data
     // Mart's view is refreshed once per operation rather than once per composed query.
-    tableReferences?: TableReferenceMemo
+    tableReferences?: TableReferenceMemo,
+    options?: BlendingDecisionOptions
   ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
     // Travels on EVERY decision, blended or not: the reader gates the `Unique Count` header on the
@@ -106,18 +119,26 @@ export class BlendedReportDataService {
     // up in `referencedColumns` — it has to be carried separately all the way to the chain builder.
     const uniqueCountAliasPaths = new Set(joinedUniqueCountSources(report.uniqueCountConfig));
 
-    // A sort on a column the schema no longer offers is dropped here rather than failing the run:
-    // ORDER BY changes the order of the rows, never their values (under a LIMIT, which is kept,
-    // the rows that make the cut may differ — see `withoutUnknownSortColumns`), and a scheduled
-    // run never opens the editor that shows the rule as orphaned — the reasoning the stale Unique
-    // Count sort below is dropped by. Only this path degrades; the save paths validate the stored config and reject
-    // it, and an aggregation or date bucket on such a column still fails below, loudly, because
-    // it WOULD change the values. Resolved ahead of the validator, whose own answer to an unknown
-    // sort column is the disconnected error, and against the very set it reads. The schema this
-    // costs is one every report with a sort resolves below anyway.
+    // The stored sort reaches the validator untouched unless the caller asked for degradation. The
+    // validator's own answer to a sort column the schema no longer offers is the disconnected
+    // error, and that IS the right answer wherever someone can act on it: a save dry run, an
+    // ad-hoc MCP or HTTP query, the Generated SQL preview, the output-schema describe. Only the
+    // paths that execute a STORED report (a scheduled or manual run, the Looker Studio cache fill,
+    // the report stream) pass the flag — no editor is open there to fix the rule, and ORDER BY
+    // changes the order of the rows, never their values (under a LIMIT, which is kept, the rows
+    // that make the cut may differ — see `withoutUnknownSortColumns`); the same reasoning the
+    // stale Unique Count sort below is dropped by. An aggregation or date bucket on such a column
+    // still fails below, loudly, because it WOULD change the values. Pruned ahead of the validator
+    // and against the very set it reads; the schema this costs is one every report with a sort
+    // resolves below anyway.
+    const degradeStaleSort = options?.degradeStaleSort === true;
     let blendableSchema = precomputedBlendableSchema;
     let sortConfig = report.sortConfig ?? null;
-    if (sortConfig && sortConfig.length > 0) {
+    // `sort` travels only on a degraded decision, so a reader can tell "apply this in place of
+    // the stored rules" from "the stored rules stand" — an empty pruned list is a real answer.
+    const withDegradedSort = <T extends BlendingDecision>(decision: T): T =>
+      degradeStaleSort ? { ...decision, sort: sortConfig } : decision;
+    if (degradeStaleSort && sortConfig && sortConfig.length > 0) {
       blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
         dataMart.id,
         dataMart.projectId,
@@ -140,7 +161,10 @@ export class BlendedReportDataService {
       }
     }
 
-    // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
+    // Single chokepoint for every caller — the run paths, the Generated SQL preview, MCP and HTTP
+    // queries, the output-schema describe — so schema drift since save is caught once, here. A
+    // degrading run hands it the pruned sort; everyone else's stale sort reaches it as stored and
+    // comes back as the disconnected error.
     await this.outputControlsValidator.validateForReport({
       storageType: dataMart.storage.type,
       dataMartId: dataMart.id,
@@ -187,7 +211,7 @@ export class BlendedReportDataService {
         !hasPreJoinFilters &&
         uniqueCountAliasPaths.size === 0
       ) {
-        return { needsBlending: false, primaryKeyColumns };
+        return withDegradedSort({ needsBlending: false, primaryKeyColumns });
       }
 
       blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
@@ -200,7 +224,7 @@ export class BlendedReportDataService {
         blendedFieldsByName.has(c)
       );
       if (blendedRefs.length === 0 && !hasPreJoinFilters && uniqueCountAliasPaths.size === 0) {
-        return { needsBlending: false, primaryKeyColumns };
+        return withDegradedSort({ needsBlending: false, primaryKeyColumns });
       }
 
       throw new BusinessViolationException(
@@ -332,7 +356,7 @@ export class BlendedReportDataService {
     );
 
     if (!hasBlendedColumns && !hasPreJoinFilters && uniqueCountAliasPaths.size === 0) {
-      return {
+      return withDegradedSort({
         needsBlending: false,
         columnFilter: columnConfig,
         blendedDataHeaders,
@@ -342,7 +366,7 @@ export class BlendedReportDataService {
         // execute overwrite this from `compose()` on this path anyway — safe because non-empty
         // plans mean a calculated field is selected, which makes `hasOutputControls` true.
         calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
-      };
+      });
     }
 
     await this.assertAllRequestedSourcesAccessible(
@@ -468,7 +492,9 @@ export class BlendedReportDataService {
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;
     const params = isQueryBuildResult(blendedResult) ? blendedResult.params : undefined;
 
-    return {
+    // On this path the SQL above is what executes, so `sort` (when degrading) records the rules it
+    // actually rendered — after the Unique Count prune too — rather than steering a reader.
+    return withDegradedSort({
       needsBlending: true,
       blendedSql,
       params,
@@ -481,7 +507,7 @@ export class BlendedReportDataService {
       // The SAME array the builder rendered sleeves from — the reader's headers must not be a
       // second, independently-derived list, or a source dropped here still gets a header.
       uniqueCountSources,
-    };
+    });
   }
 
   /**

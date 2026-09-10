@@ -62,7 +62,7 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
 
   it('composes SQL + params for a non-blended report with output controls', async () => {
     const composed = { sql: 'SELECT a FROM t WHERE a = ?', params: [{ name: 'p0', value: 'x' }] };
-    const { service, reader, reportSqlComposerService } = setup(
+    const { service, reader, reportSqlComposerService, blendedReportDataService } = setup(
       { needsBlending: false, columnFilter: ['a'] },
       composed
     );
@@ -72,6 +72,15 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
 
     await service.getOrCreateCachedReader(report, { userId: 'user-1', roles: ['editor'] } as never);
 
+    // The cache is filled for a STORED report, so a sort on a column the schema has since lost
+    // degrades instead of failing the fetch — nobody is in the editor to repair it.
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(
+      report,
+      { userId: 'user-1', roles: ['editor'] },
+      undefined,
+      undefined,
+      { degradeStaleSort: true }
+    );
     expect(reportSqlComposerService.compose).toHaveBeenCalledTimes(1);
     const opts = optionsPassedToReader(reader);
     expect(opts.sqlOverride).toBe(composed.sql);

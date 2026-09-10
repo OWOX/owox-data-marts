@@ -99,6 +99,28 @@ describe('showApiErrorToast', () => {
     );
   });
 
+  // The validator writes the same summary into `message` for the clients and the run history that
+  // never read `details`; appending it again read "…P50(name). Aggregation function not allowed
+  // for field: P50(name)."
+  it('does not repeat a summary the server message already ends with', () => {
+    const message =
+      'Output controls validation failed. Aggregation function not allowed for field: P50(name).';
+    showApiErrorToast(
+      axiosError({
+        message,
+        details: {
+          errors: [
+            { code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD', column: 'name', function: 'P50' },
+          ],
+        },
+      })
+    );
+
+    expect(mockedToastError).toHaveBeenCalledWith(message);
+    const shown = mockedToastError.mock.calls[0][0] as string;
+    expect(shown.split('Aggregation function not allowed for field: P50(name).')).toHaveLength(2);
+  });
+
   // The validator reports EVERY problem in one array, and a persistent toast stays until
   // dismissed — an unbounded list turns it into a wall of text.
   it('lists the first few problems and counts the rest', () => {

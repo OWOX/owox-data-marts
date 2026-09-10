@@ -22,13 +22,30 @@ export function collectKnownNativeOutputColumns(
 }
 
 /**
+ * Every Unique Count output name the schema can produce: the main label and one per joined
+ * source it offers. Keyed off the SCHEMA, not the report's config: the names are output columns
+ * whether or not the metric is on, which is what tells a stale sort on a disabled metric apart
+ * from a sort on a name the schema never had.
+ */
+export function uniqueCountOutputColumnNames(
+  schema: Pick<BlendableSchemaDto, 'availableSources'>
+): Set<string> {
+  const names = new Set<string>([UNIQUE_COUNT_LABEL]);
+  for (const source of schema.availableSources ?? []) {
+    names.add(buildJoinedUniqueCountColumnName(source.aliasPath));
+  }
+  return names;
+}
+
+/**
  * The same set over a blendable schema: the native names above, the non-hidden blended fields,
- * and one Unique Count output name per joined source the schema offers. A source the schema no
- * longer offers stays disconnected.
+ * and every Unique Count output name the schema offers. A source the schema no longer offers
+ * stays disconnected.
  *
  * One function for the two readers that must agree on it: the validator, which turns an unknown
  * name into the disconnected error, and the run path, which drops a sort on one instead of
- * failing the run (`BlendedReportDataService` / `ReportSqlComposerService`).
+ * failing the run (`BlendedReportDataService`, only when a caller opts into stale-sort
+ * degradation).
  */
 export function collectKnownOutputColumns(schema: BlendableSchemaDto): Set<string> {
   const known = collectKnownNativeOutputColumns(schema.nativeFields);
@@ -36,9 +53,7 @@ export function collectKnownOutputColumns(schema: BlendableSchemaDto): Set<strin
     if (blended.isHidden) continue;
     known.add(blended.name);
   }
-  for (const source of schema.availableSources ?? []) {
-    known.add(buildJoinedUniqueCountColumnName(source.aliasPath));
-  }
+  for (const name of uniqueCountOutputColumnNames(schema)) known.add(name);
   return known;
 }
 

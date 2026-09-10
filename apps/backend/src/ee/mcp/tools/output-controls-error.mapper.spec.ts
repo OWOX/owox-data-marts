@@ -1,12 +1,21 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  OUTPUT_CONTROLS_VALIDATION_FAILED,
+  summarizeValidationErrors,
+} from '../../../data-marts/services/output-controls-validator.service';
+import type { ValidationError } from '../../../data-marts/services/output-controls-validator.service';
+import {
   rethrowTranslatedOutputControlsError,
   translateOutputControlsError,
 } from './output-controls-error.mapper';
 
+// The exact shape the validator throws: the title, then the summary rendered from `errors`. The
+// mapper builds its guidance on the title alone, so the summary must never be glued onto it.
 function validatorError(errors: Array<Record<string, unknown>>): BadRequestException {
   return new BadRequestException({
-    message: 'Output controls validation failed',
+    message: `${OUTPUT_CONTROLS_VALIDATION_FAILED}. ${summarizeValidationErrors(
+      errors as unknown as ValidationError[]
+    )}`,
     details: { errors },
   });
 }
@@ -18,6 +27,13 @@ describe('translateOutputControlsError', () => {
     );
     expect(translated).toMatchObject({ code: 'field_not_found' });
     expect(translated?.message).toContain('get_data_mart_details_by_id');
+    // The guidance follows the bare title once — the exception's own summary ("Filter column
+    // unknown: bad_col.") is not glued in front of it as "…bad_col.. Call …".
+    expect(translated?.message).toMatch(
+      /^Output controls validation failed\. Unknown field\(s\) in this data mart: bad_col\. Call get_data_mart_details_by_id/
+    );
+    expect(translated?.message.split(OUTPUT_CONTROLS_VALIDATION_FAILED)).toHaveLength(2);
+    expect(translated?.message).not.toMatch(/\.\.|\.:/);
   });
 
   // An agent hits this far more often than the aggregation twin: nothing in its own request
@@ -186,6 +202,13 @@ describe('translateOutputControlsError', () => {
     expect(translated).toMatchObject({ code: 'output_controls_invalid' });
     expect(translated?.message).toContain('OUTPUT_COLUMN_NAME_COLLISION (channel)');
     expect(translated?.message).toContain('PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG');
+    // The codes follow the bare title once — not the exception's summary, which would read
+    // "…channel.: OUTPUT_COLUMN_NAME_COLLISION (channel)".
+    expect(translated?.message).toMatch(
+      /^Output controls validation failed: OUTPUT_COLUMN_NAME_COLLISION \(channel\), PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG\. Fix the named output controls/
+    );
+    expect(translated?.message.split(OUTPUT_CONTROLS_VALIDATION_FAILED)).toHaveLength(2);
+    expect(translated?.message).not.toMatch(/\.\.|\.:/);
   });
 
   it('translates date-bucket misuse with a per-variant fix instead of the generic fallback', () => {

@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { fieldLeafName, fieldDisplayLabel } from './output-controls-display';
+import {
+  DISCONNECTED_COLUMNS_ADVICE,
+  fieldLeafName,
+  fieldDisplayLabel,
+} from './output-controls-display';
+
+describe('DISCONNECTED_COLUMNS_ADVICE', () => {
+  // The backend refuses a rule of any of these kinds on a disconnected column with the same
+  // sentence; dropping one kind here would leave a save failing on a rule the block never named.
+  it('names every rule kind the save refuses on a disconnected column, and the analyst fallback', () => {
+    expect(DISCONNECTED_COLUMNS_ADVICE).toContain(
+      'remove any filter, sort, aggregation or date bucket rule that references them'
+    );
+    expect(DISCONNECTED_COLUMNS_ADVICE).toMatch(/contact your analyst to restore the schema\.$/);
+  });
+});
 
 describe('fieldLeafName', () => {
   it('returns the last dotted segment', () => {

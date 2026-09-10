@@ -51,9 +51,14 @@ export function SortRow({
       <span className='flex min-w-0 flex-1 flex-col justify-center truncate font-mono text-xs'>
         <span className='flex items-center gap-1 truncate'>
           {isOrphaned && (
+            // Two causes share the marker, so the title names both: the column may be gone from
+            // the schema, or right there and merely unselected while the report aggregates (a
+            // GROUP BY query only orders by what it prints). The accessible name stays the one
+            // every orphaned rule marker carries — filter, aggregation, date bucket — so the
+            // markers read alike; the title is where a sort's second cause is spelled out.
             <span
               className='inline-flex items-center text-red-600'
-              title='This column is no longer available for sorting. Remove this rule or restore the column.'
+              title="This column cannot be sorted by in the report's current setup: it is missing from the schema, or it is not selected while the report aggregates. Remove this rule, or select or restore the column."
               aria-label='Column not found in schema'
             >
               <AlertTriangle className='h-3 w-3' />
