@@ -1164,6 +1164,7 @@ export function ReportColumnPicker({
       if (removed.size === 0 || !onOutputConfigChange) return;
       const pruned = pruneRulesForDeselectedColumns(effectiveOutputConfig, removed, {
         selectedNames: nextSet,
+        knownNames: knownFieldNames,
         calculatedFields: { all: calculatedFieldNames, aggregate: aggregateCalculatedFieldNames },
       });
       if (pruned.changed.length > 0) onOutputConfigChange(pruned.config);
@@ -1172,6 +1173,7 @@ export function ReportColumnPicker({
       onChange,
       onOutputConfigChange,
       effectiveOutputConfig,
+      knownFieldNames,
       calculatedFieldNames,
       aggregateCalculatedFieldNames,
     ]
@@ -1479,13 +1481,27 @@ export function ReportColumnPicker({
   // resolves ORDER BY through its output aliases, so only a SELECTED column is sortable; so does
   // an implicit "all native columns" projection, which never prints a blended column. An
   // ungrouped query with an explicit selection orders by ANY column of the schema, exactly like a
-  // filter — minus a calculated field that is not selected, which renders as a SELECT alias the
-  // query would not have.
+  // filter — minus two kinds of column that are sortable only while selected: a calculated field,
+  // which renders as a SELECT alias the query would not have, and a real field that owns a Unique
+  // Count output name, which the blended builder strips from its CTEs when unselected on the
+  // assumption it is the synthetic alias. The backend refuses both the same way.
+  const uniqueCountOutputNames = useMemo(
+    () =>
+      new Set([
+        UNIQUE_COUNT_LABEL,
+        ...[...availableSourceByPath.keys()].map(buildJoinedUniqueCountColumnName),
+      ]),
+    [availableSourceByPath]
+  );
   const sortColumns = useMemo(() => {
     const base =
       isAggregated || value === null
         ? selectedDropdownColumns
-        : dropdownColumns.filter(c => !c.isCalculated || effectiveValueSet.has(c.name));
+        : dropdownColumns.filter(
+            c =>
+              effectiveValueSet.has(c.name) ||
+              (!c.isCalculated && !uniqueCountOutputNames.has(c.name))
+          );
     return syntheticSortColumns.length === 0 ? base : [...base, ...syntheticSortColumns];
   }, [
     isAggregated,
@@ -1493,6 +1509,7 @@ export function ReportColumnPicker({
     selectedDropdownColumns,
     dropdownColumns,
     effectiveValueSet,
+    uniqueCountOutputNames,
     syntheticSortColumns,
   ]);
   const sortColumnNames = useMemo(() => new Set(sortColumns.map(c => c.name)), [sortColumns]);

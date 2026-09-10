@@ -14,7 +14,9 @@ import {
   brokenJoinedReferencesOf,
   brokenReferencesOf,
   buildJoinedReferenceIndex,
+  calculatedFieldLevelOf,
   calculatedFieldsOf,
+  isCalculatedField,
   type CalculatedFieldConfig,
 } from '../calculated-fields/calculated-field.utils';
 import {
@@ -135,9 +137,23 @@ export class BlendableSchemaService {
     accessor: BlendableSchemaAccessor
   ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
-    const nativeFields = (dataMart.schema?.fields ?? []).filter(
-      f => !f.isHiddenForReporting
-    ) as DataMartSchema['fields'];
+    const rawSchemaFields = dataMart.schema?.fields ?? [];
+    // A calculated field is handed out with its EFFECTIVE level, not the persisted one: the stored
+    // level is a cache the actualization does not maintain, so a field saved as row-level can
+    // aggregate by now through its own text or a dependency (`calculatedFieldLevelOf`). The
+    // picker decides from this level what a report may sort by and aggregate, and the validator
+    // re-derives the same answer on save — the two must not disagree. Copied, never stamped onto
+    // the entity: this is a read, and a later save must not persist a derived value by accident.
+    const nativeFields = rawSchemaFields
+      .filter(f => !f.isHiddenForReporting)
+      .map(f =>
+        isCalculatedField(f)
+          ? {
+              ...f,
+              calculated: { ...f.calculated, level: calculatedFieldLevelOf(f, rawSchemaFields) },
+            }
+          : f
+      ) as DataMartSchema['fields'];
 
     const config: BlendedFieldsConfig = dataMart.blendedFieldsConfig ?? DEFAULT_CONFIG;
     const sourcesByPath = new Map(config.sources.map(s => [s.path, s]));
@@ -171,7 +187,6 @@ export class BlendableSchemaService {
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
 
-    const rawSchemaFields = dataMart.schema?.fields ?? [];
     // The join tree this very call just walked — so a formula's joined reference is checked against
     // the SAME tree the report builder will route it through, on the one payload the picker reads.
     const joinedReferenceIndex = buildJoinedReferenceIndex({ availableSources, blendedFields });

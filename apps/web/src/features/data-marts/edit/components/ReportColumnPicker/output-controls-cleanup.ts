@@ -48,8 +48,9 @@ export function isAggregatedShape(
  * slices, the limit and the Unique Count selection are untouched — a filter holds whether or not
  * its column is printed.
  *
- * A sort on the column goes only when it can no longer resolve: the report is still a GROUP BY
- * after the pruning (the shape is re-read from the config WITHOUT the pruned rules, since
+ * A sort on the column goes only when it can no longer resolve: the column is gone from the
+ * schema (a disconnected row being unchecked takes every rule on it), the report is still a GROUP
+ * BY after the pruning (the shape is re-read from the config WITHOUT the pruned rules, since
  * unchecking the only aggregated column may be exactly what makes the query ungrouped), or the
  * column is a calculated field (sortable only while selected). Otherwise the sort stays, valid,
  * the way a filter on an unselected column is.
@@ -63,6 +64,8 @@ export function pruneRulesForDeselectedColumns(
   context: {
     /** The selection AFTER the deselect. */
     selectedNames: ReadonlySet<string>;
+    /** Every column the current schema offers; a removed name outside it is disconnected. */
+    knownNames: ReadonlySet<string>;
     calculatedFields: CalculatedFieldNames;
   }
 ): { config: OutputConfig; changed: OutputConfigKey[] } {
@@ -80,7 +83,9 @@ export function pruneRulesForDeselectedColumns(
   const sortConfig = config.sortConfig.filter(
     rule =>
       !removed.has(rule.column) ||
-      (sortSurvivesDeselect && !context.calculatedFields.all.has(rule.column))
+      (sortSurvivesDeselect &&
+        context.knownNames.has(rule.column) &&
+        !context.calculatedFields.all.has(rule.column))
   );
 
   const changed: OutputConfigKey[] = [];

@@ -97,8 +97,9 @@ describe('ReportSqlComposerService', () => {
 
   // The blending decision already pruned this for the validator; the composer reads the STORED
   // report again, so it prunes again from the same schema, or ORDER BY would name a column the
-  // warehouse no longer has and fail the run over its row order.
-  it('drops a sort on a column missing from the schema before building the query', async () => {
+  // warehouse no longer has and fail the run over its row order. The LIMIT travels untouched:
+  // under it the delivered rows may now differ, but clearing it would make the run unbounded.
+  it('drops a sort on a column missing from the schema before building the query, keeping the limit', async () => {
     const { service, queryBuilderFacade } = createService(
       { needsBlending: false, columnFilter: ['a'] },
       'SELECT 1'
@@ -109,6 +110,7 @@ describe('ReportSqlComposerService', () => {
         { column: 'ghost', direction: 'desc' },
         { column: 'a', direction: 'asc' },
       ],
+      limitConfig: 10,
       dataMart: {
         id: 'dm-1',
         definition: { sqlQuery: 'SELECT 1' },
@@ -121,6 +123,7 @@ describe('ReportSqlComposerService', () => {
 
     const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
     expect(options.sort).toEqual([{ column: 'a', direction: 'asc' }]);
+    expect(options.limit).toBe(10);
   });
 
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {

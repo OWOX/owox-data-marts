@@ -107,9 +107,10 @@ export class BlendedReportDataService {
     const uniqueCountAliasPaths = new Set(joinedUniqueCountSources(report.uniqueCountConfig));
 
     // A sort on a column the schema no longer offers is dropped here rather than failing the run:
-    // ORDER BY changes the order of the rows, never their values, and a scheduled run never opens
-    // the editor that shows the rule as orphaned — the reasoning the stale Unique Count sort below
-    // is dropped by. Only this path degrades; the save paths validate the stored config and reject
+    // ORDER BY changes the order of the rows, never their values (under a LIMIT, which is kept,
+    // the rows that make the cut may differ — see `withoutUnknownSortColumns`), and a scheduled
+    // run never opens the editor that shows the rule as orphaned — the reasoning the stale Unique
+    // Count sort below is dropped by. Only this path degrades; the save paths validate the stored config and reject
     // it, and an aggregation or date bucket on such a column still fails below, loudly, because
     // it WOULD change the values. Resolved ahead of the validator, whose own answer to an unknown
     // sort column is the disconnected error, and against the very set it reads. The schema this

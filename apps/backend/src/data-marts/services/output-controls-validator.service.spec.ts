@@ -1141,6 +1141,68 @@ describe('OutputControlsValidatorService', () => {
       ]);
     });
 
+    // A real column may own a Unique Count output name. Unselected, the blended builder strips that
+    // name from the columns it carries into its CTEs (it reads it as the synthetic alias), so the
+    // ORDER BY would name a column the main CTE no longer projects — refused here, like the base
+    // validator did, rather than accepted into an unrunnable report.
+    it.each([
+      [
+        'the main label',
+        [{ name: 'Unique Count', type: BigQueryFieldType.STRING }],
+        {},
+        'Unique Count',
+      ],
+      [
+        'a joined source name',
+        [],
+        {
+          blendedFields: [
+            {
+              name: 'orders__unique_count',
+              aliasPath: 'orders',
+              originalFieldName: 'unique_count',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'orders' }],
+        },
+        'orders__unique_count',
+      ],
+    ])(
+      'rejects a sort on an unselected real field that owns %s even when the report does not aggregate',
+      async (_case, extraNative, extras, column) => {
+        const capabilitySvc = makeCapabilityService(true);
+        const schemaSvc = makeBlendableSchemaService(
+          [{ name: 'date', type: BigQueryFieldType.DATE }, ...extraNative],
+          extras
+        );
+        const validator = new OutputControlsValidatorService(
+          capabilitySvc as never,
+          schemaSvc as never
+        );
+
+        let caught: BadRequestException | undefined;
+        try {
+          await validator.validateForReport({
+            storageType: supportedStorageType,
+            dataMartId: 'dm-1',
+            projectId: 'proj-1',
+            columnConfig: ['date'],
+            filterConfig: null,
+            sortConfig: [{ column, direction: 'asc' }],
+            limitConfig: null,
+            accessor: { userId: 'user-1', roles: ['admin'] },
+          });
+        } catch (e) {
+          caught = e as BadRequestException;
+        }
+
+        expect(caught).toBeDefined();
+        const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+        expect(response.details.errors).toEqual([{ code: 'SORT_COLUMN_NOT_SELECTED', column }]);
+      }
+    );
+
     it('names the failed rules in the message, not only in details', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([

@@ -190,7 +190,7 @@ You have two options:
 
 A filter, slice, sort, aggregation, or date bucket rule may still point to a disconnected column. Save the report, and OWOX blocks it with a **Disconnected columns** error that names the columns. Open the report, remove the affected rules from the Filters, Slices, Sort, or Aggregations sections, then save again.
 
-A scheduled run of such a report drops a sort rule on a disconnected column and continues — the order of the rows changes, their values do not. An aggregation or date bucket on a disconnected column fails the run with the same error, since it would change the values.
+A scheduled run of such a report drops a sort rule on a disconnected column and continues, with a warning in the server log. The values of the rows do not change, only their order — unless the report also has a **Limit**: the limit is kept, so the rows that make the cut may then differ from the ones the sort used to pick (a former top 10 becomes an arbitrary 10). An aggregation or date bucket on a disconnected column fails the run with the same error, since it would change the values.
 
 Other validation errors block the save with **"Output controls validation failed"** followed by the rules that failed and the columns they name.
 

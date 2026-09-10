@@ -121,6 +121,30 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toEqual([]);
     });
 
+    // The persisted level is a cache the actualization does not maintain: a field saved as
+    // row-level can aggregate by now through its own text. The picker decides from this level what
+    // a report may sort by, and the validator re-derives it on save — the schema must hand out the
+    // derived one, and must not write it back onto the entity on the way.
+    it('hands out a calculated field with its effective level, not the persisted one', async () => {
+      const schema = makeSchema([
+        { name: 'revenue', type: 'INTEGER' },
+        {
+          name: 'total_revenue',
+          type: 'INTEGER',
+          calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'column' },
+        },
+      ]);
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1', schema }));
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      const handedOut = result.nativeFields[1] as { calculated?: { level?: string } };
+      expect(handedOut.calculated?.level).toBe('metric');
+      const stored = schema.fields[1] as { calculated?: { level?: string } };
+      expect(stored.calculated?.level).toBe('column');
+    });
+
     it('should return empty arrays when schema is undefined and no relationships exist', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ schema: undefined }));
       relationshipService.findByStorageId.mockResolvedValue([]);

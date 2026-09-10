@@ -1168,6 +1168,40 @@ describe('ReportColumnPicker aggregation', () => {
         uniqueCountConfig: [],
       });
     });
+
+    // A disconnected row: the column is gone from the schema, so its sort can never resolve and
+    // goes with the uncheck even though the plain report would keep a sort on a live column.
+    it('drops the sort on an unchecked disconnected column of a plain report', () => {
+      const onOutputConfigChange = vi.fn();
+      const { onChange } = renderPicker(aggSchema(), ['native_one', 'ghost'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: {
+          filterConfig: [],
+          sortConfig: [
+            { column: 'ghost', direction: 'asc' },
+            { column: 'native_one', direction: 'asc' },
+          ],
+          limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: [],
+        },
+        onOutputConfigChange,
+      });
+
+      const row = screen.getByText('ghost').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('checkbox'));
+
+      expect(onChange).toHaveBeenCalledWith(['native_one']);
+      expect(onOutputConfigChange).toHaveBeenCalledWith({
+        filterConfig: [],
+        sortConfig: [{ column: 'native_one', direction: 'asc' }],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      });
+    });
   });
 
   it('materializes columnConfig to the explicit selection when an aggregation is applied while columns are implicit (null = all)', async () => {
@@ -1944,35 +1978,27 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
     expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
   });
 
-  // An ungrouped report with an explicit selection may sort by any column of the schema, so the
-  // unselected real field resolves the sort as itself — the synthetic never enters into it.
-  it('does not flag a sort on an UNSELECTED real field named "Unique Count" on an ungrouped report', () => {
+  // An ungrouped report may sort by an unselected column — but not by one that owns a Unique Count
+  // output name: the blended builder strips that name from its CTEs when unselected, so the backend
+  // refuses the rule, and the picker must neither offer it nor call it resolved.
+  it('still flags a sort on an UNSELECTED real field named "Unique Count" when the toggle is off, even on an ungrouped report', async () => {
     renderPicker(collisionSchema(), ['id'], {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       outputConfig: {
         ...baseOutputConfig,
         uniqueCountConfig: [],
-        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
-      },
-      onOutputConfigChange: vi.fn(),
-    });
-
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
-  });
-
-  it('flags a sort on an UNSELECTED real field named "Unique Count" once the report aggregates, with the toggle off', () => {
-    renderPicker(collisionSchema(), ['id'], {
-      storageType: DataStorageType.GOOGLE_BIGQUERY,
-      outputConfig: {
-        ...baseOutputConfig,
-        uniqueCountConfig: [],
-        aggregationConfig: [{ column: 'id', function: 'COUNT' }],
         sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
       },
       onOutputConfigChange: vi.fn(),
     });
 
     expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('id')).toBeInTheDocument();
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
   });
 
   it('does not offer a duplicate "Unique Count" entry when a real field already owns the name', async () => {

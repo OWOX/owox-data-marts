@@ -3,6 +3,7 @@ import type { OutputConfig } from '../../../shared/types/output-config';
 import { isAggregatedShape, pruneRulesForDeselectedColumns } from './output-controls-cleanup';
 
 const NO_CALCULATED = { all: new Set<string>(), aggregate: new Set<string>() };
+const KNOWN = new Set(['revenue', 'orders', 'country', 'ordered_at', 'clicks_x2', 'ctr']);
 
 function config(overrides: Partial<OutputConfig> = {}): OutputConfig {
   return {
@@ -59,7 +60,11 @@ describe('pruneRulesForDeselectedColumns', () => {
     const { config: next, changed } = pruneRulesForDeselectedColumns(
       config(),
       new Set(['revenue', 'ordered_at']),
-      { selectedNames: new Set(['orders', 'country']), calculatedFields: NO_CALCULATED }
+      {
+        selectedNames: new Set(['orders', 'country']),
+        knownNames: KNOWN,
+        calculatedFields: NO_CALCULATED,
+      }
     );
 
     expect(next.aggregationConfig).toEqual([{ column: 'orders', function: 'COUNT' }]);
@@ -78,6 +83,7 @@ describe('pruneRulesForDeselectedColumns', () => {
     });
     const { config: next, changed } = pruneRulesForDeselectedColumns(only, new Set(['revenue']), {
       selectedNames: new Set(['country']),
+      knownNames: KNOWN,
       calculatedFields: NO_CALCULATED,
     });
 
@@ -90,11 +96,33 @@ describe('pruneRulesForDeselectedColumns', () => {
     const plain = config({ aggregationConfig: [], dateTruncConfig: [] });
     const result = pruneRulesForDeselectedColumns(plain, new Set(['revenue']), {
       selectedNames: new Set(['country']),
+      knownNames: KNOWN,
       calculatedFields: NO_CALCULATED,
     });
 
     expect(result.config).toBe(plain);
     expect(result.changed).toEqual([]);
+  });
+
+  // A disconnected row being unchecked: the column is gone from the schema, so a sort on it can
+  // never resolve, whatever the report's shape — leaving it would fail the very next save.
+  it('always removes the sort on an unchecked column that the schema no longer offers', () => {
+    const plain = config({
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      sortConfig: [
+        { column: 'ghost', direction: 'asc' },
+        { column: 'country', direction: 'asc' },
+      ],
+    });
+    const { config: next, changed } = pruneRulesForDeselectedColumns(plain, new Set(['ghost']), {
+      selectedNames: new Set(['country']),
+      knownNames: KNOWN,
+      calculatedFields: NO_CALCULATED,
+    });
+
+    expect(next.sortConfig).toEqual([{ column: 'country', direction: 'asc' }]);
+    expect(changed).toEqual(['sortConfig']);
   });
 
   it('always removes the sort on an unchecked calculated field', () => {
@@ -108,6 +136,7 @@ describe('pruneRulesForDeselectedColumns', () => {
       new Set(['clicks_x2']),
       {
         selectedNames: new Set(['country']),
+        knownNames: KNOWN,
         calculatedFields: { all: new Set(['clicks_x2']), aggregate: new Set() },
       }
     );
@@ -120,6 +149,7 @@ describe('pruneRulesForDeselectedColumns', () => {
     const plain = config({ aggregationConfig: [], dateTruncConfig: [] });
     const { config: next } = pruneRulesForDeselectedColumns(plain, new Set(['revenue']), {
       selectedNames: new Set(['ctr']),
+      knownNames: KNOWN,
       calculatedFields: { all: new Set(['ctr']), aggregate: new Set(['ctr']) },
     });
 
@@ -131,6 +161,7 @@ describe('pruneRulesForDeselectedColumns', () => {
     expect(
       pruneRulesForDeselectedColumns(same, new Set(), {
         selectedNames: new Set(['revenue']),
+        knownNames: KNOWN,
         calculatedFields: NO_CALCULATED,
       })
     ).toEqual({ config: same, changed: [] });

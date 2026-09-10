@@ -47,6 +47,10 @@ export function collectKnownOutputColumns(schema: BlendableSchemaDto): Set<strin
  * cannot. ORDER BY changes the order of the rows, never their values, so the run paths drop the
  * latter with a warning rather than fail a scheduled run that no editor is ever opened on — the
  * same reasoning the stale Unique Count sort is dropped by. The save paths still reject them.
+ *
+ * The LIMIT is kept as it is: under a limit, dropping the order can change WHICH rows are
+ * delivered (a former top-10 becomes an arbitrary 10), but clearing the limit instead would turn
+ * the run into an unbounded export, which is the worse surprise. The warning is what says so.
  */
 export function withoutUnknownSortColumns(
   sort: readonly SortRule[],

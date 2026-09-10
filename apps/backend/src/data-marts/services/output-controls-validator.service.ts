@@ -1239,18 +1239,18 @@ export class OutputControlsValidatorService {
             // An ungrouped query with an explicit projection resolves ORDER BY against the source
             // row — the flat builders qualify or quote the bare column, the blended one carries
             // every sorted column into its CTE (`referencedColumns`) — so a sort on a column the
-            // report does not print is valid SQL, exactly like a filter on one. Two names stay
-            // out: a calculated field that is not selected (it renders as a SELECT alias, and only
+            // report does not print is valid SQL, exactly like a filter on one. Two kinds of name
+            // stay out unless selected: a calculated field (it renders as a SELECT alias, and only
             // a selected one is planned, so the resolver would fall back to `src.<name>`, a column
-            // the warehouse does not have) and a Unique Count output name (the metric is off in
-            // this shape, so the alias does not exist; a real field owning the name IS that
-            // field). A name absent from the schema is still reported below as disconnected.
+            // the warehouse does not have) and a Unique Count output name — EVEN when a real
+            // field owns it. The metric is off in this shape, so its alias does not exist; and
+            // the blended builder strips every unselected Unique Count name from the columns it
+            // carries into its CTEs on the assumption it is the synthetic alias, so a sort on the
+            // real column would name one the main CTE no longer projects. A name absent from the
+            // schema is still reported below as disconnected.
             const sortableColumns = new Set(knownOutputColumns);
-            for (const name of calculated.keys()) {
+            for (const name of [...calculated.keys(), ...uniqueCountOutputColumns]) {
               if (!selectedColumns.has(name)) sortableColumns.delete(name);
-            }
-            for (const name of uniqueCountOutputColumns) {
-              if (isUniqueCountColumn(name)) sortableColumns.delete(name);
             }
             errors.push(...this.validateSort(sortRules, sortableColumns));
           } else {
