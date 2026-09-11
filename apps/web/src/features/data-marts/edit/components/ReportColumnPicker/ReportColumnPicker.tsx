@@ -60,7 +60,11 @@ import {
 import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
-import { effectiveComparisonType, isFilterableType } from './output-controls-operators';
+import {
+  effectiveComparisonType,
+  isArrayFieldType,
+  isFilterableType,
+} from './output-controls-operators';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
 import { describeMissingReferences } from '../../../shared/utils/calculated-field-issues';
 import { isRowLevelCalculatedField } from '../../../shared/utils/calculated-field-level';
@@ -97,11 +101,12 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
     if (field.isHiddenForReporting) continue;
     if (!field.calculated && field.status === 'DISCONNECTED') continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    const reportType = field.type ? effectiveComparisonType(field.type, field.mode) : field.type;
     result.push({
       name: fullName,
-      // A REPEATED field's element type is not its comparison type — mark it as
-      // ARRAY<T> so the operator menus mirror the backend validator (#6779).
-      type: field.type ? effectiveComparisonType(field.type, field.mode) : field.type,
+      // A REPEATED field's element type is not the column type — normalize it to
+      // ARRAY<T> so report controls can exclude it.
+      type: reportType,
       alias: field.alias,
       description: field.description,
       isPrimaryKey: field.isPrimaryKey,
@@ -109,7 +114,7 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
       allowedAggregations: field.allowedAggregations,
       calculated: field.calculated,
     });
-    if (field.fields && Array.isArray(field.fields)) {
+    if (!isArrayFieldType(reportType) && field.fields && Array.isArray(field.fields)) {
       result.push(...flattenNativeFields(field.fields, fullName));
     }
   }
@@ -256,6 +261,8 @@ interface NativeFieldRowProps {
   onReplaceFilterAt?: ReplaceFilterAtFn;
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
+  /** Existing array-field filters stay removable but cannot be added or edited. */
+  removeOnlyControls?: boolean;
   /**
    * This metric's own broken-reference names — its formula names a field the schema no
    * longer has. `undefined`/empty means fine. Only consulted for a `field.calculated` row.
@@ -286,11 +293,13 @@ const NativeFieldRow = memo(function NativeFieldRow({
   onReplaceFilterAt,
   aggregation,
   onApplyAggregation,
+  removeOnlyControls = false,
   brokenReferences,
 }: NativeFieldRowProps) {
   const noteId = useId();
   const aggIcon =
     checked &&
+    !removeOnlyControls &&
     renderRowAggregationIcon(
       field.name,
       field.type,
@@ -299,25 +308,30 @@ const NativeFieldRow = memo(function NativeFieldRow({
       aggregation,
       onApplyAggregation
     );
-  const filterIcon = filterableType && onAddFilter && onRemoveFilterAt && (
-    <RowFilterIcon
-      column={field.name}
-      fieldType={filterableType}
-      displayLabel={fieldDisplayLabel(field.alias, field.name)}
-      activeRules={columnFilters.rules}
-      onAdd={onAddFilter}
-      onRemoveAt={localIndex => {
-        onRemoveFilterAt(columnFilters.indices[localIndex]);
-      }}
-      onReplaceAt={
-        onReplaceFilterAt
-          ? (localIndex, rule) => {
-              onReplaceFilterAt(columnFilters.indices[localIndex], rule);
-            }
-          : undefined
-      }
-    />
-  );
+  const effectiveAddFilter = removeOnlyControls ? undefined : onAddFilter;
+  const effectiveReplaceFilter = removeOnlyControls ? undefined : onReplaceFilterAt;
+  const filterIcon =
+    filterableType &&
+    onRemoveFilterAt &&
+    (effectiveAddFilter !== undefined || columnFilters.rules.length > 0) ? (
+      <RowFilterIcon
+        column={field.name}
+        fieldType={filterableType}
+        displayLabel={fieldDisplayLabel(field.alias, field.name)}
+        activeRules={columnFilters.rules}
+        onAdd={effectiveAddFilter}
+        onRemoveAt={localIndex => {
+          onRemoveFilterAt(columnFilters.indices[localIndex]);
+        }}
+        onReplaceAt={
+          effectiveReplaceFilter
+            ? (localIndex, rule) => {
+                effectiveReplaceFilter(columnFilters.indices[localIndex], rule);
+              }
+            : undefined
+        }
+      />
+    ) : null;
 
   const isCalculated = !!field.calculated;
   const missing = isCalculated ? (brokenReferences ?? []) : [];
@@ -430,6 +444,8 @@ interface BlendedFieldRowProps {
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
   hoverClassName?: string;
+  /** Array-field controls are remove-only, while its projection checkbox stays usable. */
+  removeOnlyControls?: boolean;
   /**
    * If true, the row only exposes paths that remove existing references —
    * the checkbox cannot select an unchecked field, filter/slice add and
@@ -466,6 +482,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   onApplyAggregation,
   hoverClassName = 'hover:bg-muted/50',
   removeOnly = false,
+  removeOnlyControls = false,
 }: BlendedFieldRowProps) {
   const noteId = useId();
   const dataMartName = field.outputPrefix.trim() || field.sourceDataMartTitle;
@@ -473,12 +490,16 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   // Same shape as an inaccessible source's row: every path that could CREATE a reference is closed,
   // every path that removes one stays open — a saved selection is the analyst's to clear, and
   // nothing else prunes `columnConfig` for them.
-  const isRemoveOnly = removeOnly || !!hint;
-  const effectiveAddFilter = isRemoveOnly ? undefined : onAddFilter;
-  const effectiveReplaceFilter = isRemoveOnly ? undefined : onReplaceFilterAt;
+  // Inaccessible/calculated joined fields cannot be projected; array fields can. Keep that
+  // distinction here because both kinds must hide creation controls, but only the former must
+  // disable an unchecked checkbox.
+  const projectionRemoveOnly = removeOnly || !!hint;
+  const controlsRemoveOnly = projectionRemoveOnly || removeOnlyControls;
+  const effectiveAddFilter = controlsRemoveOnly ? undefined : onAddFilter;
+  const effectiveReplaceFilter = controlsRemoveOnly ? undefined : onReplaceFilterAt;
   const aggIcon =
     checked &&
-    !isRemoveOnly &&
+    !controlsRemoveOnly &&
     renderRowAggregationIcon(
       field.name,
       field.type,
@@ -792,6 +813,7 @@ function BlendedGroupItem({
               onApplyAggregation={onApplyAggregation}
               hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
               removeOnly={inaccessible}
+              removeOnlyControls={isArrayFieldType(field.sourceFieldType ?? field.type)}
             />
           );
         })}
@@ -1418,7 +1440,9 @@ export function ReportColumnPicker({
       if (f.type) map.set(f.name, f.type);
     }
     for (const f of schema?.blendedFields ?? []) {
-      if (f.type) map.set(f.name, f.type);
+      if (!f.type) continue;
+      const sourceType = f.sourceFieldType ?? f.type;
+      map.set(f.name, isArrayFieldType(sourceType) ? sourceType : f.type);
     }
     return map;
   }, [nativeFields, schema]);
@@ -1434,9 +1458,12 @@ export function ReportColumnPicker({
       // already-saved rule clearable; suppressing its type here would take that away too.
       const t = fieldTypeByName.get(fieldName);
       if (!t) return undefined;
-      return isFilterableType(t) ? t : undefined;
+      if (isFilterableType(t)) return t;
+      return filtersByColumn.has(fieldName) || preJoinByAliasPathColumn.has(fieldName)
+        ? t
+        : undefined;
     },
-    [outputControlsAvailable, fieldTypeByName]
+    [outputControlsAvailable, fieldTypeByName, filtersByColumn, preJoinByAliasPathColumn]
   );
 
   // The row filter icons' three edits. A filter on an AGGREGATE-level formula groups the query, so
@@ -1535,13 +1562,15 @@ export function ReportColumnPicker({
       // surface in this file decides `isCalculated` explicitly, and this loop was the one that
       // never had to.
       if (field.isCalculated === true) continue;
+      const sourceType = field.sourceFieldType ?? field.type;
+      if (isArrayFieldType(sourceType)) continue;
       entry.dataMartName ??= field.outputPrefix.trim() || field.sourceDataMartTitle;
       entry.columns.push({
         id: field.name,
         name: field.originalFieldName,
         // joinedSources feeds the Output settings → Slices surface only. Slices run pre-join on the
         // raw value, so use the raw source type (not the post-dedup effective `field.type`).
-        type: field.sourceFieldType ?? field.type,
+        type: sourceType,
         alias: field.alias,
       });
     }
@@ -1559,7 +1588,7 @@ export function ReportColumnPicker({
   const dropdownColumns = useMemo<DropdownColumn[]>(() => {
     const cols: DropdownColumn[] = [];
     for (const f of nativeFields) {
-      if (f.type) {
+      if (f.type && !isArrayFieldType(f.type)) {
         // An AGGREGATE-level formula already IS an aggregate: not a dimension, so it is offered
         // neither an aggregation nor a date bucket. Both refusals are permanent for that level.
         const isAggregateLevelCalculated =
@@ -1588,6 +1617,8 @@ export function ReportColumnPicker({
     for (const f of includedBlendedFields) {
       if (!f.type) continue;
       if (!availableSourceByPath.get(f.aliasPath)?.isAccessibleForReporting) continue;
+      const sourceType = f.sourceFieldType ?? f.type;
+      if (isArrayFieldType(sourceType)) continue;
       // No LEVEL travels with a joined formula, and none is needed: the backend refuses one on
       // EVERY surface a report can name a column on, whichever level it turned out to be. So all
       // three flags are raised together, and the aggregation sets are forced empty rather than
@@ -1598,6 +1629,8 @@ export function ReportColumnPicker({
       const isCalculated = f.isCalculated === true;
       cols.push({
         name: f.name,
+        // Projection controls run on the post-join value. `sourceType` above is only the
+        // array-value classifier; scalar joined values retain their effective type here.
         type: f.type,
         label: fieldDisplayLabel(f.alias, f.originalFieldName),
         dataMartName: f.outputPrefix.trim() || f.sourceDataMartTitle,
@@ -2231,6 +2264,7 @@ export function ReportColumnPicker({
             onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
             aggregation={aggregationByColumn.get(field.name)}
             onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
+            removeOnlyControls={isArrayFieldType(field.type)}
             brokenReferences={calculatedFieldIssuesByName.get(field.name)}
           />
         ))}

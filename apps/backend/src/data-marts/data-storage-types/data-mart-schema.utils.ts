@@ -10,6 +10,7 @@ import { DataStoragePublicCredentialsFactory } from './factories/data-storage-pu
 import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
+import { isArrayFieldType } from './field-type-compatibility';
 
 /**
  * A field is "connected" when it still exists in the data source — i.e. its status is not
@@ -44,15 +45,11 @@ export function collectSchemaFieldPathTypes(
 }
 
 /**
- * The comparison type of a field as filter/aggregation machinery must see it. A BigQuery
- * REPEATED field stores its ELEMENT type (`STRING` + mode `REPEATED`), but the column is
- * an ARRAY<STRING>: string operators and TRIM() are type errors on it, and only the
- * type-agnostic operators (is_blank / is_null pairs, rendered as bare `col IS NULL`) are
- * valid SQL. Wrapping the collected type as `ARRAY<T>` files it under the `other`
- * category everywhere downstream — validator gating, the MCP field-type matrix, and the
- * renderers' blank/cast branches — so all three surfaces agree (#6779).
+ * The field type report and blending machinery must see. A BigQuery REPEATED field stores
+ * its element type (`STRING` + mode `REPEATED`), but the column is an `ARRAY<STRING>`.
+ * Normalizing it here lets downstream controls reject array-only-invalid operations.
  */
-function comparisonType(field: DataMartSchemaField): string {
+export function getReportFieldType(field: { type: string; mode?: BigQueryFieldMode }): string {
   const rawType = String(field.type);
   return 'mode' in field && field.mode === BigQueryFieldMode.REPEATED
     ? `ARRAY<${rawType}>`
@@ -70,8 +67,9 @@ export function collectSchemaFieldPathDescriptors(
     if (field.isHiddenForReporting) continue;
     if (!isConnected(field)) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: comparisonType(field), field });
-    if ('fields' in field && field.fields?.length) {
+    const reportType = getReportFieldType(field);
+    result.push({ name: fullName, type: reportType, field });
+    if ('fields' in field && field.fields?.length && !isArrayFieldType(reportType)) {
       result.push(...collectSchemaFieldPathDescriptors(field.fields, fullName));
     }
   }

@@ -44,6 +44,41 @@ describe('SourceFieldsTable — Post-join column', () => {
     expect(screen.getByLabelText('Available aggregations')).toBeInTheDocument();
   });
 
+  it('keeps array aggregation controls static while a scalar neighbor stays editable', () => {
+    const fields = [
+      buildBlendedField({
+        originalFieldName: 'tags',
+        type: 'STRING',
+        sourceFieldType: 'ARRAY<STRING>',
+        aggregateFunction: 'COUNT_DISTINCT',
+        postJoinAggregations: ['SUM'],
+      }),
+      buildBlendedField({
+        originalFieldName: 'revenue',
+        type: 'INTEGER',
+        sourceFieldType: 'INTEGER',
+        aggregateFunction: 'SUM',
+        postJoinAggregations: ['SUM'],
+      }),
+    ];
+    render(<SourceFieldsTable fields={fields} onFieldOverrideChange={() => {}} />);
+
+    const arrayRow = screen.getByText('tags').closest('tr');
+    const scalarRow = screen.getByText('revenue').closest('tr');
+    expect(arrayRow).not.toBeNull();
+    expect(scalarRow).not.toBeNull();
+    expect(within(arrayRow!).getByText('JSON array')).toBeInTheDocument();
+    expect(within(arrayRow!).getByText('None')).toBeInTheDocument();
+    expect(within(arrayRow!).queryByRole('combobox')).not.toBeInTheDocument();
+    expect(
+      within(arrayRow!).queryByRole('button', { name: 'Available aggregations for tags' })
+    ).not.toBeInTheDocument();
+    expect(within(scalarRow!).getByRole('combobox')).toBeInTheDocument();
+    expect(
+      within(scalarRow!).getByRole('button', { name: 'Available aggregations for revenue' })
+    ).toBeInTheDocument();
+  });
+
   it('shows function names in trigger when postJoinAggregations is [MAX, MIN]', () => {
     const fields = [
       // MAX comes before MIN in REPORT_AGGREGATE_FUNCTIONS

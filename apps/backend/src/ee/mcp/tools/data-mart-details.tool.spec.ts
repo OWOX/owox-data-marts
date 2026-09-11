@@ -165,6 +165,22 @@ describe('GetDataMartDetailsTool', () => {
             type: 'RECORD',
             fields: [{ name: 'payload.amount', type: 'INTEGER' }],
           },
+          {
+            name: 'tags',
+            type: 'STRING',
+            mode: 'REPEATED',
+          },
+          {
+            name: 'items',
+            type: 'RECORD',
+            mode: 'REPEATED',
+            fields: [{ name: 'items.sku', type: 'STRING' }],
+          },
+          {
+            name: 'typed_items',
+            type: 'ARRAY<STRUCT<sku STRING>>',
+            fields: [{ name: 'typed_items.sku', type: 'STRING' }],
+          },
         ],
         joinedFields: [
           {
@@ -189,6 +205,13 @@ describe('GetDataMartDetailsTool', () => {
             description: '',
             sourceDataMart: 'costs',
           },
+          {
+            name: 'costs__items',
+            type: 'STRING',
+            sliceType: 'ARRAY<STRING>',
+            description: '',
+            sourceDataMart: 'costs',
+          },
         ],
         joins: [],
       }),
@@ -207,12 +230,31 @@ describe('GetDataMartDetailsTool', () => {
 
     // Explicit override is preserved (already within the number menu).
     expect(sc.fields[0]).toMatchObject({ allowedAggregations: ['SUM', 'P95'] });
-    // RECORD container is categorized 'other'; its nested leaf is enriched as a number.
+    // A non-repeated RECORD keeps its existing controls; its nested leaf is enriched separately.
     expect(sc.fields[1]).toMatchObject({ category: 'other', allowedAggregations: ['COUNT'] });
     expect((sc.fields[1].fields as Array<Record<string, unknown>>)[0]).toMatchObject({
       category: 'number',
       allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'],
     });
+    expect(sc.fields[2]).toMatchObject({
+      type: 'STRING',
+      mode: 'REPEATED',
+      allowedAggregations: [],
+    });
+    expect(sc.fields[2]).not.toHaveProperty('category');
+    expect(sc.fields[3]).toMatchObject({
+      type: 'RECORD',
+      mode: 'REPEATED',
+      allowedAggregations: [],
+    });
+    expect(sc.fields[3]).not.toHaveProperty('category');
+    expect(sc.fields[3]).not.toHaveProperty('fields');
+    expect(sc.fields[4]).toMatchObject({
+      type: 'ARRAY<STRUCT<sku STRING>>',
+      allowedAggregations: [],
+    });
+    expect(sc.fields[4]).not.toHaveProperty('category');
+    expect(sc.fields[4]).not.toHaveProperty('fields');
     // Restricted joined field keeps its restriction.
     expect(sc.joined_fields[0]).toMatchObject({ allowedAggregations: ['SUM'] });
     // Explicit [] ("no aggregations allowed") must stay [], NOT fall back to type defaults —
@@ -224,10 +266,14 @@ describe('GetDataMartDetailsTool', () => {
       category: 'number',
       sliceCategory: 'string',
     });
+    expect(sc.joined_fields[3]).toMatchObject({
+      allowedAggregations: [],
+    });
+    expect(sc.joined_fields[3]).not.toHaveProperty('category');
+    expect(sc.joined_fields[3]).not.toHaveProperty('sliceCategory');
     expect(Object.keys(sc.operators_by_category)).toEqual(
       expect.arrayContaining(['number', 'string'])
     );
-    // 'other' category only allows blank checks.
     expect(sc.operators_by_category['other']).toEqual(['is_blank', 'is_not_blank']);
   });
 
@@ -497,6 +543,9 @@ describe('GetDataMartDetailsTool', () => {
     expect(tool.description).toContain('field-level metadata');
     expect(tool.description).toContain('allowedAggregations');
     expect(tool.description).toContain('operators_by_category');
+    expect(tool.description).toContain('mode is REPEATED');
+    expect(tool.description).toContain('type or sliceType');
+    expect(tool.description).toContain('Array fields');
     expect(tool.description).toContain('does not return data owners');
     expect(tool.description).toContain('data freshness');
     expect(tool.description).toContain('sample values');

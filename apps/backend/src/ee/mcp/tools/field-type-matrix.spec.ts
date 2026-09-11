@@ -149,6 +149,15 @@ describe('field-type-matrix', () => {
     ).toEqual(['COUNT']);
   });
 
+  it.each(['ARRAY', 'ARRAY<STRING>', 'ARRAY(VARCHAR)'])(
+    'does not advertise aggregations for array type %s',
+    fieldType => {
+      expect(
+        effectiveMcpAggregations(fieldType, { allowedAggregations: ['COUNT', 'ANY_VALUE'] })
+      ).toEqual([]);
+    }
+  );
+
   it('maps internal operators back to the MCP names that produce them', () => {
     expect(mcpOperatorNamesForInternal('relative_date')).toEqual(
       expect.arrayContaining([
@@ -175,5 +184,7 @@ describe('field-type-matrix', () => {
     }
     expect(section).toContain('only where enabled on the field');
     expect(section).toContain('boolean true or false');
+    expect(section).toContain('mode is REPEATED');
+    expect(section).toContain('Array override');
   });
 });

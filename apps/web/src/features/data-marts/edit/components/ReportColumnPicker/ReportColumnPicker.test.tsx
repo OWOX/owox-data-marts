@@ -250,6 +250,241 @@ describe('ReportColumnPicker access flag', () => {
   });
 });
 
+describe('ReportColumnPicker array native fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps a repeated parent selectable, omits its descendants, and leaves an ordinary scalar controllable', async () => {
+    const outputConfig: OutputConfig = {
+      filterConfig: [],
+      sortConfig: [],
+      limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: [],
+    };
+    const schema = buildSchema({
+      nativeFields: [
+        {
+          name: 'items',
+          type: 'STRING',
+          mode: 'REPEATED',
+          fields: [{ name: 'sku', type: 'STRING' }],
+        },
+        { name: 'title', type: 'STRING' },
+      ] as unknown[],
+    });
+
+    const { onChange } = renderPicker(schema, ['title'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig,
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const itemsRow = screen
+      .getByText('items')
+      .closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    expect(within(itemsRow).getByRole('checkbox')).not.toHaveAttribute('aria-disabled');
+    expect(within(itemsRow).queryByRole('button', { name: 'Add filter' })).not.toBeInTheDocument();
+    expect(
+      within(itemsRow).queryByRole('button', { name: /aggregation/i })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('items.sku')).not.toBeInTheDocument();
+    expect(screen.queryByText('sku')).not.toBeInTheDocument();
+
+    fireEvent.click(within(itemsRow).getByRole('checkbox'));
+    expect(onChange.mock.calls.at(-1)?.[0]).toContain('items');
+
+    const titleRow = screen.getByText('title').closest('label')!;
+    expect(within(titleRow).getByRole('button', { name: 'Add filter' })).toBeInTheDocument();
+    expect(within(titleRow).getByRole('button', { name: /aggregation/i })).toBeInTheDocument();
+
+    const openPicker = async (name: RegExp) => {
+      const trigger = screen
+        .getAllByRole('button', { name })
+        .find(button => button.getAttribute('aria-haspopup') === 'listbox');
+      fireEvent.click(trigger!);
+      return screen.findByRole('listbox');
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    let listbox = await openPicker(/Add filter/);
+    expect(within(listbox).getByText('title')).toBeInTheDocument();
+    expect(within(listbox).queryByText('items')).not.toBeInTheDocument();
+    fireEvent.keyDown(listbox, { key: 'Escape' });
+
+    listbox = await openPicker(/Add sort by/);
+    expect(within(listbox).getByText('title')).toBeInTheDocument();
+    expect(within(listbox).queryByText('items')).not.toBeInTheDocument();
+    fireEvent.keyDown(listbox, { key: 'Escape' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    listbox = await openPicker(/Add aggregation/);
+    expect(within(listbox).getByText('title')).toBeInTheDocument();
+    expect(within(listbox).queryByText('items')).not.toBeInTheDocument();
+  });
+
+  it('does not offer row aggregation for a selected repeated parent', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'items', type: 'STRING', mode: 'REPEATED' },
+        { name: 'title', type: 'STRING' },
+      ] as unknown[],
+    });
+
+    renderPicker(schema, ['items', 'title'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      onOutputConfigChange: vi.fn(),
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+    });
+
+    const itemsRow = screen
+      .getByText('items')
+      .closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    expect(
+      within(itemsRow).queryByRole('button', { name: /aggregation/i })
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByText('title').closest('label')!).getByRole('button', {
+        name: /aggregation/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('keeps a typed array parent selectable but does not expose its descendants', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        {
+          name: 'items',
+          type: 'ARRAY<STRUCT<sku STRING>>',
+          fields: [{ name: 'sku', type: 'STRING' }],
+        },
+      ] as unknown[],
+    });
+
+    renderPicker(schema, [], {
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const itemsRow = screen
+      .getByText('items')
+      .closest<HTMLElement>('[data-slot="native-field-row"]')!;
+    expect(within(itemsRow).getByRole('checkbox')).not.toHaveAttribute('aria-disabled');
+    expect(within(itemsRow).queryByRole('button', { name: 'Add filter' })).not.toBeInTheDocument();
+    expect(screen.queryByText('items.sku')).not.toBeInTheDocument();
+    expect(screen.queryByText('sku')).not.toBeInTheDocument();
+  });
+
+  it('uses a joined field’s source type when offering slices', async () => {
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__items',
+          originalFieldName: 'items',
+          type: 'STRING',
+          sourceFieldType: 'ARRAY<STRING>',
+        }),
+        buildBlendedField({ name: 'b__title', originalFieldName: 'title', type: 'STRING' }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+    const { onChange } = renderPicker(schema, ['native_one', 'b__title'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const itemsRow = screen
+      .getByText('items')
+      .closest<HTMLElement>('[data-slot="blended-field-row"]')!;
+    const itemsCheckbox = within(itemsRow).getByRole('checkbox');
+    expect(itemsCheckbox).not.toBeDisabled();
+    fireEvent.click(itemsCheckbox);
+    expect(onChange.mock.calls.at(-1)?.[0]).toContain('b__items');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    const trigger = screen
+      .getAllByRole('button', { name: /Add slice/ })
+      .find(button => button.getAttribute('aria-haspopup') === 'listbox');
+    fireEvent.click(trigger!);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('title')).toBeInTheDocument();
+    expect(within(listbox).queryByText('items')).not.toBeInTheDocument();
+  });
+
+  it('keeps stored array controls visible and removable without offering replacements', async () => {
+    const onOutputConfigChange = vi.fn();
+    const outputConfig: OutputConfig = {
+      filterConfig: [
+        { column: 'b__items', operator: 'is_blank', placement: 'post-join' },
+        { column: 'b__items', operator: 'is_blank', placement: 'pre-join' },
+      ],
+      sortConfig: [{ column: 'b__items', direction: 'asc' }],
+      limitConfig: null,
+      aggregationConfig: [{ column: 'b__items', function: 'ANY_VALUE' }],
+      dateTruncConfig: [{ column: 'b__items', unit: 'MONTH' }],
+      uniqueCountConfig: [],
+    };
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__items',
+          originalFieldName: 'items',
+          type: 'STRING',
+          sourceFieldType: 'ARRAY<STRING>',
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+    renderPicker(schema, ['native_one', 'b__items'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig,
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('items').closest<HTMLElement>('[data-slot="blended-field-row"]')!;
+    expect(within(row).queryByRole('button', { name: 'Add filter' })).not.toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Manage filters and slices' })
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Manage filters and slices' }));
+    expect(await screen.findByRole('button', { name: 'Remove filter' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove slice' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    expect(screen.getByRole('button', { name: 'Remove sort' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    expect(screen.getByRole('button', { name: 'Remove aggregation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove date bucket' })).toBeInTheDocument();
+  });
+});
+
 describe('ReportColumnPicker joined source details', () => {
   beforeEach(() => {
     vi.clearAllMocks();

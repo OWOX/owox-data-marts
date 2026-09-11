@@ -24,8 +24,9 @@ export enum SnowflakeFieldType {
   // Geospatial types
   GEOGRAPHY = 'GEOGRAPHY',
 
-  // Complex types
+  // Semi-structured types
   VARIANT = 'VARIANT',
+  ARRAY = 'ARRAY',
 }
 
 export function parseSnowflakeFieldType(snowflakeNativeType: string): SnowflakeFieldType | null {
@@ -89,11 +90,12 @@ export function parseSnowflakeFieldType(snowflakeNativeType: string): SnowflakeF
     case 'GEOMETRY':
       return SnowflakeFieldType.GEOGRAPHY;
 
-    // Complex types
+    // Semi-structured types
     case 'VARIANT':
     case 'OBJECT':
-    case 'ARRAY':
       return SnowflakeFieldType.VARIANT;
+    case 'ARRAY':
+      return SnowflakeFieldType.ARRAY;
   }
 
   return null;
