@@ -22,6 +22,7 @@ export interface BlendTreeNode {
  */
 export interface PassthroughField {
   outputAlias: string;
+  targetFieldType?: string;
   aggregateFunction: AggregateFunction;
   isHidden: boolean;
 }

@@ -1,4 +1,35 @@
-import { areTypesCompatible, isPrimitiveFieldType } from './field-type-compatibility';
+import {
+  areTypesCompatible,
+  isArrayFieldType,
+  isPrimitiveFieldType,
+} from './field-type-compatibility';
+
+describe('isArrayFieldType', () => {
+  it.each([
+    ['ARRAY', true],
+    ['ARRAY<STRING>', true],
+    ['ARRAY(VARCHAR)', true],
+    ['array < struct < id int64 > >', true],
+    ['MAP', false],
+    ['RECORD', false],
+    ['ROW', false],
+    ['STRUCT', false],
+    ['JSON', false],
+    ['VARIANT', false],
+    ['OBJECT', false],
+    ['SUPER', false],
+    ['MAP<VARCHAR, ARRAY<JSON>>', false],
+    ['STRING', false],
+    ['DOUBLE PRECISION', false],
+    ['RANGE', false],
+    ['INTERVAL', false],
+    ['ARRAYISH', false],
+    ['ARRAY value', false],
+    [undefined, false],
+  ])('classifies %s as %s', (type, expected) => {
+    expect(isArrayFieldType(type)).toBe(expected);
+  });
+});
 
 describe('isPrimitiveFieldType', () => {
   it.each([
@@ -13,7 +44,7 @@ describe('isPrimitiveFieldType', () => {
     ['MAP'],
     ['ROW'],
     ['SUPER'],
-  ])('returns false for complex type %s', type => {
+  ])('returns false for non-primitive type %s', type => {
     expect(isPrimitiveFieldType(type)).toBe(false);
   });
 
@@ -39,6 +70,10 @@ describe('isPrimitiveFieldType', () => {
     expect(isPrimitiveFieldType('record')).toBe(false);
     expect(isPrimitiveFieldType('string')).toBe(true);
     expect(isPrimitiveFieldType('Array')).toBe(false);
+  });
+
+  it.each(['ARRAY<STRING>', 'INTERVAL DAY'])('keeps parameterized %s joinable', type => {
+    expect(isPrimitiveFieldType(type)).toBe(true);
   });
 });
 

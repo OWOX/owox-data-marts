@@ -22,9 +22,12 @@ import {
 import {
   classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
+  getReportFieldType,
   getMainUniqueCountKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
+import { BigQueryFieldMode } from '../data-storage-types/bigquery/enums/bigquery-field-mode.enum';
 import {
+  isArrayFieldType,
   isDateOrTimeFieldType,
   isNumericFieldType,
 } from '../data-storage-types/field-type-compatibility';
@@ -76,6 +79,7 @@ interface RawSchemaField {
   status?: string;
   alias?: string;
   description?: string;
+  mode?: BigQueryFieldMode;
   fields?: RawSchemaField[];
   calculated?: CalculatedFieldConfig;
 }
@@ -96,12 +100,13 @@ export function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): Flat
     // here would hide it from HTTP Data's ad-hoc column sets and the MCP facade.
     if (!field.calculated && field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    if (field.fields && field.fields.length > 0) {
+    const reportType = getReportFieldType(field);
+    if (field.fields && field.fields.length > 0 && !isArrayFieldType(reportType)) {
       result.push(...flattenSchemaFields(field.fields, fullName));
     } else {
       result.push({
         name: fullName,
-        type: field.type,
+        type: reportType,
         alias: field.alias,
         description: field.description,
         isCalculated: field.calculated !== undefined,
@@ -351,6 +356,7 @@ export class BlendableSchemaService {
 
       for (const field of flatTargetFields) {
         const fieldOverride = sourceConfig?.fields?.[field.name];
+        const isArray = isArrayFieldType(field.type);
 
         const dto = new BlendedFieldDto();
         dto.name = buildBlendedFieldUnifiedName(currentPath, field.name);
@@ -361,8 +367,10 @@ export class BlendableSchemaService {
         dto.sourceDataMartTitle = rel.targetDataMart.title;
         dto.targetAlias = rel.targetAlias;
         dto.originalFieldName = field.name;
-        const dedupFunction =
-          fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
+        // Arrays use the dialect's JSON rollup, regardless of stale scalar overrides.
+        const dedupFunction = isArray
+          ? 'STRING_AGG'
+          : (fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type));
         // A joined field's value in the blended result is its DEDUP (pre-join) output, so its
         // effective type — and thus which report-level aggregations are legal/offered — follows
         // the dedup function, not the raw source type. E.g. COUNT_DISTINCT on a STRING
@@ -384,17 +392,19 @@ export class BlendableSchemaService {
         dto.isHidden = fieldOverride?.isHidden ?? false;
         dto.isCalculated = field.isCalculated === true;
         dto.aggregateFunction = dedupFunction;
-        // No override → effective-type governance default; explicit `[]` = none allowed. An
-        // explicit override may only NARROW the effective type's SUPPORTED set: it used to be
-        // carried verbatim, so a stored config could offer a function the type cannot run. The
-        // validator's type floor catches the obvious ones (SUM/AVG on a non-number,
-        // COUNT_DISTINCT/STRING_AGG on a non-scalar) but NOT percentiles — `P50` on a text field
-        // passed save-time validation and only failed at the warehouse. Clamping here fixes it
-        // for every consumer at once: this menu feeds the validator, the MCP field list and the
-        // web column picker.
-        dto.postJoinAggregations = resolveFieldGovernance(effectiveType, {
-          allowedAggregations: fieldOverride?.postJoinAggregations,
-        }).allowedAggregations;
+        // Arrays cannot be aggregated after the join. For other values, no override → the
+        // effective-type governance default; explicit `[]` = none allowed. An explicit override
+        // may only NARROW the effective type's SUPPORTED set: it used to be carried verbatim, so a
+        // stored config could offer a function the type cannot run. The validator's type floor
+        // catches the obvious ones (SUM/AVG on a non-number, COUNT_DISTINCT/STRING_AGG on a
+        // non-scalar) but NOT percentiles — `P50` on a text field passed save-time validation and
+        // only failed at the warehouse. Clamping here fixes it for every consumer at once: this
+        // menu feeds the validator, the MCP field list and the web column picker.
+        dto.postJoinAggregations = isArray
+          ? []
+          : resolveFieldGovernance(effectiveType, {
+              allowedAggregations: fieldOverride?.postJoinAggregations,
+            }).allowedAggregations;
         dto.transitiveDepth = ctx.depth;
 
         ctx.result.push(dto);

@@ -458,6 +458,90 @@ describe('BlendableSchemaService', () => {
       expect(nested!.aliasPath).toBe('customers');
     });
 
+    it('exposes a repeated record beneath a nullable record as its dotted parent only', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
+      );
+
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            schema: {
+              type: 'bigquery-data-mart-schema',
+              fields: [
+                {
+                  name: 'order',
+                  type: 'RECORD',
+                  mode: 'NULLABLE',
+                  fields: [
+                    {
+                      name: 'items',
+                      type: 'RECORD',
+                      mode: 'REPEATED',
+                      fields: [{ name: 'sku', type: 'STRING', mode: 'NULLABLE' }],
+                    },
+                  ],
+                },
+              ],
+            } as unknown as DataMart['schema'],
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.blendedFields).toEqual([
+        expect.objectContaining({
+          originalFieldName: 'order.items',
+          sourceFieldType: 'ARRAY<RECORD>',
+        }),
+      ]);
+    });
+
+    it('ignores stored aggregation overrides for array fields', async () => {
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'customers',
+            fields: {
+              tags: {
+                alias: 'Customer tags',
+                isHidden: true,
+                aggregateFunction: 'COUNT_DISTINCT',
+                postJoinAggregations: ['SUM'],
+              },
+            },
+          },
+        ],
+      };
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            schema: makeSchema([{ name: 'tags', type: 'ARRAY<STRING>' }]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.blendedFields).toEqual([
+        expect.objectContaining({
+          originalFieldName: 'tags',
+          sourceFieldType: 'ARRAY<STRING>',
+          type: 'STRING',
+          aggregateFunction: 'STRING_AGG',
+          postJoinAggregations: [],
+          alias: 'Customer tags',
+          isHidden: true,
+        }),
+      ]);
+    });
+
     it.each([
       'INTEGER',
       'INT',
@@ -1864,6 +1948,50 @@ describe('resolveBlendableSchemaAccessor', () => {
 });
 
 describe('flattenSchemaFields', () => {
+  it('keeps a repeated scalar parent with its ARRAY comparison type', () => {
+    expect(
+      flattenSchemaFields([{ name: 'tags', type: 'STRING', mode: 'REPEATED' }] as never)
+    ).toEqual([expect.objectContaining({ name: 'tags', type: 'ARRAY<STRING>' })]);
+  });
+
+  it('keeps a repeated record parent but does not expose its descendants', () => {
+    expect(
+      flattenSchemaFields([
+        {
+          name: 'items',
+          type: 'RECORD',
+          mode: 'REPEATED',
+          fields: [{ name: 'sku', type: 'STRING', mode: 'NULLABLE' }],
+        },
+      ] as never)
+    ).toEqual([expect.objectContaining({ name: 'items', type: 'ARRAY<RECORD>' })]);
+  });
+
+  it('keeps a typed array parent but does not expose its descendants', () => {
+    expect(
+      flattenSchemaFields([
+        {
+          name: 'items',
+          type: 'ARRAY<STRUCT<sku STRING>>',
+          fields: [{ name: 'sku', type: 'STRING' }],
+        },
+      ] as never)
+    ).toEqual([expect.objectContaining({ name: 'items', type: 'ARRAY<STRUCT<sku STRING>>' })]);
+  });
+
+  it('keeps a nullable record scalar child', () => {
+    expect(
+      flattenSchemaFields([
+        {
+          name: 'address',
+          type: 'RECORD',
+          mode: 'NULLABLE',
+          fields: [{ name: 'city', type: 'STRING', mode: 'NULLABLE' }],
+        },
+      ] as never)
+    ).toEqual([expect.objectContaining({ name: 'address.city', type: 'STRING' })]);
+  });
+
   it('flattenSchemaFields keeps a calculated field', () => {
     const flat = flattenSchemaFields([
       {

@@ -6,6 +6,7 @@ import {
   collectSchemaFieldPathDescriptors,
   collectSchemaFieldPathTypes,
   createBaseFieldSchemaForType,
+  getReportFieldType,
   getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
 } from './data-mart-schema.utils';
@@ -46,13 +47,51 @@ describe('collectSchemaFieldPathTypes — comparison types', () => {
   });
 
   it('wraps a BigQuery REPEATED field as ARRAY<T> so it categorizes as non-string', () => {
-    // The column is an ARRAY<STRING>, not a STRING: string operators and the
-    // is_blank TRIM form are type errors on it. The ARRAY<> marking files it
-    // under the `other` category for the validator, the MCP matrix, and the
-    // renderers alike — is_blank then emits the NULL-only form, which is the
-    // valid (and meaningful) blank check for an array column (#6779).
-    expect(collectSchemaFieldPathTypes([field({ mode: 'REPEATED' })])).toEqual([
-      { name: 'f', type: 'ARRAY<STRING>' },
+    // The column is an ARRAY<STRING>, not a STRING. The ARRAY<> marking lets every
+    // downstream report-control surface reject scalar operations on it.
+    const repeated = field({ mode: 'REPEATED' });
+    expect(getReportFieldType(repeated)).toBe('ARRAY<STRING>');
+    expect(collectSchemaFieldPathTypes([repeated])).toEqual([{ name: 'f', type: 'ARRAY<STRING>' }]);
+  });
+
+  it('keeps a repeated record parent but does not expose its descendants', () => {
+    expect(
+      collectSchemaFieldPathTypes([
+        field({
+          name: 'items',
+          type: 'RECORD',
+          mode: 'REPEATED',
+          fields: [field({ name: 'sku', type: 'STRING', mode: 'NULLABLE' })],
+        }),
+      ])
+    ).toEqual([{ name: 'items', type: 'ARRAY<RECORD>' }]);
+  });
+
+  it('keeps a typed array parent but does not expose its descendants', () => {
+    expect(
+      collectSchemaFieldPathTypes([
+        field({
+          name: 'items',
+          type: 'ARRAY<STRUCT<sku STRING>>',
+          fields: [field({ name: 'sku', type: 'STRING' })],
+        }),
+      ])
+    ).toEqual([{ name: 'items', type: 'ARRAY<STRUCT<sku STRING>>' }]);
+  });
+
+  it('keeps a nullable record child referenceable', () => {
+    expect(
+      collectSchemaFieldPathTypes([
+        field({
+          name: 'address',
+          type: 'RECORD',
+          mode: 'NULLABLE',
+          fields: [field({ name: 'city', type: 'STRING', mode: 'NULLABLE' })],
+        }),
+      ])
+    ).toEqual([
+      { name: 'address', type: 'RECORD' },
+      { name: 'address.city', type: 'STRING' },
     ]);
   });
 

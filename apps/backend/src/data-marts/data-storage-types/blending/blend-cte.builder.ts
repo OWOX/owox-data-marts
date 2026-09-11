@@ -7,6 +7,7 @@ import { BlendTreeNode, PassthroughField, ROW_SURROGATE_ALIAS } from './blended-
 import { Logger } from '@nestjs/common';
 import { BlendedSqlDialect, renderLeftJoinOn } from './blended-sql-dialect';
 import { preJoinAggregateFunctionFor, reAggregateFunctionFor } from './re-aggregation';
+import { isArrayFieldType } from '../field-type-compatibility';
 import type { ValueSleeveIdentity } from './metric-sleeve.planner';
 
 /**
@@ -168,12 +169,14 @@ export class BlendCteBuilder {
 
     const passthroughFields: PassthroughField[] = chain.blendedFields.map(f => ({
       outputAlias: f.outputAlias,
+      targetFieldType: f.targetFieldType,
       aggregateFunction: f.aggregateFunction,
       isHidden: f.isHidden,
     }));
     for (const pt of allPassthroughFields) {
       passthroughFields.push({
         outputAlias: pt.outputAlias,
+        targetFieldType: pt.targetFieldType,
         aggregateFunction: reAggregateFunctionFor(pt.aggregateFunction),
         isHidden: pt.isHidden,
       });
@@ -390,19 +393,22 @@ export class BlendCteBuilder {
     const groupByKeys = [...parentJoinKeys];
 
     const aggregatedParts = blendedFields.map(field => {
-      const aggregated = this.dialect.buildAggregation(
-        preJoinAggregateFunctionFor(field.aggregateFunction, field.targetFieldType),
-        this.dialect.quoteFieldRef(field.targetFieldName)
-      );
+      const fieldRef = this.dialect.quoteFieldRef(field.targetFieldName);
+      const aggregated = isArrayFieldType(field.targetFieldType)
+        ? this.dialect.buildArrayJsonRollup(fieldRef, false)
+        : this.dialect.buildAggregation(
+            preJoinAggregateFunctionFor(field.aggregateFunction, field.targetFieldType),
+            fieldRef
+          );
       return `${aggregated} AS ${this.dialect.quoteIdentifier(field.outputAlias)}`;
     });
 
     const passthroughParts = passthroughFields.map(pt => {
       const reAggFunc = reAggregateFunctionFor(pt.aggregateFunction);
-      const aggregated = this.dialect.buildAggregation(
-        reAggFunc,
-        this.dialect.quoteIdentifier(pt.outputAlias)
-      );
+      const fieldRef = this.dialect.quoteIdentifier(pt.outputAlias);
+      const aggregated = isArrayFieldType(pt.targetFieldType)
+        ? this.dialect.buildArrayJsonRollup(fieldRef, true)
+        : this.dialect.buildAggregation(reAggFunc, fieldRef);
       return `${aggregated} AS ${this.dialect.quoteIdentifier(pt.outputAlias)}`;
     });
 

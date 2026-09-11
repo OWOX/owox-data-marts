@@ -24,6 +24,7 @@ export interface BlendedSqlDialect {
   quoteIdentifier(name: string): string;
   quoteFieldRef(ref: string): string;
   buildAggregation(aggregateFunction: ReportAggregateFunction, fieldName: string): string;
+  buildArrayJsonRollup(fieldName: string, isJsonFragment: boolean): string;
   buildRowSurrogate(partitionByRefs: readonly string[]): string;
   clauseRenderer(): SqlClauseRenderer | null;
 }

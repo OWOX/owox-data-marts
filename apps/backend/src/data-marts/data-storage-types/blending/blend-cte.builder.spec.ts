@@ -12,6 +12,7 @@ const dialect: BlendedSqlDialect = {
   quoteIdentifier: name => name,
   quoteFieldRef: ref => ref,
   buildAggregation: (fn, fieldName) => `${fn}(${fieldName})`,
+  buildArrayJsonRollup: fieldName => `JSON_ARRAY_AGG(${fieldName})`,
   buildRowSurrogate: partitionByRefs =>
     `ROW_NUMBER() OVER (PARTITION BY ${partitionByRefs.join(', ')})`,
   clauseRenderer: () => null,
@@ -168,6 +169,32 @@ describe('BlendCteBuilder', () => {
       expect(sql).toContain('__OWOX_RID');
       expect(sql).not.toContain('ROW_NUMBER()');
     });
+  });
+
+  it('JSON-rolls an array field even when its stored aggregate function is COUNT', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-orders',
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'order_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'tags',
+          targetFieldType: 'ARRAY<STRING>',
+          outputAlias: 'orders__tags',
+          aggregateFunction: 'COUNT',
+          isHidden: false,
+        },
+      ],
+    });
+
+    const sql = new BlendCteBuilder(dialect).buildAggregationCte(chain, false, []);
+
+    expect(sql).toContain('JSON_ARRAY_AGG(tags) AS orders__tags');
+    expect(sql).not.toContain('COUNT(tags)');
   });
 });
 

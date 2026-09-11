@@ -53,6 +53,8 @@ describe('QueryDataMartTool', () => {
     // The two footguns the matrix exists to prevent.
     expect(tool.description).toContain('only where enabled on the field');
     expect(tool.description).toContain('NOT available on number fields');
+    expect(tool.description).toContain('type or sliceType');
+    expect(tool.description).toContain('Array override');
   });
 
   // A model copies the documented example verbatim into `fields`, so the description must show the

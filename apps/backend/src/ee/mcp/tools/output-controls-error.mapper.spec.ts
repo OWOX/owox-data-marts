@@ -36,6 +36,32 @@ describe('translateOutputControlsError', () => {
     expect(translated?.message).not.toMatch(/\.\.|\.:/);
   });
 
+  it('translates array-field controls into a column-only repair without the generic code', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'orders__items',
+          type: 'ARRAY<STRUCT<id STRING>>',
+          control: 'filter',
+        },
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'orders__items',
+          type: 'ARRAY<STRUCT<id STRING>>',
+          control: 'sort',
+        },
+      ])
+    );
+
+    expect(translated).toMatchObject({ code: 'array_field_column_only' });
+    expect(translated?.message).toContain('orders__items');
+    expect(translated?.message).toContain('filter');
+    expect(translated?.message).toContain('sort');
+    expect(translated?.message).toContain('fields');
+    expect(translated?.message).not.toContain('ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED');
+  });
+
   // An agent hits this far more often than the aggregation twin: nothing in its own request
   // mentions an aggregation, so the field that grouped the report has to be named back to it.
   it('translates CALCULATED_FIELD_FILTER_REQUIRES_COLUMN_CONFIG into a fields-list fix naming the field', () => {
