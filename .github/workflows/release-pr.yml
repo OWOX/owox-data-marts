@@ -43,7 +43,7 @@ jobs:
 
       - name: Update package-lock.json
         if: steps.changesets.outputs.hasChangesets == 'true'
-        run: npm run clean:reinstall
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --loglevel error
 
       - name: Commit fixed changelogs
         if: steps.changesets.outputs.hasChangesets == 'true'
