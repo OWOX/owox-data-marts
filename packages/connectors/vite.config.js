@@ -562,7 +562,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         '@owox/connectors',
-        'fflate',
+        'adm-zip',
         '@google-cloud/bigquery',
         '@aws-sdk/client-athena',
         '@aws-sdk/client-s3',

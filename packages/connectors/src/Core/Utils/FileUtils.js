@@ -50,8 +50,9 @@ var FileUtils = class FileUtils {
      * @returns {Array<{getDataAsString: Function}>} Array of file-like objects with getDataAsString method
      */
     static unzip(data) {
-        return Object.values(fflate.unzipSync(data)).map(entry => ({
-            getDataAsString: () => Buffer.from(entry).toString('utf8')
+        const zip = new AdmZip(data);
+        return zip.getEntries().map(entry => ({
+            getDataAsString: () => entry.getData().toString('utf8')
         }));
     }
 

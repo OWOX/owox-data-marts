@@ -2,7 +2,7 @@
 
 // Import all required dependencies and make them global
 const OWOX = require('@owox/connectors');
-const fflate = require('fflate');
+const AdmZip = require('adm-zip');
 
 // Google BigQuery
 const { BigQuery } = require('@google-cloud/bigquery');
@@ -41,7 +41,7 @@ const { Upload } = require('@aws-sdk/lib-storage');
 
 // Make dependencies globally available
 global.OWOX = OWOX;
-global.fflate = fflate;
+global.AdmZip = AdmZip;
 global.BigQuery = BigQuery;
 global.snowflake = snowflake;
 global.databricks = databricks;
