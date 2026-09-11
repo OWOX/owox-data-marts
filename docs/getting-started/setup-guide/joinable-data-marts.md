@@ -175,6 +175,14 @@ Two paths to the same target Data Mart are also supported. If both **Campaigns �
 
 If a chain folds back on a Data Mart that already appears earlier in the same branch (e.g., `A → B → A`), OWOX Data Marts stops descending at that point and renders a collapsed **Loop** badge in the relationship list and the canvas. The loop branch contributes no fields to the column picker — this is expected behavior, not an error.
 
+## Joined array columns
+
+An array identified by the source schema uses JSON array rollup, preserving the array from each source row. For example, two matching rows containing `["a", "b"]` and `["c"]` produce `[["a", "b"], ["c"]]`. Each ancestor join adds one more array level; descendants are not flattened or unnested.
+
+An empty source array contributes `[]` (one such row produces `[[]]`); a source SQL `NULL` contributes a JSON `null` (one row produces `[null]`). BigQuery writes NULL arrays to tables as empty arrays, so this distinction follows the value returned by the warehouse query. A missing joined descendant stays SQL `NULL` when no descendant contributes a value, rather than becoming an empty array. Missing descendants are omitted from ancestor rollups when other descendants contribute values. The order inside each source array is preserved; the order of aggregated rows and sibling-index alignment between separate array columns are not guaranteed.
+
+These columns cannot use output controls. Opaque JSON, Snowflake VARIANT, and Redshift SUPER values keep their existing behavior.
+
 ## Limitations and Considerations
 
 - **Same storage.** All Data Marts in a chain must live on the same storage type and connection. Cross-storage joins are not supported.

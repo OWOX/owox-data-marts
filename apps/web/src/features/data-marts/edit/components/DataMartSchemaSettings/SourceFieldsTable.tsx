@@ -31,6 +31,7 @@ import {
   sameAggregationCategory,
 } from '../../../shared/utils/aggregation-governance';
 import { useDebounce } from '../../../../../hooks/useDebounce';
+import { isArrayFieldType } from '../ReportColumnPicker/output-controls-operators';
 
 type FilterMode = 'all' | 'visible' | 'hidden';
 
@@ -254,6 +255,8 @@ export function SourceFieldsTable({
           <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {filteredFields.map(field => {
               const hidden = isFieldHidden(field.originalFieldName);
+              const sourceType = field.sourceFieldType ?? field.type;
+              const isArray = isArrayFieldType(sourceType);
               return (
                 <TableRow
                   key={field.originalFieldName}
@@ -296,64 +299,68 @@ export function SourceFieldsTable({
                     className='text-muted-foreground'
                     style={{ paddingTop: 8, paddingBottom: 8 }}
                   >
-                    {field.sourceFieldType ?? field.type}
+                    {sourceType}
                   </TableCell>
                   <TableCell style={{ paddingTop: 8, paddingBottom: 8 }}>
-                    <Select
-                      value={field.aggregateFunction}
-                      onValueChange={value => {
-                        const aggregateFunction = value as AggregateFunction;
-                        const override: Partial<BlendedFieldOverride> = { aggregateFunction };
-                        // Reset the analyst-allowed set to the new effective type's default ONLY
-                        // when the dedup change crosses aggregation categories (e.g. string→number):
-                        // that surfaces SUM for an integer-producing dedup instead of pruning to
-                        // "none". A same-category change (SUM→MIN) keeps the current selection; and
-                        // an explicit empty set (`[]` = analyst turned all off) is preserved, never
-                        // silently re-enabled — omit postJoinAggregations in both cases.
-                        const rawType = field.sourceFieldType ?? field.type;
-                        if (
-                          (field.postJoinAggregations?.length ?? 0) > 0 &&
-                          !sameAggregationCategory(
-                            effectiveAggregationType(rawType, field.aggregateFunction),
-                            effectiveAggregationType(rawType, aggregateFunction)
-                          )
-                        ) {
-                          const newEffectiveType = effectiveAggregationType(
-                            rawType,
-                            aggregateFunction
-                          );
-                          override.postJoinAggregations =
-                            resolveFieldGovernance(newEffectiveType).allowedAggregations;
-                        }
-                        onFieldOverrideChange(field.originalFieldName, override);
-                      }}
-                    >
-                      <SelectTrigger size='sm' className='h-8 w-full'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AGGREGATE_FUNCTIONS.map(fn => (
-                          <SelectItem key={fn} value={fn}>
-                            {fn}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isArray ? (
+                      'JSON array'
+                    ) : (
+                      <Select
+                        value={field.aggregateFunction}
+                        onValueChange={value => {
+                          const aggregateFunction = value as AggregateFunction;
+                          const override: Partial<BlendedFieldOverride> = { aggregateFunction };
+                          // Reset the analyst-allowed set to the new effective type's default ONLY
+                          // when the dedup change crosses aggregation categories (e.g. string→number):
+                          // that surfaces SUM for an integer-producing dedup instead of pruning to
+                          // "none". A same-category change (SUM→MIN) keeps the current selection; and
+                          // an explicit empty set (`[]` = analyst turned all off) is preserved, never
+                          // silently re-enabled — omit postJoinAggregations in both cases.
+                          if (
+                            (field.postJoinAggregations?.length ?? 0) > 0 &&
+                            !sameAggregationCategory(
+                              effectiveAggregationType(sourceType, field.aggregateFunction),
+                              effectiveAggregationType(sourceType, aggregateFunction)
+                            )
+                          ) {
+                            const newEffectiveType = effectiveAggregationType(
+                              sourceType,
+                              aggregateFunction
+                            );
+                            override.postJoinAggregations =
+                              resolveFieldGovernance(newEffectiveType).allowedAggregations;
+                          }
+                          onFieldOverrideChange(field.originalFieldName, override);
+                        }}
+                      >
+                        <SelectTrigger size='sm' className='h-8 w-full'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {AGGREGATE_FUNCTIONS.map(fn => (
+                            <SelectItem key={fn} value={fn}>
+                              {fn}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </TableCell>
                   <TableCell style={{ paddingTop: 8, paddingBottom: 8 }}>
-                    <AllowedAggregationsSelect
-                      value={field.postJoinAggregations ?? []}
-                      fieldType={effectiveAggregationType(
-                        field.sourceFieldType ?? field.type,
-                        field.aggregateFunction
-                      )}
-                      onChange={next => {
-                        onFieldOverrideChange(field.originalFieldName, {
-                          postJoinAggregations: next,
-                        });
-                      }}
-                      ariaLabel={`Available aggregations for ${field.originalFieldName}`}
-                    />
+                    {isArray ? (
+                      'None'
+                    ) : (
+                      <AllowedAggregationsSelect
+                        value={field.postJoinAggregations ?? []}
+                        fieldType={effectiveAggregationType(sourceType, field.aggregateFunction)}
+                        onChange={next => {
+                          onFieldOverrideChange(field.originalFieldName, {
+                            postJoinAggregations: next,
+                          });
+                        }}
+                        ariaLabel={`Available aggregations for ${field.originalFieldName}`}
+                      />
+                    )}
                   </TableCell>
                   <TableCell className='text-right' style={{ paddingTop: 8, paddingBottom: 8 }}>
                     <DropdownMenu>

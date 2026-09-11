@@ -159,16 +159,16 @@ const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'r
   }
 );
 
-// Any type outside the known category sets — ARRAY<...>, MAP, STRUCT, JSON,
-// VARBINARY, GEOGRAPHY, … — still supports the type-agnostic blank pair: "the cell
-// looks empty" is meaningful on every column, the backend accepts is_blank on every
-// type (TYPE_AGNOSTIC_OPS), and the renderers emit the NULL-only form for it (#6779).
+// Any type outside the known category sets — VARBINARY, GEOGRAPHY, JSON, … —
+// still supports the type-agnostic blank pair. Arrays are excluded because report
+// output controls never operate on them.
 const OTHER_OPERATORS: OperatorMeta[] = [
   { value: 'is_blank', label: 'is blank', shortLabel: '∅' },
   { value: 'is_not_blank', label: 'is not blank', shortLabel: '¬∅' },
 ];
 
 export function operatorsForType(fieldType: string): OperatorMeta[] {
+  if (isArrayFieldType(fieldType)) return [];
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPERATORS;
   if (DATE_TYPES.has(fieldType)) return DATE_OPERATORS;
@@ -181,12 +181,20 @@ export function isFilterableType(fieldType: string): boolean {
   return operatorsForType(fieldType).length > 0;
 }
 
+/** Mirror of the backend's normalized array type check. */
+export function isArrayFieldType(type: string | undefined): boolean {
+  const head = type
+    ?.trim()
+    .toUpperCase()
+    .match(/^([A-Z]+)(?:\s*[<(]|$)/)?.[1];
+  return head === 'ARRAY';
+}
+
 /**
  * Mirror of the backend comparison type (data-mart-schema.utils.ts): a BigQuery
  * REPEATED field stores its ELEMENT type ('STRING' + mode 'REPEATED'), but the
- * column is an ARRAY<STRING> — string operators are type errors on it, and only the
- * blank pair applies. Marking the type here files it under OTHER_OPERATORS above,
- * so the picker offers exactly what the backend validator accepts.
+ * column is an ARRAY<STRING>. Marking it as such removes it from report-output
+ * controls while keeping the parent projection-selectable.
  */
 export function effectiveComparisonType(fieldType: string, mode?: string): string {
   return mode === 'REPEATED' ? `ARRAY<${fieldType}>` : fieldType;

@@ -440,6 +440,306 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
+  describe('array fields', () => {
+    const arrayType = 'ARRAY<STRING>';
+    const selectedColumns = new Set(['native_items', 'joined_items']);
+    const fieldTypes = new Map<string, string>([
+      ['native_items', arrayType],
+      // A joined array is transported as STRING after dedup, but its source type still
+      // determines every report control.
+      ['joined_items', arrayType],
+    ]);
+
+    it('rejects a native array from every output-control surface while keeping it projectable', () => {
+      expect(
+        svc.validateFilters(
+          [{ column: 'native_items', operator: 'is_blank', placement: 'post-join' }],
+          fieldTypes
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'native_items',
+          type: arrayType,
+          control: 'filter',
+          message:
+            'Array column "native_items" does not support filter. Remove this filter from Output settings.',
+        },
+      ]);
+      expect(
+        svc.validateSort([{ column: 'native_items', direction: 'asc' }], selectedColumns, column =>
+          fieldTypes.get(column)
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'native_items',
+          type: arrayType,
+          control: 'sort',
+          message:
+            'Array column "native_items" does not support sort. Remove this sort from Output settings.',
+        },
+      ]);
+      expect(
+        svc.validateAggregations(
+          [{ column: 'native_items', function: 'ANY_VALUE' }],
+          selectedColumns,
+          column => fieldTypes.get(column)
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'native_items',
+          type: arrayType,
+          control: 'aggregation',
+          message:
+            'Array column "native_items" does not support aggregation. Remove this aggregation from Output settings.',
+        },
+      ]);
+      expect(
+        svc.validateDateTruncs(
+          [{ column: 'native_items', unit: 'MONTH' }],
+          selectedColumns,
+          column => fieldTypes.get(column),
+          new Set()
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'native_items',
+          type: arrayType,
+          control: 'date bucket',
+          message:
+            'Array column "native_items" does not support date bucket. Remove this date bucket from Output settings.',
+        },
+      ]);
+    });
+
+    it('validates HAVING placement before array capability', () => {
+      expect(
+        svc.validateHavingFilters(
+          [
+            {
+              column: 'native_items',
+              function: 'COUNT',
+              operator: 'gt',
+              value: 1,
+              placement: 'pre-join',
+            },
+          ],
+          [{ column: 'native_items', function: 'COUNT' }],
+          () => arrayType,
+          DataStorageType.GOOGLE_BIGQUERY,
+          new Map()
+        )
+      ).toEqual([
+        { code: 'HAVING_FILTER_INVALID_PLACEMENT', column: 'native_items', function: 'COUNT' },
+      ]);
+    });
+
+    it('rejects an array HAVING filter', () => {
+      expect(
+        svc.validateHavingFilters(
+          [{ column: 'native_items', function: 'SUM', operator: 'gt', value: 1 }],
+          [{ column: 'native_items', function: 'SUM' }],
+          () => arrayType,
+          DataStorageType.GOOGLE_BIGQUERY,
+          new Map()
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'native_items',
+          type: arrayType,
+          control: 'filter',
+          message:
+            'Array column "native_items" does not support filter. Remove this filter from Output settings.',
+        },
+      ]);
+    });
+
+    it('uses a joined field’s raw array type for post-join controls and pre-join slices', () => {
+      const joinedIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'joined_items',
+            aliasPath: 'joined',
+            originalFieldName: 'items',
+            // JSON rollup output type. This must not make the field controllable.
+            type: 'STRING',
+            sourceFieldType: arrayType,
+          },
+        ],
+        availableSources: [{ aliasPath: 'joined', isIncluded: true }],
+      } as never);
+
+      expect(
+        svc.validateFilters(
+          [{ column: 'joined_items', operator: 'is_blank', placement: 'pre-join' }],
+          new Map(),
+          joinedIndex
+        )
+      ).toEqual([
+        {
+          code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+          column: 'joined_items',
+          type: arrayType,
+          control: 'slice',
+          message:
+            'Array column "joined_items" does not support slice. Remove this slice from Output settings.',
+          aliasPath: 'joined',
+        },
+      ]);
+    });
+
+    it.each([
+      [DataStorageType.GOOGLE_BIGQUERY, { name: 'items', type: 'STRING', mode: 'REPEATED' }],
+      [DataStorageType.AWS_ATHENA, { name: 'items', type: 'ARRAY' }],
+    ])(
+      'validates native array controls through validateForReport for %s',
+      async (storageType, field) => {
+        const validator = new OutputControlsValidatorService(
+          { isSupported: () => true } as never,
+          {
+            computeBlendableSchema: async () => ({
+              nativeFields: [field],
+              blendedFields: [],
+              availableSources: [],
+            }),
+          } as never
+        );
+        const args = {
+          storageType,
+          dataMartId: 'dm-1',
+          projectId: 'project-1',
+          columnConfig: ['items'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dataMartSchemaFields: [],
+        };
+        await expect(validator.validateForReport(args)).resolves.toBeUndefined();
+        let caught: BadRequestException | undefined;
+        try {
+          await validator.validateForReport({
+            ...args,
+            filterConfig: [{ column: 'items', operator: 'is_blank' }],
+            sortConfig: [{ column: 'items', direction: 'asc' }],
+            aggregationConfig: [{ column: 'items', function: 'COUNT' }],
+            dateTruncConfig: [{ column: 'items', unit: 'MONTH' }],
+          });
+        } catch (error) {
+          caught = error as BadRequestException;
+        }
+        const errors = (
+          caught!.getResponse() as { details: { errors: { control: string; message: string }[] } }
+        ).details.errors;
+        expect(errors.map(error => error.control)).toEqual(
+          expect.arrayContaining(['filter', 'sort', 'aggregation', 'date bucket'])
+        );
+        for (const error of errors) {
+          expect(error.message).toContain('"items"');
+          expect(error.message).toContain(`Remove this ${error.control}`);
+        }
+      }
+    );
+
+    it.each(['RECORD', 'JSON', 'VARIANT', 'SUPER', 'STRING'])(
+      'keeps blank filters on nonarray %s unchanged',
+      type => {
+        expect(
+          svc.validateFilters(
+            [{ column: 'profile.value', operator: 'is_blank' }],
+            new Map([['profile.value', type]])
+          )
+        ).toEqual([]);
+      }
+    );
+
+    it('does not lose a joined array type when its JSON transport is effectively STRING', async () => {
+      const validator = new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [{ name: 'title', type: 'STRING' }],
+            blendedFields: [
+              {
+                name: 'joined_items',
+                aliasPath: 'joined',
+                originalFieldName: 'items',
+                type: 'STRING',
+                sourceFieldType: arrayType,
+              },
+            ],
+            availableSources: [{ aliasPath: 'joined', isIncluded: true }],
+          }),
+        } as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: DataStorageType.GOOGLE_BIGQUERY,
+          dataMartId: 'dm-1',
+          projectId: 'project-1',
+          columnConfig: ['joined_items'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dataMartSchemaFields: [],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: DataStorageType.GOOGLE_BIGQUERY,
+          dataMartId: 'dm-1',
+          projectId: 'project-1',
+          columnConfig: ['title', 'joined_items'],
+          filterConfig: [
+            { column: 'joined_items', operator: 'is_blank', placement: 'post-join' },
+            { column: 'joined_items', operator: 'is_blank', placement: 'pre-join' },
+          ],
+          sortConfig: [{ column: 'joined_items', direction: 'asc' }],
+          limitConfig: null,
+          aggregationConfig: [{ column: 'joined_items', function: 'ANY_VALUE' }],
+          dataMartSchemaFields: [],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (error) {
+        caught = error as BadRequestException;
+      }
+
+      const errors = (
+        caught!.getResponse() as {
+          details: {
+            errors: {
+              code: string;
+              control?: string;
+              column?: string;
+              type?: string;
+            }[];
+          };
+        }
+      ).details.errors;
+      expect(errors).toEqual(
+        expect.arrayContaining(
+          ['filter', 'slice', 'sort', 'aggregation'].map(control =>
+            expect.objectContaining({
+              code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+              column: 'joined_items',
+              type: arrayType,
+              control,
+            })
+          )
+        )
+      );
+    });
+  });
+
   describe('validateSort', () => {
     it('rejects sort on non-selected column', () => {
       const errors = svc.validateSort(
@@ -3061,8 +3361,6 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
-    // `other`-category types (JSON, GEOGRAPHY, ARRAY, STRUCT, SUPER, VARIANT) are neither
-    // groupable nor reliably text-castable → COUNT_DISTINCT / STRING_AGG 500 at run time.
     it('rejects COUNT_DISTINCT on an `other`-category column (JSON) via the type floor', () => {
       const errors = svc.validateAggregations(
         [{ column: 'payload', function: 'COUNT_DISTINCT' }],

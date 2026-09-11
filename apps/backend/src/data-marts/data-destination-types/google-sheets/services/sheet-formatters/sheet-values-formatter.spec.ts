@@ -1,4 +1,5 @@
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 import { SheetValuesFormatter } from './sheet-values-formatter';
 
@@ -60,6 +61,58 @@ describe('SheetValuesFormatter', () => {
         [null, undefined],
         [true, 3.14],
       ]);
+    });
+
+    it('serializes a selected record without changing its scalar columns or joined JSON arrays', () => {
+      const names = ['customer', 'customer.country', 'customer.city', 'order_details__tags'];
+      const headers = new Map<string, ReportDataHeader>([
+        [
+          'customer',
+          new ReportDataHeader('customer', undefined, undefined, BigQueryFieldType.RECORD),
+        ],
+      ]);
+      const rows = [[{ country: 'UA', city: 'Kyiv' }, 'UA', 'Kyiv', '[["a","b"],["c"]]']];
+
+      const result = formatter.formatRowsValuesByName(rows, names, headers, 'UTC');
+
+      expect(result).toEqual([
+        ['{"country":"UA","city":"Kyiv"}', 'UA', 'Kyiv', '[["a","b"],["c"]]'],
+      ]);
+    });
+
+    it('serializes nested objects and raw arrays without requiring storage type metadata', () => {
+      const rows = [
+        [{ nested: { active: true }, tags: ['a'], missing: null }, [{ sku: 'A', quantity: 2 }], []],
+      ];
+
+      const result = formatter.formatRowsValuesByName(
+        rows,
+        ['record', 'items', 'empty'],
+        new Map(),
+        'UTC'
+      );
+
+      expect(result).toEqual([
+        [
+          '{"nested":{"active":true},"tags":["a"],"missing":null}',
+          '[{"sku":"A","quantity":2}]',
+          '[]',
+        ],
+      ]);
+    });
+
+    it('preserves Date values from storage readers without adding JSON quotes', () => {
+      const timestamp = new Date('2026-01-02T03:04:05.000Z');
+      const headers = new Map<string, ReportDataHeader>([
+        ['ts', new ReportDataHeader('ts', undefined, undefined, SnowflakeFieldType.TIMESTAMP)],
+      ]);
+
+      const result = formatter.formatRowsValuesByName([[timestamp]], ['ts'], headers, 'UTC');
+
+      expect(result[0][0]).toBe(timestamp);
+      expect(JSON.parse(JSON.stringify({ values: result }))).toEqual({
+        values: [['2026-01-02T03:04:05.000Z']],
+      });
     });
 
     it('still applies the timestamp formatter alongside + escaping', () => {

@@ -125,6 +125,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       quoteIdentifier: name => this.quoteIdentifier(name),
       quoteFieldRef: ref => this.quoteFieldRef(ref),
       buildAggregation: (fn, fieldName) => this.buildAggregation(fn, fieldName),
+      buildArrayJsonRollup: (fieldName, isJsonFragment) =>
+        this.buildArrayJsonRollup(fieldName, isJsonFragment),
       buildRowSurrogate: partitionByRefs => this.buildRowSurrogate(partitionByRefs),
       clauseRenderer: () => this.clauseRenderer,
     };
@@ -1166,6 +1168,30 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   protected buildAnyValue(fieldName: string): string {
     return `ANY_VALUE(${fieldName})`;
+  }
+
+  protected buildArrayJsonRollup(fieldName: string, isJsonFragment: boolean): string {
+    // Native SQL NULL is a matched row; a NULL fragment is an absent descendant.
+    const fragment = isJsonFragment
+      ? fieldName
+      : `COALESCE(${this.serializeArrayAsJson(fieldName)}, 'null')`;
+    return `CASE WHEN COUNT(${fragment}) = 0 THEN NULL ELSE CONCAT('[', CONCAT(${this.buildStringAgg(fragment)}, ']')) END`;
+  }
+
+  private serializeArrayAsJson(fieldName: string): string {
+    switch (this.type) {
+      case DataStorageType.GOOGLE_BIGQUERY:
+      case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+        return `TO_JSON_STRING(${fieldName})`;
+      case DataStorageType.AWS_ATHENA:
+        return `json_format(CAST(${fieldName} AS JSON))`;
+      case DataStorageType.SNOWFLAKE:
+        return `TO_JSON(${fieldName})`;
+      case DataStorageType.AWS_REDSHIFT:
+        return `JSON_SERIALIZE(${fieldName})`;
+      case DataStorageType.DATABRICKS:
+        return `to_json(${fieldName})`;
+    }
   }
 
   /**

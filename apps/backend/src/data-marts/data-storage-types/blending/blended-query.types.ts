@@ -18,10 +18,11 @@ export interface BlendTreeNode {
 
 /**
  * A child chain's blended field as seen by an ANCESTOR chain: it is already aggregated by
- * the child's own CTE, so the ancestor re-rolls it (see `getReAggregateFunction`).
+ * the child's own CTE, so the ancestor re-rolls it (see `reAggregateFunctionFor`).
  */
 export interface PassthroughField {
   outputAlias: string;
+  targetFieldType?: string;
   aggregateFunction: AggregateFunction;
   isHidden: boolean;
 }

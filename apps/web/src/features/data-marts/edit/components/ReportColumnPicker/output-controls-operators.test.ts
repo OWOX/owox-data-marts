@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   effectiveComparisonType,
+  isArrayFieldType,
   operatorsForType,
   isFilterableType,
   isNumberType,
@@ -155,22 +156,38 @@ describe('operatorsForType', () => {
     });
   });
 
-  // Picker-to-validator regression (#6779): every type outside the known category
-  // sets gets exactly the type-agnostic blank pair — which the backend validator
-  // accepts on every type (TYPE_AGNOSTIC_OPS) and renders as the NULL-only form.
-  it('offers only the blank pair for unrecognised (complex/binary) types', () => {
-    for (const t of ['ARRAY', 'MAP', 'STRUCT', 'JSON', 'VARBINARY', 'GEOGRAPHY']) {
+  it('keeps non-array fallback types blank-filterable', () => {
+    for (const t of [
+      'VARBINARY',
+      'GEOGRAPHY',
+      'RECORD',
+      'MAP',
+      'STRUCT',
+      'ROW',
+      'JSON',
+      'VARIANT',
+      'OBJECT',
+      'SUPER',
+    ]) {
       expect(opValues(t)).toEqual(['is_blank', 'is_not_blank']);
       expect(isFilterableType(t)).toBe(true);
+      expect(isArrayFieldType(t)).toBe(false);
+    }
+  });
+
+  it('withholds every filter operator from arrays', () => {
+    for (const t of ['ARRAY', 'ARRAY(VARCHAR)']) {
+      expect(isArrayFieldType(t)).toBe(true);
+      expect(opValues(t)).toEqual([]);
+      expect(isFilterableType(t)).toBe(false);
     }
   });
 
   describe('effectiveComparisonType — BigQuery REPEATED columns', () => {
-    it('marks a REPEATED field as ARRAY<T>, which maps to the blank-pair-only menu', () => {
+    it('marks a REPEATED field as ARRAY<T>, which has no filter menu', () => {
       expect(effectiveComparisonType('STRING', 'REPEATED')).toBe('ARRAY<STRING>');
-      // The marked type must NOT offer string operators — contains on an
-      // ARRAY<STRING> is rejected by the backend as INVALID_OPERATOR_FOR_TYPE.
-      expect(opValues('ARRAY<STRING>')).toEqual(['is_blank', 'is_not_blank']);
+      expect(isArrayFieldType('ARRAY<STRING>')).toBe(true);
+      expect(opValues('ARRAY<STRING>')).toEqual([]);
     });
     it('leaves non-repeated modes and other storages untouched', () => {
       expect(effectiveComparisonType('STRING', 'NULLABLE')).toBe('STRING');

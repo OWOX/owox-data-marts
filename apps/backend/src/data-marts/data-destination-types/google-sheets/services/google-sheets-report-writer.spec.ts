@@ -1402,3 +1402,23 @@ describe('GoogleSheetsReportWriter — leading-+ escaping reaches the adapter (r
     expect(writtenRows).toContainEqual([["'+38050", '10', '2']]);
   });
 });
+
+describe('GoogleSheetsReportWriter — record JSON reaches the adapter (real formatter)', () => {
+  it('writes a whole record as one JSON cell alongside scalar descendants after column reordering', async () => {
+    const { writer, adapter, report } = buildWriter({
+      availableRowsCount: 11,
+      finalImportedNames: ['customer.city', 'order_details__tags', 'customer', 'order_id'],
+      useRealValuesFormatter: true,
+    });
+    const headers = makeHeaders('order_id', 'customer', 'customer.city', 'order_details__tags');
+
+    await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
+    await writer.writeReportDataBatch(
+      new ReportDataBatch([[1, { country: 'UA', city: 'Kyiv' }, 'Kyiv', '[["a","b"],["c"]]']])
+    );
+
+    expect(adapter.updateValues).toHaveBeenCalledWith(SPREADSHEET_ID, `'${SHEET_TITLE}'!A2:D2`, [
+      ['Kyiv', '[["a","b"],["c"]]', '{"country":"UA","city":"Kyiv"}', 1],
+    ]);
+  });
+});

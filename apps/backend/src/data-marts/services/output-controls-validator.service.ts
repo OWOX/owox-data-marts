@@ -70,6 +70,7 @@ import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule } from '../dto/domain/filter-clause';
 import { isAggregateLevel, type CalculatedFieldLevel } from '../calculated-fields/formula-level';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import { isArrayFieldType } from '../data-storage-types/field-type-compatibility';
 import {
   collectKnownOutputColumns,
   uniqueCountOutputColumnNames,
@@ -81,6 +82,14 @@ import {
 const TIMESTAMP_TYPES = new Set([...DATE_TYPES].filter(t => t !== 'DATE'));
 
 export type ValidationError =
+  | {
+      code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED';
+      column: string;
+      type: string;
+      control: 'filter' | 'slice' | 'sort' | 'aggregation' | 'date bucket';
+      message: string;
+      aliasPath?: string;
+    }
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string; aliasPath?: string }
   | {
       code: 'INVALID_OPERATOR_FOR_TYPE';
@@ -251,6 +260,22 @@ function operatorAllowed(fieldType: string, operator: string): boolean {
   return INTERNAL_OPERATORS_BY_CATEGORY[categorizeFieldType(fieldType)].has(operator);
 }
 
+function arrayControlError(
+  column: string,
+  type: string,
+  control: Extract<ValidationError, { code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED' }>['control'],
+  aliasPath?: string
+): ValidationError {
+  return {
+    code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
+    column,
+    type,
+    control,
+    message: `Array column "${column}" does not support ${control}. Remove this ${control} from Output settings.`,
+    ...(aliasPath ? { aliasPath } : {}),
+  };
+}
+
 export const OUTPUT_CONTROLS_VALIDATION_FAILED = 'Output controls validation failed';
 
 /** How many errors the message names before counting the rest — the web toast's own cap. */
@@ -373,6 +398,11 @@ export class OutputControlsValidatorService {
         });
         continue;
       }
+      const rawType = resolveType(rule.column);
+      if (rawType !== undefined && isArrayFieldType(rawType)) {
+        errors.push(arrayControlError(rule.column, rawType, 'filter'));
+        continue;
+      }
       // NOT asked of a function-less rule: an aggregate-level Calculated Field can never appear in
       // `aggregationConfig` (AGGREGATION_ON_CALCULATED_FIELD refuses it outright), so this check
       // would fail on a `<column>/undefined` key and answer "add the matching aggregation", the
@@ -408,7 +438,6 @@ export class OutputControlsValidatorService {
         });
         continue;
       }
-      const rawType = resolveType(rule.column);
       if (rawType === undefined) {
         errors.push({ code: 'FILTER_COLUMN_UNKNOWN', column: rule.column });
         continue;
@@ -429,6 +458,10 @@ export class OutputControlsValidatorService {
     aliasPath: string | undefined,
     errors: ValidationError[]
   ): void {
+    if (isArrayFieldType(type)) {
+      errors.push(arrayControlError(rule.column, type, aliasPath ? 'slice' : 'filter', aliasPath));
+      return;
+    }
     if (!operatorAllowed(type, rule.operator)) {
       errors.push({
         code: 'INVALID_OPERATOR_FOR_TYPE',
@@ -454,11 +487,21 @@ export class OutputControlsValidatorService {
     }
   }
 
-  validateSort(sort: SortRule[], selectedColumns: ReadonlySet<string>): ValidationError[] {
+  validateSort(
+    sort: SortRule[],
+    selectedColumns: ReadonlySet<string>,
+    resolveType?: (column: string) => string | undefined
+  ): ValidationError[] {
     const errors: ValidationError[] = [];
     for (const rule of sort) {
+      const type = resolveType?.(rule.column);
+      if (type !== undefined && isArrayFieldType(type)) {
+        errors.push(arrayControlError(rule.column, type, 'sort'));
+        continue;
+      }
       if (!selectedColumns.has(rule.column)) {
         errors.push({ code: 'SORT_COLUMN_NOT_SELECTED', column: rule.column });
+        continue;
       }
     }
     return errors;
@@ -475,6 +518,11 @@ export class OutputControlsValidatorService {
     // output column — reject it so the duplicate output column can't silently clobber.
     const seenPairs = new Set<string>();
     for (const rule of aggregations) {
+      const type = resolveType(rule.column);
+      if (type !== undefined && isArrayFieldType(type)) {
+        errors.push(arrayControlError(rule.column, type, 'aggregation'));
+        continue;
+      }
       if (!selectedColumns.has(rule.column)) {
         errors.push({ code: 'AGGREGATION_COLUMN_NOT_SELECTED', column: rule.column });
         continue;
@@ -493,7 +541,7 @@ export class OutputControlsValidatorService {
       // columns the type map does (a hidden blended field is absent from both), so anything at
       // all would pass — percentiles included, which have no type floor. `validateDateTruncs`
       // rejects this case; be symmetric.
-      if (resolveType(rule.column) === undefined) {
+      if (type === undefined) {
         errors.push({
           code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
           column: rule.column,
@@ -505,8 +553,7 @@ export class OutputControlsValidatorService {
       // Type floor: a hard SQL-validity rule (SUM/AVG only make sense on numbers) that
       // fires regardless of data-mart governance, so a bad override can't smuggle invalid SQL.
       if (rule.function === 'SUM' || rule.function === 'AVG') {
-        const type = resolveType(rule.column);
-        if (type !== undefined && !NUMBER_TYPES.has(type)) {
+        if (!NUMBER_TYPES.has(type)) {
           errors.push({
             code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
             column: rule.column,
@@ -521,8 +568,7 @@ export class OutputControlsValidatorService {
       // STRUCT, SUPER, VARIANT — is neither, so every warehouse rejects it at run time.
       // Reject at save (a clean 400) rather than letting a save-clean config 500 on run.
       if (rule.function === 'COUNT_DISTINCT' || rule.function === 'STRING_AGG') {
-        const type = resolveType(rule.column);
-        if (type !== undefined && categorizeFieldType(type) === 'other') {
+        if (categorizeFieldType(type) === 'other') {
           errors.push({
             code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
             column: rule.column,
@@ -556,6 +602,11 @@ export class OutputControlsValidatorService {
   ): ValidationError[] {
     const errors: ValidationError[] = [];
     for (const rule of dateTruncs) {
+      const type = resolveType(rule.column);
+      if (type !== undefined && isArrayFieldType(type)) {
+        errors.push(arrayControlError(rule.column, type, 'date bucket'));
+        continue;
+      }
       if (!selectedColumns.has(rule.column)) {
         errors.push({ code: 'DATE_TRUNC_COLUMN_NOT_SELECTED', column: rule.column });
         continue;
@@ -565,7 +616,6 @@ export class OutputControlsValidatorService {
         errors.push({ code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED', column: rule.column });
         continue;
       }
-      const type = resolveType(rule.column);
       // L3: an unconfirmable type can't be guaranteed to be a date/timestamp — at run time
       // the dialect would attempt a varchar↔date coercion and fail loudly. Reject here (the
       // column is selected but absent from the resolved type map) rather than at run time.
@@ -965,7 +1015,11 @@ export class OutputControlsValidatorService {
         }
         for (const blended of blendableSchema.blendedFields) {
           if (blended.isHidden) continue;
-          homeFieldTypes.set(blended.name, blended.type);
+          const sourceType = blended.sourceFieldType ?? blended.type;
+          homeFieldTypes.set(
+            blended.name,
+            isArrayFieldType(sourceType) ? sourceType : blended.type
+          );
         }
         // Shared with the run path, which drops a sort on a name outside this set where this
         // method reports it as disconnected — the two must read the same schema the same way.
@@ -1240,7 +1294,9 @@ export class OutputControlsValidatorService {
             for (const aliasPath of joinedUniqueCountSources(args.uniqueCountConfig)) {
               selectedSet.add(buildJoinedUniqueCountColumnName(aliasPath));
             }
-            errors.push(...this.validateSort(sortRules, selectedSet));
+            errors.push(
+              ...this.validateSort(sortRules, selectedSet, col => homeFieldTypes.get(col))
+            );
           } else if (args.columnConfig != null) {
             // An EXPLICIT projection — `[]` included: the run path takes every non-null list down
             // the blended builder, which prints exactly the listed columns, so an empty list is a
@@ -1265,7 +1321,9 @@ export class OutputControlsValidatorService {
             for (const name of [...calculated.keys(), ...uniqueCountOutputColumns]) {
               if (!selectedColumns.has(name)) sortableColumns.delete(name);
             }
-            errors.push(...this.validateSort(sortRules, sortableColumns));
+            errors.push(
+              ...this.validateSort(sortRules, sortableColumns, col => homeFieldTypes.get(col))
+            );
           } else {
             // With no explicit columnConfig the projection is `SELECT *` over the home mart's
             // NATIVE fields only — blended output aliases are NOT projected, and the blended run
@@ -1276,7 +1334,8 @@ export class OutputControlsValidatorService {
             errors.push(
               ...this.validateSort(
                 sortRules,
-                new Set(implicitAllNativeColumnNames(blendableSchema))
+                new Set(implicitAllNativeColumnNames(blendableSchema)),
+                col => homeFieldTypes.get(col)
               )
             );
           }

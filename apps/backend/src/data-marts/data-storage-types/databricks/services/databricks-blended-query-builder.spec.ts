@@ -14,6 +14,60 @@ import type { AggregationRule } from '../../../dto/schemas/aggregation-config.sc
 const buildContext = createBuildContext('`catalog`.`schema`.`customers`');
 
 describe('DatabricksBlendedQueryBuilder', () => {
+  describe('array JSON row transport', () => {
+    const arrayField = {
+      targetFieldName: 'payload',
+      targetFieldType: 'ARRAY<STRING>',
+      outputAlias: 'payloads',
+      isHidden: false,
+      aggregateFunction: 'STRING_AGG' as const,
+    };
+
+    it('serializes each native row, retaining SQL null as [null] and empty arrays as [[]]', () => {
+      const chain = makeChain({
+        relationship: makeRelationship(),
+        targetTableReference: 'source_table',
+        parentAlias: 'main',
+        blendedFields: [arrayField],
+      });
+      const { sql } = builder.buildBlendedQuery(buildContext([chain], ['payloads']));
+
+      expect(sql).toContain("COALESCE(to_json(payload), 'null')");
+      expect(sql).toContain("CONCAT('[', ");
+      expect(sql).toContain(", ']')");
+      expect(sql).not.toMatch(/UNNEST|FLATTEN/);
+      expect(sql).toContain('LEFT JOIN orders ON');
+      expect(sql).not.toContain('COALESCE(orders.payloads');
+    });
+
+    it('wraps JSON fragments through two ancestors and preserves absent-child SQL NULL', () => {
+      const parent = makeChain({
+        relationship: makeRelationship(),
+        targetTableReference: 'parent_table',
+        parentAlias: 'main',
+        blendedFields: [],
+      });
+      const middle = makeChain({
+        relationship: makeRelationship({ targetAlias: 'items' }),
+        targetTableReference: 'middle_table',
+        parentAlias: 'orders',
+        blendedFields: [],
+      });
+      const leaf = makeChain({
+        relationship: makeRelationship({ targetAlias: 'details' }),
+        targetTableReference: 'leaf_table',
+        parentAlias: 'orders_items',
+        blendedFields: [arrayField],
+      });
+      const { sql } = builder.buildBlendedQuery(buildContext([parent, middle, leaf], ['payloads']));
+
+      expect(sql).toContain('to_json(payload)');
+      expect(sql.match(/CASE WHEN COUNT\(payloads\) = 0 THEN NULL/g)).toHaveLength(2);
+      expect(sql).not.toContain('to_json(payloads)');
+      expect(sql).not.toContain("COALESCE(payloads, 'null')");
+    });
+  });
+
   let builder: DatabricksBlendedQueryBuilder;
 
   beforeEach(async () => {
