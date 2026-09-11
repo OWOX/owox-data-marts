@@ -1,5 +1,139 @@
 # owox
 
+## 0.34.0
+
+### Minor Changes
+
+- d433bec: # Keep report output controls consistent with the column selection and the Data Mart schema
+  - Unchecking a column in the report editor now removes the aggregation and date bucket set on it, a metric filter bound to that aggregation, and its sort rule when the sort can no longer resolve: the report aggregates, the column is a calculated field, or the column is missing from the Data Mart schema. Row filters and slices stay.
+  - A report that does not aggregate can sort by any column of the Data Mart, selected or not, the same way a filter works. Once the report aggregates, sorting is limited to the selected columns: adding an aggregation, a date bucket or a Unique Count removes a sort rule on an unselected column. A calculated field is sortable only while selected.
+  - An aggregation or date bucket on a column that is missing from the Data Mart schema is reported as a disconnected column, with the column named, instead of a misleading "not selected" or "unknown type" error.
+  - A scheduled run, and a Looker Studio data pull, drops a sort rule on a column that is missing from the schema and continues, with a warning in the logs, instead of failing. The limit is kept, so under a limit the delivered rows may differ from the ones the sort used to pick. Saving the report, the Generated SQL preview and ad-hoc queries still report the missing column.
+  - The "Output controls validation failed" message now names the rules that failed and the columns they reference, so run history, MCP clients, and the Google Sheets extension show the reason.
+
+- 5b6105d: # Reports page: prompt to connect Claude or ChatGPT
+
+  The project Reports page now shows a promo block beneath the reports list
+  inviting you to connect an AI assistant. Ask questions about your data in plain
+  language and get answers drawn straight from your published Data Marts, instead
+  of numbers an assistant guessed on its own.
+
+  The block offers two equal choices — **Claude** and **ChatGPT**. Each button
+  opens that assistant's OWOX Data Marts connector page in a new tab, and a link
+  to the [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/)
+  walks through the setup. This is the same connection previously offered only in
+  the onboarding Setup Checklist, now discoverable where you work with reports.
+
+  When the project has no reports yet, the empty state carries a compact hint with
+  the same link to the MCP setup guide.
+
+- 4e792b6: # Setup checklist: new step to connect Claude or ChatGPT
+
+  The onboarding Setup Checklist has a new step for connecting an AI assistant: ask questions about your data in plain language and get answers drawn straight from your published Data Marts and their analyst-approved definitions, instead of numbers an assistant guessed on its own.
+
+  The step offers two equal choices — **Claude** and **ChatGPT**. Each button opens that assistant's OWOX Data Marts connector page in a new tab, where you sign in and enable the connection, and a link to the [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/) walks through it end to end.
+
+  Opening the connector does not tick the step off. Like running a report, this step is per person and completes on real usage: the first time you ask a question in Claude or ChatGPT and it successfully queries one of the project's Data Marts, the step flips to done for you. A query that fails does not count, and the checklist can take a few minutes — or a reopen — to catch up.
+
+- 93ed7ea: # MCP: guidance for projects without Data Marts
+
+  When a project has no published Data Mart visible to the connected user, the MCP discovery tools (`list_data_marts`, `get_relevant_data_marts_by_prompt`, and `summarize_data_catalog`) now return `getting_started` instead of a bare empty list: a link to create the first Data Mart in OWOX Data Marts, the setup guides, the user's draft Data Marts that still need publishing, and instructions the assistant relays to the user. The guidance depends on the user's role: Project Admins and Technical Users are walked through creating and publishing a Data Mart, while Business Users are advised to ask them for one.
+
+  The MCP system instructions tell the assistant to stop rephrasing searches or querying data in that case and to explain what to do next in the web app instead, so a new user hears where to start rather than "no data found".
+
+- cce4c7e: # Model Canvas and Data Mart navigation polish
+
+  The Model Canvas page (formerly "Models") now opens straight into your data model: with a single storage, it's selected automatically instead of asking you to pick one first. When you do need to switch, the storage picker moved up into the page header as a clear "Model for [Storage]" title, and a "Data Marts" breadcrumb takes you back to the list in one click — the same breadcrumb now appears on the Reports, Triggers, Run History, and Insights pages too.
+
+  On the canvas itself, each Data Mart card now shows a full-height color stripe reflecting its Data Quality status, so you can spot cards with warnings or errors at a glance instead of opening each one. Downloading the canvas (as an image, JSON, or OKF Markdown) is now a dedicated button in the toolbar instead of being tucked inside the Actions menu, and bulk actions like Publish and Delete now state exactly how many Data Marts they'll affect.
+
+  Opening the canvas with no filters applied now shows all Data Marts, published or draft, connected or not — previously it defaulted to published-only, connected-only.
+
+  Long Data Mart names in tables no longer wrap and push rows taller — they truncate with the full name available on hover.
+
+  In the Reports table, the Report column now leads, with Data Mart moved to second place.
+
+- 29a9def: # Fix the Model Canvas failing with a full-page error on larger data models
+
+  **Problem.** Opening the Model Canvas — or the Joinable Data Marts diagram — for a
+  storage with many Data Marts and relationships could replace the whole page with a
+  "Something went wrong" error screen right after the loading skeleton. Storages with
+  only a few Data Marts were unaffected, so the failure was intermittent and hard to
+  reproduce.
+
+  **Cause.** The automatic layout step throws on some otherwise-valid relationship
+  graphs — typically when a model has several relationships between the same pair of
+  Data Marts, a Data Mart joined to itself, or circular joins. That error was not
+  handled, so it propagated to the route error boundary and took down the entire page
+  instead of just the canvas.
+
+  **Fix.** The canvas now recovers instead of crashing. When the layout step fails it
+  retries with a simplified view of the relationships, which resolves the vast
+  majority of these cases and still produces a proper layout. If that also fails, it
+  falls back to a plain grid you can rearrange by dragging. Node positions you set are
+  still saved per storage.
+
+- 75f9d94: # MCP report tools: update the report you have instead of creating another
+
+  When a report is created through the assistant and the next request changes it — "add a filter", "sort by revenue", "rename it" — the assistant now updates that report instead of creating a second one. `add_report` refuses a report whose fields duplicate one the same user already created on the same data mart and destination, returning `error_code: similar_report_exists` with the existing report's definition, so the assistant can switch to `update_report`; `allow_similar: true` creates a separate report when that is what the user wants.
+
+  `update_report` now returns the report as it is after the update (fields, filters, slices, aggregations, date buckets, sort, limit, and for Google Sheets the spreadsheet and sheet) and, by default, runs a Google Sheets report again when the export changed, so the sheet reflects the new definition. Email, Slack, Microsoft Teams, and Google Chat reports are not re-sent by an update unless `run_immediately: true` is passed, since a run delivers the message to every recipient or channel; a name-only or message-only change never triggers a run. `get_data_mart_reports` lists the same definition for every report — including Unique Count metrics and the report-only `STRING_AGG` / `ANY_VALUE` aggregations, which the report tools now accept so a UI-created report round-trips — plus `created_by_current_user` and `created_at`, so the assistant can recognize an existing report before creating one.
+
+  Related Google Sheets exports can now share one document: `add_report` accepts `spreadsheet_id` and adds the report as a new sheet of that spreadsheet instead of creating another file, after checking that the spreadsheet is shared with the requesting user. Rules created in the OWOX UI that the assistant cannot express (post-aggregation constraints, regex, calendar presets) are listed as `ui_only_filters` and are never dropped by an update. The MCP instructions steer the assistant to the report tools for any export or delivery, rather than copying query rows into a file or document through another integration.
+
+- 3f5b6e6: # Fix LinkedIn Ads adAnalytics silently dropping data when response exceeds 15,000 elements
+
+  Previously, an adAnalytics export over a large date range could silently lose data: the endpoint does not support pagination and caps its response at 15,000 elements, so campaigns from the beginning of the period were missing from the result. The connector now fetches, saves, and checkpoints analytics one day at a time, so a single day cannot exceed the limit, and an interrupted run resumes from the last completed day instead of restarting the whole range.
+
+  If a daily response still reaches 15,000 elements, the import finishes with a Warning status that lists the affected days instead of losing data silently.
+
+  The connector also refreshes the LinkedIn access token once per run instead of before every request. LinkedIn API errors now fail the run instead of silently returning no rows; rate-limit (429) and server (5xx) errors are retried first.
+
+  Analytics days are now computed in UTC, so the day the connector requests always matches the day it logs and checkpoints, regardless of the runner's time zone.
+
+- c31c75f: # Prevent incomplete Data Studio responses for large reports
+
+  Large Data Studio reports now return as many complete rows as fit within Apps Script response limits instead of ending with malformed JSON.
+
+- 6457d34: # Temporary BigQuery faults no longer fail the whole import
+
+  Previously, a single batch that BigQuery failed with a temporary fault ended the entire run, even after hundreds of thousands of rows had been stored. The storage now waits and saves that batch again, using the existing Max Fetch Retries and Initial Retry Delay settings. This covers both a batch BigQuery rejects outright and one it accepts and then fails while running. Errors that another attempt cannot fix, such as an invalid query or a denied permission, still stop the run immediately.
+
+- 6d12fdf: # Keep automatic project redirects scoped to the signed-in user
+
+  OWOX Data Marts no longer carries an automatically remembered project into a session for a different user. After switching accounts during sign-in, users continue with a project available to the newly authenticated account instead of being sent to request access for the previous account's project.
+
+- 305a184: # Configure joins before publishing Data Marts
+
+  Draft Data Mart joins can now be configured before publication, including their output fields, output aliases, and join-specific descriptions.
+
+- 3e7b118: # Show Data Studio query errors during connection
+
+  Data Studio now shows troubleshooting guidance and the underlying query error when loading a Data Mart schema or its data fails instead of suggesting that the deployment URL is incorrect.
+
+- 6449cb1: # Projects in the switcher are sorted alphabetically
+
+  The **Switch project** menu now lists your projects in alphabetical order instead of the order the server happened to return them in, so a project always sits where you expect it.
+
+  Sorting ignores letter case, so `alpha` and `Alpha` are ordered together, and it reads numbers as numbers: _Project 2_ comes before _Project 10_.
+
+- bb52739: # Keep output schema field connection statuses server-controlled
+
+  Output schema updates no longer accept a client-provided connection status as the field's actual state. API users and plugin developers could previously encounter misleading connected fields when saving a schema before the storage had verified them; the backend now derives the status, and the web app omits it from update requests.
+
+- 5960148: # Open the OWOX add-in for Excel straight from the Destinations tab
+
+  A Data Mart that has no Microsoft Excel reports yet now links to the OWOX add-in for Excel, so a business user reaches the place an Excel report is actually created in a single step instead of being told where to look. The Excel destination's description also links to the installation guide, for organizations that install the add-in manually.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.34.0
+- @owox/idp-protocol@0.34.0
+- @owox/idp-better-auth@0.34.0
+- @owox/idp-owox-better-auth@0.34.0
+- @owox/backend@0.34.0
+- @owox/web@0.34.0
+
 ## 0.33.0
 
 ### Minor Changes 0.33.0
@@ -62,7 +196,6 @@
   Nothing saved breaks: reports and API calls that use the previous `is_empty`, `is_not_empty`, `is_null`, or `is_not_null` operators keep working with their exact previous semantics, and saved rules still display under their original names. Only the menus stop offering them.
 
 - dc3b2ad, 4bfd303: **Join descriptions: shown in the column pickers, and editable per join path**
-
   - **Shown in the pickers** (dc3b2ad) — report column pickers in the web app and the Google Sheets extension now show each joined Data Mart's description and full join path on hover, using the same user-facing titles as the picker.
   - **Editable per join path** (4bfd303) — a join description explains what pulling in another data mart actually means: business users read it in the report column picker, and AI assistants read it over MCP. It was written once on the relationship itself, so every data mart that reached that join showed the same sentence. "Orders placed by this customer" is right in a Customers data mart, but in a Companies data mart that reaches Orders through Customers it explains nothing.
 
@@ -109,7 +242,6 @@
   The Facebook Ads troubleshooting guide now explains Meta's Ads Insights rate limit (code 4, subcode 1504022), the ad-account score limit (code 17, subcode 2446079), and how to adjust these settings after a rate limit error.
 
 - f7b099a, 7667281: **Joinable Data Marts diagram opens fitted to the whole graph, and its zoom controls keep working**
-
   - **Opens fitted** (f7b099a) — switching to the Graph view could land on a viewport zoomed in on the root card, as if the fit had never run, until "Fit to view" was pressed. The automatic first fit relied on `fitView`, which only accounts for nodes whose DOM dimensions are already measured — on first mount it ran against a half-measured subset. The initial viewport is now derived from the layout geometry itself, so the Graph view always opens showing the entire diagram, exactly as the "Fit to view" button leaves it.
   - **Zoom controls keep working** (7667281) — the +/- zoom buttons could stop responding until "Fit to view" was pressed, depending on how the page was opened. The allowed zoom range was captured once from a completed fit, so a fit that ran under transient conditions (a still-loading graph or a settling pane) froze the range in an unusable state. The range is now derived from the live graph and pane geometry, small graphs that fit at the maximum zoom keep a usable zoom-out floor, and a corrupted viewport recovers with a full fit instead of ignoring clicks.
 
@@ -2668,7 +2800,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2676,7 +2807,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
