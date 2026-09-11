@@ -337,6 +337,30 @@ describe('SwitchProjectMenu', () => {
     // First item should still be highlighted
     expect(screen.getByText('Project 1').closest('[role="option"]')).toHaveClass('bg-accent');
   });
+
+  it('lists projects alphabetically regardless of the order returned by the API', () => {
+    projectsState.value = {
+      ...projectsState.value,
+      projects: [
+        { id: 'project-2', title: 'zeta project' },
+        { id: 'project-1', title: 'Beta project' },
+        { id: 'project-3', title: 'Project 10' },
+        { id: 'project-4', title: 'Project 2' },
+        { id: 'project-5', title: 'alpha project' },
+      ],
+      callState: RequestStatus.LOADED,
+    };
+
+    renderSwitchProjectMenu(<SwitchProjectMenu />);
+
+    expect(screen.getAllByRole('option').map(item => item.textContent)).toEqual([
+      'alpha project',
+      'Beta project',
+      'Project 2',
+      'Project 10',
+      'zeta project',
+    ]);
+  });
 });
 
 function renderSwitchProjectMenu(children: ReactNode) {

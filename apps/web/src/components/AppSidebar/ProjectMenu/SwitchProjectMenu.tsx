@@ -15,6 +15,9 @@ import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
 import { RequestStatus } from '../../../shared/types/request-status.ts';
 import { buildProjectPath } from '../../../utils/path.ts';
 
+// Case-insensitive, digit-aware ordering so "Project 2" precedes "Project 10".
+const projectTitleCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
 interface SwitchProjectMenuProps {
   autoLoad?: boolean;
   emptyMessage?: string;
@@ -36,9 +39,10 @@ function SwitchProjectMenuInner({
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
   const visibleProjects = useMemo(() => {
-    return excludeCurrentProject
+    const available = excludeCurrentProject
       ? projects.filter(project => project.id !== user?.projectId)
       : projects;
+    return [...available].sort((a, b) => projectTitleCollator.compare(a.title, b.title));
   }, [projects, excludeCurrentProject, user?.projectId]);
 
   const isInitialLoad = autoLoad && callState === RequestStatus.IDLE;
