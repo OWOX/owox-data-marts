@@ -1241,7 +1241,12 @@ export class OutputControlsValidatorService {
               selectedSet.add(buildJoinedUniqueCountColumnName(aliasPath));
             }
             errors.push(...this.validateSort(sortRules, selectedSet));
-          } else if (hasColumnConfig) {
+          } else if (args.columnConfig != null) {
+            // An EXPLICIT projection — `[]` included: the run path takes every non-null list down
+            // the blended builder, which prints exactly the listed columns, so an empty list is a
+            // projection of nothing, not the implicit "all native columns" that `hasColumnConfig`
+            // folds it into for the other checks.
+            //
             // An ungrouped query with an explicit projection resolves ORDER BY against the source
             // row — the flat builders qualify or quote the bare column, the blended one carries
             // every sorted column into its CTE (`referencedColumns`) — so a sort on a column the
@@ -1252,9 +1257,11 @@ export class OutputControlsValidatorService {
             // field owns it. The metric is off in this shape, so its alias does not exist; and
             // the blended builder strips every unselected Unique Count name from the columns it
             // carries into its CTEs on the assumption it is the synthetic alias, so a sort on the
-            // real column would name one the main CTE no longer projects. A name absent from the
-            // schema is still reported below as disconnected.
-            const sortableColumns = new Set(knownOutputColumns);
+            // real column would name one the main CTE no longer projects. With nothing projected
+            // there is no row to order at all, so nothing resolves — the verdict the empty list
+            // always had. A name absent from the schema is still reported below as disconnected.
+            const sortableColumns =
+              args.columnConfig.length > 0 ? new Set(knownOutputColumns) : new Set<string>();
             for (const name of [...calculated.keys(), ...uniqueCountOutputColumns]) {
               if (!selectedColumns.has(name)) sortableColumns.delete(name);
             }

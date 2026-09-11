@@ -1203,6 +1203,62 @@ describe('OutputControlsValidatorService', () => {
       }
     );
 
+    // An EXPLICIT empty projection is not the implicit "all native columns": the run path takes
+    // every non-null list down the blended builder (a post-join filter on a joined column forces
+    // it), which prints exactly the listed columns and strips an unselected Unique Count name
+    // from its CTEs — so `ORDER BY main.\`Unique Count\`` would name a column the main CTE no
+    // longer projects. With nothing projected no source column resolves at all.
+    it.each([
+      ['a real field named "Unique Count"', 'Unique Count'],
+      ['a plain native column', 'date'],
+    ])(
+      'rejects a sort on %s under an explicit empty projection that forces the blended path',
+      async (_case, column) => {
+        const capabilitySvc = makeCapabilityService(true);
+        const schemaSvc = makeBlendableSchemaService(
+          [
+            { name: 'date', type: BigQueryFieldType.DATE },
+            { name: 'Unique Count', type: BigQueryFieldType.STRING },
+          ],
+          {
+            blendedFields: [
+              {
+                name: 'users__role',
+                aliasPath: 'users',
+                originalFieldName: 'role',
+                type: BigQueryFieldType.STRING,
+              },
+            ],
+            availableSources: [{ aliasPath: 'users' }],
+          }
+        );
+        const validator = new OutputControlsValidatorService(
+          capabilitySvc as never,
+          schemaSvc as never
+        );
+
+        let caught: BadRequestException | undefined;
+        try {
+          await validator.validateForReport({
+            storageType: supportedStorageType,
+            dataMartId: 'dm-1',
+            projectId: 'proj-1',
+            columnConfig: [],
+            filterConfig: [{ column: 'users__role', operator: 'eq', value: 'admin' }],
+            sortConfig: [{ column, direction: 'asc' }],
+            limitConfig: null,
+            accessor: { userId: 'user-1', roles: ['admin'] },
+          });
+        } catch (e) {
+          caught = e as BadRequestException;
+        }
+
+        expect(caught).toBeDefined();
+        const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+        expect(response.details.errors).toEqual([{ code: 'SORT_COLUMN_NOT_SELECTED', column }]);
+      }
+    );
+
     it('names the failed rules in the message, not only in details', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
