@@ -37,6 +37,7 @@ interface ConnectorConfigField {
   placeholder?: string;
   minimum?: number;
   attributes?: Core.CONFIG_ATTRIBUTES[];
+  optionsDependsOn?: string[];
   oneOf?: ConnectorSpecificationOneOf[];
 }
 
@@ -465,6 +466,7 @@ export class ConnectorService {
         placeholder: config[key].placeholder,
         minimum: config[key].minimum,
         attributes: config[key].attributes,
+        optionsDependsOn: config[key].optionsDependsOn,
         oneOf: config[key].oneOf?.map(oneOf => {
           return {
             label: oneOf.label,
@@ -485,6 +487,7 @@ export class ConnectorService {
                   placeholder: itemValue.placeholder,
                   minimum: itemValue.minimum,
                   attributes: itemValue.attributes,
+                  optionsDependsOn: itemValue.optionsDependsOn,
                 };
                 return acc;
               },

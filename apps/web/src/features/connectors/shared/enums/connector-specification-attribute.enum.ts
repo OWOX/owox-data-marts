@@ -3,4 +3,5 @@ export enum ConnectorSpecificationAttribute {
   HIDE_IN_CONFIG_FORM = 'HIDE_IN_CONFIG_FORM',
   DEPRECATED = 'DEPRECATED',
   PINNED = 'PINNED',
+  DYNAMIC_OPTIONS = 'DYNAMIC_OPTIONS',
 }

@@ -6,6 +6,8 @@ import {
   ConnectorSpecificationItem,
 } from '../connector-types/connector-specification';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
+import { ConnectorFieldOptions } from '../connector-types/connector-field-options';
+import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
 import { ConnectorDefinitionResponseApiDto } from '../dto/presentation/connector-definition-response-api.dto';
 import {
   ConnectorSpecificationResponseApiDto,
@@ -64,6 +66,10 @@ export class ConnectorMapper {
     }));
   }
 
+  toFieldOptionsResponse(options: ConnectorFieldOptions): ConnectorFieldOptionResponseApiDto[] {
+    return options.map(option => ({ value: option.value, label: option.label }));
+  }
+
   private mapSpecificationItem(
     item: ConnectorSpecificationItem
   ): ConnectorSpecificationItemResponseApiDto {
@@ -78,6 +84,7 @@ export class ConnectorMapper {
       placeholder: item.placeholder,
       minimum: item.minimum,
       attributes: item.attributes,
+      optionsDependsOn: item.optionsDependsOn,
     };
   }
 
@@ -95,6 +102,7 @@ export class ConnectorMapper {
       placeholder: item.placeholder,
       minimum: item.minimum,
       attributes: item.attributes,
+      optionsDependsOn: item.optionsDependsOn,
       oneOf: item.oneOf?.map(
         (oneOf): ConnectorSpecificationOneOfOptionResponseApiDto => ({
           label: oneOf.label,

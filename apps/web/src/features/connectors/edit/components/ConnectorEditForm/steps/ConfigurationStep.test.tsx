@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConfigurationStep } from './ConfigurationStep';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
-import { RequiredType } from '../../../../shared/api';
+import { ConnectorApiService, RequiredType } from '../../../../shared/api';
 
 vi.mock(
   '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton',
@@ -271,5 +271,301 @@ describe('ConfigurationStep Google Sheets OAuth fields', () => {
     expect(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })).toHaveValue(
       spreadsheetUrl
     );
+  });
+});
+
+describe('ConfigurationStep Google Sheets OAuth spreadsheet input visibility', () => {
+  const oauthOnlySpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'AuthType',
+      title: 'Auth Type',
+      requiredType: RequiredType.OBJECT,
+      required: true,
+      oneOf: [
+        {
+          label: 'OAuth2',
+          value: 'oauth2',
+          requiredType: RequiredType.OBJECT,
+          attributes: ['OAUTH_FLOW'],
+          items: {
+            RefreshToken: {
+              name: 'RefreshToken',
+              title: 'Refresh Token',
+              requiredType: RequiredType.STRING,
+              required: true,
+            },
+          },
+        },
+      ],
+    },
+    {
+      name: 'SpreadsheetId',
+      title: 'Spreadsheet ID or URL',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+    {
+      name: 'SheetName',
+      title: 'Sheet Name',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+  ];
+
+  it('never shows the spreadsheet input under OAuth before sign-in, only once manual OAuth is chosen', async () => {
+    let resolveSettings!: (value: unknown) => void;
+    oauthMocks.getSettings.mockReturnValue(
+      new Promise(resolve => {
+        resolveSettings = resolve;
+      })
+    );
+    oauthMocks.checkStatus.mockResolvedValue({ valid: false });
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={oauthOnlySpecification}
+          initialConfiguration={{ AuthType: { oauth2: {} } }}
+        />
+      </MemoryRouter>
+    );
+
+    // Settings are still loading: the picker-driven field must not flash.
+    expect(await screen.findByRole('textbox', { name: 'Sheet Name *' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+    ).not.toBeInTheDocument();
+
+    resolveSettings({
+      isEnabled: true,
+      vars: {
+        ClientId: 'client-id',
+        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        PickerApiKey: 'picker-key',
+        ProjectNumber: '123456789',
+      },
+    });
+
+    // Signed out with managed OAuth: still hidden, the spreadsheet comes from Google Picker.
+    expect(await screen.findByRole('button', { name: 'Manually' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manually' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+    ).toBeInTheDocument();
+  });
+});
+
+describe('ConfigurationStep dynamic field options', () => {
+  const dynamicSpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'SpreadsheetId',
+      title: 'Spreadsheet ID or URL',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+    {
+      name: 'SheetName',
+      title: 'Sheet Name',
+      requiredType: RequiredType.STRING,
+      required: true,
+      attributes: ['DYNAMIC_OPTIONS'],
+      optionsDependsOn: ['SpreadsheetId'],
+    },
+  ];
+  const sheets = [
+    { value: 'Summary', label: 'Summary' },
+    { value: 'Data', label: 'Data' },
+  ];
+
+  function DynamicHarness({
+    initial,
+    onChange,
+  }: {
+    initial: Record<string, unknown>;
+    onChange: (configuration: Record<string, unknown>) => void;
+  }) {
+    const [configuration, setConfiguration] = useState<Record<string, unknown>>(initial);
+    return (
+      <ConfigurationStep
+        connector={googleSheetsConnector}
+        connectorSpecification={dynamicSpecification}
+        initialConfiguration={configuration}
+        onConfigurationChange={next => {
+          setConfiguration(next);
+          onChange(next);
+        }}
+      />
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the sheet tabs once the spreadsheet is known', async () => {
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
+      .mockResolvedValue(sheets);
+    const onChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <DynamicHarness initial={{}} onChange={onChange} />
+      </MemoryRouter>
+    );
+
+    const combobox = await screen.findByRole('combobox', { name: 'Sheet Name' });
+    expect(combobox).toBeDisabled();
+    expect(combobox).toHaveTextContent('Fill the fields above to load sheet names');
+    expect(previewSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
+      target: { value: 'sheet-1' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Sheet Name' })).toBeEnabled();
+    });
+    expect(previewSpy).toHaveBeenCalledWith(
+      'GoogleSheets',
+      'SheetName',
+      expect.objectContaining({ SpreadsheetId: 'sheet-1' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('clears a sheet name that no longer exists in the loaded tabs', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue(
+      sheets
+    );
+    const onChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <DynamicHarness
+          initial={{ SpreadsheetId: 'sheet-1', SheetName: 'Old tab' }}
+          onChange={onChange}
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ SheetName: '' }));
+    });
+  });
+
+  it('falls back to a text input when the tabs cannot be loaded', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockRejectedValue(
+      new Error('Google Sheets access denied')
+    );
+    const onChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <DynamicHarness initial={{ SpreadsheetId: 'sheet-1' }} onChange={onChange} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('textbox', { name: 'Sheet Name *' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Google Sheets access denied');
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Sheet Name *' }), {
+      target: { value: 'Typed tab' },
+    });
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ SheetName: 'Typed tab' }));
+    });
+  });
+});
+
+describe('ConfigurationStep first open of a Google Sheets OAuth configuration', () => {
+  const freshSpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'AuthType',
+      title: 'Auth Type',
+      requiredType: RequiredType.OBJECT,
+      required: true,
+      oneOf: [
+        {
+          label: 'OAuth2',
+          value: 'oauth2',
+          requiredType: RequiredType.OBJECT,
+          attributes: ['OAUTH_FLOW'],
+          items: {
+            RefreshToken: {
+              name: 'RefreshToken',
+              title: 'Refresh Token',
+              requiredType: RequiredType.STRING,
+              required: true,
+            },
+          },
+        },
+        {
+          label: 'Service Account',
+          value: 'service_account',
+          requiredType: RequiredType.OBJECT,
+          items: {
+            ServiceAccountKey: {
+              name: 'ServiceAccountKey',
+              title: 'Service Account Key',
+              requiredType: RequiredType.STRING,
+              required: true,
+              attributes: ['SECRET'],
+            },
+          },
+        },
+      ],
+    },
+    {
+      name: 'SpreadsheetId',
+      title: 'Spreadsheet ID or URL',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+  ];
+
+  it('keeps the spreadsheet input hidden on a brand-new configuration', async () => {
+    oauthMocks.getSettings.mockResolvedValue({
+      isEnabled: true,
+      vars: {
+        ClientId: 'client-id',
+        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        PickerApiKey: 'picker-key',
+        ProjectNumber: '123456789',
+      },
+    });
+    oauthMocks.checkStatus.mockResolvedValue({ valid: false });
+    const onConfigurationChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={freshSpecification}
+          initialConfiguration={{}}
+          onConfigurationChange={onConfigurationChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+    ).not.toBeInTheDocument();
+    // Seeded defaults are not reported as a user change; the first real edit is.
+    expect(onConfigurationChange).not.toHaveBeenCalled();
+
+    // Radix tabs switch on pointer down, not on click.
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Service Account' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })
+    ).toBeInTheDocument();
   });
 });

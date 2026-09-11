@@ -9,8 +9,10 @@ import {
   ConfigurationObjectField,
   ConfigurationDateField,
   ConfigurationStringField,
+  ConfigurationDynamicOptionsField,
 } from './ConfigurationField';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
+import { hasDynamicOptions } from '../../../../../shared/utils/dynamic-options.utils';
 
 interface ConfigurationStepFieldRenderProps {
   specification: ConnectorSpecificationResponseApiDto;
@@ -53,6 +55,17 @@ export function configurationFieldRender({
         onValueChange={onValueChange}
         isEditingExisting={isEditingExisting}
         isSecretEditing={isSecretEditing}
+      />
+    );
+  }
+
+  if (hasDynamicOptions(specification)) {
+    return (
+      <ConfigurationDynamicOptionsField
+        specification={specification}
+        configuration={configuration}
+        onValueChange={onValueChange}
+        connectorName={connectorName}
       />
     );
   }
