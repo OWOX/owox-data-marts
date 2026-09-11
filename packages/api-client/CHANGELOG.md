@@ -1,5 +1,7 @@
 # @owox/api-client
 
+## 0.34.0
+
 ## 0.33.0
 
 ### Minor Changes 0.33.0
