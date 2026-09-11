@@ -9,6 +9,7 @@ import {
   setupPublishedDataMart,
   setupReportPrerequisites,
   ReportBuilder,
+  setDataMartSchema,
 } from '@owox/test-utils';
 import { TypeResolver } from '../src/common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../src/data-marts/data-storage-types/data-storage-providers';
@@ -910,27 +911,21 @@ describe('HTTP Data API (e2e)', () => {
       const prereqs = await setupPublishedDataMart(agent);
       dataMartWithCtrId = prereqs.dataMartId;
 
-      const schemaRes = await agent
-        .put(`/api/data-marts/${dataMartWithCtrId}/schema`)
-        .set(AUTH_HEADER)
-        .send({
-          schema: {
-            type: 'bigquery-data-mart-schema',
-            fields: [
-              { name: 'country', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
-              { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-              { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
-              {
-                name: 'ctr',
-                type: 'FLOAT',
-                mode: 'NULLABLE',
-                status: 'CONNECTED',
-                calculated: { formula: CTR_FORMULA, level: 'metric' },
-              },
-            ],
+      await setDataMartSchema(agent, app, dataMartWithCtrId, {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'country', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            mode: 'NULLABLE',
+            status: 'CONNECTED',
+            calculated: { formula: CTR_FORMULA, level: 'metric' },
           },
-        });
-      expect(schemaRes.status).toBe(200);
+        ],
+      });
 
       // HttpDataColumnResolver / HttpDataColumnValidator / OutputControlsValidatorService all
       // read through the mocked BlendableSchemaService, never the persisted schema directly (that

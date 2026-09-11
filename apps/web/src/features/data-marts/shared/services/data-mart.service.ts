@@ -26,6 +26,7 @@ import type {
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
+import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
 
 /**
  * Data Mart Service
@@ -229,10 +230,13 @@ export class DataMartService extends ApiService {
    */
   async updateDataMartSchema(
     id: string,
-    data: UpdateDataMartSchemaRequestDto,
+    data: { schema: DataMartSchema },
     config?: AxiosRequestConfig
   ): Promise<UpdateDataMartSchemaResponseDto> {
-    return this.put<UpdateDataMartSchemaResponseDto>(`/${id}/schema`, data, {
+    const request: UpdateDataMartSchemaRequestDto = {
+      schema: withoutFieldConnectionStatuses(data.schema),
+    };
+    return this.put<UpdateDataMartSchemaResponseDto>(`/${id}/schema`, request, {
       timeout: 180000,
       ...config,
     });
@@ -515,5 +519,23 @@ export class DataMartService extends ApiService {
       skipErrorToast: true,
     } as AxiosRequestConfig);
   }
+}
+
+type SchemaFieldWithChildren = BaseSchemaField & { fields?: SchemaFieldWithChildren[] };
+
+function withoutFieldConnectionStatuses(
+  schema: DataMartSchema
+): UpdateDataMartSchemaRequestDto['schema'] {
+  const withoutStatus = ({ fields, ...field }: SchemaFieldWithChildren): object => {
+    delete (field as Partial<BaseSchemaField>).status;
+    return fields === undefined
+      ? field
+      : { ...field, fields: fields.map(nestedField => withoutStatus(nestedField)) };
+  };
+
+  return {
+    ...schema,
+    fields: (schema.fields as SchemaFieldWithChildren[]).map(field => withoutStatus(field)),
+  } as UpdateDataMartSchemaRequestDto['schema'];
 }
 export const dataMartService = new DataMartService();

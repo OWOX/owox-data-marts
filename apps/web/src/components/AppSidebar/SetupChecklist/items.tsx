@@ -1,4 +1,5 @@
 import { InviteTeammatesCard } from '../../../shared/components/InviteTeammatesCard';
+import { ConnectAiAssistantAction } from './ConnectAiAssistantAction';
 import type { User } from '../../../features/idp/types';
 import {
   GroupId,
@@ -171,6 +172,18 @@ export const SETUP_STEPS: SetupStep[] = [
     },
     progressKey: ProgressKey.HAS_GOOGLE_SHEETS_REPORT_RUN,
   },
+  {
+    id: SetupStepId.CONNECT_AI_ASSISTANT,
+    stepTitle: 'Get answers in Claude or ChatGPT',
+    stepDescription:
+      'Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses:',
+    successMessage: 'AI assistant connected',
+    action: {
+      type: StepActionType.COMPONENT,
+      render: ({ onClick }) => <ConnectAiAssistantAction onClick={onClick} />,
+    },
+    progressKey: ProgressKey.HAS_MCP_QUERY,
+  },
 ];
 
 export const SETUP_GROUPS: SetupGroup[] = [
@@ -189,19 +202,27 @@ export const SETUP_GROUPS: SetupGroup[] = [
   {
     id: GroupId.REPORT,
     title: 'Get data to your report',
-    description: 'Create a destination, report, and run it to get results.',
-    stepIds: [SetupStepId.CREATE_DESTINATION, SetupStepId.CREATE_REPORT, SetupStepId.REPORT_RUN],
+    description:
+      'Create a destination, report, run it to get results, and connect an AI assistant.',
+    stepIds: [
+      SetupStepId.CREATE_DESTINATION,
+      SetupStepId.CREATE_REPORT,
+      SetupStepId.REPORT_RUN,
+      SetupStepId.CONNECT_AI_ASSISTANT,
+    ],
     isConditional: true,
     showCondition: (user: User | null) => !hasSheetsUseCase(user),
   },
   {
     id: GroupId.ENABLE_GOOGLE_SHEETS,
     title: 'Enable Google Sheets',
-    description: 'Let your team build reports and add columns in Google Sheets without SQL.',
+    description:
+      'Let your team build reports and add columns in Google Sheets without SQL, and connect an AI assistant.',
     stepIds: [
       SetupStepId.CREATE_GOOGLE_SHEETS_DESTINATION,
       SetupStepId.INSTALL_GOOGLE_SHEETS_EXTENSION,
       SetupStepId.CREATE_RUN_REPORT_FROM_EXTENSION,
+      SetupStepId.CONNECT_AI_ASSISTANT,
     ],
     isConditional: true,
     showCondition: (user: User | null) => hasSheetsUseCase(user),

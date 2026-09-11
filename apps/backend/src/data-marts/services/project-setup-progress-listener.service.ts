@@ -7,6 +7,7 @@ import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { ReportCreatedEvent } from '../events/report-created.event';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
+import { McpQueryCompletedSuccessfullyEvent } from '../events/mcp-query-completed-successfully.event';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
@@ -60,5 +61,16 @@ export class ProjectSetupProgressListenerService {
       await this.progressService.markUserStepDone(projectId, userId, 'hasGoogleSheetsExtension');
       await this.progressService.markUserStepDone(projectId, userId, 'hasGoogleSheetsReportRun');
     }
+  }
+
+  @OnEvent('mcp-query.completed.successfully', { async: true })
+  async onMcpQuerySuccess(event: McpQueryCompletedSuccessfullyEvent): Promise<void> {
+    const { dataMartId, userId } = event.payload;
+    if (!userId) return;
+
+    const projectId = await this.progressService.resolveProjectIdByDataMartId(dataMartId);
+    if (!projectId) return;
+
+    await this.progressService.markUserStepDone(projectId, userId, 'hasMcpQuery');
   }
 }

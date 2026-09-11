@@ -301,8 +301,8 @@ describe('DataMartRelationshipsContent toolbar filters', () => {
 describe('DataMartRelationshipsContent blendable schema', () => {
   it('refetches on an invalidation of the shared key, which is what every mutation path fires', async () => {
     // This card used to refetch from an effect keyed on its relationship list; it now reads the
-    // shared query the schema editor's formula autocomplete reads too, so the refresh comes from
-    // `invalidateBlendableSchema` — the call every create/rename/delete/config-save already makes.
+    // draft-inclusive query variant, so the refresh comes from prefix invalidation — the call every
+    // create/rename/delete/config-save already makes.
     const service = vi.mocked(dataMartRelationshipService);
     // The service mock is module-level and every earlier test in this file rendered through it.
     service.getBlendableSchema.mockClear();
@@ -311,6 +311,11 @@ describe('DataMartRelationshipsContent blendable schema', () => {
     await waitFor(() => {
       expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
     });
+    expect(service.getBlendableSchema).toHaveBeenCalledWith(
+      'dm-1',
+      { includeDraftTargets: true },
+      { skipLoadingIndicator: true }
+    );
 
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });

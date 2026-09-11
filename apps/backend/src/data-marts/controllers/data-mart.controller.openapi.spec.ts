@@ -426,6 +426,14 @@ describe('DataMartController list OpenAPI', () => {
 
   it('publishes the blendable-schema response, including uniqueCountAvailability, through named component schemas', () => {
     const operation = document.paths['/api/data-marts/{id}/blendable-schema']?.get;
+    expect(operation?.parameters).toContainEqual(
+      expect.objectContaining({
+        name: 'includeDraftTargets',
+        in: 'query',
+        required: false,
+        schema: { type: 'boolean', default: false },
+      })
+    );
     expect(operation?.responses['200']).toMatchObject({
       content: {
         'application/json': {

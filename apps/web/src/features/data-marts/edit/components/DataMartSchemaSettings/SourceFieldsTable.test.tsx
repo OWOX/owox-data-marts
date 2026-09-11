@@ -23,6 +23,15 @@ function buildBlendedField(overrides: Partial<BlendedField> = {}): BlendedField 
   };
 }
 
+describe('SourceFieldsTable — empty states', () => {
+  it('explains that the source Data Mart has no fields', () => {
+    render(<SourceFieldsTable fields={[]} onFieldOverrideChange={() => {}} />);
+
+    expect(screen.getByText('No fields are available in the source Data Mart')).toBeInTheDocument();
+    expect(screen.queryByText('No fields match the current filter')).not.toBeInTheDocument();
+  });
+});
+
 describe('SourceFieldsTable — Post-join column', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -300,7 +300,10 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .describe('Formula definition; present only on calculated fields'),
       status: z
         .nativeEnum(DataMartSchemaFieldStatus)
-        .describe('Field status relatively to the actual data mart schema'),
+        .default(DataMartSchemaFieldStatus.DISCONNECTED)
+        .describe(
+          'Server-owned field status relative to the actual data mart schema; ignored on updates'
+        ),
     })
     // ROLLING-DEPLOY SAFETY, and it is about data loss rather than validation. This schema is a
     // TypeORM value transformer: `createZodTransformer.from` parses it on every entity LOAD, and a

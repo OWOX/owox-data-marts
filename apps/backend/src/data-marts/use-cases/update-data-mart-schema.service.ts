@@ -2,13 +2,18 @@ import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMart } from '../entities/data-mart.entity';
-import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import { calculatedFieldsOf, isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import {
   CalculatedFieldValidatorService,
   DryRunContext,
 } from '../calculated-fields/calculated-field-validator.service';
 import { FormulaViolations } from '../calculated-fields/formula-violations';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import type {
+  DataMartSchema,
+  DataMartSchemaField,
+} from '../data-storage-types/data-mart-schema.type';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataMartSchemaParserFacade } from '../data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartSchemaResult } from '../dto/domain/update-data-mart-schema-result.dto';
@@ -55,6 +60,7 @@ export class UpdateDataMartSchemaService {
       command.schema,
       dataMart.storage.type
     );
+    const introducesNativeField = applyServerOwnedFieldStatuses(parsed, dataMart.schema);
 
     // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
     // reads `ctx.dataMart.schema` to find each metric's formula, so the context below must carry
@@ -64,6 +70,10 @@ export class UpdateDataMartSchemaService {
     // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
     // failure afterwards just leaves the in-memory mutation unpersisted.
     dataMart.schema = parsed;
+    if (introducesNativeField) {
+      // Read as expired by actualizeSchemaIfExpired, so lazy readers re-check the warehouse.
+      dataMart.schemaActualizedAt = null;
+    }
 
     const calculatedFields = calculatedFieldsOf(parsed.fields);
     const storageConfig = dataMart.storage.config;
@@ -169,4 +179,46 @@ export class UpdateDataMartSchemaService {
     await this.dataMartService.save(dataMart);
     await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
   }
+}
+
+function applyServerOwnedFieldStatuses(
+  schema: DataMartSchema,
+  persistedSchema: DataMartSchema | undefined
+): boolean {
+  // Connection status is derived by schema actualization. A manual API save may only carry the
+  // last server-owned value forward; a new warehouse field starts disconnected.
+  const persistedFields = persistedSchema?.type === schema.type ? persistedSchema.fields : [];
+  return applyFieldStatuses(schema.fields, persistedFields);
+}
+
+function applyFieldStatuses(
+  fields: DataMartSchemaField[],
+  persistedFields: readonly DataMartSchemaField[]
+): boolean {
+  const persistedByName = new Map(persistedFields.map(field => [field.name, field]));
+  let introducesNativeField = false;
+
+  for (const field of fields) {
+    const persistedField = persistedByName.get(field.name);
+    if (isCalculatedField(field)) {
+      field.status = DataMartSchemaFieldStatus.CONNECTED;
+    } else if (persistedField && !isCalculatedField(persistedField)) {
+      field.status = persistedField.status;
+    } else {
+      field.status = DataMartSchemaFieldStatus.DISCONNECTED;
+      introducesNativeField = true;
+    }
+
+    const nestedFields = nestedFieldsOf(field);
+    if (nestedFields) {
+      const persistedNestedFields = persistedField ? (nestedFieldsOf(persistedField) ?? []) : [];
+      introducesNativeField =
+        applyFieldStatuses(nestedFields, persistedNestedFields) || introducesNativeField;
+    }
+  }
+  return introducesNativeField;
+}
+
+function nestedFieldsOf(field: DataMartSchemaField): DataMartSchemaField[] | undefined {
+  return 'fields' in field && Array.isArray(field.fields) ? field.fields : undefined;
 }

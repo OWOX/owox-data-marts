@@ -1,6 +1,6 @@
 /**
- * Shared query key for the blendable schema request.
- * Exported so that any component fetching blendable schema uses the same
- * React Query cache entry for a given data mart.
+ * Shared prefix for every blendable-schema query variant.
+ * Exported so invalidation refreshes both the default report-safe entry and
+ * option-specific entries such as the relationship editor's draft-inclusive view.
  */
 export const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';

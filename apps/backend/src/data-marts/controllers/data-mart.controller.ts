@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseBoolPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy, ViewOnlySafe } from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
@@ -446,9 +457,15 @@ export class DataMartController {
   @GetBlendableSchemaSpec()
   async getBlendableSchema(
     @AuthContext() context: AuthorizationContext,
-    @Param('id') dataMartId: string
+    @Param('id') dataMartId: string,
+    @Query('includeDraftTargets', new ParseBoolPipe({ optional: true }))
+    includeDraftTargets = false
   ): Promise<BlendableSchemaDto> {
-    const command = this.mapper.toGetBlendableSchemaCommand(dataMartId, context);
+    const command = this.mapper.toGetBlendableSchemaCommand(
+      dataMartId,
+      context,
+      includeDraftTargets
+    );
     return this.getBlendableSchemaService.run(command);
   }
 }

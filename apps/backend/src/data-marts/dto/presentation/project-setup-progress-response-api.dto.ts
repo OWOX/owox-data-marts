@@ -43,6 +43,9 @@ export class ProjectSetupStepsApiDto {
 
   @ApiProperty({ type: ProjectSetupStepStateApiDto })
   hasGoogleSheetsReportRun: ProjectSetupStepStateApiDto;
+
+  @ApiProperty({ type: ProjectSetupStepStateApiDto })
+  hasMcpQuery: ProjectSetupStepStateApiDto;
 }
 
 export class ProjectSetupProgressResponseApiDto {

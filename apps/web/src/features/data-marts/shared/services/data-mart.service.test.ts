@@ -4,6 +4,12 @@ import apiClient from '../../../../app/api/apiClient.ts';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum.ts';
 import type { CreateDataMartRequestDto } from '../types/api';
 import { DataMartStatus } from '../enums/data-mart-status.enum.ts';
+import {
+  BigQueryFieldMode,
+  BigQueryFieldType,
+  DataMartSchemaFieldStatus,
+  type DataMartSchema,
+} from '../types/data-mart-schema.types.ts';
 
 vi.mock('../../../../app/api/apiClient.ts', () => ({
   default: {
@@ -127,6 +133,60 @@ describe('DataMartService', () => {
         undefined
       );
       expect(result).toEqual(mockDataMartResponse);
+    });
+  });
+
+  describe('updateDataMartSchema', () => {
+    it('does not send server-owned field statuses', async () => {
+      const schema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'record',
+            type: BigQueryFieldType.RECORD,
+            mode: BigQueryFieldMode.NULLABLE,
+            isPrimaryKey: false,
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            fields: [
+              {
+                name: 'nested_field',
+                type: BigQueryFieldType.STRING,
+                mode: BigQueryFieldMode.NULLABLE,
+                isPrimaryKey: false,
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+            ],
+          },
+        ],
+      } satisfies DataMartSchema;
+
+      await service.updateDataMartSchema(mockDataMartId, { schema });
+
+      expect(apiClient.put).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/schema`,
+        {
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'record',
+                type: BigQueryFieldType.RECORD,
+                mode: BigQueryFieldMode.NULLABLE,
+                isPrimaryKey: false,
+                fields: [
+                  {
+                    name: 'nested_field',
+                    type: BigQueryFieldType.STRING,
+                    mode: BigQueryFieldMode.NULLABLE,
+                    isPrimaryKey: false,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        { timeout: 180000 }
+      );
     });
   });
 

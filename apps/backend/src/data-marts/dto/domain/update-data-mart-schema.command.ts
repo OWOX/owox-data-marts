@@ -1,10 +1,10 @@
-import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
+import type { DataMartSchemaUpdate } from '../../data-storage-types/data-mart-schema.type';
 
 export class UpdateDataMartSchemaCommand {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
-    public readonly schema: DataMartSchema,
+    public readonly schema: DataMartSchemaUpdate,
     public readonly userId: string = '',
     public readonly roles: string[] = []
   ) {}

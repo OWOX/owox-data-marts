@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { Report } from '../../../entities/report.entity';
 import { GetDataRequest } from '../schemas/get-data.schema';
 import { GetSchemaRequest } from '../schemas/get-schema.schema';
+import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { DataMartReadFailedException } from '../../../errors/data-mart-read-failed.error';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../enums/project-blocked-reason.enum';
 
@@ -174,6 +176,55 @@ describe('LookerStudioConnectorApiService', () => {
 
       expect(projectBilling.verifyCanPerformOperations).not.toHaveBeenCalled();
       expect(schemaService.getSchema).toHaveBeenCalledWith(request, report, cachedReader);
+    });
+
+    it('does not duplicate-log a cached reader failure already logged by the cache service', async () => {
+      const request = createMockSchemaRequest();
+      const report = createMockReport();
+      const queryError = new DataMartReadFailedException(new Error('Query execution failed'));
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      cacheService.getOrCreateCachedReader.mockRejectedValue(queryError);
+
+      await expect(service.getSchema(request)).rejects.toBe(queryError);
+
+      expect((service as any).logger.error).not.toHaveBeenCalled();
+    });
+
+    it('preserves cached reader business errors with their code and details', async () => {
+      const request = createMockSchemaRequest();
+      const report = createMockReport();
+      const queryError = new BusinessViolationException(
+        'Query execution failed',
+        { reason: 'missing column' },
+        'ANY_CODE'
+      );
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      cacheService.getOrCreateCachedReader.mockRejectedValue(queryError);
+
+      await expect(service.getSchema(request)).rejects.toBe(queryError);
+      expect((service as any).logger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getData', () => {
+    it('stores the original reader failure while returning connector guidance', async () => {
+      const request = createMockRequest();
+      const report = createMockReport();
+      const originalError = new Error('Query execution failed');
+      const connectorError = new DataMartReadFailedException(originalError);
+      const reportRun = {
+        markAsUnsuccessful: jest.fn(),
+        getReport: jest.fn().mockReturnValue(report),
+        getReportId: jest.fn().mockReturnValue('report-1'),
+      };
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      reportRunService.create.mockResolvedValue(reportRun as never);
+      cacheService.getOrCreateCachedReader.mockRejectedValue(connectorError);
+
+      await expect(service.getData(request)).rejects.toBe(connectorError);
+
+      expect(reportRun.markAsUnsuccessful).toHaveBeenCalledWith(originalError);
+      expect((service as any).logger.error).not.toHaveBeenCalled();
     });
   });
 

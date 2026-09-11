@@ -6,6 +6,7 @@ import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-ev
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
+import { DataMartReadFailedException } from '../../../errors/data-mart-read-failed.error';
 import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
 import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-sql';
@@ -343,7 +344,9 @@ export class LookerStudioConnectorApiService {
       const { response } = await this.dataService.getData(request, report, cachedReader, true);
       return response;
     } catch (error) {
-      this.logger.error('Failed to get sample data:', error);
+      if (!(error instanceof DataMartReadFailedException)) {
+        this.logger.error('Failed to get sample data:', error);
+      }
       throw error;
     }
   }
@@ -483,11 +486,13 @@ export class LookerStudioConnectorApiService {
     error: Error | string,
     reportRunLogger?: ReportRunLogger
   ) {
-    reportRun.markAsUnsuccessful(error);
+    reportRun.markAsUnsuccessful(
+      error instanceof DataMartReadFailedException ? error.cause : error
+    );
     await this.saveReportRunResultSafely(reportRun, reportRunLogger);
     if (error instanceof ProjectOperationBlockedException) {
       this.logger.warn(`Report ${reportRun.getReportId()} execution restricted: ${error.message}`);
-    } else {
+    } else if (!(error instanceof DataMartReadFailedException)) {
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
     }
 

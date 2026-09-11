@@ -23,4 +23,6 @@ export * from './microsoft-excel-icon';
 export * from './microsoft-teams-icon';
 export * from './google-chat-icon';
 export * from './email-icon';
+export * from './claude-icon';
+export * from './chat-gpt-icon';
 export * from './icons.types';

@@ -1,16 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmptyObject } from 'class-validator';
-import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
+import type { DataMartSchemaUpdate } from '../../data-storage-types/data-mart-schema.type';
 import { DataMartResponseApiDto } from './data-mart-response-api.dto';
 
 export class UpdateDataMartSchemaApiDto {
   @ApiProperty({
     type: () => Object,
     required: true,
-    description: 'Updated schema of the data mart',
+    description:
+      'Updated schema of the data mart. Field connection statuses are server-owned: omit them, and any value sent by an older client is ignored. The saved schema carries the last status derived by schema actualization; a new native field starts DISCONNECTED until schema actualization (POST /api/data-marts/{dataMartId}/schema-actualize-triggers) verifies it against the storage, and a formula may only reference native fields that are already connected.',
   })
   @IsNotEmptyObject()
-  schema: DataMartSchema;
+  schema: DataMartSchemaUpdate;
 }
 
 export class FormulaViolationApiDto {

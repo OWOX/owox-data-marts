@@ -110,6 +110,94 @@ describe('Validation & Schema API (e2e)', () => {
       draftDataMartId = dataMartRes.body.id;
     });
 
+    it('PUT /api/data-marts/:id/schema - ignores a client-provided connected status', async () => {
+      const updateRes = await agent
+        .put(`/api/data-marts/${draftDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'manual_record',
+                type: 'RECORD',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                fields: [
+                  {
+                    name: 'nested_field',
+                    type: 'STRING',
+                    mode: 'NULLABLE',
+                    status: 'CONNECTED',
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.schema.fields[0].status).toBe('DISCONNECTED');
+      expect(updateRes.body.schema.fields[0].fields[0].status).toBe('DISCONNECTED');
+
+      const getRes = await agent.get(`/api/data-marts/${draftDataMartId}`).set(AUTH_HEADER);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.schema.fields[0].status).toBe('DISCONNECTED');
+      expect(getRes.body.schema.fields[0].fields[0].status).toBe('DISCONNECTED');
+    });
+
+    it('PUT /api/data-marts/:id/schema - accepts a field without a client-owned status', async () => {
+      const updateRes = await agent
+        .put(`/api/data-marts/${draftDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'statusless_field',
+                type: 'STRING',
+                mode: 'NULLABLE',
+              },
+            ],
+          },
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.schema.fields[0].status).toBe('DISCONNECTED');
+    });
+
+    it('PUT /api/data-marts/:id/schema - refuses a formula referencing a native field introduced in the same save', async () => {
+      const res = await agent
+        .put(`/api/data-marts/${draftDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'revenue', type: 'FLOAT', mode: 'NULLABLE', status: 'CONNECTED' },
+              {
+                name: 'total_revenue',
+                type: 'FLOAT',
+                mode: 'NULLABLE',
+                calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'metric' },
+              },
+            ],
+          },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errorDetails.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'FORMULA_UNKNOWN_REFERENCE',
+            field: 'total_revenue',
+            subject: 'revenue',
+          }),
+        ])
+      );
+    });
+
     // VALID-05: Validate definition on DataMart without definition returns 200 with valid=false
     it('POST /api/data-marts/:id/validate-definition - returns valid=false with errorMessage', async () => {
       const res = await agent

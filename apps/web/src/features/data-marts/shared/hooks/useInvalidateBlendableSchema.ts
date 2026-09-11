@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from './blendable-schema-query-key';
 
 /**
- * Refetches the blendable schema every reader on the page shares.
+ * Refetches every cached blendable-schema variant used by readers on the page.
  *
  * A Data Mart's schema decides what that payload holds — its native fields, and the backend's
  * verdict on which calculated fields still resolve — so whoever persists a schema has to

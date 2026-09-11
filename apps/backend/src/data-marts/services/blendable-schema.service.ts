@@ -121,6 +121,7 @@ interface CollectContext {
   branchDmIds: Set<string>;
   depth: number;
   storageType: DataStorageType;
+  includeDraftTargets: boolean;
 }
 
 @Injectable()
@@ -134,7 +135,8 @@ export class BlendableSchemaService {
   async computeBlendableSchema(
     dataMartId: string,
     projectId: string,
-    accessor: BlendableSchemaAccessor
+    accessor: BlendableSchemaAccessor,
+    options: { includeDraftTargets?: boolean } = {}
   ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
     const rawSchemaFields = dataMart.schema?.fields ?? [];
@@ -183,13 +185,38 @@ export class BlendableSchemaService {
       branchDmIds,
       depth: 1,
       storageType: dataMart.storage.type,
+      includeDraftTargets: options.includeDraftTargets === true,
     });
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
 
-    // The join tree this very call just walked — so a formula's joined reference is checked against
-    // the SAME tree the report builder will route it through, on the one payload the picker reads.
-    const joinedReferenceIndex = buildJoinedReferenceIndex({ availableSources, blendedFields });
+    let issueSources = availableSources;
+    let issueFields = blendedFields;
+    if (options.includeDraftTargets === true) {
+      const publishedSources: AvailableSourceDto[] = [];
+      this.collectBlendedFields({
+        sourceId: dataMartId,
+        parentPath: '',
+        sourcesByPath,
+        relationshipsBySource,
+        result: [],
+        availableSources: publishedSources,
+        branchDmIds,
+        depth: 1,
+        storageType: dataMart.storage.type,
+        includeDraftTargets: false,
+      });
+      const publishedPaths = new Set(publishedSources.map(source => source.aliasPath));
+      issueSources = availableSources.filter(source => publishedPaths.has(source.aliasPath));
+      issueFields = blendedFields.filter(field => publishedPaths.has(field.aliasPath));
+    }
+
+    // Draft fields may be returned for relationship editing, but formulas remain report-safe: the
+    // report builder cannot route through a draft target, so neither may this health verdict.
+    const joinedReferenceIndex = buildJoinedReferenceIndex({
+      availableSources: issueSources,
+      blendedFields: issueFields,
+    });
 
     return {
       nativeFields,
@@ -275,9 +302,10 @@ export class BlendableSchemaService {
         );
       }
 
-      // Reports cannot join against an unfinalized schema, so a draft target — and any
-      // descendants reachable only through it — must not surface in the picker.
-      if (rel.targetDataMart.status !== DataMartStatus.PUBLISHED) continue;
+      // Reports cannot join against an unfinalized schema. The relationship editor opts in so an
+      // analyst can configure a draft from its saved output schema before publishing it.
+      if (!ctx.includeDraftTargets && rel.targetDataMart.status !== DataMartStatus.PUBLISHED)
+        continue;
 
       if (ctx.branchDmIds.has(rel.targetDataMart.id)) continue;
 

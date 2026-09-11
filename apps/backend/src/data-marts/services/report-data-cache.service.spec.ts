@@ -1,3 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataMartReadFailedException } from '../errors/data-mart-read-failed.error';
 import { ReportDataCacheService } from './report-data-cache.service';
 import { Report } from '../entities/report.entity';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
@@ -53,7 +56,13 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       reportSqlComposerService as never
     );
 
-    return { service, reader, reportSqlComposerService, blendedReportDataService };
+    return {
+      service,
+      reader,
+      cacheRepository,
+      reportSqlComposerService,
+      blendedReportDataService,
+    };
   };
 
   const optionsPassedToReader = (reader: {
@@ -185,6 +194,81 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
 
     expect(reportSqlComposerService.inlineStaticSql).not.toHaveBeenCalled();
     expect(cached.executionSqlQuery).toBeUndefined();
+  });
+
+  it('reports an initial reader failure with guidance while retaining the original cause', async () => {
+    const { service, reader } = setup({ needsBlending: false, columnFilter: ['a'] });
+    const queryError = new Error('Query execution failed: missing_column cannot be resolved');
+    const logger = {
+      debug: jest.fn(),
+      error: jest.fn(),
+      log: jest.fn(),
+      warn: jest.fn(),
+    };
+    (service as unknown as { logger: typeof logger }).logger = logger;
+    reader.readReportDataBatch.mockRejectedValue(queryError);
+
+    const failure = await service
+      .getOrCreateCachedReader(buildReport(), { userId: 'user-1', roles: ['editor'] } as never)
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(DataMartReadFailedException);
+    expect(failure).toMatchObject({
+      code: 'DATA_MART_READ_FAILED',
+      message:
+        'Failed to read data from this Data Mart. Check the Data Mart query and storage access, or contact the Data Mart owner. Details: Query execution failed: missing_column cannot be resolved',
+      cause: queryError,
+    });
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to read Data Mart data while creating a cached reader: Query execution failed: missing_column cannot be resolved',
+      queryError.stack,
+      {
+        reportId: 'rep-1',
+        dataMartId: 'dm-1',
+        projectId: 'proj-1',
+      }
+    );
+  });
+
+  it.each([
+    [
+      'business error',
+      new BusinessViolationException('Invalid report configuration', { field: 'country' }),
+    ],
+    [
+      'HTTP error',
+      new BadRequestException({
+        message: 'Pre-join filters are only applicable to joined data marts',
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      }),
+    ],
+  ])('preserves a reader %s', async (_label, readerError) => {
+    const { service, reader } = setup({ needsBlending: false, columnFilter: ['a'] });
+    reader.prepareReportData.mockRejectedValue(readerError);
+
+    await expect(
+      service.getOrCreateCachedReader(buildReport(), {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never)
+    ).rejects.toBe(readerError);
+  });
+
+  it('does not present a cache persistence failure as a Data Mart read failure', async () => {
+    const { service, cacheRepository } = setup({
+      needsBlending: false,
+      columnFilter: ['a'],
+    });
+    const persistenceError = new Error('database is unavailable');
+    cacheRepository.save.mockRejectedValue(persistenceError);
+
+    await expect(
+      service.getOrCreateCachedReader(buildReport(), {
+        userId: 'user-1',
+        roles: ['editor'],
+      } as never)
+    ).rejects.toBe(persistenceError);
   });
 
   it('exposes inlined executionSqlQuery for a blended report with params', async () => {

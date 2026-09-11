@@ -22,6 +22,7 @@ import { AggregateFunction } from '../src/data-marts/dto/schemas/aggregate-funct
 import { FieldDataType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-data-type.enum';
 import { FieldConceptType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-concept-type.enum';
 import { AggregationType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/aggregation-type.enum';
+import { DataMartReadFailedException } from '../src/data-marts/errors/data-mart-read-failed.error';
 
 // ---------------------------------------------------------------------------
 // Mock data for the in-memory reader
@@ -282,6 +283,31 @@ describe('Looker Studio Connector (e2e)', () => {
         (f: Record<string, unknown>) => f.name === 'revenue'
       );
       expect(revenueField.dataType).toBe('NUMBER');
+    });
+
+    it('returns guidance and the query error when cached reader creation fails', async () => {
+      mockCacheService.getOrCreateCachedReader.mockRejectedValueOnce(
+        new DataMartReadFailedException(
+          new Error('Query execution failed: Column missing_field cannot be resolved')
+        )
+      );
+
+      const res = await postLooker('/api/external/looker/get-schema', {
+        connectionConfig: {
+          deploymentUrl: 'http://localhost',
+          destinationId,
+          destinationSecretKey,
+        },
+        request: {
+          configParams: { destinationId, reportId },
+        },
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        'Failed to read data from this Data Mart. Check the Data Mart query and storage access, or contact the Data Mart owner. Details: Query execution failed: Column missing_field cannot be resolved'
+      );
+      expect(res.body.code).toBe('DATA_MART_READ_FAILED');
     });
 
     // LS-05

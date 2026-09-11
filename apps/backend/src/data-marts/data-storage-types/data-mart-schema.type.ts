@@ -15,3 +15,5 @@ export const DataMartSchemaSchema = z.discriminatedUnion('type', [
 
 export type DataMartSchema = z.infer<typeof DataMartSchemaSchema>;
 export type DataMartSchemaField = DataMartSchema['fields'][number];
+
+export type DataMartSchemaUpdate = z.input<typeof DataMartSchemaSchema>;
