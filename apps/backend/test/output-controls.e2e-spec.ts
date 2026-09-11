@@ -475,6 +475,7 @@ describe('Output controls API (e2e)', () => {
       cmDataMartId = prereqs.dataMartId;
       cmDataDestinationId = prereqs.dataDestinationId;
 
+      // Seeded CONNECTED on purpose: later saves carry it forward, and blending drops DISCONNECTED columns.
       await setDataMartSchema(agent, app, cmDataMartId, {
         type: 'bigquery-data-mart-schema',
         fields: [
@@ -496,8 +497,7 @@ describe('Output controls API (e2e)', () => {
       cmReportId = createRes.body.id;
     });
 
-    // The next test's save is the first one that actually persists — this one is rejected, so it
-    // leaves the data mart's schema untouched.
+    // Rejected, so it leaves the seeded schema untouched.
     it('PUT schema rejects a formula whose joined path names no source with FORMULA_JOINED_PATH_NOT_FOUND', async () => {
       const res = await agent
         .put(`/api/data-marts/${cmDataMartId}/schema`)

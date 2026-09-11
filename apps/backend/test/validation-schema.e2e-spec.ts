@@ -167,6 +167,37 @@ describe('Validation & Schema API (e2e)', () => {
       expect(updateRes.body.schema.fields[0].status).toBe('DISCONNECTED');
     });
 
+    it('PUT /api/data-marts/:id/schema - refuses a formula referencing a native field introduced in the same save', async () => {
+      const res = await agent
+        .put(`/api/data-marts/${draftDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'revenue', type: 'FLOAT', mode: 'NULLABLE', status: 'CONNECTED' },
+              {
+                name: 'total_revenue',
+                type: 'FLOAT',
+                mode: 'NULLABLE',
+                calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'metric' },
+              },
+            ],
+          },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errorDetails.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'FORMULA_UNKNOWN_REFERENCE',
+            field: 'total_revenue',
+            subject: 'revenue',
+          }),
+        ])
+      );
+    });
+
     // VALID-05: Validate definition on DataMart without definition returns 200 with valid=false
     it('POST /api/data-marts/:id/validate-definition - returns valid=false with errorMessage', async () => {
       const res = await agent

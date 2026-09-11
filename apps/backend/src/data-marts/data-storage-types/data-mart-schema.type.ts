@@ -16,22 +16,4 @@ export const DataMartSchemaSchema = z.discriminatedUnion('type', [
 export type DataMartSchema = z.infer<typeof DataMartSchemaSchema>;
 export type DataMartSchemaField = DataMartSchema['fields'][number];
 
-type KnownKey<Key> = string extends Key
-  ? never
-  : number extends Key
-    ? never
-    : symbol extends Key
-      ? never
-      : Key;
-
-type WithoutConnectionStatus<T> = T extends readonly unknown[]
-  ? { [Index in keyof T]: WithoutConnectionStatus<T[Index]> }
-  : T extends object
-    ? {
-        [Key in keyof T as Key extends 'status' ? never : KnownKey<Key>]: WithoutConnectionStatus<
-          T[Key]
-        >;
-      }
-    : T;
-
-export type DataMartSchemaUpdate = WithoutConnectionStatus<z.input<typeof DataMartSchemaSchema>>;
+export type DataMartSchemaUpdate = z.input<typeof DataMartSchemaSchema>;

@@ -136,9 +136,26 @@ describe('UpdateDataMartSchemaService', () => {
     });
 
     it('derives statuses for new native and calculated fields', async () => {
+      const persistedSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'account_id',
+            type: 'STRING',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+          },
+        ],
+      };
       const submittedSchema = {
         type: 'bigquery-data-mart-schema',
         fields: [
+          {
+            name: 'account_id',
+            type: 'STRING',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+          },
           {
             name: 'manual_field',
             type: 'STRING',
@@ -150,16 +167,23 @@ describe('UpdateDataMartSchemaService', () => {
             type: 'STRING',
             mode: 'NULLABLE',
             status: DataMartSchemaFieldStatus.DISCONNECTED,
-            calculated: { formula: 'UPPER({{ref field="manual_field"}})', level: 'column' },
+            calculated: { formula: 'UPPER({{ref field="account_id"}})', level: 'column' },
           },
         ],
       };
+      const dataMart = {
+        id: 'target-1',
+        projectId: 'project-1',
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+        schema: persistedSchema,
+      };
       const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
-      const { service } = buildService({ validate, parsedSchema: submittedSchema });
+      const { service } = buildService({ validate, parsedSchema: submittedSchema, dataMart });
 
       await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
 
       expect(submittedSchema.fields.map(field => field.status)).toEqual([
+        DataMartSchemaFieldStatus.CONNECTED,
         DataMartSchemaFieldStatus.DISCONNECTED,
         DataMartSchemaFieldStatus.CONNECTED,
       ]);
@@ -264,6 +288,149 @@ describe('UpdateDataMartSchemaService', () => {
       await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
 
       expect(submittedSchema.fields[0].status).toBe(DataMartSchemaFieldStatus.DISCONNECTED);
+    });
+
+    it('clears schemaActualizedAt when the save introduces a native field, nested included', async () => {
+      const persistedSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'event',
+            type: 'RECORD',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            fields: [
+              {
+                name: 'params',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+            ],
+          },
+        ],
+      };
+      const submittedSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'event',
+            type: 'RECORD',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            fields: [
+              {
+                name: 'params',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+              {
+                name: 'added_later',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+            ],
+          },
+        ],
+      };
+      const dataMart = {
+        id: 'target-1',
+        projectId: 'project-1',
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+        schema: persistedSchema,
+        schemaActualizedAt: new Date('2026-09-10T10:00:00Z'),
+      };
+      const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+      const { service } = buildService({ validate, parsedSchema: submittedSchema, dataMart });
+
+      await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
+
+      expect(dataMart.schemaActualizedAt).toBeNull();
+    });
+
+    it('keeps schemaActualizedAt when every native field has a persisted namesake', async () => {
+      const actualizedAt = new Date('2026-09-10T10:00:00Z');
+      const persistedSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'account_id',
+            type: 'STRING',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+          },
+        ],
+      };
+      const submittedSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'account_id',
+            type: 'STRING',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+          },
+          {
+            name: 'account_label',
+            type: 'STRING',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.DISCONNECTED,
+            calculated: { formula: 'UPPER({{ref field="account_id"}})', level: 'column' },
+          },
+        ],
+      };
+      const dataMart = {
+        id: 'target-1',
+        projectId: 'project-1',
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+        schema: persistedSchema,
+        schemaActualizedAt: actualizedAt,
+      };
+      const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+      const { service } = buildService({ validate, parsedSchema: submittedSchema, dataMart });
+
+      await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
+
+      expect(dataMart.schemaActualizedAt).toBe(actualizedAt);
+    });
+
+    it('tolerates a non-array nested fields value on a flat-storage field', async () => {
+      const persistedSchema = {
+        type: 'athena-data-mart-schema',
+        fields: [
+          {
+            name: 'payload',
+            type: 'string',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            fields: {},
+          },
+        ],
+      };
+      const submittedSchema = {
+        type: 'athena-data-mart-schema',
+        fields: [
+          {
+            name: 'payload',
+            type: 'string',
+            status: DataMartSchemaFieldStatus.DISCONNECTED,
+            fields: {},
+          },
+        ],
+      };
+      const dataMart = {
+        id: 'target-1',
+        projectId: 'project-1',
+        storage: { type: DataStorageType.AWS_ATHENA },
+        schema: persistedSchema,
+      };
+      const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+      const { service } = buildService({ validate, parsedSchema: submittedSchema, dataMart });
+
+      await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
+
+      expect(submittedSchema.fields[0].status).toBe(DataMartSchemaFieldStatus.CONNECTED);
     });
   });
 

@@ -60,7 +60,7 @@ export class UpdateDataMartSchemaService {
       command.schema,
       dataMart.storage.type
     );
-    applyServerOwnedFieldStatuses(parsed, dataMart.schema);
+    const introducesNativeField = applyServerOwnedFieldStatuses(parsed, dataMart.schema);
 
     // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
     // reads `ctx.dataMart.schema` to find each metric's formula, so the context below must carry
@@ -70,6 +70,10 @@ export class UpdateDataMartSchemaService {
     // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
     // failure afterwards just leaves the in-memory mutation unpersisted.
     dataMart.schema = parsed;
+    if (introducesNativeField) {
+      // Read as expired by actualizeSchemaIfExpired, so lazy readers re-check the warehouse.
+      dataMart.schemaActualizedAt = null;
+    }
 
     const calculatedFields = calculatedFieldsOf(parsed.fields);
     const storageConfig = dataMart.storage.config;
@@ -180,33 +184,41 @@ export class UpdateDataMartSchemaService {
 function applyServerOwnedFieldStatuses(
   schema: DataMartSchema,
   persistedSchema: DataMartSchema | undefined
-): void {
+): boolean {
   // Connection status is derived by schema actualization. A manual API save may only carry the
   // last server-owned value forward; a new warehouse field starts disconnected.
   const persistedFields = persistedSchema?.type === schema.type ? persistedSchema.fields : [];
-  applyFieldStatuses(schema.fields, persistedFields);
+  return applyFieldStatuses(schema.fields, persistedFields);
 }
 
 function applyFieldStatuses(
   fields: DataMartSchemaField[],
   persistedFields: readonly DataMartSchemaField[]
-): void {
+): boolean {
   const persistedByName = new Map(persistedFields.map(field => [field.name, field]));
+  let introducesNativeField = false;
 
   for (const field of fields) {
     const persistedField = persistedByName.get(field.name);
-    field.status = isCalculatedField(field)
-      ? DataMartSchemaFieldStatus.CONNECTED
-      : persistedField && !isCalculatedField(persistedField)
-        ? persistedField.status
-        : DataMartSchemaFieldStatus.DISCONNECTED;
+    if (isCalculatedField(field)) {
+      field.status = DataMartSchemaFieldStatus.CONNECTED;
+    } else if (persistedField && !isCalculatedField(persistedField)) {
+      field.status = persistedField.status;
+    } else {
+      field.status = DataMartSchemaFieldStatus.DISCONNECTED;
+      introducesNativeField = true;
+    }
 
-    if ('fields' in field && field.fields) {
-      const persistedNestedFields =
-        persistedField && 'fields' in persistedField && persistedField.fields
-          ? persistedField.fields
-          : [];
-      applyFieldStatuses(field.fields, persistedNestedFields);
+    const nestedFields = nestedFieldsOf(field);
+    if (nestedFields) {
+      const persistedNestedFields = persistedField ? (nestedFieldsOf(persistedField) ?? []) : [];
+      introducesNativeField =
+        applyFieldStatuses(nestedFields, persistedNestedFields) || introducesNativeField;
     }
   }
+  return introducesNativeField;
+}
+
+function nestedFieldsOf(field: DataMartSchemaField): DataMartSchemaField[] | undefined {
+  return 'fields' in field && Array.isArray(field.fields) ? field.fields : undefined;
 }
