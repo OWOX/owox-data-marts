@@ -4,6 +4,7 @@ import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
   ConnectorFieldsResponseApiDto,
+  ConnectorFieldOptionResponseApiDto,
   OAuthCallbackResponseDto,
   OAuthStatusResponseDto,
   OAuthSettingsResponseDto,
@@ -36,6 +37,22 @@ export class ConnectorApiService extends ApiService {
     return this.post<ConnectorFieldsResponseApiDto[]>(
       `/${connectorName}/fields/preview`,
       {
+        configuration,
+      },
+      config
+    );
+  }
+
+  async previewConnectorFieldOptions(
+    connectorName: string,
+    field: string,
+    configuration: Record<string, unknown>,
+    config?: AxiosRequestConfig
+  ): Promise<ConnectorFieldOptionResponseApiDto[]> {
+    return this.post<ConnectorFieldOptionResponseApiDto[]>(
+      `/${connectorName}/options/preview`,
+      {
+        field,
         configuration,
       },
       config

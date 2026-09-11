@@ -23,7 +23,13 @@ Generated field identifiers contain only lowercase ASCII letters, digits, and un
 
 The preview lists `_owox_row_number` and `_owox_imported_at` alongside sheet fields. `_owox_row_number` is the only unique key and is always imported. `_owox_imported_at` is optional: it appears in runtime rows, schema, and reported fields only when selected in `Fields`. `ImportAllColumns` controls sheet columns and does not override this technical-field choice.
 
+## Sheet tab selection
+
+`SheetName` is a dynamic-options field: once the spreadsheet is known (picked with Google Picker for OAuth, or entered as an ID or URL for a service account), the setup wizard lists the spreadsheet's tabs through the connector's `fetchFieldOptions('SheetName')` method, which reads `spreadsheets.get` with `fields=sheets.properties`. The list needs no permissions beyond the ones the import already uses. When the list cannot be loaded, the tab name can still be typed.
+
 ## Ranges and headers
+
+`HeaderRow` and `Range` are advanced settings: most sheets keep their headers in row 1 and import the whole tab, so the wizard shows them under Advanced Settings.
 
 `HeaderRow` is always the absolute row number in the sheet, including when `Range` starts below row 1. For example, with `Range` set to `B5:F` and headers on the first row of that range, set `HeaderRow` to `5`.
 

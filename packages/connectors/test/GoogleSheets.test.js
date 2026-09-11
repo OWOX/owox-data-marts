@@ -89,6 +89,7 @@ const GoogleSheetsSource = loadScript(
       ADVANCED: 'ADVANCED',
       HIDE_IN_CONFIG_FORM: 'HIDE_IN_CONFIG_FORM',
       OAUTH_FLOW: 'OAUTH_FLOW',
+      DYNAMIC_OPTIONS: 'DYNAMIC_OPTIONS',
     },
     OAUTH_CONSTANTS: {
       UI: 'UI',
@@ -671,4 +672,106 @@ test('connector always publishes empty snapshots and reports only the runtime sc
     'sheet _owox_row_number, sheet _owox_imported_at, sheet name'
   );
   assert.deepEqual(replacements, [[]]);
+});
+
+test('declares Sheet Name as a dynamic-options field and keeps Header Row and Range advanced', () => {
+  let mergedParameters;
+  const config = {
+    mergeParameters(parameters) {
+      mergedParameters = parameters;
+      return this;
+    },
+  };
+
+  new GoogleSheetsSource(config);
+
+  assert.deepEqual(plain(mergedParameters.SheetName.attributes), ['DYNAMIC_OPTIONS']);
+  assert.deepEqual(plain(mergedParameters.SheetName.optionsDependsOn), [
+    'AuthType',
+    'SpreadsheetId',
+  ]);
+  assert.deepEqual(plain(mergedParameters.HeaderRow.attributes), ['ADVANCED']);
+  assert.deepEqual(plain(mergedParameters.Range.attributes), ['ADVANCED']);
+  assert.equal(mergedParameters.HeaderRow.isRequired, true);
+  assert.equal(mergedParameters.HeaderRow.default, 1);
+});
+
+test('lists the spreadsheet tabs in sheet order as Sheet Name options', async () => {
+  const source = createSource();
+  const requestedUrls = [];
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async url => {
+    requestedUrls.push(url);
+    return {
+      getContentText: async () =>
+        JSON.stringify({
+          sheets: [
+            { properties: { sheetId: 7, title: 'Targets', index: 2 } },
+            { properties: { sheetId: 0, title: 'Summary', index: 0 } },
+            { properties: { sheetId: 3, title: 'Data', index: 1 } },
+            { properties: { sheetId: 9, index: 3 } },
+          ],
+        }),
+    };
+  };
+
+  const options = await source.fetchFieldOptions('SheetName');
+
+  assert.deepEqual(plain(options), [
+    { value: 'Summary', label: 'Summary' },
+    { value: 'Data', label: 'Data' },
+    { value: 'Targets', label: 'Targets' },
+  ]);
+  assert.equal(requestedUrls.length, 1);
+  assert.match(
+    requestedUrls[0],
+    /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/spreadsheet-id\?fields=sheets\.properties/
+  );
+});
+
+test('refreshes a rejected token once while listing spreadsheet tabs', async () => {
+  const source = createSource();
+  const tokenCalls = [];
+  let requestCount = 0;
+  source.getAccessToken = async options => {
+    tokenCalls.push(options.forceRefresh);
+    return 'token';
+  };
+  source._fetchSheetResponse = async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      throw new HttpRequestException({ message: 'Unauthorized', statusCode: 401 });
+    }
+    return {
+      getContentText: async () =>
+        JSON.stringify({ sheets: [{ properties: { title: 'Data', index: 0 } }] }),
+    };
+  };
+
+  assert.deepEqual(plain(await source.fetchFieldOptions('SheetName')), [
+    { value: 'Data', label: 'Data' },
+  ]);
+  assert.deepEqual(tokenCalls, [false, true]);
+});
+
+test('requires the spreadsheet before listing its tabs', async () => {
+  const source = createSource();
+  source.config.SpreadsheetId = { value: '' };
+  source.getAccessToken = async () => assert.fail('token should not be requested');
+
+  await assert.rejects(source.fetchFieldOptions('SheetName'), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /Spreadsheet ID or URL is required/);
+    return true;
+  });
+});
+
+test('rejects dynamic options for fields that do not provide them', async () => {
+  const source = createSource();
+
+  await assert.rejects(source.fetchFieldOptions('Range'), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /'Range' does not provide dynamic options/);
+    return true;
+  });
 });
