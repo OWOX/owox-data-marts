@@ -20,6 +20,7 @@ import { type TikTokAdsIcon } from './tiktok-ads-icon';
 import { type MicrosoftAdsIcon } from './microsoft-ads-icon';
 import { type MicrosoftTeamsIcon } from './microsoft-teams-icon';
 import { type GoogleChatIcon } from './google-chat-icon';
+import type { MicrosoftExcelIcon } from './microsoft-excel-icon';
 import { type EmailIcon } from './email-icon';
 import { type ClaudeIcon } from './claude-icon';
 import { type ChatGPTIcon } from './chat-gpt-icon';
@@ -47,6 +48,7 @@ export type LocalIcon =
   | typeof MicrosoftAdsIcon
   | typeof MicrosoftTeamsIcon
   | typeof GoogleChatIcon
+  | typeof MicrosoftExcelIcon
   | typeof EmailIcon
   | typeof ClaudeIcon
   | typeof ChatGPTIcon

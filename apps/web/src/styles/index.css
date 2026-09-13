@@ -36,3 +36,13 @@
   pointer-events: auto !important;
   z-index: 10000 !important;
 }
+
+/* Growing underline on the active auto-advancing promo tab (see useAutoAdvanceTabs) */
+@keyframes tab-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

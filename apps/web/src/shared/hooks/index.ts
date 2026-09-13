@@ -7,3 +7,4 @@ export { useUrlParam } from './useUrlParam';
 export { usePersistentFilters } from './usePersistentFilters';
 export { useOnboardingVideo } from './useOnboardingVideo';
 export { useOwnerState } from './useOwnerState';
+export { useAutoAdvanceTabs } from './useAutoAdvanceTabs';
