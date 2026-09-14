@@ -89,15 +89,24 @@ interface FlatSchemaField {
   isCalculated?: boolean;
 }
 
-export function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): FlatSchemaField[] {
+export function flattenSchemaFields(
+  fields: RawSchemaField[],
+  prefix = '',
+  includeDisconnectedFields = false
+): FlatSchemaField[] {
   const result: FlatSchemaField[] = [];
   for (const field of fields) {
     // A calculated field carries a warehouse-derived status that means nothing for it; skipping it
     // here would hide it from HTTP Data's ad-hoc column sets and the MCP facade.
-    if (!field.calculated && field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    if (
+      !includeDisconnectedFields &&
+      !field.calculated &&
+      field.status === DataMartSchemaFieldStatus.DISCONNECTED
+    )
+      continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     if (field.fields && field.fields.length > 0) {
-      result.push(...flattenSchemaFields(field.fields, fullName));
+      result.push(...flattenSchemaFields(field.fields, fullName, includeDisconnectedFields));
     } else {
       result.push({
         name: fullName,
@@ -194,12 +203,13 @@ export class BlendableSchemaService {
     let issueFields = blendedFields;
     if (options.includeDraftTargets === true) {
       const publishedSources: AvailableSourceDto[] = [];
+      const publishedFields: BlendedFieldDto[] = [];
       this.collectBlendedFields({
         sourceId: dataMartId,
         parentPath: '',
         sourcesByPath,
         relationshipsBySource,
-        result: [],
+        result: publishedFields,
         availableSources: publishedSources,
         branchDmIds,
         depth: 1,
@@ -208,7 +218,7 @@ export class BlendableSchemaService {
       });
       const publishedPaths = new Set(publishedSources.map(source => source.aliasPath));
       issueSources = availableSources.filter(source => publishedPaths.has(source.aliasPath));
-      issueFields = blendedFields.filter(field => publishedPaths.has(field.aliasPath));
+      issueFields = publishedFields;
     }
 
     // Draft fields may be returned for relationship editing, but formulas remain report-safe: the
@@ -317,7 +327,9 @@ export class BlendableSchemaService {
       const targetSchemaFields = (rel.targetDataMart.schema?.fields ?? []).filter(
         f => !f.isHiddenForReporting
       );
-      const flatTargetFields = flattenSchemaFields(targetSchemaFields);
+      // The draft-target opt-in identifies the relationship editor's configuration payload, which
+      // also keeps disconnected fields available for overrides without exposing them to reports.
+      const flatTargetFields = flattenSchemaFields(targetSchemaFields, '', ctx.includeDraftTargets);
 
       // Each `targetAlias` segment in `currentPath` is validated against
       // `^[a-z0-9_]+$` in the Join Settings form, so the SQL-safe prefix

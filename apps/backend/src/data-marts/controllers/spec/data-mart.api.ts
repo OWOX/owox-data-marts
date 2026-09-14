@@ -358,7 +358,7 @@ export function GetBlendableSchemaSpec() {
       required: false,
       schema: { type: 'boolean', default: false },
       description:
-        'Include draft relationship targets for configuration. Reporting consumers should keep the default so only published targets are returned.',
+        'Include draft relationship targets and disconnected target fields for configuration. Reporting consumers should keep the default so only published targets and report-eligible fields are returned.',
     }),
     ApiOkResponse({ type: BlendableSchemaDto })
   );

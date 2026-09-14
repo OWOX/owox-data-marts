@@ -58,7 +58,14 @@ function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMa
   } as DataMartRelationship;
 }
 
-function makeSchema(fields: Array<{ name: string; type: string; isHiddenForReporting?: boolean }>) {
+function makeSchema(
+  fields: Array<{
+    name: string;
+    type: string;
+    status?: DataMartSchemaFieldStatus;
+    isHiddenForReporting?: boolean;
+  }>
+) {
   return {
     type: 'bigquery-data-mart-schema',
     fields,
@@ -271,6 +278,95 @@ describe('BlendableSchemaService', () => {
         expect.objectContaining({ aliasPath: 'b', originalFieldName: 'b_field' }),
         expect.objectContaining({ aliasPath: 'b.c', originalFieldName: 'c_field' }),
       ]);
+    });
+
+    it('includes disconnected target fields only for relationship editing', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-b',
+            schema: makeSchema([
+              {
+                name: 'connected_field',
+                type: 'STRING',
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+              {
+                name: 'disconnected_field',
+                type: 'INTEGER',
+                status: DataMartSchemaFieldStatus.DISCONNECTED,
+              },
+            ]),
+          }),
+        }),
+      ]);
+
+      const reportSchema = await service.computeBlendableSchema(
+        'dm-a',
+        'project-1',
+        defaultAccessor
+      );
+      const editingSchema = await service.computeBlendableSchema(
+        'dm-a',
+        'project-1',
+        defaultAccessor,
+        { includeDraftTargets: true }
+      );
+
+      expect(reportSchema.blendedFields.map(field => field.originalFieldName)).toEqual([
+        'connected_field',
+      ]);
+      expect(reportSchema.availableSources[0].fieldCount).toBe(1);
+      expect(editingSchema.blendedFields.map(field => field.originalFieldName)).toEqual([
+        'connected_field',
+        'disconnected_field',
+      ]);
+      expect(editingSchema.availableSources[0].fieldCount).toBe(2);
+    });
+
+    it('keeps disconnected joined references broken for relationship editing', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'roi',
+                type: 'FLOAT',
+                calculated: {
+                  formula: 'SUM({{ref path="b" field="gone"}})',
+                  level: 'metric',
+                },
+              },
+            ],
+          } as unknown as DataMart['schema'],
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          targetAlias: 'b',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-b',
+            schema: makeSchema([
+              {
+                name: 'gone',
+                type: 'FLOAT',
+                status: DataMartSchemaFieldStatus.DISCONNECTED,
+              },
+            ]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor, {
+        includeDraftTargets: true,
+      });
+
+      expect(result.calculatedFieldIssues).toEqual([{ field: 'roi', missing: ['b.gone'] }]);
     });
 
     it('keeps calculated-field issues report-safe when draft targets are included', async () => {
@@ -1881,5 +1977,25 @@ describe('flattenSchemaFields', () => {
       { name: 'gone', type: 'STRING', status: DataMartSchemaFieldStatus.DISCONNECTED },
     ] as never);
     expect(flat).toEqual([]);
+  });
+
+  it('includes a nested DISCONNECTED field when requested', () => {
+    const fields = [
+      {
+        name: 'record',
+        type: 'RECORD',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        fields: [
+          {
+            name: 'gone',
+            type: 'STRING',
+            status: DataMartSchemaFieldStatus.DISCONNECTED,
+          },
+        ],
+      },
+    ] as never;
+
+    expect(flattenSchemaFields(fields)).toEqual([]);
+    expect(flattenSchemaFields(fields, '', true).map(field => field.name)).toEqual(['record.gone']);
   });
 });

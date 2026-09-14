@@ -231,6 +231,8 @@ export function DataMartRelationshipsContent({
     );
   }, [blendableSchema, localConfig]);
 
+  // The configuration schema includes disconnected fields; fields that retain a known type
+  // intentionally remain counted here.
   const connectedFieldCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (!blendableSchema) return counts;
@@ -324,9 +326,7 @@ export function DataMartRelationshipsContent({
     const map = new Map<string, ErdCardField[]>();
     if (!blendableSchema) return map;
     for (const field of blendableSchema.blendedFields) {
-      // Mirror connectedFieldCounts: UNKNOWN-typed fields are not connected,
-      // and a row the field-count badge does not count would make the card
-      // contradict itself.
+      // Mirror connectedFieldCounts so each card's rows and field-count badge stay consistent.
       if (field.type === 'UNKNOWN') continue;
       const rows = map.get(field.aliasPath) ?? [];
       if (!map.has(field.aliasPath)) map.set(field.aliasPath, rows);

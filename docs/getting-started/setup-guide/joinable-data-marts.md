@@ -19,7 +19,7 @@ Joinable Data Marts work on three levels:
 
 1. **Relationship level.** A relationship links a **source** Data Mart to a **target** Data Mart on the same storage and defines the join conditions (one or more pairs of fields).
 2. **Data Mart level.** All target fields are exposed by default. For each relationship, you can override their **output alias**, **visibility**, and **aggregate function** — or hide the ones you don't need.
-3. **Report level.** The Report Columns picker lists native fields plus all joined fields as available options. Existing reports do not change until you actively pick a joined field. As soon as you pick at least one, the report runs on a generated `JOIN` query; otherwise the native fast path runs unchanged.
+3. **Report level.** The Report Columns picker lists native fields plus connected joined fields that are available for reporting. Existing reports do not change until you actively pick a joined field. As soon as you pick at least one, the report runs on a generated `JOIN` query; otherwise the native fast path runs unchanged.
 
 > 💡 Internally, OWOX Data Marts builds the SQL bottom-up: the deepest joined Data Marts are pre-aggregated by their join key first, then merged into their parent, and finally `LEFT JOIN`-ed into the source Data Mart. This guarantees the result row count never exceeds the source Data Mart's row count.
 
@@ -70,7 +70,9 @@ Open the **Report Fields** tab on the same relationship.
 
 ![Report Fields tab listing target fields with Output Alias and Aggregation](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c6f5118f-f08d-447d-48a2-8e7b91665f00/public)
 
-By default, all fields from the target Data Mart are available in reports built on the source Data Mart. Use this tab to fine-tune the joined Data Mart and each of its fields.
+By default, reports built on the source Data Mart include connected target fields that are not hidden for reporting. Use this tab to fine-tune the joined Data Mart and each of its fields.
+
+Once join conditions are configured, this tab uses the target Data Mart's saved Output Schema even while the target is a draft. It also keeps native fields with `DISCONNECTED` status available so you can review or change their aliases, visibility, and aggregation settings. Draft targets and disconnected native fields remain unavailable in reports, and those disconnected fields are not visually distinguished in this configuration table.
 
 ### Output Alias (Data Mart level)
 

@@ -143,7 +143,8 @@ export class AvailableSourceDto {
   depth: number;
 
   @ApiProperty({
-    description: 'Number of reportable fields this source contributes to blendedFields.',
+    description:
+      'Number of fields this source contributes to blendedFields. Depending on the request options, this may include disconnected fields.',
   })
   fieldCount: number;
 
