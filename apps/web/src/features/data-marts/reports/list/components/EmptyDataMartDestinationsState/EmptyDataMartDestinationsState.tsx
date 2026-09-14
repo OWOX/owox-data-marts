@@ -4,7 +4,7 @@ import { useAutoAdvanceTabs, useProjectRoute } from '../../../../../../shared/ho
 import { PromoBlock } from '../../../../../../shared/components/PromoBlock/PromoBlock';
 import { MicrosoftExcelIcon, GoogleSheetsIcon } from '../../../../../../shared/icons';
 import { Button } from '@owox/ui/components/button';
-import { ArchiveRestore, ChevronRight, Cog } from 'lucide-react';
+import { ArchiveRestore, ChevronRight, Bot } from 'lucide-react';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
 import { ConnectAiAssistantPromoActions } from '../../../../../../pages/data-marts/reports/ConnectAiAssistantPromoActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
@@ -73,7 +73,7 @@ export function EmptyDataMartDestinationsState({
           className='group'
           {...pauseHandlers}
         >
-          <TabsList className='relative z-10 mx-auto -mb-6'>
+          <TabsList className='border-background relative z-20 mx-auto -mb-6 border-b shadow-xs lg:border-b-0 lg:shadow-none'>
             <TabsTrigger value='sheets' className='relative flex-none overflow-hidden'>
               <GoogleSheetsIcon size={16} />
               Google Sheets
@@ -91,8 +91,8 @@ export function EmptyDataMartDestinationsState({
               />
             </TabsTrigger>
             <TabsTrigger value='mcp' className='relative flex-none overflow-hidden'>
-              <Cog size={16} />
-              MCP connection
+              <Bot size={16} />
+              AI assistants
               <TabAutoAdvanceProgress
                 show={displayedValue === 'mcp' && isAutoPlaying}
                 durationMs={intervalMs}
@@ -158,7 +158,7 @@ export function EmptyDataMartDestinationsState({
 
             <TabsContent value='mcp'>
               <PromoBlock
-                icon={Cog}
+                icon={Bot}
                 title='Get answers in Claude or ChatGPT'
                 subtitle='Ready to start reporting?'
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'

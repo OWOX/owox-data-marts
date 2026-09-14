@@ -4,7 +4,7 @@ import { useParams } from 'react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
-import { Cog } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { extractApiError } from '../../../app/api';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../features/data-destination';
 import { DataMartContext } from '../../../features/data-marts/edit/model/context/context';
@@ -538,7 +538,7 @@ export default function DataMartReportsPage() {
                 />
               </div>
               <PromoBlock
-                icon={Cog}
+                icon={Bot}
                 size='compact'
                 title='Get answers in Claude or ChatGPT'
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
