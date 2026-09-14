@@ -27,6 +27,8 @@ import {
   foldEmptyUniqueCountConfig,
   normalizeUniqueCountSources,
 } from '../dto/schemas/unique-count-sources';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateReportService {
@@ -43,7 +45,8 @@ export class UpdateReportService {
     private readonly reportAccessService: ReportAccessService,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -187,6 +190,11 @@ export class UpdateReportService {
     report.uniqueCountConfig = nextUniqueCountConfig;
 
     const updatedReport = await this.reportRepository.save(report);
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.REPORT,
+      updatedReport.id,
+      command.projectId
+    );
 
     if (command.ownerIds !== undefined) {
       await syncOwners(

@@ -104,6 +104,36 @@ describe('SearchController OpenAPI', () => {
     expect(description).not.toContain('empty result set');
   });
 
+  it('documents reports as a searchable entity type with their references and direct URL', () => {
+    expect(document.paths['/api/search']?.get?.description).toContain('reports');
+
+    const schema = document.components?.schemas?.SearchResultResponseApiDto;
+    expect(schema).toMatchObject({
+      properties: {
+        report: { allOf: [{ $ref: '#/components/schemas/SearchReportRefResponseApiDto' }] },
+        url: { type: 'string' },
+      },
+    });
+    expect((schema as { required?: string[] }).required).not.toEqual(
+      expect.arrayContaining(['report', 'url'])
+    );
+    expect(document.components?.schemas?.SearchReportRefResponseApiDto).toMatchObject({
+      required: ['dataMart', 'dataDestination'],
+      properties: {
+        dataMart: { $ref: '#/components/schemas/SearchReportDataMartRefResponseApiDto' },
+        dataDestination: {
+          $ref: '#/components/schemas/SearchReportDataDestinationRefResponseApiDto',
+        },
+      },
+    });
+    expect(
+      document.components?.schemas?.SearchReportDataDestinationRefResponseApiDto
+    ).toMatchObject({
+      required: ['id', 'title', 'type'],
+      properties: { id: { type: 'string' }, title: { type: 'string' }, type: { type: 'string' } },
+    });
+  });
+
   it('documents every required search-result field and its nullability', () => {
     const operation = document.paths['/api/search']?.get;
 

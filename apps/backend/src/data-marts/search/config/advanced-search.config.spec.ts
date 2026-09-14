@@ -19,6 +19,7 @@ describe('loadAdvancedSearchConfig', () => {
     expect(config.dataMartProjectProcessingCron).toBe('0,30 * * * * *');
     expect(config.dataStorageProjectProcessingCron).toBe('10,40 * * * * *');
     expect(config.dataDestinationProjectProcessingCron).toBe('20,50 * * * * *');
+    expect(config.reportProjectProcessingCron).toBe('15,45 * * * * *');
     expect(config.openRouterEmbeddingModel).toBe('google/gemini-embedding-2');
     expect(config.openRouterEmbeddingDimensions).toBe(768);
     expect(config.openRouterApiKey).toBeNull();
@@ -123,12 +124,14 @@ describe('loadAdvancedSearchConfig', () => {
       ADVANCED_SEARCH_DATA_MART_PROJECT_PROCESSING_CRON: '1 * * * * *',
       ADVANCED_SEARCH_DATA_STORAGE_PROJECT_PROCESSING_CRON: '2 * * * * *',
       ADVANCED_SEARCH_DATA_DESTINATION_PROJECT_PROCESSING_CRON: '3 * * * * *',
+      ADVANCED_SEARCH_REPORT_PROJECT_PROCESSING_CRON: '4 * * * * *',
     });
 
     expect(config.entityProcessingCron).toBe('*/5 * * * * *');
     expect(config.dataMartProjectProcessingCron).toBe('1 * * * * *');
     expect(config.dataStorageProjectProcessingCron).toBe('2 * * * * *');
     expect(config.dataDestinationProjectProcessingCron).toBe('3 * * * * *');
+    expect(config.reportProjectProcessingCron).toBe('4 * * * * *');
   });
 
   it('reuses common OpenRouter provider routing when embedding-specific providers are not set', () => {

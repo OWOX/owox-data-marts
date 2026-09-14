@@ -1,30 +1,68 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ArchiveRestore, Box, ChevronRight, DatabaseIcon, Loader2, Search } from 'lucide-react';
+import {
+  ArchiveRestore,
+  Box,
+  ChevronRight,
+  DatabaseIcon,
+  FileText,
+  Loader2,
+  Search,
+} from 'lucide-react';
 import { Input } from '@owox/ui/components/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useProjectRoute } from '../../shared/hooks';
 import type { AppIcon } from '../../shared';
+import type { SearchResultResponseDto } from '../../features/search/shared';
 import { useSearch } from './useSearch';
 
-const ENTITY_TYPE_META: Partial<
-  Record<string, { label: string; icon: AppIcon; to: (entityId: string) => string }>
-> = {
+interface EntityTypeMeta {
+  label: string;
+  icon: AppIcon;
+  to: (result: SearchResultResponseDto) => string | null;
+  title?: (result: SearchResultResponseDto) => string;
+}
+
+const ENTITY_TYPE_META: Partial<Record<string, EntityTypeMeta>> = {
   DATA_MART: {
     label: 'Data Mart',
     icon: Box,
-    to: entityId => `/data-marts/${entityId}/data-setup`,
+    to: result => `/data-marts/${result.entityId}/data-setup`,
   },
   DATA_STORAGE: {
     label: 'Storage',
     icon: DatabaseIcon,
-    to: entityId => `/data-storages?id=${entityId}`,
+    to: result => `/data-storages?id=${result.entityId}`,
   },
   DATA_DESTINATION: {
     label: 'Destination',
     icon: ArchiveRestore,
-    to: entityId => `/data-destinations?id=${entityId}`,
+    to: result => `/data-destinations?id=${result.entityId}`,
+  },
+  REPORT: {
+    label: 'Report',
+    icon: FileText,
+    to: result =>
+      result.report
+        ? `/data-marts/${result.report.dataMart.id}/reports?reportId=${result.entityId}`
+        : null,
+    title: result => result.title || (result.report?.dataDestination.title ?? ''),
   },
 };
+
+function toDisplayItem(result: SearchResultResponseDto) {
+  const meta = ENTITY_TYPE_META[result.entityType];
+  const to = meta?.to(result);
+  if (!meta || !to) return [];
+  return [
+    {
+      result,
+      meta,
+      to,
+      title: meta.title?.(result) ?? result.title,
+    },
+  ];
+}
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,8 +71,8 @@ export function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { results, isFetching, hasQuery, isError, retry, isDebouncing } = useSearch(query);
   const { scope } = useProjectRoute();
-  const visibleResults = results.filter(result => Boolean(ENTITY_TYPE_META[result.entityType]));
-  const unsupportedCount = results.length - visibleResults.length;
+  const items = results.flatMap(toDisplayItem);
+  const unsupportedCount = results.length - items.length;
   const showLoading = isFetching || isDebouncing;
 
   useEffect(() => {
@@ -88,7 +126,7 @@ export function SearchPage() {
 
       {!hasQuery ? (
         <p className='text-muted-foreground py-12 text-center text-sm'>
-          Start typing to search across data marts, storages, and destinations.
+          Start typing to search across data marts, storages, destinations, and reports.
         </p>
       ) : showLoading ? (
         <p className='text-muted-foreground py-12 text-center text-sm'>Searching…</p>
@@ -114,21 +152,52 @@ export function SearchPage() {
               Some results could not be displayed.
             </p>
           ) : null}
-          {visibleResults.map(result => {
-            const meta = ENTITY_TYPE_META[result.entityType];
-            if (!meta) return null;
+          {items.map(({ result, meta, to, title }) => {
             const Icon = meta.icon;
+            const report = result.entityType === 'REPORT' ? result.report : undefined;
             return (
               <Link
                 key={result.entityId}
-                to={scope(meta.to(result.entityId))}
+                to={scope(to)}
                 className='group hover:bg-muted/60 flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors'
               >
                 <span className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='truncate text-sm font-medium'>{result.title}</span>
-                  <span className='text-muted-foreground flex items-center gap-1 text-xs'>
-                    <Icon className='size-3.5 shrink-0' aria-hidden='true' />
-                    {meta.label}
+                  <span className='truncate text-sm font-medium'>{title}</span>
+                  <span className='text-muted-foreground flex min-w-0 items-center gap-3 text-xs'>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className='flex shrink-0 items-center gap-1'>
+                          <Icon className='size-3.5 shrink-0' aria-hidden='true' />
+                          <span className='sr-only'>Entity type: </span>
+                          {meta.label}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side='bottom'>Entity type</TooltipContent>
+                    </Tooltip>
+                    {report ? (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className='flex min-w-0 items-center gap-1'>
+                              <Box className='size-3.5 shrink-0' aria-hidden='true' />
+                              <span className='sr-only'>Data Mart: </span>
+                              <span className='truncate'>{report.dataMart.title}</span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side='bottom'>Data Mart</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className='flex min-w-0 items-center gap-1'>
+                              <ArchiveRestore className='size-3.5 shrink-0' aria-hidden='true' />
+                              <span className='sr-only'>Destination: </span>
+                              <span className='truncate'>{report.dataDestination.title}</span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side='bottom'>Destination</TooltipContent>
+                        </Tooltip>
+                      </>
+                    ) : null}
                   </span>
                 </span>
                 <ChevronRight className='text-muted-foreground/40 group-hover:text-muted-foreground size-4 shrink-0 transition-colors' />

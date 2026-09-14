@@ -6,7 +6,7 @@ import { SearchIndexRepository, StreamedIndexRow } from '../schema/search-index.
 import { parseDocument } from '../indexing/document-builder';
 import { scoreEntity, computeExtendability } from './scoring';
 import { bufferToVec, cosineSim } from '../embedding/vector-codec';
-import { tokenize } from './tokenizer';
+import { tokenizePrompt } from './tokenizer';
 import { TopKBuffer } from './top-k-buffer';
 import type { VectorSearchPort, VectorSearchOptions, ScoredEntity } from './vector-search.port';
 
@@ -39,6 +39,7 @@ function scoreRow(
     modifiedAt: row.updatedAt,
     embeddingText: parsed.embeddingText ?? '',
     isDraft: row.isDraft,
+    report: parsed.report,
   };
 
   const kwScore = scoreEntity(descriptor, promptTokens, config);
@@ -71,6 +72,7 @@ function scoreRow(
     vecScore,
     extendability,
     relevance,
+    report: descriptor.report,
   };
 }
 
@@ -115,7 +117,7 @@ export class InMemoryPaginatedSearch implements VectorSearchPort {
       })
     );
 
-    const promptTokens = Array.from(tokenize(prompt));
+    const promptTokens = tokenizePrompt(prompt, entityType);
 
     const predicate = await source.accessPredicateProvider.build(
       'idx',

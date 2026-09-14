@@ -60,6 +60,21 @@ const searchResults: OWOXSearchResult[] = [
     vecScore: null,
   },
 ];
+const reportResult: OWOXSearchResult = {
+  entityType: 'REPORT',
+  entityId: 'rep-1',
+  title: 'Monthly revenue',
+  description: null,
+  finalScore: 91,
+  kwScore: 74,
+  vecScore: 83,
+  report: {
+    dataMart: { id: 'dm-1', title: 'Orders' },
+    dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+  },
+  url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports?reportId=rep-1',
+};
+const { report: _report, ...reportWithoutReferences } = reportResult;
 const { description: _description, ...resultWithoutDescription } = searchResults[0]!;
 const { vecScore: _vecScore, ...resultWithoutVecScore } = searchResults[0]!;
 
@@ -89,6 +104,24 @@ describe('Search API', () => {
         excludeDrafts: false,
       })
     ).resolves.toEqual(searchResults);
+  });
+
+  it('returns typed report results with their references and direct URL', async () => {
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      if (request.method === 'GET' && request.url === '/api/search?q=revenue&entityTypes=REPORT') {
+        return createJsonResponse(200, [reportResult]);
+      }
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    const [result] = await client.search.query('revenue', { entityTypes: ['REPORT'] });
+
+    expect(result).toEqual(reportResult);
+    expect(result?.entityType === 'REPORT' ? result.report.dataMart.id : null).toBe('dm-1');
   });
 
   it('omits optional search query parameters when options are not provided', async () => {
@@ -123,7 +156,12 @@ describe('Search API', () => {
 
   it.each([
     ['a non-array response', { results: searchResults }],
-    ['an unknown entity type', [{ ...searchResults[0], entityType: 'REPORT' }]],
+    ['an unknown entity type', [{ ...searchResults[0], entityType: 'FUTURE_TYPE' }]],
+    ['a report result without references', [reportWithoutReferences]],
+    [
+      'a report result with a malformed destination reference',
+      [{ ...reportResult, report: { ...reportResult.report, dataDestination: { id: 'dd-1' } } }],
+    ],
     ['a missing nullable description', [resultWithoutDescription]],
     ['a string relevance score', [{ ...searchResults[0], finalScore: '87' }]],
     ['a missing nullable vector score', [resultWithoutVecScore]],

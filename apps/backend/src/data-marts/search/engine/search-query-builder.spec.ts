@@ -1,9 +1,13 @@
+import { SearchableEntityType } from '../../../common/search/search.facade';
 import { buildDbSearchQuery, buildSearchText } from './search-query-builder';
 
 describe('search-query-builder', () => {
   describe('buildDbSearchQuery', () => {
     it('creates bounded MySQL query text from normalized tokens', () => {
-      const query = buildDbSearchQuery('Revenue metrics for orders');
+      const query = buildDbSearchQuery(
+        'Revenue metrics for orders',
+        SearchableEntityType.DATA_MART
+      );
 
       expect(query).toStrictEqual({
         tokens: ['revenue', 'metric', 'order'],
@@ -11,8 +15,33 @@ describe('search-query-builder', () => {
       });
     });
 
+    it('leaves the REPORT entity-type word out of the DB query when other tokens remain', () => {
+      expect(buildDbSearchQuery('revenue report', SearchableEntityType.REPORT)).toStrictEqual({
+        tokens: ['revenue'],
+        mysqlBooleanQuery: '+revenue*',
+      });
+    });
+
+    it.each([
+      SearchableEntityType.DATA_MART,
+      SearchableEntityType.DATA_STORAGE,
+      SearchableEntityType.DATA_DESTINATION,
+    ])('requires the report word in the DB query for %s', entityType => {
+      expect(buildDbSearchQuery('revenue reports', entityType)).toStrictEqual({
+        tokens: ['revenue', 'report'],
+        mysqlBooleanQuery: '+revenue* +report*',
+      });
+    });
+
+    it.each(['report', 'reports'])('keeps a sole %s term in the REPORT DB query', prompt => {
+      expect(buildDbSearchQuery(prompt, SearchableEntityType.REPORT)).toStrictEqual({
+        tokens: ['report'],
+        mysqlBooleanQuery: '+report*',
+      });
+    });
+
     it('returns empty DB queries when the prompt has no searchable tokens', () => {
-      const query = buildDbSearchQuery('the data mart is in the');
+      const query = buildDbSearchQuery('the data mart is in the', SearchableEntityType.DATA_MART);
 
       expect(query).toStrictEqual({
         tokens: [],
@@ -21,7 +50,7 @@ describe('search-query-builder', () => {
     });
 
     it('keeps non-ASCII tokens for DB-backed search', () => {
-      const query = buildDbSearchQuery('Выручка заказы');
+      const query = buildDbSearchQuery('Выручка заказы', SearchableEntityType.DATA_MART);
 
       expect(query).toStrictEqual({
         tokens: ['выручка', 'заказы'],

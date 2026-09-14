@@ -1,4 +1,5 @@
-import { STOP_WORDS, toSingular, tokenize, matchesAny } from './tokenizer';
+import { SearchableEntityType } from '../../../common/search/search.facade';
+import { STOP_WORDS, toSingular, tokenize, tokenizePrompt, matchesAny } from './tokenizer';
 
 describe('STOP_WORDS', () => {
   it('contains standard English stop words', () => {
@@ -127,6 +128,33 @@ describe('tokenize', () => {
     expect(tokens.has('выручка')).toBe(true);
     expect(tokens.has('заказы')).toBe(true);
     expect(tokens.has('клієнти')).toBe(true);
+  });
+});
+
+describe('tokenizePrompt', () => {
+  it.each(['report', 'reports'])('drops %s only for REPORT when other tokens remain', word => {
+    expect(
+      tokenizePrompt(`Show me the data mart revenue ${word}`, SearchableEntityType.REPORT)
+    ).toEqual(['revenue']);
+  });
+
+  it.each([
+    SearchableEntityType.DATA_MART,
+    SearchableEntityType.DATA_STORAGE,
+    SearchableEntityType.DATA_DESTINATION,
+  ])('preserves report as a searchable word for %s', entityType => {
+    expect(tokenizePrompt('Show me the data mart revenue reports', entityType)).toEqual([
+      'revenue',
+      'report',
+    ]);
+  });
+
+  it.each(['report', 'reports'])('keeps %s when it is the whole REPORT prompt', prompt => {
+    expect(tokenizePrompt(prompt, SearchableEntityType.REPORT)).toEqual(['report']);
+  });
+
+  it('keeps the entity-type word in document tokens', () => {
+    expect(tokenize('Revenue report').has('report')).toBe(true);
   });
 });
 

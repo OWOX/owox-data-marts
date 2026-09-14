@@ -1,3 +1,5 @@
+import { SearchableEntityType } from '../../../common/search/search.facade';
+
 export const STOP_WORDS = new Set([
   'a',
   'an',
@@ -129,6 +131,13 @@ export function tokenize(text: string): Set<string> {
       .filter(w => w.length >= 2 && !STOP_WORDS.has(w))
       .map(toSingular)
   );
+}
+
+export function tokenizePrompt(prompt: string, entityType: SearchableEntityType): string[] {
+  const tokens = Array.from(tokenize(prompt));
+  if (entityType !== SearchableEntityType.REPORT) return tokens;
+  const informative = tokens.filter(token => token !== 'report');
+  return informative.length > 0 ? informative : tokens;
 }
 
 export function matchesAny(token: string, targetTokens: Set<string>): boolean {

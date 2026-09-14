@@ -23,6 +23,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateReportService {
@@ -40,7 +42,8 @@ export class CreateReportService {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -164,6 +167,11 @@ export class CreateReportService {
     );
 
     await this.eventDispatcher.publishOnCommit(reportCreatedEvent);
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.REPORT,
+      newReport.id,
+      command.projectId
+    );
 
     const allUserIds = [command.userId, ...ownerIdsToSave];
     const userProjections =

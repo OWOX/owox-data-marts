@@ -4,6 +4,7 @@ import {
   SearchDataMartProjectReindexTriggerHandler,
   SearchDataStorageProjectReindexTriggerHandler,
   SearchEntityReindexTriggerHandler,
+  SearchReportProjectReindexTriggerHandler,
 } from './search-reindex-trigger-handler.service';
 import { SearchIndexerService } from './search-indexer.service';
 import {
@@ -75,6 +76,7 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     dataMartProjectProcessingCron: '0,30 * * * * *',
     dataStorageProjectProcessingCron: '10,40 * * * * *',
     dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    reportProjectProcessingCron: '15,45 * * * * *',
     openRouterEmbeddingModel: 'google/gemini-embedding-2',
     openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
@@ -93,6 +95,7 @@ describe('Search reindex trigger handlers', () => {
   let dataMartProjectHandler: SearchDataMartProjectReindexTriggerHandler;
   let dataStorageProjectHandler: SearchDataStorageProjectReindexTriggerHandler;
   let dataDestinationProjectHandler: SearchDataDestinationProjectReindexTriggerHandler;
+  let reportProjectHandler: SearchReportProjectReindexTriggerHandler;
   let indexer: jest.Mocked<
     Pick<SearchIndexerService, 'reindexEntity' | 'deleteEntity' | 'syncTypeProject'>
   >;
@@ -101,6 +104,7 @@ describe('Search reindex trigger handlers', () => {
   let dataMartProjectTriggerRepo: { findOne: jest.Mock; save: jest.Mock; create: jest.Mock };
   let dataStorageProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
   let dataDestinationProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
+  let reportProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
   let config: AdvancedSearchConfig;
 
   beforeEach(() => {
@@ -144,6 +148,12 @@ describe('Search reindex trigger handlers', () => {
       save: jest.fn(),
       create: jest.fn(),
     };
+
+    reportProjectTriggerRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn(),
+    };
   });
 
   async function compileEntityHandler(): Promise<void> {
@@ -172,9 +182,14 @@ describe('Search reindex trigger handlers', () => {
         SearchDataMartProjectReindexTriggerHandler,
         SearchDataStorageProjectReindexTriggerHandler,
         SearchDataDestinationProjectReindexTriggerHandler,
+        SearchReportProjectReindexTriggerHandler,
         { provide: SearchIndexerService, useValue: indexer },
         { provide: SCHEDULER_FACADE, useValue: schedulerFacade },
         { provide: ADVANCED_SEARCH_CONFIG, useValue: config },
+        {
+          provide: 'SearchReportProjectReindexTriggerRepository',
+          useValue: reportProjectTriggerRepo,
+        },
         {
           provide: 'SearchDataMartProjectReindexTriggerRepository',
           useValue: dataMartProjectTriggerRepo,
@@ -195,11 +210,14 @@ describe('Search reindex trigger handlers', () => {
       .useValue(dataStorageProjectTriggerRepo)
       .overrideProvider('SearchDataDestinationProjectReindexTriggerRepository')
       .useValue(dataDestinationProjectTriggerRepo)
+      .overrideProvider('SearchReportProjectReindexTriggerRepository')
+      .useValue(reportProjectTriggerRepo)
       .compile();
 
     dataMartProjectHandler = module.get(SearchDataMartProjectReindexTriggerHandler);
     dataStorageProjectHandler = module.get(SearchDataStorageProjectReindexTriggerHandler);
     dataDestinationProjectHandler = module.get(SearchDataDestinationProjectReindexTriggerHandler);
+    reportProjectHandler = module.get(SearchReportProjectReindexTriggerHandler);
   }
 
   describe('onModuleInit', () => {
@@ -217,7 +235,9 @@ describe('Search reindex trigger handlers', () => {
       await dataMartProjectHandler.onModuleInit();
       await dataStorageProjectHandler.onModuleInit();
       await dataDestinationProjectHandler.onModuleInit();
+      await reportProjectHandler.onModuleInit();
 
+      expect(schedulerFacade.registerTriggerHandler).toHaveBeenCalledWith(reportProjectHandler);
       expect(schedulerFacade.registerTriggerHandler).toHaveBeenCalledWith(dataMartProjectHandler);
       expect(schedulerFacade.registerTriggerHandler).toHaveBeenCalledWith(
         dataStorageProjectHandler
@@ -265,11 +285,13 @@ describe('Search reindex trigger handlers', () => {
       expect(dataMartProjectHandler.processingCronExpression()).toBe('0,30 * * * * *');
       expect(dataStorageProjectHandler.processingCronExpression()).toBe('10,40 * * * * *');
       expect(dataDestinationProjectHandler.processingCronExpression()).toBe('20,50 * * * * *');
+      expect(reportProjectHandler.processingCronExpression()).toBe('15,45 * * * * *');
 
       for (const handler of [
         dataMartProjectHandler,
         dataStorageProjectHandler,
         dataDestinationProjectHandler,
+        reportProjectHandler,
       ]) {
         expect(handler.processingBatchLimit()).toBe(1);
         expect(handler.stuckTriggerTimeoutSeconds()).toBe(60 * 60);
@@ -283,12 +305,14 @@ describe('Search reindex trigger handlers', () => {
         dataMartProjectProcessingCron: '1 * * * * *',
         dataStorageProjectProcessingCron: '2 * * * * *',
         dataDestinationProjectProcessingCron: '3 * * * * *',
+        reportProjectProcessingCron: '4 * * * * *',
       });
       await compileProjectHandlers();
 
       expect(dataMartProjectHandler.processingCronExpression()).toBe('1 * * * * *');
       expect(dataStorageProjectHandler.processingCronExpression()).toBe('2 * * * * *');
       expect(dataDestinationProjectHandler.processingCronExpression()).toBe('3 * * * * *');
+      expect(reportProjectHandler.processingCronExpression()).toBe('4 * * * * *');
     });
 
     it('each project handler owns a separate trigger repository', () => {
@@ -297,6 +321,7 @@ describe('Search reindex trigger handlers', () => {
       expect(dataDestinationProjectHandler.getTriggerRepository()).toBe(
         dataDestinationProjectTriggerRepo
       );
+      expect(reportProjectHandler.getTriggerRepository()).toBe(reportProjectTriggerRepo);
     });
   });
 
@@ -344,7 +369,13 @@ describe('Search reindex trigger handlers', () => {
       await dataDestinationProjectHandler.handleTrigger(
         makeProjectTrigger({ projectId: 'proj-3' })
       );
+      await reportProjectHandler.handleTrigger(makeProjectTrigger({ projectId: 'proj-4' }));
 
+      expect(indexer.syncTypeProject).toHaveBeenCalledWith(
+        SearchableEntityType.REPORT,
+        'proj-4',
+        undefined
+      );
       expect(indexer.syncTypeProject).toHaveBeenCalledWith(
         SearchableEntityType.DATA_MART,
         'proj-1',

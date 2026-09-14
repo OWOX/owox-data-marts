@@ -1,5 +1,6 @@
+import { SearchableEntityType } from '../../../common/search/search.facade';
 import { parseDocument } from '../indexing/document-builder';
-import { tokenize } from './tokenizer';
+import { tokenizePrompt } from './tokenizer';
 
 function normalizeFragment(value: string): string {
   return value
@@ -23,11 +24,14 @@ export function buildSearchText(document: string | null): string {
   }
 }
 
-export function buildDbSearchQuery(prompt: string): {
+export function buildDbSearchQuery(
+  prompt: string,
+  entityType: SearchableEntityType
+): {
   tokens: string[];
   mysqlBooleanQuery: string;
 } {
-  const tokens = Array.from(tokenize(prompt));
+  const tokens = tokenizePrompt(prompt, entityType);
 
   return {
     tokens,

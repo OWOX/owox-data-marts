@@ -282,6 +282,7 @@ describe('ListDataMartsTool', () => {
       'SummarizeDataCatalogTool',
       'ListDataMartsTool',
       'SearchDataMartsTool',
+      'SearchReportsTool',
       'GetDataMartDetailsTool',
       'GetProjectContextTool',
       'ListDestinationsTool',

@@ -53,6 +53,10 @@ export class UpdateDataMartTitleService {
       dataMart.id,
       command.projectId
     );
+    await this.advancedSearchIndexSync?.scheduleTypeProjectSync(
+      SearchableEntityType.REPORT,
+      command.projectId
+    );
 
     return this.mapper.toDomainDto(dataMart);
   }

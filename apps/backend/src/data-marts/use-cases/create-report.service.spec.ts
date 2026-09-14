@@ -29,6 +29,7 @@ import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { syncOwners } from '../utils/sync-owners';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 describe('CreateReportService', () => {
   // The schema is what carries `dataMartSchemaFields` into the validator, and that argument is
@@ -108,6 +109,7 @@ describe('CreateReportService', () => {
         canEditConfig: true,
       }),
     };
+    const advancedSearchIndexSync = { scheduleReindex: jest.fn().mockResolvedValue(undefined) };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -121,14 +123,29 @@ describe('CreateReportService', () => {
       accessDecisionService as never,
       eventDispatcher as never,
       outputControlsValidator as never,
-      reportAccessService as never
+      reportAccessService as never,
+      advancedSearchIndexSync as never
     );
 
-    return { service, reportRepository, outputControlsValidator };
+    return { service, reportRepository, outputControlsValidator, advancedSearchIndexSync };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('schedules a search reindex for the created report', async () => {
+    const { service, advancedSearchIndexSync } = createService();
+
+    await service.run(
+      new CreateReportCommand('proj-1', 'user-1', 'Report', 'dm-1', 'dest-1', {} as never)
+    );
+
+    expect(advancedSearchIndexSync.scheduleReindex).toHaveBeenCalledWith(
+      SearchableEntityType.REPORT,
+      'report-1',
+      'proj-1'
+    );
   });
 
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {

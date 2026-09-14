@@ -27,6 +27,7 @@ import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { UpdateReportService } from './update-report.service';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 describe('UpdateReportService', () => {
   const SCHEMA_FIELDS = [
@@ -115,6 +116,7 @@ describe('UpdateReportService', () => {
       validateForReport: jest.fn().mockResolvedValue(undefined),
       ...outputControlsValidatorOverride,
     };
+    const advancedSearchIndexSync = { scheduleReindex: jest.fn().mockResolvedValue(undefined) };
 
     const service = new UpdateReportService(
       reportRepository as never,
@@ -127,11 +129,13 @@ describe('UpdateReportService', () => {
       reportAccessService as never,
       reportDataCacheService as never,
       outputControlsValidator as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      advancedSearchIndexSync as never
     );
 
     return {
       service,
+      advancedSearchIndexSync,
       reportAccessService,
       accessDecisionService,
       reportRepository,
@@ -428,6 +432,33 @@ describe('UpdateReportService', () => {
     await service.run(command);
 
     expect(reportDataCacheService.invalidateByReportId).toHaveBeenCalledWith('report-1');
+  });
+
+  it('schedules a search reindex for the updated report', async () => {
+    const { service, advancedSearchIndexSync } = createService();
+
+    await service.run(
+      new UpdateReportCommand(
+        'report-1',
+        'proj-1',
+        'user-1',
+        ['editor'],
+        'New Title',
+        'dest-1',
+        {} as never,
+        undefined,
+        undefined,
+        null,
+        null,
+        null
+      )
+    );
+
+    expect(advancedSearchIndexSync.scheduleReindex).toHaveBeenCalledWith(
+      SearchableEntityType.REPORT,
+      'report-1',
+      'proj-1'
+    );
   });
 
   it('should not invalidate cache when no output control configs change', async () => {

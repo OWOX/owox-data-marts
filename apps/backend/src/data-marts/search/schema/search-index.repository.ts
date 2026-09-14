@@ -8,6 +8,7 @@ import { vecToBuffer } from '../embedding/vector-codec';
 import { DataMartSearchIndex } from '../../entities/search/data-mart-search-index.entity';
 import { DataStorageSearchIndex } from '../../entities/search/data-storage-search-index.entity';
 import { DataDestinationSearchIndex } from '../../entities/search/data-destination-search-index.entity';
+import { ReportSearchIndex } from '../../entities/search/report-search-index.entity';
 
 export type EmbeddingStatus = 'READY' | 'MISSING';
 
@@ -84,24 +85,40 @@ const ENTITY_CLASS_BY_TYPE: Record<SearchableEntityType, EntityTarget<SearchInde
   [SearchableEntityType.DATA_MART]: DataMartSearchIndex,
   [SearchableEntityType.DATA_STORAGE]: DataStorageSearchIndex,
   [SearchableEntityType.DATA_DESTINATION]: DataDestinationSearchIndex,
+  [SearchableEntityType.REPORT]: ReportSearchIndex,
 };
 
 const TABLE_BY_ENTITY_TYPE: Record<SearchableEntityType, string> = {
   [SearchableEntityType.DATA_MART]: 'data_mart_search_index',
   [SearchableEntityType.DATA_STORAGE]: 'data_storage_search_index',
   [SearchableEntityType.DATA_DESTINATION]: 'data_destination_search_index',
+  [SearchableEntityType.REPORT]: 'report_search_index',
 };
 
-const ENTITY_TABLE_BY_TYPE: Record<SearchableEntityType, string> = {
-  [SearchableEntityType.DATA_MART]: 'data_mart',
-  [SearchableEntityType.DATA_STORAGE]: 'data_storage',
-  [SearchableEntityType.DATA_DESTINATION]: 'data_destination',
-};
+function liveEntityExistsSql(entityType: SearchableEntityType, indexTable: string): string {
+  if (entityType === SearchableEntityType.REPORT) {
+    return `SELECT 1 FROM report r
+            JOIN data_mart dm ON dm.id = r.dataMartId
+            WHERE r.id = ${indexTable}.entity_id
+              AND dm.projectId = ${indexTable}.project_id
+              AND dm.deletedAt IS NULL`;
+  }
+  const entityTable = {
+    [SearchableEntityType.DATA_MART]: 'data_mart',
+    [SearchableEntityType.DATA_STORAGE]: 'data_storage',
+    [SearchableEntityType.DATA_DESTINATION]: 'data_destination',
+  }[entityType];
+  return `SELECT 1 FROM ${entityTable} e
+          WHERE e.id = ${indexTable}.entity_id
+            AND e.projectId = ${indexTable}.project_id
+            AND e.deletedAt IS NULL`;
+}
 
 const TYPE_HAS_DRAFT_AND_FIELD_COUNT: Record<SearchableEntityType, boolean> = {
   [SearchableEntityType.DATA_MART]: true,
   [SearchableEntityType.DATA_STORAGE]: false,
   [SearchableEntityType.DATA_DESTINATION]: false,
+  [SearchableEntityType.REPORT]: false,
 };
 
 const MAX_IN_PARAMS = 500;
@@ -203,18 +220,10 @@ export class SearchIndexRepository {
 
   async deleteOrphans(entityType: SearchableEntityType, projectId?: string): Promise<number> {
     const indexTable = resolveSearchIndexTable(entityType);
-    const entityTable = ENTITY_TABLE_BY_TYPE[entityType];
     const qb = this.repoFor(entityType)
       .createQueryBuilder()
       .delete()
-      .where(
-        `NOT EXISTS (
-           SELECT 1 FROM ${entityTable} e
-           WHERE e.id = ${indexTable}.entity_id
-             AND e.projectId = ${indexTable}.project_id
-             AND e.deletedAt IS NULL
-         )`
-      );
+      .where(`NOT EXISTS (${liveEntityExistsSql(entityType, indexTable)})`);
 
     if (projectId) {
       qb.andWhere(`${indexTable}.project_id = :projectId`, { projectId });
@@ -259,7 +268,7 @@ export class SearchIndexRepository {
     const table = resolveSearchIndexTable(entityType);
     const selectColumns = this.searchCandidateSelectColumns(entityType, 'idx');
     const draftFilter = this.searchCandidateDraftFilter(entityType, options);
-    const query = buildDbSearchQuery(prompt);
+    const query = buildDbSearchQuery(prompt, entityType);
     const candidateLimit = options.candidateLimit;
     const vectorLimit = options.vectorCandidateLimit ?? candidateLimit;
     const baseLogContext = {
