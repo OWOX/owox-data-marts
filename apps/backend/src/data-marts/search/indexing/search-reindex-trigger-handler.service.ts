@@ -13,6 +13,7 @@ import {
   SearchDataMartProjectReindexTrigger,
   SearchDataStorageProjectReindexTrigger,
   SearchProjectReindexTrigger,
+  SearchReportProjectReindexTrigger,
 } from '../../entities/search/search-project-reindex-trigger.entity';
 import { SearchIndexerService } from './search-indexer.service';
 import { ADVANCED_SEARCH_CONFIG, AdvancedSearchConfig } from '../config/advanced-search.config';
@@ -190,5 +191,23 @@ export class SearchDataDestinationProjectReindexTriggerHandler extends BaseSearc
 
   processingCronExpression(): string {
     return this.config.dataDestinationProjectProcessingCron;
+  }
+}
+
+@Injectable()
+export class SearchReportProjectReindexTriggerHandler extends BaseSearchProjectReindexTriggerHandler<SearchReportProjectReindexTrigger> {
+  constructor(
+    @Inject(SCHEDULER_FACADE) schedulerFacade: SchedulerFacade,
+    @InjectRepository(SearchReportProjectReindexTrigger)
+    triggerRepo: Repository<SearchReportProjectReindexTrigger>,
+    indexer: SearchIndexerService,
+    @Inject(ADVANCED_SEARCH_CONFIG)
+    config: AdvancedSearchConfig
+  ) {
+    super(schedulerFacade, triggerRepo, indexer, config, SearchableEntityType.REPORT);
+  }
+
+  processingCronExpression(): string {
+    return this.config.reportProjectProcessingCron;
   }
 }

@@ -12,6 +12,7 @@ import {
   SearchDataMartProjectReindexTrigger,
   SearchDataStorageProjectReindexTrigger,
   SearchProjectReindexTrigger,
+  SearchReportProjectReindexTrigger,
 } from '../entities/search/search-project-reindex-trigger.entity';
 
 const PROJECT_DEDUP_STATUSES = [TriggerStatus.IDLE, TriggerStatus.READY, TriggerStatus.PROCESSING];
@@ -28,7 +29,9 @@ export class AdvancedSearchIndexSyncService {
     @InjectRepository(SearchDataStorageProjectReindexTrigger)
     private readonly dataStorageProjectTriggerRepo: Repository<SearchDataStorageProjectReindexTrigger>,
     @InjectRepository(SearchDataDestinationProjectReindexTrigger)
-    private readonly dataDestinationProjectTriggerRepo: Repository<SearchDataDestinationProjectReindexTrigger>
+    private readonly dataDestinationProjectTriggerRepo: Repository<SearchDataDestinationProjectReindexTrigger>,
+    @InjectRepository(SearchReportProjectReindexTrigger)
+    private readonly reportProjectTriggerRepo: Repository<SearchReportProjectReindexTrigger>
   ) {}
 
   async scheduleReindex(
@@ -131,6 +134,8 @@ export class AdvancedSearchIndexSyncService {
         return this.dataStorageProjectTriggerRepo;
       case SearchableEntityType.DATA_DESTINATION:
         return this.dataDestinationProjectTriggerRepo;
+      case SearchableEntityType.REPORT:
+        return this.reportProjectTriggerRepo;
     }
   }
 

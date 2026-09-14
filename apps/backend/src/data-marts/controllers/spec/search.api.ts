@@ -8,7 +8,8 @@ export function SearchSpec() {
     ApiOperation({
       summary: 'Search project entities',
       description:
-        'Returns data marts, data storages, and data destinations visible to the caller. ' +
+        'Returns data marts, data storages, data destinations, and reports visible to the caller. ' +
+        'Report results also carry their data mart, destination, and a canonical direct URL. ' +
         'Search uses semantic and keyword signals and falls back to keyword matching when ' +
         'prompt embeddings are unavailable.',
     }),

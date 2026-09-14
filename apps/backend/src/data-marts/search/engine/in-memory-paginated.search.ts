@@ -39,6 +39,7 @@ function scoreRow(
     modifiedAt: row.updatedAt,
     embeddingText: parsed.embeddingText ?? '',
     isDraft: row.isDraft,
+    report: parsed.report,
   };
 
   const kwScore = scoreEntity(descriptor, promptTokens, config);
@@ -71,6 +72,7 @@ function scoreRow(
     vecScore,
     extendability,
     relevance,
+    report: descriptor.report,
   };
 }
 

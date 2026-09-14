@@ -93,6 +93,7 @@ export class AdvancedSearchService implements SearchEngine {
       finalScore: r.finalScore,
       kwScore: r.kwScore,
       vecScore: r.vecScore,
+      ...(r.report ? { report: r.report } : {}),
     }));
   }
 }

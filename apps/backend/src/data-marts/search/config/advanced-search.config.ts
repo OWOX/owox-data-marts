@@ -16,6 +16,7 @@ export interface AdvancedSearchConfig {
   dataMartProjectProcessingCron: string;
   dataStorageProjectProcessingCron: string;
   dataDestinationProjectProcessingCron: string;
+  reportProjectProcessingCron: string;
   openRouterEmbeddingModel: string;
   openRouterEmbeddingDimensions: number;
   openRouterApiKey: string | null;
@@ -87,6 +88,7 @@ export function loadAdvancedSearchConfig(
       dataMartProjectProcessingCron: z.string().optional().default('0,30 * * * * *'),
       dataStorageProjectProcessingCron: z.string().optional().default('10,40 * * * * *'),
       dataDestinationProjectProcessingCron: z.string().optional().default('20,50 * * * * *'),
+      reportProjectProcessingCron: z.string().optional().default('15,45 * * * * *'),
       openRouterEmbeddingModel: z.string().optional().default('google/gemini-embedding-2'),
       openRouterEmbeddingDimensions: positiveIntFromString('768'),
       openRouterApiKey: z.string().nullable().default(null),
@@ -123,6 +125,7 @@ export function loadAdvancedSearchConfig(
     dataStorageProjectProcessingCron: env['ADVANCED_SEARCH_DATA_STORAGE_PROJECT_PROCESSING_CRON'],
     dataDestinationProjectProcessingCron:
       env['ADVANCED_SEARCH_DATA_DESTINATION_PROJECT_PROCESSING_CRON'],
+    reportProjectProcessingCron: env['ADVANCED_SEARCH_REPORT_PROJECT_PROCESSING_CRON'],
     openRouterEmbeddingModel: env['ADVANCED_SEARCH_OPENROUTER_EMBEDDING_MODEL'],
     openRouterEmbeddingDimensions: env['ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS'],
     openRouterApiKey: nonBlankOrNull(env['ADVANCED_SEARCH_OPENROUTER_API_KEY']),

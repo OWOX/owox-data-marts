@@ -38,6 +38,7 @@ describe('AdvancedSearchIndexSyncService', () => {
   };
   let dataStorageProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
   let dataDestinationProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
+  let reportProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
 
   beforeEach(async () => {
     triggerRepo = {
@@ -56,6 +57,11 @@ describe('AdvancedSearchIndexSyncService', () => {
       create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
     };
     dataDestinationProjectTriggerRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
+    };
+    reportProjectTriggerRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockResolvedValue({}),
       create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
@@ -80,6 +86,10 @@ describe('AdvancedSearchIndexSyncService', () => {
           provide: 'SearchDataDestinationProjectReindexTriggerRepository',
           useValue: dataDestinationProjectTriggerRepo,
         },
+        {
+          provide: 'SearchReportProjectReindexTriggerRepository',
+          useValue: reportProjectTriggerRepo,
+        },
       ],
     })
       .overrideProvider('SearchReindexTriggerRepository')
@@ -90,6 +100,8 @@ describe('AdvancedSearchIndexSyncService', () => {
       .useValue(dataStorageProjectTriggerRepo)
       .overrideProvider('SearchDataDestinationProjectReindexTriggerRepository')
       .useValue(dataDestinationProjectTriggerRepo)
+      .overrideProvider('SearchReportProjectReindexTriggerRepository')
+      .useValue(reportProjectTriggerRepo)
       .compile();
 
     service = module.get(AdvancedSearchIndexSyncService);
@@ -226,6 +238,17 @@ describe('AdvancedSearchIndexSyncService', () => {
       );
       expect(triggerRepo.create).not.toHaveBeenCalled();
       expect(dataMartProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataDestinationProjectTriggerRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('dispatches report syncs to the report queue', async () => {
+      await service.scheduleTypeProjectSync(SearchableEntityType.REPORT, 'proj-report');
+
+      expect(reportProjectTriggerRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'proj-report', status: TriggerStatus.IDLE })
+      );
+      expect(dataMartProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
       expect(dataDestinationProjectTriggerRepo.create).not.toHaveBeenCalled();
     });
 

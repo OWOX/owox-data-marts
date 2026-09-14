@@ -18,6 +18,15 @@ import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { DataMartSearchIndex } from '../../entities/search/data-mart-search-index.entity';
 import { DataStorageSearchIndex } from '../../entities/search/data-storage-search-index.entity';
 import { DataDestinationSearchIndex } from '../../entities/search/data-destination-search-index.entity';
+import { ReportSearchIndex } from '../../entities/search/report-search-index.entity';
+import { DataDestination } from '../../entities/data-destination.entity';
+import { DataDestinationCredential } from '../../entities/data-destination-credential.entity';
+import { DestinationOwner } from '../../entities/destination-owner.entity';
+import { DestinationContext } from '../../entities/destination-context.entity';
+import { Report } from '../../entities/report.entity';
+import { ReportOwner } from '../../entities/report-owner.entity';
+import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
+import { GoogleSheetsConfigType } from '../../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { SearchableEntityType } from '../../../common/search/search.facade';
@@ -39,6 +48,13 @@ const TEST_ENTITIES = [
   DataMartSearchIndex,
   DataStorageSearchIndex,
   DataDestinationSearchIndex,
+  DataDestination,
+  DataDestinationCredential,
+  DestinationOwner,
+  DestinationContext,
+  Report,
+  ReportOwner,
+  ReportSearchIndex,
 ];
 
 function float32Buffer(values: number[]): Buffer {
@@ -395,6 +411,80 @@ describe('SearchIndexRepository', () => {
     it('returns 0 when the index table is empty', async () => {
       const deleted = await repo.deleteOrphans(DATA_MART);
       expect(deleted).toBe(0);
+    });
+  });
+
+  describe('deleteOrphans for REPORT', () => {
+    const REPORT = SearchableEntityType.REPORT;
+
+    afterEach(async () => {
+      await dataSource.query('DELETE FROM report_search_index');
+      await dataSource.query('DELETE FROM report');
+      await dataSource.query('DELETE FROM data_destination');
+      await dataSource.query('DELETE FROM data_mart');
+      await dataSource.query('DELETE FROM data_storage');
+    });
+
+    async function seedReport(projectId: string): Promise<Report> {
+      const storage = dataSource.getRepository(DataStorage).create();
+      storage.type = DataStorageType.GOOGLE_BIGQUERY;
+      storage.projectId = projectId;
+      storage.createdById = 'user-1';
+      const savedStorage = await dataSource.getRepository(DataStorage).save(storage);
+
+      const mart = dataSource.getRepository(DataMart).create();
+      mart.title = 'Orders';
+      mart.projectId = projectId;
+      mart.status = DataMartStatus.PUBLISHED;
+      mart.createdById = 'user-1';
+      mart.storage = savedStorage;
+      const savedMart = await dataSource.getRepository(DataMart).save(mart);
+
+      const destination = dataSource.getRepository(DataDestination).create();
+      destination.title = 'Sheets';
+      destination.type = DataDestinationType.GOOGLE_SHEETS;
+      destination.projectId = projectId;
+      destination.createdById = 'user-1';
+      const savedDestination = await dataSource.getRepository(DataDestination).save(destination);
+
+      const report = dataSource.getRepository(Report).create();
+      report.title = 'Monthly revenue';
+      report.dataMart = savedMart;
+      report.dataDestination = savedDestination;
+      report.createdById = 'user-1';
+      report.destinationConfig = {
+        type: GoogleSheetsConfigType,
+        spreadsheetId: 'spreadsheet-1',
+        sheetId: 0,
+      };
+      return dataSource.getRepository(Report).save(report);
+    }
+
+    it('removes index rows whose report no longer exists', async () => {
+      await repo.upsert(REPORT, makeRow({ entityId: 'orphan-report' }));
+
+      expect(await repo.deleteOrphans(REPORT)).toBe(1);
+      expect((await repo.listIndexStateByIds(REPORT, ['orphan-report'])).size).toBe(0);
+    });
+
+    it('removes index rows whose data mart is soft-deleted and keeps live reports', async () => {
+      const live = await seedReport('proj-1');
+      const orphaned = await seedReport('proj-1');
+      await dataSource.getRepository(DataMart).softDelete(orphaned.dataMart.id);
+      await repo.upsert(REPORT, makeRow({ entityId: live.id, projectId: 'proj-1' }));
+      await repo.upsert(REPORT, makeRow({ entityId: orphaned.id, projectId: 'proj-1' }));
+
+      expect(await repo.deleteOrphans(REPORT, 'proj-1')).toBe(1);
+
+      const state = await repo.listIndexStateByIds(REPORT, [live.id, orphaned.id]);
+      expect([...state.keys()]).toEqual([live.id]);
+    });
+
+    it('removes index rows indexed under a different project than the data mart', async () => {
+      const moved = await seedReport('proj-2');
+      await repo.upsert(REPORT, makeRow({ entityId: moved.id, projectId: 'proj-1' }));
+
+      expect(await repo.deleteOrphans(REPORT, 'proj-1')).toBe(1);
     });
   });
 
@@ -1191,6 +1281,7 @@ describe('SearchIndexRepository — multi-type isolation', () => {
     await dataSource.query('DELETE FROM data_mart_search_index');
     await dataSource.query('DELETE FROM data_storage_search_index');
     await dataSource.query('DELETE FROM data_destination_search_index');
+    await dataSource.query('DELETE FROM report_search_index');
   });
 
   async function tableColumnNames(tableName: string): Promise<string[]> {
@@ -1206,6 +1297,9 @@ describe('SearchIndexRepository — multi-type isolation', () => {
       expect.arrayContaining(['is_draft', 'field_count'])
     );
     await expect(tableColumnNames('data_destination_search_index')).resolves.not.toEqual(
+      expect.arrayContaining(['is_draft', 'field_count'])
+    );
+    await expect(tableColumnNames('report_search_index')).resolves.not.toEqual(
       expect.arrayContaining(['is_draft', 'field_count'])
     );
   });

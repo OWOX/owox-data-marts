@@ -233,6 +233,10 @@ export class UpdateDataDestinationService {
         updatedEntity.id,
         command.projectId
       );
+      await this.advancedSearchIndexSync?.scheduleTypeProjectSync(
+        SearchableEntityType.REPORT,
+        command.projectId
+      );
       return this.replaceOwnersAndBuildResponse(
         updatedEntity,
         command.ownerIds,
@@ -358,6 +362,10 @@ export class UpdateDataDestinationService {
     await this.advancedSearchIndexSync?.scheduleReindex(
       SearchableEntityType.DATA_DESTINATION,
       updatedEntity.id,
+      command.projectId
+    );
+    await this.advancedSearchIndexSync?.scheduleTypeProjectSync(
+      SearchableEntityType.REPORT,
       command.projectId
     );
 

@@ -99,9 +99,9 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 ## Available tools
 
-Once connected, the MCP server exposes nineteen tools across two scopes:
+Once connected, the MCP server exposes twenty tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
 - **`mcp:write`**: tools that create, change, run, or bill something — `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 ### `summarize_data_catalog`
@@ -193,6 +193,32 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 The response also includes `project.id` and `project.title`.
 
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned. An empty result usually means nothing matched the prompt; when you see no published data mart at all, the response also includes `getting_started` (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)) so the assistant explains what to do instead of rephrasing the search.
+
+### `get_relevant_reports_by_prompt`
+
+Finds existing reports from a natural-language prompt, ranked by relevance. Use it when you refer to a report by name or subject — "open the revenue report", "rerun the weekly ads export" — and its identifier is not yet known. The report name is matched first, then the names of its data mart and destination.
+
+**Input:**
+
+| Field    | Description                                    |
+| -------- | ---------------------------------------------- |
+| `prompt` | Natural-language search prompt                 |
+| `limit`  | Optional maximum number of results, default 10 |
+
+**Returns** an array of matching report objects:
+
+| Field             | Description                                                   |
+| ----------------- | ------------------------------------------------------------- |
+| `report_id`       | Report identifier                                             |
+| `title`           | Report name                                                   |
+| `data_mart`       | The report's data mart — `id`, `title`                        |
+| `destination`     | The destination the report exports to — `id`, `title`, `type` |
+| `relevance_score` | How closely the report matches your prompt                    |
+| `url`             | Link that opens the report in OWOX Data Marts                 |
+
+The response also includes `project.id` and `project.title`.
+
+A report is returned when its data mart is visible to your [project role](../../project/roles-and-permissions.md). Use `get_data_mart_reports` when the data mart is already known and you need every report with its full definition.
 
 ### `get_data_mart_details_by_id`
 

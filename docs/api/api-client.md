@@ -215,8 +215,8 @@ page beyond that maximum offset.
 
 ## Search project entities
 
-Use `search.query()` to find Data Marts, data storages, and data destinations visible to the
-current project member. The server trims surrounding query whitespace and enforces its configured
+Use `search.query()` to find Data Marts, data storages, data destinations, and reports visible
+to the current project member. The server trims surrounding query whitespace and enforces its configured
 minimum and maximum query lengths. Pass an optional result limit from 1 through 50, restrict the
 search to specific entity types, or exclude draft Data Marts. When omitted, the server's result
 limit is used, all supported entity types are searched, and draft Data Marts may be included. Pass
@@ -238,6 +238,22 @@ Each result includes the entity type and ID, title, nullable description, combin
 score, keyword score, and a vector score when semantic matching contributed. Search returns an
 empty array when no visible entity matches. When prompt embeddings are unavailable, Search falls
 back to keyword matching.
+
+Pass `entityTypes: ['REPORT']` to search reports. The report title is matched first, then the
+titles of its Data Mart and destination. A report is visible when its Data Mart is visible. A
+`REPORT` result also carries `report.dataMart` (`id`, `title`), `report.dataDestination` (`id`,
+`title`, `type`), and `url`, the direct link that opens the report in OWOX Data Marts. Narrow on
+`entityType` to read them with full typing:
+
+```ts
+const reports = await client.search.query('revenue', { entityTypes: ['REPORT'] });
+
+for (const result of reports) {
+  if (result.entityType === 'REPORT') {
+    console.log(result.title, result.report.dataMart.title, result.url);
+  }
+}
+```
 
 ## Convert Markdown to HTML
 
