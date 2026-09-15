@@ -93,7 +93,7 @@ export function ConfigurationStep({
   // own echo and distinguishes it from a genuine outside change.
   const lastEchoedConfigRef = useRef<Record<string, unknown> | null>(null);
   const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
-  const [managedOAuthModes, setManagedOAuthModes] = useState<Record<string, boolean>>({});
+  const [managedOAuthModes, setManagedOAuthModes] = useState<Partial<Record<string, boolean>>>({});
 
   useEffect(() => {
     trackEvent({
@@ -123,6 +123,15 @@ export function ConfigurationStep({
 
         if (config[spec.name] === undefined && spec.default !== undefined) {
           config[spec.name] = spec.default;
+        }
+
+        // Seed the first option of a oneOf field here as well. The oneOf renderer
+        // does the same in its mount effect, but that write lands before this
+        // seeding replaces the state and is lost, leaving the field unset until
+        // the user touches it.
+        const firstOption = spec.oneOf?.[0]?.value;
+        if (config[spec.name] === undefined && firstOption) {
+          config[spec.name] = { [firstOption]: {} };
         }
 
         if (isEditingExisting && isSecret) {
@@ -346,10 +355,16 @@ export function ConfigurationStep({
   const selectedAuthType = isRecord(configuration.AuthType)
     ? Object.keys(configuration.AuthType)[0]
     : undefined;
+  // Under OAuth the spreadsheet is chosen with Google Picker, so the manual
+  // input stays hidden until the OAuth renderer explicitly reports manual mode
+  // (settings still loading or not yet signed in must not flash the input).
+  // The renderer only mounts on the OAuth tab, so an explicit "managed" report
+  // is trusted even before the AuthType value itself is reflected in the state.
+  const managedAuthTypeMode = managedOAuthModes.AuthType;
   const usesManagedGoogleSheetsOAuth =
     connector.name === GOOGLE_SHEETS_CONNECTOR_NAME &&
-    selectedAuthType === 'oauth2' &&
-    managedOAuthModes.AuthType;
+    (managedAuthTypeMode === true ||
+      (selectedAuthType === 'oauth2' && managedAuthTypeMode !== false));
   const visibleSpecifications = usesManagedGoogleSheetsOAuth
     ? sortedSpecifications.filter(spec => spec.name !== 'SpreadsheetId')
     : sortedSpecifications;

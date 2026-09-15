@@ -6,6 +6,7 @@ import {
   GetConnectorSpecificationSpec,
   GetConnectorFieldsSpec,
   PreviewConnectorFieldsSpec,
+  PreviewConnectorFieldOptionsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
@@ -31,6 +32,9 @@ import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connecto
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
 import { ConnectorFieldsPreviewService } from '../services/connector/connector-fields-preview.service';
 import { ConnectorFieldsPreviewRequestApiDto } from '../dto/presentation/connector-fields-preview-request-api.dto';
+import { ConnectorFieldOptionsPreviewService } from '../services/connector/connector-field-options-preview.service';
+import { ConnectorFieldOptionsPreviewRequestApiDto } from '../dto/presentation/connector-field-options-preview-request-api.dto';
+import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -40,6 +44,7 @@ export class ConnectorController {
     private readonly specificationConnectorService: SpecificationConnectorService,
     private readonly fieldsConnectorService: FieldsConnectorService,
     private readonly connectorFieldsPreviewService: ConnectorFieldsPreviewService,
+    private readonly connectorFieldOptionsPreviewService: ConnectorFieldOptionsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService
   ) {}
@@ -86,6 +91,23 @@ export class ConnectorController {
       body.configuration ?? {}
     );
     return this.mapper.toFieldsResponse(fields);
+  }
+
+  @Auth(Role.editor())
+  @Post(':connectorName/options/preview')
+  @PreviewConnectorFieldOptionsSpec()
+  async previewConnectorFieldOptions(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string,
+    @Body() body: ConnectorFieldOptionsPreviewRequestApiDto
+  ): Promise<ConnectorFieldOptionResponseApiDto[]> {
+    const options = await this.connectorFieldOptionsPreviewService.run(
+      context,
+      connectorName,
+      body.field,
+      body.configuration ?? {}
+    );
+    return this.mapper.toFieldOptionsResponse(options);
   }
 
   @Auth(Role.viewer())

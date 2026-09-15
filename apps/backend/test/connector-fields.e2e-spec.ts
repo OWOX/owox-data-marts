@@ -119,6 +119,73 @@ describe('Connector Fields (e2e)', () => {
     });
   });
 
+  describe('Dynamic field options preview', () => {
+    it('POST /api/connectors/GoogleSheets/options/preview - requires the field name', async () => {
+      const res = await agent
+        .post('/api/connectors/GoogleSheets/options/preview')
+        .send({ configuration: {} })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.statusCode).toBe(400);
+    });
+
+    it('POST /api/connectors/GoogleSheets/options/preview - reports the missing spreadsheet instead of validating the whole form', async () => {
+      const res = await agent
+        .post('/api/connectors/GoogleSheets/options/preview')
+        .send({ field: 'SheetName', configuration: {} })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Spreadsheet ID or URL is required');
+    });
+
+    it('POST /api/connectors/GoogleSheets/options/preview - rejects fields without dynamic options', async () => {
+      const res = await agent
+        .post('/api/connectors/GoogleSheets/options/preview')
+        .send({ field: 'Range', configuration: { SpreadsheetId: 'sheet-id' } })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("Field 'Range' does not provide dynamic options");
+    });
+
+    it('POST /api/connectors/OpenHolidays/options/preview - rejects connectors without dynamic options', async () => {
+      const res = await agent
+        .post('/api/connectors/OpenHolidays/options/preview')
+        .send({ field: 'Country', configuration: {} })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('does not support dynamic field options');
+    });
+
+    it('POST /api/connectors/GoogleSheets/options/preview - rejects another connector credential', async () => {
+      const credentialsService = app.get(ConnectorSourceCredentialsService);
+      const credential = await credentialsService.createCredentials(
+        '0',
+        '0',
+        'GoogleAds',
+        { access_token: 'not-a-google-sheets-token' },
+        null
+      );
+
+      const res = await agent
+        .post('/api/connectors/GoogleSheets/options/preview')
+        .send({
+          field: 'SheetName',
+          configuration: {
+            AuthType: { oauth2: { _source_credential_id: credential.id } },
+            SpreadsheetId: 'sheet-id',
+          },
+        })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('The selected credentials cannot be used for this preview');
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // CAPI-10: All connectors have well-formed fields schemas
   // ---------------------------------------------------------------------------

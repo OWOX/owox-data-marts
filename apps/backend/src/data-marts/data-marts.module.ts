@@ -159,6 +159,7 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { ConnectorFieldsPreviewService } from './services/connector/connector-fields-preview.service';
+import { ConnectorFieldOptionsPreviewService } from './services/connector/connector-field-options-preview.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
 import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
@@ -766,6 +767,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     SpecificationConnectorService,
     FieldsConnectorService,
     ConnectorFieldsPreviewService,
+    ConnectorFieldOptionsPreviewService,
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,

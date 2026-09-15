@@ -58,6 +58,7 @@ export function OauthRenderFactory({
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<OAuthStatusResponseDto | null>(null);
   const [settings, setSettings] = useState<OAuthSettingsResponseDto | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const credentialId = useMemo(() => {
@@ -237,16 +238,39 @@ export function OauthRenderFactory({
       } catch (error) {
         console.error('Failed to fetch settings:', error);
         setSettings(null);
+      } finally {
+        setSettingsLoaded(true);
       }
     };
     void fetchSettings();
   }, [connectorName, fieldPath, getSettings]);
 
   const isOAuthEnabled = Boolean(settings?.isEnabled);
+  const isSettingsLoading = !settingsLoaded;
 
   useEffect(() => {
-    onManagedModeChange?.(!isManualMode && isOAuthEnabled);
-  }, [isManualMode, isOAuthEnabled, onManagedModeChange]);
+    // While the settings are unknown, assume the managed flow: the manual
+    // fields (and any picker-driven fields hidden by managed mode) must not
+    // flash before the answer arrives.
+    onManagedModeChange?.(!isManualMode && (isSettingsLoading || isOAuthEnabled));
+  }, [isManualMode, isOAuthEnabled, isSettingsLoading, onManagedModeChange]);
+
+  useEffect(
+    () => () => {
+      // The renderer lives only on the OAuth option's tab: once it unmounts
+      // (another option was selected) the managed flow no longer applies.
+      onManagedModeChange?.(false);
+    },
+    [onManagedModeChange]
+  );
+
+  if (isSettingsLoading && !isManualMode) {
+    return (
+      <div className='text-muted-foreground mt-2 mb-2 text-sm' role='status'>
+        Loading sign-in options...
+      </div>
+    );
+  }
 
   if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (

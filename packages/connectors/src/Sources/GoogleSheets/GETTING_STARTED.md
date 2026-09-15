@@ -3,13 +3,13 @@
 1. Create a Data Mart with the Google Sheets source.
 2. Authorize Google Sheets access with OAuth or Service Account JSON.
 3. Choose the spreadsheet with Google Picker for OAuth, or provide its ID or URL for a service account.
-4. Provide the sheet tab name.
+4. Pick the sheet tab from the list that loads once the spreadsheet is known. If the list cannot be loaded, type the tab name.
 5. Click Next to preview detected columns from the configured header row.
 6. Keep all-columns mode enabled, or switch to explicit subset mode and choose columns.
 7. Choose a storage table.
 8. Run a refresh to materialize the sheet into storage.
 
-The connector treats row 1 as headers by default. `HeaderRow` is an absolute, one-based sheet row. If `Range` is `A5:D` and its first row contains headers, set `HeaderRow` to `5`. Blank header cells receive generated names such as `column_2`.
+The connector treats row 1 as headers by default. `HeaderRow` and `Range` live under Advanced Settings. `HeaderRow` is an absolute, one-based sheet row. If `Range` is `A5:D` and its first row contains headers, set `HeaderRow` to `5`. Blank header cells receive generated names such as `column_2`.
 
 By default, `ImportAllColumns` is `true`, so every refresh imports all current columns and automatically includes schema additions. The web configuration persists `ImportAllColumns: false` only when the user chooses an explicit subset; runtime `Fields` tracks the latest materialized schema.
 

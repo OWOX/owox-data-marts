@@ -16,6 +16,8 @@ import { ConnectorOAuthStatusResponseApiDto } from '../../dto/presentation/conne
 import { ConnectorOAuthSettingsResponseApiDto } from '../../dto/presentation/connector-oauth-settings-response-api.dto';
 import { ExchangeOAuthCredentialsDto } from '../../dto/presentation/exchange-oauth-credentials.dto';
 import { ConnectorFieldsPreviewRequestApiDto } from '../../dto/presentation/connector-fields-preview-request-api.dto';
+import { ConnectorFieldOptionsPreviewRequestApiDto } from '../../dto/presentation/connector-field-options-preview-request-api.dto';
+import { ConnectorFieldOptionResponseApiDto } from '../../dto/presentation/connector-field-option-response-api.dto';
 
 export function GetAvailableConnectorsSpec() {
   return applyDecorators(
@@ -52,6 +54,23 @@ export function PreviewConnectorFieldsSpec() {
     ApiResponse({ status: 403, description: 'Connector credentials cannot access the resource' }),
     ApiResponse({ status: 502, description: 'Connector provider is unavailable' }),
     ApiResponse({ status: 504, description: 'Connector field preview timed out' })
+  );
+}
+
+export function PreviewConnectorFieldOptionsSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Preview the allowed values of a connector configuration field',
+      description:
+        'Resolves the options of a field declared with the DYNAMIC_OPTIONS attribute from the source, for example the sheet tabs of the selected spreadsheet.',
+    }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiBody({ type: ConnectorFieldOptionsPreviewRequestApiDto }),
+    ApiOkResponse({ type: ConnectorFieldOptionResponseApiDto, isArray: true }),
+    ApiResponse({ status: 400, description: 'Unable to preview connector field options' }),
+    ApiResponse({ status: 403, description: 'Connector credentials cannot access the resource' }),
+    ApiResponse({ status: 502, description: 'Connector provider is unavailable' }),
+    ApiResponse({ status: 504, description: 'Connector field options preview timed out' })
   );
 }
 

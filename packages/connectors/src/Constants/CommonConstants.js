@@ -10,12 +10,12 @@ var EXECUTION_STATUS = {
   CLEANUP_IN_PROGRESS: 2,
   IMPORT_DONE: 3,
   CLEANUP_DONE: 4,
-  ERROR: 5
+  ERROR: 5,
 };
 
 var RUN_CONFIG_TYPE = {
   INCREMENTAL: 'INCREMENTAL',
-  MANUAL_BACKFILL: 'MANUAL_BACKFILL'
+  MANUAL_BACKFILL: 'MANUAL_BACKFILL',
 };
 
 var CONFIG_ATTRIBUTES = {
@@ -26,6 +26,9 @@ var CONFIG_ATTRIBUTES = {
   OAUTH_FLOW: 'OAUTH_FLOW',
   DEPRECATED: 'DEPRECATED',
   PINNED: 'PINNED',
+  // The field's allowed values come from the source at configuration time
+  // (see AbstractSource.fetchFieldOptions), not from a static `options` list.
+  DYNAMIC_OPTIONS: 'DYNAMIC_OPTIONS',
 };
 
 var OAUTH_CONSTANTS = {

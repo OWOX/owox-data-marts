@@ -6,8 +6,10 @@ import { ConfigurationStringField } from './ConfigurationStringField';
 import { ConfigurationObjectField } from './ConfigurationObjectField';
 import { ConfigurationSecretField } from './ConfigurationSecretField';
 import { ConfigurationComboboxField } from './ConfigurationComboboxField';
+import { ConfigurationDynamicOptionsField } from './ConfigurationDynamicOptionsField';
 
 export {
+  ConfigurationDynamicOptionsField,
   ConfigurationBooleanField,
   ConfigurationNumberField,
   ConfigurationArrayField,

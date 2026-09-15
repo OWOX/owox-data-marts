@@ -15,6 +15,11 @@ export const ConnectorSpecificationItem = z.object({
   placeholder: z.string().optional(),
   minimum: z.number().optional(),
   attributes: z.array(z.string()).optional(),
+  /**
+   * Configuration fields whose values are needed before the dynamic options of
+   * this field can be resolved (only meaningful with the DYNAMIC_OPTIONS attribute).
+   */
+  optionsDependsOn: z.array(z.string()).optional(),
   oauthParams: z.record(z.string(), z.unknown()).optional(),
 });
 

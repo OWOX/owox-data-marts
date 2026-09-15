@@ -43,6 +43,15 @@ export class ConnectorSpecificationItemResponseApiDto {
     required: false,
   })
   attributes?: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['AuthType', 'SpreadsheetId'],
+    required: false,
+    description:
+      'Configuration fields that must be filled before the dynamic options of this field can be loaded (DYNAMIC_OPTIONS attribute).',
+  })
+  optionsDependsOn?: string[];
 }
 
 export class ConnectorSpecificationOneOfOptionResponseApiDto {
