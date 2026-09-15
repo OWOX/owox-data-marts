@@ -169,6 +169,12 @@ OWOX applies output controls in this order on every report run:
 
 ---
 
+## Array columns
+
+Fields identified by an existing `ARRAY` schema type or BigQuery `REPEATED` mode are column-only. Filters, slices, sorts, aggregations (including `COUNT` and `ANY_VALUE`), and date buckets are unavailable. Blank checks are unavailable too. Joined arrays keep this restriction even though their output is JSON text.
+
+Reports with stored array controls fail validation. Remove those controls using the existing settings, or recreate the report without them. Some previously accepted controls, such as `COUNT`, are now unavailable too. Ordinary nested scalar fields and opaque `JSON`, Snowflake `VARIANT`, and Redshift `SUPER` fields keep their existing behavior; their runtime contents are not inspected to classify arrays.
+
 ## Keep Rules Valid After Schema Changes
 
 Output controls reference columns by name. Rename or remove a column in the Data Mart schema, and every report that uses it breaks. The column picker flags the report with a **Disconnected columns** warning. Saving the report then fails with a validation error.

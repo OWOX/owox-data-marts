@@ -12,6 +12,8 @@ const dialect: BlendedSqlDialect = {
   quoteIdentifier: name => name,
   quoteFieldRef: ref => ref,
   buildAggregation: (fn, fieldName) => `${fn}(${fieldName})`,
+  buildArrayJsonRollup: (fieldName, isJsonFragment) =>
+    `JSON_ARRAY_AGG(${isJsonFragment ? 'FRAGMENT' : 'NATIVE'}(${fieldName}))`,
   buildRowSurrogate: partitionByRefs =>
     `ROW_NUMBER() OVER (PARTITION BY ${partitionByRefs.join(', ')})`,
   clauseRenderer: () => null,
@@ -168,6 +170,42 @@ describe('BlendCteBuilder', () => {
       expect(sql).toContain('__OWOX_RID');
       expect(sql).not.toContain('ROW_NUMBER()');
     });
+  });
+
+  it('JSON-rolls an array field even when its stored aggregate function is COUNT', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-orders',
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'order_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'tags',
+          targetFieldType: 'ARRAY<STRING>',
+          outputAlias: 'orders__tags',
+          aggregateFunction: 'COUNT',
+          isHidden: false,
+        },
+      ],
+    });
+
+    const sql = new BlendCteBuilder(dialect).buildAggregationCte(chain, false, []);
+
+    expect(sql).toContain('JSON_ARRAY_AGG(NATIVE(tags)) AS orders__tags');
+    expect(sql).not.toContain('COUNT(tags)');
+
+    const parentSql = new BlendCteBuilder(dialect).buildAggregationCte(ordersChain, true, [
+      {
+        outputAlias: 'orders__tags',
+        targetFieldType: 'ARRAY<STRING>',
+        aggregateFunction: 'COUNT',
+        isHidden: false,
+      },
+    ]);
+    expect(parentSql).toContain('JSON_ARRAY_AGG(FRAGMENT(orders__tags))');
   });
 });
 

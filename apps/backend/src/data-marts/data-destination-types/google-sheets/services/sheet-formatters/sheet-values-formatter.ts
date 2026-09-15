@@ -59,6 +59,12 @@ export class SheetValuesFormatter {
       columnsToFormat.forEach(({ index, formatter }) => {
         row[index] = formatter!(row[index], sheetTimeZone);
       });
+      // Records and arrays need JSON text; Date already serializes to a scalar.
+      row.forEach((value, index) => {
+        if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
+          row[index] = JSON.stringify(value);
+        }
+      });
       this.escapeRowValues(row);
     });
 

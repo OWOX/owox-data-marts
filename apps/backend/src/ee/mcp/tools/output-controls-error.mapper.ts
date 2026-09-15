@@ -55,6 +55,7 @@ const CALCULATED_FIELD_CODES = [
  * claimed by a branch and listed here renders exactly once.
  */
 const RECOGNIZED_CODES = new Set([
+  'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
   'FILTER_COLUMN_UNKNOWN',
   'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
   'AGGREGATION_REQUIRES_COLUMN_CONFIG',
@@ -92,6 +93,7 @@ interface ValidatorErrorEntry {
   function?: string;
   type?: string;
   operator?: string;
+  control?: string;
   aliasPath?: string;
   timeZone?: string;
 }
@@ -140,6 +142,22 @@ export function translateOutputControlsError(
     sections.push({
       code: 'field_not_found',
       message: `${OUTPUT_CONTROLS_VALIDATION_FAILED}. Unknown field(s) in this data mart: ${unknownFilterColumns.join(', ')}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`,
+    });
+  }
+
+  const arrayControls =
+    errors?.filter(e => e.code === 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED') ?? [];
+  if (arrayControls.length > 0) {
+    const uses = [
+      ...new Set(
+        arrayControls.map(
+          e => `'${e.column ?? 'field'}' (${e.type ?? 'array'}): ${e.control ?? 'output control'}`
+        )
+      ),
+    ].join(', ');
+    sections.push({
+      code: 'array_field_column_only',
+      message: `Array fields can only be selected as columns. Remove these uses from filters, slices, sort, aggregations, or date_buckets and retry: ${uses}. The fields themselves may remain in "fields".`,
     });
   }
 

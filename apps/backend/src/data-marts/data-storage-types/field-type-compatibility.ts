@@ -1,6 +1,4 @@
-// Non-joinable (complex) types that should be excluded from join conditions.
-// Covers BigQuery, Snowflake, Redshift, Athena, and Databricks.
-const COMPLEX_TYPES = new Set([
+const NON_PRIMITIVE_TYPES = new Set([
   // BigQuery
   'RECORD',
   'STRUCT',
@@ -18,8 +16,16 @@ const COMPLEX_TYPES = new Set([
   'SUPER',
 ]);
 
+export function isArrayFieldType(type: string | undefined): boolean {
+  const head = type
+    ?.trim()
+    .toUpperCase()
+    .match(/^([A-Z_]+)(?:\s*[<(]|$)/)?.[1];
+  return head === 'ARRAY';
+}
+
 export function isPrimitiveFieldType(type: string): boolean {
-  return !COMPLEX_TYPES.has(type.toUpperCase());
+  return !NON_PRIMITIVE_TYPES.has(type.toUpperCase());
 }
 
 // Types within the same group are considered compatible for join conditions.

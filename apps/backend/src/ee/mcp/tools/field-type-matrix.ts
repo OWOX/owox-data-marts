@@ -7,6 +7,7 @@ import {
   supportedAggregationsForCategory,
 } from '../../../data-marts/dto/schemas/field-aggregation-governance';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
+import { isArrayFieldType } from '../../../data-marts/data-storage-types/field-type-compatibility';
 import {
   ADVERTISED_MCP_OPERATORS,
   BOOLEAN_MCP_OPERATORS,
@@ -117,6 +118,7 @@ export function effectiveMcpAggregations(
     allowedAggregations?: ReportAggregateFunction[];
   }
 ): ReportAggregateFunction[] {
+  if (isArrayFieldType(fieldType)) return [];
   return resolveFieldGovernance(fieldType, explicit).allowedAggregations.filter(fn =>
     MCP_AGG_SET.has(fn)
   );
@@ -128,7 +130,7 @@ const CATEGORY_TYPE_EXAMPLES: Record<FieldTypeCategory, string> = {
   date: 'DATE, DATETIME, TIMESTAMP, …',
   time: 'TIME',
   boolean: 'BOOLEAN',
-  other: 'JSON, ARRAY, STRUCT, GEOGRAPHY, …',
+  other: 'JSON, STRUCT, GEOGRAPHY, …',
 };
 
 /**
@@ -149,5 +151,5 @@ export function buildFieldTypeMatrixSection(): string {
         : defaults.join(', ');
     return `- ${category} (${CATEGORY_TYPE_EXAMPLES[category]}): operators ${ops}; aggregations ${aggs}`;
   });
-  return lines.join('\n');
+  return `${lines.join('\n')}\n- Arrays are column-only: when a field's mode is REPEATED or its type or sliceType is ARRAY (including parameterized ARRAY types), it may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. This overrides all category rules above, including COUNT, ANY_VALUE and blank checks.`;
 }
