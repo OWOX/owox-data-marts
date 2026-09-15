@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
+  AiAssistantDestinationCard,
   DestinationCard,
   EmptyDataMartDestinationsState,
 } from '../../../features/data-marts/reports/list/components';
@@ -84,6 +85,10 @@ function DataMartDestinationsContentInner() {
   const showSheetsUpsellPromo =
     dataDestinations.length > 0 && !hasGoogleSheetsDestination && isPublished;
 
+  // Promote the MCP connection alongside real destinations too, not just on the
+  // empty state — regardless of which destinations are already configured.
+  const showAiAssistantPromo = dataDestinations.length > 0 && isPublished;
+
   if (!dataMart) return null;
 
   return (
@@ -110,6 +115,7 @@ function DataMartDestinationsContentInner() {
               }}
             />
           ))}
+          {showAiAssistantPromo && <AiAssistantDestinationCard />}
           {showSheetsUpsellPromo && (
             <div className='flex flex-col gap-0.5'>
               <PromoBlock
