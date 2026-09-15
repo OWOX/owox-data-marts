@@ -275,6 +275,48 @@ describe('InMemoryPaginatedSearch', () => {
     });
   });
 
+  describe('report references', () => {
+    const report = {
+      dataMart: { id: 'dm-1', title: 'Orders' },
+      dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+    };
+
+    it('returns the indexed report references with the scored entity', async () => {
+      const descriptor = makeDescriptor({
+        entityType: SearchableEntityType.REPORT,
+        entityId: 'rep-1',
+        report,
+      });
+      repository.searchCandidates.mockResolvedValue(makeSinglePage([makeIndexRow(descriptor)]));
+
+      const results = await search.search(
+        SearchableEntityType.REPORT,
+        'proj-1',
+        'revenue',
+        DEFAULT_PROMPT_VEC,
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].report).toEqual(report);
+    });
+
+    it('leaves report references undefined for entities without them', async () => {
+      repository.searchCandidates.mockResolvedValue(
+        makeSinglePage([makeIndexRow(makeDescriptor())])
+      );
+
+      const results = await search.search(
+        SearchableEntityType.DATA_MART,
+        'proj-1',
+        'revenue',
+        DEFAULT_PROMPT_VEC,
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].report).toBeUndefined();
+    });
+  });
+
   describe('keyword scoring component', () => {
     it('scores title match at 100 for a single-token prompt', async () => {
       const descriptor = makeDescriptor({

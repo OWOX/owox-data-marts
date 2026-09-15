@@ -53,6 +53,7 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     dataMartProjectProcessingCron: '0,30 * * * * *',
     dataStorageProjectProcessingCron: '10,40 * * * * *',
     dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    reportProjectProcessingCron: '15,45 * * * * *',
     openRouterEmbeddingModel: 'google/gemini-embedding-2',
     openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,

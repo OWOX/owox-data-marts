@@ -1,30 +1,73 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ArchiveRestore, Box, ChevronRight, DatabaseIcon, Loader2, Search } from 'lucide-react';
+import {
+  ArchiveRestore,
+  Box,
+  ChevronRight,
+  DatabaseIcon,
+  FileText,
+  Loader2,
+  Search,
+} from 'lucide-react';
 import { Input } from '@owox/ui/components/input';
 import { useProjectRoute } from '../../shared/hooks';
 import type { AppIcon } from '../../shared';
+import type { SearchResultResponseDto } from '../../features/search/shared';
 import { useSearch } from './useSearch';
 
-const ENTITY_TYPE_META: Partial<
-  Record<string, { label: string; icon: AppIcon; to: (entityId: string) => string }>
-> = {
+interface EntityTypeMeta {
+  label: string;
+  icon: AppIcon;
+  to: (result: SearchResultResponseDto) => string | null;
+  title?: (result: SearchResultResponseDto) => string;
+  context?: (result: SearchResultResponseDto) => string | null;
+}
+
+const ENTITY_TYPE_META: Partial<Record<string, EntityTypeMeta>> = {
   DATA_MART: {
     label: 'Data Mart',
     icon: Box,
-    to: entityId => `/data-marts/${entityId}/data-setup`,
+    to: result => `/data-marts/${result.entityId}/data-setup`,
   },
   DATA_STORAGE: {
     label: 'Storage',
     icon: DatabaseIcon,
-    to: entityId => `/data-storages?id=${entityId}`,
+    to: result => `/data-storages?id=${result.entityId}`,
   },
   DATA_DESTINATION: {
     label: 'Destination',
     icon: ArchiveRestore,
-    to: entityId => `/data-destinations?id=${entityId}`,
+    to: result => `/data-destinations?id=${result.entityId}`,
+  },
+  REPORT: {
+    label: 'Report',
+    icon: FileText,
+    to: result =>
+      result.report
+        ? `/data-marts/${result.report.dataMart.id}/reports?reportId=${result.entityId}`
+        : null,
+    title: result => result.title || (result.report?.dataDestination.title ?? ''),
+    context: result =>
+      result.report
+        ? `${result.report.dataMart.title} · ${result.report.dataDestination.title}`
+        : null,
   },
 };
+
+function toDisplayItem(result: SearchResultResponseDto) {
+  const meta = ENTITY_TYPE_META[result.entityType];
+  const to = meta?.to(result);
+  if (!meta || !to) return [];
+  return [
+    {
+      result,
+      meta,
+      to,
+      title: meta.title?.(result) ?? result.title,
+      context: meta.context?.(result) ?? null,
+    },
+  ];
+}
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,8 +76,8 @@ export function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { results, isFetching, hasQuery, isError, retry, isDebouncing } = useSearch(query);
   const { scope } = useProjectRoute();
-  const visibleResults = results.filter(result => Boolean(ENTITY_TYPE_META[result.entityType]));
-  const unsupportedCount = results.length - visibleResults.length;
+  const items = results.flatMap(toDisplayItem);
+  const unsupportedCount = results.length - items.length;
   const showLoading = isFetching || isDebouncing;
 
   useEffect(() => {
@@ -88,7 +131,7 @@ export function SearchPage() {
 
       {!hasQuery ? (
         <p className='text-muted-foreground py-12 text-center text-sm'>
-          Start typing to search across data marts, storages, and destinations.
+          Start typing to search across data marts, storages, destinations, and reports.
         </p>
       ) : showLoading ? (
         <p className='text-muted-foreground py-12 text-center text-sm'>Searching…</p>
@@ -114,21 +157,25 @@ export function SearchPage() {
               Some results could not be displayed.
             </p>
           ) : null}
-          {visibleResults.map(result => {
-            const meta = ENTITY_TYPE_META[result.entityType];
-            if (!meta) return null;
+          {items.map(({ result, meta, to, title, context }) => {
             const Icon = meta.icon;
             return (
               <Link
                 key={result.entityId}
-                to={scope(meta.to(result.entityId))}
+                to={scope(to)}
                 className='group hover:bg-muted/60 flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors'
               >
                 <span className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='truncate text-sm font-medium'>{result.title}</span>
-                  <span className='text-muted-foreground flex items-center gap-1 text-xs'>
+                  <span className='truncate text-sm font-medium'>{title}</span>
+                  <span className='text-muted-foreground flex min-w-0 items-center gap-1 text-xs'>
                     <Icon className='size-3.5 shrink-0' aria-hidden='true' />
-                    {meta.label}
+                    <span className='shrink-0'>{meta.label}</span>
+                    {context ? (
+                      <>
+                        <span aria-hidden='true'>·</span>
+                        <span className='truncate'>{context}</span>
+                      </>
+                    ) : null}
                   </span>
                 </span>
                 <ChevronRight className='text-muted-foreground/40 group-hover:text-muted-foreground size-4 shrink-0 transition-colors' />

@@ -15,6 +15,7 @@ import { GetProjectContextTool } from './project-context.tool';
 import { QueryDataMartTool } from './query-data-mart.tool';
 import { RunReportTool } from './run-report.tool';
 import { SearchDataMartsTool } from './search-data-marts.tool';
+import { SearchReportsTool } from './search-reports.tool';
 import { SummarizeDataCatalogTool } from './summarize-data-catalog.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 import { UpdateReportTool } from './update-report.tool';
@@ -24,6 +25,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   SummarizeDataCatalogTool,
   ListDataMartsTool,
   SearchDataMartsTool,
+  SearchReportsTool,
   GetDataMartDetailsTool,
   GetProjectContextTool,
   ListDestinationsTool,

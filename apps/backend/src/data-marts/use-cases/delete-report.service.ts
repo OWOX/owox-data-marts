@@ -7,6 +7,8 @@ import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { ReportService } from '../services/report.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDeletedEvent } from '../events/report-deleted.event';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class DeleteReportService {
@@ -17,7 +19,8 @@ export class DeleteReportService {
     private readonly reportRepository: Repository<Report>,
     private readonly reportService: ReportService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: DeleteReportCommand): Promise<void> {
@@ -47,6 +50,11 @@ export class DeleteReportService {
     const deletedEvent = new ReportDeletedEvent(report);
 
     await this.reportService.deleteReport(report);
+    await this.advancedSearchIndexSync?.scheduleDelete(
+      SearchableEntityType.REPORT,
+      report.id,
+      command.projectId
+    );
 
     this.logger.debug(
       `[Report] Report ${report.id} deleted from database | Emitting report.deleted event`

@@ -26,6 +26,7 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     dataMartProjectProcessingCron: '0,30 * * * * *',
     dataStorageProjectProcessingCron: '10,40 * * * * *',
     dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    reportProjectProcessingCron: '15,45 * * * * *',
     openRouterEmbeddingModel: 'google/gemini-embedding-2',
     openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
@@ -225,6 +226,36 @@ describe('AdvancedSearchService', () => {
     expect(results[0].entityType).toBe(SearchableEntityType.DATA_MART);
     expect(results[0].entityId).toBe('dm-1');
     expect(results[0]).not.toHaveProperty('extendability');
+  });
+
+  it('passes report references through to the search result', async () => {
+    const report = {
+      dataMart: { id: 'dm-1', title: 'Orders' },
+      dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+    };
+    registry.has.mockReturnValue(true);
+    vectorSearch.search.mockResolvedValue([
+      {
+        ...makeScoredEntity('rep-1', 'Monthly revenue'),
+        entityType: SearchableEntityType.REPORT,
+        report,
+      },
+    ]);
+
+    const results = await service.search('proj-1', 'revenue', {
+      ...DEFAULT_SEARCH_OPTIONS,
+      entityTypes: [SearchableEntityType.REPORT],
+    });
+
+    expect(results[0].report).toEqual(report);
+  });
+
+  it('omits the report key for results without references', async () => {
+    vectorSearch.search.mockResolvedValue([makeScoredEntity('dm-1', 'Revenue')]);
+
+    const results = await service.search('proj-1', 'revenue', DEFAULT_SEARCH_OPTIONS);
+
+    expect(results[0]).not.toHaveProperty('report');
   });
 
   it('passes minRelevance from config to vectorSearch', async () => {

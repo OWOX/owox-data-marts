@@ -20,3 +20,8 @@ export class SearchDataStorageProjectReindexTrigger extends SearchProjectReindex
 @Index('idx_search_data_destination_project_reindex_trigger_ready', ['isActive', 'status'])
 @Index('idx_search_data_destination_project_reindex_trigger_project', ['projectId', 'status'])
 export class SearchDataDestinationProjectReindexTrigger extends SearchProjectReindexTrigger {}
+
+@Entity('search_report_project_reindex_triggers')
+@Index('idx_search_report_project_reindex_trigger_ready', ['isActive', 'status'])
+@Index('idx_search_report_project_reindex_trigger_project', ['projectId', 'status'])
+export class SearchReportProjectReindexTrigger extends SearchProjectReindexTrigger {}

@@ -1,4 +1,4 @@
-import { SearchableEntityType } from '../../../common/search/search.facade';
+import { SearchableEntityType, SearchReportRef } from '../../../common/search/search.facade';
 import type { SourceAccessScope } from '../sources/indexable-source.port';
 
 export const VECTOR_SEARCH_PORT = Symbol('VECTOR_SEARCH_PORT');
@@ -13,6 +13,7 @@ export interface ScoredEntity {
   vecScore: number | null;
   extendability: number;
   relevance: number;
+  report?: SearchReportRef;
 }
 
 export interface VectorSearchOptions {

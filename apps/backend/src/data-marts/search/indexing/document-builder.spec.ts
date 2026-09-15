@@ -191,3 +191,25 @@ describe('indexSignature — staleness over the full persisted representation', 
     expect(indexSignature(descriptor())).toBe(indexSignature(descriptor()));
   });
 });
+
+describe('report references', () => {
+  const report = {
+    dataMart: { id: 'dm-1', title: 'Orders' },
+    dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+  };
+
+  it('round-trips report references through the persisted document', () => {
+    expect(parseDocument(buildDocument(descriptor({ report }))).report).toEqual(report);
+  });
+
+  it('omits the report key for entities without references', () => {
+    expect(parseDocument(buildDocument(descriptor()))).not.toHaveProperty('report');
+  });
+
+  it('indexSignature changes when a referenced title changes even if embeddingText is unchanged', () => {
+    const a = descriptor({ report });
+    const b = descriptor({ report: { ...report, dataMart: { id: 'dm-1', title: 'Renamed' } } });
+    expect(embeddingText(a)).toBe(embeddingText(b));
+    expect(indexSignature(a)).not.toBe(indexSignature(b));
+  });
+});

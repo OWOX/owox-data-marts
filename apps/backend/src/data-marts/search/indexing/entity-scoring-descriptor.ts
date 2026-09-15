@@ -1,4 +1,4 @@
-import { SearchableEntityType } from '../../../common/search/search.facade';
+import { SearchableEntityType, SearchReportRef } from '../../../common/search/search.facade';
 
 export type RichTextSlotKind = 'title' | 'context' | 'description';
 export type AtomicTokenSlotKind = 'field';
@@ -26,4 +26,5 @@ export interface EntityScoringDescriptor {
   modifiedAt: Date;
   embeddingText: string;
   isDraft: boolean;
+  report?: SearchReportRef;
 }
