@@ -1,0 +1,1 @@
+export { AiAssistantDestinationCard } from './AiAssistantDestinationCard';
