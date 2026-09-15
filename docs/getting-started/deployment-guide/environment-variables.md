@@ -276,6 +276,33 @@ installed on a given public repository does not block it.
 See the [plugin authoring guide](../../plugins/authoring-guide.md#deploy-with-github-pages) for
 what this means on the plugin side.
 
+## Connector execution limits
+
+These variables bound the cost of running and testing custom (no-code) connectors. All three
+are validated at startup: a value that is not a whole number inside the stated range stops the
+application with a configuration error instead of being silently ignored.
+
+| Variable                              | Purpose                                                                                                                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAX_CONNECTOR_TESTS_PER_PROJECT`     | Concurrent live connector tests (`POST /connectors/custom/test`) a single project may run. Default `3`, range `1`–`1000`. Mirrors `MAX_CONNECTOR_RUNS_PER_PROJECT`, which bounds the same class of work for scheduled runs. |
+| `MAX_CONNECTOR_TESTS_TOTAL`           | Concurrent live connector tests across all projects **on one instance**. Default `10`, range `1`–`1000`. See the per-instance note below.                                                                                    |
+| `CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS` | How often a running connector flushes its accumulated logs and errors to the database, in milliseconds. Default `2000`, range `0`–`3600000`. `0` disables incremental streaming, so logs are written once when the run ends. |
+
+`MAX_CONNECTOR_TESTS_TOTAL` is a **per-instance** limit, not a deployment-wide one — the name
+does not convey this. Each replica counts only the tests it is running itself and knows nothing
+about its peers, so a deployment of N replicas admits up to `MAX_CONNECTOR_TESTS_TOTAL x N`
+connector tests at once. Size the value against what one replica can carry, then multiply by the
+replica count to get the real ceiling on the backing host and on the upstream APIs being called.
+
+Each test spawns a real Node child process that drives outbound HTTP to a host the manifest
+author controls, so both caps bound processes in flight rather than requests per second. The
+per-project cap keeps one project from taking a whole instance; the total cap keeps many
+projects from doing together what none of them can do alone.
+
+Lowering `CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS` increases database write volume for the entire
+duration of every connector run, because each flush rewrites the run's whole log and error
+buffer. Raise it, or set `0`, on deployments where run logs matter less than database load.
+
 ## Troubleshooting
 
 ### Checking Variable Loading

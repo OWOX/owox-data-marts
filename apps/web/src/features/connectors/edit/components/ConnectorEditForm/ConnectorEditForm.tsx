@@ -23,7 +23,7 @@ import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-c
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { RefreshCw } from 'lucide-react';
-import { extractApiError } from '../../../../../app/api/extract-api-error.util';
+import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
 import {
   GOOGLE_SHEETS_CONNECTOR_NAME,
   getAvailableGoogleSheetsSelectedFields,
@@ -33,6 +33,13 @@ import {
   withoutGoogleSheetsSystemFields,
   withGoogleSheetsImportAllColumns,
 } from '../../../shared/utils/google-sheets-fields.utils';
+import { ConnectorBuilderApiService } from '../../../../connector-builder/shared/api/connector-builder-api.service';
+import type { CustomConnectorListItemDto } from '../../../../connector-builder/shared/api/types';
+import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
+import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
+
+const connectorKey = (c: ConnectorListItem) =>
+  c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -57,6 +64,8 @@ export function ConnectorEditForm({
   onDirtyChange,
   isOpen = true,
 }: ConnectorEditFormProps) {
+  const { navigate } = useProjectRoute();
+  const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
@@ -70,6 +79,12 @@ export function ConnectorEditForm({
   const [autoSelectPreviewDefaults, setAutoSelectPreviewDefaults] = useState(true);
   const [fieldsOnlyPreviewError, setFieldsOnlyPreviewError] = useState<string | null>(null);
   const fieldsOnlyPreviewStartedForOpenRef = useRef(false);
+  // The pin submitted for a custom connector's source `version`. `undefined` means
+  // "follow active" (the default for a fresh setup); a number pins that exact
+  // published version. Kept separate from `selectedConnector.version`, which stays
+  // the connector's active-version snapshot — needed by ConnectorVersionControl's
+  // own staleness math — and must not be overwritten by the user's pin choice.
+  const [pinnedVersion, setPinnedVersion] = useState<number | undefined>(undefined);
   const {
     connectors,
     connectorSpecification,
@@ -88,10 +103,23 @@ export function ConnectorEditForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
+  useEffect(() => {
+    const api = new ConnectorBuilderApiService();
+    api
+      .list()
+      .then(setCustomConnectors)
+      .catch(() => {
+        setCustomConnectors([]);
+      });
+  }, []);
+
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
   );
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
+  const isUnpublishedConnector = selectedConnector
+    ? isUnpublishedCustomConnector(selectedConnector)
+    : false;
   const currentConfigurationKey = useMemo(
     () => getGoogleSheetsPreviewConfigurationKey(connectorConfiguration),
     [connectorConfiguration]
@@ -132,21 +160,43 @@ export function ConnectorEditForm({
 
   const totalSteps = steps.length;
 
+  const customAsListItems = useMemo<ConnectorListItem[]>(
+    () =>
+      customConnectors.map(c => ({
+        name: c.name,
+        displayName: c.title || c.name,
+        description: c.description ?? '',
+        logoBase64: c.logo,
+        docUrl: c.docUrl,
+        isCustom: true,
+        id: c.id,
+        version: c.activeVersion ?? undefined,
+      })),
+    [customConnectors]
+  );
+
+  const allConnectors = useMemo(
+    () => [...connectors, ...customAsListItems],
+    [connectors, customAsListItems]
+  );
+
   const loadSpecificationSafely = useCallback(
-    async (connectorName: string) => {
-      if (!loadedSpecifications.has(connectorName) && !loadingSpecification) {
-        setLoadedSpecifications(prev => new Set(prev).add(connectorName));
-        await fetchConnectorSpecification(connectorName);
+    async (connector: ConnectorListItem) => {
+      const key = connectorKey(connector);
+      if (!loadedSpecifications.has(key) && !loadingSpecification) {
+        setLoadedSpecifications(prev => new Set(prev).add(key));
+        await fetchConnectorSpecification(connector);
       }
     },
     [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
   );
 
   const loadFieldsSafely = useCallback(
-    async (connectorName: string) => {
-      if (!loadedFields.has(connectorName)) {
-        setLoadedFields(prev => new Set(prev).add(connectorName));
-        await fetchConnectorFields(connectorName);
+    async (connector: ConnectorListItem) => {
+      const key = connectorKey(connector);
+      if (!loadedFields.has(key)) {
+        setLoadedFields(prev => new Set(prev).add(key));
+        await fetchConnectorFields(connector);
       }
     },
     [loadedFields, fetchConnectorFields]
@@ -155,24 +205,30 @@ export function ConnectorEditForm({
   useEffect(() => {
     if (!preselectedConnector) return;
     if (selectedConnector) return;
-    if (connectors.length === 0) return;
+    if (allConnectors.length === 0) return;
 
-    const found = connectors.find(c => c.name === preselectedConnector);
+    const found = allConnectors.find(c => c.name === preselectedConnector);
     if (found) {
       setSelectedConnector(found);
       setCurrentStep(initialStep ?? 2);
-      void loadSpecificationSafely(found.name);
+      // A never-published custom connector has no manifest to serve: both the
+      // specification and the fields endpoints 404. Selecting it still tells the
+      // step which connector to name in the "publish it first" notice, but the
+      // requests are skipped so the step is not left blank by the failed fetch.
+      if (isUnpublishedCustomConnector(found)) return;
+      // if in full flow ensure fields/spec are loaded:
+      void loadSpecificationSafely(found);
       if (
         !configurationOnly &&
         mode !== 'fields-only' &&
         found.name !== GOOGLE_SHEETS_CONNECTOR_NAME
       ) {
-        void loadFieldsSafely(found.name);
+        void loadFieldsSafely(found);
       }
     }
   }, [
     preselectedConnector,
-    connectors,
+    allConnectors,
     selectedConnector,
     initialStep,
     configurationOnly,
@@ -197,34 +253,57 @@ export function ConnectorEditForm({
       setConnectorConfiguration(source.configuration[0] || {});
       setTarget({ fullyQualifiedName: storage.fullyQualifiedName, isValid: true });
 
-      const existingConnectorDef = connectors.find(c => c.name === source.name);
-      if (existingConnectorDef) {
+      const matchedConnectorDef =
+        source.version !== undefined
+          ? allConnectors.find(c => c.name === source.name && c.isCustom)
+          : allConnectors.find(c => c.name === source.name);
+      if (matchedConnectorDef) {
+        // For pinned custom connectors, carry the saved version so the spec/fields
+        // for that exact published version are loaded.
+        const existingConnectorDef =
+          matchedConnectorDef.isCustom && source.version !== undefined
+            ? { ...matchedConnectorDef, version: source.version }
+            : matchedConnectorDef;
         setSelectedConnector(existingConnectorDef);
+        setPinnedVersion(source.version);
 
-        void loadSpecificationSafely(existingConnectorDef.name);
+        void loadSpecificationSafely(existingConnectorDef);
         if (existingConnectorDef.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
           // Fields power both the Fields step and the data-level reconciliation at save.
-          void loadFieldsSafely(existingConnectorDef.name);
+          void loadFieldsSafely(existingConnectorDef);
         }
       }
     }
 
-    // Configuration-only mode setup
-    if (configurationOnly && connectors.length > 0 && !selectedConnector && !existingConnector) {
+    // Configuration-only mode setup. Skipped when a preselectedConnector is
+    // active — that case is owned entirely by the preselect effect above.
+    // Without this guard, both effects read `selectedConnector === null` in
+    // the same commit once the connector list populates, and this one (being
+    // declared second) wins — overwriting the deep-linked connector with
+    // `connectors[0]` (the alphabetically-first bundled connector).
+    if (
+      configurationOnly &&
+      connectors.length > 0 &&
+      !selectedConnector &&
+      !existingConnector &&
+      !preselectedConnector
+    ) {
       const firstConnector = connectors[0];
       setSelectedConnector(firstConnector);
-      void loadSpecificationSafely(firstConnector.name);
+      void loadSpecificationSafely(firstConnector);
     }
   }, [
     mode,
     existingConnector,
     connectors,
+    allConnectors,
     configurationOnly,
     loading,
     fetchAvailableConnectors,
     loadSpecificationSafely,
     loadFieldsSafely,
     selectedConnector,
+    preselectedConnector,
   ]);
 
   const effectiveDataLevel = useMemo(
@@ -267,16 +346,44 @@ export function ConnectorEditForm({
       setSelectedNode('');
       setSelectedFields([]);
     }
+    setPinnedVersion(undefined);
     setIsDirty(true);
+    const key = connectorKey(connector);
     setLoadedSpecifications(prev => {
       const newSet = new Set(prev);
-      newSet.delete(connector.name);
+      newSet.delete(key);
       return newSet;
     });
-    void loadSpecificationSafely(connector.name);
+    setLoadedFields(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+    void loadSpecificationSafely(connector);
     if (connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
-      void loadFieldsSafely(connector.name);
+      void loadFieldsSafely(connector);
     }
+  };
+
+  const handleChangeVersion = (version?: number) => {
+    if (!selectedConnector) return;
+    setPinnedVersion(version);
+    // connectorKey only varies by id/name, not version — the key is already
+    // marked "loaded" from the initial fetch, so the loadSpecificationSafely/
+    // loadFieldsSafely guards (which key off that same loaded-set) would skip
+    // a refetch here even after we delete the key, since their closures were
+    // captured before this render's setState calls apply. Fetch directly
+    // instead — this handler is an explicit user-triggered refetch, not the
+    // load-once-per-mount case those helpers guard against. fetchConnectorSpecification/
+    // fetchConnectorFields have no duplicate-call guard of their own, so this is
+    // safe only because onChangeVersion is fired solely from an explicit user
+    // click here — a second call site would need its own dedup.
+    const pinnedConnector = { ...selectedConnector, version };
+    const key = connectorKey(pinnedConnector);
+    setLoadedSpecifications(prev => new Set(prev).add(key));
+    setLoadedFields(prev => new Set(prev).add(key));
+    void fetchConnectorSpecification(pinnedConnector);
+    void fetchConnectorFields(pinnedConnector);
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -432,10 +539,7 @@ export function ConnectorEditForm({
 
         return true;
       } catch (error) {
-        const apiError = extractApiError(error) as { message?: string } | undefined;
-        const message =
-          apiError?.message ??
-          (error instanceof Error ? error.message : 'Failed to load Google Sheets columns');
+        const message = apiErrorMessage(error, 'Failed to load Google Sheets columns');
         if (mode === 'fields-only') {
           setFieldsOnlyPreviewError(message);
         }
@@ -574,8 +678,43 @@ export function ConnectorEditForm({
     return field?.destinationName ?? selectedNode;
   };
 
+  // The Configuration step is driven by `connectorSpecification`, which stays null
+  // for a connector with no published version — the backend serves published
+  // manifests only. Say so instead of rendering an empty step.
+  const renderUnpublishedNotice = () => {
+    const builderPath = selectedConnector?.id
+      ? `/connectors/builder/${selectedConnector.id}`
+      : null;
+    return (
+      <div
+        role='alert'
+        className='flex min-h-48 flex-col items-center justify-center gap-3 text-center'
+      >
+        <p className='text-sm font-medium'>{selectedConnector?.displayName}</p>
+        <p className='text-muted-foreground text-sm'>
+          Not published yet — publish it in the builder first.
+        </p>
+        {builderPath && (
+          <Button
+            type='button'
+            size='sm'
+            variant='outline'
+            onClick={() => {
+              navigate(builderPath);
+            }}
+          >
+            Open in builder
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   const renderCurrentStep = () => {
     if (configurationOnly && currentStep === 1) {
+      if (isUnpublishedConnector) {
+        return renderUnpublishedNotice();
+      }
       return connectorSpecification && selectedConnector ? (
         <ConfigurationStep
           connector={selectedConnector}
@@ -679,9 +818,19 @@ export function ConnectorEditForm({
             onConnectorDoubleClick={() => {
               setCurrentStep(prev => (prev < totalSteps ? prev + 1 : prev));
             }}
+            customConnectors={customAsListItems}
+            onCreateNew={() => {
+              navigate('/connectors/builder/new');
+            }}
+            onEditConnector={connector => {
+              if (connector.id) navigate(`/connectors/builder/${connector.id}`);
+            }}
           />
         );
       case 2:
+        if (isUnpublishedConnector) {
+          return renderUnpublishedNotice();
+        }
         return selectedConnector && connectorSpecification ? (
           <ConfigurationStep
             connector={selectedConnector}
@@ -692,6 +841,8 @@ export function ConnectorEditForm({
             loading={loadingSpecification}
             isEditingExisting={false}
             disabled={isGoogleSheetsConnector && loadingFields}
+            pinnedVersion={pinnedVersion}
+            onChangeVersion={handleChangeVersion}
           />
         ) : null;
       case 3:
@@ -797,6 +948,9 @@ export function ConnectorEditForm({
                   configuration: [configuration],
                   node: existingConnector?.source.node ?? selectedNode,
                   fields: isGoogleSheetsConnector ? activeSelectedFields : fieldsForSave,
+                  ...(selectedConnector.isCustom && pinnedVersion !== undefined
+                    ? { version: pinnedVersion }
+                    : {}),
                 },
                 storage: existingConnector?.storage ?? {
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
@@ -849,6 +1003,9 @@ export function ConnectorEditForm({
                   ],
                   node: selectedNode,
                   fields: activeSelectedFields,
+                  ...(selectedConnector.isCustom && pinnedVersion !== undefined
+                    ? { version: pinnedVersion }
+                    : {}),
                 },
                 storage: {
                   fullyQualifiedName: target.fullyQualifiedName,

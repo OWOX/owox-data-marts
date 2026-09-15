@@ -2,15 +2,21 @@ import { DataMartCreateForm, DataMartProvider } from '../../../features/data-mar
 import { DataStorageProvider } from '../../../features/data-storage/shared/model/context';
 import { useProjectRoute } from '../../../shared/hooks';
 import { useDataMartPreset } from '../../../features/data-marts/shared/utils/useDataMartPreset';
+import { useConnectorNameParam } from '../../../features/data-marts/shared/utils/useConnectorNameParam';
 
 export default function CreateDataMartPage() {
   const preset = useDataMartPreset();
+  const connectorName = useConnectorNameParam();
   const { navigate } = useProjectRoute();
 
   const handleSuccess = (response: { id: string }) => {
-    const redirectUrl = preset
-      ? `/data-marts/${response.id}/data-setup?preset=${preset.key}`
-      : `/data-marts/${response.id}/data-setup`;
+    // connectorName takes priority over preset when both are present (see the
+    // matching effect in DataMartConnectorView), so it's carried forward first.
+    const redirectUrl = connectorName
+      ? `/data-marts/${response.id}/data-setup?connectorName=${encodeURIComponent(connectorName)}`
+      : preset
+        ? `/data-marts/${response.id}/data-setup?preset=${preset.key}`
+        : `/data-marts/${response.id}/data-setup`;
     navigate(redirectUrl);
   };
 

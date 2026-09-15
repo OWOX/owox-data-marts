@@ -1,5 +1,15 @@
+import { ConfigService } from '@nestjs/config';
+
+// ConnectorRunService (the recovery sweep, exercised below) decorates `run` with
+// @Transactional(), which needs an initialized transactional context at import time.
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => () => undefined,
+}));
+
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
+import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
+import { ConnectorDefinitionService } from './connector-definition.service';
 
 jest.mock('@owox/connectors', () => ({
   Core: {
@@ -8,15 +18,43 @@ jest.mock('@owox/connectors', () => ({
     }),
     EXECUTION_STATUS: {
       IMPORT_IN_PROGRESS: 1,
+      CLEANUP_IN_PROGRESS: 2,
       IMPORT_DONE: 3,
+      CLEANUP_DONE: 4,
       ERROR: 5,
     },
     GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
+    EVENT_TYPE: {
+      LOG: 'LOG',
+      DATA: 'DATA',
+      TRACE: 'TRACE',
+      ANALYTICS: 'ANALYTICS',
+      STATE: 'STATE',
+      CONTROL: 'CONTROL',
+      CREDENTIALS: 'CREDENTIALS',
+    },
+    LOG_LEVEL: {
+      INFO: 'info',
+      WARN: 'warn',
+      ERROR: 'error',
+    },
+    CONTROL_ACTION: {
+      STARTED: 'started',
+      COMPLETED: 'completed',
+      FAILED: 'failed',
+      PAUSED: 'paused',
+      CANCELLED: 'cancelled',
+    },
   },
 }));
 
+import { Logger } from '@nestjs/common';
+
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
-import { ConnectorExecutorService } from './connector-executor.service';
+import {
+  ConnectorExecutorService,
+  MAX_MERGED_RUN_OUTPUT_ENTRIES,
+} from './connector-executor.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -29,9 +67,12 @@ import { SystemTimeService } from '../../../common/scheduler/services/system-tim
 import { ProjectBillingService } from '../project-billing/project-billing.service';
 import { DataMartService } from '../data-mart.service';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { ProjectBlockedReason } from '../../enums/project-blocked-reason.enum';
+import { ConnectorRunService } from './connector-run.service';
+import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { Repository } from 'typeorm';
 
 describe('ConnectorExecutorService', () => {
@@ -72,6 +113,17 @@ describe('ConnectorExecutorService', () => {
           status: 1,
           at: new Date().toISOString(),
           toFormattedString: () => 'STATUS: IMPORT_IN_PROGRESS',
+        });
+      }
+    };
+
+    const emitErrorMessage = () => {
+      if (capturedOnMessage) {
+        capturedOnMessage({
+          type: ConnectorMessageType.ERROR,
+          at: new Date().toISOString(),
+          error: 'HTTP 429: Too Many Requests',
+          toFormattedString: () => '[ERROR] HTTP 429: Too Many Requests',
         });
       }
     };
@@ -130,9 +182,19 @@ describe('ConnectorExecutorService', () => {
     } as unknown as DataMartService;
 
     const connectorSourceCredentialsService = {
-      updateCredentialFields: jest.fn().mockResolvedValue(undefined),
+      updateCredentialFields: jest
+        .fn()
+        .mockResolvedValue({ credentials: { id: 'cred-1' }, updated: true }),
       getCredentialsById: jest.fn().mockResolvedValue(null),
     } as unknown as ConnectorSourceCredentialsService;
+
+    const connectorDefinitionService = {
+      tryResolveManifest: jest.fn().mockResolvedValue(null),
+    } as unknown as ConnectorDefinitionService;
+
+    const configService = {
+      get: jest.fn((_key: string, def: unknown) => def),
+    } as unknown as ConfigService;
 
     const service = new ConnectorExecutorService(
       dataMartRunRepository,
@@ -147,7 +209,9 @@ describe('ConnectorExecutorService', () => {
       eventDispatcher as unknown as OwoxEventDispatcher,
       projectBilling,
       dataMartService,
-      connectorSourceCredentialsService
+      connectorDefinitionService,
+      connectorSourceCredentialsService,
+      configService
     );
 
     return {
@@ -164,10 +228,13 @@ describe('ConnectorExecutorService', () => {
       eventDispatcher,
       projectBilling,
       dataMartService,
+      connectorDefinitionService,
       emitSuccessMessage,
       emitInProgressMessage,
       connectorSourceCredentialsService,
       emitMessage: (message: unknown) => capturedOnMessage?.(message),
+      emitErrorMessage,
+      configService,
     };
   };
 
@@ -368,6 +435,59 @@ describe('ConnectorExecutorService', () => {
         expect.stringContaining('source field list could not be synchronized'),
       ])
     );
+  });
+
+  it('marks a run FAILED when a terminal IMPORT_DONE is emitted alongside a hard error', async () => {
+    // A per-account 429 (after retries) logs an ERROR, but the connector still
+    // emits IMPORT_DONE. The import is incomplete → the run must NOT be SUCCESS.
+    const { service, dataMartRunRepository, processSpawner, emitSuccessMessage, emitErrorMessage } =
+      createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitErrorMessage();
+      emitSuccessMessage(); // IMPORT_DONE arrives even though an account failed
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    // The terminal write is guarded so a concurrently committed cancel wins, hence the
+    // criteria object rather than a bare id.
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      { id: 'run-1', status: expect.anything() },
+      expect.objectContaining({ status: DataMartRunStatus.FAILED })
+    );
+  });
+
+  it('keeps a run SUCCESS when a recovered-from warning is logged alongside IMPORT_DONE', async () => {
+    // A WARNING is how the engine reports something it RECOVERED from: MicrosoftAds
+    // "Scope … failed, trying next scope…" fires when the NEXT scope succeeds, and
+    // GoogleBigQueryStorage "Reducing batch size" fires when the halved MERGE succeeds.
+    // Demoting on those recorded a completed import as FAILED — which also skipped
+    // billing and fired a failure notification.
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      projectBilling,
+      emitSuccessMessage,
+      emitMessage,
+    } = createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.WARNING,
+        at: new Date().toISOString(),
+        warning: 'Scope ads.read failed, trying next scope...',
+        toFormattedString: () => '[WARNING] Scope ads.read failed, trying next scope...',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      { id: 'run-1', status: expect.anything() },
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
   });
 
   it('does not mark a run successful when only import in-progress status is emitted', async () => {
@@ -600,6 +720,150 @@ describe('ConnectorExecutorService', () => {
     expect(finalUpdate).toBeDefined();
     expect(finalUpdate![1].logs.join()).toContain('pre-interruption log');
     expect(finalUpdate![1].errors.join()).toContain('pre-interruption error');
+  });
+
+  /**
+   * Drives the WHOLE resume path rather than handing the executor a resume flag: the
+   * recovery sweep flips INTERRUPTED -> PENDING and the trigger handler's claim flips
+   * PENDING -> RUNNING, so by the time `executeInBackground` reads the row, INTERRUPTED
+   * is two transitions in the past and no status check can recognise a resume.
+   *
+   * That matters because the incremental flusher REPLACES logs/errors with a snapshot of
+   * the current attempt's buffers. Left enabled on a resumed attempt it overwrites the
+   * earlier attempt's persisted output one interval in, and the terminal merge — which
+   * reads the row it just clobbered — then has nothing left to restore.
+   */
+  it('keeps the first attempt logs when the recovery sweep resumes an interrupted run', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      gracefulShutdownService,
+      configService,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+
+    // One stateful row stands in for the DB across BOTH attempts: the wipe is only
+    // observable when the flusher's write and the terminal merge hit the same row.
+    const row: {
+      status: DataMartRunStatus;
+      logs: string[] | null;
+      errors: string[] | null;
+    } = { status: DataMartRunStatus.RUNNING, logs: null, errors: null };
+    let onIntermediateFlush: () => void = () => undefined;
+
+    (dataMartRunRepository.findOne as jest.Mock).mockImplementation(async () => ({ ...row }));
+    (dataMartRunRepository.update as jest.Mock).mockImplementation(
+      async (criteria: unknown, patch: Record<string, unknown>) => {
+        const expected = (criteria as { status?: { _value?: DataMartRunStatus[] } })?.status
+          ?._value;
+        if (expected && !expected.includes(row.status)) {
+          return { affected: 0 };
+        }
+        if (patch.status) row.status = patch.status as DataMartRunStatus;
+        if (patch.logs !== undefined) row.logs = patch.logs as string[] | null;
+        if (patch.errors !== undefined) row.errors = patch.errors as string[] | null;
+        // A logs write carrying no status is the flusher's intermediate snapshot.
+        if (patch.status === undefined && patch.logs) onIntermediateFlush();
+        return { affected: 1 };
+      }
+    );
+
+    const logMessage = (text: string) => ({
+      type: ConnectorMessageType.LOG,
+      at: '2026-08-01T00:00:00.000Z',
+      message: text,
+      toFormattedString: () => `[LOG] ${text}`,
+    });
+
+    // Attempt 1: the pod is told to stop mid-import, so the run persists what it got
+    // through and is left INTERRUPTED for the sweep.
+    (processSpawner.spawnConnector as jest.Mock).mockImplementationOnce(async () => {
+      emitMessage(logMessage('first attempt: imported 2024-01-01'));
+      (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(row.status).toBe(DataMartRunStatus.INTERRUPTED);
+    expect(row.logs!.join()).toContain('first attempt');
+
+    // The REAL sweep: INTERRUPTED -> PENDING, exactly as it runs on the next boot.
+    const sweepRepository = {
+      find: jest.fn(async ({ where }: { where: { status: DataMartRunStatus; type: string } }) =>
+        where.status === row.status && where.type === DataMartRunType.CONNECTOR
+          ? [
+              {
+                id: 'run-1',
+                dataMartId: 'dm-1',
+                type: DataMartRunType.CONNECTOR,
+                status: row.status,
+                dataMart: { projectId: 'proj-1' },
+                createdById: 'user-1',
+                runType: 'MANUAL',
+                additionalParams: null,
+              },
+            ]
+          : []
+      ),
+      update: jest.fn(
+        async (criteria: { status: DataMartRunStatus }, patch: { status: DataMartRunStatus }) => {
+          if (criteria.status !== row.status) return { affected: 0 };
+          row.status = patch.status;
+          return { affected: 1 };
+        }
+      ),
+    } as unknown as Repository<DataMartRun>;
+    const connectorRunTriggerService = {
+      createTrigger: jest.fn().mockResolvedValue('trigger-1'),
+    } as unknown as ConnectorRunTriggerService;
+
+    await new ConnectorRunService(
+      sweepRepository,
+      connectorRunTriggerService,
+      service
+    ).executeInterruptedRuns();
+
+    expect(row.status).toBe(DataMartRunStatus.PENDING);
+
+    // ...and then the trigger handler's claimRunSlotAtomically: PENDING -> RUNNING
+    // followed by a full reload, which is the entity the executor is handed.
+    row.status = DataMartRunStatus.RUNNING;
+    const resumedRun = createRun({
+      status: row.status,
+      startedAt: new Date('2026-08-01T00:00:00.000Z'),
+      logs: row.logs,
+      errors: row.errors,
+    });
+
+    // Attempt 2 flushes almost immediately instead of after the 2s default, so it
+    // really does write over the row while the run is still going.
+    (configService.get as jest.Mock).mockImplementation((key: string, def: unknown) =>
+      key === 'CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS' ? 1 : def
+    );
+    (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(false);
+
+    // Hold the connector open until an intermediate write has actually landed (or the
+    // resumed attempt proved it makes none), so the outcome is not a race.
+    const flushSettled = new Promise<void>(resolve => {
+      onIntermediateFlush = resolve;
+      setTimeout(resolve, 50);
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage(logMessage('second attempt: imported 2024-01-02'));
+      await flushSettled;
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), resumedRun, null);
+
+    expect(row.status).toBe(DataMartRunStatus.SUCCESS);
+    const persistedLogs = row.logs!.join();
+    expect(persistedLogs).toContain('first attempt: imported 2024-01-01');
+    expect(persistedLogs).toContain('second attempt: imported 2024-01-02');
+    // Preserved once, not duplicated by the merge.
+    expect(row.logs!.filter(entry => entry.includes('first attempt'))).toHaveLength(1);
   });
 
   it('caps merged logs so repeatedly resumed runs cannot grow the column without bound', async () => {
@@ -890,6 +1154,241 @@ describe('ConnectorExecutorService', () => {
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
   });
 
+  describe('multi-configuration run outcome', () => {
+    // A run executes one configuration per account. The run is SUCCESS only when
+    // EVERY configuration succeeded: a partially imported run is not a completed
+    // import, and reporting it green hides the accounts that never landed.
+    const createMultiConfigDataMart = (): DataMart =>
+      createDataMart({
+        definition: {
+          connector: {
+            source: {
+              name: 'TestConnector',
+              node: 'test_node',
+              fields: ['field1'],
+              configuration: [
+                { _id: 'cfg-1', param: 'account-1' },
+                { _id: 'cfg-2', param: 'account-2' },
+              ],
+            },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      });
+
+    // The terminal write can be followed by a logs-only update, so read the last
+    // call that actually carried a status rather than the last call outright.
+    const lastPersistedStatus = (
+      dataMartRunRepository: Repository<DataMartRun>
+    ): DataMartRunStatus | undefined =>
+      (dataMartRunRepository.update as jest.Mock).mock.calls
+        .map(call => call[1]?.status as DataMartRunStatus | undefined)
+        .filter((status): status is DataMartRunStatus => status !== undefined)
+        .pop();
+
+    it('marks a run FAILED when one configuration succeeds and another fails', async () => {
+      const {
+        service,
+        dataMartRunRepository,
+        processSpawner,
+        projectBilling,
+        eventDispatcher,
+        emitSuccessMessage,
+        emitErrorMessage,
+      } = createService();
+      let spawnCount = 0;
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+        spawnCount += 1;
+        if (spawnCount === 1) {
+          emitSuccessMessage();
+        } else {
+          emitErrorMessage();
+        }
+      });
+
+      await service.executeInBackground(createMultiConfigDataMart(), createRun(), null);
+
+      expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.FAILED);
+      // Status and billing part company here on purpose. The run is FAILED because one
+      // configuration did not import, but the other one DID put rows in the warehouse and
+      // that is what consumption measures. Gating billing on the all-success flag made a
+      // connector with one permanently broken account free forever.
+      expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
+      expect(eventDispatcher.publishExternal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ status: 'unsuccessfully' }),
+        })
+      );
+    });
+
+    it('marks a run INTERRUPTED when shutdown cuts it off after a successful configuration', async () => {
+      // The damaging case: one account imported before the pod was told to stop.
+      // Reporting SUCCESS strands every remaining account — the run leaves the
+      // sweep's reach and those accounts are silently never imported.
+      const {
+        service,
+        dataMartRunRepository,
+        processSpawner,
+        gracefulShutdownService,
+        projectBilling,
+        eventDispatcher,
+        emitSuccessMessage,
+      } = createService();
+      let spawnCount = 0;
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+        spawnCount += 1;
+        if (spawnCount === 1) {
+          emitSuccessMessage();
+          return;
+        }
+        // Shutdown begins; the second configuration's process is killed and the
+        // spawner resolves quietly without a terminal status.
+        (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+      });
+
+      await service.executeInBackground(createMultiConfigDataMart(), createRun(), null);
+
+      expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.INTERRUPTED);
+      // The one partially-successful state that must NOT be billed, and the reason billing
+      // keys off the persisted status rather than just "some configuration succeeded": the
+      // sweep resumes this run and the resumed attempt registers consumption itself, so
+      // charging here would bill one import twice.
+      expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      // An interrupted run is going to be resumed, so no outcome webhook may fire.
+      expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+    });
+
+    it('leaves a shutdown-interrupted partially successful run eligible for the recovery sweep', async () => {
+      const {
+        service,
+        dataMartRunRepository,
+        processSpawner,
+        gracefulShutdownService,
+        emitSuccessMessage,
+      } = createService();
+      const state = {
+        current: DataMartRunStatus.RUNNING,
+        statusHistory: [] as DataMartRunStatus[],
+      };
+      stubConditionalUpdate(dataMartRunRepository, state);
+      let spawnCount = 0;
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+        spawnCount += 1;
+        if (spawnCount === 1) {
+          emitSuccessMessage();
+          return;
+        }
+        (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+      });
+
+      await service.executeInBackground(createMultiConfigDataMart(), createRun(), null);
+
+      // Now hand the row the executor actually left behind to the real recovery
+      // sweep. Eligibility is not asserted against a constant: the repository
+      // stub answers the sweep's own query, so the row comes back only if the
+      // executor persisted the status the sweep looks for.
+      const interruptedRow = {
+        id: 'run-1',
+        dataMartId: 'dm-1',
+        type: DataMartRunType.CONNECTOR,
+        status: state.current,
+        dataMart: { projectId: 'proj-1' },
+        createdById: 'user-1',
+        runType: 'MANUAL',
+        additionalParams: null,
+      };
+      const sweepRepository = {
+        find: jest.fn(async ({ where }: { where: { status: DataMartRunStatus; type: string } }) =>
+          where.status === interruptedRow.status && where.type === interruptedRow.type
+            ? [interruptedRow]
+            : []
+        ),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      } as unknown as Repository<DataMartRun>;
+      const connectorRunTriggerService = {
+        createTrigger: jest.fn().mockResolvedValue('trigger-1'),
+      } as unknown as ConnectorRunTriggerService;
+      const runService = new ConnectorRunService(
+        sweepRepository,
+        connectorRunTriggerService,
+        service
+      );
+
+      await runService.executeInterruptedRuns();
+
+      expect(sweepRepository.update).toHaveBeenCalledWith(
+        { id: 'run-1', status: DataMartRunStatus.INTERRUPTED },
+        { status: DataMartRunStatus.PENDING }
+      );
+      expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({ dataMartRunId: 'run-1' })
+      );
+    });
+
+    it('marks a run CANCELLED when the user cancels after one configuration succeeded', async () => {
+      // The user stopped the run and it did not finish its work — CANCELLED says
+      // that, and keeps a deliberate stop out of the failure notifications.
+      const {
+        service,
+        dataMartRunRepository,
+        processSpawner,
+        projectBilling,
+        eventDispatcher,
+        emitSuccessMessage,
+      } = createService();
+      const controller = new AbortController();
+      let spawnCount = 0;
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+        spawnCount += 1;
+        if (spawnCount === 1) {
+          emitSuccessMessage();
+          controller.abort();
+          return;
+        }
+        throw new Error('Connector process was aborted');
+      });
+
+      await service.executeInBackground(
+        createMultiConfigDataMart(),
+        createRun(),
+        null,
+        controller.signal
+      );
+
+      expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.CANCELLED);
+      // Billed, unlike the INTERRUPTED case below: a cancelled run is terminal and is never
+      // resumed, so this is the only attempt those rows will ever be charged for. The
+      // configuration that finished before the cancel landed did deliver its data.
+      expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
+      expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+    });
+
+    it('does not report SUCCESS for a run that executed no configurations', async () => {
+      // Guards the vacuous case: "every configuration succeeded" must not be
+      // satisfied by there being none. The definition schema requires at least
+      // one configuration, so this only bites on unvalidated/legacy rows.
+      const { service, dataMartRunRepository, processSpawner } = createService();
+      const dataMart = createDataMart({
+        definition: {
+          connector: {
+            source: {
+              name: 'TestConnector',
+              node: 'test_node',
+              fields: ['field1'],
+              configuration: [],
+            },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      });
+
+      await service.executeInBackground(dataMart, createRun(), null);
+
+      expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+      expect(lastPersistedStatus(dataMartRunRepository)).toBe(DataMartRunStatus.FAILED);
+    });
+  });
+
   it('only saves allowed credential updates from connector messages', async () => {
     const {
       service,
@@ -921,6 +1420,51 @@ describe('ConnectorExecutorService', () => {
       'proj-1',
       { generated_refresh_token: 'generated-refresh-token' }
     );
+  });
+
+  /**
+   * The guarded write can legitimately match nothing — another run rotated the same
+   * credential first — and when it does, the token this run generated is gone while the
+   * one it was refreshed from has already been invalidated upstream. The import itself
+   * succeeded, so this is not a run failure; it is the reason the NEXT run will fail to
+   * authenticate, and run history is where someone looks for that.
+   */
+  it('records a warning when a rotated credential could not be persisted, without failing the run', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      dataMartRunRepository,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (connectorSourceCredentialsService.updateCredentialFields as jest.Mock).mockResolvedValue({
+      credentials: { id: 'cred-1' },
+      updated: false,
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalRunUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls
+      .map(call => call[1])
+      .find(update => update.status !== undefined && update.status !== DataMartRunStatus.RUNNING);
+
+    // The data landed, so the run is a success — the credential is next run's problem.
+    expect(finalRunUpdate.status).toBe(DataMartRunStatus.SUCCESS);
+    expect((finalRunUpdate.logs as string[]).join('\n')).toMatch(/could not be saved/i);
+    expect(finalRunUpdate.errors).toBeNull();
   });
 
   it('saves credential updates even when connector run fails after token rotation', async () => {
@@ -1149,6 +1693,29 @@ describe('ConnectorExecutorService', () => {
     expect(connectorSourceCredentialsService.updateCredentialFields).not.toHaveBeenCalled();
   });
 
+  it('warns when a rotated credential cannot be persisted because the config has no credential reference', async () => {
+    const { service, connectorSourceCredentialsService } = createService();
+    const dataMart = createDataMart();
+    const configWithoutCredentialReference = getFirstSourceConfig(dataMart);
+    const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+    await service['saveConnectorCredentials'](
+      configWithoutCredentialReference,
+      { generated_refresh_token: 'rt-new' },
+      undefined,
+      dataMart,
+      'run-1',
+      'config-1'
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('has no stored credential'),
+      expect.objectContaining({ configId: 'config-1' })
+    );
+    expect(connectorSourceCredentialsService.updateCredentialFields).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('ignores invalid generated refresh token values from connector messages', async () => {
     const {
       service,
@@ -1234,5 +1801,286 @@ describe('ConnectorExecutorService', () => {
       call => call[1]
     );
     expect(JSON.stringify(persistedRunUpdates)).not.toContain('secret-token');
+  });
+
+  it('forwards manifest with logo stripped for a custom connector', async () => {
+    const { service, processSpawner, connectorDefinitionService } = createService();
+    (connectorDefinitionService.tryResolveManifest as jest.Mock).mockResolvedValue({
+      name: 'CustomConnector',
+      logo: 'data:image/png;base64,abc123',
+      streams: [],
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const seventhArg = (processSpawner.spawnConnector as jest.Mock).mock.calls[0][6];
+    expect(seventhArg).toBeDefined();
+    expect(seventhArg).toHaveProperty('name', 'CustomConnector');
+    expect(seventhArg).not.toHaveProperty('logo');
+    expect(seventhArg).toHaveProperty('streams');
+  });
+
+  it('forwards null manifest for a bundled connector', async () => {
+    const { service, processSpawner, connectorDefinitionService } = createService();
+    (connectorDefinitionService.tryResolveManifest as jest.Mock).mockResolvedValue(null);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const seventhArg = (processSpawner.spawnConnector as jest.Mock).mock.calls[0][6];
+    expect(seventhArg).toBeNull();
+  });
+
+  it('persists REQUESTED_DATE messages to run logs and still updates connector state', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorStateService,
+      dataMartRunRepository,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+    const dataMart = createDataMart();
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.REQUESTED_DATE,
+        at: '2026-05-02T12:00:00.000Z',
+        date: '2026-05-01',
+        toFormattedString: () => '[REQUESTED_DATE] 2026-05-01',
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorStateService.updateState).toHaveBeenCalledWith('dm-1', 'cfg-1', {
+      state: { date: '2026-05-01' },
+      at: '2026-05-02T12:00:00.000Z',
+    });
+
+    const finalRunUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls
+      .map(call => call[1])
+      .find(update => update.status === DataMartRunStatus.SUCCESS);
+
+    expect(finalRunUpdate).toBeDefined();
+    const persistedLogs = (finalRunUpdate.logs as string[]).map(entry => JSON.parse(entry));
+    expect(persistedLogs).toContainEqual(
+      expect.objectContaining({
+        type: ConnectorMessageType.REQUESTED_DATE,
+        date: '2026-05-01',
+        at: '2026-05-02T12:00:00.000Z',
+      })
+    );
+  });
+
+  /**
+   * `addMessageToArray` has always taken a `maxCount`, and not one call site passed one,
+   * so a run's four message buffers grew for the whole of its lifetime. The bound that
+   * matters is not memory: the flusher turns each buffered message into repeated writes
+   * of the whole JSON column, so an unbounded buffer is an unbounded per-write cost.
+   *
+   * The cap is the merged-output cap, because that is the number of entries that can
+   * actually reach the database — `capMergedEntries` discards everything past it at the
+   * terminal write, so buffering more than that was always waste.
+   */
+  it('caps a run-scoped message buffer instead of letting a runaway connector grow it without bound', async () => {
+    const { service, processSpawner, emitMessage, emitSuccessMessage, dataMartRunRepository } =
+      createService();
+    // The per-message logger call is the expensive part of emitting this many, and it is
+    // not what is under test.
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    try {
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        for (let i = 0; i < MAX_MERGED_RUN_OUTPUT_ENTRIES + 5; i++) {
+          emitMessage({
+            type: ConnectorMessageType.LOG,
+            at: '2026-05-02T12:00:00.000Z',
+            message: `line ${i}`,
+            toFormattedString: () => `[LOG] line ${i}`,
+          });
+        }
+        emitSuccessMessage();
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), null);
+
+      const finalRunUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls
+        .map(call => call[1])
+        .find(update => update.status === DataMartRunStatus.SUCCESS);
+      const persistedLogs = finalRunUpdate.logs as string[];
+
+      // The buffer bound and the merged bound have to compose exactly: the buffer's
+      // "cap reached" entry is the last one that fits, so the terminal write has nothing
+      // left to trim and must not claim a previous attempt was truncated.
+      expect(persistedLogs).toHaveLength(MAX_MERGED_RUN_OUTPUT_ENTRIES);
+      expect(persistedLogs[persistedLogs.length - 1]).toContain('Maximum number of messages');
+      expect(persistedLogs[0]).not.toContain('earlier entries from previous attempts');
+    } finally {
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  }, 30000);
+
+  describe('createRunLogFlusher', () => {
+    // Unit-level companion to the sweep-driven resume test above: that one proves the
+    // flag is computed correctly from the real status churn, this one proves the flag
+    // still disables streaming.
+    it('returns null for a run that already carries an earlier attempt output', () => {
+      const { service } = createService();
+
+      const flusher = service['createRunLogFlusher']('run-1', [], [], true);
+      expect(flusher).toBeNull();
+    });
+
+    it('returns a flusher whose write persists the serialized snapshot for a fresh run', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const liveLogs: ConnectorMessage[] = [];
+      const liveErrors: ConnectorMessage[] = [];
+      const flusher = service['createRunLogFlusher']('run-1', liveLogs, liveErrors, false);
+      expect(flusher).not.toBeNull();
+
+      liveLogs.push({
+        type: ConnectorMessageType.LOG,
+        at: '2026-05-02T12:00:00.000Z',
+        message: 'hello',
+        toFormattedString: () => '[LOG] hello',
+      } as unknown as ConnectorMessage);
+
+      await flusher!.flushIfDirty();
+
+      expect(dataMartRunRepository.update).toHaveBeenCalledWith('run-1', {
+        logs: [JSON.stringify(liveLogs[0])],
+        errors: null,
+      });
+    });
+
+    /**
+     * The snapshot used to be `liveLogs.map(JSON.stringify)`: every flush re-serialized
+     * every message the run had produced so far, so a run emitting n messages paid
+     * O(n^2) serialization for the same bytes. Only the entries added since the last
+     * snapshot are new; the rest were serialized on an earlier tick and cannot have
+     * changed, because a buffered message is never mutated after it is pushed.
+     */
+    it('serializes each message once across successive flushes, not the whole buffer every time', async () => {
+      const { service } = createService();
+      const liveLogs: ConnectorMessage[] = [];
+      const flusher = service['createRunLogFlusher']('run-1', liveLogs, [], false)!;
+
+      // A getter is read exactly once per JSON.stringify of its message, which makes
+      // "how many times was this message serialized" directly observable.
+      let reads = 0;
+      const countingMessage = (index: number): ConnectorMessage => {
+        const message = {
+          type: ConnectorMessageType.LOG,
+          at: '2026-05-02T12:00:00.000Z',
+          toFormattedString: () => `[LOG] line ${index}`,
+        } as unknown as ConnectorMessage;
+        Object.defineProperty(message, 'message', {
+          enumerable: true,
+          get: () => {
+            reads += 1;
+            return `line ${index}`;
+          },
+        });
+        return message;
+      };
+
+      for (let i = 0; i < 4; i++) {
+        liveLogs.push(countingMessage(i));
+        await flusher.flushIfDirty();
+      }
+
+      // Four messages, four serializations — not 1 + 2 + 3 + 4.
+      expect(reads).toBe(4);
+    });
+
+    /**
+     * Load-bearing for the terminal de-duplication: `persistedSnapshot()` is subtracted
+     * from the persisted baseline on the assumption that it describes exactly what this
+     * flusher WROTE. A snapshot that aliased the growing buffer would instead describe
+     * the run's final state, and the terminal write would then strip entries that were
+     * never flushed — losing them outright, which `discountFlushedEntries` is explicitly
+     * written to avoid.
+     */
+    it('hands every flush its own snapshot array, so persistedSnapshot() cannot drift with the buffer', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const liveLogs: ConnectorMessage[] = [];
+      const flusher = service['createRunLogFlusher']('run-1', liveLogs, [], false)!;
+      const message = (text: string): ConnectorMessage =>
+        ({
+          type: ConnectorMessageType.LOG,
+          at: '2026-05-02T12:00:00.000Z',
+          message: text,
+          toFormattedString: () => `[LOG] ${text}`,
+        }) as unknown as ConnectorMessage;
+
+      liveLogs.push(message('first'));
+      await flusher.flushIfDirty();
+      const firstWrite = (dataMartRunRepository.update as jest.Mock).mock.calls[0][1] as {
+        logs: string[];
+      };
+
+      liveLogs.push(message('second'));
+      await flusher.flushIfDirty();
+
+      expect(firstWrite.logs).toHaveLength(1);
+      expect(flusher.persistedSnapshot()?.logs).toHaveLength(2);
+    });
+
+    /**
+     * The flusher and the terminal write describe the SAME execution: the flusher
+     * replaces the row's logs with a live snapshot as the run goes, and
+     * `updateRunStatus` then concatenates its own captured output onto whatever is
+     * persisted — which by then is that snapshot. Every message the flusher managed to
+     * write therefore lands a second time, doubling run history, halving the effective
+     * 6 MiB output budget, and repeating each error in the failure notification.
+     *
+     * A stateful repository double is what makes this observable: with `findOne`
+     * hard-wired to null the two writes never meet.
+     */
+    it('does not persist a message the flusher already wrote a second time', async () => {
+      const { service, dataMartRunRepository, processSpawner, configService, emitSuccessMessage } =
+        createService();
+
+      const row: { logs: string[] | null; errors: string[] | null } = { logs: null, errors: null };
+      (dataMartRunRepository.findOne as jest.Mock).mockImplementation(async () => ({ ...row }));
+
+      let resolveFlushed: () => void = () => undefined;
+      const flushed = new Promise<void>(resolve => {
+        resolveFlushed = resolve;
+      });
+      (dataMartRunRepository.update as jest.Mock).mockImplementation(
+        async (_criteria: unknown, patch: Record<string, unknown>) => {
+          if (patch.logs !== undefined) row.logs = patch.logs as string[] | null;
+          if (patch.errors !== undefined) row.errors = patch.errors as string[] | null;
+          // A logs write with no status is the flusher's intermediate snapshot.
+          if (patch.status === undefined && patch.logs) resolveFlushed();
+          return { affected: 1 };
+        }
+      );
+
+      // Flush almost immediately instead of after the 2s default, so the run really
+      // does have an intermediate write for the terminal one to collide with.
+      (configService.get as jest.Mock).mockImplementation((key: string, def: unknown) =>
+        key === 'CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS' ? 1 : def
+      );
+
+      // Hold the connector open until the flusher has actually persisted a snapshot,
+      // so the collision is deterministic rather than a race against the interval.
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+        emitSuccessMessage();
+        await flushed;
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), null);
+
+      // Exactly one message was emitted by the run, so exactly one entry may be stored.
+      expect(row.logs).toEqual([expect.stringContaining('"status":3')]);
+      expect(row.errors).toBeNull();
+    });
   });
 });

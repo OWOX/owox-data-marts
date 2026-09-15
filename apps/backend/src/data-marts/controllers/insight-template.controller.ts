@@ -99,7 +99,7 @@ export class InsightTemplateController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateDomainCommand(dataMartId, context, dto);
     const insightTemplate = await this.createInsightTemplateService.run(command);
-    return this.mapper.toResponse(insightTemplate);
+    return this.mapper.toResponse(insightTemplate, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -128,7 +128,7 @@ export class InsightTemplateController {
     const command = this.mapper.toGetCommand(insightTemplateId, dataMartId, context);
     const insightTemplate = await this.getInsightTemplateService.run(command);
 
-    return this.mapper.toResponse(insightTemplate);
+    return this.mapper.toResponse(insightTemplate, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -143,7 +143,7 @@ export class InsightTemplateController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateCommand(insightTemplateId, dataMartId, context, dto);
     const insightTemplate = await this.updateInsightTemplateService.run(command);
-    return this.mapper.toResponse(insightTemplate);
+    return this.mapper.toResponse(insightTemplate, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -158,7 +158,7 @@ export class InsightTemplateController {
     await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateTitleCommand(insightTemplateId, dataMartId, context, dto);
     const insightTemplate = await this.updateInsightTemplateTitleService.run(command);
-    return this.mapper.toResponse(insightTemplate);
+    return this.mapper.toResponse(insightTemplate, context.projectId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

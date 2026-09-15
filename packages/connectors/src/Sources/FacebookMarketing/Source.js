@@ -5,22 +5,23 @@
  * file that was distributed with this source code.
  */
 
-/* eslint-disable no-unused-vars, no-undef */
-var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSource {
+import { AbstractSource } from '../../Core/AbstractSource.js';
 
-  //---- constructor -------------------------------------------------
-  constructor(config) {
-    super(config.mergeParameters({
+export class FacebookMarketingSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       AuthType: {
-        requiredType: "object",
-        label: "Auth Type",
-        description: "Authentication type",
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
         isRequired: true,
         oneOf: [
           {
-            label: "OAuth2",
-            value: "oauth2",
-            requiredType: "object",
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -29,122 +30,170 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
                   required: true,
                   store: 'env',
                   key: 'OAUTH_FACEBOOK_MARKETING_APP_ID',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 AppSecret: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_FACEBOOK_MARKETING_APP_SECRET',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
                 Scopes: {
                   type: 'string',
                   store: 'env',
                   key: 'OAUTH_FACEBOOK_MARKETING_SCOPE',
                   default: 'ads_read,ads_management',
-                  attributes: [OAUTH_CONSTANTS.UI]
-                }
+                  attributes: [OAUTH_CONSTANTS.UI],
+                },
               },
               mapping: {
                 AccessToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'accessToken'
-                }
-              }
+                  key: 'accessToken',
+                },
+              },
             },
             items: {
               AccessToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Access Token",
-                description: "Facebook API Access Token for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Access Token',
+                description: 'Facebook API Access Token for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               AppId: {
-                requiredType: "string",
-                label: "App ID",
-                description: "Facebook API App ID for exchange token",
+                requiredType: 'string',
+                label: 'App ID',
+                description: 'Facebook API App ID for exchange token',
               },
               AppSecret: {
-                requiredType: "string",
-                label: "App Secret",
-                description: "Facebook API App Secret for exchange token",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'App Secret',
+                description: 'Facebook API App Secret for exchange token',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
-            }
-          }
-        ]
+            },
+          },
+        ],
       },
       AccessToken: {
-        requiredType: "string",
-        label: "Access Token",
-        description: "Facebook API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Access Token',
+        description: 'Facebook API Access Token for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       AccountIDs: {
         isRequired: true,
-        label: "Account IDs",
-        description: "Facebook Ad Account IDs to fetch data from"
+        label: 'Account IDs',
+        description: 'Facebook Ad Account IDs to fetch data from',
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       Fields: {
         isRequired: true,
-        label: "Fields",
-        description: "List of fields to fetch from Facebook API"
+        label: 'Fields',
+        description: 'List of fields to fetch from Facebook API',
       },
       ProcessShortLinks: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Process Short Links",
-        description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Process Short Links',
+        description:
+          'Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API (true/false)",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Create Empty Tables',
+        description:
+          'Create tables with all columns even if no data is returned from API (true/false)',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       Limit: {
-        requiredType: "number",
+        requiredType: 'number',
         default: 100,
-        label: "API Page Limit",
-        description: "Maximum number of records per API request page. Reduce this value (e.g. to 25) if you encounter 'reduce the amount of data' errors for specific accounts",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
+        label: 'API Page Limit',
+        description:
+          "Maximum number of records per API request page. Reduce this value (e.g. to 25) if you encounter 'reduce the amount of data' errors for specific accounts",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = FacebookMarketingFieldsSchema;
+  }
 
+  // Insights nodes filter by `time_range={since, until}` of a single day — fetch one day per call.
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
+
+  /**
+   * Parse comma/semicolon-separated AccountIDs into [{ id }, ...].
+   */
+  getAccounts(context) {
+    const accountIdsParam = context.getParameter('AccountIDs');
+    if (!accountIdsParam?.value) return [null];
+    return String(accountIdsParam.value)
+      .split(/[,;]/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(id => ({ id }));
+  }
+
+  /**
+   * Parse "node1 fieldA, node1 fieldB, node2 fieldC" → { node1: ['fieldA','fieldB'], node2: ['fieldC'] }.
+   * Note the format uses space (not dot) as the node/field separator — different from
+   * AbstractSource's default parser. Ported verbatim from legacy Connector.js.
+   */
+  parseFields(context) {
+    const fieldsValue = context.getParameter('Fields')?.value;
+    if (!fieldsValue) return {};
+    return String(fieldsValue)
+      .split(', ')
+      .reduce((acc, pair) => {
+        const [key, value] = pair.split(' ');
+        if (!key || !value) return acc;
+        (acc[key] = acc[key] || []).push(value.trim());
+        return acc;
+      }, {});
   }
 
   async exchangeOauthCredentials(credentials, variables) {
@@ -152,11 +201,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       const debugUrl = new URL('https://graph.facebook.com/debug_token');
       debugUrl.searchParams.set('input_token', credentials.accessToken);
       debugUrl.searchParams.set('access_token', `${variables.AppId}|${variables.AppSecret}`);
-      const debugResponse = await HttpUtils.fetch(debugUrl.toString());
-      const debugData = await debugResponse.getAsJson();
+      const debugResponse = await fetch(debugUrl.toString());
+      const debugData = await debugResponse.json();
 
       if (!debugData.data?.is_valid) {
-        throw new OauthFlowException({ message: 'Invalid token', payload: debugData.data?.error?.message });
+        throw new OauthFlowException({
+          message: 'Invalid token',
+          payload: debugData.data?.error?.message,
+        });
       }
 
       const exchangeUrl = new URL('https://graph.facebook.com/v25.0/oauth/access_token');
@@ -164,29 +216,29 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       exchangeUrl.searchParams.set('client_id', variables.AppId);
       exchangeUrl.searchParams.set('client_secret', variables.AppSecret);
       exchangeUrl.searchParams.set('fb_exchange_token', credentials.accessToken);
-      const longLivedResponse = await HttpUtils.fetch(exchangeUrl.toString());
-      const longLivedData = await longLivedResponse.getAsJson();
+      const longLivedResponse = await fetch(exchangeUrl.toString());
+      const longLivedData = await longLivedResponse.json();
 
       if (longLivedData.error) {
         throw new OauthFlowException({
           message: 'Failed to exchange token',
-          payload: longLivedData.error.message
+          payload: longLivedData.error.message,
         });
       }
 
       if (!longLivedData.access_token) {
         throw new OauthFlowException({
-          message: 'Missing access_token in exchange response'
+          message: 'Missing access_token in exchange response',
         });
       }
 
       const userInfoUrl = new URL('https://graph.facebook.com/v25.0/me');
       userInfoUrl.searchParams.set('fields', 'id,name');
       userInfoUrl.searchParams.set('access_token', longLivedData.access_token);
-      const userInfo = await HttpUtils.fetch(userInfoUrl.toString());
-      const userInfoData = await userInfo.getAsJson();
+      const userInfo = await fetch(userInfoUrl.toString());
+      const userInfoData = await userInfo.json();
 
-      const expiresIn = longLivedData.expires_in ?? (60 * 60 * 24 * 60);
+      const expiresIn = longLivedData.expires_in ?? 60 * 60 * 24 * 60;
       const oauthCredentials = OauthCredentialsDto.builder()
         .withUser({ id: userInfoData.id, name: userInfoData.name })
         .withSecret({ accessToken: longLivedData.access_token })
@@ -195,8 +247,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       const adAccountsUrl = new URL('https://graph.facebook.com/v25.0/me/adaccounts');
       adAccountsUrl.searchParams.set('fields', 'id,name,account_status');
       adAccountsUrl.searchParams.set('access_token', longLivedData.access_token);
-      const adAccountsResponse = await HttpUtils.fetch(adAccountsUrl.toString());
-      const adAccountsData = await adAccountsResponse.getAsJson();
+      const adAccountsResponse = await fetch(adAccountsUrl.toString());
+      const adAccountsData = await adAccountsResponse.json();
 
       if (adAccountsData.error) {
         oauthCredentials.withWarnings([adAccountsData.error.message]);
@@ -208,7 +260,10 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       if (error instanceof OauthFlowException) {
         throw error;
       }
-      throw new OauthFlowException({ message: 'Failed to exchange Facebook tokens', payload: error.message });
+      throw new OauthFlowException({
+        message: 'Failed to exchange Facebook tokens',
+        payload: error.message,
+      });
     }
   }
 
@@ -221,7 +276,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     }
 
     const oauthConfig = authTypeConfig.oauth2 || {};
-    const hasStoredCredential = OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
+    const hasStoredCredential =
+      OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
 
     if (hasStoredCredential) {
       const fiveDaysFromNow = Date.now() + 5 * 24 * 60 * 60 * 1000;
@@ -246,13 +302,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     }
   }
 
-  //---- isValidToRetry ----------------------------------------------
   /**
-   * Determines if a Facebook API error is valid for retry
-   * Based on Facebook error codes
-   *
-   * @param {HttpRequestException} error - The error to check
-   * @return {boolean} True if the error should trigger a retry, false otherwise
+   * Determines if a Facebook API error is valid for retry based on Facebook error codes.
    */
   isValidToRetry(error) {
     const { retry, reason } = this._evaluateRetry(error);
@@ -260,12 +311,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     return retry;
   }
 
-  //---- _evaluateRetry --------------------------------------------
   /**
    * The retry decision itself, without logging, so _isAuthError can consult it
    * without emitting a second entry for the same error.
    *
-   * @param {HttpRequestException} error - The error to judge
+   * @param {Error} error - The error to judge
    * @return {{retry: boolean, reason: string}} Decision and the inputs behind it
    */
   _evaluateRetry(error) {
@@ -290,28 +340,27 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
     return {
       retry: fbErr.is_transient === true || codeRetryable || subcodeRetryable,
-      reason: `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} `
-        + `codeRetryable=${codeRetryable} subcodeRetryable=${subcodeRetryable}`,
+      reason:
+        `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} ` +
+        `codeRetryable=${codeRetryable} subcodeRetryable=${subcodeRetryable}`,
     };
   }
 
-  //---- _logRetryDecision -----------------------------------------
   /**
-   * Records why a retry decision was made, as a single structured log entry.
-   * Goes through config.logMessage rather than console.log so it stays one entry
-   * in the run log JSON — raw console writes are split per line by the backend.
+   * Records why a retry decision was made, as a single structured log entry —
+   * raw console writes are split into a separate run-log entry per line.
    *
-   * @param {HttpRequestException} error - The error being judged
+   * @param {Error} error - The error being judged
    * @param {string} reason - The inputs behind the decision
    * @param {boolean} retry - The decision itself
    */
   _logRetryDecision(error, reason, retry) {
-    this.config.logMessage(
+    this.context.log(
+      LOG_LEVEL.INFO,
       `Facebook retry check: statusCode=${error.statusCode} ${reason} -> retry=${retry}`
     );
   }
 
-  //---- _isAuthError ----------------------------------------------
   /**
    * Facebook returns OAuth/session/permission errors as HTTP 400 with
    * error.type 'OAuthException' (session expired, password changed, app
@@ -323,7 +372,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * which of those are transient, defer to the retry logic: if it would have
    * retried, exhausting the attempts is a real failure worth alerting on.
    *
-   * @param {HttpRequestException} error - The error to check
+   * @param {Error} error - The error to check
    * @return {boolean} True if this is an authentication/authorization failure
    */
   _isAuthError(error) {
@@ -333,45 +382,38 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
   }
 
-  //---- fetchData -------------------------------------------------
-  /*
-  @param nodeName string
-  @param accountId string
-  @param fields array
-  @param startDate date
-
-  @return data array
-
-  */
-  async fetchData(nodeName, accountId, fields, startDate = null, onPageFetched = null) {
-
-    //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
-
+  /**
+   * Single entry point for *all* fetches.
+   * AbstractConnector calls us with { nodeName, fields, accountId, startDate, endDate }
+   * once per (account × node × day) for time-series, or once per (account × node) for catalog.
+   * Under 'day-by-day' strategy, startDate === endDate (YYYY-MM-DD) for time-series nodes.
+   */
+  async fetchData({ nodeName, accountId, fields = [], startDate, endDate }) {
     let url = 'https://graph.facebook.com/v25.0/';
-
-    let formattedDate = null;
     let timeRange = null;
 
     if (startDate) {
-      formattedDate = DateUtils.formatDate(startDate);
-      timeRange = encodeURIComponent(JSON.stringify({ since: formattedDate, until: formattedDate }));
+      // startDate is already a YYYY-MM-DD string from AbstractConnector
+      timeRange = encodeURIComponent(JSON.stringify({ since: startDate, until: startDate }));
     }
+
+    const limit = this.context.getParameter('Limit')?.value;
 
     switch (nodeName) {
       case 'ad-account':
-        url += `act_${accountId}?fields=${fields.join(",")}`;
+        url += `act_${accountId}?fields=${fields.join(',')}`;
         break;
 
       case 'ad-account-user':
-        url += `act_${accountId}/?fields=${fields.join(",")}`;
+        url += `act_${accountId}/?fields=${fields.join(',')}`;
         break;
 
       case 'ad-account/ads':
-        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.config.Limit.value}`;
+        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${limit}`;
         break;
 
       case 'ad-account/adcreatives':
-        url += `act_${accountId}/adcreatives?fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
+        url += `act_${accountId}/adcreatives?fields=${fields.join(',')}&limit=${limit}`;
         break;
 
       case 'ad-account/insights':
@@ -387,23 +429,20 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         return await this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
       case 'ad-group':
-        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.config.Limit.value}`;
+        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${limit}`;
         break;
 
       default:
-        throw new Error(`End point for ${nodeName} is not implemented yet. Feel free add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`);
+        throw new Error(
+          `End point for ${nodeName} is not implemented yet. Feel free add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`
+        );
     }
-
-    console.log(`Facebook API URL:`, url);
 
     url += `&access_token=${this._getAccessToken()}`;
 
-    return await this._fetchPaginatedData(url, nodeName, fields, onPageFetched);
-
+    return await this._fetchPaginatedData(url, nodeName, fields);
   }
 
-
-  //---- castRecordFields -------------------------------------------------
   /**
    * Cast of record fields to the types defined in schema
    *
@@ -414,31 +453,32 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    *
    */
   castRecordFields(nodeName, record) {
-
-    for (var field in record) {
-      if (field in this.fieldsSchema[nodeName]["fields"]
-        && "type" in this.fieldsSchema[nodeName]["fields"][field]) {
-
+    for (const field in record) {
+      if (
+        field in this.fieldsSchema[nodeName]['fields'] &&
+        'type' in this.fieldsSchema[nodeName]['fields'][field]
+      ) {
         // Facebook omits empty metrics from the response; don't coerce missing
         // values into NaN (parseFloat(undefined) === NaN) — keep them null.
-        if (record[field] === null || record[field] === undefined || record[field] === "") {
+        if (record[field] === null || record[field] === undefined || record[field] === '') {
           record[field] = null;
           continue;
         }
 
-        let type = this.fieldsSchema[nodeName]["fields"][field]["type"];
+        let type = this.fieldsSchema[nodeName]['fields'][field]['type'];
 
         switch (true) {
-
           case type == DATA_TYPES.DATE:
-            record[field] = DateUtils.parseDate(record[field] ? record[field] + "T00:00:00Z" : null);
+            record[field] = DateUtils.parseDate(
+              record[field] ? record[field] + 'T00:00:00Z' : null
+            );
             break;
 
-          case type == DATA_TYPES.STRING && (field.slice(-3) == "_id" || field == "id"):
+          case type == DATA_TYPES.STRING && (field.slice(-3) == '_id' || field == 'id'):
             record[field] = String(record[field]);
             break;
 
-          case type == DATA_TYPES.NUMBER && (field.slice(-5) == "spend"):
+          case type == DATA_TYPES.NUMBER && field.slice(-5) == 'spend':
             record[field] = parseFloat(record[field]);
             break;
 
@@ -468,17 +508,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     return record;
   }
 
-  //---- _fetchInsightsData ------------------------------------------------
   /**
-   * Fetch insights data with breakdown support
-   *
-   * @param {Object} params - Parameters object
-   * @param {string} params.nodeName - Node name
-   * @param {string} params.accountId - Account ID
-   * @param {Array} params.fields - Fields to fetch
-   * @param {string} params.timeRange - Time range parameter
-   * @param {string} params.url - Base URL
-   * @return {Array} Processed insights data
+   * Fetch insights data with breakdown support.
    * @private
    */
   async _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
@@ -493,16 +524,20 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       timeRange,
       nodeName,
       level,
-      url
+      url,
     });
 
     const allData = await this._fetchPaginatedData(requestUrl, nodeName, fields);
 
     // Process short links if link_url_asset data is present
-    if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
+    if (
+      this.context.getParameter('ProcessShortLinks')?.value &&
+      allData.length > 0 &&
+      allData.some(record => record.link_url_asset)
+    ) {
       return processShortLinks(allData, {
         shortLinkField: 'link_url_asset',
-        urlFieldName: 'website_url'
+        urlFieldName: 'website_url',
       });
     }
 
@@ -510,68 +545,42 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   }
 
   _getAccessToken() {
-    // if oauth2, use the entered access token
-    if (this.config.AuthType.value && this.config.AuthType.value === 'oauth2') {
-      return this.config.AuthType.items?.AccessToken?.value;
+    const authType = this.context.getParameter('AuthType');
+    if (authType?.value && authType.value === 'oauth2') {
+      return authType.items?.AccessToken?.value;
     }
-    return this.config.AccessToken.value;
+    return this.context.getParameter('AccessToken')?.value;
   }
 
-  //---- _prepareFields --------------------------------------
   /**
-   * Filter and prepare fields for API request
-   * Filters out fields that don't exist in schema and removes breakdown fields
-   * Breakdowns are passed separately in &breakdowns= parameter, not in &fields=
-   *
-   * @param {Object} params - Parameters object
-   * @param {string} params.nodeName - Node name
-   * @param {Array} params.fields - All fields
-   * @param {Array} params.breakdowns - Breakdown fields to exclude
-   * @return {Array} Regular fields ready for API request
+   * Filter fields to those that exist in schema, excluding breakdown fields.
+   * Breakdowns are passed separately in `&breakdowns=`.
    * @private
    */
   _prepareFields({ nodeName, fields, breakdowns }) {
-    return fields.filter(field =>
-      this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
+    return fields.filter(
+      field => this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
     );
   }
 
-  //---- _buildInsightsUrl ------------------------------------------------
   /**
-   * Build insights URL for request
-   *
-   * @param {Object} params - Parameters object
-   * @param {string} params.accountId - Account ID
-   * @param {Array} params.fields - Fields to fetch
-   * @param {Array} params.breakdowns - Breakdown fields
-   * @param {string} params.timeRange - Time range
-   * @param {string} params.nodeName - Node name
-   * @param {string} params.url - Base URL
-   * @return {string} Complete URL
+   * Build insights URL for request.
    * @private
    */
   _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, level, url }) {
-    let insightsUrl = `${url}act_${accountId}/insights?level=${level}&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
+    const limit = this.context.getParameter('Limit')?.value;
+    let insightsUrl = `${url}act_${accountId}/insights?level=${level}&period=day&time_range=${timeRange}&fields=${fields.join(',')}&limit=${limit}`;
     if (breakdowns.length > 0) {
-      insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
+      insightsUrl += `&breakdowns=${breakdowns.join(',')}`;
     }
-
-    console.log(`Facebook API URL:`, insightsUrl);
 
     insightsUrl += `&access_token=${this._getAccessToken()}`;
     return insightsUrl;
   }
 
-  //---- _buildFieldsString ------------------------------------------------
   /**
-   * Build fields string for Facebook API request
-   * Filters out fields that don't exist in schema
-   * Handles nested fields using Facebook's syntax: parent{field1,field2}
-   *
-   * @param {Object} params - Parameters object
-   * @param {string} params.nodeName - Node name
-   * @param {Array} params.fields - Fields to fetch
-   * @return {string} Fields string for API request
+   * Build fields string for Facebook API request, supporting nested fields via apiName.
+   * Filters out fields not in schema.
    * @private
    */
   _buildFieldsString({ nodeName, fields }) {
@@ -579,17 +588,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     const regularFields = [];
     const skippedFields = [];
 
-    // First, filter fields that exist in schema
     for (const field of fields) {
       const fieldConfig = this.fieldsSchema[nodeName].fields[field];
 
-      // Skip fields that don't exist in schema
       if (!fieldConfig) {
         skippedFields.push(field);
         continue;
       }
 
-      // Check if field has nested structure (apiName with dot notation)
       if (fieldConfig.apiName && fieldConfig.apiName.includes('.')) {
         const [parent, ...childParts] = fieldConfig.apiName.split('.');
         const child = childParts.join('.');
@@ -603,15 +609,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       }
     }
 
-    // Log skipped fields for debugging
     if (skippedFields.length > 0) {
-      console.log(`Skipped fields not found in ${nodeName} schema:`, skippedFields.join(', '));
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Skipped fields not found in ${nodeName} schema: ${skippedFields.join(', ')}`
+      );
     }
 
-    // Build final fields array
     const finalFields = [...regularFields];
-
-    // Add nested fields in format: parent{field1,field2}
     for (const [parent, children] of Object.entries(nestedFields)) {
       finalFields.push(`${parent}{${children.join(',')}}`);
     }
@@ -619,16 +624,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     return finalFields.join(',');
   }
 
-  //---- _mapResultToColumns -----------------------------------------------
   /**
-   * Map API result to requested column names
-   * Only includes fields that exist in schema and were requested
-   * Handles nested fields using apiName mapping
-   *
-   * @param {Object} result - API response result
-   * @param {string} nodeName - Node name for schema lookup
-   * @param {Array<string>} requestedFields - Fields that were requested
-   * @return {Object} Mapped result with only requested columns
+   * Map API result to requested column names. Handles nested fields via apiName.
    * @private
    */
   _mapResultToColumns(result, nodeName, requestedFields) {
@@ -636,17 +633,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
     for (const fieldName of requestedFields) {
       const fieldConfig = this.fieldsSchema[nodeName].fields[fieldName];
+      if (!fieldConfig) continue;
 
-      if (!fieldConfig) {
-        continue;
-      }
-
-      // Check if field has nested structure (apiName)
       if (fieldConfig.apiName) {
-        // Get value from nested API response (e.g. creative.id)
         mapped[fieldName] = this._getNestedValue(result, fieldConfig.apiName);
       } else {
-        // Regular field - get directly from result
         mapped[fieldName] = result[fieldName];
       }
     }
@@ -654,77 +645,46 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     return mapped;
   }
 
-  //---- _getNestedValue ---------------------------------------------------
   /**
-   * Get nested value from object using dot-notation path
-   * @param {Object} obj - Object to search in
-   * @param {string} path - Dot-notation path (e.g. 'creative.id')
-   * @return {*} Value at path or undefined
+   * Get nested value from object using dot-notation path.
    * @private
    */
   _getNestedValue(obj, path) {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 
-  //---- _fetchPaginatedData -----------------------------------------------
   /**
-   * Fetch paginated data from Facebook API
-   *
-   * @param {string} initialUrl - Initial URL to fetch
-   * @param {string} nodeName - Node name for field casting
-   * @param {Array} fields - Fields that were requested
-   * @param {Function|null} onPageFetched - Optional async callback invoked with each page's records, allowing progressive saves during pagination
-   * @return {Array} All fetched data
+   * Fetch paginated data from Facebook API. Returns full collected dataset.
    * @private
    */
-  async _fetchPaginatedData(initialUrl, nodeName, fields, onPageFetched = null) {
-    var allData = [];
-    var nextPageURL = initialUrl;
+  async _fetchPaginatedData(initialUrl, nodeName, fields) {
+    let allData = [];
+    let nextPageURL = initialUrl;
 
     while (nextPageURL) {
-      // Fetch data from the JSON URL
-      var response = await this.urlFetchWithRetry(nextPageURL);
-      var text = await response.getContentText();
-      var jsonData = JSON.parse(text);
+      const response = await this.urlFetchWithRetry(nextPageURL);
+      const jsonData = await response.json();
 
-      // This node point returns a result in the data property, which might be paginated
-      if ("data" in jsonData) {
-
+      if ('data' in jsonData) {
         nextPageURL = jsonData.paging ? jsonData.paging.next : null;
-        //nextPageURL = null;
 
         jsonData.data.forEach((record, index) => {
-          // Map to requested columns only (excludes unwanted nested objects)
           let mappedRecord = this._mapResultToColumns(record, nodeName, fields);
-          // Then cast fields to proper types
           mappedRecord = this.castRecordFields(nodeName, mappedRecord);
           jsonData.data[index] = mappedRecord;
         });
 
-        if (onPageFetched) {
-          await onPageFetched(jsonData.data);
-        }
-
         allData = allData.concat(jsonData.data);
-
-        // this is non-paginated result
       } else {
+        // Non-paginated single-object result.
         nextPageURL = null;
-        for (var key in jsonData) {
+        for (const key in jsonData) {
           jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
         }
-
-        if (onPageFetched) {
-          await onPageFetched([jsonData]);
-        }
-
         allData = allData.concat(jsonData);
       }
-      console.log(`Got ${allData.length} records`);
-
     }
-    //console.log(allData);
+
     return allData;
   }
-
 }

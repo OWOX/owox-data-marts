@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Box, ChevronDown, Download } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
@@ -8,18 +8,21 @@ import { LogControls } from './LogControls';
 import { StructuredLogsView } from './StructuredLogsView';
 import { RawLogsView } from './RawLogsView';
 import { ConfigurationView } from './ConfigurationView';
+import { LoadStatusStrip } from './LoadStatusStrip';
 import type { DataMartRunItem } from '../../model/types/data-mart-run';
 import { CopyButton } from '@owox/ui/components/common/copy-button';
-import { LogViewType } from './types';
+import { LogViewType, type SortDir } from './types';
 import {
-  getDisplayType,
   getRunSummaryParts,
   parseLogEntry,
   getStartedAtDisplay,
   getTooltipContent,
   downloadLogs,
+  sortLogEntries,
 } from './utils';
 import { getTriggerTypeIcon } from './icons';
+import { categoryLabel, LogCategory } from './log-category';
+import { DataMartRunStatus } from '../../../shared';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 import { TypeIcon } from './TypeIcon';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
@@ -64,31 +67,75 @@ export function RunItem({
   const { projectId = '' } = useParams<{ projectId: string }>();
   const isDataQualityRun = run.type === DataMartRunType.DATA_QUALITY;
 
-  const filteredLogs = useMemo(() => {
+  const parsedEntries = useMemo(() => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
-
     const parsedLogs = run.logs.map((log, index) => parseLogEntry(log, index));
     const parsedErrors = run.errors.map((error, index) =>
       parseLogEntry(error, run.logs.length + index, true)
     );
+    return [...parsedLogs, ...parsedErrors];
+  }, [run.logs, run.errors]);
 
-    const allParsedLogs = [...parsedLogs, ...parsedErrors];
-    if (isDataQualityRun) return allParsedLogs;
+  const [hiddenCategories, setHiddenCategories] = useState<Set<LogCategory>>(new Set());
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-    return allParsedLogs.filter(log => {
-      const displayType = getDisplayType(log);
+  const categoryFilters = useMemo(() => {
+    const counts = new Map<LogCategory, number>();
+    for (const entry of parsedEntries) {
+      counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([category, count]) => ({
+      category,
+      label: categoryLabel(category),
+      count,
+    }));
+  }, [parsedEntries]);
+
+  const activeCategories = useMemo(
+    () =>
+      new Set(
+        categoryFilters.map(f => f.category).filter(category => !hiddenCategories.has(category))
+      ),
+    [categoryFilters, hiddenCategories]
+  );
+
+  const toggleCategory = useCallback((category: LogCategory) => {
+    setHiddenCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
+
+  const filteredLogs = useMemo(() => {
+    // Data quality runs render their diagnostics without the search box or category chips,
+    // so there is nothing to filter by.
+    if (isDataQualityRun) return parsedEntries;
+    return parsedEntries.filter(log => {
       const matchesSearch =
         searchTerm === '' ||
         log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        displayType.toLowerCase().includes(searchTerm.toLowerCase());
-
-      return matchesSearch;
+        categoryLabel(log.category).toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = !hiddenCategories.has(log.category);
+      return matchesSearch && matchesCategory;
     });
-  }, [isDataQualityRun, run.logs, run.errors, searchTerm]);
+  }, [isDataQualityRun, parsedEntries, searchTerm, hiddenCategories]);
+
+  const sortedLogs = useMemo(() => sortLogEntries(filteredLogs, sortDir), [filteredLogs, sortDir]);
 
   const renderLogsContent = useCallback(() => {
     if (logViewType === LogViewType.STRUCTURED) {
-      return <StructuredLogsView logs={filteredLogs} />;
+      return (
+        <StructuredLogsView
+          logs={sortedLogs}
+          isLive={run.status === DataMartRunStatus.RUNNING}
+          newestFirst={sortDir === 'desc'}
+        />
+      );
     } else if (logViewType === LogViewType.RAW) {
       return <RawLogsView logs={run.logs} errors={run.errors} />;
     } else {
@@ -104,7 +151,9 @@ export function RunItem({
     }
   }, [
     logViewType,
-    filteredLogs,
+    sortedLogs,
+    sortDir,
+    run.status,
     run.logs,
     run.errors,
     run.definitionRun,
@@ -279,6 +328,20 @@ export function RunItem({
                 run={run}
                 cancelDataMartRun={cancelDataMartRun}
                 dataMartId={dataMartId}
+                categoryFilters={categoryFilters}
+                activeCategories={activeCategories}
+                onToggleCategory={toggleCategory}
+                sortDir={sortDir}
+                onToggleSort={() => {
+                  setSortDir(d => (d === 'desc' ? 'asc' : 'desc'));
+                }}
+              />
+
+              <LoadStatusStrip
+                entries={parsedEntries}
+                startedAt={run.startedAt}
+                finishedAt={run.finishedAt}
+                isLive={run.status === DataMartRunStatus.RUNNING}
               />
 
               {renderLogsContent()}

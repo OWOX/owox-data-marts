@@ -1,9 +1,10 @@
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { useForm } from 'react-hook-form';
-import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
+import type { ConnectorDefinitionConfig, ConnectorSourceConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
+import { getConnectorInfoByName } from '../../../shared/utils';
 import { RunType } from '../../../shared/enums/run-type.enum';
 import { ConnectorSpecificationAttribute } from '../../../shared/enums/connector-specification-attribute.enum';
 import {
@@ -20,7 +21,10 @@ import {
   FormRadioGroup,
   FormSection,
 } from '@owox/ui/components/form';
-import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
+import type {
+  ConnectorRunFormData,
+  ConnectorListItem,
+} from '../../../shared/model/types/connector';
 import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
@@ -46,18 +50,39 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const { dataMart } = useDataMartContext();
 
   const loadSpecificationSafely = useCallback(
-    async (connectorName: string) => {
-      if (!loadedSpecifications.has(connectorName) && !loadingSpecification) {
-        setLoadedSpecifications(prev => new Set(prev).add(connectorName));
-        await fetchConnectorSpecification(connectorName);
+    async (source: ConnectorSourceConfig, info: ConnectorListItem | null | undefined) => {
+      if (loadedSpecifications.has(source.name) || loadingSpecification) {
+        return;
       }
+      setLoadedSpecifications(prev => new Set(prev).add(source.name));
+
+      // `info` carries isCustom/id, which is what routes the request to the
+      // custom-by-id endpoint. It is resolved once, when the Data Mart definition is
+      // mapped, and a transient custom-connector list failure leaves it null. Re-resolve
+      // here instead of falling back to a name-only item: that item has no id, so the
+      // request would go to the bundled endpoint, 404, and leave the sheet stuck on
+      // "No connector specification found" with no way to run the Data Mart manually.
+      const connector = info ?? (await getConnectorInfoByName(source.name).catch(() => null));
+      if (!connector) {
+        return;
+      }
+
+      // The run executes the Data Mart's pinned `source.version`, while `info.version`
+      // is only the connector's ACTIVE version. The pin wins so the form renders the
+      // MANUAL_BACKFILL parameters of the version that will actually run; `undefined`
+      // means "follow active", which is exactly what `info.version` holds.
+      await fetchConnectorSpecification({
+        ...connector,
+        version: source.version ?? connector.version,
+      });
     },
     [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
   );
 
   useEffect(() => {
-    if (configuration?.connector.source.name) {
-      void loadSpecificationSafely(configuration.connector.source.name);
+    const source = configuration?.connector.source;
+    if (source) {
+      void loadSpecificationSafely(source, configuration.connector.info);
     }
   }, [configuration, loading, loadSpecificationSafely]);
 

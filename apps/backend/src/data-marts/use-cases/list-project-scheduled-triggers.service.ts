@@ -162,6 +162,7 @@ export class ListProjectScheduledTriggersService {
           isConnectorDefinition(trigger.dataMart.definition)
         ) {
           const maskedDefinition = await this.connectorSecretService.mask(
+            projectId,
             trigger.dataMart.definition
           );
 
