@@ -2,7 +2,7 @@
 
 ## 0.34.0
 
-### Minor Changes
+### Minor Changes 0.34.0
 
 - d433bec: # Keep report output controls consistent with the column selection and the Data Mart schema
   - Unchecking a column in the report editor now removes the aggregation and date bucket set on it, a metric filter bound to that aggregation, and its sort rule when the sort can no longer resolve: the report aggregates, the column is a calculated field, or the column is missing from the Data Mart schema. Row filters and slices stay.
@@ -140,7 +140,7 @@
 
   The Report Fields tab now keeps disconnected Output Schema fields available for alias, visibility, and aggregation configuration. Reports continue to exclude these fields while they are disconnected.
 
-### Patch Changes
+### Patch Changes 0.34.0
 
 - @owox/internal-helpers@0.34.0
 - @owox/idp-protocol@0.34.0
