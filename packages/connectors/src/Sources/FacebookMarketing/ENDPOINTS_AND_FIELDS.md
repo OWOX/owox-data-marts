@@ -284,7 +284,7 @@ Meta limits which metrics each breakdown supports. Plan for these limits before 
 | --- | --- |
 | **Ad Account Insights by Link URL Asset** | Meta supports only `impressions`, `clicks`, `spend`, `reach`, `actions`, and `action_values` with Dynamic Creative asset breakdowns. Do not select the conversion fields here. |
 | **Ad Account Insights by Product ID** | Meta returns web conversions without the product breakdown, and drops mobile conversions. The same value repeats on every product row, so do not sum it across rows. |
-| **Ad Account Insights by Region** | Meta no longer splits off-Meta conversions by region. Expect empty or partial values. The same limit applies to `actions` and `action_values`. |
+| **Ad Account Insights by Region** | Meta does not return off-Meta conversions with a region breakdown. Expect these columns to be empty or heavily undercounted. `actions` and `action_values` lose their off-Meta rows for the same reason, but keep their on-Meta ones. |
 
 Meta documents these limits in [Breakdowns](https://developers.facebook.com/docs/marketing-api/insights/breakdowns/).
 
@@ -324,7 +324,7 @@ Official Meta reference: [Ad Account Insights](https://developers.facebook.com/d
 | `catalog_segment_value_omni_purchase_roas` | `catalog_segment_value_omni_purchase_roas` | `ARRAY` | The total return on ad spend (ROAS) from all purchases for your catalog segment. |
 | `catalog_segment_value_website_purchase_roas` | `catalog_segment_value_website_purchase_roas` | `ARRAY` | The total return on ad spend (ROAS) from website purchases for your catalog segment. |
 | `clicks` | `clicks` | `NUMBER` | The number of clicks on your ads. |
-| `conversion_values` | `conversion_values` | `ARRAY` | The total value of all conversions attributed to your ads. Covers the same conversion events as the conversions field. |
+| `conversion_values` | `conversion_values` | `ARRAY` | The total value of the conversions attributed to your ads, counting conversion events only. Unlike action_values, it excludes engagement and clicks. |
 | `conversions` | `conversions` | `ARRAY` | The total number of conversions attributed to your ads. Counts conversion events only, unlike actions, which also counts engagement and clicks. |
 | `converted_product_quantity` | `converted_product_quantity` | `ARRAY` | The number of products purchased which are recorded by your merchant partner's pixel or app SDK for a given product ID and driven by your ads. Has to be used together with converted product ID breakdown. |
 | `converted_product_value` | `converted_product_value` | `ARRAY` | The value of purchases recorded by your merchant partner's pixel or app SDK for a given product ID and driven by your ads. Has to be used together with converted product ID breakdown. |

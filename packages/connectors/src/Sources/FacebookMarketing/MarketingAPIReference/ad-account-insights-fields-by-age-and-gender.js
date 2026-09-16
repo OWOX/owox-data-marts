@@ -116,7 +116,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
     'type': DATA_TYPES.NUMBER
   },
   'conversion_values': {
-    'description': 'The total value of all conversions attributed to your ads. Covers the same conversion events as the conversions field.',
+    'description': 'The total value of the conversions attributed to your ads, counting conversion events only. Unlike action_values, it excludes engagement and clicks.',
     'type': DATA_TYPES.ARRAY
   },
   'conversions': {
