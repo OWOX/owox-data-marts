@@ -17,6 +17,7 @@ import { RowAggregationIcon } from './RowAggregationIcon';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
 import { applyAggregationDraft, bucketForColumn, functionsForColumn } from './aggregation-config';
 import { isDateType } from './output-controls-operators';
+import { REPORT_AGGREGATE_FUNCTION_LABELS } from '../../../shared/utils/aggregation-labels';
 
 function SectionHeader({ title, info }: { title: string; info: string }) {
   return (
@@ -101,12 +102,18 @@ interface AggregationSettingsDropdownProps {
   value: OutputConfig;
   onChange: (next: OutputConfig) => void;
   selectedColumns: readonly AggregationDropdownColumn[];
+  /**
+   * What the product will aggregate because the analyst aggregated nothing, keyed by column. The
+   * panel would otherwise read as empty on a report that does in fact group.
+   */
+  autoAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
 }
 
 export function AggregationSettingsDropdown({
   value,
   onChange,
   selectedColumns,
+  autoAggregations,
 }: AggregationSettingsDropdownProps) {
   return (
     <div className='space-y-4 p-3'>
@@ -114,6 +121,7 @@ export function AggregationSettingsDropdown({
         aggregations={value.aggregationConfig}
         dateTrunc={value.dateTruncConfig}
         selectedColumns={selectedColumns}
+        autoAggregations={autoAggregations}
         onChange={(aggregationConfig, dateTruncConfig) => {
           onChange({ ...value, aggregationConfig, dateTruncConfig });
         }}
@@ -126,6 +134,7 @@ interface AggregationSectionProps {
   aggregations: AggregationRule[];
   dateTrunc: DateTruncRule[];
   selectedColumns: readonly AggregationDropdownColumn[];
+  autoAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
   onChange: (aggregations: AggregationRule[], dateTrunc: DateTruncRule[]) => void;
 }
 
@@ -133,6 +142,7 @@ function AggregationSection({
   aggregations,
   dateTrunc,
   selectedColumns,
+  autoAggregations,
   onChange,
 }: AggregationSectionProps) {
   const [pendingColumn, setPendingColumn] = useState<AggregationDropdownColumn | null>(null);
@@ -154,9 +164,38 @@ function AggregationSection({
     return col ? allowedAggregationsFor(col) : [];
   }
 
+  // Only columns still in the projection. The resolver stops predicting the moment a real rule
+  // exists, so these never collide with the rows below.
+  const autoApplied: [string, ReportAggregateFunction][] = [
+    ...(autoAggregations ?? new Map<string, ReportAggregateFunction>()),
+  ].filter(([column]) => columnByName.has(column));
+
   return (
     <div data-slot='aggregation-settings-panel'>
       <SectionHeader title='Aggregations' info={SECTION_INFO.aggregate} />
+      {autoApplied.length > 0 && (
+        <div
+          data-testid='auto-aggregation-note'
+          className='text-muted-foreground mb-2 flex items-start gap-2 text-xs'
+        >
+          {/* The same mark the Aggregations button carries, so the two read as one statement.
+              Not an alert: nothing went wrong, the product simply chose and is saying so. */}
+          <span className='bg-warning mt-1 size-1.5 shrink-0 rounded-full' aria-hidden='true' />
+          <span>
+            Applied automatically because this report sets none:{' '}
+            {autoApplied.map(([column, fn], index) => (
+              <span key={column}>
+                {index > 0 && ', '}
+                <span className='text-foreground font-medium'>
+                  {columnByName.get(column)?.label ?? column}
+                </span>
+                {` \u2014 ${REPORT_AGGREGATE_FUNCTION_LABELS[fn]}`}
+              </span>
+            ))}
+            . Add one below to decide for yourself.
+          </span>
+        </div>
+      )}
       <div className='space-y-1'>
         {aggregations.map((rule, index) => {
           const col = columnByName.get(rule.column);

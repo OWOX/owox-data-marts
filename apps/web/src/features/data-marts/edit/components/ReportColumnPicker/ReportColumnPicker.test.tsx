@@ -5113,6 +5113,38 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(screen.getByTitle('Automatic aggregation: Sum')).toBeInTheDocument();
   });
 
+  it('explains the automatic aggregation inside the Aggregations panel', async () => {
+    // The panel lists stored rules only, so on an auto-collapsed report it would otherwise read as
+    // empty while the report does in fact group.
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: emptyControls,
+      onOutputConfigChange: () => {},
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+
+    const note = await screen.findByTestId('auto-aggregation-note');
+    expect(note).toHaveTextContent('Applied automatically because this report sets none');
+    expect(note).toHaveTextContent('sessions');
+    expect(note).toHaveTextContent('Sum');
+  });
+
+  it('shows no such note once the analyst set an aggregation of their own', () => {
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...emptyControls,
+        aggregationConfig: [{ column: 'sessions', function: 'AVG' }],
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+
+    expect(screen.queryByTestId('auto-aggregation-note')).not.toBeInTheDocument();
+  });
+
   it('names the automatic choice in the editor it opens, without preselecting it', async () => {
     // The ghost tells the analyst what will happen; the editor it opens must say the same thing,
     // and must not turn the prediction into a stored rule just because the editor was applied.

@@ -55,7 +55,10 @@ export function AggregationSettingsButton({
               <span
                 data-testid='auto-aggregation-dot'
                 aria-hidden='true'
-                className='bg-foreground pointer-events-none absolute -top-0.5 -left-0.5 h-1.5 w-1.5 rounded-full'
+                // The warning token rather than the aggregation blue: blue already means "an
+                // aggregation is set", and this says nobody set one. A dot rather than a shape —
+                // at badge size anything with internal detail turns to mud over the glyph.
+                className='bg-warning pointer-events-none absolute top-1 left-1 h-1.5 w-1.5 rounded-full'
               />
             )}
             {typeof count === 'number' && count > 0 && (

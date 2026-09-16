@@ -2128,6 +2128,7 @@ export function ReportColumnPicker({
             value={effectiveOutputConfig}
             onChange={handleAggregationPanelChange}
             selectedColumns={selectedDropdownColumns}
+            autoAggregations={autoAggregations}
           />
         </div>
       )}
