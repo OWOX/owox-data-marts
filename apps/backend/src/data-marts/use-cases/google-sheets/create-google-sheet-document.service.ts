@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { CreateGoogleSheetDocumentCommand } from '../../dto/domain/google-sheets/create-google-sheet-document.command';
 import { CreateGoogleSheetDocumentResponseDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
 import { DataDestinationService } from '../../services/data-destination.service';
@@ -29,13 +30,13 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
  * returns its identifiers. This is the reusable core behind the "Create document"
  * button and the MCP add_report flow.
  *
- * The title names BOTH the file and its single sheet (tab): a report's data is
- * found by the tab, and every other path that gives a report its own sheet
- * ({@link AddGoogleSheetToSpreadsheetService}, ReconnectGoogleSheetService)
- * names it after the report. Leaving Google's default "Sheet1" here made a
- * document whose first export was created with this service and the next one
- * added as a tab read "Sheet1 / <second report>" — the first report's tab was
- * the only one not named after its report.
+ * The title names BOTH the file and its single sheet (tab), like the other
+ * paths that give a report its own sheet (AddGoogleSheetToSpreadsheetService,
+ * ReconnectGoogleSheetService). The Sheets API names the sheet in the create
+ * request itself; Drive cannot, so on the Drive paths the default sheet is
+ * renamed right after the create — best-effort, like sharing: the document is
+ * already created and usable, so a failed rename leaves it with Google's
+ * default name rather than failing the creation.
  *
  * Auth is resolved EXPLICITLY by credential type (not via the SA-first factory):
  * - OAuth: the file is created in the connected user's Drive. When the token has
@@ -123,7 +124,7 @@ export class CreateGoogleSheetDocumentService {
     let result: CreateGoogleSheetDocumentResponseDto;
     if (folderId) {
       try {
-        result = await adapter.createSpreadsheetInFolder(title, folderId, sheetTitle);
+        result = await adapter.createSpreadsheetInFolder(title, folderId);
       } catch (error) {
         this.throwFolderCreateError(
           destination.id,
@@ -133,8 +134,13 @@ export class CreateGoogleSheetDocumentService {
       }
     } else {
       result = canShare
-        ? await adapter.createSpreadsheetViaDrive(title, sheetTitle)
+        ? await adapter.createSpreadsheetViaDrive(title)
         : await adapter.createSpreadsheet(title, sheetTitle);
+    }
+    // Only a Drive-created file (every path with a Drive scope, folder or not)
+    // still carries Google's default sheet name.
+    if (canShare) {
+      await this.nameDefaultSheet(adapter, result, sheetTitle, destination.id);
     }
     this.logger.log(
       `Auto-created Google Sheet ${result.spreadsheetId} (sheet "${sheetTitle}", gid ${result.sheetId}) via OAuth (driveCreate=${canShare}, folder=${folderId ?? 'root'}) for destination ${destination.id}`
@@ -186,7 +192,7 @@ export class CreateGoogleSheetDocumentService {
 
     let result: CreateGoogleSheetDocumentResponseDto;
     try {
-      result = await adapter.createSpreadsheetInFolder(title, folderId, sheetTitle);
+      result = await adapter.createSpreadsheetInFolder(title, folderId);
     } catch (error) {
       this.throwFolderCreateError(
         destination.id,
@@ -194,6 +200,7 @@ export class CreateGoogleSheetDocumentService {
         'Make sure it is a Shared Drive folder shared with the service account as a Content Manager.'
       );
     }
+    await this.nameDefaultSheet(adapter, result, sheetTitle, destination.id);
     this.logger.log(
       `Auto-created Google Sheet ${result.spreadsheetId} (sheet "${sheetTitle}", gid ${result.sheetId}) via Service Account in folder ${folderId} for destination ${destination.id}`
     );
@@ -207,6 +214,29 @@ export class CreateGoogleSheetDocumentService {
     );
     // SA always places the file in the configured Shared Drive folder (or throws).
     return { ...result, placedInRoot: false, sharedWithRequester };
+  }
+
+  /**
+   * Renames the default sheet of a Drive-created file to the document title.
+   * Best-effort: the file is already created and usable, and a rename failure
+   * (a transient Sheets fault, quota exhaustion) must not fail the creation —
+   * and must not reach the folder-error translation of the create itself, which
+   * would send the user to fix folder sharing that is not broken. The sheet then
+   * keeps Google's default name, as every document created before did.
+   */
+  private async nameDefaultSheet(
+    adapter: GoogleSheetsApiAdapter,
+    created: { spreadsheetId: string; sheetId: number },
+    sheetTitle: string,
+    destinationId: string
+  ): Promise<void> {
+    try {
+      await adapter.renameSheet(created.spreadsheetId, created.sheetId, sheetTitle);
+    } catch (error) {
+      this.logger.warn(
+        `Best-effort rename of the default sheet (gid ${created.sheetId}) of ${created.spreadsheetId} to "${sheetTitle}" failed (destination ${destinationId}); it keeps Google's default name: ${castError(error).message}`
+      );
+    }
   }
 
   /**

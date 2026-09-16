@@ -417,40 +417,16 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
-  describe('createSpreadsheetViaDrive / createSpreadsheetInFolder', () => {
-    /**
-     * Drive cannot name the sheet on create, so the adapter resolves the default
-     * sheet's gid and renames it — as one operation with the create.
-     */
-    const buildDriveAdapter = (overrides: { batchUpdate?: jest.Mock; get?: jest.Mock } = {}) => {
+  describe('renameSheet', () => {
+    it('renames the sheet by its numeric id with a title-only field mask', async () => {
       const adapter = buildAdapter();
-      const filesCreate = jest.fn().mockResolvedValue({ data: { id: 'ss-1' } });
-      const filesDelete = jest.fn().mockResolvedValue({});
-      const get =
-        overrides.get ??
-        jest.fn().mockResolvedValue({ data: { sheets: [{ properties: { sheetId: 7 } }] } });
-      const batchUpdate = overrides.batchUpdate ?? jest.fn().mockResolvedValue({ data: {} });
+      const batchUpdate = jest.fn().mockResolvedValue({ data: {} });
       (adapter as unknown as { service: unknown }).service = {
-        spreadsheets: { get, batchUpdate },
+        spreadsheets: { batchUpdate },
       };
-      (adapter as unknown as { driveService: unknown }).driveService = {
-        files: { create: filesCreate, delete: filesDelete },
-      };
-      return { adapter, filesCreate, filesDelete, get, batchUpdate };
-    };
 
-    it('renames the default sheet of the Drive-created file to the given title', async () => {
-      const { adapter, filesCreate, batchUpdate, filesDelete } = buildDriveAdapter();
+      await adapter.renameSheet('ss-1', 7, 'Monthly funnel');
 
-      await expect(
-        adapter.createSpreadsheetInFolder('Monthly funnel', 'folder-1', 'Monthly funnel')
-      ).resolves.toEqual({ spreadsheetId: 'ss-1', sheetId: 7 });
-
-      expect(filesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          requestBody: expect.objectContaining({ name: 'Monthly funnel', parents: ['folder-1'] }),
-        })
-      );
       expect(batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'ss-1',
         requestBody: {
@@ -464,16 +440,6 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
           ],
         },
       });
-      expect(filesDelete).not.toHaveBeenCalled();
-    });
-
-    it('removes the new file again when the rename fails, so no half-named document is left', async () => {
-      const batchUpdate = jest.fn().mockRejectedValue(new Error('rename failed'));
-      const { adapter, filesDelete } = buildDriveAdapter({ batchUpdate });
-
-      await expect(adapter.createSpreadsheetViaDrive('R', 'R')).rejects.toThrow('rename failed');
-
-      expect(filesDelete).toHaveBeenCalledWith({ fileId: 'ss-1', supportsAllDrives: true });
     });
   });
 

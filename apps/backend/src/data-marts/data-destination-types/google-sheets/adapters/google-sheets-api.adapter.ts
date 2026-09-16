@@ -194,47 +194,43 @@ export class GoogleSheetsApiAdapter {
    * A file created via the Sheets API (`createSpreadsheet`) is NOT reliably
    * app-authorized for `drive.file`, so sharing it would fail.
    *
+   * Drive cannot name the sheet on create: the file comes with Google's default
+   * sheet, which the caller renames with {@link renameSheet} if it wants to.
+   *
    * @param title - Title for the new spreadsheet
-   * @param sheetTitle - Title for its single sheet (tab); see `toSheetTitle`
    * @returns The new spreadsheet ID and its first sheet's numeric ID
    */
   public async createSpreadsheetViaDrive(
-    title: string,
-    sheetTitle: string
+    title: string
   ): Promise<{ spreadsheetId: string; sheetId: number }> {
-    return this.driveCreateSpreadsheet(title, sheetTitle);
+    return this.driveCreateSpreadsheet(title);
   }
 
   /**
    * Creates a new Google Spreadsheet directly inside a Drive folder via the
    * Drive API (so the file lands in a shared Drive folder, not the caller's
    * Drive root). Requires the underlying auth to carry a Drive scope; used by the
-   * Service-Account auto-creation path.
+   * Service-Account auto-creation path. As with {@link createSpreadsheetViaDrive},
+   * the file comes with Google's default sheet.
    *
    * @param title - Title for the new spreadsheet
    * @param folderId - Drive folder ID to create the spreadsheet in
-   * @param sheetTitle - Title for its single sheet (tab); see `toSheetTitle`
    * @returns The new spreadsheet ID and its first sheet's numeric ID
    */
   public async createSpreadsheetInFolder(
     title: string,
-    folderId: string,
-    sheetTitle: string
+    folderId: string
   ): Promise<{ spreadsheetId: string; sheetId: number }> {
-    return this.driveCreateSpreadsheet(title, sheetTitle, [folderId]);
+    return this.driveCreateSpreadsheet(title, [folderId]);
   }
 
   /**
    * Shared Drive-API create. `supportsAllDrives` is set so it works in a Shared
-   * Drive. Drive creates the file with Google's default sheet and returns no
-   * sheet metadata, so the first sheet's numeric `sheetId` is fetched from the
-   * Sheets API afterwards (it is NOT assumed to be `0`) and the sheet is then
-   * renamed to `sheetTitle`. Both steps are part of the create: a failure in
-   * either removes the file again, so no half-named document is left behind.
+   * Drive. The first sheet's numeric `sheetId` is fetched from the Sheets API
+   * afterwards (Drive create does not return it) — it is NOT assumed to be `0`.
    */
   private async driveCreateSpreadsheet(
     title: string,
-    sheetTitle: string,
     parents?: string[]
   ): Promise<{ spreadsheetId: string; sheetId: number }> {
     const drive = this.getDriveService();
@@ -261,7 +257,6 @@ export class GoogleSheetsApiAdapter {
       if (sheetId === undefined || sheetId === null) {
         throw new Error('Could not resolve the sheetId of the newly created spreadsheet');
       }
-      await this.renameSheet(spreadsheetId, sheetId, sheetTitle);
       return { spreadsheetId, sheetId };
     } catch (error) {
       // The file already exists; failing here without cleanup would orphan an
@@ -281,7 +276,8 @@ export class GoogleSheetsApiAdapter {
 
   /**
    * Renames a sheet (tab) by its numeric ID. Google rejects a title already used
-   * by another sheet of the same spreadsheet with a 400.
+   * by another sheet of the same spreadsheet with a 400; see `toSheetTitle` for
+   * the length and emptiness rules a title must satisfy.
    */
   public async renameSheet(spreadsheetId: string, sheetId: number, title: string): Promise<void> {
     await this.batchUpdate(spreadsheetId, [

@@ -3,6 +3,7 @@ const mockCreateSpreadsheetViaDrive = jest.fn();
 const mockCreateSpreadsheetInFolder = jest.fn();
 const mockCreateServiceAccountClient = jest.fn(() => ({}));
 const mockShareFileWithUser = jest.fn();
+const mockRenameSheet = jest.fn();
 
 jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter', () => {
   const ctor = jest.fn().mockImplementation(() => ({
@@ -10,6 +11,7 @@ jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api
     createSpreadsheetViaDrive: (...args: unknown[]) => mockCreateSpreadsheetViaDrive(...args),
     createSpreadsheetInFolder: (...args: unknown[]) => mockCreateSpreadsheetInFolder(...args),
     shareFileWithUser: (...args: unknown[]) => mockShareFileWithUser(...args),
+    renameSheet: (...args: unknown[]) => mockRenameSheet(...args),
   }));
   (ctor as unknown as Record<string, unknown>).createServiceAccountClient = (...args: unknown[]) =>
     mockCreateServiceAccountClient(...args);
@@ -118,6 +120,7 @@ describe('CreateGoogleSheetDocumentService', () => {
     mockCreateSpreadsheetInFolder.mockResolvedValue({ spreadsheetId: 'sa-sheet-id', sheetId: 0 });
     mockCreateServiceAccountClient.mockReturnValue({});
     mockShareFileWithUser.mockResolvedValue(undefined);
+    mockRenameSheet.mockResolvedValue(undefined);
   });
 
   it('creates a sheet via the OAuth client for an OAuth destination', async () => {
@@ -133,6 +136,8 @@ describe('CreateGoogleSheetDocumentService', () => {
     expect(mockCreateSpreadsheet).toHaveBeenCalledWith('Revenue', 'Revenue');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
+    // The Sheets API names the sheet in the create request; nothing to rename.
+    expect(mockRenameSheet).not.toHaveBeenCalled();
     expect(result).toEqual({
       spreadsheetId: 'sheet-id',
       sheetId: 0,
@@ -159,6 +164,49 @@ describe('CreateGoogleSheetDocumentService', () => {
     expect(mockCreateSpreadsheet).toHaveBeenCalledWith(title, 'x'.repeat(100));
   });
 
+  it('renames the default sheet of a Drive-created file to the document title', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        undefined,
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      )
+    );
+
+    await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'x'.repeat(120)));
+
+    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('x'.repeat(120));
+    expect(mockRenameSheet).toHaveBeenCalledWith('sheet-id', 0, 'x'.repeat(100));
+  });
+
+  it('keeps the created document when the best-effort rename fails', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        { folderId: 'folder-1' },
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      )
+    );
+    mockRenameSheet.mockRejectedValue(
+      Object.assign(new Error('The caller does not have permission'), { response: { status: 403 } })
+    );
+
+    // Neither a raw error nor the folder-error translation: the file exists and
+    // is usable, it merely keeps Google's default sheet name.
+    const result = await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(mockRenameSheet).toHaveBeenCalledWith('sa-sheet-id', 0, 'R');
+    expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
+    expect(result).toEqual({
+      spreadsheetId: 'sa-sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: true,
+    });
+  });
+
   it('creates a sheet in the configured folder via the Service Account', async () => {
     const { service, googleOAuthClientService } = createService(
       buildDestination(DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT, { folderId: 'folder-1' }),
@@ -171,7 +219,8 @@ describe('CreateGoogleSheetDocumentService', () => {
 
     expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
     expect(mockCreateServiceAccountClient).toHaveBeenCalled();
-    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1', 'Report');
+    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1');
+    expect(mockRenameSheet).toHaveBeenCalledWith('sa-sheet-id', 0, 'Report');
     expect(result).toEqual({
       spreadsheetId: 'sa-sheet-id',
       sheetId: 0,
@@ -193,7 +242,8 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('R', 'R');
+    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('R');
+    expect(mockRenameSheet).toHaveBeenCalledWith('sheet-id', 0, 'R');
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sheet-id', 'bu@example.com', 'writer');
   });
 
@@ -210,7 +260,8 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1', 'R');
+    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1');
+    expect(mockRenameSheet).toHaveBeenCalledWith('sa-sheet-id', 0, 'R');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
     expect(result).toEqual({
@@ -258,6 +309,7 @@ describe('CreateGoogleSheetDocumentService', () => {
     // and sharing is skipped — the response flags this so the form can warn.
     expect(mockCreateSpreadsheet).toHaveBeenCalledWith('R', 'R');
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
+    expect(mockRenameSheet).not.toHaveBeenCalled();
     expect(result).toEqual({
       spreadsheetId: 'sheet-id',
       sheetId: 0,
