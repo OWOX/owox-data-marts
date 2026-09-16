@@ -62,6 +62,12 @@ export interface AggregationEditorPopoverProps {
   displayLabel?: string;
   /** Joined data mart name shown under the field name; absent for home-mart fields. */
   dataMartName?: string;
+  /**
+   * The aggregation the product will apply if the analyst picks none. Shown as a note, never
+   * preselected: preselecting would turn a prediction into a stored rule the moment the editor is
+   * applied, which is a choice the analyst has not made.
+   */
+  autoFunctionLabel?: string;
   /** Functions the column may be aggregated by (already resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
   /**
@@ -174,6 +180,11 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
           <div className='text-sm font-medium'>{props.displayLabel ?? props.column}</div>
           {props.dataMartName && (
             <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+          )}
+          {props.autoFunctionLabel && (
+            <div className='text-muted-foreground text-[11px]'>
+              {props.autoFunctionLabel} is applied automatically unless you choose one
+            </div>
           )}
         </div>
 

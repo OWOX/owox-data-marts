@@ -91,6 +91,9 @@ function renderPicker(
       dataMartTitle='Main Data Mart'
       value={value}
       onChange={onChange}
+      // An ordinary push destination unless a case says otherwise: the component itself defaults
+      // to not predicting, so a form that forgets loses a ghost rather than inventing one.
+      collapsesOnDelivery
       {...props}
     />,
     { wrapper }
@@ -1258,12 +1261,12 @@ describe('ReportColumnPicker aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
-    // Exact name, not "Add aggregation": `revenue` is the only metric here, so it also qualifies
-    // for the auto-collapse ghost, which renders under its own label.
+    // `revenue` is the only metric here, so it also qualifies for the auto-collapse ghost. The
+    // button's NAME stays the action either way; the ghost rides along as its description.
     const selectedRow = screen.getByText('revenue').closest('label') as HTMLElement;
-    expect(
-      within(selectedRow).getByRole('button', { name: 'Automatic aggregation: Sum' })
-    ).toBeInTheDocument();
+    const aggButton = within(selectedRow).getByRole('button', { name: 'Add aggregation' });
+    expect(aggButton).toBeInTheDocument();
+    expect(aggButton).toHaveAttribute('title', 'Automatic aggregation: Sum');
 
     // ordered_at is NOT selected → no AGG icon on its row.
     const unselectedRow = screen.getByText('ordered_at').closest('label') as HTMLElement;
@@ -5107,7 +5110,28 @@ describe('ReportColumnPicker automatic aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
-    expect(screen.getByLabelText('Automatic aggregation: Sum')).toBeInTheDocument();
+    expect(screen.getByTitle('Automatic aggregation: Sum')).toBeInTheDocument();
+  });
+
+  it('names the automatic choice in the editor it opens, without preselecting it', async () => {
+    // The ghost tells the analyst what will happen; the editor it opens must say the same thing,
+    // and must not turn the prediction into a stored rule just because the editor was applied.
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: emptyControls,
+      onOutputConfigChange: () => {},
+    });
+
+    fireEvent.click(screen.getByTitle('Automatic aggregation: Sum'));
+
+    const note = await screen.findByText('Sum is applied automatically unless you choose one');
+    expect(note).toBeInTheDocument();
+
+    // Scoped to the editor itself: the picker's own "select all" checkbox is outside it.
+    const editor = note.closest('[data-slot="popover-content"]') as HTMLElement;
+    for (const checkbox of within(editor).queryAllByRole('checkbox')) {
+      expect(checkbox).not.toBeChecked();
+    }
   });
 
   it('marks nothing for a destination that never collapses on delivery', () => {
@@ -5120,7 +5144,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       collapsesOnDelivery: false,
     });
 
-    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Automatic aggregation/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Automatic aggregations applied for fields/)).not.toBeInTheDocument();
   });
 
@@ -5134,7 +5158,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
-    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Automatic aggregation/)).not.toBeInTheDocument();
   });
 
   it('marks nothing when the projection carries no metric', () => {
@@ -5153,7 +5177,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       }
     );
 
-    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Automatic aggregation/)).not.toBeInTheDocument();
   });
 
   // Pins a deliberate gap, not an oversight: the backend may lift a row-level metric formula and
@@ -5179,7 +5203,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       }
     );
 
-    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Automatic aggregation/)).not.toBeInTheDocument();
     const row = screen.getByText('doubled_revenue').closest('label') as HTMLElement;
     expect(within(row).getByRole('button', { name: 'Add aggregation' })).toBeInTheDocument();
   });

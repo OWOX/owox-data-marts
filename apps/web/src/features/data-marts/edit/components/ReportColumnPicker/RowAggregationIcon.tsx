@@ -74,12 +74,13 @@ export function RowAggregationIcon({
   const trigger = (
     <button
       type='button'
-      aria-label={
-        isActive
-          ? 'Manage aggregations'
-          : showsAuto
-            ? `Automatic aggregation: ${REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction]}`
-            : 'Add aggregation'
+      // The name says what the button DOES; the automatic aggregation is a state of the column,
+      // so it rides along as a description instead of replacing the action.
+      aria-label={isActive ? 'Manage aggregations' : 'Add aggregation'}
+      title={
+        showsAuto
+          ? `Automatic aggregation: ${REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction]}`
+          : undefined
       }
       className={cn(
         'flex h-6 w-6 items-center justify-center gap-0.5 rounded transition-opacity',
@@ -105,6 +106,7 @@ export function RowAggregationIcon({
       fieldType={fieldType}
       displayLabel={displayLabel}
       dataMartName={dataMartName}
+      autoFunctionLabel={showsAuto ? REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction] : undefined}
       allowedAggregations={allowedAggregations}
       allowDateBucket={allowDateBucket}
       allowBucketTimeZone={allowBucketTimeZone}

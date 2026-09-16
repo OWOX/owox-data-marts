@@ -940,6 +940,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                               dataMartId={dataMart.id}
                               dataMartTitle={dataMart.title}
                               storageType={dataMart.storage.type}
+                              collapsesOnDelivery
                               value={form.watch('columnConfig')}
                               onChange={(value, options) => {
                                 applyColumnConfigChange(form, value, options);

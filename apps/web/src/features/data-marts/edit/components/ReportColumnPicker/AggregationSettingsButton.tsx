@@ -69,7 +69,10 @@ export function AggregationSettingsButton({
             )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{announced ?? 'Aggregations & grouping'}</TooltipContent>
+        <TooltipContent>
+          {/* The note is added to the control's own name, never substituted for it. */}
+          {announced ? `Aggregations & grouping — ${announced}` : 'Aggregations & grouping'}
+        </TooltipContent>
       </Tooltip>
       {/* TooltipContent mounts only on hover/focus, so assistive tech needs the sentence here
           too. */}

@@ -153,6 +153,10 @@ export interface ReportColumnPickerProps {
    * Whether a run of this report will actually auto-collapse. False for a pull-based destination
    * (Looker Studio, Excel): its consumer reads the uncollapsed projection, so the ghost below
    * would predict something that never happens.
+   *
+   * Defaults to false, and every form that wants the ghost passes it. A form that forgets loses a
+   * prediction, which surprises nobody; the opposite default would have the next pull-based
+   * destination promising a collapse it never performs.
    */
   collapsesOnDelivery?: boolean;
 }
@@ -816,7 +820,7 @@ export function ReportColumnPicker({
   outputConfig,
   onOutputConfigChange,
   onCountChange,
-  collapsesOnDelivery = true,
+  collapsesOnDelivery = false,
 }: ReportColumnPickerProps) {
   const outputControlsSupported = storageType ? supportsOutputControls(storageType) : false;
   const outputControlsAvailable: boolean = outputControlsSupported && !!onOutputConfigChange;
@@ -1740,10 +1744,14 @@ export function ReportColumnPicker({
   // means no explicit projection, which the resolver must read as "nothing to predict yet".
   const autoAggregations = useMemo(
     () =>
-      collapsesOnDelivery
-        ? autoAggregationByColumn(resolveAutoCollapse(nativeFields, value, outputConfig))
+      collapsesOnDelivery && schema
+        ? autoAggregationByColumn(
+            // The RAW schema, not the flattened `nativeFields` above: the resolver walks and
+            // filters it itself, exactly as its extension twin does on the same input.
+            resolveAutoCollapse(schema.nativeFields as NativeField[], value, outputConfig)
+          )
         : EMPTY_AUTO_AGGREGATIONS,
-    [collapsesOnDelivery, nativeFields, value, outputConfig]
+    [collapsesOnDelivery, schema, value, outputConfig]
   );
 
   const hasDisconnectedOutputControls = useMemo(() => {

@@ -89,9 +89,13 @@ export class GetReportGeneratedSqlService {
     // A pull-based destination has no server-side run to collapse — its consumer reads the
     // uncollapsed projection — so previewing a collapse there would predict something that never
     // happens. Every other reader of this composer keeps the stored config untouched.
-    const { report: effectiveReport } = isPullBasedDataDestinationType(report.dataDestination.type)
-      ? { report }
-      : applyAutoCollapse(report);
+    // `?.` because `DataDestination` is soft-deletable: a row the relation can no longer load
+    // leaves this undefined, and an unknown destination must not be treated as one we write into.
+    const destinationType = report.dataDestination?.type;
+    const { report: effectiveReport } =
+      destinationType === undefined || isPullBasedDataDestinationType(destinationType)
+        ? { report }
+        : applyAutoCollapse(report);
 
     const { sql } = await this.reportSqlComposerService.composeStatic(effectiveReport, {
       userId: command.userId,

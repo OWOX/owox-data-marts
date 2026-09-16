@@ -2,12 +2,12 @@
 
 This project uses a three-level testing strategy. Each level catches different categories of bugs and runs independently with its own CI pipeline.
 
-| Level       | What                                        | Framework        | Command                                     | CI Trigger       |
-| ----------- | ------------------------------------------- | ---------------- | ------------------------------------------- | ---------------- |
-| Unit        | Functions, components, services             | Jest / Vitest    | `npm test`                                  | Every PR         |
-| API E2E     | HTTP endpoints against real NestJS + SQLite | Jest + Supertest | `npm run test:e2e -w @owox/backend`         | Manual dispatch  |
-| Browser E2E | Full-stack UI flows in Chromium             | Playwright       | `cd apps/web && npx playwright test`        | Manual dispatch  |
-| Integration | Real cloud databases (BigQuery, Athena)     | Jest             | `npm run test:integration -w @owox/backend` | Nightly + manual |
+| Level       | What                                        | Framework        | Command                                     | CI Trigger                                                                  |
+| ----------- | ------------------------------------------- | ---------------- | ------------------------------------------- | --------------------------------------------------------------------------- |
+| Unit        | Functions, components, services             | Jest / Vitest    | `npm test`                                  | Every PR                                                                    |
+| API E2E     | HTTP endpoints against real NestJS + SQLite | Jest + Supertest | `npm run test:e2e -w @owox/backend`         | Every PR touching `apps/backend/**` or `packages/**` (plus manual dispatch) |
+| Browser E2E | Full-stack UI flows in Chromium             | Playwright       | `cd apps/web && npx playwright test`        | Manual dispatch                                                             |
+| Integration | Real cloud databases (BigQuery, Athena)     | Jest             | `npm run test:integration -w @owox/backend` | Nightly + manual                                                            |
 
 ---
 

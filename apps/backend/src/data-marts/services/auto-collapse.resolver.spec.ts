@@ -926,6 +926,29 @@ describe('applyAutoCollapse', () => {
     expect((effective.dataMart as unknown as FakeDataMart).businessOwnerIds).toEqual(['u1']);
   });
 
+  it('sets `distinct` on the clone and nothing else, leaving the stored report untouched', () => {
+    const report = reportWith(
+      [field('landing_page', 'STRING'), field('medium', 'STRING')],
+      ['landing_page', 'medium']
+    );
+    const { report: effective, plan } = applyAutoCollapse(report);
+
+    expect(plan).toEqual({ kind: 'distinct' });
+    expect((effective as { distinct?: boolean }).distinct).toBe(true);
+    expect(effective.aggregationConfig).toBeUndefined();
+    expect((report as { distinct?: boolean }).distinct).toBeUndefined();
+    expect(effective).not.toBe(report);
+  });
+
+  it('returns the SAME object when there is nothing to collapse', () => {
+    // A refusal must not clone: a caller comparing identity is entitled to see no change at all.
+    const report = reportWith([field('landing_page', 'STRING')], null);
+    const { report: effective, plan } = applyAutoCollapse(report);
+
+    expect(plan).toEqual({ kind: 'none', reason: 'no-explicit-projection' });
+    expect(effective).toBe(report);
+  });
+
   it('keeps the report prototype on every branch, not just the lifted one', () => {
     // `Report` exposes `ownerIds` as an accessor and `isEmailBasedDestination` as a method. A
     // spread drops both while still typechecking as `Report`, so the loss is silent.
