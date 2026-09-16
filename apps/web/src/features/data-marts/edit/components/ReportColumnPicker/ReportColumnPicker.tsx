@@ -240,7 +240,6 @@ interface NativeFieldRowProps {
   onReplaceFilterAt?: ReplaceFilterAtFn;
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
-  /** The function the product will auto-apply to this column; keyed by column name. */
   /**
    * This row's automatic aggregation, if the product picked one. A scalar rather than the whole
    * map: the map is rebuilt on every parent render, and handing it to a memo'd row re-renders
@@ -422,7 +421,6 @@ interface BlendedFieldRowProps {
   preJoinSlices: ColumnFilters;
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
-  /** The function the product will auto-apply to this column; keyed by column name. */
   /**
    * This row's automatic aggregation, if the product picked one. A scalar rather than the whole
    * map: the map is rebuilt on every parent render, and handing it to a memo'd row re-renders
@@ -654,7 +652,11 @@ interface BlendedGroupItemProps {
   preJoinByAliasPathColumn?: Map<string, ColumnFilters>;
   aggregationByColumn?: Map<string, ColumnAggregation>;
   onApplyAggregation?: ApplyAggregationFn;
-  /** The function the product will auto-apply to this column; keyed by column name. */
+  /**
+   * The function the product will auto-apply, keyed by column name. Empty for a joined group
+   * today — the resolver refuses a report that projects a joined column at all — and plumbed so
+   * the follow-up that lifts that refusal has nothing left to wire.
+   */
   autoAggregationByColumn?: ReadonlyMap<string, ReportAggregateFunction>;
   hasSearchQuery?: boolean;
   uniqueCount?: GroupUniqueCount;
