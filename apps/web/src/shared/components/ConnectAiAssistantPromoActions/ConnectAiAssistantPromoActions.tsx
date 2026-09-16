@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { ChatGPTIcon, ClaudeIcon } from '../../../shared/icons';
+import { ChatGPTIcon, ClaudeIcon } from '../../icons';
 import { cn } from '@owox/ui/lib/utils';
 
 const CLAUDE_DIRECTORY_URL = 'https://claude.ai/directory/owox-data-marts';
@@ -14,6 +14,16 @@ interface ConnectAiAssistantPromoActionsProps {
    * empty-state promo tab); 'center' suits a full-width, single-column host.
    */
   align?: 'start' | 'center';
+  /**
+   * UTM medium/campaign appended to the MCP setup guide link, matching the
+   * tagging convention used by the docs links next to this component. This
+   * component renders at several placements (Reports page, empty-state promo
+   * tab, Destinations tab), so without a placement-specific tag their clicks
+   * are indistinguishable in analytics. Provide both or neither — omitting
+   * them leaves the link untagged.
+   */
+  utmMedium?: string;
+  utmCampaign?: string;
 }
 
 /**
@@ -25,8 +35,14 @@ interface ConnectAiAssistantPromoActionsProps {
  */
 export function ConnectAiAssistantPromoActions({
   align = 'start',
-}: ConnectAiAssistantPromoActionsProps = {}) {
+  utmMedium,
+  utmCampaign,
+}: ConnectAiAssistantPromoActionsProps) {
   const xlJustifyClass = align === 'center' ? 'xl:justify-center' : 'xl:justify-start';
+  const mcpSetupGuideUrl =
+    utmMedium && utmCampaign
+      ? `${MCP_SETUP_GUIDE_URL}?utm_source=owox_data_marts&utm_medium=${utmMedium}&utm_campaign=${utmCampaign}`
+      : MCP_SETUP_GUIDE_URL;
 
   return (
     <div className='flex flex-col items-start gap-3'>
@@ -51,7 +67,7 @@ export function ConnectAiAssistantPromoActions({
       </div>
       <div className={cn('flex w-full justify-center', xlJustifyClass)}>
         <a
-          href={MCP_SETUP_GUIDE_URL}
+          href={mcpSetupGuideUrl}
           target='_blank'
           rel='noopener noreferrer'
           className='text-muted-foreground hover:text-foreground text-xs underline underline-offset-2'

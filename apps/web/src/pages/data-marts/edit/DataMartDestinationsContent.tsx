@@ -115,7 +115,7 @@ function DataMartDestinationsContentInner() {
               }}
             />
           ))}
-          {showAiAssistantPromo && <AiAssistantDestinationCard />}
+          {showAiAssistantPromo && <AiAssistantDestinationCard dataMartId={dataMart.id} />}
           {showSheetsUpsellPromo && (
             <div className='flex flex-col gap-0.5'>
               <PromoBlock

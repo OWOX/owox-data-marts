@@ -6,7 +6,7 @@ import { MicrosoftExcelIcon, GoogleSheetsIcon } from '../../../../../../shared/i
 import { Button } from '@owox/ui/components/button';
 import { ArchiveRestore, ChevronRight, Bot } from 'lucide-react';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
-import { ConnectAiAssistantPromoActions } from '../../../../../../pages/data-marts/reports/ConnectAiAssistantPromoActions';
+import { ConnectAiAssistantPromoActions } from '../../../../../../shared/components/ConnectAiAssistantPromoActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { cn } from '@owox/ui/lib/utils';
 
@@ -162,7 +162,12 @@ export function EmptyDataMartDestinationsState({
                 title='Get answers in Claude or ChatGPT'
                 subtitle='Ready to start reporting?'
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
-                actions={<ConnectAiAssistantPromoActions />}
+                actions={
+                  <ConnectAiAssistantPromoActions
+                    utmMedium='dm_page_destinations_tab'
+                    utmCampaign='empty_state'
+                  />
+                }
               />
               <InviteTeammatesCard
                 hint='— Ask colleagues to configure MCP connection'

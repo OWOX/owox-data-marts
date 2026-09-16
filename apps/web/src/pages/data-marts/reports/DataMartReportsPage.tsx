@@ -43,7 +43,7 @@ import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { AiAssistantHintCard } from './AiAssistantHintCard';
-import { ConnectAiAssistantPromoActions } from './ConnectAiAssistantPromoActions';
+import { ConnectAiAssistantPromoActions } from '../../../shared/components/ConnectAiAssistantPromoActions';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 import {
   ReportGeneratedSqlAction,
@@ -542,7 +542,12 @@ export default function DataMartReportsPage() {
                 size='compact'
                 title='Get answers in Claude or ChatGPT'
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
-                actions={<ConnectAiAssistantPromoActions />}
+                actions={
+                  <ConnectAiAssistantPromoActions
+                    utmMedium='project_reports_page'
+                    utmCampaign='reports_list'
+                  />
+                }
               />
             </div>
           )}
