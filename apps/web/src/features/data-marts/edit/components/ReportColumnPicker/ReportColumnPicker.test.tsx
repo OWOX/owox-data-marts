@@ -5160,7 +5160,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(note).toBeInTheDocument();
 
     // Scoped to the editor itself: the picker's own "select all" checkbox is outside it.
-    const editor = note.closest('[data-slot="popover-content"]') as HTMLElement;
+    const editor = note.closest<HTMLElement>('[data-slot="popover-content"]')!;
     for (const checkbox of within(editor).queryAllByRole('checkbox')) {
       expect(checkbox).not.toBeChecked();
     }
