@@ -1,3 +1,5 @@
+import type { ReportAggregateFunction } from '../../relationship.types';
+
 export interface GoogleSheetsConfigDto {
   type: string;
   spreadsheetId: string;
@@ -18,6 +20,16 @@ export interface DataMartRunReportOutputConfigDto {
   aggregationConfig?: unknown;
   dateTruncConfig?: unknown;
   uniqueCountConfig?: boolean | string[] | null;
+  /**
+   * Written by the RUN, never by the analyst and never stored on the report: what the product
+   * applied because the report set no aggregation of its own. Typed here because the run history
+   * renders this object as-is, so an untyped field is one nobody can find from the code.
+   */
+  autoAppliedAggregations?: { column: string; function: ReportAggregateFunction }[];
+  /** Row-level calculated columns rewritten to group level for this run. */
+  autoAppliedLiftedColumns?: string[];
+  /** The rows were returned DISTINCT: nothing was aggregated and no column was renamed. */
+  autoAppliedDistinct?: boolean;
 }
 
 export interface DataMartRunReportDefinitionDto {
