@@ -208,6 +208,85 @@ describe('resolveAutoCollapse', () => {
     });
   });
 
+  it('refuses to lift a formula the report also FILTERS on', () => {
+    // The lift makes `ctr` aggregate-level, and `routeFilterClauses` re-derives that from the
+    // formula text — so `WHERE clicks/impressions > 0.5` would become
+    // `HAVING SUM(clicks)/SUM(impressions) > 0.5`, which keeps a different set of rows. Rows
+    // (10,10) and (0,90) pass the first and fail the second.
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('ctr', 'FLOAT', {
+          calculated: { formula: `${ref('clicks')}/${ref('impressions')}`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'ctr'],
+      { filterConfig: [{ column: 'ctr', operator: 'gt', value: 0.5 }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'calculated-not-liftable',
+    });
+  });
+
+  it('refuses to lift a formula the report also SORTS on', () => {
+    // The sort would order by a group-level value no row ever held.
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('ctr', 'FLOAT', {
+          calculated: { formula: `${ref('clicks')}/${ref('impressions')}`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'ctr'],
+      { sortConfig: [{ column: 'ctr', direction: 'desc' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'calculated-not-liftable',
+    });
+  });
+
+  it('still lifts when the filter names a DIFFERENT column', () => {
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('ctr', 'FLOAT', {
+          calculated: { formula: `${ref('clicks')}/${ref('impressions')}`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'ctr'],
+      { filterConfig: [{ column: 'landing_page', operator: 'eq', value: 'a' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'aggregate',
+      aggregations: [],
+      liftedFormulas: [
+        { column: 'ctr', formula: `SUM(${ref('clicks')})/SUM(${ref('impressions')})` },
+      ],
+    });
+  });
+
+  it('refuses a report projecting a column the main schema cannot resolve', () => {
+    // A joined column has no descriptor here, so its type is unknown. Grouping by it — which is
+    // what a dimension would get — drops its duplicate rows and changes its total exactly as
+    // DISTINCT would, and a joined numeric field IS a metric in the product's own model.
+    const report = reportWith(
+      [field('customer', 'STRING'), field('order_id', 'STRING')],
+      ['customer', 'items__revenue']
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'unresolvable-column',
+    });
+  });
+
   it('refuses the DISTINCT collapse when a sort names a column outside the projection', () => {
     // `SELECT DISTINCT \`landing_page\` … ORDER BY src.\`sessions\`` is rejected by every dialect,
     // while the same report WITHOUT the collapse is valid SQL the validator deliberately permits.
@@ -763,11 +842,16 @@ describe('resolveAutoCollapse', () => {
     expect(resolveAutoCollapse(report)).toEqual({ kind: 'distinct' });
   });
 
-  it('never aggregates a column the main schema does not own', () => {
-    // A blended column name reaches `columnConfig` but has no native descriptor. Auto-aggregating
-    // it is the fan-out multiplication a join causes — it must stay a grouping key.
+  it('refuses rather than aggregate or group a column the main schema does not own', () => {
+    // A blended column name reaches `columnConfig` with no native descriptor, so its type is
+    // unknown. It must not be aggregated — that is the fan-out multiplication a join causes — but
+    // it must not become a grouping key either: grouping drops its duplicate rows and moves its
+    // total. Joined fields are #6926's subject; until then the whole report is left alone.
     const report = reportWith([field('landing_page', 'STRING')], ['landing_page', 'costs__adCost']);
-    expect(resolveAutoCollapse(report)).toEqual({ kind: 'distinct' });
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'unresolvable-column',
+    });
   });
 
   it('treats an aggregate-level calculated field as already aggregated', () => {

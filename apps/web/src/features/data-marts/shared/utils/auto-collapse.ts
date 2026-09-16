@@ -8,6 +8,7 @@ export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
   | 'no-explicit-projection'
   | 'non-groupable-column'
+  | 'unresolvable-column'
   | 'no-allowed-aggregation'
   | 'calculated-not-liftable'
   | 'sort-outside-projection';
@@ -68,8 +69,10 @@ export function resolveAutoCollapse(
 
   for (const name of columnConfig) {
     const field = byName.get(name);
-    // A blended column, not an error: never auto-aggregated, stays a grouping key.
-    if (!field?.type) continue;
+    // A joined column, or one the schema has since lost: its type is unreadable here, so a
+    // dimension cannot be told from a metric. Mirrors the server, which refuses rather than group
+    // by something whose duplicates carry value.
+    if (!field?.type) return { kind: 'none', reason: 'unresolvable-column' };
 
     if (categorize(field.type) === 'other') {
       return { kind: 'none', reason: 'non-groupable-column' };

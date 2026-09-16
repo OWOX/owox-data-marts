@@ -185,13 +185,13 @@ describe('resolveAutoCollapse', () => {
     expect(plan).toEqual({ kind: 'none', reason: 'analyst-aggregated' });
   });
 
-  it('never aggregates a column the native schema does not own', () => {
+  it('refuses rather than group a column the native schema does not own', () => {
     const plan = resolveAutoCollapse(
       [field('landing_page', 'STRING')],
       ['landing_page', 'b__ad_cost'],
       EMPTY
     );
-    expect(plan).toEqual({ kind: 'distinct' });
+    expect(plan).toEqual({ kind: 'none', reason: 'unresolvable-column' });
   });
 
   it('maps an aggregate plan to its per-column functions', () => {

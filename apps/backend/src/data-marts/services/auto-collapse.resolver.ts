@@ -31,6 +31,7 @@ export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
   | 'no-explicit-projection'
   | 'non-groupable-column'
+  | 'unresolvable-column'
   | 'no-allowed-aggregation'
   | 'calculated-not-liftable'
   | 'sort-outside-projection';
@@ -88,8 +89,12 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
   const liftedFormulas: LiftedCalculatedFormula[] = [];
   for (const name of columns) {
     const descriptor = byName.get(name);
-    // A joined column or a stale name: neither is ours to aggregate.
-    if (!descriptor) continue;
+    // A joined column, a hidden one, or a name the schema has since lost: we cannot read its type,
+    // so we cannot tell a dimension from a metric. Treating it as a dimension would make it a
+    // grouping key — and grouping by a metric drops its duplicate rows, which changes that
+    // column's total exactly as DISTINCT would. Joined fields are #6926's subject; until then a
+    // report that projects one is left alone.
+    if (!descriptor) return { kind: 'none', reason: 'unresolvable-column' };
 
     if (categorizeFieldType(descriptor.type) === 'other') {
       return { kind: 'none', reason: 'non-groupable-column' };
@@ -120,6 +125,13 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
       if (governance.allowedAggregations.length === 0) {
         return { kind: 'none', reason: 'no-allowed-aggregation' };
       }
+      // The lift rewrites this field's formula to group level, and the filter router re-derives
+      // the level from that text — so a WHERE on the row-level value would silently become a
+      // HAVING on the group total, keeping a different set of rows. A sort would likewise reorder
+      // by a value no row ever held. Neither is ours to decide: refuse instead.
+      if (referencedByFilterOrSort(name, report)) {
+        return { kind: 'none', reason: 'calculated-not-liftable' };
+      }
       // A calculated field carries no governance of its own, so the numeric priority would SUM a
       // ratio. Lift the formula instead, and refuse the whole report when it cannot be lifted.
       const lifted = liftFormulaToGroupLevel(
@@ -145,6 +157,14 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     aggregations,
     ...(liftedFormulas.length > 0 ? { liftedFormulas } : {}),
   };
+}
+
+/** Whether any output control names this column, whatever it asks of it. */
+function referencedByFilterOrSort(column: string, report: ReportLike): boolean {
+  return (
+    (report.filterConfig ?? []).some(rule => rule.column === column) ||
+    (report.sortConfig ?? []).some(rule => rule.column === column)
+  );
 }
 
 /**
