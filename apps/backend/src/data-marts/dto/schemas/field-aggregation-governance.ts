@@ -143,7 +143,7 @@ export function withoutCountBesideSleevedCountDistinct(
  *
  * Mirrored in the web and extension `aggregation-governance.ts`.
  */
-const PRIORITY_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]> = {
+export const PRIORITY_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]> = {
   number: ['SUM', 'AVG', 'MIN', 'MAX'],
   string: ['MIN', 'MAX'],
   date: ['MIN', 'MAX'],

@@ -78,17 +78,17 @@ export function liftFormulaToGroupLevel(
   // Up front, because the shape rules need the truncation fact before the splice loop runs.
   const resolved = refs.map(ref => resolveReference(ref.path, ref.field));
 
-  const refusal = classifyLiftableShape(
+  const shape = classifyLiftableShape(
     tokens,
     refs,
     index => resolved[index]?.truncatesUnderDivision === true
   );
-  if (refusal) return { formula: null, reason: refusal };
+  if (shape.refusal) return { formula: null, reason: shape.refusal };
   if (resolved.includes(undefined)) {
     return { formula: null, reason: 'unaggregatable-reference' };
   }
 
-  if (!dividesAnywhere(tokens)) {
+  if (!shape.ratio) {
     // The newline is load-bearing: a formula may end in a `--` line comment, and without it the
     // closing paren would land inside that comment and be commented out.
     return { formula: `${LIFT_AGGREGATION}(${stored}\n)` };
@@ -100,22 +100,6 @@ export function liftFormulaToGroupLevel(
   }
   return { formula };
 }
-
-/**
- * Whether the accepted formula computes a quotient, however it is spelled. Only the shapes the
- * guard already accepted reach this, so a `/`, a `SAFE_DIVIDE` call or the `NULLIF` that guards a
- * denominator each mean the same thing: the value is a ratio and must be recomputed from totals
- * rather than summed as it stands.
- */
-function dividesAnywhere(tokens: readonly SqlToken[]): boolean {
-  return tokens.some(
-    token =>
-      (token.kind === 'punct' && token.value === '/') ||
-      (token.kind === 'word' && DIVISION_FUNCTIONS.has(token.value.toUpperCase()))
-  );
-}
-
-const DIVISION_FUNCTIONS: ReadonlySet<string> = new Set(['SAFE_DIVIDE', 'NULLIF']);
 
 /** Exported so the caller gates on the same function this emits, rather than on a copy of it. */
 export const LIFT_AGGREGATION: ReportAggregateFunction = 'SUM';
@@ -205,17 +189,37 @@ function classifyLiftableShape(
   tokens: readonly SqlToken[],
   refs: readonly FormulaReference[],
   truncatesUnderDivision: (index: number) => boolean
-): ShapeRefusal | undefined {
+): { refusal: ShapeRefusal; ratio?: undefined } | { refusal?: undefined; ratio: boolean } {
   const atoms = toLiftAtoms(tokens, refs);
-  if (!atoms) return 'non-distributive-formula';
+  if (!atoms) return { refusal: 'non-distributive-formula' };
 
   const cursor: AtomCursor = { atoms, at: 0 };
   const expression = parseAdditive(cursor);
   // A trailing atom means the text is not one arithmetic expression — unbalanced parentheses, a
   // dangling operator, two adjacent references. Unclassifiable, therefore refused.
-  if (!expression || cursor.at !== atoms.length) return 'non-distributive-formula';
+  if (!expression || cursor.at !== atoms.length) return { refusal: 'non-distributive-formula' };
 
-  return shapeRefusalOf(expression, 'ratio-root', truncatesUnderDivision);
+  const refusal = shapeRefusalOf(expression, 'ratio-root', truncatesUnderDivision);
+  return refusal ? { refusal } : { ratio: dividesByAReference(expression) };
+}
+
+/**
+ * Whether the formula's value is a QUOTIENT of two things that both vary with the rows — the only
+ * shape that has to be recomputed from totals rather than summed as it stands.
+ *
+ * A divisor of literals is not one. `(a - b) / 2` scales linearly exactly as `(a - b) * 0.5` does,
+ * and summing the whole text is both simpler and exact where a row is NULL; wrapping each
+ * reference instead answers `(Σa - Σb) / 2`, which counts an `a` whose row displayed nothing.
+ */
+function dividesByAReference(expression: LiftExpression): boolean {
+  if (expression.kind === 'binary' && expression.op === '/') {
+    return hasReference(expression.right);
+  }
+  if (expression.kind === 'call') {
+    const divisorIndex = LIFTABLE_FUNCTIONS[expression.name]?.denominatorArgument;
+    return divisorIndex !== undefined && hasReference(expression.args[divisorIndex]);
+  }
+  return false;
 }
 
 /**

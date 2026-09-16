@@ -94,13 +94,14 @@ A report with an explicit column selection but **no** aggregation, date bucket, 
 - If every selected column is a **dimension**, OWOX returns the projection **distinct** — the same rows, de-duplicated, with no `GROUP BY` and no relabeled columns.
 - If the selection includes at least one **metric** column, OWOX groups by the remaining dimensions and applies the **first aggregation the column's allowed-aggregations set permits**, in this fixed priority order:
 
-  | Field type             | Priority order                |
-  | ---------------------- | ----------------------------- |
-  | Numeric                | `SUM` → `AVG` → `MIN` → `MAX` |
-  | Date / Time            | `MIN` → `MAX`                 |
-  | String, Boolean, Other | never auto-aggregated         |
+  | Field type     | Priority order                |
+  | -------------- | ----------------------------- |
+  | Numeric        | `SUM` → `AVG` → `MIN` → `MAX` |
+  | Date / Time    | `MIN` → `MAX`                 |
+  | String         | `MIN` → `MAX`, but see below  |
+  | Boolean, Other | never auto-aggregated         |
 
-  This draws from the same [supported menu](#data-mart-level-roles-and-allowed-aggregations) as manual aggregation, so a function narrowed away at the Data Mart level is skipped in favor of the next one in priority order for that type. A **text** field marked as a metric is therefore never auto-aggregated: its allowed set is `COUNT`, `COUNT DISTINCT`, `STRING_AGG`, and `ANY VALUE`, none of which returns the column you selected. Such a report is left uncollapsed — see [when automatic aggregation does not apply](#when-automatic-aggregation-does-not-apply).
+  This draws from the same [supported menu](#data-mart-level-roles-and-allowed-aggregations) as manual aggregation, so a function narrowed away at the Data Mart level is skipped in favor of the next one in priority order for that type. A **text** field marked as a metric is the case to watch. Its DEFAULT allowed set is `COUNT`, `COUNT DISTINCT`, `STRING_AGG`, and `ANY VALUE` — none of which returns the column you selected — so under those defaults nothing is applied and the report is left uncollapsed. Explicitly allowing `MIN` or `MAX` on that field opts it back in, and the column is then delivered as `country | MIN`.
 
 - A **row-level calculated formula** on a selected column may be rewritten to its group-level equivalent instead of becoming a `GROUP BY` key, when OWOX can prove the rewrite returns the same value the row-level formula would have summed to. See [When a calculated formula is lifted](#when-a-calculated-formula-is-lifted) below.
 
@@ -129,7 +130,7 @@ OWOX leaves the report exactly as you built it — duplicates and all — whenev
 - **The report's destination pulls its own data.** **Microsoft Excel** and **Looker Studio** reports are not run by OWOX at all — the add-in and the connector read the report themselves, over the same ad-hoc paths listed above — so they keep returning every underlying row, exactly as before.
 - **A selected column's type cannot be a `GROUP BY` key.** JSON, ARRAY, STRUCT, and GEOGRAPHY columns — the "Other" row in the table above — are never grouped or auto-aggregated.
 - **The report selects a joined column.** A column belonging to a joined Data Mart rather than the report's own cannot be read as a dimension or a metric from the report's own schema. Grouping by a joined metric would drop its duplicate rows and move its total just as aggregating it wrongly would, so the whole report is left alone. Joined fields are a separate piece of work.
-- **The metric has no aggregation OWOX may apply automatically.** The automatic pick only chooses from the aggregations a field's governance already allows. A **text** field marked as a metric is the case you are most likely to meet: its allowed set is `COUNT`, `COUNT DISTINCT`, `STRING_AGG`, and `ANY VALUE`, and none of those returns the column you selected — so the report is left uncollapsed rather than have that column replaced by a count. The same holds for a **boolean** metric, and for any field whose allowed-aggregations set has been emptied outright.
+- **The metric has no aggregation OWOX may apply automatically.** The automatic pick only chooses from the aggregations a field's governance already allows. A **text** field marked as a metric is the case you are most likely to meet: its default allowed set is `COUNT`, `COUNT DISTINCT`, `STRING_AGG`, and `ANY VALUE`, and none of those returns the column you selected — so under those defaults the report is left uncollapsed rather than have that column replaced by a count. Explicitly allowing `MIN` or `MAX` opts it back in. The same holds for a **boolean** metric, and for any field whose allowed-aggregations set has been emptied outright.
 - **A row-level calculated formula does not distribute over the rewrite.** `{{quantity}} * {{unit_price}}` is the clearest example: `SUM(quantity) * SUM(unit_price)` is not the same number as `SUM(quantity * unit_price)`. OWOX also declines to lift a formula that contains a conditional (`CASE`), an additive constant (`{{clicks}} + 5`), a reference inside a divisor other than the formula's own top-level ratio, or any reference whose own allowed-aggregations set does not permit `SUM`.
 - **A division inside the formula would truncate a whole-number reference.** `INTEGER / INTEGER` truncates per row on **Athena** and **Redshift**, so a formula that divides by an integer — or a `DECIMAL` reference, whose declared scale OWOX cannot see on every storage — is left unlifted on those two, even though the identical formula lifts safely on BigQuery, Snowflake, and Databricks, where division promotes to a floating type.
 

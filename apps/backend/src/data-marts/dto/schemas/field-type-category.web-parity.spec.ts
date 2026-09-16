@@ -14,6 +14,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PRIORITY_BY_CATEGORY } from './field-aggregation-governance';
 import {
   BOOL_TYPES,
   DATE_TYPES,
@@ -21,6 +22,11 @@ import {
   STRING_TYPES,
   TIME_TYPES,
 } from './field-type-category';
+
+const WEB_GOVERNANCE_FILE = join(
+  __dirname,
+  '../../../../../web/src/features/data-marts/shared/utils/aggregation-governance.ts'
+);
 
 const WEB_OPERATORS_FILE = join(
   __dirname,
@@ -33,6 +39,31 @@ function webSet(source: string, name: string): string[] {
   if (!match) throw new Error(`${name} not found in the web operators file`);
   return [...match[1].matchAll(/'([^']*)'/g)].map(entry => entry[1]).sort();
 }
+
+/**
+ * One category's list out of the web `PRIORITY_BY_CATEGORY` literal. Scoped to that object first:
+ * the same category keys appear in SUPPORTED_BY_CATEGORY and DEFAULTS_BY_CATEGORY above it.
+ */
+function webPriority(source: string, category: string): string[] {
+  const start = source.indexOf('PRIORITY_BY_CATEGORY');
+  if (start < 0) throw new Error('PRIORITY_BY_CATEGORY not found in the web governance file');
+  const block = source.slice(start, source.indexOf('};', start));
+  const match = new RegExp(`\\b${category}:\\s*\\[([^\\]]*)\\]`).exec(block);
+  if (!match) throw new Error(`${category} not found in the web priority table`);
+  return [...match[1].matchAll(/'([^']*)'/g)].map(entry => entry[1]);
+}
+
+describe('the automatic-pick priority matches the web picker', () => {
+  // Drift here is worse than a type-set drift: the picker draws a ghost naming a function the
+  // server will not apply, or draws none where it does — the exact promise this feature makes.
+  const source = readFileSync(WEB_GOVERNANCE_FILE, 'utf8');
+
+  it.each(Object.keys(PRIORITY_BY_CATEGORY))('%s is in the same ORDER on both sides', category => {
+    expect(webPriority(source, category)).toEqual(
+      PRIORITY_BY_CATEGORY[category as keyof typeof PRIORITY_BY_CATEGORY]
+    );
+  });
+});
 
 describe('field type categories match the web picker', () => {
   const source = readFileSync(WEB_OPERATORS_FILE, 'utf8');

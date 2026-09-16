@@ -11,8 +11,10 @@ import { collectSchemaFieldPathDescriptors } from '../data-storage-types/data-ma
 import { normalizeUniqueCountSources } from '../dto/schemas/unique-count-sources';
 import {
   calculatedFieldLevelOf,
+  calculatedFieldsOf,
   isCalculatedField,
 } from '../calculated-fields/calculated-field.utils';
+import { liveFormulaReferences } from '../calculated-fields/formula-live-reference';
 import { isAggregateLevel } from '../calculated-fields/formula-level';
 import {
   liftFormulaToGroupLevel,
@@ -132,6 +134,13 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
       if (referencedByFilterOrSort(name, report)) {
         return { kind: 'none', reason: 'calculated-not-liftable' };
       }
+      // The same rewrite reaches every OTHER formula that reads this column, because the composer
+      // re-derives each level from the same clone. A dimension built on it stops being a grouping
+      // key; a filter on it moves to HAVING one hop away from the check above. Both are invisible
+      // from the original schema, so a dependent means the whole report is left alone.
+      if (readByAnotherCalculatedField(name, schemaFields)) {
+        return { kind: 'none', reason: 'calculated-not-liftable' };
+      }
       // A calculated field carries no governance of its own, so the numeric priority would SUM a
       // ratio. Lift the formula instead, and refuse the whole report when it cannot be lifted.
       const lifted = liftFormulaToGroupLevel(
@@ -157,6 +166,31 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     aggregations,
     ...(liftedFormulas.length > 0 ? { liftedFormulas } : {}),
   };
+}
+
+/**
+ * Whether another calculated field reads this column.
+ *
+ * DIRECT readers are enough, and that is not an approximation: lifting rewrites this column's
+ * formula on a clone, every level downstream is re-derived from that clone, and so a direct reader
+ * is already rewritten — one is all it takes to refuse. A chain `c -> b -> a` is caught at `b`
+ * before `c` is ever reached.
+ */
+function readByAnotherCalculatedField(
+  column: string,
+  schemaFields: readonly DataMartSchemaField[]
+): boolean {
+  return calculatedFieldsOf(schemaFields).some(field => {
+    if (field.name === column) return false;
+    try {
+      return liveFormulaReferences(field.calculated.formula).some(
+        ref => !ref.path && ref.field === column
+      );
+    } catch {
+      // An unparseable formula reports nothing, the same degradation every other reader makes.
+      return false;
+    }
+  });
 }
 
 /** Whether any output control names this column, whatever it asks of it. */
@@ -278,5 +312,7 @@ function withLiftedFormulas<T extends ReportLike>(
     report.dataMart,
     { schema: { ...schema, fields } as DataMartSchema }
   );
-  return { ...report, dataMart };
+  // Through `patched` for the same reason it exists: a spread here would undo on the lift path
+  // exactly the prototype the DataMart clone above is careful to keep.
+  return patched(report, { dataMart } as Partial<ReportLikeReadPlan>);
 }

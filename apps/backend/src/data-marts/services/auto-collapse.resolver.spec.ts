@@ -273,6 +273,80 @@ describe('resolveAutoCollapse', () => {
     });
   });
 
+  it('refuses to lift a formula ANOTHER calculated field reads', () => {
+    // The lift rewrites `margin` on a clone, and every level downstream is re-derived from that
+    // clone — so `margin_label`, a dimension today, would come back aggregate-level, drop out of
+    // the GROUP BY, and collapse the report to one row per date. Invisible from the original
+    // schema, which is why the two aggregate-level checks above cannot catch it.
+    const report = reportWith(
+      [
+        field('date', 'DATE'),
+        field('revenue', 'FLOAT'),
+        field('cost', 'FLOAT'),
+        field('margin', 'FLOAT', {
+          calculated: { formula: `${ref('revenue')}-${ref('cost')}`, level: 'column' },
+        }),
+        field('margin_label', 'STRING', {
+          calculated: {
+            formula: `CONCAT('m:', CAST(${ref('margin')} AS STRING))`,
+            level: 'column',
+          },
+        }),
+      ],
+      ['date', 'margin', 'margin_label']
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'calculated-not-liftable',
+    });
+  });
+
+  it('refuses when the reader of the lifted field is filtered on, one hop from the direct check', () => {
+    // `pct` is not projected and not named by the filter check above — but it reads `ctr`, so the
+    // lift makes it aggregate-level on the clone and its WHERE becomes a HAVING on group totals.
+    const report = reportWith(
+      [
+        field('date', 'DATE'),
+        field('clicks', 'INTEGER'),
+        field('impressions', 'INTEGER'),
+        field('ctr', 'FLOAT', {
+          calculated: { formula: `${ref('clicks')}/${ref('impressions')}`, level: 'column' },
+        }),
+        field('pct', 'FLOAT', {
+          calculated: { formula: `${ref('ctr')}*100`, level: 'column' },
+        }),
+      ],
+      ['date', 'ctr'],
+      { filterConfig: [{ column: 'pct', operator: 'gt', value: 5 }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'calculated-not-liftable',
+    });
+  });
+
+  it('still lifts when the other calculated field is unrelated to the lifted one', () => {
+    const report = reportWith(
+      [
+        field('date', 'DATE'),
+        field('revenue', 'FLOAT'),
+        field('cost', 'FLOAT'),
+        field('margin', 'FLOAT', {
+          calculated: { formula: `${ref('revenue')}-${ref('cost')}`, level: 'column' },
+        }),
+        field('label', 'STRING', {
+          calculated: { formula: `CONCAT('d:', CAST(${ref('date')} AS STRING))`, level: 'column' },
+        }),
+      ],
+      ['date', 'margin']
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'aggregate',
+      aggregations: [],
+      liftedFormulas: [{ column: 'margin', formula: `SUM(${ref('revenue')}-${ref('cost')}\n)` }],
+    });
+  });
+
   it('refuses a report projecting a column the main schema cannot resolve', () => {
     // A joined column has no descriptor here, so its type is unknown. Grouping by it — which is
     // what a dimension would get — drops its duplicate rows and changes its total exactly as
@@ -634,12 +708,12 @@ describe('resolveAutoCollapse', () => {
     expect(resolveAutoCollapse(literalDivisorReport('BIGINT', DataStorageType.SNOWFLAKE))).toEqual({
       kind: 'aggregate',
       aggregations: [],
-      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')})/100` }],
+      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')}/100\n)` }],
     });
     expect(resolveAutoCollapse(literalDivisorReport('FLOAT', DataStorageType.AWS_ATHENA))).toEqual({
       kind: 'aggregate',
       aggregations: [],
-      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')})/100` }],
+      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')}/100\n)` }],
     });
   });
 
@@ -657,7 +731,7 @@ describe('resolveAutoCollapse', () => {
     expect(resolveAutoCollapse(integerOnBigQuery)).toEqual({
       kind: 'aggregate',
       aggregations: [],
-      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')})/100` }],
+      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')}/100\n)` }],
     });
 
     const report = reportWith(
@@ -673,7 +747,7 @@ describe('resolveAutoCollapse', () => {
     expect(resolveAutoCollapse(report)).toEqual({
       kind: 'aggregate',
       aggregations: [],
-      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')})/100` }],
+      liftedFormulas: [{ column: 'amount', formula: `SUM(${ref('amount_cents')}/100\n)` }],
     });
   });
 
@@ -967,6 +1041,40 @@ describe('applyAutoCollapse', () => {
     expect(plan).toEqual({ kind: 'distinct' });
     const asFake = effective as unknown as FakeReport;
     expect(asFake.ownerIds).toEqual(['u1']);
+    expect(asFake.isEmailBasedDestination()).toBe(true);
+  });
+
+  it('keeps it on the LIFT path too, which clones the schema on its way through', () => {
+    // The distinct branch above returns early; this one goes through `withLiftedFormulas`, whose
+    // own clone used to be handed back with a spread that undid the prototype it just preserved.
+    class FakeLiftReport {
+      dataMart = {
+        schema: {
+          fields: [
+            field('landing_page', 'STRING'),
+            field('revenue', 'FLOAT'),
+            field('cost', 'FLOAT'),
+            field('margin', 'FLOAT', {
+              calculated: { formula: `${ref('revenue')}-${ref('cost')}`, level: 'column' },
+            }),
+          ],
+        },
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+      };
+      columnConfig = ['landing_page', 'margin'];
+      get ownerIds() {
+        return ['u2'];
+      }
+      isEmailBasedDestination() {
+        return true;
+      }
+    }
+    const report = new FakeLiftReport() as unknown as ReportLike;
+    const { report: effective, plan } = applyAutoCollapse(report);
+
+    expect(plan.kind).toBe('aggregate');
+    const asFake = effective as unknown as FakeLiftReport;
+    expect(asFake.ownerIds).toEqual(['u2']);
     expect(asFake.isEmailBasedDestination()).toBe(true);
   });
 

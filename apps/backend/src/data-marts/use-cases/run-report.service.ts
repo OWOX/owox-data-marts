@@ -26,7 +26,7 @@ import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
-import { applyAutoCollapse } from '../services/auto-collapse.resolver';
+import { applyAutoCollapse, type AutoCollapseSkipReason } from '../services/auto-collapse.resolver';
 import {
   BlendableSchemaAccessor,
   resolveBlendableSchemaAccessor,
@@ -99,6 +99,15 @@ export interface EnqueuedReportRun {
  *
  * @see ReportRun - Domain model for report run
  */
+/** The refusals that say something a reader of a run does not already know. */
+const SKIP_REASONS_WORTH_LOGGING: ReadonlySet<AutoCollapseSkipReason> = new Set([
+  'non-groupable-column',
+  'unresolvable-column',
+  'no-allowed-aggregation',
+  'calculated-not-liftable',
+  'sort-outside-projection',
+]);
+
 @Injectable()
 export class RunReportService {
   private readonly logger = new Logger(RunReportService.name);
@@ -337,13 +346,17 @@ export class RunReportService {
       if (autoCollapsePlan.kind === 'distinct' && dataMartRun?.reportDefinition) {
         (dataMartRun.reportDefinition.outputConfig ??= {}).autoAppliedDistinct = true;
       }
-      // The six refusal reasons exist to answer "why does this report still return duplicates?",
-      // and a log line is the only place that question gets asked after the fact.
-      if (autoCollapsePlan.kind === 'none') {
-        reportRunLogger?.log({
-          message: 'Automatic duplicate collapse skipped',
-          reason: autoCollapsePlan.reason,
-        });
+      // The refusal reasons exist to answer "why does this report still return duplicates?", and a
+      // log line is the only place that question gets asked after the fact. Two of them are not
+      // worth writing: a report with no explicit column selection was never in scope — that is the
+      // create default, so most reports would carry the line on every run — and one the analyst
+      // aggregated himself has no duplicates to explain. Both would bury the reasons that answer
+      // the question in the ones that restate the obvious.
+      if (
+        autoCollapsePlan.kind === 'none' &&
+        SKIP_REASONS_WORTH_LOGGING.has(autoCollapsePlan.reason)
+      ) {
+        reportRunLogger?.log(`Automatic duplicate collapse skipped: ${autoCollapsePlan.reason}`);
       }
 
       // Persist the exact executed SQL (output controls applied, params inlined as

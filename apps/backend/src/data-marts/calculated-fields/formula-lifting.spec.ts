@@ -141,6 +141,19 @@ describe('liftFormulaToGroupLevel — where SUM is placed, and why NULL decides 
     });
   });
 
+  it('wraps a formula divided by a LITERAL whole, because that is linear scaling', () => {
+    // `(revenue - cost) / 2` over rows (100, NULL) and (200, 50): the uncollapsed report shows
+    // NULL and 75 and totals 75, which `SUM((revenue - cost) / 2)` answers. The per-reference
+    // form gives `(300 - 50) / 2` = 125 — it counts a revenue whose row displayed nothing.
+    // A literal divisor scales exactly as `* 0.5` does, and the two must not disagree.
+    expect(lift(`(${ref('revenue')}-${ref('cost')})/2`)).toEqual({
+      formula: `SUM((${ref('revenue')}-${ref('cost')})/2\n)`,
+    });
+    expect(lift(`(${ref('revenue')}-${ref('cost')})*0.5`)).toEqual({
+      formula: `SUM((${ref('revenue')}-${ref('cost')})*0.5\n)`,
+    });
+  });
+
   it('wraps each reference of a RATIO, because the whole-text form would average row ratios', () => {
     // `SUM(a/b)` is the sum of per-row ratios, which is not the group ratio at any fan-out. The
     // per-reference form is the ratio of totals, and it deliberately counts a numerator whose
@@ -257,7 +270,7 @@ describe('liftFormulaToGroupLevel — the distributivity guard', () => {
       formula: `SUM(${ref('revenue')}-${ref('cost')}\n)`,
     });
     expect(lift(`${ref('amount')}*1.2`)).toEqual({ formula: `SUM(${ref('amount')}*1.2\n)` });
-    expect(lift(`${ref('amount')}/100`)).toEqual({ formula: `SUM(${ref('amount')})/100` });
+    expect(lift(`${ref('amount')}/100`)).toEqual({ formula: `SUM(${ref('amount')}/100\n)` });
     expect(lift(`(${ref('a')}+${ref('b')})/${ref('c')}`)).toEqual({
       formula: `(SUM(${ref('a')})+SUM(${ref('b')}))/SUM(${ref('c')})`,
     });
@@ -309,8 +322,10 @@ describe('liftFormulaToGroupLevel — a reference in a divisor', () => {
   });
 
   it('still lifts a reference divided by a reference-free divisor', () => {
-    expect(lift(`${ref('amount')}/100`)).toEqual({ formula: `SUM(${ref('amount')})/100` });
-    expect(lift(`${ref('amount')}/(100*2)`)).toEqual({ formula: `SUM(${ref('amount')})/(100*2)` });
+    expect(lift(`${ref('amount')}/100`)).toEqual({ formula: `SUM(${ref('amount')}/100\n)` });
+    expect(lift(`${ref('amount')}/(100*2)`)).toEqual({
+      formula: `SUM(${ref('amount')}/(100*2)\n)`,
+    });
   });
 });
 
