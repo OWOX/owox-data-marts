@@ -392,6 +392,91 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
+  describe('createSpreadsheet', () => {
+    it("names the single sheet in the create request instead of leaving Google's default", async () => {
+      const adapter = buildAdapter();
+      const createMock = jest.fn().mockResolvedValue({
+        data: { spreadsheetId: 'ss-1', sheets: [{ properties: { sheetId: 42 } }] },
+      });
+      (adapter as unknown as { service: unknown }).service = {
+        spreadsheets: { create: createMock },
+      };
+
+      await expect(adapter.createSpreadsheet('Monthly funnel', 'Monthly funnel')).resolves.toEqual({
+        spreadsheetId: 'ss-1',
+        sheetId: 42,
+      });
+
+      expect(createMock).toHaveBeenCalledWith({
+        requestBody: {
+          properties: { title: 'Monthly funnel' },
+          sheets: [{ properties: { title: 'Monthly funnel' } }],
+        },
+        fields: 'spreadsheetId,sheets.properties.sheetId',
+      });
+    });
+  });
+
+  describe('createSpreadsheetViaDrive / createSpreadsheetInFolder', () => {
+    /**
+     * Drive cannot name the sheet on create, so the adapter resolves the default
+     * sheet's gid and renames it — as one operation with the create.
+     */
+    const buildDriveAdapter = (overrides: { batchUpdate?: jest.Mock; get?: jest.Mock } = {}) => {
+      const adapter = buildAdapter();
+      const filesCreate = jest.fn().mockResolvedValue({ data: { id: 'ss-1' } });
+      const filesDelete = jest.fn().mockResolvedValue({});
+      const get =
+        overrides.get ??
+        jest.fn().mockResolvedValue({ data: { sheets: [{ properties: { sheetId: 7 } }] } });
+      const batchUpdate = overrides.batchUpdate ?? jest.fn().mockResolvedValue({ data: {} });
+      (adapter as unknown as { service: unknown }).service = {
+        spreadsheets: { get, batchUpdate },
+      };
+      (adapter as unknown as { driveService: unknown }).driveService = {
+        files: { create: filesCreate, delete: filesDelete },
+      };
+      return { adapter, filesCreate, filesDelete, get, batchUpdate };
+    };
+
+    it('renames the default sheet of the Drive-created file to the given title', async () => {
+      const { adapter, filesCreate, batchUpdate, filesDelete } = buildDriveAdapter();
+
+      await expect(
+        adapter.createSpreadsheetInFolder('Monthly funnel', 'folder-1', 'Monthly funnel')
+      ).resolves.toEqual({ spreadsheetId: 'ss-1', sheetId: 7 });
+
+      expect(filesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({ name: 'Monthly funnel', parents: ['folder-1'] }),
+        })
+      );
+      expect(batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'ss-1',
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId: 7, title: 'Monthly funnel' },
+                fields: 'title',
+              },
+            },
+          ],
+        },
+      });
+      expect(filesDelete).not.toHaveBeenCalled();
+    });
+
+    it('removes the new file again when the rename fails, so no half-named document is left', async () => {
+      const batchUpdate = jest.fn().mockRejectedValue(new Error('rename failed'));
+      const { adapter, filesDelete } = buildDriveAdapter({ batchUpdate });
+
+      await expect(adapter.createSpreadsheetViaDrive('R', 'R')).rejects.toThrow('rename failed');
+
+      expect(filesDelete).toHaveBeenCalledWith({ fileId: 'ss-1', supportsAllDrives: true });
+    });
+  });
+
   describe('driveApiDisabled', () => {
     /** The 403 Google returns when the Drive API is off in the caller's project. */
     const serviceDisabledError = () =>

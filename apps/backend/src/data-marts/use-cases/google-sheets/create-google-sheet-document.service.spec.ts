@@ -130,7 +130,7 @@ describe('CreateGoogleSheetDocumentService', () => {
     );
 
     expect(googleOAuthClientService.getDestinationOAuth2Client).toHaveBeenCalledWith('dest-1');
-    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('Revenue');
+    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('Revenue', 'Revenue');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
     expect(result).toEqual({
@@ -146,7 +146,17 @@ describe('CreateGoogleSheetDocumentService', () => {
 
     await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', '   '));
 
-    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('OWOX Report');
+    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('OWOX Report', 'OWOX Report');
+  });
+
+  it('names the sheet (tab) after the document, capped to what Google accepts', async () => {
+    const { service } = createService(buildDestination(DestinationCredentialType.GOOGLE_OAUTH));
+    const title = 'x'.repeat(120);
+
+    await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', title));
+
+    // The Drive file name keeps the full title; only the sheet title is capped.
+    expect(mockCreateSpreadsheet).toHaveBeenCalledWith(title, 'x'.repeat(100));
   });
 
   it('creates a sheet in the configured folder via the Service Account', async () => {
@@ -161,7 +171,7 @@ describe('CreateGoogleSheetDocumentService', () => {
 
     expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
     expect(mockCreateServiceAccountClient).toHaveBeenCalled();
-    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1');
+    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1', 'Report');
     expect(result).toEqual({
       spreadsheetId: 'sa-sheet-id',
       sheetId: 0,
@@ -183,7 +193,7 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('R');
+    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('R', 'R');
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sheet-id', 'bu@example.com', 'writer');
   });
 
@@ -200,7 +210,7 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1');
+    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1', 'R');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
     expect(result).toEqual({
@@ -246,7 +256,7 @@ describe('CreateGoogleSheetDocumentService', () => {
 
     // The folder choice is dropped (created in the Drive root via the Sheets API)
     // and sharing is skipped — the response flags this so the form can warn.
-    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('R');
+    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('R', 'R');
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
     expect(result).toEqual({
       spreadsheetId: 'sheet-id',

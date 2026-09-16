@@ -6,6 +6,7 @@ import { GoogleOAuthClientService } from '../../services/google-oauth/google-oau
 import { DataDestinationCredentialsResolver } from '../../data-destination-types/data-destination-credentials-resolver.service';
 import { GoogleSheetsApiAdapter } from '../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter';
 import { GoogleSheetsCredentialsSchema } from '../../data-destination-types/google-sheets/schemas/google-sheets-credentials.schema';
+import { toSheetTitle } from '../../data-destination-types/google-sheets/sheet-title.util';
 import { DataDestination } from '../../entities/data-destination.entity';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
@@ -26,7 +27,15 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 /**
  * Auto-creates a new, empty Google Sheet for a Google Sheets destination and
  * returns its identifiers. This is the reusable core behind the "Create document"
- * button (and, later, the MCP add_report flow).
+ * button and the MCP add_report flow.
+ *
+ * The title names BOTH the file and its single sheet (tab): a report's data is
+ * found by the tab, and every other path that gives a report its own sheet
+ * ({@link AddGoogleSheetToSpreadsheetService}, ReconnectGoogleSheetService)
+ * names it after the report. Leaving Google's default "Sheet1" here made a
+ * document whose first export was created with this service and the next one
+ * added as a tab read "Sheet1 / <second report>" — the first report's tab was
+ * the only one not named after its report.
  *
  * Auth is resolved EXPLICITLY by credential type (not via the SA-first factory):
  * - OAuth: the file is created in the connected user's Drive. When the token has
@@ -62,13 +71,15 @@ export class CreateGoogleSheetDocumentService {
     }
 
     const title = command.title?.trim() || DEFAULT_DOCUMENT_TITLE;
+    // Drive accepts any file name; a sheet title is capped, so it is derived.
+    const sheetTitle = toSheetTitle(title);
     const requesterEmail = await this.resolveRequesterEmail(command);
 
     switch (destination.credential?.type) {
       case DestinationCredentialType.GOOGLE_OAUTH:
-        return this.createViaOAuth(destination, title, requesterEmail);
+        return this.createViaOAuth(destination, title, sheetTitle, requesterEmail);
       case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT:
-        return this.createViaServiceAccount(destination, title, requesterEmail);
+        return this.createViaServiceAccount(destination, title, sheetTitle, requesterEmail);
       default:
         throw new OAuthNotConnectedException(destination.id);
     }
@@ -88,6 +99,7 @@ export class CreateGoogleSheetDocumentService {
   private async createViaOAuth(
     destination: DataDestination,
     title: string,
+    sheetTitle: string,
     requesterEmail: string | undefined
   ): Promise<CreateGoogleSheetDocumentResponseDto> {
     const oauth2Client = await this.googleOAuthClientService
@@ -111,7 +123,7 @@ export class CreateGoogleSheetDocumentService {
     let result: CreateGoogleSheetDocumentResponseDto;
     if (folderId) {
       try {
-        result = await adapter.createSpreadsheetInFolder(title, folderId);
+        result = await adapter.createSpreadsheetInFolder(title, folderId, sheetTitle);
       } catch (error) {
         this.throwFolderCreateError(
           destination.id,
@@ -121,11 +133,11 @@ export class CreateGoogleSheetDocumentService {
       }
     } else {
       result = canShare
-        ? await adapter.createSpreadsheetViaDrive(title)
-        : await adapter.createSpreadsheet(title);
+        ? await adapter.createSpreadsheetViaDrive(title, sheetTitle)
+        : await adapter.createSpreadsheet(title, sheetTitle);
     }
     this.logger.log(
-      `Auto-created Google Sheet ${result.spreadsheetId} via OAuth (driveCreate=${canShare}, folder=${folderId ?? 'root'}) for destination ${destination.id}`
+      `Auto-created Google Sheet ${result.spreadsheetId} (sheet "${sheetTitle}", gid ${result.sheetId}) via OAuth (driveCreate=${canShare}, folder=${folderId ?? 'root'}) for destination ${destination.id}`
     );
 
     const sharedWithRequester = await this.shareWithRequester(
@@ -147,6 +159,7 @@ export class CreateGoogleSheetDocumentService {
   private async createViaServiceAccount(
     destination: DataDestination,
     title: string,
+    sheetTitle: string,
     requesterEmail: string | undefined
   ): Promise<CreateGoogleSheetDocumentResponseDto> {
     const folderId = destination.config?.folderId?.trim();
@@ -173,7 +186,7 @@ export class CreateGoogleSheetDocumentService {
 
     let result: CreateGoogleSheetDocumentResponseDto;
     try {
-      result = await adapter.createSpreadsheetInFolder(title, folderId);
+      result = await adapter.createSpreadsheetInFolder(title, folderId, sheetTitle);
     } catch (error) {
       this.throwFolderCreateError(
         destination.id,
@@ -182,7 +195,7 @@ export class CreateGoogleSheetDocumentService {
       );
     }
     this.logger.log(
-      `Auto-created Google Sheet ${result.spreadsheetId} via Service Account in folder ${folderId} for destination ${destination.id}`
+      `Auto-created Google Sheet ${result.spreadsheetId} (sheet "${sheetTitle}", gid ${result.sheetId}) via Service Account in folder ${folderId} for destination ${destination.id}`
     );
 
     // SA JWT always carries the Drive scope, so sharing is always possible.
