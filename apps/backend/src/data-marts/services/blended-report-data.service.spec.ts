@@ -525,6 +525,64 @@ describe('BlendedReportDataService', () => {
       expect(context?.chains[0].parentAlias).toBe('main');
     });
 
+    it('forwards the automatic DISTINCT into the blended query context', async () => {
+      // The only link between the auto-collapse resolver and a JOINED report's SQL. A blended mart
+      // is where duplicate rows come from in the first place, so losing `distinct` here would
+      // silently disable the feature on exactly the shape it exists for.
+      const report = makeReport({ columnConfig: ['native_field', 'blended_field'] });
+      (report as unknown as { distinct?: boolean }).distinct = true;
+
+      const blendedField = new BlendedFieldDto();
+      blendedField.name = 'blended_field';
+      blendedField.sourceRelationshipId = 'rel-1';
+      blendedField.sourceDataMartId = 'dm-target-1';
+      blendedField.sourceDataMartTitle = 'Target DM';
+      blendedField.targetAlias = 'target_alias';
+      blendedField.originalFieldName = 'field';
+      blendedField.type = 'STRING';
+      blendedField.isHidden = false;
+      blendedField.transitiveDepth = 1;
+      blendedField.aliasPath = 'target_alias';
+      blendedField.outputPrefix = 'target_alias';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'target_alias',
+            title: 'Target DM',
+            defaultAlias: 'target_alias',
+            depth: 1,
+            fieldCount: 1,
+            isIncluded: true,
+            isAccessibleForReporting: true,
+            relationshipId: 'rel-1',
+            dataMartId: 'dm-target-1',
+          },
+        ],
+        blendedFields: [blendedField],
+      });
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([
+        {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship,
+      ]);
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+      expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
+        DataStorageType.GOOGLE_BIGQUERY,
+        expect.objectContaining({ distinct: true })
+      );
+    });
+
     describe('COUNT beside a joined COUNT_DISTINCT', () => {
       const joinedReport = (aggregationConfig: NonNullable<Report['aggregationConfig']>) =>
         makeReport({ columnConfig: ['blended_field'], aggregationConfig });
