@@ -210,7 +210,20 @@ const KEPT_ROWS_SUM = 100;
 const SESSION_KEY = 'session_key';
 const BONUS_RATE = 'bonus_rate';
 const AMOUNT_SUM = 'amount | SUM';
-const ROW_COUNT = 'Row Count';
+const CUSTOMER_ID = 'customer_id';
+/**
+ * The per-group row count, asked for EXPLICITLY. Aggregated reports used to append a `Row Count`
+ * column of their own; it was removed — Unique Count covers the counting need — so the number the
+ * grain assertions below read has to be a metric of the report like any other.
+ *
+ * `customer_id` is the column that carries it on all five fixture tables: it is the join key, so
+ * every one of them has it, it is non-null on every seeded row — which is what makes `COUNT` over
+ * it the group's row count exactly — and it is a STRING, which is what makes `COUNT` admissible at
+ * all. Field governance allows a NUMBER only SUM/AVG/MIN/MAX, so `amount | COUNT` would be refused
+ * at save time and never reach a warehouse.
+ */
+const ROW_COUNT = `${CUSTOMER_ID} | COUNT`;
+const ROW_COUNT_RULE = { column: CUSTOMER_ID, function: 'COUNT' } as const;
 const CHANNEL = 'channel';
 
 // ---------------------------------------------------------------------------
@@ -2194,7 +2207,6 @@ async function readTotals(
       columnFilter: columnFilterWithoutCalculatedFields(totals.columns, totals.calculatedFields),
       aggregationConfig: totals.aggregations,
       blendedDataHeaders: totals.blendedDataHeaders,
-      rowCount: false,
       calculatedFields: totals.calculatedFields,
     });
     const batch = await reader.readReportDataBatch(undefined, 1);
@@ -2883,8 +2895,8 @@ function registerSuite(storage: StorageCase): void {
 
     it('groups by the whole expression, not by the columns it mentions', async () => {
       const report = await buildReport({
-        columnConfig: [SESSION_KEY, 'amount'],
-        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+        columnConfig: [SESSION_KEY, CUSTOMER_ID, 'amount'],
+        aggregationConfig: [ROW_COUNT_RULE, { column: 'amount', function: 'SUM' }],
       });
 
       const rows = await readReportRows(storage.storageType, report);
@@ -3028,9 +3040,10 @@ function registerSuite(storage: StorageCase): void {
      */
     async function joinedGroupedReport(): Promise<ReportLikeReadPlan> {
       return buildReport({
-        columnConfig: [CHANNEL, SESSION_KEY, ORDERS_REVENUE, 'amount'],
+        columnConfig: [CHANNEL, SESSION_KEY, ORDERS_REVENUE, CUSTOMER_ID, 'amount'],
         aggregationConfig: [
           { column: ORDERS_REVENUE, function: 'SUM' },
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
       });
@@ -3206,9 +3219,10 @@ function registerSuite(storage: StorageCase): void {
 
     it('aggregates the row-level field instead of grouping by it', async () => {
       const report = await buildAggReport({
-        columnConfig: [COUNTRY, SESSION_KEY, 'amount'],
+        columnConfig: [COUNTRY, SESSION_KEY, CUSTOMER_ID, 'amount'],
         aggregationConfig: [
           { column: SESSION_KEY, function: 'COUNT_DISTINCT' },
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
       });
@@ -3226,10 +3240,11 @@ function registerSuite(storage: StorageCase): void {
 
     it('keeps the aggregated field out of the sleeve grain on a joined report', async () => {
       const report = await buildAggReport({
-        columnConfig: [COUNTRY, SESSION_KEY, ORDERS_REVENUE, 'amount'],
+        columnConfig: [COUNTRY, SESSION_KEY, ORDERS_REVENUE, CUSTOMER_ID, 'amount'],
         aggregationConfig: [
           { column: SESSION_KEY, function: 'COUNT_DISTINCT' },
           { column: ORDERS_REVENUE, function: 'SUM' },
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
       });
@@ -3244,13 +3259,16 @@ function registerSuite(storage: StorageCase): void {
 
     it('aggregates it on a BLENDED report carrying no sleeve at all', async () => {
       const report = await buildAggReport({
-        columnConfig: [COUNTRY, SESSION_KEY, ORDERS_CUSTOMER_ID, 'amount'],
+        columnConfig: [COUNTRY, SESSION_KEY, ORDERS_CUSTOMER_ID, CUSTOMER_ID, 'amount'],
         aggregationConfig: [
           { column: SESSION_KEY, function: 'COUNT_DISTINCT' },
           // COUNT is the one joined aggregate `SLEEVE_ROUTING` maps to null, so no sleeve is built
           // — and with no sleeve, neither of the builder's grain assertions runs. What is left is
           // `MetricSleeveBuilder.buildAll`'s own guard, which fires before any sleeve exists.
           { column: ORDERS_CUSTOMER_ID, function: 'COUNT' },
+          // The MAIN-side twin of that COUNT. `collectSleeveMetrics` keeps only BLENDED columns, so
+          // this one stays on the ordinary path and leaves the sleeve-free shape above intact.
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
       });
@@ -3351,8 +3369,8 @@ function registerSuite(storage: StorageCase): void {
 
     it('keeps a row-level formula that reads another one as a grouping key', async () => {
       const report = await buildReferenceReport({
-        columnConfig: [SESSION_UPPER, 'amount'],
-        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+        columnConfig: [SESSION_UPPER, CUSTOMER_ID, 'amount'],
+        aggregationConfig: [ROW_COUNT_RULE, { column: 'amount', function: 'SUM' }],
       });
 
       const rows = await readReportRows(storage.storageType, report);
@@ -3420,8 +3438,8 @@ function registerSuite(storage: StorageCase): void {
 
     it('computes it beside a joined metric on a BLENDED report', async () => {
       const report = await buildReferenceReport({
-        columnConfig: [CHANNEL, ROAS, ORDERS_REVENUE],
-        aggregationConfig: [{ column: ORDERS_REVENUE, function: 'SUM' }],
+        columnConfig: [CHANNEL, ROAS, ORDERS_REVENUE, CUSTOMER_ID],
+        aggregationConfig: [{ column: ORDERS_REVENUE, function: 'SUM' }, ROW_COUNT_RULE],
       });
 
       // The blended builder projects the main CTE from the SELECTED plans, so `amount` and `bonus`
@@ -3488,8 +3506,8 @@ function registerSuite(storage: StorageCase): void {
 
     it('buckets a DATE-declared row-level formula by MONTH', async () => {
       const bucketed = await buildBucketReport({
-        columnConfig: [EVENT_MONTH, 'amount'],
-        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+        columnConfig: [EVENT_MONTH, CUSTOMER_ID, 'amount'],
+        aggregationConfig: [ROW_COUNT_RULE, { column: 'amount', function: 'SUM' }],
         dateTruncConfig: [{ column: EVENT_MONTH, unit: 'MONTH' }],
       });
 
@@ -3543,12 +3561,13 @@ function registerSuite(storage: StorageCase): void {
 
     it('reproduces the bucket inside the metric sleeve on a blended report', async () => {
       const report = await buildBucketReport({
-        columnConfig: [EVENT_MONTH, ORDERS_CUSTOMER_ID, 'amount'],
+        columnConfig: [EVENT_MONTH, ORDERS_CUSTOMER_ID, CUSTOMER_ID, 'amount'],
         aggregationConfig: [
           // COUNT_DISTINCT deliberately, not SUM: it is the only joined aggregate whose sleeve is
           // a COUNTING one, and the only one whose join-back miss reads as a confident 0 — every
           // other shape announces itself as NULL.
           { column: ORDERS_CUSTOMER_ID, function: 'COUNT_DISTINCT' },
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
         dateTruncConfig: [{ column: EVENT_MONTH, unit: 'MONTH' }],
@@ -3726,10 +3745,13 @@ function registerSuite(storage: StorageCase): void {
       filtered: boolean
     ): Promise<ReportLikeReadPlan> {
       return buildFilterReport({
-        columnConfig,
+        // `CUSTOMER_ID` is appended rather than passed in: both callers assert on the columns THEY
+        // chose, and the row count is a fixture check that belongs to neither.
+        columnConfig: [...columnConfig, CUSTOMER_ID],
         aggregationConfig: [
           { column: ORDERS_CUSTOMER_ID, function: 'COUNT_DISTINCT' },
           { column: ORDERS_REVENUE, function: 'SUM' },
+          ROW_COUNT_RULE,
           { column: 'amount', function: 'SUM' },
         ],
         ...(filtered ? { filterConfig: [keyFilterRule] } : {}),
