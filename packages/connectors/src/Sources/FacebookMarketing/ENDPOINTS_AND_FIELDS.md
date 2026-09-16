@@ -276,6 +276,18 @@ Insights endpoints return daily performance data. **Ad Account Insights** and it
 | **Ad Insights by Ad Set** (`ad-account/insights-by-adset`) | None — ad set level | None | `adset_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_adset` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Insights by Campaign** (`ad-account/insights-by-campaign`) | None — campaign level | None | `campaign_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_campaign` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 
+### Conversion Metrics and Breakdowns
+
+Meta limits which metrics each breakdown supports. Plan for these limits before you report on conversions.
+
+| Endpoint | How Meta treats `conversions` and `conversion_values` |
+| --- | --- |
+| **Ad Account Insights by Link URL Asset** | Meta supports only `impressions`, `clicks`, `spend`, `reach`, `actions`, and `action_values` with Dynamic Creative asset breakdowns. Do not select the conversion fields here. |
+| **Ad Account Insights by Product ID** | Meta returns web conversions without the product breakdown, and drops mobile conversions. The same value repeats on every product row, so do not sum it across rows. |
+| **Ad Account Insights by Region** | Meta no longer splits off-Meta conversions by region. Expect empty or partial values. The same limit applies to `actions` and `action_values`. |
+
+Meta documents these limits in [Breakdowns](https://developers.facebook.com/docs/marketing-api/insights/breakdowns/).
+
 ### Ad Account Insights Fields
 
 Use these fields with `ad-account/insights` and every `ad-account/insights-by-*` endpoint.
@@ -312,8 +324,8 @@ Official Meta reference: [Ad Account Insights](https://developers.facebook.com/d
 | `catalog_segment_value_omni_purchase_roas` | `catalog_segment_value_omni_purchase_roas` | `ARRAY` | The total return on ad spend (ROAS) from all purchases for your catalog segment. |
 | `catalog_segment_value_website_purchase_roas` | `catalog_segment_value_website_purchase_roas` | `ARRAY` | The total return on ad spend (ROAS) from website purchases for your catalog segment. |
 | `clicks` | `clicks` | `NUMBER` | The number of clicks on your ads. |
-| `conversion_values` | `conversion_values` | `ARRAY` | conversion_values |
-| `conversions` | `conversions` | `ARRAY` | conversions |
+| `conversion_values` | `conversion_values` | `ARRAY` | The total value of all conversions attributed to your ads. Covers the same conversion events as the conversions field. |
+| `conversions` | `conversions` | `ARRAY` | The total number of conversions attributed to your ads. Counts conversion events only, unlike actions, which also counts engagement and clicks. |
 | `converted_product_quantity` | `converted_product_quantity` | `ARRAY` | The number of products purchased which are recorded by your merchant partner's pixel or app SDK for a given product ID and driven by your ads. Has to be used together with converted product ID breakdown. |
 | `converted_product_value` | `converted_product_value` | `ARRAY` | The value of purchases recorded by your merchant partner's pixel or app SDK for a given product ID and driven by your ads. Has to be used together with converted product ID breakdown. |
 | `cost_per_15_sec_video_view` | `cost_per_15_sec_video_view` | `ARRAY` | cost_per_15_sec_video_view |

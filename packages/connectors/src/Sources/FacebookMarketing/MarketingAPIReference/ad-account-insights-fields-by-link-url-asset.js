@@ -112,11 +112,11 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'type': DATA_TYPES.NUMBER
   },
   'conversion_values': {
-    'description': 'conversion_values',
+    'description': 'The total value of all conversions attributed to your ads. Covers the same conversion events as the conversions field.',
     'type': DATA_TYPES.ARRAY
   },
   'conversions': {
-    'description': 'conversions',
+    'description': 'The total number of conversions attributed to your ads. Counts conversion events only, unlike actions, which also counts engagement and clicks.',
     'type': DATA_TYPES.ARRAY
   },
   'converted_product_quantity': {

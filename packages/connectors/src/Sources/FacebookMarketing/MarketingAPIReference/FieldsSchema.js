@@ -100,7 +100,7 @@ var FacebookMarketingFieldsSchema = {
         "fields": adAccountInsightsFieldsByCountry,
         "breakdowns": ["country"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
-        'defaultFields': ["account_currency", "account_id", "account_name", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name", "clicks", "impressions", "inline_link_clicks", "reach", "spend", "conversions", "conversion_values"],
+        'defaultFields': ["account_currency", "account_id", "account_name", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name", "clicks", "conversion_values", "conversions", "impressions", "inline_link_clicks", "reach", "spend"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_country"
     },
@@ -122,7 +122,7 @@ var FacebookMarketingFieldsSchema = {
         "fields": adAccountInsightsFieldsByLinkUrlAsset,
         "breakdowns": ["link_url_asset"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
-        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values", "conversions", "conversion_values"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset"
     },
