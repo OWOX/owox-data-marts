@@ -2,6 +2,12 @@ name: Integration Tests (Real DB)
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "One suite's jest pattern, e.g. row-level-calculated-field-real. Empty runs them all."
+        type: string
+        required: false
+        default: ''
   schedule:
     - cron: '0 5,13 * * *'
 
@@ -13,35 +19,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The suite list, and the single place it lives. A manual dispatch may narrow it to one
+  # suite: re-running a single warehouse after a fix should not spend the other eight, each
+  # of which seeds and drops real tables. `inputs.suite` is empty on a schedule, so the
+  # nightly run still gets the whole matrix.
+  select-suites:
+    name: Select suites
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.select.outputs.suites }}
+    steps:
+      - name: Select suites
+        id: select
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          # google-sheets.integration.ts is intentionally absent (not CI-ready);
+          # only the working column-preservation suite runs here.
+          cat > suites.json <<'JSON'
+          [
+            { "name": "BigQuery", "pattern": "bigquery.integration" },
+            { "name": "Athena", "pattern": "athena.integration" },
+            { "name": "Redshift", "pattern": "redshift.integration" },
+            { "name": "Snowflake", "pattern": "snowflake.integration" },
+            { "name": "Databricks", "pattern": "databricks.integration" },
+            {
+              "name": "HTTP Data (Athena + BigQuery + Redshift + Databricks + Snowflake)",
+              "pattern": "http-data-real"
+            },
+            { "name": "Report read (Athena)", "pattern": "report-run-real" },
+            {
+              "name": "Row-level Calculated Field (Athena + BigQuery + Redshift + Databricks + Snowflake)",
+              "pattern": "row-level-calculated-field-real"
+            },
+            {
+              "name": "Google Sheets (column preservation)",
+              "pattern": "google-sheets-column-preservation.integration"
+            }
+          ]
+          JSON
+
+          if [ -z "$SUITE" ]; then
+            selected=$(jq -c . suites.json)
+          else
+            selected=$(jq -c --arg s "$SUITE" '[.[] | select(.pattern == $s or .name == $s)]' suites.json)
+            # An empty matrix is a workflow-level error with an opaque message, so a typo is
+            # reported here instead, naming what it could have been.
+            if [ "$(echo "$selected" | jq 'length')" -eq 0 ]; then
+              echo "::error::No suite matches '$SUITE'. Known patterns:"
+              jq -r '.[].pattern' suites.json
+              exit 1
+            fi
+          fi
+          echo "suites=$selected" >> "$GITHUB_OUTPUT"
+
   integration-tests:
     name: ${{ matrix.suite.name }}
+    needs: select-suites
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
-        suite:
-          - name: BigQuery
-            pattern: bigquery.integration
-          - name: Athena
-            pattern: athena.integration
-          - name: Redshift
-            pattern: redshift.integration
-          - name: Snowflake
-            pattern: snowflake.integration
-          - name: Databricks
-            pattern: databricks.integration
-          - name: HTTP Data (Athena + BigQuery + Redshift + Databricks + Snowflake)
-            pattern: http-data-real
-          - name: Report read (Athena)
-            pattern: report-run-real
-          - name: Row-level Calculated Field (Athena + BigQuery + Redshift + Databricks + Snowflake)
-            pattern: row-level-calculated-field-real
-          # google-sheets.integration.ts is intentionally skipped (not CI-ready);
-          # only the working column-preservation suite runs here.
-          - name: Google Sheets (column preservation)
-            pattern: google-sheets-column-preservation.integration
+        suite: ${{ fromJSON(needs.select-suites.outputs.suites) }}
 
     steps:
       - name: Checkout repository
@@ -105,7 +146,7 @@ jobs:
   # them is already watching. Uses the built-in GITHUB_TOKEN — no extra secret.
   notify-on-failure:
     name: Notify on scheduled failure
-    needs: integration-tests
+    needs: [select-suites, integration-tests]
     if: ${{ failure() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
