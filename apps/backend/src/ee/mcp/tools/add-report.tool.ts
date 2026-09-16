@@ -178,7 +178,7 @@ export const addReportInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Google Sheets only. Add the report as a new sheet (tab) of this existing spreadsheet instead of creating a new file — use the spreadsheet_id returned by an earlier add_report in this conversation, or by get_data_mart_reports. Pass it whenever the user asks for several related exports, so they land in ONE document. The sheet is named after `name` and must not exist yet; the destination's connected Google account needs edit access to the spreadsheet. Rejected for other destination types."
+        "Google Sheets only. Add the report as a new sheet (tab) of this existing spreadsheet instead of creating a new file — use the spreadsheet_id returned by an earlier add_report in this conversation, or by get_data_mart_reports. Pass it whenever the user asks for several related exports, so they land in ONE document. The sheet is named after `name` and must not exist yet, so every report added to the same document needs a distinct name — including the first report's, whose name is also the document's first sheet; the destination's connected Google account needs edit access to the spreadsheet. Rejected for other destination types."
       ),
     allow_similar: z
       .boolean()
