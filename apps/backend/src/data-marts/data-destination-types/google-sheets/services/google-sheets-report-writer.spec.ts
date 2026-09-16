@@ -1414,7 +1414,7 @@ describe('GoogleSheetsReportWriter — record JSON reaches the adapter (real for
 
     await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
     await writer.writeReportDataBatch(
-      new ReportDataBatch([[1, { country: 'UA', city: 'Kyiv' }, 'Kyiv', '[["a","b"],["c"]]']])
+      new ReportDataBatch([[1, '{"country":"UA","city":"Kyiv"}', 'Kyiv', '[["a","b"],["c"]]']])
     );
 
     expect(adapter.updateValues).toHaveBeenCalledWith(SPREADSHEET_ID, `'${SHEET_TITLE}'!A2:D2`, [

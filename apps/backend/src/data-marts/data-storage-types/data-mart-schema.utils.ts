@@ -49,11 +49,12 @@ export function collectSchemaFieldPathTypes(
  * its element type (`STRING` + mode `REPEATED`), but the column is an `ARRAY<STRING>`.
  * Normalizing it here keeps arrays column-only across downstream output controls.
  */
-export function getReportFieldType(field: { type: string; mode?: BigQueryFieldMode }): string {
-  const rawType = String(field.type);
+export function getReportFieldType<T extends { type: string }>(
+  field: T
+): T['type'] | `ARRAY<${T['type']}>` {
   return 'mode' in field && field.mode === BigQueryFieldMode.REPEATED
-    ? `ARRAY<${rawType}>`
-    : rawType;
+    ? (`ARRAY<${field.type}>` as `ARRAY<${T['type']}>`)
+    : field.type;
 }
 
 // Same traversal as `collectSchemaFieldPathTypes` but exposes the underlying field so
@@ -90,7 +91,7 @@ export function collectFormulaReferenceableFields(
     if (!isConnected(field)) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     result.push({ name: fullName, field });
-    if ('fields' in field && field.fields?.length) {
+    if ('fields' in field && field.fields?.length && !isArrayFieldType(getReportFieldType(field))) {
       result.push(
         ...collectFormulaReferenceableFields(field.fields as DataMartSchemaField[], fullName)
       );

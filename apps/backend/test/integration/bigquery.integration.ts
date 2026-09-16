@@ -25,6 +25,7 @@ import {
 } from 'src/data-marts/calculated-fields/formula-function-dialect';
 import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { extractCteBody } from '@owox/test-utils';
+import { BigQueryReportReader } from 'src/data-marts/data-storage-types/bigquery/services/bigquery-report-reader.service';
 
 /**
  * BigQuery Integration Tests
@@ -199,6 +200,41 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       expect(rows).toHaveLength(2);
       expect(rows.map((r: Record<string, unknown>) => String(r.label))).toEqual(['a', 'b']);
       expect(rows.map((r: Record<string, unknown>) => Number(r.n))).toEqual([1, 2]);
+    }, 60000);
+
+    it('serializes whole records without leaking SDK wrappers or collapsing a value field', async () => {
+      const { jobId } = await adapter.executeQuery(`
+        SELECT
+          STRUCT(5 AS value, 'USD' AS currency) AS customer,
+          STRUCT(
+            DATE '2026-09-16' AS date,
+            TIMESTAMP '2026-09-16 12:34:56+00' AS timestamp,
+            NUMERIC '123.45' AS amount,
+            b'abc' AS bytes
+          ) AS wrapped
+      `);
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 1, autoPaginate: false });
+      const reader = new BigQueryReportReader({} as never, {} as never, {} as never, {} as never);
+
+      const [customer, wrapped] = reader.getStructuredReportRowData(rows[0], [
+        'customer',
+        'wrapped',
+      ]);
+
+      expect(JSON.parse(String(customer))).toEqual({ value: 5, currency: 'USD' });
+      expect(JSON.parse(String(wrapped))).toEqual({
+        date: '2026-09-16',
+        timestamp: '2026-09-16T12:34:56.000Z',
+        amount: '123.45',
+        bytes: 'YWJj',
+      });
     }, 60000);
 
     it('supports NAMED query parameters end-to-end', async () => {

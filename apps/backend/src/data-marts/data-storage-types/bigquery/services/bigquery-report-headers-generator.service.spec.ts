@@ -1,6 +1,7 @@
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 import { BigqueryDataMartSchema } from '../schemas/bigquery-data-mart.schema';
 import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-status.enum';
+import { BigQueryFieldType } from '../enums/bigquery-field-type.enum';
 
 describe('BigQueryReportHeadersGenerator', () => {
   const generator = new BigQueryReportHeadersGenerator();
@@ -52,5 +53,24 @@ describe('BigQueryReportHeadersGenerator', () => {
     );
 
     expect(headers).toEqual([]);
+  });
+
+  it('reports a repeated field as an array instead of its element type', () => {
+    const headers = generator.generateHeaders(
+      schemaWith([
+        {
+          name: 'quantities',
+          type: BigQueryFieldType.INTEGER,
+          mode: 'REPEATED',
+          status: DataMartSchemaFieldStatus.CONNECTED,
+          isPrimaryKey: false,
+          isHiddenForReporting: false,
+        },
+      ] as unknown as BigqueryDataMartSchema['fields'])
+    );
+
+    expect(headers.map(header => [header.name, header.storageFieldType])).toEqual([
+      ['quantities', 'ARRAY<INTEGER>'],
+    ]);
   });
 });

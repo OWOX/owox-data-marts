@@ -620,4 +620,18 @@ describe('collectFormulaReferenceableFields', () => {
       'metrics.ctr',
     ]);
   });
+
+  it.each([
+    ['a repeated record', { type: 'RECORD', mode: 'REPEATED' }],
+    ['a typed array', { type: 'ARRAY<STRUCT<sku STRING>>' }],
+  ])('keeps %s referenceable but does not expose its descendants', (_label, arrayShape) => {
+    const fields = [
+      mkField('items', {
+        ...arrayShape,
+        fields: [mkField('sku')],
+      } as Partial<DataMartSchemaField>),
+    ];
+
+    expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual(['items']);
+  });
 });

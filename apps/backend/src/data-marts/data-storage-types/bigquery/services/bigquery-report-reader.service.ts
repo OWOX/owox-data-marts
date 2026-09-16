@@ -1,4 +1,13 @@
-import { Table, TableRow } from '@google-cloud/bigquery';
+import {
+  BigQueryDate,
+  BigQueryDatetime,
+  BigQueryInt,
+  BigQueryTime,
+  BigQueryTimestamp,
+  Geography,
+  Table,
+  TableRow,
+} from '@google-cloud/bigquery';
 import { BigQueryRange } from '@google-cloud/bigquery/build/src/bigquery';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
@@ -243,25 +252,57 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
   private getReportCellValue(cell: unknown): unknown {
     const isCellPresent = cell !== null && cell !== undefined;
-    if (isCellPresent && cell instanceof Array) {
-      return JSON.stringify(cell.map(this.getReportCellValue.bind(this)), null, 2);
-    } else if (isCellPresent && cell instanceof BigQueryRange) {
-      return JSON.stringify(cell, null, 2);
-    } else if (isCellPresent && cell instanceof Buffer) {
-      return cell.toString('base64');
-    } else if (isCellPresent && typeof cell === 'object') {
-      if (cell.constructor.name === 'Big') {
-        // BigQuery NUMERIC and BIGNUMERIC wrapper handling
-        return cell.toString();
-      } else if (cell['value']) {
-        // other BigQuery types with wrappers
-        return cell['value'];
-      } else {
-        return cell;
-      }
-    } else {
-      return cell;
+    if (!isCellPresent) return cell;
+
+    const normalized = this.normalizeReportCellValue(cell);
+    if (Array.isArray(cell) || cell instanceof BigQueryRange) {
+      return JSON.stringify(normalized, null, 2);
     }
+    if (
+      typeof cell === 'object' &&
+      !Buffer.isBuffer(cell) &&
+      !this.isBigNumber(cell) &&
+      !this.isBigQueryScalarWrapper(cell)
+    ) {
+      return JSON.stringify(normalized);
+    }
+    return normalized;
+  }
+
+  private normalizeReportCellValue(cell: unknown): unknown {
+    if (cell === null || cell === undefined) return cell;
+    if (Array.isArray(cell)) return cell.map(value => this.normalizeReportCellValue(value));
+    if (Buffer.isBuffer(cell)) return cell.toString('base64');
+    if (typeof cell !== 'object') return cell;
+    if (this.isBigNumber(cell)) return cell.toString();
+    if (this.isBigQueryScalarWrapper(cell)) return cell.value;
+
+    return Object.fromEntries(
+      Object.entries(cell).map(([key, value]) => [key, this.normalizeReportCellValue(value)])
+    );
+  }
+
+  private isBigNumber(cell: object): boolean {
+    return typeof cell.constructor === 'function' && cell.constructor.name === 'Big';
+  }
+
+  private isBigQueryScalarWrapper(
+    cell: object
+  ): cell is
+    | BigQueryDate
+    | BigQueryDatetime
+    | BigQueryInt
+    | BigQueryTime
+    | BigQueryTimestamp
+    | Geography {
+    return (
+      cell instanceof BigQueryDate ||
+      cell instanceof BigQueryDatetime ||
+      cell instanceof BigQueryInt ||
+      cell instanceof BigQueryTime ||
+      cell instanceof BigQueryTimestamp ||
+      cell instanceof Geography
+    );
   }
 
   getState(): BigQueryReaderState | null {

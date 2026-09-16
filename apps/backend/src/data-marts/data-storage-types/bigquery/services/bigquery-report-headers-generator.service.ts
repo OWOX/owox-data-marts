@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isConnected } from '../../data-mart-schema.utils';
+import { getReportFieldType, isConnected } from '../../data-mart-schema.utils';
 import { isCalculatedField } from '../../../calculated-fields/calculated-field.utils';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { ReportHeadersGenerator } from '../../interfaces/report-headers-generator.interface';
@@ -51,7 +51,7 @@ export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
 
     if (field.mode === BigQueryFieldMode.REPEATED) {
       fieldHeaders.push(
-        new ReportDataHeader(field.name, field.alias, field.description, field.type)
+        new ReportDataHeader(field.name, field.alias, field.description, getReportFieldType(field))
       );
     } else if (field.type === BigQueryFieldType.RECORD || field.type === BigQueryFieldType.STRUCT) {
       if (field.fields) {

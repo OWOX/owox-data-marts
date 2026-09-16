@@ -1,7 +1,125 @@
+import { BigQuery } from '@google-cloud/bigquery';
 import { BigQueryReportReader } from './bigquery-report-reader.service';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 import { BigQueryFieldType } from '../enums/bigquery-field-type.enum';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
+
+describe('BigQueryReportReader value transport', () => {
+  const reader = new BigQueryReportReader({} as never, {} as never, {} as never, {} as never);
+
+  const [row] = BigQuery.mergeSchemaWithRows_(
+    {
+      fields: [
+        {
+          name: 'truthy_value',
+          type: 'RECORD',
+          fields: [
+            { name: 'value', type: 'INT64' },
+            { name: 'currency', type: 'STRING' },
+          ],
+        },
+        {
+          name: 'zero_value',
+          type: 'RECORD',
+          fields: [
+            { name: 'value', type: 'INT64' },
+            { name: 'currency', type: 'STRING' },
+          ],
+        },
+        {
+          name: 'wrapped',
+          type: 'RECORD',
+          fields: [
+            { name: 'date', type: 'DATE' },
+            { name: 'timestamp', type: 'TIMESTAMP' },
+            { name: 'amount', type: 'NUMERIC' },
+            { name: 'bytes', type: 'BYTES' },
+            { name: 'validity', type: 'RANGE', rangeElementType: { type: 'DATE' } },
+          ],
+        },
+        {
+          name: 'items',
+          type: 'RECORD',
+          mode: 'REPEATED',
+          fields: [
+            { name: 'value', type: 'INT64' },
+            { name: 'currency', type: 'STRING' },
+          ],
+        },
+      ],
+    },
+    [
+      {
+        f: [
+          { v: { f: [{ v: '5' }, { v: 'USD' }] } },
+          { v: { f: [{ v: '0' }, { v: 'ZERO' }] } },
+          {
+            v: {
+              f: [
+                { v: '2026-09-16' },
+                { v: '2026-09-16T12:34:56.000Z' },
+                { v: '123.45' },
+                { v: 'YWJj' },
+                { v: '[2026-01-01, 2026-01-03)' },
+              ],
+            },
+          },
+          {
+            v: [
+              { v: { f: [{ v: '5' }, { v: 'USD' }] } },
+              { v: { f: [{ v: '0' }, { v: 'ZERO' }] } },
+            ],
+          },
+        ],
+      },
+    ] as never,
+    {
+      wrapIntegers: false,
+      listParams: { 'formatOptions.timestampOutputFormat': 'ISO8601_STRING' },
+    }
+  );
+
+  const readJson = (column: string): unknown => {
+    const [value] = reader.getStructuredReportRowData(row, [column]);
+    expect(typeof value).toBe('string');
+    return JSON.parse(value as string);
+  };
+
+  it.each([
+    ['truthy_value', { value: 5, currency: 'USD' }],
+    ['zero_value', { value: 0, currency: 'ZERO' }],
+  ])(
+    'serializes a record named %s without mistaking its value field for an SDK wrapper',
+    (name, expected) => {
+      expect(readJson(name)).toEqual(expected);
+    }
+  );
+
+  it('recursively normalizes SDK wrappers inside a selected record', () => {
+    expect(readJson('wrapped')).toEqual({
+      date: '2026-09-16',
+      timestamp: '2026-09-16T12:34:56.000Z',
+      amount: '123.45',
+      bytes: 'YWJj',
+      validity: {
+        elementType: 'DATE',
+        start: '2026-01-01',
+        end: '2026-01-03',
+      },
+    });
+  });
+
+  it('normalizes records inside a repeated field without losing row boundaries', () => {
+    expect(readJson('items')).toEqual([
+      { value: 5, currency: 'USD' },
+      { value: 0, currency: 'ZERO' },
+    ]);
+  });
+
+  it('keeps a selected scalar descendant scalar', () => {
+    expect(reader.getStructuredReportRowData(row, ['wrapped.date'])).toEqual(['2026-09-16']);
+  });
+});
 
 describe('BigQueryReportReader queryTimeoutMs threading (Phase 3)', () => {
   const buildReport = () =>

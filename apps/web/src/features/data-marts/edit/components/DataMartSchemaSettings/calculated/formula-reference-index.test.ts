@@ -10,7 +10,7 @@ import {
   type SchemaField,
 } from './formula-reference-index';
 
-function field(overrides: Partial<SchemaField> = {}): SchemaField {
+function field(overrides: Partial<SchemaField> & { mode?: string } = {}): SchemaField {
   return {
     name: 'f',
     type: 'STRING',
@@ -116,6 +116,21 @@ describe('buildReferenceIndex', () => {
       field({ name: 'payload', fields: [field({ name: 'value' })] }),
     ]);
     expect(index.map(f => f.name)).toContain('payload.value');
+  });
+
+  it.each([
+    ['a repeated record', { type: 'RECORD', mode: 'REPEATED' }],
+    ['a typed array', { type: 'ARRAY<STRUCT<sku STRING>>' }],
+  ])('offers %s but not its descendants', (_label, arrayShape) => {
+    const index = buildReferenceIndex([
+      field({
+        name: 'items',
+        ...arrayShape,
+        fields: [field({ name: 'sku' })],
+      }),
+    ]);
+
+    expect(index.map(f => f.name)).toEqual(['items']);
   });
 
   it('offers a field nested two levels deep under its full dotted path', () => {

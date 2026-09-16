@@ -108,7 +108,7 @@ const JoinedFieldSchema = z
     type: z
       .string()
       .describe(
-        'Type in the blended result — use it to pick operators for filters and functions for aggregations unless it is an array. For a slice, use "sliceType" instead when it is present.'
+        'Type in the blended result. Use filter operators or aggregation functions only when the corresponding category or allowedAggregations metadata is present. For slices, use "sliceType" when present. A field without category whose sliceType is an ARRAY can only be selected as a column.'
       ),
     description: z.string().optional().nullable(),
     sourceDataMart: z.string().describe('Title of the joined data mart this field comes from.'),

@@ -9,4 +9,5 @@ export type StorageFieldType =
   | AthenaFieldType
   | SnowflakeFieldType
   | RedshiftFieldType
-  | DatabricksFieldType;
+  | DatabricksFieldType
+  | `ARRAY<${string}>`;

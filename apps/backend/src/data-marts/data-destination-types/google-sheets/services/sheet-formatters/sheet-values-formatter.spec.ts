@@ -63,7 +63,7 @@ describe('SheetValuesFormatter', () => {
       ]);
     });
 
-    it('serializes a selected record without changing its scalar columns or joined JSON arrays', () => {
+    it('keeps record and joined-array JSON text unchanged alongside scalar descendants', () => {
       const names = ['customer', 'customer.country', 'customer.city', 'order_details__tags'];
       const headers = new Map<string, ReportDataHeader>([
         [
@@ -71,18 +71,20 @@ describe('SheetValuesFormatter', () => {
           new ReportDataHeader('customer', undefined, undefined, BigQueryFieldType.RECORD),
         ],
       ]);
-      const rows = [[{ country: 'UA', city: 'Kyiv' }, 'UA', 'Kyiv', '[["a","b"],["c"]]']];
+      const rows = [['{"country":"UA","city":"Kyiv"}', 'UA', 'Kyiv', '[["a","b"],["c"]]']];
 
       const result = formatter.formatRowsValuesByName(rows, names, headers, 'UTC');
 
-      expect(result).toEqual([
-        ['{"country":"UA","city":"Kyiv"}', 'UA', 'Kyiv', '[["a","b"],["c"]]'],
-      ]);
+      expect(result).toEqual(rows);
     });
 
-    it('serializes nested objects and raw arrays without requiring storage type metadata', () => {
+    it('does not double-encode JSON text when storage type metadata is absent', () => {
       const rows = [
-        [{ nested: { active: true }, tags: ['a'], missing: null }, [{ sku: 'A', quantity: 2 }], []],
+        [
+          '{"nested":{"active":true},"tags":["a"],"missing":null}',
+          '[{"sku":"A","quantity":2}]',
+          '[]',
+        ],
       ];
 
       const result = formatter.formatRowsValuesByName(
@@ -92,13 +94,7 @@ describe('SheetValuesFormatter', () => {
         'UTC'
       );
 
-      expect(result).toEqual([
-        [
-          '{"nested":{"active":true},"tags":["a"],"missing":null}',
-          '[{"sku":"A","quantity":2}]',
-          '[]',
-        ],
-      ]);
+      expect(result).toEqual(rows);
     });
 
     it('preserves Date values from storage readers without adding JSON quotes', () => {

@@ -62,6 +62,7 @@ describe('LookerStudioTypeMapperService', () => {
       [BigQueryFieldType.STRUCT, FieldDataType.STRING],
       [BigQueryFieldType.RANGE, FieldDataType.STRING],
       [BigQueryFieldType.INTERVAL, FieldDataType.STRING],
+      ['ARRAY<INTEGER>', FieldDataType.STRING],
     ];
 
     const snowflakeCases: Case[] = [

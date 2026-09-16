@@ -17,6 +17,10 @@ import {
   type BaseSchemaField,
   type CalculatedFieldLevel,
 } from '../../../../shared/types/data-mart-schema.types';
+import {
+  effectiveComparisonType,
+  isArrayFieldType,
+} from '../../ReportColumnPicker/output-controls-operators';
 
 /**
  * A schema field as this module needs to see it. Every concrete per-storage field type
@@ -24,6 +28,7 @@ import {
  * BigQuery ever nests, so the recursion below is a no-op for the rest.
  */
 export interface SchemaField extends BaseSchemaField {
+  mode?: string;
   fields?: readonly SchemaField[];
 }
 
@@ -124,7 +129,8 @@ export function buildReferenceIndex(fields: readonly SchemaField[]): Referenceab
           ? { calculated: field.calculated.level ? { level: field.calculated.level } : {} }
           : {}),
       });
-      if (field.fields?.length) walk(field.fields, name);
+      const reportType = effectiveComparisonType(field.type, field.mode);
+      if (field.fields?.length && !isArrayFieldType(reportType)) walk(field.fields, name);
     }
   };
 
