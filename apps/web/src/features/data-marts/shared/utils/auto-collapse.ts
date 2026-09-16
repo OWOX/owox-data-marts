@@ -109,9 +109,12 @@ export function resolveAutoCollapse(
 }
 
 /** The per-column functions a row renderer asks for; empty for every non-`aggregate` plan. */
+/** Shared, so a plan that predicts nothing hands back the same object every time. */
+const NO_AUTO_AGGREGATIONS: ReadonlyMap<string, ReportAggregateFunction> = new Map();
+
 export function autoAggregationByColumn(
   plan: AutoCollapsePlan
 ): ReadonlyMap<string, ReportAggregateFunction> {
-  if (plan.kind !== 'aggregate') return new Map();
+  if (plan.kind !== 'aggregate') return NO_AUTO_AGGREGATIONS;
   return new Map(plan.aggregations.map(rule => [rule.column, rule.function]));
 }

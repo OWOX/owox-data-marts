@@ -273,6 +273,65 @@ describe('resolveAutoCollapse', () => {
     });
   });
 
+  it('refuses the DISTINCT collapse when a sort names a numeric calculated dimension', () => {
+    // The sort renders as `ORDER BY CAST(ROUND(cost) AS FLOAT64)`, never the alias, and that
+    // expression is not among the DISTINCT items — rejected by BigQuery, Athena/Trino and
+    // Redshift alike. The report ran fine uncollapsed, so the collapse is what must give way.
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('cost', 'FLOAT'),
+        field('cost_rounded', 'FLOAT', {
+          aggregationRole: 'dimension',
+          calculated: { formula: `ROUND(${ref('cost')})`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'cost_rounded'],
+      { sortConfig: [{ column: 'cost_rounded', direction: 'desc' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'sort-outside-projection',
+    });
+  });
+
+  it('still collapses when the sorted calculated dimension takes no cast', () => {
+    // A STRING-declared formula sorts as itself, so the DISTINCT list does contain it.
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('medium', 'STRING'),
+        field('label', 'STRING', {
+          aggregationRole: 'dimension',
+          calculated: { formula: `CONCAT(${ref('medium')}, '!')`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'label'],
+      { sortConfig: [{ column: 'label', direction: 'asc' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({ kind: 'distinct' });
+  });
+
+  it('leaves the AGGREGATED shape alone: there the same field is a grouping key', () => {
+    const report = reportWith(
+      [
+        field('landing_page', 'STRING'),
+        field('sessions', 'INTEGER'),
+        field('cost', 'FLOAT'),
+        field('cost_rounded', 'FLOAT', {
+          aggregationRole: 'dimension',
+          calculated: { formula: `ROUND(${ref('cost')})`, level: 'column' },
+        }),
+      ],
+      ['landing_page', 'cost_rounded', 'sessions'],
+      { sortConfig: [{ column: 'cost_rounded', direction: 'desc' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'aggregate',
+      aggregations: [{ column: 'sessions', function: 'SUM' }],
+    });
+  });
+
   it('refuses to lift a formula ANOTHER calculated field reads', () => {
     // The lift rewrites `margin` on a clone, and every level downstream is re-derived from that
     // clone — so `margin_label`, a dimension today, would come back aggregate-level, drop out of

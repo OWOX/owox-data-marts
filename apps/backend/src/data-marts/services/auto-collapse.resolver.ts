@@ -36,6 +36,8 @@ export type AutoCollapseSkipReason =
   | 'unresolvable-column'
   | 'no-allowed-aggregation'
   | 'calculated-not-liftable'
+  // A sort the collapsed shape cannot resolve: either the column is not projected, or it renders
+  // as an expression that the projection does not contain.
   | 'sort-outside-projection';
 
 export interface LiftedCalculatedFormula {
@@ -160,12 +162,43 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
   }
 
   // Nothing to aggregate, so collapsing is exactly DISTINCT and cannot change a value.
-  if (aggregations.length === 0 && liftedFormulas.length === 0) return { kind: 'distinct' };
+  if (aggregations.length === 0 && liftedFormulas.length === 0) {
+    // With one exception. A sort on a numeric-declared calculated field renders as
+    // `ORDER BY CAST(<expr> AS <type>)` — never the alias, so that Redshift resolves it — and that
+    // expression is not among the DISTINCT items, which BigQuery, Athena/Trino and Redshift all
+    // reject. The aggregated shape is unaffected: there the same field is a GROUP BY key and the
+    // ordering expression is built from one.
+    if (sortsACastCalculatedField(report, byName)) {
+      return { kind: 'none', reason: 'sort-outside-projection' };
+    }
+    return { kind: 'distinct' };
+  }
   return {
     kind: 'aggregate',
     aggregations,
     ...(liftedFormulas.length > 0 ? { liftedFormulas } : {}),
   };
+}
+
+/**
+ * Whether a sort names a calculated field whose declared type imposes a comparison cast.
+ *
+ * The cast tables are per dialect, but every one of them holds numeric declarations only — a
+ * formula declared FLOAT would otherwise sort lexicographically — so the category answers this
+ * without the resolver learning a storage.
+ */
+function sortsACastCalculatedField(
+  report: ReportLike,
+  byName: ReadonlyMap<string, SchemaFieldDescriptor>
+): boolean {
+  return (report.sortConfig ?? []).some(rule => {
+    const descriptor = byName.get(rule.column);
+    return (
+      descriptor !== undefined &&
+      isCalculatedField(descriptor.field) &&
+      categorizeFieldType(descriptor.type) === 'number'
+    );
+  });
 }
 
 /**

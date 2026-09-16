@@ -241,7 +241,12 @@ interface NativeFieldRowProps {
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
   /** The function the product will auto-apply to this column; keyed by column name. */
-  autoAggregationByColumn?: ReadonlyMap<string, ReportAggregateFunction>;
+  /**
+   * This row's automatic aggregation, if the product picked one. A scalar rather than the whole
+   * map: the map is rebuilt on every parent render, and handing it to a memo'd row re-renders
+   * every row on every keystroke anywhere in the form.
+   */
+  autoAggregation?: ReportAggregateFunction;
   /**
    * This metric's own broken-reference names — its formula names a field the schema no
    * longer has. `undefined`/empty means fine. Only consulted for a `field.calculated` row.
@@ -272,7 +277,7 @@ const NativeFieldRow = memo(function NativeFieldRow({
   onReplaceFilterAt,
   aggregation,
   onApplyAggregation,
-  autoAggregationByColumn,
+  autoAggregation,
   brokenReferences,
 }: NativeFieldRowProps) {
   const noteId = useId();
@@ -285,7 +290,7 @@ const NativeFieldRow = memo(function NativeFieldRow({
       undefined,
       aggregation,
       onApplyAggregation,
-      autoAggregationByColumn?.get(field.name)
+      autoAggregation
     );
   const filterIcon = filterableType && onAddFilter && onRemoveFilterAt && (
     <RowFilterIcon
@@ -418,7 +423,12 @@ interface BlendedFieldRowProps {
   aggregation?: ColumnAggregation;
   onApplyAggregation?: ApplyAggregationFn;
   /** The function the product will auto-apply to this column; keyed by column name. */
-  autoAggregationByColumn?: ReadonlyMap<string, ReportAggregateFunction>;
+  /**
+   * This row's automatic aggregation, if the product picked one. A scalar rather than the whole
+   * map: the map is rebuilt on every parent render, and handing it to a memo'd row re-renders
+   * every row on every keystroke anywhere in the form.
+   */
+  autoAggregation?: ReportAggregateFunction;
   hoverClassName?: string;
   /**
    * If true, the row only exposes paths that remove existing references —
@@ -454,7 +464,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   preJoinSlices,
   aggregation,
   onApplyAggregation,
-  autoAggregationByColumn,
+  autoAggregation,
   hoverClassName = 'hover:bg-muted/50',
   removeOnly = false,
 }: BlendedFieldRowProps) {
@@ -477,7 +487,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       dataMartName,
       aggregation,
       onApplyAggregation,
-      autoAggregationByColumn?.get(field.name)
+      autoAggregation
     );
   const filterIcon =
     filterableType &&
@@ -793,7 +803,7 @@ function BlendedGroupItem({
               preJoinSlices={preJoinByAliasPathColumn?.get(field.name) ?? EMPTY_COLUMN_FILTERS}
               aggregation={aggregationByColumn?.get(field.name)}
               onApplyAggregation={onApplyAggregation}
-              autoAggregationByColumn={autoAggregationByColumn}
+              autoAggregation={autoAggregationByColumn?.get(field.name)}
               hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
               removeOnly={inaccessible}
             />
@@ -2260,7 +2270,7 @@ export function ReportColumnPicker({
             onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
             aggregation={aggregationByColumn.get(field.name)}
             onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
-            autoAggregationByColumn={autoAggregations}
+            autoAggregation={autoAggregations.get(field.name)}
             brokenReferences={calculatedFieldIssuesByName.get(field.name)}
           />
         ))}
