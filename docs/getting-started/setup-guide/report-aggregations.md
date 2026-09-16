@@ -116,6 +116,8 @@ A [row-level calculated field](./calculated-fields.md) — one whose formula rea
 
 "Safe" means a strict, provable rewrite, never a best guess. OWOX only lifts a formula built from `+`, `-`, `*`, `/`, references whose own allowed-aggregations set permits `SUM`, and the two division helpers `NULLIF(<denominator>, 0)` and `SAFE_DIVIDE(a, b)` in that position and no other — and only where no division's divisor holds a reference except at the formula's own top-level ratio. `{{revenue}} / {{cost}}` lifts to `SUM(revenue) / SUM(cost)` — the true group ratio, recomputed correctly rather than averaged row by row. Anything OWOX cannot prove distributes this way keeps the field as a `GROUP BY` key instead of guessing; the next section lists exactly what that excludes.
 
+Where the rewrite puts its `SUM` depends on whether the formula divides, and empty values are what decides it. A formula that does not divide is summed as a whole — `{{revenue}} - {{cost}}` becomes `SUM({{revenue}} - {{cost}})` — so the collapsed report totals exactly the values the uncollapsed one displayed, including rows where one side was empty and the whole cell was therefore empty. A formula that does divide has each of its references summed instead, because summing a column of row-by-row ratios is not the group's ratio. That form deliberately reads a numerator whose denominator is empty: `SUM(revenue) / SUM(cost)` is the ratio of the two totals, which is what a collapsed ratio means, even though the row it came from showed no value.
+
 ### When automatic aggregation does not apply
 
 OWOX leaves the report exactly as you built it — duplicates and all — whenever any of the following is true, so a report never changes behavior it wasn't given a labeled aggregation for:

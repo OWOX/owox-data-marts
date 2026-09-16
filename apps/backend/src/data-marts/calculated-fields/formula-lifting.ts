@@ -32,8 +32,20 @@ export interface LiftableReference {
  * `SUM` distributes over `+`, `-` and multiplication by a constant, and over nothing else. Every
  * refusal returns `formula: null`; the caller then leaves the report uncollapsed.
  *
- * Every reference is wrapped in SUM, never in the field's own aggregation: the rewrite recomputes
- * the formula from group totals, and only a sum is a group total.
+ * SUM is always the wrapper, never the field's own aggregation: the rewrite recomputes the formula
+ * from group totals, and only a sum is a group total. WHERE it wraps depends on the shape, and the
+ * difference is NULL:
+ *
+ * - No division — the formula is a linear combination, so the whole text is wrapped once:
+ *   `{{revenue}} - {{cost}}` becomes `SUM({{revenue}} - {{cost}})`. Over rows this is the sum of
+ *   exactly the values the uncollapsed report displayed. Wrapping each reference instead would
+ *   read `SUM(revenue) - SUM(cost)`, which differs the moment one side is NULL: rows (100, NULL)
+ *   and (200, 50) display NULL and 150 and total 150, while the per-reference form answers 250.
+ * - A division — each reference is wrapped instead, because `SUM(a/b)` is the average of row
+ *   ratios rather than the group ratio. `SUM(a)/SUM(b)` is the group ratio, and it deliberately
+ *   counts a numerator whose denominator is NULL, where the row-level value was NULL and counted
+ *   for nothing. That is the standard reading of a ratio of totals, and it is the reading a
+ *   collapsed report gives.
  *
  * Total — an unparseable formula is a refusal like any other. `isAggregateFunction` is a parameter
  * because aggregate-ness is dialect-specific and this module has no storage to resolve one from.
@@ -76,12 +88,34 @@ export function liftFormulaToGroupLevel(
     return { formula: null, reason: 'unaggregatable-reference' };
   }
 
+  if (!dividesAnywhere(tokens)) {
+    // The newline is load-bearing: a formula may end in a `--` line comment, and without it the
+    // closing paren would land inside that comment and be commented out.
+    return { formula: `${LIFT_AGGREGATION}(${stored}\n)` };
+  }
+
   let formula = stored;
   for (const ref of [...refs].sort((a, b) => b.start - a.start)) {
     formula = `${formula.slice(0, ref.start)}${LIFT_AGGREGATION}(${formula.slice(ref.start, ref.end)})${formula.slice(ref.end)}`;
   }
   return { formula };
 }
+
+/**
+ * Whether the accepted formula computes a quotient, however it is spelled. Only the shapes the
+ * guard already accepted reach this, so a `/`, a `SAFE_DIVIDE` call or the `NULLIF` that guards a
+ * denominator each mean the same thing: the value is a ratio and must be recomputed from totals
+ * rather than summed as it stands.
+ */
+function dividesAnywhere(tokens: readonly SqlToken[]): boolean {
+  return tokens.some(
+    token =>
+      (token.kind === 'punct' && token.value === '/') ||
+      (token.kind === 'word' && DIVISION_FUNCTIONS.has(token.value.toUpperCase()))
+  );
+}
+
+const DIVISION_FUNCTIONS: ReadonlySet<string> = new Set(['SAFE_DIVIDE', 'NULLIF']);
 
 /** Exported so the caller gates on the same function this emits, rather than on a copy of it. */
 export const LIFT_AGGREGATION: ReportAggregateFunction = 'SUM';

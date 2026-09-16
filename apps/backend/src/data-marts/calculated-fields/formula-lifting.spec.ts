@@ -40,7 +40,7 @@ describe('liftFormulaToGroupLevel', () => {
       anyReference,
       isUniversalAggregateFunction
     );
-    expect(result).toEqual({ formula: `SUM(${ref('revenue')})-SUM(${ref('cost')})` });
+    expect(result).toEqual({ formula: `SUM(${ref('revenue')}-${ref('cost')}\n)` });
   });
 
   it('refuses a formula that already aggregates', () => {
@@ -94,7 +94,7 @@ describe('liftFormulaToGroupLevel', () => {
       anyReference,
       isUniversalAggregateFunction
     );
-    expect(result).toEqual({ formula: `SUM(${ref('clicks')}) -- ${ref('impressions')}` });
+    expect(result).toEqual({ formula: `SUM(${ref('clicks')} -- ${ref('impressions')}\n)` });
   });
 
   it('refuses when every reference is commented out', () => {
@@ -125,6 +125,41 @@ describe('liftFormulaToGroupLevel', () => {
       formula: null,
       reason: 'non-distributive-formula',
     });
+  });
+});
+
+describe('liftFormulaToGroupLevel — where SUM is placed, and why NULL decides it', () => {
+  const lift = (formula: string) =>
+    liftFormulaToGroupLevel(formula, anyReference, isUniversalAggregateFunction);
+
+  it('wraps a linear formula WHOLE, so a NULL operand counts for nothing exactly as it displayed', () => {
+    // Rows (revenue 100, cost NULL) and (200, 50) display NULL and 150, and total 150.
+    // `SUM(revenue - cost)` answers 150. `SUM(revenue) - SUM(cost)` answers 250 — it counts a
+    // revenue whose row showed no value at all.
+    expect(lift(`${ref('revenue')}-${ref('cost')}`)).toEqual({
+      formula: `SUM(${ref('revenue')}-${ref('cost')}\n)`,
+    });
+  });
+
+  it('wraps each reference of a RATIO, because the whole-text form would average row ratios', () => {
+    // `SUM(a/b)` is the sum of per-row ratios, which is not the group ratio at any fan-out. The
+    // per-reference form is the ratio of totals, and it deliberately counts a numerator whose
+    // denominator is NULL — the documented reading of a collapsed ratio.
+    expect(lift(`${ref('revenue')}/${ref('cost')}`)).toEqual({
+      formula: `SUM(${ref('revenue')})/SUM(${ref('cost')})`,
+    });
+  });
+
+  it('treats a NULLIF-guarded denominator as a division, not as a linear formula', () => {
+    expect(lift(`${ref('revenue')}/NULLIF(${ref('cost')},0)`)).toEqual({
+      formula: `SUM(${ref('revenue')})/NULLIF(SUM(${ref('cost')}),0)`,
+    });
+  });
+
+  it('closes the whole-text wrapper on its own line, so a trailing comment cannot eat the paren', () => {
+    const lifted = lift(`${ref('clicks')} -- trailing`);
+    expect(lifted.formula).toBe(`SUM(${ref('clicks')} -- trailing\n)`);
+    expect(lifted.formula?.endsWith('\n)')).toBe(true);
   });
 });
 
@@ -219,16 +254,16 @@ describe('liftFormulaToGroupLevel — the distributivity guard', () => {
 
   it('still lifts every shape the rewrite is exact for', () => {
     expect(lift(`${ref('revenue')}-${ref('cost')}`)).toEqual({
-      formula: `SUM(${ref('revenue')})-SUM(${ref('cost')})`,
+      formula: `SUM(${ref('revenue')}-${ref('cost')}\n)`,
     });
-    expect(lift(`${ref('amount')}*1.2`)).toEqual({ formula: `SUM(${ref('amount')})*1.2` });
+    expect(lift(`${ref('amount')}*1.2`)).toEqual({ formula: `SUM(${ref('amount')}*1.2\n)` });
     expect(lift(`${ref('amount')}/100`)).toEqual({ formula: `SUM(${ref('amount')})/100` });
     expect(lift(`(${ref('a')}+${ref('b')})/${ref('c')}`)).toEqual({
       formula: `(SUM(${ref('a')})+SUM(${ref('b')}))/SUM(${ref('c')})`,
     });
     // A constant factor built from literals holds no reference, so it is not a `+` against one.
     expect(lift(`${ref('amount')}*(1+0.2)`)).toEqual({
-      formula: `SUM(${ref('amount')})*(1+0.2)`,
+      formula: `SUM(${ref('amount')}*(1+0.2)\n)`,
     });
   });
 });
@@ -345,9 +380,9 @@ describe('liftFormulaToGroupLevel — division that truncates', () => {
 
   it('leaves a truncating reference alone where nothing divides it', () => {
     expect(liftInteger(`${ref('revenue')}-${ref('cost')}`)).toEqual({
-      formula: `SUM(${ref('revenue')})-SUM(${ref('cost')})`,
+      formula: `SUM(${ref('revenue')}-${ref('cost')}\n)`,
     });
-    expect(liftInteger(`${ref('amount')}*1.2`)).toEqual({ formula: `SUM(${ref('amount')})*1.2` });
+    expect(liftInteger(`${ref('amount')}*1.2`)).toEqual({ formula: `SUM(${ref('amount')}*1.2\n)` });
   });
 });
 

@@ -331,6 +331,20 @@ export class RunReportService {
           );
         }
       }
+      // A DISTINCT collapse renames nothing and aggregates nothing, but it does change how many
+      // rows were delivered — so it is recorded too, rather than leaving Run History to imply the
+      // raw projection was returned.
+      if (autoCollapsePlan.kind === 'distinct' && dataMartRun?.reportDefinition) {
+        (dataMartRun.reportDefinition.outputConfig ??= {}).autoAppliedDistinct = true;
+      }
+      // The six refusal reasons exist to answer "why does this report still return duplicates?",
+      // and a log line is the only place that question gets asked after the fact.
+      if (autoCollapsePlan.kind === 'none') {
+        reportRunLogger?.log({
+          message: 'Automatic duplicate collapse skipped',
+          reason: autoCollapsePlan.reason,
+        });
+      }
 
       // Persist the exact executed SQL (output controls applied, params inlined as
       // literals — same render as the generated-SQL preview) onto the run record so

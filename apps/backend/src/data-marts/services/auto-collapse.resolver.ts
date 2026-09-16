@@ -25,7 +25,7 @@ import type {
   DataMartSchemaField,
 } from '../data-storage-types/data-mart-schema.type';
 import type { DataMart } from '../entities/data-mart.entity';
-import type { ReportLike } from '../dto/domain/report-like-read-plan';
+import type { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 
 export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
@@ -237,9 +237,19 @@ export function applyAutoCollapse<T extends ReportLike>(
 ): { report: T; plan: AutoCollapsePlan } {
   const plan = resolveAutoCollapse(report);
   if (plan.kind === 'none') return { report, plan };
-  if (plan.kind === 'distinct') return { report: { ...report, distinct: true }, plan };
+  if (plan.kind === 'distinct') return { report: patched(report, { distinct: true }), plan };
   const lifted = withLiftedFormulas(report, plan.liftedFormulas);
-  return { report: { ...lifted, aggregationConfig: plan.aggregations }, plan };
+  return { report: patched(lifted, { aggregationConfig: plan.aggregations }), plan };
+}
+
+/**
+ * A spread would drop the prototype, and `Report` exposes `ownerIds` as an accessor and
+ * `isEmailBasedDestination` as a method — both silently `undefined` on a plain object, which no
+ * compiler catches because the spread's type is still `T`. Same reason `withLiftedFormulas` keeps
+ * the `DataMart` prototype.
+ */
+function patched<T extends ReportLike>(report: T, patch: Partial<ReportLikeReadPlan>): T {
+  return Object.assign(Object.create(Object.getPrototypeOf(report) as object) as T, report, patch);
 }
 
 /**

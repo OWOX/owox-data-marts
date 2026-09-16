@@ -23,6 +23,13 @@ export const DataMartRunReportOutputConfigSchema = z.object({
    * Column names only; the rewritten text is an execution detail. Optional so earlier runs parse.
    */
   autoAppliedLiftedColumns: z.array(z.string()).optional(),
+  /**
+   * The product returned the rows DISTINCT because the projection carried no metric. Nothing was
+   * aggregated and no column was renamed, so neither field above can carry it — yet the delivered
+   * row count differs from the raw projection, which is exactly what Run History exists to
+   * explain. Optional so earlier runs still parse.
+   */
+  autoAppliedDistinct: z.boolean().optional(),
 });
 
 export const DataMartRunReportDefinitionSchema = z.object({

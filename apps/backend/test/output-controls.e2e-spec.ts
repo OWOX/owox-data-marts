@@ -1024,9 +1024,10 @@ describe('Output controls API (e2e)', () => {
         outputConfig?: unknown;
       };
       expect(reportDefinition.executionSqlQuery).toContain('SELECT DISTINCT');
-      // A DISTINCT collapse has nothing to snapshot, so no `outputConfig` container is created:
-      // it stays absent, not empty. An empty one would read as "output controls in force".
-      expect(reportDefinition.outputConfig).toBeUndefined();
+      // A DISTINCT collapse renames nothing and aggregates nothing, but it did change the
+      // delivered row count — so it is recorded, and with a real field rather than the empty
+      // container that would read as "output controls in force".
+      expect(reportDefinition.outputConfig).toEqual({ autoAppliedDistinct: true });
     }, 60_000);
 
     // A sort outside the projection is valid SQL only while the report stays ungrouped, and both

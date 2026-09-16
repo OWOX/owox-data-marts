@@ -605,7 +605,7 @@ describe('resolveAutoCollapse', () => {
     expect(resolveAutoCollapse(report)).toEqual({
       kind: 'aggregate',
       aggregations: [],
-      liftedFormulas: [{ column: 'margin', formula: `SUM(${ref('revenue')})-SUM(${ref('cost')})` }],
+      liftedFormulas: [{ column: 'margin', formula: `SUM(${ref('revenue')}-${ref('cost')}\n)` }],
     });
   });
 
@@ -924,6 +924,27 @@ describe('applyAutoCollapse', () => {
 
     const { report: effective } = applyAutoCollapse(report);
     expect((effective.dataMart as unknown as FakeDataMart).businessOwnerIds).toEqual(['u1']);
+  });
+
+  it('keeps the report prototype on every branch, not just the lifted one', () => {
+    // `Report` exposes `ownerIds` as an accessor and `isEmailBasedDestination` as a method. A
+    // spread drops both while still typechecking as `Report`, so the loss is silent.
+    class FakeReport {
+      dataMart = { schema: { fields: [field('landing_page', 'STRING')] } };
+      columnConfig = ['landing_page'];
+      get ownerIds() {
+        return ['u1'];
+      }
+      isEmailBasedDestination() {
+        return true;
+      }
+    }
+    const report = new FakeReport() as unknown as ReportLike;
+    const { report: effective, plan } = applyAutoCollapse(report);
+    expect(plan).toEqual({ kind: 'distinct' });
+    const asFake = effective as unknown as FakeReport;
+    expect(asFake.ownerIds).toEqual(['u1']);
+    expect(asFake.isEmailBasedDestination()).toBe(true);
   });
 
   it('flips the composer’s own level verdict, which is what introduces the GROUP BY', () => {
