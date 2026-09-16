@@ -113,6 +113,20 @@ describe('resolveAutoCollapse', () => {
     });
   });
 
+  it('leaves a report alone when a filter carries its own aggregate function', () => {
+    // Not a calculated field at all: the rule's own `function` puts it after the GROUP BY, which
+    // the shared router knows and a check written against field levels alone would miss.
+    const report = reportWith(
+      [field('country', 'STRING'), field('sessions', 'INTEGER'), field('revenue', 'FLOAT')],
+      ['country', 'sessions'],
+      { filterConfig: [{ column: 'revenue', operator: 'gt', value: 100, function: 'SUM' }] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'none',
+      reason: 'analyst-aggregated',
+    });
+  });
+
   it('still collapses a report filtered on an ordinary column', () => {
     // The trigger above is the aggregate level, not the filter: a plain WHERE rule leaves the
     // query ungrouped, which is the shape this feature fixes.

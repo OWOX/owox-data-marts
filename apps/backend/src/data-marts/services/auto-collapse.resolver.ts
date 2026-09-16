@@ -22,6 +22,7 @@ import {
   type LiftableReference,
 } from '../calculated-fields/formula-lifting';
 import { isUniversalAggregateFunction } from '../calculated-fields/formula-function-dialect';
+import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import type {
   DataMartSchema,
   DataMartSchemaField,
@@ -74,7 +75,7 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     (report.aggregationConfig?.length ?? 0) > 0 ||
     (report.dateTruncConfig?.length ?? 0) > 0 ||
     normalizeUniqueCountSources(report.uniqueCountConfig).length > 0 ||
-    filtersAnAggregateCalculatedField(report.filterConfig, byName, schemaFields)
+    filtersIntoHaving(report.filterConfig, schemaFields)
   ) {
     return { kind: 'none', reason: 'analyst-aggregated' };
   }
@@ -234,17 +235,13 @@ function referencedByFilterOrSort(column: string, report: ReportLike): boolean {
   );
 }
 
-/**
- * Filtering on an aggregate-level calculated field already forces a GROUP BY with a HAVING, so the
- * report is collapsed before we look at it.
- */
-function filtersAnAggregateCalculatedField(
+/** Asked of the router the builders use, so the HAVING verdict has one owner. */
+function filtersIntoHaving(
   filterConfig: ReportLike['filterConfig'],
-  byName: ReadonlyMap<string, SchemaFieldDescriptor>,
   schemaFields: readonly DataMartSchemaField[]
 ): boolean {
-  return (filterConfig ?? []).some(rule =>
-    aggregatesByItself(byName.get(rule.column)?.field, schemaFields)
+  return routeFilterClauses(filterConfig ?? undefined, schemaFields).some(
+    rule => rule.clause === 'having'
   );
 }
 
