@@ -41,7 +41,10 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       dateTruncs.length > 0 ||
       uniqueCount ||
       calculatedFields.length > 0 ||
-      queryOptions?.limit != null;
+      queryOptions?.limit != null ||
+      // DISTINCT is an output control on the SELECT itself: without this, a distinct-only
+      // request (no other control) takes `buildPlainQuery` below, which never sees it.
+      queryOptions?.distinct === true;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
@@ -128,7 +131,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       selectList,
       this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)
     );
-    return `${composeSelectFromClause(plainSelect, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+    return `${composeSelectFromClause(plainSelect, fromClause, { distinct: queryOptions?.distinct })}${where.sql}${orderBy.sql}${limit.sql}`;
   }
 
   /**

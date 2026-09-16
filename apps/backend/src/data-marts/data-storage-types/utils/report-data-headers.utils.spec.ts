@@ -295,6 +295,39 @@ describe('resolveReportDataHeaders', () => {
     });
   });
 
+  // A report the analyst left unaggregated auto-collapses on a stored run, and
+  // `RunReportService` feeds the reader the exact `aggregationConfig` `resolveAutoCollapse`
+  // produced — this function has no way to distinguish that from an analyst's own choice, and
+  // never should: a second labelling mode for auto-applied aggregations is a mechanism the spec
+  // never sanctioned. This pins that the ALREADY-EXISTING suffixed-label mechanism also applies
+  // to that shape, deliberately, so a future change to either side notices the other.
+  describe('auto-collapsed aggregations', () => {
+    it('labels the auto-collapsed metric the same way an analyst-chosen aggregation is labelled', () => {
+      const native = [
+        new ReportDataHeader('landing_page', undefined, undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader('sessions', undefined, undefined, BigQueryFieldType.INTEGER),
+      ];
+      const out = resolveReportDataHeaders(
+        native,
+        {
+          columnFilter: ['landing_page', 'sessions'],
+          // The exact shape `resolveAutoCollapse` (auto-collapse.resolver.ts) produces for a
+          // dimension left as-is plus one summable metric with no analyst-chosen aggregation.
+          aggregationConfig: [{ column: 'sessions', function: 'SUM' }],
+        },
+        BQ
+      );
+
+      expect(out.map(h => h.name)).toEqual([
+        'landing_page',
+        aggregatedColumnLabel('sessions', 'SUM'),
+      ]);
+      const sessions = out.find(h => h.name === aggregatedColumnLabel('sessions', 'SUM'));
+      expect(sessions?.aggregateFunction).toBe('SUM');
+      expect(out.find(h => h.name === 'landing_page')?.aggregateFunction).toBeUndefined();
+    });
+  });
+
   describe('Unique Count header', () => {
     const native = [
       new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),

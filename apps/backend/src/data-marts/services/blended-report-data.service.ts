@@ -487,6 +487,7 @@ export class BlendedReportDataService {
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
         fieldIndex,
         groupRestriction,
+        distinct: 'distinct' in report ? report.distinct : undefined,
       }
     );
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;

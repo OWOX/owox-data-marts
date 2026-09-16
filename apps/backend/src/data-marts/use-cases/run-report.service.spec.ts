@@ -30,6 +30,7 @@ import { ReportExecutionPolicyResolver } from './report-execution-policy.resolve
 import { RunReportService } from './run-report.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { ReportRun } from '../models/report-run.model';
+import { serializeFormulaReference } from '../calculated-fields/formula-reference';
 
 jest.mock('../data-destination-types/data-destination-providers', () => ({
   DATA_DESTINATION_REPORT_WRITER_RESOLVER: 'DATA_DESTINATION_REPORT_WRITER_RESOLVER',
@@ -927,6 +928,77 @@ describe('RunReportService', () => {
       (dataMartRun.reportDefinition as unknown as { outputConfig: { sortConfig: unknown } })
         .outputConfig.sortConfig
     ).toEqual([{ column: 'a', direction: 'asc' }]);
+  });
+
+  // A lift-only collapse (a row-level calculated ratio rewritten to group level) produces
+  // an `aggregate` plan with an EMPTY `aggregations` array: no column-level rule applies, the
+  // GROUP BY comes from the lifted formula instead. `autoAppliedAggregations: []` alone reads as
+  // "nothing was auto-applied", which is false — the rows really did collapse. This is the case
+  // the controller ruling on Task 9 closes: the run record must also name the lifted column.
+  it('records the lifted column on reportDefinition.outputConfig for a lift-only collapse', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportSqlComposerService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.dataMart = {
+      ...report.dataMart,
+      schema: {
+        fields: [
+          { name: 'landing_page', type: 'STRING', status: 'CONNECTED' },
+          { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
+          { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
+          {
+            name: 'ctr',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            calculated: {
+              formula: `${serializeFormulaReference({ path: '', field: 'clicks' })}/${serializeFormulaReference({ path: '', field: 'impressions' })}`,
+              level: 'column',
+            },
+          },
+        ],
+      },
+    } as never;
+    report.columnConfig = ['landing_page', 'ctr'] as never;
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+    reportSqlComposerService.compose.mockResolvedValue({ sql: 'SELECT 1' });
+    reportSqlComposerService.inlineStaticSql.mockReturnValue('SELECT 1');
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(
+      (
+        dataMartRun.reportDefinition as unknown as {
+          outputConfig: { autoAppliedAggregations: unknown[]; autoAppliedLiftedColumns: string[] };
+        }
+      ).outputConfig
+    ).toEqual({
+      autoAppliedAggregations: [],
+      autoAppliedLiftedColumns: ['ctr'],
+    });
   });
 
   // Orchestrator-level pin for hasOutputControls' calculated-metric branch: a report with NO

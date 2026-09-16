@@ -158,6 +158,11 @@ export interface BlendedQueryContext {
    * right: a COUNT DISTINCT entity present in two surviving groups still counts once.
    */
   groupRestriction?: GroupRestriction;
+  /**
+   * Collapse duplicate rows with `SELECT DISTINCT`. Set ONLY by `applyAutoCollapse` on a
+   * projection that carries no metric — never stored on a `Report`.
+   */
+  distinct?: boolean;
 }
 
 /**

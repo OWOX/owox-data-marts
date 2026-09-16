@@ -251,6 +251,7 @@ export const LookerStudioReportEditForm = forwardRef<
                             dataMartId={dataMart.id}
                             dataMartTitle={dataMart.title}
                             storageType={dataMart.storage.type}
+                            collapsesOnDelivery={false}
                             value={form.watch('columnConfig')}
                             onChange={(value, options) => {
                               applyColumnConfigChange(form, value, options);

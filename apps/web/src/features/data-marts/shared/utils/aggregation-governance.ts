@@ -17,7 +17,7 @@ export interface FieldGovernance {
 // blendable-schema response so the web can drop these (follow-up). Keep in sync until then.
 type FieldTypeCategory = 'number' | 'string' | 'date' | 'time' | 'boolean' | 'other';
 
-function categorize(fieldType: string): FieldTypeCategory {
+export function categorize(fieldType: string): FieldTypeCategory {
   if (isNumberType(fieldType)) return 'number';
   if (isStringType(fieldType)) return 'string';
   if (isDateType(fieldType)) return 'date';
@@ -52,6 +52,33 @@ const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, FieldGovernance> = {
   boolean: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
   other: { role: 'dimension', allowedAggregations: ['COUNT'] },
 };
+
+// The order the product picks an aggregation in when the analyst chose none. A subset of
+// SUPPORTED_BY_CATEGORY, but not always of DEFAULTS_BY_CATEGORY — `string` diverges, defaulting to
+// COUNT/COUNT_DISTINCT/STRING_AGG/ANY_VALUE while its priority is MIN/MAX. `other` and boolean stay
+// empty: neither can be a GROUP BY key, nor a metric worth auto-picking for.
+// Must stay identical to the backend `field-aggregation-governance.ts`.
+const PRIORITY_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]> = {
+  number: ['SUM', 'AVG', 'MIN', 'MAX'],
+  string: ['MIN', 'MAX'],
+  date: ['MIN', 'MAX'],
+  time: ['MIN', 'MAX'],
+  boolean: [],
+  other: [],
+};
+
+/**
+ * The aggregation the product applies to a metric the analyst left unaggregated, or `undefined`
+ * when it may not pick one — an empty allowed set is an explicit override, not a reason to
+ * substitute.
+ */
+export function pickAutoAggregation(
+  fieldType: string,
+  allowed: readonly ReportAggregateFunction[]
+): ReportAggregateFunction | undefined {
+  const allowedSet = new Set(allowed);
+  return PRIORITY_BY_CATEGORY[categorize(fieldType)].find(fn => allowedSet.has(fn));
+}
 
 /**
  * Whether two (effective) field types resolve to the SAME aggregation category. Used to decide

@@ -5,6 +5,7 @@ import {
   supportedAggregationsForType,
   effectiveAggregationType,
   sameAggregationCategory,
+  pickAutoAggregation,
 } from './aggregation-governance';
 import {
   isNumberType,
@@ -284,5 +285,27 @@ describe('sameAggregationCategory — whether two effective types share an aggre
 
   it('is true for two string types', () => {
     expect(sameAggregationCategory('STRING', 'VARCHAR')).toBe(true);
+  });
+});
+
+describe('pickAutoAggregation', () => {
+  it('prefers SUM for a numeric field', () => {
+    expect(pickAutoAggregation('FLOAT', ['AVG', 'MAX', 'SUM'])).toBe('SUM');
+  });
+
+  it('falls to the next priority when SUM is not allowed', () => {
+    expect(pickAutoAggregation('FLOAT', ['MAX', 'AVG'])).toBe('AVG');
+  });
+
+  it('returns undefined when the analyst allowed nothing', () => {
+    expect(pickAutoAggregation('FLOAT', [])).toBeUndefined();
+  });
+
+  it('returns undefined for a category that is never auto-aggregated', () => {
+    expect(pickAutoAggregation('BOOL', ['COUNT', 'COUNT_DISTINCT'])).toBeUndefined();
+  });
+
+  it('ignores an allowed function outside the priority list', () => {
+    expect(pickAutoAggregation('INTEGER', ['P50'])).toBeUndefined();
   });
 });

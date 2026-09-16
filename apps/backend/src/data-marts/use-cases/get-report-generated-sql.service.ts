@@ -10,6 +10,8 @@ import { Repository } from 'typeorm';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { Report } from '../entities/report.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { applyAutoCollapse } from '../services/auto-collapse.resolver';
+import { isPullBasedDataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -82,7 +84,16 @@ export class GetReportGeneratedSqlService {
       }
     }
 
-    const { sql } = await this.reportSqlComposerService.composeStatic(report, {
+    // The preview shows the query a run will actually execute, so a stored report with no
+    // analyst-chosen aggregation is collapsed here exactly as `RunReportService` collapses it.
+    // A pull-based destination has no server-side run to collapse — its consumer reads the
+    // uncollapsed projection — so previewing a collapse there would predict something that never
+    // happens. Every other reader of this composer keeps the stored config untouched.
+    const { report: effectiveReport } = isPullBasedDataDestinationType(report.dataDestination.type)
+      ? { report }
+      : applyAutoCollapse(report);
+
+    const { sql } = await this.reportSqlComposerService.composeStatic(effectiveReport, {
       userId: command.userId,
       roles: command.roles,
     });

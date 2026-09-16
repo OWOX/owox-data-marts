@@ -285,6 +285,7 @@ export class ReportSqlComposerService {
         sort: sortConfig ?? undefined,
         aggregations: report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
+        distinct: 'distinct' in report ? report.distinct : undefined,
         uniqueCount,
         primaryKeyColumns: pkFields.map(f => f.name),
         limit: report.limitConfig ?? undefined,

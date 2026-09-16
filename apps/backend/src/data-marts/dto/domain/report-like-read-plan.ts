@@ -31,6 +31,11 @@ export interface ReportLikeReadPlan {
   groupRestriction?: RoutedGroupRestriction;
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
+  /**
+   * Collapse duplicate rows with `SELECT DISTINCT`. Set ONLY by `applyAutoCollapse` on a
+   * projection that carries no metric — never stored on a `Report`.
+   */
+  distinct?: boolean;
 }
 
 export type ReportLike = Report | ReportLikeReadPlan;
@@ -93,7 +98,8 @@ export function hasOutputControls(report: ReportLike): boolean {
     (report.dateTruncConfig?.length ?? 0) > 0 ||
     report.limitConfig != null ||
     normalizeUniqueCountSources(report.uniqueCountConfig).length > 0 ||
-    hasSelectedCalculatedField(report)
+    hasSelectedCalculatedField(report) ||
+    ('distinct' in report && report.distinct === true)
   );
 }
 

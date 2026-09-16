@@ -3692,6 +3692,47 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on an UNG
   });
 });
 
+describe('AbstractBlendedQueryBuilder — SELECT DISTINCT on the ungrouped outer SELECT', () => {
+  const ordersChain = (): ResolvedRelationshipChain =>
+    makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'country',
+          outputAlias: 'orders__country',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+
+  it('emits SELECT DISTINCT when the report projects no metric', () => {
+    const { sql } = new TestBlendedQueryBuilder().buildBlendedQuery({
+      ...buildContext([ordersChain()], ['channel', 'orders__country']),
+      distinct: true,
+    });
+
+    expect(sql).toContain('\n\nSELECT DISTINCT\n  main.channel');
+    // The outer query itself has no GROUP BY — only the joined field's own roll-up CTE does.
+    const outer = sql.slice(sql.lastIndexOf('\n\nSELECT DISTINCT\n'));
+    expect(outer).not.toContain('GROUP BY');
+  });
+
+  it('stays a plain SELECT when distinct is not requested', () => {
+    const { sql } = new TestBlendedQueryBuilder().buildBlendedQuery(
+      buildContext([ordersChain()], ['channel', 'orders__country'])
+    );
+
+    expect(sql).toContain('\n\nSELECT\n  main.channel');
+    expect(sql).not.toContain('SELECT DISTINCT');
+  });
+});
+
 /**
  * A formula whose aggregate calls span BOTH Data Marts. The joined call cannot be computed
  * in the outer SELECT — the blend aggregates `orders` by its join key before joining it in, so

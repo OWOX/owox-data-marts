@@ -1258,9 +1258,11 @@ describe('ReportColumnPicker aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
+    // Exact name, not "Add aggregation": `revenue` is the only metric here, so it also qualifies
+    // for the auto-collapse ghost, which renders under its own label.
     const selectedRow = screen.getByText('revenue').closest('label') as HTMLElement;
     expect(
-      within(selectedRow).getByRole('button', { name: 'Add aggregation' })
+      within(selectedRow).getByRole('button', { name: 'Automatic aggregation: Sum' })
     ).toBeInTheDocument();
 
     // ordered_at is NOT selected → no AGG icon on its row.
@@ -1591,8 +1593,10 @@ describe('ReportColumnPicker aggregation', () => {
         onOutputConfigChange,
       });
 
+      // `revenue` also qualifies for the auto-collapse ghost here, which renders under its own
+      // label.
       const revenueRow = screen.getByText('revenue').closest('label') as HTMLElement;
-      fireEvent.click(within(revenueRow).getByRole('button', { name: 'Add aggregation' }));
+      fireEvent.click(within(revenueRow).getByRole('button', { name: /aggregation/i }));
       fireEvent.click(await screen.findByRole('checkbox', { name: 'SUM' }));
       fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
 
@@ -5071,5 +5075,112 @@ describe('a joined Data Mart’s calculated field', () => {
 
     fireEvent.click(within(rowFor('amount')).getByRole('checkbox'));
     expect(onChange).toHaveBeenCalledWith(['b__amount']);
+  });
+});
+
+describe('ReportColumnPicker automatic aggregation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const autoSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'landing_page', type: 'STRING' },
+        { name: 'sessions', type: 'INTEGER' },
+      ] as unknown[],
+    });
+
+  const emptyControls: OutputConfig = {
+    filterConfig: [],
+    sortConfig: [],
+    limitConfig: null,
+    aggregationConfig: [],
+    dateTruncConfig: [],
+    uniqueCountConfig: [],
+  };
+
+  it('marks a metric the product will aggregate', () => {
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: emptyControls,
+      onOutputConfigChange: () => {},
+    });
+
+    expect(screen.getByLabelText('Automatic aggregation: Sum')).toBeInTheDocument();
+  });
+
+  it('marks nothing for a destination that never collapses on delivery', () => {
+    // Looker Studio and Excel are pull-based: the consumer reads the projection itself, so no
+    // server-side run ever collapses it. A ghost here would promise something that never happens.
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: emptyControls,
+      onOutputConfigChange: () => {},
+      collapsesOnDelivery: false,
+    });
+
+    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Automatic aggregations applied for fields/)).not.toBeInTheDocument();
+  });
+
+  it('drops the mark once the analyst picked an aggregation', () => {
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...emptyControls,
+        aggregationConfig: [{ column: 'sessions', function: 'AVG' }],
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+  });
+
+  it('marks nothing when the projection carries no metric', () => {
+    renderPicker(
+      buildSchema({
+        nativeFields: [
+          { name: 'landing_page', type: 'STRING' },
+          { name: 'medium', type: 'STRING' },
+        ] as unknown[],
+      }),
+      ['landing_page', 'medium'],
+      {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: emptyControls,
+        onOutputConfigChange: () => {},
+      }
+    );
+
+    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+  });
+
+  // Pins a deliberate gap, not an oversight: the backend may lift a row-level metric formula and
+  // still collapse, but this resolver cannot replicate that distributivity check. A ghost that
+  // promises a collapse the run might not perform is the harmful direction.
+  it('never ghosts a row-level calculated metric, even though the backend may still lift and collapse it', () => {
+    renderPicker(
+      buildSchema({
+        nativeFields: [
+          { name: 'landing_page', type: 'STRING' },
+          {
+            name: 'doubled_revenue',
+            type: 'INTEGER',
+            calculated: { formula: 'revenue * 2', level: 'column' },
+          },
+        ] as unknown[],
+      }),
+      ['landing_page', 'doubled_revenue'],
+      {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig: emptyControls,
+        onOutputConfigChange: () => {},
+      }
+    );
+
+    expect(screen.queryByLabelText(/Automatic aggregation/)).not.toBeInTheDocument();
+    const row = screen.getByText('doubled_revenue').closest('label') as HTMLElement;
+    expect(within(row).getByRole('button', { name: 'Add aggregation' })).toBeInTheDocument();
   });
 });

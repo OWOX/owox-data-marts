@@ -7,6 +7,7 @@ import {
   assertNoHavingRules,
   buildFilterTypeResolver,
   composePlainSelectBody,
+  composeSelectFromClause,
 } from './sql-clause-renderer';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import type {
@@ -2648,5 +2649,23 @@ describe('renderAggregatedQuery — a metric filter compares the aggregate the S
     const { projected, predicate } = renderBoth(bigQuery, 'SUM', bigQuery.float, 'amount');
     expect(projected).toBe('SUM(`amount`)');
     expect(predicate).toBe('SUM(src.`amount`)');
+  });
+});
+
+describe('composeSelectFromClause distinct', () => {
+  it('emits SELECT DISTINCT for a column list', () => {
+    expect(composeSelectFromClause('`a`,\n  `b`', '`t`', { distinct: true })).toBe(
+      'SELECT DISTINCT\n  `a`,\n  `b`\nFROM `t`'
+    );
+  });
+
+  it('emits SELECT DISTINCT * for a wildcard projection', () => {
+    expect(composeSelectFromClause('*', '`t`', { distinct: true })).toBe(
+      'SELECT DISTINCT *\nFROM `t`'
+    );
+  });
+
+  it('is unchanged when distinct is not asked for', () => {
+    expect(composeSelectFromClause('*', '`t`')).toBe('SELECT *\nFROM `t`');
   });
 });

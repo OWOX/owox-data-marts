@@ -101,6 +101,12 @@ export interface DataMartQueryOptions {
    * headers, and in the Google Sheet, under a name nobody asked for.
    */
   calculatedFilterMetrics?: CalculatedFieldPlan[];
+
+  /**
+   * Collapse duplicate rows with `SELECT DISTINCT`. Set ONLY by `applyAutoCollapse` on a
+   * projection that carries no metric — never stored on a `Report`.
+   */
+  distinct?: boolean;
 }
 
 /**

@@ -110,6 +110,10 @@ describe('hasOutputControls', () => {
       expect(hasOutputControls({ ...basePlan, columnConfig: ['clicks'] })).toBe(false);
     });
   });
+
+  it('returns true when distinct is set', () => {
+    expect(hasOutputControls({ ...basePlan, distinct: true })).toBe(true);
+  });
 });
 
 describe('usesSuffixedJoinedFieldNames', () => {

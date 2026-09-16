@@ -415,6 +415,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                             dataMartId={dataMart.id}
                             dataMartTitle={dataMart.title}
                             storageType={dataMart.storage.type}
+                            collapsesOnDelivery={!isPullDestination}
                             value={form.watch('columnConfig')}
                             onChange={(value, options) => {
                               applyColumnConfigChange(form, value, options);

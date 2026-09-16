@@ -55,6 +55,20 @@ export function isIntegerType(fieldType: string | undefined): boolean {
   return fieldType !== undefined && INTEGER_TYPES.has(fieldType.trim().toUpperCase());
 }
 
+/**
+ * Whether the declared type fails to guarantee a fractional part under division. Integers do;
+ * exact numerics do too, because the schema erases scale — `decimal(38, 0)` and `decimal(10, 2)`
+ * both parse to a bare `DECIMAL`, which Trino reads as `(38,0)`.
+ *
+ * Deliberately not `isIntegerType` widened: that one answers "must this declaration NOT be cast",
+ * and widening it would stop the `DECIMAL(38,18)` cast that removes this very truncation.
+ */
+export function mayDivideAsWholeNumbers(fieldType: string | undefined): boolean {
+  if (fieldType === undefined) return false;
+  const normalized = fieldType.trim().toUpperCase();
+  return INTEGER_TYPES.has(normalized) || EXACT_NUMERIC_TYPES.has(normalized);
+}
+
 export const DATE_TYPES = new Set([
   'DATE',
   'DATETIME',

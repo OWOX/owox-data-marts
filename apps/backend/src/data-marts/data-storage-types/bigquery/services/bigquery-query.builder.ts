@@ -56,7 +56,11 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       dateTruncs.length > 0 ||
       uniqueCount ||
       calculatedFields.length > 0 ||
-      queryOptions?.limit != null;
+      queryOptions?.limit != null ||
+      // DISTINCT is an output control on the SELECT itself: without this, a report with
+      // no other control (a bare wildcard projection) would take the backward-compatible path
+      // below, which never sees `queryOptions.distinct` at all.
+      queryOptions?.distinct === true;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
@@ -162,7 +166,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       selectList,
       this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)
     );
-    const sql = `${composeSelectFromClause(plainSelect, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+    const sql = `${composeSelectFromClause(plainSelect, fromClause, { distinct: queryOptions?.distinct })}${where.sql}${orderBy.sql}${limit.sql}`;
     return hasOutputControls
       ? { sql, params: [...where.params, ...orderBy.params, ...limit.params] }
       : sql;

@@ -47,7 +47,10 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
       (queryOptions?.aggregations?.length ?? 0) > 0 ||
       (queryOptions?.dateTruncs?.length ?? 0) > 0 ||
       queryOptions?.uniqueCount === true ||
-      (queryOptions?.calculatedFields?.length ?? 0) > 0;
+      (queryOptions?.calculatedFields?.length ?? 0) > 0 ||
+      // Mirrors the parent's addition for the same reason: otherwise a distinct-only
+      // request (no other control) takes the legacy non-OC path below, which never applies it.
+      queryOptions?.distinct === true;
 
     // Output controls reference the materialized BQ view (mainTableReference), which is
     // already ODM-preprocessed at view-creation time, so the parent BigQuery builder does

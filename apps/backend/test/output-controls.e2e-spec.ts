@@ -9,10 +9,44 @@ import {
   ReportBuilder,
   AUTH_HEADER,
   setDataMartSchema,
+  waitForReportCompletion,
+  EMAIL_REPORT_DESTINATION_CONFIG,
 } from '@owox/test-utils';
+import { EMAIL_PROVIDER_FACADE } from 'src/common/email/shared/email-provider.facade';
+import { TypeResolver } from 'src/common/resolver/type-resolver';
 import { DataDestinationType } from 'src/data-marts/data-destination-types/enums/data-destination-type.enum';
+import { DATA_STORAGE_REPORT_READER_RESOLVER } from 'src/data-marts/data-storage-types/data-storage-providers';
+import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { DataMartSchemaProviderFacade } from 'src/data-marts/data-storage-types/facades/data-mart-schema-provider.facade';
+import { DataStorageReportReader } from 'src/data-marts/data-storage-types/interfaces/data-storage-report-reader.interface';
+import { ReportDataBatch } from 'src/data-marts/dto/domain/report-data-batch.dto';
+import { ReportDataDescription } from 'src/data-marts/dto/domain/report-data-description.dto';
+import { ReportDataHeader } from 'src/data-marts/dto/domain/report-data-header.dto';
 import { CreateViewService } from 'src/data-marts/use-cases/create-view.service';
 import { CreateViewCommand } from 'src/data-marts/dto/domain/create-view.command';
+
+// A reader stub for the auto-collapse block below: it answers any query with one fixed row, since
+// those assertions are about the run record, never the row content.
+function buildAutoCollapseMockReader(): DataStorageReportReader {
+  return {
+    type: DataStorageType.GOOGLE_BIGQUERY,
+    prepareReportData: jest.fn(
+      async () => new ReportDataDescription([new ReportDataHeader('landing_page')], 1)
+    ),
+    readReportDataBatch: jest.fn(async () => new ReportDataBatch([['/home']], null)),
+    finalize: jest.fn(async () => undefined),
+    getState: jest.fn(() => null),
+    initFromState: jest.fn(async () => undefined),
+  } as unknown as DataStorageReportReader;
+}
+
+function buildMockResolver(
+  reader: DataStorageReportReader
+): TypeResolver<DataStorageType, DataStorageReportReader> {
+  return {
+    resolve: jest.fn(async () => reader),
+  } as unknown as TypeResolver<DataStorageType, DataStorageReportReader>;
+}
 
 // e2e coverage for the output-controls feature on the report API surface
 // (limit/filter/sort persistence + class-validator and validator-service
@@ -56,6 +90,25 @@ describe('Output controls API (e2e)', () => {
   beforeAll(async () => {
     const testApp = await createTestApp([
       { provide: CreateViewService, useValue: createViewServiceMock },
+      // Only the auto-collapse block below drives a report to completion; the rest of this file
+      // composes SQL statically and never reads through this resolver.
+      {
+        provide: DATA_STORAGE_REPORT_READER_RESOLVER,
+        useValue: buildMockResolver(buildAutoCollapseMockReader()),
+      },
+      // The default EMAIL provider throws on send so a misconfigured deployment fails loud; the
+      // block below runs an EMAIL report to completion and cares only about the run record.
+      { provide: EMAIL_PROVIDER_FACADE, useValue: { sendEmail: jest.fn(async () => undefined) } },
+      // Test storages carry no real config, so actualization would refuse before the run reaches
+      // the reader above. Echoing the mart's own schema makes it an identity merge instead.
+      {
+        provide: DataMartSchemaProviderFacade,
+        useValue: {
+          getActualDataMartSchema: jest.fn(
+            async (dataMart: { schema: unknown }) => dataMart.schema
+          ),
+        },
+      },
     ]);
     app = testApp.app;
     agent = testApp.agent;
@@ -854,6 +907,186 @@ describe('Output controls API (e2e)', () => {
       );
       // Never the field's own name: `ctr` is an outer SELECT alias, not a column of any CTE.
       expect(sql).not.toContain('HAVING main.ctr');
+    });
+  });
+
+  // `RunReportService` and `GetReportGeneratedSqlService` are the only two callers that opt in;
+  // every other caller of the same composition path must keep seeing the raw projection. The
+  // HTTP Data test below is that negative pin, on the very same column shape.
+  describe('Auto-collapse duplicates on execution', () => {
+    let acDataMartId: string;
+    let acDataDestinationId: string;
+
+    beforeAll(async () => {
+      const prereqs = await setupReportPrerequisites(agent, DataDestinationType.EMAIL);
+      acDataMartId = prereqs.dataMartId;
+      acDataDestinationId = prereqs.dataDestinationId;
+
+      await setDataMartSchema(agent, app, acDataMartId, {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'landing_page', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'sessions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+        ],
+      });
+    });
+
+    // POST then PUT: the base fields UpdateReportRequestApiDto requires must travel alongside the
+    // output controls under test.
+    async function createAutoCollapseReport(extra: Record<string, unknown> = {}): Promise<string> {
+      const createRes = await agent
+        .post('/api/reports')
+        .set(AUTH_HEADER)
+        .send(
+          new ReportBuilder()
+            .withDataMartId(acDataMartId)
+            .withDataDestinationId(acDataDestinationId)
+            .withDestinationConfig(EMAIL_REPORT_DESTINATION_CONFIG)
+            .build()
+        );
+      expect(createRes.status).toBe(201);
+      const id = createRes.body.id;
+      const put = await agent
+        .put(`/api/reports/${id}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Auto-collapse report',
+          dataDestinationId: acDataDestinationId,
+          destinationConfig: EMAIL_REPORT_DESTINATION_CONFIG,
+          columnConfig: ['landing_page', 'sessions'],
+          aggregationConfig: null,
+          ...extra,
+        });
+      expect(put.status).toBe(200);
+      return id;
+    }
+
+    it('collapses duplicates on a run and records what it applied', async () => {
+      const reportId = await createAutoCollapseReport();
+
+      const before = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
+      expect(before.status).toBe(200);
+      const runsCountBefore = before.body.runsCount as number;
+
+      const trigger = await agent.post(`/api/reports/${reportId}/run`).set(AUTH_HEADER);
+      expect(trigger.status).toBe(201);
+
+      await waitForReportCompletion({ agent, reportId, runsCountBefore });
+
+      const runsRes = await agent.get(`/api/data-marts/${acDataMartId}/runs`).set(AUTH_HEADER);
+      expect(runsRes.status).toBe(200);
+      const run = (runsRes.body.runs as Array<Record<string, unknown>>).find(
+        r => r.reportId === reportId
+      );
+      expect(run).toBeDefined();
+      const reportDefinition = run!.reportDefinition as {
+        executionSqlQuery?: string;
+        outputConfig?: { autoAppliedAggregations?: unknown };
+      };
+      expect(reportDefinition.executionSqlQuery).toContain('GROUP BY');
+      expect(reportDefinition.outputConfig?.autoAppliedAggregations).toEqual([
+        { column: 'sessions', function: 'SUM' },
+      ]);
+    }, 60_000);
+
+    // The second opt-in: the preview and the run must never disagree.
+    it('shows the collapsed query in the Generated SQL preview', async () => {
+      const reportId = await createAutoCollapseReport();
+
+      const res = await agent.get(`/api/reports/${reportId}/generated-sql`).set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body.sql as string).toContain('GROUP BY');
+    });
+
+    // A dimensions-only projection collapses via `SELECT DISTINCT` — the sibling branch of
+    // `AutoCollapsePlan` the two tests above never exercise.
+    it('collapses via SELECT DISTINCT for a dimensions-only projection, on the run', async () => {
+      const reportId = await createAutoCollapseReport({ columnConfig: ['landing_page'] });
+
+      const before = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
+      expect(before.status).toBe(200);
+      const runsCountBefore = before.body.runsCount as number;
+
+      const trigger = await agent.post(`/api/reports/${reportId}/run`).set(AUTH_HEADER);
+      expect(trigger.status).toBe(201);
+
+      await waitForReportCompletion({ agent, reportId, runsCountBefore });
+
+      const runsRes = await agent.get(`/api/data-marts/${acDataMartId}/runs`).set(AUTH_HEADER);
+      expect(runsRes.status).toBe(200);
+      const run = (runsRes.body.runs as Array<Record<string, unknown>>).find(
+        r => r.reportId === reportId
+      );
+      expect(run).toBeDefined();
+      const reportDefinition = run!.reportDefinition as {
+        executionSqlQuery?: string;
+        outputConfig?: unknown;
+      };
+      expect(reportDefinition.executionSqlQuery).toContain('SELECT DISTINCT');
+      // A DISTINCT collapse has nothing to snapshot, so no `outputConfig` container is created:
+      // it stays absent, not empty. An empty one would read as "output controls in force".
+      expect(reportDefinition.outputConfig).toBeUndefined();
+    }, 60_000);
+
+    // A sort outside the projection is valid SQL only while the report stays ungrouped, and both
+    // the validator and the picker deliberately permit it. Collapsing would emit
+    // `SELECT DISTINCT landing_page … ORDER BY src.sessions`, which every dialect rejects — so the
+    // resolver refuses the collapse and the run still succeeds.
+    it('keeps a report whose sort names an unprojected column running, uncollapsed', async () => {
+      const reportId = await createAutoCollapseReport({
+        columnConfig: ['landing_page'],
+        sortConfig: [{ column: 'sessions', direction: 'desc' }],
+      });
+
+      const before = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
+      expect(before.status).toBe(200);
+      const runsCountBefore = before.body.runsCount as number;
+
+      const trigger = await agent.post(`/api/reports/${reportId}/run`).set(AUTH_HEADER);
+      expect(trigger.status).toBe(201);
+
+      const completed = await waitForReportCompletion({ agent, reportId, runsCountBefore });
+      expect(completed.lastRunStatus).toBe('SUCCESS');
+
+      const runsRes = await agent.get(`/api/data-marts/${acDataMartId}/runs`).set(AUTH_HEADER);
+      expect(runsRes.status).toBe(200);
+      const run = (runsRes.body.runs as Array<Record<string, unknown>>).find(
+        r => r.reportId === reportId
+      );
+      expect(run).toBeDefined();
+      const reportDefinition = run!.reportDefinition as {
+        executionSqlQuery?: string;
+        outputConfig?: { autoAppliedAggregations?: unknown };
+      };
+      // The sort itself is untouched — refusing the collapse must not also reorder the rows.
+      expect(reportDefinition.executionSqlQuery).toContain('ORDER BY');
+      expect(reportDefinition.executionSqlQuery).not.toContain('SELECT DISTINCT');
+      expect(reportDefinition.executionSqlQuery).not.toContain('GROUP BY');
+      expect(reportDefinition.outputConfig?.autoAppliedAggregations).toBeUndefined();
+    }, 60_000);
+
+    it('leaves an ad-hoc HTTP Data stream of the same report shape uncollapsed', async () => {
+      // Report-level HTTP Data records `executionSqlQuery` only when the composer actually ran,
+      // and the ad-hoc endpoint never records it at all. The `limitConfig` is what makes the
+      // composer run here without auto-collapse's help.
+      const reportId = await createAutoCollapseReport({ limitConfig: 1000 });
+
+      const res = await agent
+        .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      const runId = res.headers['x-owox-run-id'];
+      expect(runId).toBeDefined();
+
+      const run = await agent.get(`/api/data-marts/${acDataMartId}/runs/${runId}`).set(AUTH_HEADER);
+      expect(run.status).toBe(200);
+      const executedSql = run.body.additionalParams?.httpData?.executionSqlQuery as
+        | string
+        | undefined;
+      expect(executedSql).toEqual(expect.any(String));
+      expect(executedSql).not.toContain('GROUP BY');
+      expect(executedSql).not.toContain('SELECT DISTINCT');
     });
   });
 });

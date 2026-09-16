@@ -249,7 +249,11 @@ export function assertNoHavingRules(filters: readonly FilterRule[], queryShape: 
 }
 
 /** `selectBody` is either `*` or a column list already joined with `,\n  `. */
-export function composeSelectFromClause(selectBody: string, fromClause: string): string {
+export function composeSelectFromClause(
+  selectBody: string,
+  fromClause: string,
+  opts?: { distinct?: boolean }
+): string {
   // Reachable: a report with no explicit projection plus a filter on an aggregate-level Calculated
   // Field takes the AGGREGATED branch with `columns: []`, leaving nothing to project. Thrown rather
   // than defaulted because both defaults are wrong — `*` under a GROUP BY is a different wrong
@@ -260,9 +264,12 @@ export function composeSelectFromClause(selectBody: string, fromClause: string):
         'nothing else in the query supplies one.'
     );
   }
+  // DISTINCT, not GROUP BY: with no metric in the projection the two are equivalent, and DISTINCT
+  // needs no key list — so a wildcard projection never has to be expanded into one.
+  const select = opts?.distinct ? 'SELECT DISTINCT' : 'SELECT';
   return selectBody === '*'
-    ? `SELECT *\nFROM ${fromClause}`
-    : `SELECT\n  ${selectBody}\nFROM ${fromClause}`;
+    ? `${select} *\nFROM ${fromClause}`
+    : `${select}\n  ${selectBody}\nFROM ${fromClause}`;
 }
 
 export abstract class SqlClauseRenderer {

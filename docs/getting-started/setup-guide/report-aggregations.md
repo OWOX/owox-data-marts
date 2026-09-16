@@ -87,6 +87,50 @@ You can apply several functions to one column — for example `SUM` and `AVG` of
 
 Grouping is implicit: every selected column that has **no** aggregation becomes a `GROUP BY` key. There is no separate "group by" toggle — pick the dimensions you want as plain columns and aggregate the rest. If you select only metrics (no dimensions), the report collapses to a single grand-total row.
 
+## Automatic Aggregation (No Aggregation Chosen)
+
+A report with an explicit column selection but **no** aggregation, date bucket, or Unique Count set anywhere can still return duplicate rows — most commonly when a join fans a source row out across several joined rows, or a [calculated field](./calculated-fields.md) formula is row-level. OWOX now closes that gap on its own, without you adding anything:
+
+- If every selected column is a **dimension**, OWOX returns the projection **distinct** — the same rows, de-duplicated, with no `GROUP BY` and no relabeled columns.
+- If the selection includes at least one **metric** column, OWOX groups by the remaining dimensions and applies the **first aggregation the column's allowed-aggregations set permits**, in this fixed priority order:
+
+  | Field type            | Priority order                  |
+  | ---------------------- | -------------------------------- |
+  | Numeric                | `SUM` → `AVG` → `MIN` → `MAX`    |
+  | String / Date / Time   | `MIN` → `MAX`                    |
+  | Boolean, Other         | never auto-aggregated            |
+
+  This draws from the same [supported menu](#data-mart-level-roles-and-allowed-aggregations) as manual aggregation, so a function narrowed away at the Data Mart level is skipped in favor of the next one in priority order for that type.
+- A **row-level calculated formula** on a selected column may be rewritten to its group-level equivalent instead of becoming a `GROUP BY` key, when OWOX can prove the rewrite returns the same value the row-level formula would have summed to. See [When a calculated formula is lifted](#when-a-calculated-formula-is-lifted) below.
+
+An auto-applied aggregation relabels its column exactly like a manually chosen one: `sessions` becomes **`sessions | SUM`** in the delivered output, the same `<column> | <TOKEN>` naming [described above](#report-level-aggregate-a-column). If a downstream Google Sheets formula or Looker Studio binding reads the plain `sessions` header, it stops resolving once the report starts auto-aggregating — worth checking after upgrading a report that used to return duplicates.
+
+The report editor marks every column OWOX aggregated on your behalf with a small dot on the **Aggregations** button; the tooltip and screen-reader text name each one ("Automatic aggregations applied for fields: …"). The dot clears itself the first time you hover it and does not return for that editing session — it is a one-time nudge to look, not a setting. Run history for the report also records which columns were auto-aggregated; and whichever way the report collapsed, the executed SQL stored with the run shows it.
+
+> This applies only where OWOX itself **delivers** the report — a scheduled or manual Google Sheets, email, Slack, Teams, or Google Chat run, or an MCP "run report" call against a saved report. It does **not** apply to ad-hoc queries: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and the report's save-time dry run all keep returning exactly what you asked for, duplicates included. It also does **not** apply to the two destinations that pull their own data — **Microsoft Excel** and **Looker Studio** — because they read the report over exactly those ad-hoc paths; see the exclusion list below.
+
+### When a Calculated Formula Is Lifted
+
+A [row-level calculated field](./calculated-fields.md) — one whose formula reads as an ordinary column, such as `{{quantity}} * {{unit_price}}` — would ordinarily become a `GROUP BY` key like any other dimension, so the report keeps one row per distinct formula value rather than collapsing the duplicates a plain projection would return. When OWOX can prove the formula is safe to recompute at the group level instead, it rewrites it once for that report and treats it as a metric there — the field's own schema, level, and declared allowed-aggregations are untouched.
+
+"Safe" means a strict, provable rewrite, never a best guess. OWOX only lifts a formula built from `+`, `-`, `*`, `/`, references whose own allowed-aggregations set permits `SUM`, and the two division helpers `NULLIF(<denominator>, 0)` and `SAFE_DIVIDE(a, b)` in that position and no other — and only where no division's divisor holds a reference except at the formula's own top-level ratio. `{{revenue}} / {{cost}}` lifts to `SUM(revenue) / SUM(cost)` — the true group ratio, recomputed correctly rather than averaged row by row. Anything OWOX cannot prove distributes this way keeps the field as a `GROUP BY` key instead of guessing; the next section lists exactly what that excludes.
+
+### When automatic aggregation does not apply
+
+OWOX leaves the report exactly as you built it — duplicates and all — whenever any of the following is true, so a report never changes behavior it wasn't given a labeled aggregation for:
+
+- **An aggregation, date bucket, or Unique Count is already set anywhere in the report.** Automatic aggregation only fills in a report the analyst left fully unaggregated; it never overrides or adds to an explicit choice.
+- **A filter targets an aggregate-level calculated field.** Filtering on one — even without selecting it — already puts the report on the grouped query, exactly as selecting it does, so it is an explicit choice in the sense of the bullet above.
+- **There is no explicit column selection.** A report with no columns picked runs as `SELECT *` and is unaffected, the same as every other output control that requires a selection.
+- **A sort rule names a column the report does not display.** An ungrouped report may legitimately be ordered by a column it never prints, and OWOX keeps offering that. Neither collapsed shape can express it, so the whole report is left uncollapsed rather than have its row order quietly changed.
+- **The report's destination pulls its own data.** **Microsoft Excel** and **Looker Studio** reports are not run by OWOX at all — the add-in and the connector read the report themselves, over the same ad-hoc paths listed above — so they keep returning every underlying row, exactly as before.
+- **A selected column's type cannot be a `GROUP BY` key.** JSON, ARRAY, STRUCT, and GEOGRAPHY columns — the "Other" row in the table above — are never grouped or auto-aggregated.
+- **The metric's allowed-aggregations set is empty.** A field whose Data Mart governance turns off every aggregation for it is left exactly as selected, not silently made distinct or dropped.
+- **A row-level calculated formula does not distribute over the rewrite.** `{{quantity}} * {{unit_price}}` is the clearest example: `SUM(quantity) * SUM(unit_price)` is not the same number as `SUM(quantity * unit_price)`. OWOX also declines to lift a formula that contains a conditional (`CASE`), an additive constant (`{{clicks}} + 5`), a reference inside a divisor other than the formula's own top-level ratio, or any reference whose own allowed-aggregations set does not permit `SUM`.
+- **A division inside the formula would truncate a whole-number reference.** `INTEGER / INTEGER` truncates per row on **Athena** and **Redshift**, so a formula that divides by an integer — or a `DECIMAL` reference, whose declared scale OWOX cannot see on every storage — is left unlifted on those two, even though the identical formula lifts safely on BigQuery, Snowflake, and Databricks, where division promotes to a floating type.
+
+When none of these block it, the report gets a clearly labeled aggregation or a `DISTINCT` projection; when one of them does, the report keeps returning every underlying row exactly as it did before this feature — never a guess in between.
+
 ## Date Bucketing
 
 To answer questions like _"revenue by month"_ or _"sessions by week"_, bucket a date or timestamp dimension instead of grouping by the raw (daily) value. Choose a granularity — **Day, Week, Month, Quarter, or Year** — for the date column. For **timestamp/datetime** columns you can optionally set an **IANA time zone** (for example, `America/New_York`) so values are converted to that zone before truncation; without one, no conversion is applied. (Pure `DATE` columns have no time-of-day, so no time zone applies.)

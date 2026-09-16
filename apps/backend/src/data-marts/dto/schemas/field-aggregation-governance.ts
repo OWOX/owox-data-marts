@@ -132,3 +132,35 @@ export function withoutCountBesideSleevedCountDistinct(
   if (!grainsDiffer || !allowed.includes('COUNT_DISTINCT')) return allowed;
   return allowed.filter(fn => fn !== 'COUNT');
 }
+
+/**
+ * The order the product picks an aggregation in when the analyst chose none. A subset of
+ * SUPPORTED_BY_CATEGORY, but not always of DEFAULTS_BY_CATEGORY — `string` diverges, defaulting to
+ * COUNT/COUNT_DISTINCT/STRING_AGG/ANY_VALUE while its priority is MIN/MAX.
+ *
+ * `other` (JSON / ARRAY / STRUCT / GEOGRAPHY) cannot be a GROUP BY key at all, and a boolean metric
+ * is not something an auto-pick should invent — both stay empty.
+ *
+ * Mirrored in the web and extension `aggregation-governance.ts`.
+ */
+const PRIORITY_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]> = {
+  number: ['SUM', 'AVG', 'MIN', 'MAX'],
+  string: ['MIN', 'MAX'],
+  date: ['MIN', 'MAX'],
+  time: ['MIN', 'MAX'],
+  boolean: [],
+  other: [],
+};
+
+/**
+ * The aggregation the product applies to a metric the analyst left unaggregated, or `undefined`
+ * when it may not pick one — an empty allowed set is an explicit override, not a reason to
+ * substitute.
+ */
+export function pickAutoAggregation(
+  fieldType: string,
+  allowed: readonly ReportAggregateFunction[]
+): ReportAggregateFunction | undefined {
+  const allowedSet = new Set(allowed);
+  return PRIORITY_BY_CATEGORY[categorizeFieldType(fieldType)].find(fn => allowedSet.has(fn));
+}

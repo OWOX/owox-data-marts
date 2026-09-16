@@ -2,6 +2,7 @@ import {
   resolveFieldGovernance,
   supportedAggregationsForType,
   withoutCountBesideSleevedCountDistinct,
+  pickAutoAggregation,
 } from './field-aggregation-governance';
 
 describe('resolveFieldGovernance — default allowed aggregations (no explicit overrides)', () => {
@@ -221,5 +222,28 @@ describe('COUNT beside a sleeve-routed COUNT_DISTINCT', () => {
 
   it('leaves a menu without COUNT_DISTINCT untouched', () => {
     expect(withoutCountBesideSleevedCountDistinct(['COUNT', 'MIN'])).toEqual(['COUNT', 'MIN']);
+  });
+});
+
+describe('pickAutoAggregation', () => {
+  it('prefers SUM for a numeric field', () => {
+    expect(pickAutoAggregation('FLOAT', ['AVG', 'MAX', 'SUM'])).toBe('SUM');
+  });
+
+  it('falls to the next priority when SUM is not allowed', () => {
+    expect(pickAutoAggregation('FLOAT', ['MAX', 'AVG'])).toBe('AVG');
+  });
+
+  it('returns undefined when the analyst allowed nothing', () => {
+    expect(pickAutoAggregation('FLOAT', [])).toBeUndefined();
+  });
+
+  it('returns undefined for a category that is never auto-aggregated', () => {
+    expect(pickAutoAggregation('BOOL', ['COUNT', 'COUNT_DISTINCT'])).toBeUndefined();
+  });
+
+  it('ignores an allowed function outside the priority list', () => {
+    // P50 is supported for numbers but is never a silent default.
+    expect(pickAutoAggregation('INTEGER', ['P50'])).toBeUndefined();
   });
 });

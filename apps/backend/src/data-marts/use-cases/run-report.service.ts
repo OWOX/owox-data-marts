@@ -26,6 +26,7 @@ import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
+import { applyAutoCollapse } from '../services/auto-collapse.resolver';
 import {
   BlendableSchemaAccessor,
   resolveBlendableSchemaAccessor,
@@ -242,12 +243,17 @@ export class RunReportService {
     try {
       signal?.throwIfAborted();
 
+      // Opted in HERE and in the Generated SQL preview only: an ad-hoc MCP or HTTP query, the
+      // Looker Studio cache fill and every save dry run keep the stored config untouched, because
+      // their caller can ask for its own aggregation.
+      const { report: effectiveReport, plan: autoCollapsePlan } = applyAutoCollapse(report);
+
       // Resolve blending decision up front. When the report has a column
       // config, this produces either a pre-built blended SQL (for cross-DM
       // joins) or a column filter (for native-only projections). Readers
       // receive the result via PrepareReportDataOptions.
       const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(
-        report,
+        effectiveReport,
         accessor,
         undefined,
         undefined,
@@ -284,13 +290,13 @@ export class RunReportService {
         sqlOverride = blendingDecision.blendedSql;
         sqlOverrideParams = blendingDecision.params;
         calculatedFields = blendingDecision.calculatedFields;
-      } else if (hasOutputControls(report)) {
+      } else if (hasOutputControls(effectiveReport)) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics. The decision above
         // is handed in rather than resolved again: it already fetched the schema, validated the
         // config and settled the sort, and the composer applies that sort as given.
         const composed = await this.reportSqlComposerService.compose(
-          report,
+          effectiveReport,
           accessor,
           blendingDecision
         );
@@ -308,6 +314,22 @@ export class RunReportService {
       // the delivered rows never had, right beside the executed SQL that shows they did not.
       if (blendingDecision.sort !== undefined && dataMartRun?.reportDefinition?.outputConfig) {
         dataMartRun.reportDefinition.outputConfig.sortConfig = blendingDecision.sort ?? undefined;
+      }
+
+      // Run History must show what actually grouped the delivered rows. The pending-run snapshot is
+      // built from the STORED report, which may carry no `outputConfig` at all, so the container is
+      // created here — creating it upstream would leak the decision into every other caller that
+      // builds a run record from the same report.
+      if (autoCollapsePlan.kind === 'aggregate' && dataMartRun?.reportDefinition) {
+        const outputConfig = (dataMartRun.reportDefinition.outputConfig ??= {});
+        outputConfig.autoAppliedAggregations = autoCollapsePlan.aggregations;
+        // A lift-only collapse leaves `autoAppliedAggregations` empty while the rows did group, and
+        // a lift has no single function to report — hence its own field.
+        if (autoCollapsePlan.liftedFormulas?.length) {
+          outputConfig.autoAppliedLiftedColumns = autoCollapsePlan.liftedFormulas.map(
+            entry => entry.column
+          );
+        }
       }
 
       // Persist the exact executed SQL (output controls applied, params inlined as
@@ -338,7 +360,10 @@ export class RunReportService {
         sqlOverrideParams,
         columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
-        aggregationConfig: blendingDecision.aggregations ?? report.aggregationConfig ?? undefined,
+        // `blendingDecision.aggregations` covers the blended path only, so the flat path falls
+        // through to the effective config — the un-collapsed one would mis-resolve the headers.
+        aggregationConfig:
+          blendingDecision.aggregations ?? effectiveReport.aggregationConfig ?? undefined,
         uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
         primaryKeyColumns: blendingDecision.primaryKeyColumns,
         uniqueCountSources: blendingDecision.uniqueCountSources,

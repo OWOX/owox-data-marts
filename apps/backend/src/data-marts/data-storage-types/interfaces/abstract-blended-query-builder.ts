@@ -1083,8 +1083,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       calculatedSelectItems
     );
 
+    // DISTINCT, not GROUP BY: with no metric in the projection the two are equivalent, and
+    // DISTINCT needs no key list, so `selectClause` never has to be expanded into one.
+    const selectKeyword = context.distinct ? 'SELECT DISTINCT' : 'SELECT';
     const body =
-      `SELECT\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
+      `${selectKeyword}\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
     assertNoHavingRules(postJoinFilters, 'buildBlendedQuery ungrouped query');

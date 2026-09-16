@@ -9,6 +9,7 @@ import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated
 import { EntityType, Action } from '../services/access-decision';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 
 describe('GetReportGeneratedSqlService', () => {
   const report = {
@@ -126,6 +127,51 @@ describe('GetReportGeneratedSqlService', () => {
 
     await expect(service.run(command)).rejects.toThrow(BadRequestException);
     expect(reportSqlComposerService.composeStatic).not.toHaveBeenCalled();
+  });
+
+  describe('automatic aggregation in the preview', () => {
+    const collapsibleReport = (destinationType: DataDestinationType) => ({
+      id: 'report-1',
+      dataMart: {
+        id: 'dm-1',
+        storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
+        schema: {
+          fields: [{ name: 'landing_page', type: 'STRING', status: 'CONNECTED' }],
+        },
+      },
+      columnConfig: ['landing_page'],
+      dataDestination: { id: 'dest-1', type: destinationType },
+    });
+
+    const composedReport = (reportSqlComposerService: { composeStatic: jest.Mock }) =>
+      reportSqlComposerService.composeStatic.mock.calls[0][0] as { distinct?: boolean };
+
+    it('collapses for a destination the server writes into, matching what the run will do', async () => {
+      const { service, reportRepository, reportSqlComposerService } = createService();
+      reportRepository.findOne = jest
+        .fn()
+        .mockResolvedValue(collapsibleReport(DataDestinationType.GOOGLE_SHEETS));
+
+      await service.run(
+        new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor'])
+      );
+
+      expect(composedReport(reportSqlComposerService).distinct).toBe(true);
+    });
+
+    it.each([DataDestinationType.LOOKER_STUDIO, DataDestinationType.EXCEL])(
+      'leaves the projection uncollapsed for %s, which has no server-side run to collapse',
+      async destinationType => {
+        const { service, reportRepository, reportSqlComposerService } = createService();
+        reportRepository.findOne = jest.fn().mockResolvedValue(collapsibleReport(destinationType));
+
+        await service.run(
+          new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor'])
+        );
+
+        expect(composedReport(reportSqlComposerService).distinct).toBeUndefined();
+      }
+    );
   });
 
   it('allows TABLE_PATTERN on GOOGLE_BIGQUERY', async () => {
