@@ -380,6 +380,33 @@ describe('StreamHttpDataService', () => {
     );
   });
 
+  it('never collapses the ad-hoc Data Mart read, however collapsible it looks', async () => {
+    // The file-level allowlist in auto-collapse-opt-in.spec.ts can no longer make this promise:
+    // this service hosts both paths, so allowlisting it covers the ad-hoc `buildPlan` too. The
+    // caller here asked for a projection and its contract is every row that projection returns —
+    // it can ask for an aggregation of its own.
+    dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+      fakeDataMart({
+        schema: {
+          fields: [
+            { name: 'landing_page', type: 'STRING', status: 'CONNECTED' },
+            { name: 'sessions', type: 'INTEGER', status: 'CONNECTED' },
+          ],
+        },
+      } as unknown as Partial<DataMart>)
+    );
+
+    await service.stream(
+      fakeCommand({ rawQuery: { column: ['landing_page', 'sessions'] } }),
+      mockResponse()
+    );
+
+    const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+    const plan = readPlan as { aggregationConfig?: unknown[]; distinct?: boolean };
+    expect(plan.aggregationConfig ?? []).toEqual([]);
+    expect(plan.distinct).toBeUndefined();
+  });
+
   it('happy path streams two NDJSON rows, records a SUCCESS run, registers consumption', async () => {
     const res = mockResponse();
     await service.stream(fakeCommand(), res);
@@ -1271,6 +1298,36 @@ describe('StreamHttpDataService', () => {
   }
 
   describe('streamReport', () => {
+    /**
+     * A read that WOULD collapse: an explicit projection of one dimension and one metric, and no
+     * aggregation anywhere. The schema goes on the Data Mart this service loads, not on the one
+     * hanging off the report row — the plan is built from the former.
+     */
+    function collapsibleReportRead(destinationType: DataDestinationType): void {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({
+          schema: {
+            fields: [
+              { name: 'landing_page', type: 'STRING', status: 'CONNECTED' },
+              { name: 'sessions', type: 'INTEGER', status: 'CONNECTED' },
+            ],
+          },
+        } as unknown as Partial<DataMart>)
+      );
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: destinationType },
+        columnConfig: ['landing_page', 'sessions'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+    }
+
     it('streams a report and records a SUCCESS run tagged with reportId + executionSqlQuery', async () => {
       const res = mockResponse();
       await service.streamReport(fakeReportCommand(), res);
@@ -1327,41 +1384,50 @@ describe('StreamHttpDataService', () => {
     // One endpoint, two readers with opposite contracts. The rows must differ, and only by the
     // report's destination — not by who asked.
     it.each([
-      [DataDestinationType.EXCEL, true, 'the add-in fetch IS the delivery'],
-      [DataDestinationType.GOOGLE_SHEETS, undefined, 'an HTTP Data caller is a third party'],
-      [DataDestinationType.LOOKER_STUDIO, undefined, 'the connector reads raw rows'],
-    ])('collapses for %s: %s — %s', async (destinationType, expected) => {
-      // The plan is built from the Data Mart this service loads, not from the one hanging off
-      // the report row, so the schema the collapse reads has to be on that one.
-      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
-        fakeDataMart({
-          schema: {
-            fields: [
-              { name: 'landing_page', type: 'STRING', status: 'CONNECTED' },
-              { name: 'sessions', type: 'INTEGER', status: 'CONNECTED' },
-            ],
-          },
-        } as unknown as Partial<DataMart>)
-      );
-      reportService.getByIdAndProjectId.mockResolvedValueOnce({
-        id: 'report-1',
-        dataMart: { id: 'dm-1' },
-        dataDestination: { type: destinationType },
-        columnConfig: ['landing_page', 'sessions'],
-        filterConfig: null,
-        sortConfig: null,
-        aggregationConfig: null,
-        dateTruncConfig: null,
-        uniqueCountConfig: null,
-        limitConfig: null,
-      } as never);
+      [DataDestinationType.EXCEL, 1, 'collapses — the add-in fetch IS the delivery'],
+      [
+        DataDestinationType.GOOGLE_SHEETS,
+        0,
+        'keeps every row — an HTTP Data caller is a third party',
+      ],
+      [DataDestinationType.LOOKER_STUDIO, 0, 'keeps every row — the connector reads raw rows'],
+    ])('%s %s', async (destinationType, expectedRules) => {
+      collapsibleReportRead(destinationType);
 
       await service.streamReport(fakeReportCommand(), mockResponse());
 
       const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
       const plan = readPlan as { aggregationConfig?: unknown[] };
       // A metric in the projection makes it an aggregation rather than a plain DISTINCT.
-      expect(plan.aggregationConfig?.length ? true : undefined).toBe(expected);
+      expect(plan.aggregationConfig?.length ?? 0).toBe(expectedRules);
+    });
+
+    it('records what the Excel run collapsed, so its history does not contradict its own SQL', async () => {
+      // The run snapshot is built from the STORED report, whose aggregationConfig is empty — that
+      // being the precondition for collapsing at all. Without the plan travelling with it, run
+      // history says "no aggregation" beside an executed SQL that plainly groups.
+      collapsibleReportRead(DataDestinationType.EXCEL);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: DataMartRunType.EXCEL,
+          autoApplied: expect.objectContaining({
+            autoAppliedAggregations: [{ column: 'sessions', function: 'SUM' }],
+          }),
+        })
+      );
+    });
+
+    it('records nothing auto-applied for a read that did not collapse', async () => {
+      collapsibleReportRead(DataDestinationType.GOOGLE_SHEETS);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({ autoApplied: undefined })
+      );
     });
 
     it('resolves the decision with stale-sort degradation on (a stored report, no editor open)', async () => {

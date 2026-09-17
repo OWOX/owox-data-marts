@@ -24,6 +24,12 @@ export interface ReportFormActionsProps {
    * The run half of every action disappears rather than being offered and refused.
    */
   canRunAfterSave?: boolean;
+  /**
+   * A change the picker made on its own initiative that the report has not stored yet — today,
+   * the automatic aggregation it fills in on open. It is not an edit, so it never reaches
+   * `isDirty`; it still has to be savable, or the rule the editor shows never reaches the server.
+   */
+  hasPendingRepair?: boolean;
   onSubmit: () => void;
   onCancel?: () => void;
 }
@@ -36,6 +42,7 @@ export const ReportFormActions = ({
   ownersDirty = false,
   runAfterSaveRef,
   canRunAfterSave = true,
+  hasPendingRepair = false,
   onSubmit,
   onCancel,
 }: ReportFormActionsProps) => {
@@ -52,8 +59,8 @@ export const ReportFormActions = ({
   // submitting runs validation, which opens collapsed sections with errors and
   // focuses the first invalid field. Disabling on !isValid would leave the user
   // with no hint about what is missing.
-  const disabledPrimary =
-    isSubmitting || (mode === ReportFormMode.EDIT && !(isDirty || triggersDirty || ownersDirty));
+  const hasSomethingToSave = isDirty || triggersDirty || ownersDirty || hasPendingRepair;
+  const disabledPrimary = isSubmitting || (mode === ReportFormMode.EDIT && !hasSomethingToSave);
 
   const primaryLabel =
     mode === ReportFormMode.CREATE
@@ -65,7 +72,7 @@ export const ReportFormActions = ({
   const dropdownItemLabel =
     mode === ReportFormMode.CREATE
       ? 'Create new report'
-      : isDirty || triggersDirty || ownersDirty
+      : hasSomethingToSave
         ? 'Save & Run report'
         : 'Run report';
 

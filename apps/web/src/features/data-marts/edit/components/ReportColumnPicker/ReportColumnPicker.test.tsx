@@ -5186,6 +5186,23 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(note).toHaveTextContent('Sum');
   });
 
+  it('keeps saying what delivery will do after the analyst removes the rule', async () => {
+    // The backend has not changed its mind: an empty config on a collapsing destination still
+    // groups the rows and still renames the column. Before the fill-in the ghost said so; without
+    // this the editor goes silent on a report that does in fact collapse.
+    renderControlled(['landing_page', 'sessions']);
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage aggregations' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: /sum/i }));
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Aggregations' }));
+
+    const note = await screen.findByTestId('predicted-aggregation-note');
+    expect(note).toHaveTextContent('This report sets no aggregation, so delivery will apply');
+    expect(note).toHaveTextContent('sessions');
+    expect(note).toHaveTextContent('Sum');
+  });
+
   it('shows no such note once the analyst set an aggregation of their own', () => {
     renderPicker(autoSchema(), ['landing_page', 'sessions'], {
       collapsesOnDelivery: true,

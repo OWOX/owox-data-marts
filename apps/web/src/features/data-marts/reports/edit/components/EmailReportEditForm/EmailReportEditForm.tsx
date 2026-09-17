@@ -54,6 +54,7 @@ import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
+import { usePendingAutoAggregation } from '../../hooks/usePendingAutoAggregation';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
 import {
   MarkdownEditorPreview,
@@ -223,6 +224,9 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       consumePendingOwnerIds,
     } = useOwnerState(initialOwnerUsers);
 
+    const { pendingAutoAggregation, noteOutputConfigChange, clearPendingAutoAggregation } =
+      usePendingAutoAggregation();
+
     const {
       isDirty,
       reset,
@@ -243,6 +247,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           console.error('Failed to persist schedule for report', e);
         }
         consumePendingOwnerIds();
+        clearPendingAutoAggregation();
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -955,6 +960,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                               }}
                               onOutputConfigChange={(config, options) => {
                                 applyOutputConfigChange(form, config, options);
+                                noteOutputConfigChange(options);
                               }}
                               onCountChange={setColumnsCount}
                             />
@@ -1023,6 +1029,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               isDirty={isDirty}
               triggersDirty={triggersDirty}
               ownersDirty={ownersDirty}
+              hasPendingRepair={pendingAutoAggregation}
               runAfterSaveRef={runAfterSaveRef}
               onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
               onCancel={onCancel}

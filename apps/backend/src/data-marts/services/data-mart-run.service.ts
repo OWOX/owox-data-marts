@@ -13,6 +13,7 @@ import { Insight } from '../entities/insight.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
+import type { AutoAppliedOutputConfig } from './auto-collapse.resolver';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
@@ -102,6 +103,12 @@ export interface HttpDataRunRecord {
    * from the snapshot built here; without it such a run appears with no name at all.
    */
   report?: Report;
+  /**
+   * What the report's automatic collapse contributed, when this read performed one. The snapshot
+   * below is built from the STORED report, whose `aggregationConfig` is empty — that being the
+   * precondition for collapsing — so without this a run that grouped its rows says it did not.
+   */
+  autoApplied?: AutoAppliedOutputConfig;
 }
 
 // Terminal-only MCP_QUERY run: written once at the end (success, failure, or client-abort), no
@@ -604,7 +611,9 @@ export class DataMartRunService {
       status: record.status,
       createdById: record.createdById,
       reportId: record.reportId ?? null,
-      reportDefinition: record.report ? this.buildReportDefinition(record.report) : null,
+      reportDefinition: record.report
+        ? this.buildReportDefinition(record.report, record.autoApplied)
+        : null,
       definitionRun: record.dataMart.definition,
       additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
       startedAt: record.startedAt,
@@ -746,10 +755,10 @@ export class DataMartRunService {
    * the output controls in force. Run history reads the title from here, so a run recorded
    * without it shows up nameless.
    */
-  private buildReportDefinition(report: Report) {
+  private buildReportDefinition(report: Report, autoApplied?: AutoAppliedOutputConfig) {
     const { title, destinationConfig, dataDestination } = report;
 
-    const outputConfig = hasOutputControls(report)
+    const stored = hasOutputControls(report)
       ? {
           filterConfig: report.filterConfig ?? undefined,
           sortConfig: report.sortConfig ?? undefined,
@@ -759,6 +768,11 @@ export class DataMartRunService {
           uniqueCountConfig: report.uniqueCountConfig ?? undefined,
         }
       : undefined;
+
+    // A report the product collapsed for has no output controls of its own to snapshot, so the
+    // container is created here rather than left undefined — otherwise the one fact worth
+    // recording about that run would have nowhere to go.
+    const outputConfig = autoApplied ? { ...stored, ...autoApplied } : stored;
 
     return {
       title,

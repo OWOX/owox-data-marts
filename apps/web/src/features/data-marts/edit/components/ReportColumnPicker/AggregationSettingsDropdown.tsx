@@ -107,6 +107,12 @@ interface AggregationSettingsDropdownProps {
    * panel would otherwise read as empty on a report that does in fact group.
    */
   autoAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
+  /**
+   * What delivery WILL apply while the config carries nothing — the state an analyst reaches by
+   * deleting the filled-in rule. The backend has not changed its mind there, so the panel has to
+   * keep saying what the delivered rows will be.
+   */
+  predictedAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
 }
 
 export function AggregationSettingsDropdown({
@@ -114,6 +120,7 @@ export function AggregationSettingsDropdown({
   onChange,
   selectedColumns,
   autoAggregations,
+  predictedAggregations,
 }: AggregationSettingsDropdownProps) {
   return (
     <div className='space-y-4 p-3'>
@@ -122,6 +129,7 @@ export function AggregationSettingsDropdown({
         dateTrunc={value.dateTruncConfig}
         selectedColumns={selectedColumns}
         autoAggregations={autoAggregations}
+        predictedAggregations={predictedAggregations}
         onChange={(aggregationConfig, dateTruncConfig) => {
           onChange({ ...value, aggregationConfig, dateTruncConfig });
         }}
@@ -135,6 +143,7 @@ interface AggregationSectionProps {
   dateTrunc: DateTruncRule[];
   selectedColumns: readonly AggregationDropdownColumn[];
   autoAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
+  predictedAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
   onChange: (aggregations: AggregationRule[], dateTrunc: DateTruncRule[]) => void;
 }
 
@@ -143,6 +152,7 @@ function AggregationSection({
   dateTrunc,
   selectedColumns,
   autoAggregations,
+  predictedAggregations,
   onChange,
 }: AggregationSectionProps) {
   const [pendingColumn, setPendingColumn] = useState<AggregationDropdownColumn | null>(null);
@@ -170,9 +180,40 @@ function AggregationSection({
     ...(autoAggregations ?? new Map<string, ReportAggregateFunction>()),
   ].filter(([column]) => columnByName.has(column));
 
+  // The other side of the same fact: the config carries nothing, so delivery will collapse the
+  // report itself. Reached by deleting the filled-in rule — the editor must not fall silent
+  // there, because the rows are grouped and the column renamed either way.
+  const predicted: [string, ReportAggregateFunction][] =
+    autoApplied.length > 0
+      ? []
+      : [...(predictedAggregations ?? new Map<string, ReportAggregateFunction>())].filter(
+          ([column]) => columnByName.has(column)
+        );
+
   return (
     <div data-slot='aggregation-settings-panel'>
       <SectionHeader title='Aggregations' info={SECTION_INFO.aggregate} />
+      {predicted.length > 0 && (
+        <div
+          data-testid='predicted-aggregation-note'
+          className='text-muted-foreground mb-2 flex items-start gap-2 text-xs'
+        >
+          <span className='bg-warning mt-1 size-1.5 shrink-0 rounded-full' aria-hidden='true' />
+          <span>
+            This report sets no aggregation, so delivery will apply:{' '}
+            {predicted.map(([column, fn], index) => (
+              <span key={column}>
+                {index > 0 && ', '}
+                <span className='text-foreground font-medium'>
+                  {columnByName.get(column)?.label ?? column}
+                </span>
+                {` \u2014 ${REPORT_AGGREGATE_FUNCTION_LABELS[fn]}`}
+              </span>
+            ))}
+            . Add one of your own to decide it yourself.
+          </span>
+        </div>
+      )}
       {autoApplied.length > 0 && (
         <div
           data-testid='auto-aggregation-note'

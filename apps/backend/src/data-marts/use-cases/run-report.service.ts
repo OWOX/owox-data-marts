@@ -26,7 +26,11 @@ import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
-import { applyAutoCollapse, type AutoCollapseSkipReason } from '../services/auto-collapse.resolver';
+import {
+  applyAutoCollapse,
+  autoAppliedOutputConfig,
+  type AutoCollapseSkipReason,
+} from '../services/auto-collapse.resolver';
 import {
   BlendableSchemaAccessor,
   resolveBlendableSchemaAccessor,
@@ -331,22 +335,9 @@ export class RunReportService {
       // built from the STORED report, which may carry no `outputConfig` at all, so the container is
       // created here — creating it upstream would leak the decision into every other caller that
       // builds a run record from the same report.
-      if (autoCollapsePlan.kind === 'aggregate' && dataMartRun?.reportDefinition) {
-        const outputConfig = (dataMartRun.reportDefinition.outputConfig ??= {});
-        outputConfig.autoAppliedAggregations = autoCollapsePlan.aggregations;
-        // A lift-only collapse leaves `autoAppliedAggregations` empty while the rows did group, and
-        // a lift has no single function to report — hence its own field.
-        if (autoCollapsePlan.liftedFormulas?.length) {
-          outputConfig.autoAppliedLiftedColumns = autoCollapsePlan.liftedFormulas.map(
-            entry => entry.column
-          );
-        }
-      }
-      // A DISTINCT collapse renames nothing and aggregates nothing, but it does change how many
-      // rows were delivered — so it is recorded too, rather than leaving Run History to imply the
-      // raw projection was returned.
-      if (autoCollapsePlan.kind === 'distinct' && dataMartRun?.reportDefinition) {
-        (dataMartRun.reportDefinition.outputConfig ??= {}).autoAppliedDistinct = true;
+      const autoApplied = autoAppliedOutputConfig(autoCollapsePlan);
+      if (autoApplied && dataMartRun?.reportDefinition) {
+        Object.assign((dataMartRun.reportDefinition.outputConfig ??= {}), autoApplied);
       }
       // The refusal reasons exist to answer "why does this report still return duplicates?", and a
       // log line is the only place that question gets asked after the fact. Two of them are not

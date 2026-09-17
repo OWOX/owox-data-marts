@@ -36,9 +36,9 @@ interface RowAggregationIconProps {
   /** Fired whenever the editor closes, so a pending selection can be reset. */
   onClose?: () => void;
   /**
-   * The aggregation the product will apply because the analyst applied none. Drawn dimmed and
-   * always visible, so the choice shows before the run rather than in the delivered rows. Ignored
-   * once `activeFunctions` is non-empty.
+   * Set when the rule on this column is one the product applied because the analyst applied none.
+   * The icon reads exactly like any other set rule — it IS one — so this changes nothing about how
+   * it is drawn; it only tells the editor to say who chose it.
    */
   autoFunction?: ReportAggregateFunction;
   onApplyDraft: (draft: AggregationDraft) => void;
@@ -64,9 +64,6 @@ export function RowAggregationIcon({
   const [open, setOpen] = useState(autoOpen);
   const count = activeFunctions.length + (activeBucket !== null ? 1 : 0);
   const isActive = count > 0;
-  // The rule is real now — the product wrote it — so the icon reads as set. `autoFunction` no
-  // longer switches the icon's appearance; it only tells the editor to keep saying who chose.
-  const showsAuto = !isActive && autoFunction !== undefined;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -79,20 +76,13 @@ export function RowAggregationIcon({
       // The name says what the button DOES; the automatic aggregation is a state of the column,
       // so it rides along as a description instead of replacing the action.
       aria-label={isActive ? 'Manage aggregations' : 'Add aggregation'}
-      title={
-        showsAuto
-          ? `Automatic aggregation: ${REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction]}`
-          : undefined
-      }
       className={cn(
         'flex h-6 w-6 items-center justify-center gap-0.5 rounded transition-opacity',
         isActive
           ? 'text-blue-500 opacity-100'
-          : showsAuto
-            ? 'text-blue-500 opacity-60 hover:opacity-100'
-            : alwaysVisible
-              ? 'text-muted-foreground hover:text-foreground opacity-100'
-              : 'text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 data-[state=open]:opacity-100'
+          : alwaysVisible
+            ? 'text-muted-foreground hover:text-foreground opacity-100'
+            : 'text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 data-[state=open]:opacity-100'
       )}
     >
       <Sigma className='h-4 w-4' />

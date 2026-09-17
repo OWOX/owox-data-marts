@@ -150,13 +150,14 @@ export interface ReportColumnPickerProps {
   onOutputConfigChange?: (config: OutputConfig, options?: OutputConfigRepairOptions) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
   /**
-   * Whether a run of this report will actually auto-collapse. False for a pull-based destination
-   * (Looker Studio, Excel): its consumer reads the uncollapsed projection, so the ghost below
-   * would predict something that never happens.
+   * Whether delivering this report will collapse it — `collapsesOnDelivery` on the destination.
+   * False for Looker Studio alone, whose connector reads the report the way any ad-hoc caller
+   * does; an Excel report collapses like a Google Sheets one, because the add-in is its reader.
    *
-   * Defaults to false, and every form that wants the ghost passes it. A form that forgets loses a
-   * prediction, which surprises nobody; the opposite default would have the next pull-based
-   * destination promising a collapse it never performs.
+   * When true the picker fills the product's aggregation into the config on open, so this decides
+   * whether a rule is written at all. Defaults to false, and every form that collapses passes it:
+   * a form that forgets shows a report as it is stored, which is at worst incomplete, while the
+   * opposite default would write a rule into a report nothing ever collapses.
    */
   collapsesOnDelivery?: boolean;
 }
@@ -1757,8 +1758,9 @@ export function ReportColumnPicker({
   // projection, which the resolver must read as "nothing to predict yet".
   //
   // This goes empty the moment anything is materialised below, because the resolver refuses a
-  // report that already carries an aggregation. Nothing user-visible reads it directly for that
-  // reason — `autoApplied` does.
+  // report that already carries an aggregation — so it is non-empty in exactly one visible state:
+  // the analyst deleted the rule we filled in. Delivery still collapses there, and the panel says
+  // so from this value; everything else reads `autoApplied`.
   const predictedAggregations = useMemo(
     () =>
       collapsesOnDelivery && schema
@@ -2193,6 +2195,7 @@ export function ReportColumnPicker({
             onChange={handleAggregationPanelChange}
             selectedColumns={selectedDropdownColumns}
             autoAggregations={autoAggregations}
+            predictedAggregations={predictedAggregations}
           />
         </div>
       )}

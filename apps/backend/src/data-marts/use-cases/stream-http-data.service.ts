@@ -23,11 +23,11 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
-import { applyAutoCollapse } from '../services/auto-collapse.resolver';
 import {
-  collapsesOnDelivery,
-  isPullBasedDataDestinationType,
-} from '../data-destination-types/enums/data-destination-type.enum';
+  applyAutoCollapse,
+  autoAppliedOutputConfig,
+  type AutoAppliedOutputConfig,
+} from '../services/auto-collapse.resolver';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
@@ -115,7 +115,14 @@ function toStreamFailureOutcome(error: unknown): {
 // (projectionColumns: null sentinel, optional reportId/captureExecutionSql).
 export type ExecuteStreamPlan =
   | { kind: 'data-mart'; readPlan: ReportLikeReadPlan; columns: string[] }
-  | { kind: 'report'; readPlan: ReportLikeReadPlan; reportId: string; savedColumns: string[] };
+  | {
+      kind: 'report';
+      readPlan: ReportLikeReadPlan;
+      reportId: string;
+      savedColumns: string[];
+      /** Present only when this read collapsed the report — see `asExcelReportRun`. */
+      autoApplied?: AutoAppliedOutputConfig;
+    };
 
 // Exhaustiveness guard: if a 3rd ExecuteStreamPlan kind is ever added, the switch in executeStream
 // that doesn't handle it fails to compile here instead of silently falling through at runtime.
@@ -139,6 +146,13 @@ interface StreamPlanContext {
    * own mistake and stays a 400.
    */
   degradesStaleSort: boolean;
+  /**
+   * What the collapse this read performed contributes to the run record. A run that grouped its
+   * rows has to say so: the stored report it is snapshotted from carries an empty
+   * `aggregationConfig` — that being the precondition for collapsing at all — so without this the
+   * history entry claims no aggregation beside the executed SQL that shows one.
+   */
+  autoApplied: AutoAppliedOutputConfig | undefined;
 }
 
 /**
@@ -167,6 +181,7 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
         captureExecutionSql: false,
         projectsByResolvedHeaders: false,
         degradesStaleSort: false,
+        autoApplied: undefined,
       };
     case 'report':
       return {
@@ -175,6 +190,7 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
         captureExecutionSql: true,
         projectsByResolvedHeaders: true,
         degradesStaleSort: true,
+        autoApplied: plan.autoApplied,
       };
     default:
       return assertNever(plan);
@@ -355,23 +371,19 @@ export class StreamHttpDataService {
           limitConfig: limit ?? report.limitConfig ?? null,
         };
 
-        // This endpoint is the report's delivery only when the destination pulls: the Excel
-        // add-in fetches the very rows the analyst will read, so they have to match what the
-        // same report returns in Google Sheets. A push destination reads raw here — an HTTP
-        // Data caller asking for a Sheets report is a third party, and its contract stays every
-        // underlying row — and Looker Studio pulls but never collapses.
-        const destinationType = report.dataDestination?.type;
-        const fetchIsDelivery =
-          destinationType !== undefined &&
-          isPullBasedDataDestinationType(destinationType) &&
-          collapsesOnDelivery(destinationType);
-        const readPlan = fetchIsDelivery ? applyAutoCollapse(basePlan).report : basePlan;
+        // Collapsed exactly when this read IS the report's run — the same `excelReportRun` that
+        // decides whether the read stamps `lastRunAt`, records a run and bills it. A read billed
+        // as a run is a read that delivers, and a delivery collapses; deriving it twice would let
+        // the two drift. A push destination reads raw here: an HTTP Data caller asking for a
+        // Sheets report is a third party, and its contract stays every underlying row.
+        const collapsed = excelReportRun ? applyAutoCollapse(basePlan) : undefined;
 
         return {
           kind: 'report',
-          readPlan,
+          readPlan: collapsed?.report ?? basePlan,
           reportId: report.id,
           savedColumns: report.columnConfig ?? [],
+          autoApplied: collapsed && autoAppliedOutputConfig(collapsed.plan),
         };
       },
     });
@@ -404,6 +416,10 @@ export class StreamHttpDataService {
 
     let reader: DataStorageReportReader | null = null;
     let baseMetadata = initialMetadata;
+    // Outside the try for the same reason as `baseMetadata`: a read that fails after the plan was
+    // built still has to record what it was going to deliver, and a read that fails before it has
+    // nothing to say here.
+    let autoApplied: AutoAppliedOutputConfig | undefined;
     let reportId = params.reportId;
     let schemaActualizationInProgress = false;
 
@@ -425,6 +441,7 @@ export class StreamHttpDataService {
       const planContext = deriveStreamPlanContext(plan);
       const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders, degradesStaleSort } =
         planContext;
+      autoApplied = planContext.autoApplied;
       reportId = planContext.reportId ?? reportId;
 
       baseMetadata = {
@@ -585,7 +602,8 @@ export class StreamHttpDataService {
           ...(totalsError ? { totalsError } : {}),
         },
         reportId,
-        excelReportRun
+        excelReportRun,
+        autoApplied
       );
 
       res.end();
@@ -606,7 +624,8 @@ export class StreamHttpDataService {
         mappedError,
         toStreamFailureOutcome(error),
         reportId,
-        excelReportRun
+        excelReportRun,
+        autoApplied
       );
       this.handleStreamFailure(res, mappedError);
     } finally {
@@ -685,7 +704,8 @@ export class StreamHttpDataService {
     startedAt: Date,
     metadata: HttpDataRunMetadata,
     reportId?: string,
-    excelReportRun?: Report
+    excelReportRun?: Report,
+    autoApplied?: AutoAppliedOutputConfig
   ): Promise<void> {
     if (excelReportRun) {
       await this.updateReportRunStatus(excelReportRun.id, ReportRunStatus.SUCCESS);
@@ -704,6 +724,7 @@ export class StreamHttpDataService {
         // Only when the read is the report's own run: a plain HTTP read of a report leaves the
         // real run's snapshot alone rather than adding a second, competing one.
         report: excelReportRun,
+        autoApplied,
       });
     } catch (err) {
       this.logger.error(
@@ -737,7 +758,8 @@ export class StreamHttpDataService {
     error: unknown,
     outcome: ReturnType<typeof toStreamFailureOutcome>,
     reportId?: string,
-    excelReportRun?: Report
+    excelReportRun?: Report,
+    autoApplied?: AutoAppliedOutputConfig
   ): Promise<void> {
     const message = this.clientFacingErrorMessage(error);
 
@@ -764,6 +786,7 @@ export class StreamHttpDataService {
         reportId,
         type: excelReportRun ? DataMartRunType.EXCEL : DataMartRunType.HTTP_DATA,
         report: excelReportRun,
+        autoApplied,
       });
     } catch (err) {
       this.logger.warn(

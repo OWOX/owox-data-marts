@@ -45,7 +45,20 @@ export function pullBasedRunHint(type: DataDestinationType): string | null {
  * ad-hoc caller does, so those rows stay raw.
  */
 export function collapsesOnDelivery(type: DataDestinationType): boolean {
-  return type !== DataDestinationType.LOOKER_STUDIO;
+  // A switch rather than `!== LOOKER_STUDIO`, matching the backend: opting a new destination in
+  // silently is the costly direction, so every type added later has to answer here.
+  switch (type) {
+    case DataDestinationType.LOOKER_STUDIO:
+      return false;
+    case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
+    case DataDestinationType.ODATA:
+    case DataDestinationType.EMAIL:
+    case DataDestinationType.SLACK:
+    case DataDestinationType.MS_TEAMS:
+    case DataDestinationType.GOOGLE_CHAT:
+      return true;
+  }
 }
 
 /**

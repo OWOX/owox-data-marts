@@ -24,6 +24,30 @@ vi.mock('@owox/ui/components/select', () => ({
 const NUMERIC_ALLOWED: ReportAggregateFunction[] = ['SUM', 'AVG'];
 
 describe('RowAggregationIcon', () => {
+  it('says who chose the rule, with the function already ticked', () => {
+    // The product's rule IS a rule by the time this opens — it is in the config and ticked below.
+    // The note explains where it came from; it must not read as a prediction of what would happen
+    // if nobody chose, which is what it said while the picker only predicted.
+    render(
+      <RowAggregationIcon
+        column='sessions'
+        fieldType='INTEGER'
+        allowedAggregations={NUMERIC_ALLOWED}
+        activeFunctions={['SUM']}
+        activeBucket={null}
+        autoFunction='SUM'
+        onApplyDraft={() => undefined}
+      />
+    );
+
+    expect(screen.getByTestId('auto-aggregation-editor-note')).toHaveTextContent(
+      'Sum was applied automatically — change or remove it'
+    );
+    expect(screen.getByRole('checkbox', { name: /sum/i })).toBeChecked();
+    // The rule is ordinary, so the trigger offers the ordinary action.
+    expect(screen.getByRole('button', { name: 'Manage aggregations' })).toBeInTheDocument();
+  });
+
   it('labels the trigger "Add aggregation" when nothing is assigned', () => {
     render(
       <RowAggregationIcon

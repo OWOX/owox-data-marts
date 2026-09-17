@@ -64,7 +64,20 @@ export function isPullBasedDataDestinationType(type: DataDestinationType): boole
  * `isPullBasedDataDestinationType`.
  */
 export function collapsesOnDelivery(type: DataDestinationType): boolean {
-  return type !== DataDestinationType.LOOKER_STUDIO;
+  // A switch rather than `!== LOOKER_STUDIO`: opting a new destination in silently is the costly
+  // direction — it changes delivered column names and row counts — so every type added later has
+  // to answer here, at compile time.
+  switch (type) {
+    case DataDestinationType.LOOKER_STUDIO:
+      return false;
+    case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
+    case DataDestinationType.EMAIL:
+    case DataDestinationType.SLACK:
+    case DataDestinationType.MS_TEAMS:
+    case DataDestinationType.GOOGLE_CHAT:
+      return true;
+  }
 }
 
 /**
