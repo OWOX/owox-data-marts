@@ -10,7 +10,7 @@ A report with an explicit column selection and no aggregation, date bucket, or U
 
 Watch a report that sets no aggregation get one applied, and the query it will actually run.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5c61c408f7efbc9f2e5f54945193d161/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f2661de617b9ac6ce66eda9884203d1b/iframe>
 
 What a report gets depends on what it selected:
 
@@ -21,6 +21,6 @@ What a report gets depends on what it selected:
 
 The report editor fills the choice in for you rather than only predicting it: open a report that sets no aggregation and the function is already ticked on the column, counted on the **Aggregations** button, and listed in the panel — exactly as one you picked yourself, and changed or removed the same way. A note names the columns OWOX chose for, so you can tell them apart from your own, and the choice is saved with the report the next time you save it. Run history records what was applied.
 
-![The Aggregations panel of a report that sets none, reading "Applied automatically because this report sets none: cost — Sum. Add one below to decide for yourself." above an Add aggregation button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8194918-f11a-4474-ca25-578563742300/public)
+![The Aggregations panel of a report that set none, reading "Applied automatically because this report set none: cost — Sum. Change or remove it below." above a cost rule aggregated by Sum, with the Aggregations button counting it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2d3c870c-b0c9-40ee-0366-e48b2c83cc00/public)
 
 Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included. **Microsoft Excel** and **Looker Studio** reports are unchanged too, because the add-in and the connector read the report over those same paths. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
