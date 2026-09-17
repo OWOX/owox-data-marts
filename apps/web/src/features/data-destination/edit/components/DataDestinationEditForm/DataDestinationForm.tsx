@@ -162,6 +162,15 @@ export function DataDestinationForm({
   // Get the current destination type
   const destinationType = form.watch('type');
 
+  // The copy-source picker lives inside the Google Sheets fields only, so once the type changes
+  // its clear button is gone while the selection would still ride along into the request as
+  // sourceDestinationId — which every other type rejects.
+  useEffect(() => {
+    if (selectedSource) handleSourceClear();
+    // Only a type change should clear the selection, not the selection itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destinationType]);
+
   useEffect(() => {
     onDirtyChange?.(
       form.formState.isDirty ||

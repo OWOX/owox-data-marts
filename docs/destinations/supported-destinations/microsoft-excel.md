@@ -2,7 +2,7 @@
 
 Use **Microsoft Excel** as a Destination. You can browse published Data Marts, create a report, and refresh it inside the workbook.
 
-You do not create this destination in the OWOX web app. Install the **OWOX Data Marts** add-in from the [Office Add-ins store](https://marketplace.microsoft.com/en-us/product/WA200011946) inside Excel, sign in, and build a report. The destination then appears in your **Destinations** list and stores no credentials. The add-in reads the report with your OWOX access and writes rows into a worksheet in your workbook.
+You can create this destination in the OWOX web app, or let the add-in create it for you. Install the **OWOX Data Marts** add-in from the [Office Add-ins store](https://marketplace.microsoft.com/en-us/product/WA200011946) inside Excel, sign in, and build a report. If you have no Excel destination you can use, the add-in creates one, and it appears in your **Destinations** list. The add-in always uses the oldest Excel destination you can use, so a second one is not picked up by it. Either way the destination stores no credentials. The add-in reads the report with your OWOX access and writes rows into a worksheet in your workbook.
 
 Scheduled refresh is not available, and you cannot create Excel reports from the **Destinations** tab.
 

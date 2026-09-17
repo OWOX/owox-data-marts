@@ -68,22 +68,6 @@ export function canCreateReportInApp(type: DataDestinationType): boolean {
 }
 
 /**
- * Whether a destination of this type is something a person sets up here.
- *
- * False for Excel: the add-in resolves one on first use and it holds nothing to fill in, so
- * offering it in the type list would invite a second destination indistinguishable from the
- * automatic one — and possibly not even the one the add-in goes on to use. Existing Excel
- * destinations stay visible and editable; only the offer to create another is withheld.
- *
- * Deliberately separate from {@link canCreateReportInApp} despite agreeing today: one is about
- * a report's binding to a worksheet, the other about how the destination comes into existence,
- * and a future type could answer them differently.
- */
-export function canCreateDestinationInApp(type: DataDestinationType): boolean {
-  return type !== DataDestinationType.EXCEL;
-}
-
-/**
  * Destination types whose reports are listed on the Data Mart's destination cards.
  *
  * Data Studio is absent because its reports have a card of their own, OData because it has no

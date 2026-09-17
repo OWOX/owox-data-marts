@@ -27,16 +27,16 @@ export const DataDestinationTypeModel = {
       icon: GoogleSheetsIcon,
       status: DataDestinationStatus.ACTIVE,
     },
-    [DataDestinationType.LOOKER_STUDIO]: {
-      type: DataDestinationType.LOOKER_STUDIO,
-      displayName: 'Data Studio',
-      icon: DataStudioIcon,
-      status: DataDestinationStatus.ACTIVE,
-    },
     [DataDestinationType.EXCEL]: {
       type: DataDestinationType.EXCEL,
       displayName: 'Microsoft Excel',
       icon: MicrosoftExcelIcon,
+      status: DataDestinationStatus.ACTIVE,
+    },
+    [DataDestinationType.LOOKER_STUDIO]: {
+      type: DataDestinationType.LOOKER_STUDIO,
+      displayName: 'Data Studio',
+      icon: DataStudioIcon,
       status: DataDestinationStatus.ACTIVE,
     },
     [DataDestinationType.EMAIL]: {
