@@ -775,3 +775,37 @@ test('rejects dynamic options for fields that do not provide them', async () => 
     return true;
   });
 });
+
+test('falls back to the default retry budget when MaxFetchRetries was never validated', async () => {
+  const source = createSource();
+  delete source.config.MaxFetchRetries;
+  const originalFetch = HttpUtils.fetch;
+  let requests = 0;
+  HttpUtils.fetch = async () => {
+    requests += 1;
+    return { ok: true };
+  };
+  source._validateResponse = async response => response;
+
+  try {
+    const response = await source._fetchSheetResponse('https://example.test', 'token');
+    assert.equal(response.ok, true);
+    assert.equal(requests, 1);
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
+test('reports a missing credential item as a configuration error instead of a provider outage', async () => {
+  const source = createSource();
+  source.config.AuthType = { value: 'oauth2', items: { ClientId: { value: 'client-id' } } };
+
+  await assert.rejects(source.getAccessToken(), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /'AuthType\.ClientSecret' is required/);
+    return true;
+  });
+
+  source.config.AuthType = { value: 'service_account', items: {} };
+  await assert.rejects(source.getAccessToken(), /'AuthType\.ServiceAccountKey' is required/);
+});

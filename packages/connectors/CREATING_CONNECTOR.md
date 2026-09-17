@@ -158,6 +158,12 @@ Configuration parameters are defined in the Source constructor using `config.mer
 - `CONFIG_ATTRIBUTES.SECRET` — marks sensitive data (passwords, tokens)
 - `CONFIG_ATTRIBUTES.MANUAL_BACKFILL` — parameter can be overridden during manual backfill
 - `CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM` — hidden from config UI
+- `CONFIG_ATTRIBUTES.ADVANCED` — shown under Advanced Settings in the config UI
+- `CONFIG_ATTRIBUTES.DYNAMIC_OPTIONS` — allowed values are loaded from the source while the
+  form is being filled. The source implements `fetchFieldOptions(fieldName, signal)` and
+  returns `[{ value, label }]`; list the parameters the lookup needs in `optionsDependsOn`.
+  The lookup runs before the configuration is validated, so it must not rely on defaults
+  or on other parameters being present.
 
 **Standard Parameters (recommended):**
 

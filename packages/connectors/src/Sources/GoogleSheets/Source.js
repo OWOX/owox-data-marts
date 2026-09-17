@@ -341,21 +341,24 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     const authConfig = this.config.AuthType.items;
     if (authType === 'oauth2') {
+      // Resolve the items first so a missing one is reported before any request.
+      const formData = {
+        grant_type: 'refresh_token',
+        client_id: this._requireAuthItem(authConfig, 'ClientId'),
+        client_secret: this._requireAuthItem(authConfig, 'ClientSecret'),
+        refresh_token: this._requireAuthItem(authConfig, 'RefreshToken'),
+      };
       this.accessToken = await OAuthUtils.getAccessToken({
         config: this.config,
         tokenUrl: 'https://oauth2.googleapis.com/token',
-        formData: {
-          grant_type: 'refresh_token',
-          client_id: authConfig.ClientId.value,
-          client_secret: authConfig.ClientSecret.value,
-          refresh_token: authConfig.RefreshToken.value,
-        },
+        formData,
       });
     } else if (authType === 'service_account') {
+      const serviceAccountKeyJson = this._requireAuthItem(authConfig, 'ServiceAccountKey');
       this.accessToken = await OAuthUtils.getServiceAccountToken({
         config: this.config,
         tokenUrl: 'https://oauth2.googleapis.com/token',
-        serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
+        serviceAccountKeyJson,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
       });
     } else {
@@ -366,6 +369,22 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000;
 
     return this.accessToken;
+  }
+
+  /**
+   * Reads one credential item of the selected AuthType. A configuration-time
+   * lookup (field options) runs before the whole configuration is validated, so
+   * a missing item must surface as a configuration error, not as a TypeError
+   * that the request wrapper would report as a provider outage.
+   */
+  _requireAuthItem(authConfig, itemName) {
+    const value = authConfig?.[itemName]?.value;
+    if (value === undefined || value === null || value === '') {
+      throw new ConnectorConfigurationException(
+        `Parameter 'AuthType.${itemName}' is required but was not provided`
+      );
+    }
+    return value;
   }
 
   async fetchData() {
@@ -412,7 +431,11 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       `https://sheets.googleapis.com/v4/spreadsheets/${encodedSpreadsheetId}` +
       '?fields=sheets.properties(sheetId,title,index)';
 
-    const payload = await this._fetchSheetsApiJson(url, { signal });
+    const payload = await this._fetchSheetsApiJson(url, {
+      signal,
+      oversizeMessage:
+        'Google Sheets response exceeds the 50 MB limit while listing the spreadsheet tabs.',
+    });
     const sheets = Array.isArray(payload.sheets) ? payload.sheets : [];
 
     return sheets
@@ -423,7 +446,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   async _fetchSheetValues({ preview = false, signal } = {}) {
-    const spreadsheetId = this._extractSpreadsheetId(this.config.SpreadsheetId.value);
+    const spreadsheetId = this._extractSpreadsheetId(this.config.SpreadsheetId?.value);
     const encodedSpreadsheetId = encodeURIComponent(spreadsheetId);
     const range = this._buildA1Range({ preview });
     const encodedRange = encodeURIComponent(range);
@@ -440,7 +463,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
    * Refreshes the access token and retries once on HTTP 401, enforces the
    * response size limit, and wraps provider failures into HttpRequestException.
    */
-  async _fetchSheetsApiJson(url, { signal } = {}) {
+  async _fetchSheetsApiJson(
+    url,
+    {
+      signal,
+      oversizeMessage = 'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.',
+    } = {}
+  ) {
     for (let authorizationAttempt = 0; authorizationAttempt < 2; authorizationAttempt += 1) {
       try {
         signal?.throwIfAborted();
@@ -450,9 +479,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         const response = await this._fetchSheetResponse(url, accessToken, signal);
         const contentLength = Number(response.getHeaders?.()['content-length']);
         if (Number.isFinite(contentLength) && contentLength > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
-          throw new ConnectorConfigurationException(
-            'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
-          );
+          throw new ConnectorConfigurationException(oversizeMessage);
         }
         const responseText = await response.getContentText();
         const responseBytes =
@@ -460,9 +487,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
             ? responseText.length
             : Buffer.byteLength(responseText, 'utf8');
         if (responseBytes > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
-          throw new ConnectorConfigurationException(
-            'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
-          );
+          throw new ConnectorConfigurationException(oversizeMessage);
         }
         return JSON.parse(responseText);
       } catch (error) {
@@ -491,7 +516,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   async _fetchSheetResponse(url, accessToken, signal) {
-    for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt += 1) {
+    // Defaults are applied by config.validate(), which a configuration-time lookup
+    // deliberately skips; without this fallback the loop would never run.
+    const configuredAttempts = Number(this.config.MaxFetchRetries?.value);
+    const maxAttempts =
+      Number.isInteger(configuredAttempts) && configuredAttempts > 0 ? configuredAttempts : 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       let response;
 
       try {

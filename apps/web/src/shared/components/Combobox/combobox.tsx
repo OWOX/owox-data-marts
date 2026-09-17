@@ -23,6 +23,8 @@ export interface ComboboxOption {
 }
 
 interface ComboboxProps {
+  /** Id of the trigger, so a `<label htmlFor>` names the combobox. */
+  id?: string;
   options: ComboboxOption[];
   value: string;
   onValueChange: (value: string) => void;
@@ -42,6 +44,7 @@ function filterOptions(value: string, search: string, keywords?: string[]): numb
 }
 
 export function Combobox({
+  id,
   options,
   value,
   onValueChange,
@@ -101,6 +104,7 @@ export function Combobox({
     <Popover open={open} onOpenChange={handleOpenChange} modal={true}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant='outline'
           role='combobox'
           aria-label={ariaLabel}

@@ -420,9 +420,10 @@ describe('ConfigurationStep dynamic field options', () => {
       </MemoryRouter>
     );
 
-    const combobox = await screen.findByRole('combobox', { name: 'Sheet Name' });
+    // The label names the combobox, required marker included, like any other field.
+    const combobox = await screen.findByRole('combobox', { name: 'Sheet Name *' });
     expect(combobox).toBeDisabled();
-    expect(combobox).toHaveTextContent('Fill the fields above to load sheet names');
+    expect(combobox).toHaveTextContent('Complete the settings above to load sheet names');
     expect(previewSpy).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
@@ -430,7 +431,7 @@ describe('ConfigurationStep dynamic field options', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Sheet Name' })).toBeEnabled();
+      expect(screen.getByRole('combobox', { name: 'Sheet Name *' })).toBeEnabled();
     });
     expect(previewSpy).toHaveBeenCalledWith(
       'GoogleSheets',
@@ -440,7 +441,35 @@ describe('ConfigurationStep dynamic field options', () => {
     );
   });
 
-  it('clears a sheet name that no longer exists in the loaded tabs', async () => {
+  it('keeps a stored sheet name visible while the tabs load and once it is confirmed', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue(
+      sheets
+    );
+    const onChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <DynamicHarness
+          initial={{ SpreadsheetId: 'sheet-1', SheetName: 'Data' }}
+          onChange={onChange}
+        />
+      </MemoryRouter>
+    );
+
+    // Still loading: the value must not be replaced by a placeholder.
+    const combobox = await screen.findByRole('combobox', { name: 'Sheet Name *' });
+    expect(combobox).toHaveTextContent('Data');
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Sheet Name *' })).toBeEnabled();
+    });
+    expect(screen.getByRole('combobox', { name: 'Sheet Name *' })).toHaveTextContent('Data');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // Opening a valid configuration is not an edit.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('flags a sheet name that no longer exists instead of clearing it', async () => {
     vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue(
       sheets
     );
@@ -455,9 +484,16 @@ describe('ConfigurationStep dynamic field options', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => {
-      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ SheetName: '' }));
-    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '"Old tab" was not found among the available sheet names'
+    );
+    expect(screen.getByRole('combobox', { name: 'Sheet Name *' })).toHaveTextContent('Old tab');
+    expect(screen.getByRole('combobox', { name: 'Sheet Name *' })).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+    // The user did not change anything, so the form must not become dirty.
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('falls back to a text input when the tabs cannot be loaded', async () => {
@@ -567,5 +603,63 @@ describe('ConfigurationStep first open of a Google Sheets OAuth configuration', 
     expect(
       await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })
     ).toBeInTheDocument();
+  });
+});
+
+describe('ConfigurationStep seeding of an existing configuration', () => {
+  const seededSpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'AuthType',
+      title: 'Auth Type',
+      requiredType: RequiredType.OBJECT,
+      required: true,
+      oneOf: [
+        {
+          label: 'Service Account',
+          value: 'service_account',
+          requiredType: RequiredType.OBJECT,
+          items: {
+            ServiceAccountKey: {
+              name: 'ServiceAccountKey',
+              title: 'Service Account Key',
+              requiredType: RequiredType.STRING,
+              required: true,
+            },
+          },
+        },
+      ],
+    },
+    {
+      name: 'SheetName',
+      title: 'Sheet Name',
+      requiredType: RequiredType.STRING,
+      required: true,
+    },
+    {
+      name: 'HeaderRow',
+      title: 'Header Row',
+      requiredType: RequiredType.NUMBER,
+      required: true,
+      default: 1,
+    },
+  ];
+
+  it('applies spec defaults and the oneOf seed to a non-empty configuration too', async () => {
+    const onValidationChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={connector}
+          connectorSpecification={seededSpecification}
+          initialConfiguration={{ SheetName: 'Existing Sheet' }}
+          onValidationChange={onValidationChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('spinbutton', { name: 'Header Row *' })).toHaveValue(1);
+    expect(screen.getByRole('textbox', { name: 'Sheet Name *' })).toHaveValue('Existing Sheet');
+    expect(screen.getByRole('textbox', { name: 'Service Account Key *' })).toBeInTheDocument();
   });
 });

@@ -13,6 +13,7 @@ import {
   type SourceFieldsSchema,
 } from './connector-fields-schema.mapper';
 import {
+  type ConnectorPreviewSource,
   connectorSourceImplements,
   createConnectorPreviewSource,
   mapConnectorPreviewError,
@@ -22,6 +23,7 @@ import {
 const PREVIEW_ERROR_MESSAGES = {
   timeout: 'Connector field preview timed out',
   unexpected: 'Unable to preview connector fields',
+  unexpectedLog: 'Unexpected connector field preview failure',
 };
 
 @Injectable()
@@ -56,7 +58,13 @@ export class ConnectorFieldsPreviewService {
       throw new InternalServerErrorException('Unable to resolve credentials for field preview');
     }
 
-    const source = createConnectorPreviewSource(connectorName, configWithCredentials, this.logger);
+    let source: ConnectorPreviewSource;
+    try {
+      source = createConnectorPreviewSource(connectorName, configWithCredentials, this.logger);
+    } catch (error) {
+      // A malformed nested value can already fail while the source is assembled.
+      throw mapConnectorPreviewError(error, this.logger, PREVIEW_ERROR_MESSAGES);
+    }
 
     try {
       source.config.validate();

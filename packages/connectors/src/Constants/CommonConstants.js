@@ -26,8 +26,10 @@ var CONFIG_ATTRIBUTES = {
   OAUTH_FLOW: 'OAUTH_FLOW',
   DEPRECATED: 'DEPRECATED',
   PINNED: 'PINNED',
-  // The field's allowed values come from the source at configuration time
-  // (see AbstractSource.fetchFieldOptions), not from a static `options` list.
+  // The field's allowed values come from the source at configuration time, not
+  // from a static `options` list: the source implements
+  // `fetchFieldOptions(fieldName, signal)` and may list the fields it needs first
+  // in the parameter's `optionsDependsOn`.
   DYNAMIC_OPTIONS: 'DYNAMIC_OPTIONS',
 };
 

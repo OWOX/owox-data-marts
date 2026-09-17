@@ -16,20 +16,35 @@ import { Connectors, Core } from '@owox/connectors';
  * creation, a bounded timeout, and provider error → HTTP error mapping.
  */
 
-export const CONNECTOR_PREVIEW_TIMEOUT_MS = 15_000;
+const CONNECTOR_PREVIEW_TIMEOUT_MS = 15_000;
 
-export class ConnectorPreviewTimeoutError extends Error {}
+class ConnectorPreviewTimeoutError extends Error {}
 
 export interface ConnectorPreviewErrorMessages {
+  /** Public message of the 504 returned when the lookup exceeds the preview timeout. */
   timeout: string;
+  /** Public message of the 500 returned for an unclassified failure. */
   unexpected: string;
+  /** Log line written next to the unclassified failure. */
+  unexpectedLog: string;
+}
+
+/**
+ * The slice of a connector source a configuration-time preview relies on. The
+ * connectors package ships no type declarations, so this is the explicit
+ * contract instead of an `any` leaking out of this module.
+ */
+export interface ConnectorPreviewSource {
+  config: { validate(): void };
+  fetchFieldsSchema(signal: AbortSignal): Promise<unknown>;
+  fetchFieldOptions(fieldName: string, signal: AbortSignal): Promise<unknown>;
 }
 
 /**
  * Connector config that never touches persistence or run state: previews run
  * in-process and must leave no trace in the data mart.
  */
-export class ConnectorPreviewConfig extends Core.AbstractConfig {
+class ConnectorPreviewConfig extends Core.AbstractConfig {
   private readonly logger: Logger;
 
   constructor(configData: Record<string, unknown>, logger: Logger) {
@@ -54,7 +69,7 @@ export class ConnectorPreviewConfig extends Core.AbstractConfig {
   }
 }
 
-export function getConnectorSourceClass(connectorName: string): unknown {
+function getConnectorSourceClass(connectorName: string): unknown {
   return Connectors[connectorName]?.[`${connectorName}Source`];
 }
 
@@ -69,14 +84,16 @@ export function createConnectorPreviewSource(
   connectorName: string,
   configuration: Record<string, unknown>,
   logger: Logger
-) {
+): ConnectorPreviewSource {
   const SourceClass = Connectors[connectorName][`${connectorName}Source`];
   const sourceConfig = new Core.SourceConfigDto({
     name: connectorName,
     config: configuration,
   });
 
-  return new SourceClass(new ConnectorPreviewConfig(sourceConfig.config, logger));
+  return new SourceClass(
+    new ConnectorPreviewConfig(sourceConfig.config, logger)
+  ) as ConnectorPreviewSource;
 }
 
 export async function withConnectorPreviewTimeout<T>(
@@ -141,7 +158,7 @@ export function mapConnectorPreviewError(
     return new BadGatewayException('Connector provider is temporarily unavailable');
   }
 
-  logger.error(messages.unexpected, error);
+  logger.error(messages.unexpectedLog, error);
   return new InternalServerErrorException(messages.unexpected);
 }
 

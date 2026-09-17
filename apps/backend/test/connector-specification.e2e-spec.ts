@@ -172,6 +172,25 @@ describe('Connector Specification (e2e)', () => {
   });
 
   describe('Google Sheets specification', () => {
+    it('GET /api/connectors/GoogleSheets/specification - declares Sheet Name as dynamic options with its dependencies', async () => {
+      const res = await agent.get('/api/connectors/GoogleSheets/specification').set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const byName = new Map(
+        (res.body as Array<Record<string, unknown>>).map(item => [item.name, item])
+      );
+      expect(byName.get('SheetName')).toEqual(
+        expect.objectContaining({
+          attributes: ['DYNAMIC_OPTIONS'],
+          optionsDependsOn: ['AuthType', 'SpreadsheetId'],
+        })
+      );
+      expect(byName.get('HeaderRow')).toEqual(
+        expect.objectContaining({ attributes: ['ADVANCED'], required: true, default: 1 })
+      );
+      expect(byName.get('Range')).toEqual(expect.objectContaining({ attributes: ['ADVANCED'] }));
+    });
+
     it('GET /api/connectors/GoogleSheets/specification - requires header row >= 1', async () => {
       const res = await agent.get('/api/connectors/GoogleSheets/specification').set(AUTH_HEADER);
 

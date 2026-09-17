@@ -51,6 +51,7 @@ import {
 } from '@nestjs/common';
 import { AuthorizationContext } from '../../../idp';
 import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
+import { ConnectorService } from './connector.service';
 import { ConnectorFieldOptionsPreviewService } from './connector-field-options-preview.service';
 
 describe(ConnectorFieldOptionsPreviewService.name, () => {
@@ -68,9 +69,15 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
       )
   ) => {
     const previewCredentials = { inject } as unknown as ConnectorPreviewCredentialsService;
+    const connectorService = {
+      getConnectorSpecification: jest.fn().mockResolvedValue([
+        { name: 'SheetName', attributes: ['DYNAMIC_OPTIONS'] },
+        { name: 'Range', attributes: ['ADVANCED'] },
+      ]),
+    } as unknown as ConnectorService;
 
     return {
-      service: new ConnectorFieldOptionsPreviewService(previewCredentials),
+      service: new ConnectorFieldOptionsPreviewService(previewCredentials, connectorService),
       previewCredentials,
     };
   };
@@ -117,18 +124,36 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
     );
   });
 
-  it('maps connector configuration failures, such as an unknown field, to Bad Request', async () => {
+  it('rejects a field the specification does not declare with DYNAMIC_OPTIONS before touching the source', async () => {
+    const { service, previewCredentials } = createService();
+
+    const preview = service.run(context, 'GoogleSheets', 'Range', {});
+    await expect(preview).rejects.toBeInstanceOf(BadRequestException);
+    await expect(preview).rejects.toThrow("Field 'Range' does not provide dynamic options");
+    await expect(service.run(context, 'GoogleSheets', 'Unknown', {})).rejects.toThrow(
+      "Field 'Unknown' does not provide dynamic options"
+    );
+    expect(previewCredentials.inject).not.toHaveBeenCalled();
+    expect(fetchFieldOptionsMock).not.toHaveBeenCalled();
+  });
+
+  it('maps connector configuration failures to Bad Request', async () => {
     const { service } = createService();
     const { Core } = jest.requireMock('@owox/connectors') as {
       Core: { ConnectorConfigurationException: new (message: string) => Error };
     };
     fetchFieldOptionsMock.mockRejectedValue(
-      new Core.ConnectorConfigurationException("Field 'Range' does not provide dynamic options")
+      Object.assign(new Error('Google Sheets request failed'), {
+        name: 'HttpRequestException',
+        cause: new Core.ConnectorConfigurationException(
+          "Parameter 'AuthType.ClientSecret' is required but was not provided"
+        ),
+      })
     );
 
-    const preview = service.run(context, 'GoogleSheets', 'Range', {});
-    await expect(preview).rejects.toBeInstanceOf(BadRequestException);
-    await expect(preview).rejects.toThrow("Field 'Range' does not provide dynamic options");
+    await expect(service.run(context, 'GoogleSheets', 'SheetName', {})).rejects.toBeInstanceOf(
+      BadRequestException
+    );
   });
 
   it('passes credential access failures through unchanged', async () => {

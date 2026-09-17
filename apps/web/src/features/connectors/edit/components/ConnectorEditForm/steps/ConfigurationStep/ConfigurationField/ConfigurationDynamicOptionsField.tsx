@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../../../shared/api/types';
@@ -16,6 +15,10 @@ interface ConfigurationDynamicOptionsFieldProps {
  * Field whose allowed values come from the source (DYNAMIC_OPTIONS): waits for
  * its dependencies, loads the options, and falls back to free-text input when
  * the options cannot be loaded so the user is never blocked.
+ *
+ * The stored value is never changed on the user's behalf: it stays visible
+ * while the options are loading or unavailable, and a value the source no
+ * longer offers is flagged instead of being cleared.
  */
 export function ConfigurationDynamicOptionsField({
   specification,
@@ -28,22 +31,12 @@ export function ConfigurationDynamicOptionsField({
   const rawValue = configuration[name];
   const currentValue = typeof rawValue === 'string' ? rawValue : '';
 
-  const { status, options, error, loadedKey, reload } = useConnectorFieldOptions({
+  const { status, options, error, reload } = useConnectorFieldOptions({
     connectorName,
     field: name,
     configuration,
     dependsOn: optionsDependsOn,
   });
-
-  // A value that is not among the freshly loaded options belongs to a previous
-  // spreadsheet or a renamed tab; clearing it makes the user pick a valid one
-  // instead of failing later at the fields preview.
-  useEffect(() => {
-    if (status !== 'loaded' || options.length === 0 || currentValue === '') return;
-    if (options.some(option => option.value === currentValue)) return;
-    onValueChange(name, '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, loadedKey]);
 
   if (status === 'error') {
     return (
@@ -91,25 +84,42 @@ export function ConfigurationDynamicOptionsField({
 
   const isWaiting = status === 'waiting';
   const isLoading = status === 'loading';
+  const isKnownValue = options.some(option => option.value === currentValue);
+  const isMissingValue = status === 'loaded' && currentValue !== '' && !isKnownValue;
+  // Keep the stored value on screen even when the list does not (yet) contain it:
+  // the combobox renders its placeholder for a value it has no option for.
+  const visibleOptions =
+    currentValue !== '' && !isKnownValue
+      ? [{ value: currentValue, label: currentValue }, ...options]
+      : options;
 
   return (
-    <Combobox
-      options={options}
-      value={currentValue}
-      onValueChange={(value: string) => {
-        onValueChange(name, value);
-      }}
-      placeholder={
-        isWaiting
-          ? `Fill the fields above to load ${displayName}s`
-          : isLoading
-            ? `Loading ${displayName}s...`
-            : (placeholder ?? `Select ${displayName}`)
-      }
-      emptyMessage={`No ${displayName}s found`}
-      disabled={isWaiting || isLoading}
-      ariaLabel={specification.title ?? specification.name}
-      className='w-full'
-    />
+    <div className='space-y-2'>
+      <Combobox
+        id={name}
+        options={visibleOptions}
+        value={currentValue}
+        onValueChange={(value: string) => {
+          onValueChange(name, value);
+        }}
+        placeholder={
+          isWaiting
+            ? `Complete the settings above to load ${displayName}s`
+            : isLoading
+              ? `Loading ${displayName}s...`
+              : (placeholder ?? `Select ${displayName}`)
+        }
+        emptyMessage={`No ${displayName}s found`}
+        disabled={isWaiting || isLoading}
+        ariaInvalid={isMissingValue}
+        className='w-full'
+      />
+      {isMissingValue && (
+        <p role='alert' className='text-destructive text-sm'>
+          &quot;{currentValue}&quot; was not found among the available {displayName}s. Pick another
+          one or check the settings above.
+        </p>
+      )}
+    </div>
   );
 }

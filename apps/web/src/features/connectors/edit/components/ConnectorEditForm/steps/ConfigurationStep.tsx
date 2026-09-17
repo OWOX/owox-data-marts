@@ -75,6 +75,43 @@ function migrateNestedConfigValuesToTopLevel(
   return nextConfig;
 }
 
+/**
+ * Builds the form state from a configuration handed in by the parent: nested
+ * values are migrated to the top level, spec defaults and the first option of a
+ * `oneOf` field fill what is unset, and secrets of a saved configuration are
+ * masked. Every (re)seed goes through here, so a rule added to it applies both
+ * to a fresh and to an existing configuration.
+ */
+function seedConfiguration(
+  initialConfiguration: Record<string, unknown> | undefined,
+  specs: ConnectorSpecificationResponseApiDto[],
+  isEditingExisting: boolean
+): Record<string, unknown> {
+  const config = migrateNestedConfigValuesToTopLevel({ ...(initialConfiguration ?? {}) }, specs);
+
+  specs.forEach(spec => {
+    const isSecret = Array.isArray(spec.attributes) ? spec.attributes.includes('SECRET') : false;
+
+    if (config[spec.name] === undefined && spec.default !== undefined) {
+      config[spec.name] = spec.default;
+    }
+
+    // The oneOf renderer seeds its first option in a mount effect too, but that
+    // write lands before the seeding below replaces the state and is lost,
+    // leaving the field unset until the user touches it.
+    const firstOption = spec.oneOf?.[0]?.value;
+    if (config[spec.name] === undefined && firstOption) {
+      config[spec.name] = { [firstOption]: {} };
+    }
+
+    if (isEditingExisting && isSecret) {
+      config[spec.name] = SECRET_MASK;
+    }
+  });
+
+  return config;
+}
+
 export function ConfigurationStep({
   connector,
   connectorSpecification,
@@ -110,36 +147,9 @@ export function ConfigurationStep({
     // as they were typed, which is why input appeared to lag a keystroke behind.
     if (connectorSpecification && initialConfiguration !== lastEchoedConfigRef.current) {
       updatingFromParentRef.current = true;
-
-      const config = migrateNestedConfigValuesToTopLevel(
-        { ...(initialConfiguration ?? {}) },
-        connectorSpecification
+      setConfiguration(
+        seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
       );
-
-      connectorSpecification.forEach(spec => {
-        const isSecret = Array.isArray(spec.attributes)
-          ? spec.attributes.includes('SECRET')
-          : false;
-
-        if (config[spec.name] === undefined && spec.default !== undefined) {
-          config[spec.name] = spec.default;
-        }
-
-        // Seed the first option of a oneOf field here as well. The oneOf renderer
-        // does the same in its mount effect, but that write lands before this
-        // seeding replaces the state and is lost, leaving the field unset until
-        // the user touches it.
-        const firstOption = spec.oneOf?.[0]?.value;
-        if (config[spec.name] === undefined && firstOption) {
-          config[spec.name] = { [firstOption]: {} };
-        }
-
-        if (isEditingExisting && isSecret) {
-          config[spec.name] = SECRET_MASK;
-        }
-      });
-
-      setConfiguration(config);
       initializedRef.current = true;
       setTimeout(() => {
         updatingFromParentRef.current = false;
@@ -158,14 +168,17 @@ export function ConfigurationStep({
       initialConfiguration !== lastEchoedConfigRef.current
     ) {
       updatingFromParentRef.current = true;
+      // Same seeding as above: this effect runs after it in the same flush and
+      // wins, so re-applying the raw configuration here would drop the defaults,
+      // the oneOf seed and the secret mask again.
       setConfiguration(
-        migrateNestedConfigValuesToTopLevel({ ...initialConfiguration }, connectorSpecification)
+        seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
       );
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
     }
-  }, [initialConfiguration, connectorSpecification]);
+  }, [initialConfiguration, connectorSpecification, isEditingExisting]);
 
   useEffect(() => {
     if (

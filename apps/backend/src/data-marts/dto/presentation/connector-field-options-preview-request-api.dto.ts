@@ -1,13 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString, MaxLength } from 'class-validator';
 
 export class ConnectorFieldOptionsPreviewRequestApiDto {
   @ApiProperty({
     example: 'SheetName',
+    maxLength: 128,
     description: 'Configuration field declared with the DYNAMIC_OPTIONS attribute.',
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(128)
   field: string;
 
   @ApiProperty({
