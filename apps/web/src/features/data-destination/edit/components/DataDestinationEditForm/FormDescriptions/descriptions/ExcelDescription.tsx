@@ -8,9 +8,9 @@ export default function ExcelDescription() {
       <AccordionContent>
         <p className='mb-2'>
           There is nothing to set up here beyond a title. You can also leave this to the OWOX add-in
-          for Excel: it creates an Excel destination the first time you build a report from a
-          workbook. The add-in always uses the oldest Excel destination you have access to, so a
-          second one is not picked up by it.
+          for Excel: if you have no Excel destination you can use, it creates one the first time you
+          build a report from a workbook. The add-in always uses the oldest Excel destination you
+          can use, so a second one is not picked up by it.
         </p>
         <p className='mb-2'>
           Unlike other destinations, it stores no credentials: the add-in reads your data using your
