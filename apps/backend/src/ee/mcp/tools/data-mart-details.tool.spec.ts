@@ -325,6 +325,43 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.fields[1].calculated).not.toHaveProperty('formula');
   });
 
+  // On its own that empty set reads as a refusal, so agents recomputed the metric from its inputs
+  // instead (32 of 292 prod calls named one). The affordance has to be in the payload: the level's
+  // prose is in outputSchema, which clients weight far below the data they are handed.
+  it('tells the agent, in the payload, that an aggregate-level field is already computed', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_1',
+        name: 'Ads',
+        description: '',
+        fields: [
+          { name: 'revenue', type: 'FLOAT' },
+          { name: 'roas', type: 'FLOAT', calculated: { level: 'metric' } },
+          { name: 'ctr', type: 'FLOAT', calculated: { level: 'column' } },
+        ],
+        joinedFields: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+    const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+    expect(sc.fields[1]).toMatchObject({
+      name: 'roas',
+      allowedAggregations: [],
+      usage:
+        'Already computed by OWOX at the grain your query asks for: list it in "fields" and read ' +
+        'the value. Do not recompute it from other fields, and do not name it in "aggregations".',
+    });
+
+    // The contrast is the whole point: an ordinary field and a row-level formula are both things
+    // the agent is SUPPOSED to aggregate, so a note on them would be noise that dulls the one
+    // place it means something.
+    expect(sc.fields[0]).not.toHaveProperty('usage');
+    expect(sc.fields[2]).not.toHaveProperty('usage');
+  });
+
   // This prose is the ONLY thing that tells an agent what a Calculated Field is,
   // and a stale sentence in it fails no other test while silently degrading every agent that
   // reads it. Both level texts are pinned verbatim so that editing either one is a visible
@@ -550,5 +587,20 @@ describe('GetDataMartDetailsTool', () => {
     expect(tool.description).toContain('data freshness');
     expect(tool.description).toContain('sample values');
     expect(tool.description).toContain('actual data rows');
+  });
+
+  // The description is the only part of this tool a model is guaranteed to read before it has
+  // ever called it, and the empty allowedAggregations it is told to trust is exactly what makes a
+  // ready metric look unusable. Saying what the empty set MEANS belongs here, beside the sentence
+  // that sends the agent to allowedAggregations in the first place.
+  it('says in the description that an empty allowedAggregations on a metric means already computed', () => {
+    const facade = {} as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    expect(tool.description).toContain(
+      'An empty allowedAggregations on a field whose "calculated" level is "metric" means the ' +
+        'value is ALREADY computed, not that the field is unusable'
+    );
+    expect(tool.description).toContain('instead of recomputing it from other fields');
   });
 });

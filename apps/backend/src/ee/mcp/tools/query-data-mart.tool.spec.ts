@@ -57,6 +57,22 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain('Arrays are column-only');
   });
 
+  // The gap this closes is in query BUILDING, not in reading the response: the description already
+  // says never to recompute a value the response contains, and says nothing about preferring a
+  // metric the schema already defines. So the agent pulls the inputs, aggregates them, and divides
+  // — arithmetic it performs over the rows that survived the limit, with no truncation marker on
+  // the number it prints. Prod, 03.09–17.09: a ready metric was named in 32 of 292 calls.
+  it('tells the agent to select a ready metric instead of rebuilding it from its inputs', () => {
+    expect(tool.description).toContain(
+      'Prefer a metric the data mart already defines: when get_data_mart_details_by_id shows a ' +
+        'field whose "calculated" level is "metric"'
+    );
+    expect(tool.description).toContain(
+      'Do not rebuild it by aggregating its inputs and dividing them yourself'
+    );
+    expect(tool.description).toContain('an empty allowedAggregations means "already computed"');
+  });
+
   // A model copies the documented example verbatim into `fields`, so the description must show the
   // SQL name. The display form is recognised too, but only to reach the purpose-written
   // UnmatchedUniqueCountFieldError instead of the generic field_not_found (#6792).
