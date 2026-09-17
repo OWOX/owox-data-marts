@@ -36,16 +36,17 @@ export interface LiftableReference {
  * from group totals, and only a sum is a group total. WHERE it wraps depends on the shape, and the
  * difference is NULL:
  *
- * - No division — the formula is a linear combination, so the whole text is wrapped once:
- *   `{{revenue}} - {{cost}}` becomes `SUM({{revenue}} - {{cost}})`. Over rows this is the sum of
- *   exactly the values the uncollapsed report displayed. Wrapping each reference instead would
- *   read `SUM(revenue) - SUM(cost)`, which differs the moment one side is NULL: rows (100, NULL)
- *   and (200, 50) display NULL and 150 and total 150, while the per-reference form answers 250.
- * - A division — each reference is wrapped instead, because `SUM(a/b)` is the average of row
- *   ratios rather than the group ratio. `SUM(a)/SUM(b)` is the group ratio, and it deliberately
- *   counts a numerator whose denominator is NULL, where the row-level value was NULL and counted
- *   for nothing. That is the standard reading of a ratio of totals, and it is the reading a
- *   collapsed report gives.
+ * - No reference in the divisor — the formula scales linearly, so the whole text is wrapped once:
+ *   `{{revenue}} - {{cost}}` becomes `SUM({{revenue}} - {{cost}})`, and so does `({{revenue}} -
+ *   {{cost}}) / 2`, which divides but only by a literal. Over rows this is the sum of exactly the
+ *   values the uncollapsed report displayed. Wrapping each reference instead would read
+ *   `SUM(revenue) - SUM(cost)`, which differs the moment one side is NULL: rows (100, NULL) and
+ *   (200, 50) display NULL and 150 and total 150, while the per-reference form answers 250.
+ * - A reference in the ratio-root divisor — each reference is wrapped instead, because `SUM(a/b)`
+ *   is the average of row ratios rather than the group ratio. `SUM(a)/SUM(b)` is the group ratio,
+ *   and it deliberately counts a numerator whose denominator is NULL, where the row-level value
+ *   was NULL and counted for nothing. That is the standard reading of a ratio of totals, and it is
+ *   the reading a collapsed report gives.
  *
  * Total — an unparseable formula is a refusal like any other. `isAggregateFunction` is a parameter
  * because aggregate-ness is dialect-specific and this module has no storage to resolve one from.
