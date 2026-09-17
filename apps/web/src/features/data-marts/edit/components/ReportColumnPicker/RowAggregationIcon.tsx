@@ -64,6 +64,8 @@ export function RowAggregationIcon({
   const [open, setOpen] = useState(autoOpen);
   const count = activeFunctions.length + (activeBucket !== null ? 1 : 0);
   const isActive = count > 0;
+  // The rule is real now — the product wrote it — so the icon reads as set. `autoFunction` no
+  // longer switches the icon's appearance; it only tells the editor to keep saying who chose.
   const showsAuto = !isActive && autoFunction !== undefined;
 
   const handleOpenChange = (next: boolean) => {
@@ -106,7 +108,9 @@ export function RowAggregationIcon({
       fieldType={fieldType}
       displayLabel={displayLabel}
       dataMartName={dataMartName}
-      autoFunctionLabel={showsAuto ? REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction] : undefined}
+      autoFunctionLabel={
+        autoFunction !== undefined ? REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction] : undefined
+      }
       allowedAggregations={allowedAggregations}
       allowDateBucket={allowDateBucket}
       allowBucketTimeZone={allowBucketTimeZone}

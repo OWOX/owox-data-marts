@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ReportColumnPicker } from './ReportColumnPicker';
 import { FieldInfoTooltip } from './FieldInfoTooltip';
@@ -91,9 +92,6 @@ function renderPicker(
       dataMartTitle='Main Data Mart'
       value={value}
       onChange={onChange}
-      // An ordinary push destination unless a case says otherwise: the component itself defaults
-      // to not predicting, so a form that forgets loses a ghost rather than inventing one.
-      collapsesOnDelivery
       {...props}
     />,
     { wrapper }
@@ -1261,12 +1259,10 @@ describe('ReportColumnPicker aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
-    // `revenue` is the only metric here, so it also qualifies for the auto-collapse ghost. The
-    // button's NAME stays the action either way; the ghost rides along as its description.
     const selectedRow = screen.getByText('revenue').closest('label') as HTMLElement;
-    const aggButton = within(selectedRow).getByRole('button', { name: 'Add aggregation' });
-    expect(aggButton).toBeInTheDocument();
-    expect(aggButton).toHaveAttribute('title', 'Automatic aggregation: Sum');
+    expect(
+      within(selectedRow).getByRole('button', { name: 'Add aggregation' })
+    ).toBeInTheDocument();
 
     // ordered_at is NOT selected → no AGG icon on its row.
     const unselectedRow = screen.getByText('ordered_at').closest('label') as HTMLElement;
@@ -5103,26 +5099,86 @@ describe('ReportColumnPicker automatic aggregation', () => {
     uniqueCountConfig: [],
   };
 
-  it('marks a metric the product will aggregate', () => {
-    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
-      storageType: DataStorageType.GOOGLE_BIGQUERY,
-      outputConfig: emptyControls,
-      onOutputConfigChange: () => {},
-    });
+  /** A form that applies what the picker hands back, which is what makes the rule real. */
+  function renderControlled(value: string[]) {
+    const onOutputConfigChange = vi.fn();
+    function Host() {
+      const [config, setConfig] = useState<OutputConfig>(emptyControls);
+      return (
+        <ReportColumnPicker
+          dataMartId={DATA_MART_ID}
+          dataMartTitle='Main Data Mart'
+          value={value}
+          onChange={() => undefined}
+          collapsesOnDelivery
+          storageType={DataStorageType.GOOGLE_BIGQUERY}
+          outputConfig={config}
+          onOutputConfigChange={(next, options) => {
+            onOutputConfigChange(next, options);
+            setConfig(next);
+          }}
+        />
+      );
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData([BLENDABLE_SCHEMA_QUERY_KEY, DATA_MART_ID], autoSchema());
+    vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(autoSchema());
+    render(
+      <QueryClientProvider client={client}>
+        <Host />
+      </QueryClientProvider>
+    );
+    return { onOutputConfigChange };
+  }
 
-    expect(screen.getByTitle('Automatic aggregation: Sum')).toBeInTheDocument();
+  it('writes the aggregation it picked into the config, as an ordinary rule', () => {
+    const { onOutputConfigChange } = renderControlled(['landing_page', 'sessions']);
+
+    // The whole point of the change: not a fourth appearance of "applied but not set", but the
+    // same rule the analyst would have created by hand.
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig: [{ column: 'sessions', function: 'SUM' }],
+      }),
+      // Never as the analyst's edit: opening a report must not raise an unsaved-changes guard.
+      { isRepair: true, changed: ['aggregationConfig'] }
+    );
   });
 
-  it('explains the automatic aggregation inside the Aggregations panel', async () => {
-    // The panel lists stored rules only, so on an auto-collapsed report it would otherwise read as
-    // empty while the report does in fact group.
-    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
-      storageType: DataStorageType.GOOGLE_BIGQUERY,
-      outputConfig: emptyControls,
-      onOutputConfigChange: () => {},
-    });
+  it('reads as a set aggregation afterwards, not as something still to add', async () => {
+    renderControlled(['landing_page', 'sessions']);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    // The row's own button is the tell: it names the action available on a column that HAS an
+    // aggregation. A prediction left it at "Add aggregation" with a dimmed sigma beside it.
+    expect(await screen.findByRole('button', { name: 'Manage aggregations' })).toBeInTheDocument();
+    expect(screen.queryByTitle(/Automatic aggregation:/)).not.toBeInTheDocument();
+  });
+
+  it('writes once, so the analyst can take the aggregation away again', async () => {
+    const { onOutputConfigChange } = renderControlled(['landing_page', 'sessions']);
+    await screen.findByRole('button', { name: 'Manage aggregations' });
+    expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+
+    // Deleting it empties the config, which is exactly the state the resolver predicts from. An
+    // effect guarded on "the config is empty" would put the rule straight back and the analyst
+    // could never remove it at all.
+    onOutputConfigChange.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Manage aggregations' }));
+    const sum = await screen.findByRole('checkbox', { name: /sum/i });
+    fireEvent.click(sum);
+
+    expect(onOutputConfigChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({ aggregationConfig: [{ column: 'sessions', function: 'SUM' }] }),
+      { isRepair: true, changed: ['aggregationConfig'] }
+    );
+  });
+
+  it('still says which column it chose, once the rule is real', async () => {
+    // The rule now sits among the analyst's own, indistinguishable by its three fields. Saying so
+    // is the only thing left that separates "we picked this" from "you did".
+    renderControlled(['landing_page', 'sessions']);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Aggregations' }));
 
     const note = await screen.findByTestId('auto-aggregation-note');
     expect(note).toHaveTextContent('Applied automatically because this report sets none');
@@ -5132,6 +5188,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
 
   it('shows no such note once the analyst set an aggregation of their own', () => {
     renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      collapsesOnDelivery: true,
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       outputConfig: {
         ...emptyControls,
@@ -5145,25 +5202,14 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(screen.queryByTestId('auto-aggregation-note')).not.toBeInTheDocument();
   });
 
-  it('names the automatic choice in the editor it opens, without preselecting it', async () => {
-    // The ghost tells the analyst what will happen; the editor it opens must say the same thing,
-    // and must not turn the prediction into a stored rule just because the editor was applied.
-    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
-      storageType: DataStorageType.GOOGLE_BIGQUERY,
-      outputConfig: emptyControls,
-      onOutputConfigChange: () => {},
-    });
+  it('counts it on the Aggregations button, the way a hand-written rule counts', async () => {
+    renderControlled(['landing_page', 'sessions']);
+    await screen.findByRole('button', { name: 'Manage aggregations' });
 
-    fireEvent.click(screen.getByTitle('Automatic aggregation: Sum'));
-
-    const note = await screen.findByText('Sum is applied automatically unless you choose one');
-    expect(note).toBeInTheDocument();
-
-    // Scoped to the editor itself: the picker's own "select all" checkbox is outside it.
-    const editor = note.closest<HTMLElement>('[data-slot="popover-content"]')!;
-    for (const checkbox of within(editor).queryAllByRole('checkbox')) {
-      expect(checkbox).not.toBeChecked();
-    }
+    // The badge reads `aggregationConfig.length`, so this passes only because the rule is really
+    // in the config — the surface Ruslan named as showing nothing at "output block" level.
+    const panel = screen.getByRole('button', { name: 'Aggregations' });
+    expect(panel).toHaveTextContent('1');
   });
 
   it('marks nothing for a destination that never collapses on delivery', () => {
@@ -5182,6 +5228,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
 
   it('drops the mark once the analyst picked an aggregation', () => {
     renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      collapsesOnDelivery: true,
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       outputConfig: {
         ...emptyControls,
@@ -5203,6 +5250,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       }),
       ['landing_page', 'medium'],
       {
+        collapsesOnDelivery: true,
         storageType: DataStorageType.GOOGLE_BIGQUERY,
         outputConfig: emptyControls,
         onOutputConfigChange: () => {},
@@ -5229,6 +5277,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
       }),
       ['landing_page', 'doubled_revenue'],
       {
+        collapsesOnDelivery: true,
         storageType: DataStorageType.GOOGLE_BIGQUERY,
         outputConfig: emptyControls,
         onOutputConfigChange: () => {},

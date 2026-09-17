@@ -1752,9 +1752,14 @@ export function ReportColumnPicker({
     effectiveOutputConfig.dateTruncConfig,
   ]);
 
-  // Read against the raw `value`/`outputConfig` props, not the `effective*` ones: a null `value`
-  // means no explicit projection, which the resolver must read as "nothing to predict yet".
-  const autoAggregations = useMemo(
+  // What the server WOULD apply if this report ran as it stands. Read against the raw
+  // `value`/`outputConfig` props, not the `effective*` ones: a null `value` means no explicit
+  // projection, which the resolver must read as "nothing to predict yet".
+  //
+  // This goes empty the moment anything is materialised below, because the resolver refuses a
+  // report that already carries an aggregation. Nothing user-visible reads it directly for that
+  // reason — `autoApplied` does.
+  const predictedAggregations = useMemo(
     () =>
       collapsesOnDelivery && schema
         ? autoAggregationByColumn(
@@ -1765,6 +1770,53 @@ export function ReportColumnPicker({
         : EMPTY_AUTO_AGGREGATIONS,
     [collapsesOnDelivery, schema, value, outputConfig]
   );
+
+  // What we actually wrote into the config on the analyst's behalf, kept for this editing session
+  // so the panel note and the button dot can still say so. The config itself cannot: a rule we
+  // added and a rule the analyst typed are the same three fields.
+  const [autoApplied, setAutoApplied] =
+    useState<ReadonlyMap<string, ReportAggregateFunction>>(EMPTY_AUTO_AGGREGATIONS);
+  const hasMaterialised = useRef(false);
+
+  // Write the prediction into the draft as a real aggregation, so every surface that reads the
+  // config shows it the way it shows one the analyst set: the box ticked, the counter counting,
+  // the sigma not dimmed. A prediction rendered as its own third state is what this replaces.
+  //
+  // ONCE, guarded by a ref rather than by the config being empty. The resolver stops predicting
+  // as soon as a rule exists, so the write is self-terminating — but only until the analyst
+  // deletes the rule, at which point an unguarded effect would put it straight back and the
+  // aggregation could never be removed at all.
+  //
+  // `isRepair`, because none of this is an edit the analyst performed: dirtying the form here
+  // would raise an "unsaved changes" guard on a report they only opened. It still travels with
+  // the next save they do make, which is the point — what the UI shows and what the report
+  // stores stay the same thing.
+  useEffect(() => {
+    if (hasMaterialised.current || !onOutputConfigChange) return;
+    if (predictedAggregations.size === 0) return;
+    hasMaterialised.current = true;
+    setAutoApplied(predictedAggregations);
+    onOutputConfigChange(
+      {
+        ...effectiveOutputConfig,
+        aggregationConfig: [...predictedAggregations].map(([column, fn]) => ({
+          column,
+          function: fn,
+        })),
+      },
+      { isRepair: true, changed: ['aggregationConfig'] }
+    );
+  }, [predictedAggregations, effectiveOutputConfig, onOutputConfigChange]);
+
+  // An automatic choice stops being ours to announce the moment the analyst changes or drops it.
+  const autoAggregations = useMemo(() => {
+    if (autoApplied.size === 0) return EMPTY_AUTO_AGGREGATIONS;
+    const live = new Map<string, ReportAggregateFunction>();
+    for (const rule of effectiveOutputConfig.aggregationConfig) {
+      if (autoApplied.get(rule.column) === rule.function) live.set(rule.column, rule.function);
+    }
+    return live;
+  }, [autoApplied, effectiveOutputConfig.aggregationConfig]);
 
   const hasDisconnectedOutputControls = useMemo(() => {
     for (const rule of effectiveOutputConfig.filterConfig) {

@@ -19,7 +19,7 @@ What a report gets depends on what it selected:
 - A row-level calculated formula — **recomputed at group level** when OWOX can prove that returns the same value, so `{{revenue}} / {{cost}}` becomes the ratio of the totals rather than an average of per-row ratios. One it cannot prove stays a grouping key rather than being guessed at.
 - A column from a joined Data Mart — left alone entirely, because grouping by a joined metric would move its total.
 
-The report editor marks each column OWOX will aggregate and names the function before the report is ever run, and the Aggregations panel says which column and which function; run history records what was applied.
+The report editor fills the choice in for you rather than only predicting it: open a report that sets no aggregation and the function is already ticked on the column, counted on the **Aggregations** button, and listed in the panel — exactly as one you picked yourself, and changed or removed the same way. A note names the columns OWOX chose for, so you can tell them apart from your own, and the choice is saved with the report the next time you save it. Run history records what was applied.
 
 ![The Aggregations panel of a report that sets none, reading "Applied automatically because this report sets none: cost — Sum. Add one below to decide for yourself." above an Add aggregation button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8194918-f11a-4474-ca25-578563742300/public)
 
