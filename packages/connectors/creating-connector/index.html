@@ -158,6 +158,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li><code dir="auto">CONFIG_ATTRIBUTES.SECRET</code> — marks sensitive data (passwords, tokens)</li>
 <li><code dir="auto">CONFIG_ATTRIBUTES.MANUAL_BACKFILL</code> — parameter can be overridden during manual backfill</li>
 <li><code dir="auto">CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM</code> — hidden from config UI</li>
+<li><code dir="auto">CONFIG_ATTRIBUTES.ADVANCED</code> — shown under Advanced Settings in the config UI</li>
+<li><code dir="auto">CONFIG_ATTRIBUTES.DYNAMIC_OPTIONS</code> — allowed values are loaded from the source while the
+form is being filled. The source implements <code dir="auto">fetchFieldOptions(fieldName, signal)</code> and
+returns <code dir="auto">[{ value, label }]</code>; list the parameters the lookup needs in <code dir="auto">optionsDependsOn</code>.
+The lookup runs before the configuration is validated, so it must not rely on defaults
+or on other parameters being present.</li>
 </ul>
 <p><strong>Standard Parameters (recommended):</strong></p>
 <ul>

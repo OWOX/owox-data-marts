@@ -115,13 +115,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Create a Data Mart with the Google Sheets source.</li>
 <li>Authorize Google Sheets access with OAuth or Service Account JSON.</li>
 <li>Choose the spreadsheet with Google Picker for OAuth, or provide its ID or URL for a service account.</li>
-<li>Provide the sheet tab name.</li>
+<li>Pick the sheet tab from the list that loads once the spreadsheet is known. If the list cannot be loaded, type the tab name.</li>
 <li>Click Next to preview detected columns from the configured header row.</li>
 <li>Keep all-columns mode enabled, or switch to explicit subset mode and choose columns.</li>
 <li>Choose a storage table.</li>
 <li>Run a refresh to materialize the sheet into storage.</li>
 </ol>
-<p>The connector treats row 1 as headers by default. <code dir="auto">HeaderRow</code> is an absolute, one-based sheet row. If <code dir="auto">Range</code> is <code dir="auto">A5:D</code> and its first row contains headers, set <code dir="auto">HeaderRow</code> to <code dir="auto">5</code>. Blank header cells receive generated names such as <code dir="auto">column_2</code>.</p>
+<p>The connector treats row 1 as headers by default. <code dir="auto">HeaderRow</code> and <code dir="auto">Range</code> live under Advanced Settings. <code dir="auto">HeaderRow</code> is an absolute, one-based sheet row. If <code dir="auto">Range</code> is <code dir="auto">A5:D</code> and its first row contains headers, set <code dir="auto">HeaderRow</code> to <code dir="auto">5</code>. Blank header cells receive generated names such as <code dir="auto">column_2</code>.</p>
 <p>By default, <code dir="auto">ImportAllColumns</code> is <code dir="auto">true</code>, so every refresh imports all current columns and automatically includes schema additions. The web configuration persists <code dir="auto">ImportAllColumns: false</code> only when the user chooses an explicit subset; runtime <code dir="auto">Fields</code> tracks the latest materialized schema.</p>
 <p><code dir="auto">_owox_row_number</code> is the mandatory unique key. <code dir="auto">_owox_imported_at</code> is optional and can be selected or cleared like a regular field; all-columns mode does not force it back into the runtime schema.</p>
 <p>Field preview includes all supported columns and up to 100 sample data rows. The import itself reads the full configured range.</p>
