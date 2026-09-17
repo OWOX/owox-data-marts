@@ -35,7 +35,7 @@ describe('Connector List (e2e)', () => {
       expect('docUrl' in connector).toBe(true);
     });
 
-    // Verify all connector names are present
+    // Verify all known connector names are present
     const returnedNames = res.body.map((c: Record<string, unknown>) => c.name);
     ALL_CONNECTORS.forEach(name => {
       expect(returnedNames).toContain(name);

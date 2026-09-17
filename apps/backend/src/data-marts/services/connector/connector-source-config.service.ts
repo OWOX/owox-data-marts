@@ -1,7 +1,6 @@
 // connector-source-config.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 const { SourceConfigDto, RunConfigDto } = Core;

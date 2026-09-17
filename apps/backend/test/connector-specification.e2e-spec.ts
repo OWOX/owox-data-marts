@@ -211,4 +211,24 @@ describe('Connector Specification (e2e)', () => {
       }
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // CAPI-11: Declarative (manifest-only) connectors expose specification
+  // ---------------------------------------------------------------------------
+  describe('Declarative connectors (CAPI-11)', () => {
+    it('GET /api/connectors/RatesDeclarative/specification - returns the Base parameter', async () => {
+      const res = await agent
+        .get('/api/connectors/RatesDeclarative/specification')
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+
+      const baseParam = res.body.find((item: Record<string, unknown>) => item.name === 'Base');
+      expect(baseParam).toBeDefined();
+      expect(baseParam.default).toBe('EUR');
+      expect(baseParam.requiredType).toBe('string');
+      expect(baseParam.required).toBe(true);
+    });
+  });
 });

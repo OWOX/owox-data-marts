@@ -42,6 +42,22 @@ export class ConnectorApiService extends ApiService {
     );
   }
 
+  async getCustomConnectorSpecification(
+    id: string,
+    version?: number
+  ): Promise<ConnectorSpecificationResponseApiDto[]> {
+    const q = version !== undefined ? `?version=${version}` : '';
+    return this.get<ConnectorSpecificationResponseApiDto[]>(`/custom/${id}/specification${q}`);
+  }
+
+  async getCustomConnectorFields(
+    id: string,
+    version?: number
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
+    const q = version !== undefined ? `?version=${version}` : '';
+    return this.get<ConnectorFieldsResponseApiDto[]>(`/custom/${id}/fields${q}`);
+  }
+
   async exchangeCredentials(
     connectorName: string,
     payload: Record<string, unknown>

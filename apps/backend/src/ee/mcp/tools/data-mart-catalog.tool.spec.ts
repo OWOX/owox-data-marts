@@ -279,11 +279,17 @@ describe('ListDataMartsTool', () => {
       },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
+      'ConnectorManifestSchemaTool',
       'SummarizeDataCatalogTool',
       'ListDataMartsTool',
       'SearchDataMartsTool',
       'GetDataMartDetailsTool',
       'GetProjectContextTool',
+      'ConnectorListTool',
+      'ConnectorSearchTool',
+      'ConnectorDetailsTool',
+      'ConnectorTestTool',
+      'ConnectorPublishTool',
       'ListDestinationsTool',
       'GetDataMartReportsTool',
       'GetReportOutputSchemaTool',
@@ -298,6 +304,11 @@ describe('ListDataMartsTool', () => {
       'AddDestinationTool',
       'RunReportTool',
       'GetReportRunStatusTool',
+      'ConnectorRunDataMartTool',
+      'ConnectorRunStatusTool',
+      'ConnectorDeleteTool',
+      'ConnectorVersionsTool',
+      'ConnectorSetVersionTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();
     expect(registry.getTool('query_data_mart')).toBeUndefined();
