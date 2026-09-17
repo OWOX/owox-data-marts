@@ -5131,6 +5131,20 @@ describe('ReportColumnPicker automatic aggregation', () => {
     return { onOutputConfigChange };
   }
 
+  /**
+   * Removal goes through the Aggregations panel, never the row's own sigma.
+   *
+   * A field row is a `<label>`, and jsdom runs the label's activation behaviour for a click on any
+   * descendant — so clicking the sigma there also toggles the column's checkbox, which prunes the
+   * very rule the test is about. Real browsers do not: the HTML spec exempts interactive content
+   * descendants, and Chrome was checked against a minimal `<label><button role=checkbox><button>`
+   * page. It is a jsdom artefact, and the panel is not affected by it.
+   */
+  async function removeTheRuleFromThePanel() {
+    fireEvent.click(await screen.findByRole('button', { name: 'Aggregations' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove aggregation' }));
+  }
+
   it('writes the aggregation it picked into the config, as an ordinary rule', () => {
     const { onOutputConfigChange } = renderControlled(['landing_page', 'sessions']);
 
@@ -5163,9 +5177,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
     // effect guarded on "the config is empty" would put the rule straight back and the analyst
     // could never remove it at all.
     onOutputConfigChange.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: 'Manage aggregations' }));
-    const sum = await screen.findByRole('checkbox', { name: /sum/i });
-    fireEvent.click(sum);
+    await removeTheRuleFromThePanel();
 
     expect(onOutputConfigChange).not.toHaveBeenCalledWith(
       expect.objectContaining({ aggregationConfig: [{ column: 'sessions', function: 'SUM' }] }),
@@ -5191,11 +5203,8 @@ describe('ReportColumnPicker automatic aggregation', () => {
     // groups the rows and still renames the column. Before the fill-in the ghost said so; without
     // this the editor goes silent on a report that does in fact collapse.
     renderControlled(['landing_page', 'sessions']);
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage aggregations' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: /sum/i }));
-    fireEvent.keyDown(document.body, { key: 'Escape' });
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Aggregations' }));
+    await screen.findByRole('button', { name: 'Manage aggregations' });
+    await removeTheRuleFromThePanel();
 
     const note = await screen.findByTestId('predicted-aggregation-note');
     expect(note).toHaveTextContent('This report sets no aggregation, so delivery will apply');
