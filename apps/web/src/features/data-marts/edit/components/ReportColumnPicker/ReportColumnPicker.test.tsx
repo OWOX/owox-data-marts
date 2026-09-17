@@ -5181,7 +5181,7 @@ describe('ReportColumnPicker automatic aggregation', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Aggregations' }));
 
     const note = await screen.findByTestId('auto-aggregation-note');
-    expect(note).toHaveTextContent('Applied automatically because this report sets none');
+    expect(note).toHaveTextContent('Applied automatically because this report set none');
     expect(note).toHaveTextContent('sessions');
     expect(note).toHaveTextContent('Sum');
   });

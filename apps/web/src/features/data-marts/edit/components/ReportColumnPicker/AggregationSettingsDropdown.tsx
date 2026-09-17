@@ -182,7 +182,7 @@ function AggregationSection({
               Not an alert: nothing went wrong, the product simply chose and is saying so. */}
           <span className='bg-warning mt-1 size-1.5 shrink-0 rounded-full' aria-hidden='true' />
           <span>
-            Applied automatically because this report sets none:{' '}
+            Applied automatically because this report set none:{' '}
             {autoApplied.map(([column, fn], index) => (
               <span key={column}>
                 {index > 0 && ', '}
@@ -192,7 +192,7 @@ function AggregationSection({
                 {` \u2014 ${REPORT_AGGREGATE_FUNCTION_LABELS[fn]}`}
               </span>
             ))}
-            . Add one below to decide for yourself.
+            . Change or remove it below.
           </span>
         </div>
       )}
