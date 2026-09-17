@@ -252,9 +252,11 @@ export class RunReportService {
     try {
       signal?.throwIfAborted();
 
-      // Opted in HERE and in the Generated SQL preview only: an ad-hoc MCP or HTTP query, the
-      // Looker Studio cache fill and every save dry run keep the stored config untouched, because
-      // their caller can ask for its own aggregation.
+      // Opted in HERE, in the Generated SQL preview, and in the Excel add-in's own fetch — the
+      // three places a stored report is delivered. An ad-hoc MCP or HTTP query, the Looker Studio
+      // cache fill and every save dry run keep the stored config untouched, because their caller
+      // can ask for its own aggregation. Unconditional here: a pull destination never gets a
+      // server-side run, so every report reaching this point is one OWOX delivers itself.
       const { report: effectiveReport, plan: autoCollapsePlan } = applyAutoCollapse(report);
 
       // Resolve blending decision up front. When the report has a column

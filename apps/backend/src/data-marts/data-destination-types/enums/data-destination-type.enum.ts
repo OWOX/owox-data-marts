@@ -52,6 +52,22 @@ export function isPullBasedDataDestinationType(type: DataDestinationType): boole
 }
 
 /**
+ * Destinations whose delivered rows OWOX collapses when the analyst set no aggregation.
+ *
+ * NOT the inverse of pull-based. Excel pulls, yet an Excel report still has to return what the
+ * same report returns in Google Sheets — the add-in is its reader, not a third party. Looker
+ * Studio is the one exception: the connector reads a report the way any ad-hoc caller does, so
+ * those rows stay raw.
+ *
+ * Answers what delivery does, never who is asking. A caller pulling a Google Sheets report over
+ * the HTTP data endpoint is a third party, which is why that read pairs this with
+ * `isPullBasedDataDestinationType`.
+ */
+export function collapsesOnDelivery(type: DataDestinationType): boolean {
+  return type !== DataDestinationType.LOOKER_STUDIO;
+}
+
+/**
  * Destinations that hold a secret of their own.
  *
  * Every other type stores something the server needs in order to reach the destination — a

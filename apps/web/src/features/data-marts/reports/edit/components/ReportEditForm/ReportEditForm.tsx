@@ -27,6 +27,7 @@ import {
 } from '@owox/ui/components/select';
 import {
   type DataDestination,
+  collapsesOnDelivery,
   DataDestinationType,
   DataDestinationTypeModel,
   isPullBasedDestinationType,
@@ -415,7 +416,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                             dataMartId={dataMart.id}
                             dataMartTitle={dataMart.title}
                             storageType={dataMart.storage.type}
-                            collapsesOnDelivery={!isPullDestination}
+                            collapsesOnDelivery={collapsesOnDelivery(destinationType)}
                             value={form.watch('columnConfig')}
                             onChange={(value, options) => {
                               applyColumnConfigChange(form, value, options);

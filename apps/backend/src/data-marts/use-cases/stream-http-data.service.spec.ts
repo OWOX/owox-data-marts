@@ -1324,6 +1324,46 @@ describe('StreamHttpDataService', () => {
       expect(usesSuffixedJoinedFieldNames(readPlan)).toBe(false);
     });
 
+    // One endpoint, two readers with opposite contracts. The rows must differ, and only by the
+    // report's destination — not by who asked.
+    it.each([
+      [DataDestinationType.EXCEL, true, 'the add-in fetch IS the delivery'],
+      [DataDestinationType.GOOGLE_SHEETS, undefined, 'an HTTP Data caller is a third party'],
+      [DataDestinationType.LOOKER_STUDIO, undefined, 'the connector reads raw rows'],
+    ])('collapses for %s: %s — %s', async (destinationType, expected) => {
+      // The plan is built from the Data Mart this service loads, not from the one hanging off
+      // the report row, so the schema the collapse reads has to be on that one.
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({
+          schema: {
+            fields: [
+              { name: 'landing_page', type: 'STRING', status: 'CONNECTED' },
+              { name: 'sessions', type: 'INTEGER', status: 'CONNECTED' },
+            ],
+          },
+        } as unknown as Partial<DataMart>)
+      );
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: destinationType },
+        columnConfig: ['landing_page', 'sessions'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      const plan = readPlan as { aggregationConfig?: unknown[] };
+      // A metric in the projection makes it an aggregation rather than a plain DISTINCT.
+      expect(plan.aggregationConfig?.length ? true : undefined).toBe(expected);
+    });
+
     it('resolves the decision with stale-sort degradation on (a stored report, no editor open)', async () => {
       // A saved report pulled over this endpoint is executed as stored: a sort on a column the
       // schema has since lost must degrade (row order, never values) rather than fail the read,

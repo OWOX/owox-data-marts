@@ -23,6 +23,11 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
+import { applyAutoCollapse } from '../services/auto-collapse.resolver';
+import {
+  collapsesOnDelivery,
+  isPullBasedDataDestinationType,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
@@ -339,7 +344,7 @@ export class StreamHttpDataService {
         // survive a narrow header cell). Forwarding the destination here would make two reports on
         // the same Data Mart, with identical column configs, return different `title`s over this
         // endpoint purely because one of them happens to write to a spreadsheet.
-        const readPlan: ReportLikeReadPlan = {
+        const basePlan: ReportLikeReadPlan = {
           dataMart: currentDataMart,
           columnConfig: report.columnConfig ?? undefined,
           filterConfig: report.filterConfig ?? undefined,
@@ -349,6 +354,18 @@ export class StreamHttpDataService {
           uniqueCountConfig: report.uniqueCountConfig ?? undefined,
           limitConfig: limit ?? report.limitConfig ?? null,
         };
+
+        // This endpoint is the report's delivery only when the destination pulls: the Excel
+        // add-in fetches the very rows the analyst will read, so they have to match what the
+        // same report returns in Google Sheets. A push destination reads raw here — an HTTP
+        // Data caller asking for a Sheets report is a third party, and its contract stays every
+        // underlying row — and Looker Studio pulls but never collapses.
+        const destinationType = report.dataDestination?.type;
+        const fetchIsDelivery =
+          destinationType !== undefined &&
+          isPullBasedDataDestinationType(destinationType) &&
+          collapsesOnDelivery(destinationType);
+        const readPlan = fetchIsDelivery ? applyAutoCollapse(basePlan).report : basePlan;
 
         return {
           kind: 'report',

@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-**Reports no longer deliver duplicate rows when no aggregation was chosen**
+# Reports no longer deliver duplicate rows when no aggregation was chosen
 
 A report with an explicit column selection and no aggregation, date bucket, or Unique Count set anywhere used to deliver every underlying row — most visibly from a join that fans one source row out across many. OWOX now collapses it on delivery.
 
@@ -23,4 +23,4 @@ The report editor fills the choice in for you rather than only predicting it: op
 
 ![The Aggregations panel of a report that set none, reading "Applied automatically because this report set none: cost — Sum. Change or remove it below." above a cost rule aggregated by Sum, with the Aggregations button counting it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2d3c870c-b0c9-40ee-0366-e48b2c83cc00/public)
 
-Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included. **Microsoft Excel** and **Looker Studio** reports are unchanged too, because the add-in and the connector read the report over those same paths. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
+Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included — including pulling somebody's Google Sheets report over HTTP Data, where the caller is a third party rather than the report's reader. The two pull destinations part ways: a **Microsoft Excel** report collapses like every other report, because the add-in fetches the very rows it writes into the workbook, while a **Looker Studio** report stays uncollapsed, because its connector reads the report the way any other ad-hoc caller does. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
