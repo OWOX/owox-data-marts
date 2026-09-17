@@ -10,7 +10,7 @@ A report with an explicit column selection and no aggregation, date bucket, or U
 
 Watch a report that sets no aggregation get one applied, and the query it will actually run.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/879666b6c7b53eebfce7b71735580bc3/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5c61c408f7efbc9f2e5f54945193d161/iframe>
 
 What a report gets depends on what it selected:
 
