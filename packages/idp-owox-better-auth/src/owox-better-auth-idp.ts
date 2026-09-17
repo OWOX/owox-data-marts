@@ -75,6 +75,7 @@ import {
   extractRefreshToken,
   getStateManager,
   persistAuthFlowParams,
+  readPendingActionFromQuery,
   type AuthFlowParams,
 } from './utils/request-utils.js';
 
@@ -493,13 +494,19 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   /**
    * Handles sign-in when no query state is present.
-   * Attempts fast-path IDP start or refresh token reuse, otherwise redirects to platform.
+   * Attempts fast-path IDP start or refresh token reuse. Otherwise, only starts
+   * the Platform PKCE round trip (which mints a short-lived state) when this
+   * exact request carries an explicit `pendingAction` (i.e. the user just
+   * clicked a specific sign-in action) - a plain, unauthenticated page load
+   * renders the sign-in page locally without minting any state, so the state's
+   * TTL only starts counting down once the user has shown real intent.
    */
   private async handleNoState(req: e.Request, res: e.Response): Promise<void | e.Response> {
     const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
     const refreshToken = extractRefreshToken(req);
     const authFlowParams = extractAuthFlowParams(req);
     const hasOAuthAuthorizeContinuation = this.hasOAuthAuthorizeContinuation(authFlowParams);
+    const pendingAction = readPendingActionFromQuery(req);
 
     this.logger.info('Sign-in request without state', {
       path: req.path,
@@ -508,6 +515,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       redirectTo: authFlowParams.redirectTo,
       appRedirectTo: authFlowParams.appRedirectTo,
       hasOAuthAuthorizeContinuation,
+      pendingAction,
     });
 
     if (!refreshToken && hasOAuthAuthorizeContinuation) {
@@ -530,6 +538,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (refreshToken) {
       const handled = await this.handleExistingRefreshToken(req, res, refreshToken);
       if (handled) return;
+    }
+
+    if (!pendingAction) {
+      return this.pageController.signInPage(req, res);
     }
 
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
@@ -628,6 +640,15 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     if (!queryState) {
+      const authFlowParams = extractAuthFlowParams(req);
+      const hasEstablishedIntent =
+        Boolean(readPendingActionFromQuery(req)) ||
+        Boolean(authFlowParams.projectId) ||
+        Boolean(authFlowParams.appRedirectTo) ||
+        Boolean(extractRefreshToken(req));
+      if (!hasEstablishedIntent) {
+        return this.pageController.signUpPage(req, res);
+      }
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     stateManager.persist(res, queryState);

@@ -27,11 +27,24 @@ const AUTH_PARAMS = new Set([
   'token',
   'callbackURL',
   'intent',
+  'pendingAction',
 ]);
 
 const STATE_COOKIE = 'idp-owox-state';
 const AUTH_FLOW_PARAMS_COOKIE = 'idp-owox-params';
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Sign-in action a user explicitly requested before a PKCE state existed.
+ * Used to resume that exact action once the state comes back from Platform,
+ * instead of minting state eagerly on every unauthenticated page load.
+ */
+export const PENDING_ACTION_VALUES = ['google', 'microsoft', 'email'] as const;
+export type PendingAction = (typeof PENDING_ACTION_VALUES)[number];
+
+function isPendingAction(value: unknown): value is PendingAction {
+  return typeof value === 'string' && (PENDING_ACTION_VALUES as readonly string[]).includes(value);
+}
 
 const optionalStringParam = z.preprocess(
   value => (typeof value === 'string' ? value : undefined),
@@ -41,6 +54,11 @@ const optionalStringParam = z.preprocess(
 const optionalProjectIdParam = z.preprocess(
   value => (typeof value === 'string' && PROJECT_ID_PATTERN.test(value) ? value : undefined),
   z.string().optional()
+);
+
+const optionalPendingActionParam = z.preprocess(
+  value => (isPendingAction(value) ? value : undefined),
+  z.enum(PENDING_ACTION_VALUES).optional()
 );
 
 const optionalExtraParams = z.preprocess(value => {
@@ -66,6 +84,7 @@ export const AuthFlowParamsSchema = z.object({
   codeChallenge: optionalStringParam,
   projectId: optionalProjectIdParam,
   extraParams: optionalExtraParams,
+  pendingAction: optionalPendingActionParam,
 });
 
 export type AuthFlowParams = z.infer<typeof AuthFlowParamsSchema>;
@@ -314,6 +333,9 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const projectId = normalizeProjectId(
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
+  const pendingAction = isPendingAction(req.query?.pendingAction)
+    ? req.query.pendingAction
+    : undefined;
 
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
@@ -324,7 +346,18 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     codeChallenge: codeChallenge || cookieParams.codeChallenge,
     projectId: projectId || cookieParams.projectId,
     extraParams: resolvedExtraParams || cookieParams.extraParams,
+    pendingAction: pendingAction || cookieParams.pendingAction,
   };
+}
+
+/**
+ * Reads a validated `pendingAction` directly from the query string only,
+ * ignoring any value persisted from an earlier request. Used to gate whether
+ * this exact request is an explicit, user-triggered sign-in/sign-up action
+ * (as opposed to a plain, unauthenticated page load).
+ */
+export function readPendingActionFromQuery(req: Request): PendingAction | undefined {
+  return isPendingAction(req.query?.pendingAction) ? req.query.pendingAction : undefined;
 }
 
 /**
@@ -338,6 +371,24 @@ export function persistAuthFlowParams(req: Request, res: Response, params: AuthF
     setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, serialized);
   } catch {
     // ignore serialization issues
+  }
+}
+
+/**
+ * Clears a previously persisted `pendingAction` so it is only ever consumed
+ * once. Unlike `persistAuthFlowParams`, this always takes effect even when the
+ * remaining params serialize to nothing, so a pendingAction-only cookie is
+ * actually removed rather than left in place by the "skip empty" shortcut in
+ * `persistAuthFlowParams`.
+ */
+export function clearPendingAction(req: Request, res: Response): void {
+  const { pendingAction: _pendingAction, ...rest } = extractAuthFlowParams(req);
+  if (!_pendingAction) return;
+  const serialized = serializeAuthFlowParams(rest);
+  if (serialized) {
+    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, encodeURIComponent(serialized));
+  } else {
+    clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
   }
 }
 
