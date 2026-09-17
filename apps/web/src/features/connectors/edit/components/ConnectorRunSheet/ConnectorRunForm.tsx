@@ -1,6 +1,7 @@
+import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { useForm } from 'react-hook-form';
+import { useForm, type Validate } from 'react-hook-form';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
@@ -24,11 +25,62 @@ import type { ConnectorRunFormData } from '../../../shared/model/types/connector
 import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
+import {
+  BACKFILL_END_DATE_FIELD,
+  BACKFILL_START_DATE_FIELD,
+  MAX_MANUAL_BACKFILL_DAYS,
+  countBackfillDays,
+  countBackfillRuns,
+  todayIsoDay,
+  toUtcDayMs,
+} from '../../../shared/constants/manual-backfill';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
   onClose?: () => void;
   onSubmit?: (data: ConnectorRunFormData) => void;
+}
+
+type BackfillFieldValue = ConnectorRunFormData['data'][string];
+type BackfillDateValidation = Record<string, Validate<BackfillFieldValue, ConnectorRunFormData>>;
+
+const BACKFILL_LIMIT_NOTICE = `Each backfill run covers at most ${MAX_MANUAL_BACKFILL_DAYS} days. Longer periods run as sequential runs of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one at a time.`;
+
+function getBackfillSummary(days: number): string {
+  if (days === 0) {
+    return `${BACKFILL_LIMIT_NOTICE} Pick a start and end date to see how many runs your period needs.`;
+  }
+  const runs = countBackfillRuns(days);
+  if (runs === 1) {
+    return `This backfill covers ${days} ${days === 1 ? 'day' : 'days'} and runs as one run.`;
+  }
+  return `This backfill covers ${days} days and will run as ${runs} sequential runs of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one at a time. Each run appears in Run History as Backfill 1/${runs}, 2/${runs}, and so on. A failed run does not stop the remaining runs; cancelling a run does.`;
+}
+
+function getBackfillDateValidation(
+  fieldName: string,
+  today: string
+): BackfillDateValidation | undefined {
+  if (fieldName === BACKFILL_START_DATE_FIELD) {
+    return {
+      notInFuture: value =>
+        toUtcDayMs(value) === undefined ||
+        (value as string) <= today ||
+        'Start date cannot be in the future',
+    };
+  }
+  if (fieldName === BACKFILL_END_DATE_FIELD) {
+    return {
+      notBeforeStart: (value, formValues) => {
+        const startDate = formValues.data[BACKFILL_START_DATE_FIELD];
+        if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
+        return (
+          countBackfillDays(startDate, value) > 0 || 'End date must be on or after the start date'
+        );
+      },
+    };
+  }
+  return undefined;
 }
 
 export function ConnectorRunForm({ configuration, onClose, onSubmit }: ConnectorRunFormProps) {
@@ -44,6 +96,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     useConnector();
 
   const { dataMart } = useDataMartContext();
+
+  const runType = form.watch('runType');
+  const startDate = form.watch(`data.${BACKFILL_START_DATE_FIELD}`);
+  const endDate = form.watch(`data.${BACKFILL_END_DATE_FIELD}`);
+  const today = todayIsoDay();
+  // The backend defaults a missing EndDate to today, so the preview does the same.
+  const effectiveEndDate = endDate === undefined || endDate === '' ? today : endDate;
+  const backfillDays = countBackfillDays(startDate, effectiveEndDate);
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -120,7 +180,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         orientation='horizontal'
                       />
                       <FormDescription>
-                        {form.watch('runType') === RunType.MANUAL_BACKFILL
+                        {runType === RunType.MANUAL_BACKFILL
                           ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
                           : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                       </FormDescription>
@@ -130,14 +190,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
               )}
             />
 
-            {form.watch('runType') === RunType.INCREMENTAL && (
+            {runType === RunType.INCREMENTAL && (
               <ConnectorStateSection
                 configuration={configuration}
                 connectorState={dataMart?.connectorState ?? null}
               />
             )}
           </FormSection>
-          {form.watch('runType') === RunType.MANUAL_BACKFILL && (
+          {runType === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>
               {connectorSpecification
                 .filter(field =>
@@ -155,9 +215,11 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         </FormLabel>
                         <FormControl>
                           <Input
-                            id={connectorField.name}
                             placeholder={connectorField.description}
                             type={getInputType(connectorField.requiredType)}
+                            max={
+                              connectorField.requiredType === RequiredType.DATE ? today : undefined
+                            }
                             defaultValue={
                               typeof connectorField.default === 'string' ||
                               typeof connectorField.default === 'number'
@@ -166,6 +228,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                             }
                             {...form.register(`data.${connectorField.name}`, {
                               required: true,
+                              validate: getBackfillDateValidation(connectorField.name, today),
                             })}
                           />
                         </FormControl>
@@ -174,6 +237,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     )}
                   />
                 ))}
+              <Alert data-testid='backfill-limit-notice'>
+                <AlertDescription>{getBackfillSummary(backfillDays)}</AlertDescription>
+              </Alert>
             </FormSection>
           )}
         </FormLayout>

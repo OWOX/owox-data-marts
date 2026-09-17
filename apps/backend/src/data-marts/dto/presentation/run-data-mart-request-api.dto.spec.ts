@@ -47,6 +47,18 @@ describe('RunDataMartRequestApiDto', () => {
     { runType: 'FULL_REFRESH' },
     { runType: 'MANUAL_BACKFILL', data: [] },
     { runType: 'INCREMENTAL', typo: true },
+    // The chain descriptor is assigned by the backend when it splits a long range; clients
+    // must not be able to forge chunk positions.
+    {
+      runType: 'MANUAL_BACKFILL',
+      data: { StartDate: '2026-07-01' },
+      backfillChain: {
+        startDate: '2026-07-01',
+        endDate: '2026-09-01',
+        chunkIndex: 0,
+        totalChunks: 3,
+      },
+    },
   ])('rejects a payload whose run type and data do not form a supported pair', async payload => {
     const dto = Object.assign(new RunDataMartRequestApiDto(), { payload });
 

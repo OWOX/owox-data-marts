@@ -19,6 +19,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
     const dataMartRunRepository = {
       save: jest.fn().mockImplementation(data => Promise.resolve(data)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as Repository<DataMartRun>;
 
     const schedulerFacade = {
@@ -27,6 +28,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
     const connectorExecutionService = {
       executeExistingRun: jest.fn().mockResolvedValue(undefined),
+      run: jest.fn().mockResolvedValue('run-2'),
     } as unknown as ConnectorExecutionService;
 
     const dataMartService = {
@@ -231,6 +233,94 @@ describe('ConnectorRunTriggerHandlerService', () => {
       trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
       expect(trigger.status).toBe(TriggerStatus.CANCELLED);
       expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('already CANCELLED'));
+    });
+
+    describe('split manual backfill', () => {
+      const chain = { startDate: '2026-06-01', endDate: '2026-09-15', totalChunks: 4 };
+      const finishedChunk = (status: DataMartRunStatus, chunkIndex = 0) => ({
+        id: 'run-1',
+        status,
+        createdById: 'user-1',
+        runType: 'manual',
+        errors: [],
+        additionalParams: {
+          payload: {
+            runType: 'MANUAL_BACKFILL',
+            data: { StartDate: '2026-06-01', EndDate: '2026-07-01', AccountId: '42' },
+            backfillChain: { ...chain, chunkIndex },
+          },
+        },
+      });
+
+      const runChunk = async (finished: unknown) => {
+        const deps = createService();
+        (deps.dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+        (deps.mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+        (deps.dataMartRunService.findById as jest.Mock).mockResolvedValue(finished);
+        await deps.service.handleTrigger(mockTrigger);
+        return deps;
+      };
+
+      it.each([DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED])(
+        'enqueues the next chunk after a %s chunk',
+        async status => {
+          const { connectorExecutionService } = await runChunk(finishedChunk(status));
+
+          expect(connectorExecutionService.run).toHaveBeenCalledWith(
+            mockDataMart,
+            'user-1',
+            'manual',
+            {
+              runType: 'MANUAL_BACKFILL',
+              data: { StartDate: '2026-07-02', EndDate: '2026-08-01', AccountId: '42' },
+              backfillChain: { ...chain, chunkIndex: 1 },
+            }
+          );
+        }
+      );
+
+      it.each([
+        DataMartRunStatus.CANCELLED,
+        DataMartRunStatus.RESTRICTED,
+        DataMartRunStatus.INTERRUPTED,
+      ])('does not enqueue the next chunk after a %s chunk', async status => {
+        const { connectorExecutionService } = await runChunk(finishedChunk(status));
+
+        expect(connectorExecutionService.run).not.toHaveBeenCalled();
+      });
+
+      it('stops after the last chunk and ignores runs without a chain', async () => {
+        const last = await runChunk(finishedChunk(DataMartRunStatus.SUCCESS, 3));
+        expect(last.connectorExecutionService.run).not.toHaveBeenCalled();
+
+        const plain = await runChunk({ id: 'run-1', status: DataMartRunStatus.SUCCESS });
+        expect(plain.connectorExecutionService.run).not.toHaveBeenCalled();
+      });
+
+      it('records on the finished run why the chain could not continue', async () => {
+        const deps = createService();
+        (deps.dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+        (deps.mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+        (deps.dataMartRunService.findById as jest.Mock).mockResolvedValue(
+          finishedChunk(DataMartRunStatus.SUCCESS)
+        );
+        (deps.connectorExecutionService.run as jest.Mock).mockRejectedValue(
+          new Error('DataMart is not published')
+        );
+
+        await expect(deps.service.handleTrigger(mockTrigger)).resolves.toBeUndefined();
+
+        expect(deps.dataMartRunRepository.update).toHaveBeenCalledWith(
+          { id: 'run-1' },
+          {
+            errors: [
+              expect.stringContaining(
+                'Failed to start backfill run 2/4 (2026-07-02 - 2026-08-01): DataMart is not published'
+              ),
+            ],
+          }
+        );
+      });
     });
 
     it('fails the run when claim fails and run is not RUNNING', async () => {
