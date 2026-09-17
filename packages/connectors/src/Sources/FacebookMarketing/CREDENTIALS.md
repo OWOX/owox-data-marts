@@ -90,7 +90,7 @@ OWOX only reads data from these endpoints. The connector does not create or chan
 The URL requests both permissions in the `scope` parameter:
 
 ```text
-https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=owox_fb_auth
+https://www.facebook.com/v26.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=owox_fb_auth
 ```
 
 The `state` value helps check this authorization request. You can keep `owox_fb_auth` or replace it with random text.
@@ -122,7 +122,7 @@ Exchange the authorization code for an **Access Token** using [Postman Desktop](
 Send a `POST` request to:
 
 ```text
-https://graph.facebook.com/v25.0/oauth/access_token
+https://graph.facebook.com/v26.0/oauth/access_token
 ```
 
 Open the **Body** tab and set the body type to **x-www-form-urlencoded**.

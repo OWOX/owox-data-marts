@@ -84,7 +84,7 @@ Use this section for authentication and permission errors from the Criteo API.
    Then list the advertisers the app has been granted access to:
 
    ```bash
-   curl -s https://api.criteo.com/2026-01/advertisers/me \
+   curl -s https://api.criteo.com/2026-07/advertisers/me \
      -H "Authorization: Bearer ACCESS_TOKEN"
    ```
 

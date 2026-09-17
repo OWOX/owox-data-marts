@@ -555,7 +555,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     const accessToken = await this.getAccessToken();
 
     const headers = {
-      "LinkedIn-Version": "202607",
+      "LinkedIn-Version": "202609",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
 

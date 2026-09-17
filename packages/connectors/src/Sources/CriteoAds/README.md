@@ -11,7 +11,7 @@ The **Criteo Source** allows you to transfer raw data from Criteo advertising se
 | `placement_categories` | Performance metrics broken down by content category. |
 | `transactions` | Transaction-level data with individual order details attributed to Criteo ads. |
 
-> **Note:** Breakdown by publisher **domain** is not available in the Criteo `2026-01` API.
+> **Note:** Breakdown by publisher **domain** is not available in the Criteo `2026-07` API.
 > For the closest equivalent, use the `placements` endpoint, which breaks performance down
 > by individual placement.
 

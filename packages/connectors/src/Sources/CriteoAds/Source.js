@@ -5,9 +5,9 @@
  * file that was distributed with this source code.
  */
 
-const CRITEO_API_VERSION = "2026-01";
+const CRITEO_API_VERSION = "2026-07";
 const CRITEO_TOKEN_REFRESH_BUFFER_MS = 60000;
-// Source: Criteo v2026.01 Campaign Statistics docs, "Currencies" section.
+// Source: Criteo v2026.07 Campaign Statistics docs, "Currencies" section.
 // Advisory only: membership produces a warning, not an error, because this
 // list drifts as Criteo adds currencies — the API is the authority.
 const CRITEO_SUPPORTED_CURRENCIES = new Set([
@@ -232,7 +232,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * Fetching placement category report data.
    * Uses the same /placements/report endpoint as the placements stream, with
    * category dimensions: the dedicated categories endpoint does not exist in
-   * the 2026-01 OpenAPI spec and returns 404.
+   * the 2026-07 OpenAPI spec and returns 404.
    * @param {Object} options
    * @param {string} options.accountId
    * @param {Array<string>} options.fields

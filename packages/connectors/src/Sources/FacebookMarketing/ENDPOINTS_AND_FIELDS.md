@@ -1,6 +1,6 @@
 # Facebook Marketing Supported Endpoints and Fields
 
-This page lists the Facebook Marketing endpoints and fields in the Facebook Ads connector. Use it to choose an endpoint and fields. Each endpoint lists its destination table, unique keys, and Meta reference. OWOX requests Meta Graph API version `v25.0`.
+This page lists the Facebook Marketing endpoints and fields in the Facebook Ads connector. Use it to choose an endpoint and fields. Each endpoint lists its destination table, unique keys, and Meta reference. OWOX requests Meta Graph API version `v26.0`.
 
 ## Which Endpoint Should I Choose?
 
