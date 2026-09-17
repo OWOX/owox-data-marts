@@ -50,6 +50,40 @@ describe('parseLogEntry', () => {
 });
 
 describe('getRunSummaryParts', () => {
+  it('labels one chunk of a split manual backfill with its position and period', () => {
+    const run = {
+      type: DataMartRunType.CONNECTOR,
+      triggerType: 'manual',
+      additionalParams: {
+        payload: {
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: '2026-07-02', EndDate: '2026-08-01' },
+          backfillChain: {
+            startDate: '2026-06-01',
+            endDate: '2026-09-15',
+            chunkIndex: 1,
+            totalChunks: 4,
+          },
+        },
+      },
+    } as unknown as DataMartRunItem;
+
+    const [description, title] = getRunSummaryParts(run, 'Facebook Ads');
+
+    expect(description).toBe('Manual connector run');
+    expect(title).toBe('Facebook Ads • Backfill 2/4 (2026-07-02 – 2026-08-01)');
+  });
+
+  it('keeps the plain connector title for runs without a backfill chain', () => {
+    const run = {
+      type: DataMartRunType.CONNECTOR,
+      triggerType: 'scheduled',
+      additionalParams: null,
+    } as unknown as DataMartRunItem;
+
+    expect(getRunSummaryParts(run, 'Facebook Ads')[1]).toBe('Facebook Ads');
+  });
+
   it('labels HTTP_DATA runs as "HTTP Data" with no report title', () => {
     const run = {
       type: DataMartRunType.HTTP_DATA,

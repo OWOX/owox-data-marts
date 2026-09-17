@@ -158,6 +158,25 @@ export const getDisplayType = (logEntry: LogEntry): string => {
   return logEntry.level;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** "Backfill 2/4 (2026-07-02 – 2026-08-01)" for one chunk of a split manual backfill, else null. */
+export const getBackfillChainLabel = (run: DataMartRunItem): string | null => {
+  const payload = run.additionalParams?.payload;
+  if (!isRecord(payload) || !isRecord(payload.backfillChain) || !isRecord(payload.data)) {
+    return null;
+  }
+  const { chunkIndex, totalChunks } = payload.backfillChain;
+  const { StartDate, EndDate } = payload.data;
+  if (typeof chunkIndex !== 'number' || typeof totalChunks !== 'number') return null;
+  const period =
+    typeof StartDate === 'string' && typeof EndDate === 'string'
+      ? ` (${StartDate} – ${EndDate})`
+      : '';
+  return `Backfill ${chunkIndex + 1}/${totalChunks}${period}`;
+};
+
 export const getRunSummaryParts = (
   run: DataMartRunItem,
   connectorDisplayName: string | null | undefined
@@ -166,7 +185,7 @@ export const getRunSummaryParts = (
   let runType = '';
   switch (run.type) {
     case DataMartRunType.CONNECTOR:
-      title = connectorDisplayName ?? '';
+      title = [connectorDisplayName, getBackfillChainLabel(run)].filter(Boolean).join(' • ');
       runType = 'connector';
       break;
     case DataMartRunType.LOOKER_STUDIO:
