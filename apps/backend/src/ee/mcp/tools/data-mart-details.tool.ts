@@ -55,7 +55,7 @@ const makeAllowedAggregationsField = () =>
     .array(z.string())
     .optional()
     .describe(
-      'The aggregation functions query_data_mart may apply to THIS field (type defaults narrowed by per-field settings). Use only these; an empty array means the field cannot be aggregated.'
+      'The aggregation functions query_data_mart may apply to THIS field (type defaults narrowed by per-field settings). Use only these. An empty array means this field takes no aggregation — because it is an array, because its settings allow none, or because it is a Calculated Field that already aggregates; read "calculated" and "usage" to tell which.'
     );
 
 // A Calculated Field is published like any other field, but what the agent may DO with it is

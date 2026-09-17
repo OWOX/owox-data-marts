@@ -21,6 +21,9 @@ describe('MCP instructions', () => {
   it('states where a joined Unique Count field may and may not be used', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Unique Count field');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'select that field by name instead of rebuilding it from the columns it is computed from'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
       'It can be selected in query_data_mart\'s "fields" and ordered by in its "sort" (using the same exact name), but never placed in filters, slices, aggregations, or date_buckets'
     );
     // The report tools have no Unique Count parameter, and their `fields` reaches the projection

@@ -60,8 +60,8 @@ describe('QueryDataMartTool', () => {
   // The gap this closes is in query BUILDING, not in reading the response: the description already
   // says never to recompute a value the response contains, and says nothing about preferring a
   // metric the schema already defines. So the agent pulls the inputs, aggregates them, and divides
-  // — arithmetic it performs over the rows that survived the limit, with no truncation marker on
-  // the number it prints. Prod, 03.09–17.09: a ready metric was named in 32 of 292 calls.
+  // — arithmetic it performs over the rows that survived the limit, and the number it prints
+  // carries no truncation marker of its own.
   it('tells the agent to select a ready metric instead of rebuilding it from its inputs', () => {
     expect(tool.description).toContain(
       'Prefer a metric the data mart already defines: when get_data_mart_details_by_id shows a ' +
@@ -70,7 +70,13 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain(
       'Do not rebuild it by aggregating its inputs and dividing them yourself'
     );
-    expect(tool.description).toContain('an empty allowedAggregations means "already computed"');
+    expect(tool.description).toContain(
+      'on such a field an empty allowedAggregations means "already computed", never "unusable"'
+    );
+    // Scoped, not a general definition of []: this server also publishes an empty set for array
+    // fields and for any field whose settings leave no MCP-callable aggregation, and on those
+    // "already computed" is false.
+    expect(tool.description).not.toContain('; an empty allowedAggregations means');
   });
 
   // A model copies the documented example verbatim into `fields`, so the description must show the

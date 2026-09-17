@@ -326,8 +326,8 @@ describe('GetDataMartDetailsTool', () => {
   });
 
   // On its own that empty set reads as a refusal, so agents recomputed the metric from its inputs
-  // instead (32 of 292 prod calls named one). The affordance has to be in the payload: the level's
-  // prose is in outputSchema, which clients weight far below the data they are handed.
+  // instead. The affordance has to be in the payload: the level's prose is in outputSchema, which
+  // clients weight far below the data they are handed.
   it('tells the agent, in the payload, that an aggregate-level field is already computed', async () => {
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue({
@@ -337,6 +337,9 @@ describe('GetDataMartDetailsTool', () => {
         fields: [
           { name: 'revenue', type: 'FLOAT' },
           { name: 'roas', type: 'FLOAT', calculated: { level: 'metric' } },
+          // No level at all — the case `isAggregateLevel` is spelled `!== 'column'` for. Without
+          // it here, narrowing the emit to `level === 'metric'` passes every other spec.
+          { name: 'legacy_ratio', type: 'FLOAT', calculated: {} },
           { name: 'ctr', type: 'FLOAT', calculated: { level: 'column' } },
         ],
         joinedFields: [],
@@ -355,11 +358,15 @@ describe('GetDataMartDetailsTool', () => {
         'the value. Do not recompute it from other fields, and do not name it in "aggregations".',
     });
 
+    // A field carrying no level is an aggregate too — nothing backfills one, and aggregating is
+    // what every such field always did.
+    expect(sc.fields[2]).toMatchObject({ name: 'legacy_ratio', usage: expect.any(String) });
+
     // The contrast is the whole point: an ordinary field and a row-level formula are both things
     // the agent is SUPPOSED to aggregate, so a note on them would be noise that dulls the one
     // place it means something.
     expect(sc.fields[0]).not.toHaveProperty('usage');
-    expect(sc.fields[2]).not.toHaveProperty('usage');
+    expect(sc.fields[3]).not.toHaveProperty('usage');
   });
 
   // This prose is the ONLY thing that tells an agent what a Calculated Field is,

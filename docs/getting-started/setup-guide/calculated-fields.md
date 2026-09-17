@@ -309,13 +309,13 @@ Nothing is converted on the way to your warehouse. A formula declaring `DATE` th
 
 ## Using the Field from an AI Assistant
 
-An assistant connected through the [MCP server](./mcp.md) sees a calculated field sitting beside the very columns it is computed from, and it has to be told which of them to ask for. Left to itself it pulls `revenue` and `adCost`, adds them up and divides them in its own reply — arithmetic the assistant performed, over only the rows the row limit let through, and the number it prints carries no sign of either fact.
+An assistant connected through the [MCP server](./mcp.md) sees a calculated field sitting beside the very columns it is computed from, and it has to be told which of them to ask for. Left to itself it pulls `revenue` and `cost`, adds them up and divides them in its own reply — arithmetic the assistant performed, over only the rows the row limit let through, and nothing on the number itself shows either.
 
-So a **metric** is published with a `usage` note saying the value is already computed at whatever grain the question asks for, and the assistant is told to select it by name rather than rebuild it. Its `allowedAggregations` is empty for the reason it is empty everywhere else — the formula already aggregates — and that empty list means _already computed_, never _unavailable_.
+So a **metric** is published with a `usage` note saying the value is already computed at whatever grain the question asks for, and the assistant is told to select it by name rather than rebuild it. Its `allowedAggregations` is empty because the formula already aggregates, and on such a field that empty list means _already computed_, never _unavailable_.
 
 A **dimension** carries no such note, because aggregating one is exactly what a query is allowed to do.
 
-Nothing about the Data Mart changes here. A field defined as `SUM(revenue) / NULLIF(SUM(adCost), 0)` has always been recomputed correctly for each group the question asks for; what changed is that the assistant now asks for it.
+Nothing about the Data Mart changes here. A `roas` written as [above](#referencing-another-calculated-field) has always been recomputed correctly for each group the question asks for; what changed is that the assistant now asks for it.
 
 ## Limitations and Considerations
 
