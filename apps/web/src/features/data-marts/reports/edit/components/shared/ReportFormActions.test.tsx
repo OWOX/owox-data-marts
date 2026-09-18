@@ -42,6 +42,23 @@ describe('ReportFormActions', () => {
     expect(screen.getByRole('button', { name: 'Save changes to report' })).toBeEnabled();
   });
 
+  // The automatic aggregation is filled in as a repair, which moves the baseline instead of
+  // dirtying the form. Without this the analyst sees the rule ticked and Save greyed out, and it
+  // never reaches the server — which is how the add-in and the web app came to persist differently.
+  it('enables the primary button in EDIT mode for a repair the report has not stored', () => {
+    renderActions({ mode: ReportFormMode.EDIT, hasPendingRepair: true });
+
+    expect(screen.getByRole('button', { name: 'Save changes to report' })).toBeEnabled();
+  });
+
+  it('offers Save & Run for a pending repair, not a bare Run', async () => {
+    renderActions({ mode: ReportFormMode.EDIT, hasPendingRepair: true });
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }));
+
+    expect(await within(document.body).findByText('Save & Run report')).toBeInTheDocument();
+  });
+
   it('prevents double-submit via dropdown before isSubmitting prop updates', async () => {
     const onSubmit = vi.fn();
     renderActions({ mode: ReportFormMode.CREATE, onSubmit });

@@ -19,18 +19,27 @@ export type AutoCollapsePlan =
   | { kind: 'aggregate'; aggregations: { column: string; function: ReportAggregateFunction }[] };
 
 /**
- * Web mirror of the backend `auto-collapse.resolver.ts`. The picker draws its ghost preview from
- * this instead of a round trip, so the two must agree case for case — including the ORDER of the
- * checks below, not only their outcomes.
+ * Web mirror of the backend `auto-collapse.resolver.ts`. The picker no longer merely previews from
+ * this — what it returns is WRITTEN into the report's `aggregationConfig` and saved with it — so
+ * the two must agree case for case, including the ORDER of the checks below.
+ *
+ * Which makes the two directions of divergence unequal, and only one of them tolerable:
+ *
+ * - NARROWER than the server (the lift case below) writes nothing, and the server still collapses
+ *   at run time. The report is delivered correctly; the editor merely said less than it could.
+ * - WIDER than the server writes a rule the server would never have chosen, into a report that
+ *   then stores it. That is the direction to keep this file out of: the checks here are not
+ *   structurally the same as the backend's — it resolves governance against the full schema and
+ *   walks `collectSchemaFieldPathDescriptors`, while this walks `flattenNativeFields` — so a new
+ *   case has to be added on the narrow side or on both, never here alone.
  *
  * Pure and total, and aborts as a whole: a half-collapsed report would let the surviving
  * duplicates multiply whatever was aggregated.
  *
- * One deliberate divergence: the backend can lift a row-level calculated metric to group level
- * behind a distributivity guard, and that guard is server-only. Such a field reads here as
- * `calculated-not-liftable` even when the server would lift it — the safe direction, since a
- * missing ghost surprises nobody while a ghost that never materialises does. Do not close this gap
- * by porting the expression analysis to the client.
+ * The one divergence known today is narrow: the backend can lift a row-level calculated metric to
+ * group level behind a distributivity guard, and that guard is server-only. Such a field reads
+ * here as `calculated-not-liftable` even when the server would lift it. Do not close this gap by
+ * porting the expression analysis to the client.
  *
  * An aggregate-level calculated field aborts on both sides, of either role, before governance is
  * resolved; a row-level one of dimension role is an ordinary grouping key on both sides.

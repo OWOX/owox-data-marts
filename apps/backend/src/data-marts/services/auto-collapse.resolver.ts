@@ -307,6 +307,39 @@ export function applyAutoCollapse<T extends ReportLike>(
 }
 
 /**
+ * What a collapse contributes to the run record, keyed as Run History reads it.
+ *
+ * Shared by the two paths that deliver a stored report — the server-side run and the Excel
+ * add-in's own fetch — because the history entry has to say the same thing either way, and the
+ * fields it says it with are easy to fill in from only one of them.
+ */
+export interface AutoAppliedOutputConfig {
+  autoAppliedAggregations?: AggregationRule[];
+  autoAppliedLiftedColumns?: string[];
+  autoAppliedDistinct?: boolean;
+}
+
+export function autoAppliedOutputConfig(
+  plan: AutoCollapsePlan
+): AutoAppliedOutputConfig | undefined {
+  if (plan.kind === 'aggregate') {
+    return {
+      autoAppliedAggregations: plan.aggregations,
+      // A lift-only collapse leaves `aggregations` empty while the rows did group, and a lift has
+      // no single function to report — hence its own field.
+      ...(plan.liftedFormulas?.length
+        ? { autoAppliedLiftedColumns: plan.liftedFormulas.map(entry => entry.column) }
+        : {}),
+    };
+  }
+  // A DISTINCT collapse renames nothing and aggregates nothing, but it does change how many rows
+  // were delivered — so it is recorded too, rather than leaving Run History to imply the raw
+  // projection was returned.
+  if (plan.kind === 'distinct') return { autoAppliedDistinct: true };
+  return undefined;
+}
+
+/**
  * A spread would drop the prototype, and `Report` exposes `ownerIds` as an accessor and
  * `isEmailBasedDestination` as a method — both silently `undefined` on a plain object, which no
  * compiler catches because the spread's type is still `T`. Same reason `withLiftedFormulas` keeps

@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-**Reports no longer deliver duplicate rows when no aggregation was chosen**
+# Reports no longer deliver duplicate rows when no aggregation was chosen
 
 A report with an explicit column selection and no aggregation, date bucket, or Unique Count set anywhere used to deliver every underlying row — most visibly from a join that fans one source row out across many. OWOX now collapses it on delivery.
 
@@ -10,7 +10,7 @@ A report with an explicit column selection and no aggregation, date bucket, or U
 
 Watch a report that sets no aggregation get one applied, and the query it will actually run.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5c61c408f7efbc9f2e5f54945193d161/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/0cb8b88b38e4a328dbc002eb87d51384/iframe>
 
 What a report gets depends on what it selected:
 
@@ -19,8 +19,8 @@ What a report gets depends on what it selected:
 - A row-level calculated formula — **recomputed at group level** when OWOX can prove that returns the same value, so `{{revenue}} / {{cost}}` becomes the ratio of the totals rather than an average of per-row ratios. One it cannot prove stays a grouping key rather than being guessed at.
 - A column from a joined Data Mart — left alone entirely, because grouping by a joined metric would move its total.
 
-The report editor marks each column OWOX will aggregate and names the function before the report is ever run, and the Aggregations panel says which column and which function; run history records what was applied.
+The report editor fills the choice in for you rather than only predicting it: open a report that sets no aggregation and the function is already ticked on the column, counted on the **Aggregations** button, and listed in the panel — exactly as one you picked yourself, and changed or removed the same way. While the choice is fresh, a note names the columns OWOX chose for; once the report is saved the rule is simply yours, like any other. Pressing **Save** is enough to store it, and removing it leaves a note saying what delivery will still do — an unaggregated report on these destinations is collapsed either way. Run history records what was applied.
 
-![The Aggregations panel of a report that sets none, reading "Applied automatically because this report sets none: cost — Sum. Add one below to decide for yourself." above an Add aggregation button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8194918-f11a-4474-ca25-578563742300/public)
+![The Aggregations panel of a report that set none, reading "Applied automatically because this report set none: cost — Sum. Change or remove it below." above a cost rule aggregated by Sum, with the Aggregations button counting it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2d3c870c-b0c9-40ee-0366-e48b2c83cc00/public)
 
-Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included. **Microsoft Excel** and **Looker Studio** reports are unchanged too, because the add-in and the connector read the report over those same paths. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
+Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included — including pulling somebody's Google Sheets report over HTTP Data, where the caller is a third party rather than the report's reader. The two pull destinations part ways: a **Microsoft Excel** report collapses like every other report, because the add-in fetches the very rows it writes into the workbook, while a **Looker Studio** report stays uncollapsed, because its connector reads the report the way any other ad-hoc caller does. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.

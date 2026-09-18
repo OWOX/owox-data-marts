@@ -159,19 +159,33 @@ describe('GetReportGeneratedSqlService', () => {
       expect(composedReport(reportSqlComposerService).distinct).toBe(true);
     });
 
-    it.each([DataDestinationType.LOOKER_STUDIO, DataDestinationType.EXCEL])(
-      'leaves the projection uncollapsed for %s, which has no server-side run to collapse',
-      async destinationType => {
-        const { service, reportRepository, reportSqlComposerService } = createService();
-        reportRepository.findOne = jest.fn().mockResolvedValue(collapsibleReport(destinationType));
+    it('leaves the projection uncollapsed for LOOKER_STUDIO, whose connector reads raw rows', async () => {
+      const { service, reportRepository, reportSqlComposerService } = createService();
+      reportRepository.findOne = jest
+        .fn()
+        .mockResolvedValue(collapsibleReport(DataDestinationType.LOOKER_STUDIO));
 
-        await service.run(
-          new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor'])
-        );
+      await service.run(
+        new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor'])
+      );
 
-        expect(composedReport(reportSqlComposerService).distinct).toBeUndefined();
-      }
-    );
+      expect(composedReport(reportSqlComposerService).distinct).toBeUndefined();
+    });
+
+    it('collapses for EXCEL, where the add-in fetch IS the delivery', async () => {
+      // Pulling is not the question — being delivered to is. An Excel report has to return what
+      // the same report returns in Google Sheets, or one report answers two ways.
+      const { service, reportRepository, reportSqlComposerService } = createService();
+      reportRepository.findOne = jest
+        .fn()
+        .mockResolvedValue(collapsibleReport(DataDestinationType.EXCEL));
+
+      await service.run(
+        new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor'])
+      );
+
+      expect(composedReport(reportSqlComposerService).distinct).toBe(true);
+    });
   });
 
   it('allows TABLE_PATTERN on GOOGLE_BIGQUERY', async () => {

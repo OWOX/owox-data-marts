@@ -7,6 +7,7 @@ import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import { type DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { useReportForm } from '../../hooks/useReportForm.ts';
+import { usePendingAutoAggregation } from '../../hooks/usePendingAutoAggregation.ts';
 import {
   Form,
   AppForm,
@@ -27,6 +28,7 @@ import {
 } from '@owox/ui/components/select';
 import {
   type DataDestination,
+  collapsesOnDelivery,
   DataDestinationType,
   DataDestinationTypeModel,
   isPullBasedDestinationType,
@@ -158,6 +160,9 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
       consumePendingOwnerIds,
     } = useOwnerState(initialOwnerUsers);
 
+    const { pendingAutoAggregation, noteOutputConfigChange, clearPendingAutoAggregation } =
+      usePendingAutoAggregation();
+
     const {
       isDirty,
       reset,
@@ -179,6 +184,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
           console.error('Failed to persist schedule for report', e);
         }
         consumePendingOwnerIds();
+        clearPendingAutoAggregation();
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -415,7 +421,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                             dataMartId={dataMart.id}
                             dataMartTitle={dataMart.title}
                             storageType={dataMart.storage.type}
-                            collapsesOnDelivery={!isPullDestination}
+                            collapsesOnDelivery={collapsesOnDelivery(destinationType)}
                             value={form.watch('columnConfig')}
                             onChange={(value, options) => {
                               applyColumnConfigChange(form, value, options);
@@ -430,6 +436,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                             }}
                             onOutputConfigChange={(config, options) => {
                               applyOutputConfigChange(form, config, options);
+                              noteOutputConfigChange(options);
                             }}
                             onCountChange={setColumnsCount}
                           />
@@ -497,6 +504,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
             isDirty={isDirty}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
+            hasPendingRepair={pendingAutoAggregation}
             runAfterSaveRef={runAfterSaveRef}
             canRunAfterSave={!isPullDestination}
             onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}

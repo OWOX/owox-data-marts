@@ -37,6 +37,31 @@ export function pullBasedRunHint(type: DataDestinationType): string | null {
 }
 
 /**
+ * Whether OWOX collapses this destination's delivered rows when the analyst set no aggregation.
+ *
+ * Mirrors the backend predicate of the same name, and is NOT the inverse of pull-based: an Excel
+ * report collapses exactly like a Google Sheets one, because the add-in is its reader rather than
+ * a third party. Looker Studio is the one exception — its connector reads a report the way any
+ * ad-hoc caller does, so those rows stay raw.
+ */
+export function collapsesOnDelivery(type: DataDestinationType): boolean {
+  // A switch rather than `!== LOOKER_STUDIO`, matching the backend: opting a new destination in
+  // silently is the costly direction, so every type added later has to answer here.
+  switch (type) {
+    case DataDestinationType.LOOKER_STUDIO:
+      return false;
+    case DataDestinationType.GOOGLE_SHEETS:
+    case DataDestinationType.EXCEL:
+    case DataDestinationType.ODATA:
+    case DataDestinationType.EMAIL:
+    case DataDestinationType.SLACK:
+    case DataDestinationType.MS_TEAMS:
+    case DataDestinationType.GOOGLE_CHAT:
+      return true;
+  }
+}
+
+/**
  * Whether a report on this destination names the document it writes into.
  *
  * One answer to what used to be asked three ways — whether the form shows a document field,
