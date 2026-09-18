@@ -1,6 +1,7 @@
+import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { useForm } from 'react-hook-form';
+import { useForm, type Validate } from 'react-hook-form';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
@@ -24,11 +25,57 @@ import type { ConnectorRunFormData } from '../../../shared/model/types/connector
 import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
+import {
+  MAX_MANUAL_BACKFILL_DAYS,
+  countBackfillDays,
+  toUtcDayMs,
+} from '../../../shared/constants/manual-backfill';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
   onClose?: () => void;
   onSubmit?: (data: ConnectorRunFormData) => void;
+}
+
+function getBackfillSummary(days: number): string {
+  if (days === 0) {
+    return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
+  }
+  if (days > MAX_MANUAL_BACKFILL_DAYS) {
+    return `This period covers ${days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
+  }
+  return `This backfill covers ${days} ${days === 1 ? 'day' : 'days'}.`;
+}
+
+function getBackfillDateValidation(
+  fieldName: string,
+  today: string
+):
+  | Record<string, Validate<ConnectorRunFormData['data'][string], ConnectorRunFormData>>
+  | undefined {
+  if (fieldName === 'StartDate') {
+    return {
+      notInFuture: value =>
+        toUtcDayMs(value) === undefined ||
+        (value as string) <= today ||
+        'Start date cannot be in the future',
+    };
+  }
+  if (fieldName === 'EndDate') {
+    return {
+      period: (value, formValues) => {
+        const startDate = formValues.data.StartDate;
+        if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
+        const days = countBackfillDays(startDate, value);
+        if (days === 0) return 'End date must be on or after the start date';
+        return (
+          days <= MAX_MANUAL_BACKFILL_DAYS ||
+          `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`
+        );
+      },
+    };
+  }
+  return undefined;
 }
 
 export function ConnectorRunForm({ configuration, onClose, onSubmit }: ConnectorRunFormProps) {
@@ -44,6 +91,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     useConnector();
 
   const { dataMart } = useDataMartContext();
+
+  const runType = form.watch('runType');
+  const startDate = form.watch('data.StartDate');
+  const endDate = form.watch('data.EndDate');
+  const today = new Date().toISOString().slice(0, 10);
+  // The backend defaults a missing EndDate to today, so the preview does the same.
+  const effectiveEndDate = endDate === undefined || endDate === '' ? today : endDate;
+  const backfillDays = countBackfillDays(startDate, effectiveEndDate);
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -120,7 +175,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         orientation='horizontal'
                       />
                       <FormDescription>
-                        {form.watch('runType') === RunType.MANUAL_BACKFILL
+                        {runType === RunType.MANUAL_BACKFILL
                           ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
                           : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                       </FormDescription>
@@ -130,14 +185,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
               )}
             />
 
-            {form.watch('runType') === RunType.INCREMENTAL && (
+            {runType === RunType.INCREMENTAL && (
               <ConnectorStateSection
                 configuration={configuration}
                 connectorState={dataMart?.connectorState ?? null}
               />
             )}
           </FormSection>
-          {form.watch('runType') === RunType.MANUAL_BACKFILL && (
+          {runType === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>
               {connectorSpecification
                 .filter(field =>
@@ -155,9 +210,11 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         </FormLabel>
                         <FormControl>
                           <Input
-                            id={connectorField.name}
                             placeholder={connectorField.description}
                             type={getInputType(connectorField.requiredType)}
+                            max={
+                              connectorField.requiredType === RequiredType.DATE ? today : undefined
+                            }
                             defaultValue={
                               typeof connectorField.default === 'string' ||
                               typeof connectorField.default === 'number'
@@ -166,6 +223,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                             }
                             {...form.register(`data.${connectorField.name}`, {
                               required: true,
+                              validate: getBackfillDateValidation(connectorField.name, today),
                             })}
                           />
                         </FormControl>
@@ -174,6 +232,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     )}
                   />
                 ))}
+              <Alert data-testid='backfill-limit-notice'>
+                <AlertDescription>{getBackfillSummary(backfillDays)}</AlertDescription>
+              </Alert>
             </FormSection>
           )}
         </FormLayout>

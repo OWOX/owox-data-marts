@@ -132,6 +132,14 @@ Next, you can add **business-friendly names** to improve usability later in BI t
 
 Also you can check the **Run History** tab for logs and results
 
+### Backfill a custom period
+
+Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date range from the source.
+
+One backfill run covers at most 31 days, so a full calendar month fits in one run.
+The form shows how many days your period covers and rejects longer periods before the run starts.
+To reload a longer history, run several backfills with consecutive periods, one after another.
+
 ## Step 6: Set Triggers (Optional but Recommended)
 
 You can automate the connector by setting a trigger to run it on a schedule.

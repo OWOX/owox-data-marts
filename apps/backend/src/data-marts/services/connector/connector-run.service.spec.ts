@@ -14,6 +14,7 @@ import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.en
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { RunType } from '../../../common/scheduler/shared/types';
+import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 
 describe('ConnectorRunService', () => {
   const createService = () => {
@@ -33,10 +34,15 @@ describe('ConnectorRunService', () => {
       executeInBackground: jest.fn().mockResolvedValue(undefined),
     } as unknown as ConnectorExecutorService;
 
+    const systemTimeService = {
+      now: jest.fn().mockReturnValue(new Date('2026-09-17T12:00:00.000Z')),
+    } as unknown as SystemTimeService;
+
     const service = new ConnectorRunService(
       dataMartRunRepository,
       connectorRunTriggerService,
-      connectorExecutorService
+      connectorExecutorService,
+      systemTimeService
     );
 
     return {
@@ -89,6 +95,53 @@ describe('ConnectorRunService', () => {
       await expect(service.run(dm, 'user-1', RunType.manual)).rejects.toThrow(
         'DataMart is not published'
       );
+    });
+
+    it('normalizes a manual backfill payload before creating the run and trigger', async () => {
+      const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-09-01' },
+      });
+
+      const expectedPayload = {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-09-01', EndDate: '2026-09-17' },
+      };
+      expect(dataMartRunRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ additionalParams: { payload: expectedPayload } })
+      );
+      expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expectedPayload })
+      );
+    });
+
+    it('rejects a backfill longer than the per-run limit before creating a run', async () => {
+      const { service, dataMartRunRepository } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: '2026-06-01', EndDate: '2026-09-15' },
+        })
+      ).rejects.toThrow('Manual backfill is limited to 31 days per run');
+      expect(dataMartRunRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid backfill range before creating a run', async () => {
+      const { service, dataMartRunRepository } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: '2026-09-18' },
+        })
+      ).rejects.toThrow('StartDate cannot be in the future');
+      expect(dataMartRunRepository.save).not.toHaveBeenCalled();
     });
 
     it('throws when connector is already running', async () => {

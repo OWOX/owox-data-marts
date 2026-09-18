@@ -13,6 +13,8 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { RunType } from '../../../common/scheduler/shared/types';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
+import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
+import { prepareManualBackfillPayload } from '../../utils/manual-backfill-range';
 
 @Injectable()
 export class ConnectorRunService {
@@ -22,7 +24,8 @@ export class ConnectorRunService {
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
-    private readonly connectorExecutorService: ConnectorExecutorService
+    private readonly connectorExecutorService: ConnectorExecutorService,
+    private readonly systemTimeService: SystemTimeService
   ) {}
 
   @Transactional()
@@ -40,7 +43,15 @@ export class ConnectorRunService {
       );
     }
 
-    const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
+    // Validates the backfill period (format, order, per-run day limit) before any row is
+    // written, so the caller gets a clear error instead of a failed run.
+    const preparedPayload = prepareManualBackfillPayload(payload, this.systemTimeService.now());
+    const dataMartRun = await this.createDataMartRun(
+      dataMart,
+      createdById,
+      runType,
+      preparedPayload
+    );
 
     await this.connectorRunTriggerService.createTrigger({
       dataMartId: dataMart.id,
@@ -48,7 +59,7 @@ export class ConnectorRunService {
       createdById,
       dataMartRunId: dataMartRun.id,
       runType,
-      payload,
+      payload: preparedPayload,
     });
 
     return dataMartRun.id;
