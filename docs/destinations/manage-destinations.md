@@ -2,7 +2,7 @@
 
 **Destination** is an interface or application used by business users to access the data.
 
-Supported destinations include **Google Sheets**, **Data Studio**, **Microsoft Excel**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Tableau and Power BI.
+Supported destinations include **Google Sheets**, **Microsoft Excel**, **Data Studio**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Tableau and Power BI.
 
 ## List of Destinations
 
@@ -24,6 +24,7 @@ To configure a new **Destination**:
 1. On the **Destinations** page, click **+ New Destination**.
 2. Choose a storage type option on the **Destination Type** dropdown list:
     - [Google Sheets](supported-destinations/google-sheets.md)
+    - [Microsoft Excel](supported-destinations/microsoft-excel.md)
     - [Data Studio](supported-destinations/data-studio.md)
     - [Email](supported-destinations/email.md)
     - [Slack](supported-destinations/slack.md)
@@ -33,8 +34,6 @@ To configure a new **Destination**:
 
 3. Complete the configuration fields specific to the selected **Destination Type**. Refer to the corresponding service configuration page for detailed instructions.
 4. Click **Save** to apply the **Destination** configuration or **Cancel** to discard changes.
-
-> ☝️ **[Microsoft Excel](supported-destinations/microsoft-excel.md)** is not created from **+ New Destination**. Install the add-in in Excel — the destination appears the first time you build a report from a workbook.
 
 ---
 

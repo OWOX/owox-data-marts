@@ -70,7 +70,7 @@ describe('AddDestinationTool', () => {
     // The Excel destination is resolved by the add-in on first use, so this tool has no
     // creation flow for it. Refusing it here — instead of letting it fall through to the
     // "no creation flow is implemented" backstop — keeps the option out of what an agent
-    // is shown in the first place, the way the web app leaves it out of its type list.
+    // is shown in the first place.
     expect(tool.zodSchema.destination_type.options).not.toContain('excel');
     expect(() => tool.parseInput({ destination_type: 'excel' })).toThrow();
   });

@@ -62,7 +62,9 @@ export function DataDestinationConfigSheet({
 
     if (!dataDestination) {
       const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
-      if (source) {
+      // Copying replaces the whole request, so only take that path where the picker lives;
+      // for any other type a stale source would drop the typed fields and be rejected.
+      if (source && formFields.type === DataDestinationType.GOOGLE_SHEETS) {
         const createData = {
           title: formFields.title,
           type: formFields.type,
