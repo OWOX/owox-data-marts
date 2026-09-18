@@ -1,5 +1,104 @@
 # owox
 
+## 0.35.0
+
+### Minor Changes 0.35.0
+
+- 0d63382: # Handle array fields safely in reports
+
+  Reports can display repeated fields and fields whose existing schema type is `ARRAY` as columns. Filters, slices, sorting, aggregations, and date buckets are unavailable for these fields, including count, any-value, and blank checks. Reports with stored array controls must have those controls removed or be recreated before saving or running.
+
+  Joined arrays are returned as JSON arrays that preserve each source row's array; each ancestor join adds another array level. Existing deduplication overrides on joined array fields are ignored in favor of this JSON-array rollup. Ordinary nested scalar fields and opaque JSON, VARIANT, and SUPER fields keep their existing report controls.
+
+  Whole records selected as columns are exported to Google Sheets as JSON text. Selecting their nested scalar fields continues to work as before.
+
+- 8c5f21b: # Destinations tab now promotes connecting an AI assistant alongside your existing destinations
+
+  A published Data Mart's Destinations tab now shows a card inviting you to connect
+  **Claude** or **ChatGPT** even when you already have other destinations
+  configured — previously this offer only appeared before any destination
+  existed.
+
+  The card sits in the destinations list like any other destination, offers the
+  same Claude/ChatGPT choices used elsewhere in the product, and a link to the
+  [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/).
+  It can be collapsed, like any other destination card, if you're not interested.
+
+- 3f00542: # Select conversions and conversion values by default in Facebook Marketing insights
+  - The `conversions` and `conversion_values` fields are now selected by default for the Facebook Marketing insights endpoints, including the breakdowns by age and gender, country, device platform, product ID, publisher platform and position, and region, plus the ad set and campaign endpoints. New Data Marts built on these endpoints include conversion data without manual field selection.
+  - **Ad Account Insights by Link URL Asset** keeps its previous defaults. Meta supports only `impressions`, `clicks`, `spend`, `reach`, `actions`, and `action_values` with Dynamic Creative asset breakdowns, so the conversion fields stay available but unselected there.
+  - Both fields now carry real descriptions instead of placeholders, so the field picker, the Output Schema, and MCP clients can tell `conversions` apart from `actions`.
+  - The connector documentation now lists how Meta limits conversion metrics on the link URL asset, product ID, and region breakdowns, and the troubleshooting guide names these fields as the first ones to clear when Meta asks you to reduce the amount of data.
+
+- ba59eee: **Reports no longer deliver duplicate rows when no aggregation was chosen**
+
+  A report with an explicit column selection and no aggregation, date bucket, or Unique Count set anywhere used to deliver every underlying row — most visibly from a join that fans one source row out across many. OWOX now collapses it on delivery.
+
+  **Two things to check before upgrading.** An automatically aggregated column is relabelled exactly as a manually chosen one always has been — `sessions` becomes `sessions | SUM` — so a Google Sheets formula or Looker Studio binding that reads the plain `sessions` header stops resolving. And a Data Mart defined by SQL now counts as having output controls, which materialises its definition as a view (`CREATE OR REPLACE VIEW`) on every run and on every Generated SQL preview: a **read-only storage credential that worked before will now fail**.
+
+  Watch a report that sets no aggregation get one applied, and the query it will actually run.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5c61c408f7efbc9f2e5f54945193d161/iframe>
+
+  What a report gets depends on what it selected:
+  - Dimensions only — returned **distinct**. Nothing is renamed and no value can change.
+  - A metric among them — the **first aggregation that Data Mart's governance allows**, in priority order: `SUM` → `AVG` → `MIN` → `MAX` for numbers, `MIN` → `MAX` for dates and times. A boolean metric is left alone, and so is a text metric under its default governance; explicitly allowing `MIN` or `MAX` on a text field opts it back in.
+  - A row-level calculated formula — **recomputed at group level** when OWOX can prove that returns the same value, so `{{revenue}} / {{cost}}` becomes the ratio of the totals rather than an average of per-row ratios. One it cannot prove stays a grouping key rather than being guessed at.
+  - A column from a joined Data Mart — left alone entirely, because grouping by a joined metric would move its total.
+
+  The report editor marks each column OWOX will aggregate and names the function before the report is ever run, and the Aggregations panel says which column and which function; run history records what was applied.
+
+  ![The Aggregations panel of a report that sets none, reading "Applied automatically because this report sets none: cost — Sum. Add one below to decide for yourself." above an Add aggregation button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8194918-f11a-4474-ca25-578563742300/public)
+
+  Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included. **Microsoft Excel** and **Looker Studio** reports are unchanged too, because the add-in and the connector read the report over those same paths. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
+
+- ccff2c9: # Google Sheets source: pick the sheet tab from a list and a leaner setup form
+
+  The Google Sheets source setup now lists the tabs of the selected spreadsheet so the Sheet Name can be picked instead of typed, for both Google OAuth and Service Account authentication. With Google OAuth the spreadsheet is chosen with Google Picker only, so the manual "Spreadsheet ID or URL" input no longer appears in that mode. Header Row and Range moved to Advanced Settings because most sheets keep their headers in the first row and import the whole tab.
+
+- bad3158: # Google Sheets: the first sheet of an auto-created document is named after the report
+
+  When a Google Sheet is created for a report — by `add_report` through the assistant without a `spreadsheet_id`, or with the "Create document" button in the report form — its single sheet (tab) is now named after the document title, like the Drive file already was: the report name for `add_report`, and for the "Create document" button the report title or, while the report has no name yet, the data mart title. Previously that sheet kept Google's default "Sheet1", so a document holding several related exports read "Sheet1 / <second report>": the first report's tab was the only one not carrying its name. Sheets added to an existing spreadsheet and sheets restored by "Reconnect" were already named after their report; documents created before this change are not renamed. Because sheet names are unique within a spreadsheet, every report added to the same document needs a distinct name, including the first report's.
+
+- ca8ac65: # AI assistants now use the metrics your Data Mart already defines
+
+  An assistant connected through the MCP server now selects a Calculated Field whose formula aggregates — a ROAS written as `SUM(revenue) / NULLIF(SUM(adCost), 0)`, a CTR, a conversion rate — instead of pulling the columns behind it and doing the division in its reply.
+
+  That matters for two reasons. OWOX computes the field in your warehouse over every row matching the question, so the answer stays correct even when the row limit truncates what the assistant sees; arithmetic performed on truncated rows looked like a normal number, and nothing on the number itself showed it was incomplete. And the definition stays the one you wrote — any weighting, exclusion or `NULLIF` guard inside the formula is applied, rather than quietly lost in a plain division.
+
+  `get_data_mart_details_by_id` now marks such a field with a `usage` note, and states that an empty `allowedAggregations` on it means the value is already computed rather than unavailable.
+
+  Nothing in your Data Marts changes, and no field needs to be redefined.
+
+- 6b58dc1: # Current vendor API versions for the Criteo, LinkedIn, and Facebook connectors
+
+  The Criteo Ads, LinkedIn Ads, LinkedIn Pages, and Facebook Ads connectors now use current vendor API versions. Criteo moves to `2026-07`, LinkedIn to `202609`, and Facebook Graph to `v26.0`. The previous versions were approaching their vendor end-of-support dates, with Criteo expiring first in February 2027. Existing data marts keep working, and you do not need to change any settings.
+
+- d53402e: # Snapshot builds are now distributed as container images only
+
+  `owox@next` is no longer published to npm. To run a pre-release build, pull
+  `ghcr.io/owox/owox-data-marts:next`, or an exact `0.x.0-next-<timestamp>` tag to
+  pin one.
+
+  This applies to every package the repository releases, not just `owox`. In
+  particular `@owox/plugin-sdk`, `@owox/api-client` and `@owox/ctl` no longer get
+  snapshots either, and they are not part of the container image, so changes to
+  them now reach consumers only in a release. Existing snapshot versions stay
+  installable; no new ones appear.
+
+  Releases are unchanged: `npm install -g owox` still installs the newest release,
+  `npm install -g owox@1.8.0` still installs an exact one, and every release still
+  ships a `latest` container image alongside it.
+
+### Patch Changes 0.35.0
+
+- @owox/internal-helpers@0.35.0
+- @owox/idp-protocol@0.35.0
+- @owox/idp-better-auth@0.35.0
+- @owox/idp-owox-better-auth@0.35.0
+- @owox/backend@0.35.0
+- @owox/web@0.35.0
+
 ## 0.34.0
 
 ### Minor Changes 0.34.0
@@ -9,7 +108,6 @@
 - 75f9d94: **MCP report tools: update the report you have instead of creating another**
 
   When a report is created through the assistant and the next request changes it — "add a filter", "sort by revenue", "rename it" — the assistant now updates that report instead of creating a second one.
-
   - `add_report` refuses a report whose fields duplicate one the same user already created on the same data mart and destination, returning `error_code: similar_report_exists` with the existing report's definition, so the assistant can switch to `update_report`. Pass `allow_similar: true` to create a separate report when that is what the user wants.
   - `update_report` returns the report as it is after the update — fields, filters, slices, aggregations, date buckets, sort, limit, and for Google Sheets the spreadsheet and sheet. By default it runs a Google Sheets report again when the export changed, so the sheet reflects the new definition. Email, Slack, Microsoft Teams, and Google Chat reports are not re-sent by an update unless `run_immediately: true` is passed, since a run delivers the message to every recipient or channel; a name-only or message-only change never triggers a run.
   - `get_data_mart_reports` lists the same definition for every report — including Unique Count metrics and the report-only `STRING_AGG` / `ANY_VALUE` aggregations, which the report tools now accept so a UI-created report round-trips — plus `created_by_current_user` and `created_at`, so the assistant can recognize an existing report before creating one.
@@ -25,7 +123,6 @@
 - 4e792b6: **Connect Claude or ChatGPT to your Data Marts**
 
   Ask questions about your data in plain language and get answers drawn straight from your published Data Marts and their analyst-approved definitions, instead of numbers an assistant guessed on its own. Two equal choices are offered — **Claude** and **ChatGPT**. A link to the [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/) walks through it end to end.
-
   - **Setup Checklist** — the onboarding checklist has a new step for connecting an AI assistant. Opening the connector does not tick the step off: like running a report, this step is per person and completes on real usage — the first time you ask a question in Claude or ChatGPT and it successfully queries one of the project's Data Marts, the step flips to done for you. A query that fails does not count, and the checklist can take a few minutes, or a reopen, to catch up.
 
 - bb0ff9c: **Destinations tab now promotes Google Sheets, Excel, and MCP together**
@@ -45,7 +142,6 @@
   The Report Fields tab now keeps disconnected Output Schema fields available for alias, visibility, and aggregation configuration. Reports continue to exclude these fields while they are disconnected.
 
 - d433bec: **Keep report output controls consistent with the column selection and the Data Mart schema**
-
   - Unchecking a column in the report editor now removes the aggregation and date bucket set on it, a metric filter bound to that aggregation, and its sort rule when the sort can no longer resolve: the report aggregates, the column is a calculated field, or the column is missing from the Data Mart schema. Row filters and slices stay.
   - A report that does not aggregate can sort by any column of the Data Mart, selected or not, the same way a filter works. Once the report aggregates, sorting is limited to the selected columns: adding an aggregation, a date bucket or a Unique Count removes a sort rule on an unselected column. A calculated field is sortable only while selected.
   - An aggregation or date bucket on a column that is missing from the Data Mart schema is reported as a disconnected column, with the column named, instead of a misleading "not selected" or "unknown type" error.
@@ -79,7 +175,6 @@
   A Data Mart that has no Microsoft Excel reports yet now links to the OWOX add-in for Excel, so a business user reaches the place an Excel report is actually created in a single step instead of being told where to look. The Excel destination's description also links to the installation guide, for organizations that install the add-in manually.
 
 - c31c75f: **Data Studio: complete responses for large reports, and real query errors**
-
   - **Large reports** (c31c75f) — Data Studio reports now return as many complete rows as fit within Apps Script response limits instead of ending with malformed JSON.
   - **Query errors** (3e7b118) — when loading a Data Mart schema or its data fails, Data Studio now shows troubleshooting guidance and the underlying query error instead of suggesting that the deployment URL is incorrect.
 
