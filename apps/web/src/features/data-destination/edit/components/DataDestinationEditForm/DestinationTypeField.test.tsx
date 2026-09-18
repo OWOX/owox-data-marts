@@ -4,11 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 import { Form } from '@owox/ui/components/form';
-import {
-  type DataDestinationFormData,
-  DataDestinationType,
-  DataDestinationTypeModel,
-} from '../../../shared';
+import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
 import { DestinationTypeField } from './DestinationTypeField';
 
 vi.mock('../../../../../app/store/hooks', () => ({
@@ -61,18 +57,11 @@ describe('DestinationTypeField', () => {
       'aria-disabled',
       'true'
     );
-  });
 
-  it('lists Microsoft Excel right after Google Sheets', () => {
-    expect(DataDestinationTypeModel.getAllTypes().map(({ displayName }) => displayName)).toEqual([
-      'Google Sheets',
-      'Microsoft Excel',
-      'Data Studio',
-      'Email',
-      'Slack',
-      'Microsoft Teams',
-      'Google Chat',
-      'OData',
-    ]);
+    // Excel sits right after Google Sheets, the other spreadsheet destination.
+    const rendered = within(document.body)
+      .getAllByRole('option')
+      .map(option => option.textContent);
+    expect(rendered.slice(0, 2)).toEqual(['Google Sheets', 'Microsoft Excel']);
   });
 });

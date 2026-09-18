@@ -155,9 +155,14 @@ export function DataDestinationForm({
 
   const handleSourceClear = useCallback(() => {
     setSelectedSource(null);
-    // Restore credential field to its original value from initialData
-    form.resetField('credentials.credentialId');
-  }, [form]);
+    // Restore the credential to its initial value. Set rather than resetField: the field is
+    // registered only on the OAuth tab, and resetField is a no-op for an unregistered field,
+    // which would leave the copy placeholder behind on the service-account tab.
+    const initialCredentialId =
+      (initialData?.credentials as { credentialId?: string | null } | undefined)?.credentialId ??
+      null;
+    form.setValue('credentials.credentialId', initialCredentialId, { shouldDirty: false });
+  }, [form, initialData]);
 
   // Get the current destination type
   const destinationType = form.watch('type');

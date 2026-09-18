@@ -7,10 +7,11 @@ export default function ExcelDescription() {
       <AccordionTrigger>How do I connect to Microsoft Excel?</AccordionTrigger>
       <AccordionContent>
         <p className='mb-2'>
-          There is nothing to set up here beyond a title. You can also leave this to the OWOX add-in
-          for Excel: if you have no Excel destination you can use, it creates one the first time you
-          build a report from a workbook. The add-in always uses the oldest Excel destination you
-          can use, so a second one is not picked up by it.
+          There is nothing to set up here beyond a title. Name it after the workbook or team that
+          will use it: this is how you tell your Excel destinations apart in the add-in. You can
+          also leave this to the OWOX add-in for Excel: if you have no Excel destination you can
+          use, it creates one the first time you build a report from a workbook. If your project has
+          more than one, the add-in asks which one to use when you create a report.
         </p>
         <p className='mb-2'>
           Unlike other destinations, it stores no credentials: the add-in reads your data using your

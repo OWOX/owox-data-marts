@@ -12,3 +12,7 @@ and save, there are no credentials to fill in.
 
 The automatic path is unchanged: if your project has no Excel destination you
 can use, the add-in still creates one the first time you build a report.
+
+Also fixed: picking a "Copy credentials from" source and then switching the
+destination type no longer sends that source along with the new destination,
+which used to fail with an error for types that do not use credentials.

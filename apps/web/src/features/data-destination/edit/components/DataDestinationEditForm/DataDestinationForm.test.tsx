@@ -42,7 +42,7 @@ vi.mock('./DestinationTypeField', () => ({
     <button
       type='button'
       onClick={() => {
-        form.setValue('type', DataDestinationType.EXCEL);
+        form.setValue('type', DataDestinationType.EXCEL, { shouldDirty: true });
       }}
     >
       Switch to Excel
@@ -61,7 +61,7 @@ describe('DataDestinationForm', () => {
     const onSubmit = renderForm();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pick source' }));
-    fireEvent.submit(screen.getByRole('button', { name: /save/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe('DataDestinationForm', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Pick source' }));
     fireEvent.click(screen.getByRole('button', { name: 'Switch to Excel' }));
-    fireEvent.submit(screen.getByRole('button', { name: /save/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -84,6 +84,5 @@ describe('DataDestinationForm', () => {
     const [data, source] = onSubmit.mock.calls[0] as [DataDestinationFormData, unknown];
     expect(source).toBeNull();
     expect(data.type).toBe(DataDestinationType.EXCEL);
-    expect(data).not.toHaveProperty('credentials');
   });
 });

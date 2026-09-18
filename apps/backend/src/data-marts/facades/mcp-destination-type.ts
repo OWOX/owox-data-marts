@@ -23,9 +23,11 @@ export type McpDestinationType = (typeof MCP_DESTINATION_TYPES)[number];
  *
  * The vocabulary itself has to stay exhaustive over the enum, because every type is *named* on
  * the way out — `list_destinations` and `get_data_mart_reports` report whatever a project
- * already has, Excel included. Being creatable is a separate question: this tool has no
- * creation flow for Excel — the add-in resolves one on first use, and it holds nothing an agent
- * could fill in — so the option is withheld rather than left to fail in the handler.
+ * already has, Excel included. Being creatable is a separate question. The web app offers
+ * Excel because a person sees the project's existing Excel destinations in the list before
+ * adding one; an agent creates blind, and with nothing to fill in would readily add a second
+ * destination indistinguishable from the one the add-in already resolved. Until this tool can
+ * show that list first, the option is withheld rather than left to fail in the handler.
  *
  * What an agent is shown, not what the server enforces: the REST API and the web app both
  * accept a hand-created Excel destination, and are expected to keep accepting it.

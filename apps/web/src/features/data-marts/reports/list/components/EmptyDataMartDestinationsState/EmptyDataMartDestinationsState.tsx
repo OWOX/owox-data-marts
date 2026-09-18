@@ -145,8 +145,14 @@ export function EmptyDataMartDestinationsState({
                   href: 'https://marketplace.microsoft.com/en-us/product/WA200011946',
                 }}
                 secondaryAction={{
-                  label: 'Learn more',
-                  href: 'https://docs.owox.com/docs/destinations/supported-destinations/microsoft-excel/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state',
+                  label: 'Create destination',
+                  ...(onOpenCreateDestination
+                    ? {
+                        onClick: onOpenCreateDestination,
+                      }
+                    : {
+                        href: scope('/data-destinations'),
+                      }),
                 }}
               />
               <InviteTeammatesCard
