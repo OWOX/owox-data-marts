@@ -1,6 +1,6 @@
 import {
-  MAX_MANUAL_BACKFILL_DAYS,
   countBackfillDays,
+  getMaxManualBackfillDays,
   parseManualBackfillRange,
   prepareManualBackfillPayload,
 } from './manual-backfill-range';
@@ -8,8 +8,8 @@ import {
 const TODAY = new Date('2026-09-17T15:30:00.000Z');
 
 describe('manual-backfill-range', () => {
-  it('uses the limit owned by the connectors package', () => {
-    expect(MAX_MANUAL_BACKFILL_DAYS).toBe(31);
+  it('reads the limit from the connectors package', () => {
+    expect(getMaxManualBackfillDays()).toBe(31);
   });
 
   describe('parseManualBackfillRange', () => {
@@ -35,6 +35,8 @@ describe('manual-backfill-range', () => {
       [{ StartDate: '2026-02-30' }, 'StartDate is required'],
       [{ StartDate: '2026-09-18' }, 'StartDate cannot be in the future'],
       [{ StartDate: '2026-09-01', EndDate: 'soon' }, 'EndDate must be'],
+      [{ StartDate: '2026-09-01', EndDate: '2026-02-30' }, 'EndDate must be'],
+      [{ StartDate: 20260901 }, 'StartDate is required'],
       [{ StartDate: '2026-09-10', EndDate: '2026-09-01' }, 'EndDate cannot be earlier'],
       [
         { StartDate: '2026-07-01', EndDate: '2026-08-01' },

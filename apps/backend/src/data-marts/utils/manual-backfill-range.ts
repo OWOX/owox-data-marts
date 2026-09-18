@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 // @ts-expect-error - Package lacks TypeScript declarations
@@ -8,17 +9,46 @@ import { Core } from '@owox/connectors';
  * with a minimal Core for unrelated reasons). */
 export const MANUAL_BACKFILL_RUN_TYPE = 'MANUAL_BACKFILL';
 
-const DEFAULT_MAX_MANUAL_BACKFILL_DAYS = 31;
-
-/** Inclusive number of days one MANUAL_BACKFILL run may cover. Owned by the connectors package;
- * falls back to the documented default when a minimal/stubbed Core doesn't carry it. */
-export const MAX_MANUAL_BACKFILL_DAYS: number =
-  typeof Core.MAX_MANUAL_BACKFILL_DAYS === 'number'
-    ? Core.MAX_MANUAL_BACKFILL_DAYS
-    : DEFAULT_MAX_MANUAL_BACKFILL_DAYS;
+/**
+ * Inclusive number of days one MANUAL_BACKFILL run may cover. The connectors package is the
+ * only source of this value; it is read when a backfill is validated rather than at import,
+ * so specs that stub `Core` for unrelated reasons still load, while a stale connectors build
+ * fails loudly on the first real backfill instead of silently using a different limit.
+ */
+export function getMaxManualBackfillDays(): number {
+  const limit: unknown = Core.MAX_MANUAL_BACKFILL_DAYS;
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
+    throw new Error(
+      'MAX_MANUAL_BACKFILL_DAYS is missing from @owox/connectors; rebuild the package'
+    );
+  }
+  return limit;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ISO_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatUtcDay(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function toUtcDay(value: string): number {
+  return Date.parse(`${value}T00:00:00.000Z`);
+}
+
+/** A calendar day that exists: the regex catches the shape, the refine catches 2026-02-30. */
+const isoDaySchema = z
+  .string()
+  .regex(ISO_DAY_PATTERN)
+  .refine(value => {
+    const ms = toUtcDay(value);
+    return !Number.isNaN(ms) && formatUtcDay(ms) === value;
+  });
+
+const manualBackfillDatesSchema = z.object({
+  StartDate: isoDaySchema,
+  EndDate: isoDaySchema.or(z.literal('')).nullish(),
+});
 
 export interface BackfillDateRange {
   startDate: string;
@@ -29,18 +59,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function toUtcDay(value: unknown): number | undefined {
-  if (typeof value !== 'string' || !ISO_DAY_PATTERN.test(value)) return undefined;
-  const ms = Date.parse(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(ms)) return undefined;
-  // Reject dates like 2026-02-30 that Date.parse silently rolls over.
-  return formatUtcDay(ms) === value ? ms : undefined;
-}
-
-function formatUtcDay(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
 function startOfUtcDay(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
@@ -48,7 +66,7 @@ function startOfUtcDay(date: Date): number {
 export function countBackfillDays(range: BackfillDateRange): number {
   const start = toUtcDay(range.startDate);
   const end = toUtcDay(range.endDate);
-  if (start === undefined || end === undefined || end < start) return 0;
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
   return Math.round((end - start) / DAY_MS) + 1;
 }
 
@@ -61,32 +79,33 @@ export function parseManualBackfillRange(
   data: Record<string, unknown>,
   today: Date
 ): BackfillDateRange {
-  const todayMs = startOfUtcDay(today);
-  const start = toUtcDay(data.StartDate);
-  if (start === undefined) {
-    throw new BusinessViolationException('StartDate is required in YYYY-MM-DD format');
+  const parsed = manualBackfillDatesSchema.safeParse(data);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    throw new BusinessViolationException(
+      field === 'EndDate'
+        ? 'EndDate must be in YYYY-MM-DD format'
+        : 'StartDate is required in YYYY-MM-DD format'
+    );
   }
+
+  const todayMs = startOfUtcDay(today);
+  const start = toUtcDay(parsed.data.StartDate);
   if (start > todayMs) {
     throw new BusinessViolationException('StartDate cannot be in the future');
   }
 
-  let end = todayMs;
-  if (data.EndDate !== undefined && data.EndDate !== null && data.EndDate !== '') {
-    const parsed = toUtcDay(data.EndDate);
-    if (parsed === undefined) {
-      throw new BusinessViolationException('EndDate must be in YYYY-MM-DD format');
-    }
-    end = Math.min(parsed, todayMs);
-  }
+  const end = parsed.data.EndDate ? Math.min(toUtcDay(parsed.data.EndDate), todayMs) : todayMs;
   if (end < start) {
     throw new BusinessViolationException('EndDate cannot be earlier than StartDate');
   }
 
   const range = { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
   const days = countBackfillDays(range);
-  if (days > MAX_MANUAL_BACKFILL_DAYS) {
+  const maxDays = getMaxManualBackfillDays();
+  if (days > maxDays) {
     throw new BusinessViolationException(
-      `Manual backfill is limited to ${MAX_MANUAL_BACKFILL_DAYS} days per run (requested ${days} days)`
+      `Manual backfill is limited to ${maxDays} days per run (requested ${days} days)`
     );
   }
   return range;
