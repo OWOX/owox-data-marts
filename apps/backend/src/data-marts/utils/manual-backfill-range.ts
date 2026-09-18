@@ -4,20 +4,13 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
-/** Matches the RunDataMartRequestApiDto payload contract; kept as a literal so this module
- * does not depend on Core.RUN_CONFIG_TYPE being present (some specs stub @owox/connectors
- * with a minimal Core for unrelated reasons). */
+// Literal, not Core.RUN_CONFIG_TYPE: some specs stub @owox/connectors with a minimal Core.
 export const MANUAL_BACKFILL_RUN_TYPE = 'MANUAL_BACKFILL';
 
-/**
- * Inclusive number of days one MANUAL_BACKFILL run may cover. The connectors package is the
- * only source of this value; it is read when a backfill is validated rather than at import,
- * so specs that stub `Core` for unrelated reasons still load, while a stale connectors build
- * fails loudly on the first real backfill instead of silently using a different limit.
- */
+/** Inclusive days one backfill run may cover. Read lazily so Core stubs load; throws on a stale build. */
 export function getMaxManualBackfillDays(): number {
-  const limit: unknown = Core.MAX_MANUAL_BACKFILL_DAYS;
-  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
+  const limit = Number(Core.MAX_MANUAL_BACKFILL_DAYS);
+  if (!Number.isInteger(limit) || limit < 1) {
     throw new Error(
       'MAX_MANUAL_BACKFILL_DAYS is missing from @owox/connectors; rebuild the package'
     );
@@ -55,10 +48,6 @@ export interface BackfillDateRange {
   endDate: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function startOfUtcDay(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
@@ -75,10 +64,7 @@ export function countBackfillDays(range: BackfillDateRange): number {
  * (EndDate defaults to today and is clamped to today) and enforces the per-run day limit,
  * before a run is created so the caller gets a 4xx instead of a failed run.
  */
-export function parseManualBackfillRange(
-  data: Record<string, unknown>,
-  today: Date
-): BackfillDateRange {
+export function parseManualBackfillRange(data: unknown, today: Date): BackfillDateRange {
   const parsed = manualBackfillDatesSchema.safeParse(data);
   if (!parsed.success) {
     const field = parsed.error.issues[0]?.path[0];
@@ -121,7 +107,8 @@ export function prepareManualBackfillPayload(
 ): Record<string, unknown> | undefined {
   if (!payload || payload.runType !== MANUAL_BACKFILL_RUN_TYPE) return payload;
 
-  const data = isRecord(payload.data) ? payload.data : {};
-  const { startDate, endDate } = parseManualBackfillRange(data, today);
+  const { startDate, endDate } = parseManualBackfillRange(payload.data, today);
+  // A successful parse proves payload.data is an object.
+  const data = payload.data as Record<string, unknown>;
   return { ...payload, data: { ...data, StartDate: startDate, EndDate: endDate } };
 }

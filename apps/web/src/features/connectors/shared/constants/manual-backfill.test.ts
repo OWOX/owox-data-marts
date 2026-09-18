@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_MANUAL_BACKFILL_DAYS, countBackfillDays, todayIsoDay } from './manual-backfill';
+import { MAX_MANUAL_BACKFILL_DAYS, countBackfillDays } from './manual-backfill';
 
 describe('manual-backfill', () => {
   it('fits a full calendar month within the limit', () => {
@@ -12,9 +12,5 @@ describe('manual-backfill', () => {
     expect(countBackfillDays('2026-07-10', '2026-07-01')).toBe(0);
     expect(countBackfillDays('', '2026-07-01')).toBe(0);
     expect(countBackfillDays(undefined, undefined)).toBe(0);
-  });
-
-  it('formats today as a UTC ISO day', () => {
-    expect(todayIsoDay(new Date('2026-09-17T23:59:00.000Z'))).toBe('2026-09-17');
   });
 });

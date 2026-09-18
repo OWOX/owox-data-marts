@@ -26,11 +26,8 @@ import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
 import {
-  BACKFILL_END_DATE_FIELD,
-  BACKFILL_START_DATE_FIELD,
   MAX_MANUAL_BACKFILL_DAYS,
   countBackfillDays,
-  todayIsoDay,
   toUtcDayMs,
 } from '../../../shared/constants/manual-backfill';
 
@@ -40,15 +37,9 @@ interface ConnectorRunFormProps {
   onSubmit?: (data: ConnectorRunFormData) => void;
 }
 
-type BackfillFieldValue = ConnectorRunFormData['data'][string];
-type BackfillDateValidation = Record<string, Validate<BackfillFieldValue, ConnectorRunFormData>>;
-
-const BACKFILL_LIMIT_NOTICE = `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days.`;
-const BACKFILL_LIMIT_ERROR = `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`;
-
 function getBackfillSummary(days: number): string {
   if (days === 0) {
-    return `${BACKFILL_LIMIT_NOTICE} Pick a start and end date to see how many days your period covers.`;
+    return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
   }
   if (days > MAX_MANUAL_BACKFILL_DAYS) {
     return `This period covers ${days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
@@ -59,8 +50,10 @@ function getBackfillSummary(days: number): string {
 function getBackfillDateValidation(
   fieldName: string,
   today: string
-): BackfillDateValidation | undefined {
-  if (fieldName === BACKFILL_START_DATE_FIELD) {
+):
+  | Record<string, Validate<ConnectorRunFormData['data'][string], ConnectorRunFormData>>
+  | undefined {
+  if (fieldName === 'StartDate') {
     return {
       notInFuture: value =>
         toUtcDayMs(value) === undefined ||
@@ -68,20 +61,16 @@ function getBackfillDateValidation(
         'Start date cannot be in the future',
     };
   }
-  if (fieldName === BACKFILL_END_DATE_FIELD) {
+  if (fieldName === 'EndDate') {
     return {
-      notBeforeStart: (value, formValues) => {
-        const startDate = formValues.data[BACKFILL_START_DATE_FIELD];
+      period: (value, formValues) => {
+        const startDate = formValues.data.StartDate;
         if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
+        const days = countBackfillDays(startDate, value);
+        if (days === 0) return 'End date must be on or after the start date';
         return (
-          countBackfillDays(startDate, value) > 0 || 'End date must be on or after the start date'
-        );
-      },
-      withinLimit: (value, formValues) => {
-        const startDate = formValues.data[BACKFILL_START_DATE_FIELD];
-        if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
-        return (
-          countBackfillDays(startDate, value) <= MAX_MANUAL_BACKFILL_DAYS || BACKFILL_LIMIT_ERROR
+          days <= MAX_MANUAL_BACKFILL_DAYS ||
+          `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`
         );
       },
     };
@@ -104,9 +93,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const { dataMart } = useDataMartContext();
 
   const runType = form.watch('runType');
-  const startDate = form.watch(`data.${BACKFILL_START_DATE_FIELD}`);
-  const endDate = form.watch(`data.${BACKFILL_END_DATE_FIELD}`);
-  const today = todayIsoDay();
+  const startDate = form.watch('data.StartDate');
+  const endDate = form.watch('data.EndDate');
+  const today = new Date().toISOString().slice(0, 10);
   // The backend defaults a missing EndDate to today, so the preview does the same.
   const effectiveEndDate = endDate === undefined || endDate === '' ? today : endDate;
   const backfillDays = countBackfillDays(startDate, effectiveEndDate);
