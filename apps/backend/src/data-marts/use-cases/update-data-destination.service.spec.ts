@@ -39,6 +39,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
   const makeCommand = (
     overrides: {
       id?: string;
+      title?: string;
       credentials?: DataDestinationCredentials | Record<string, unknown>;
       credentialId?: string | null;
       sourceDestinationId?: string;
@@ -53,7 +54,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     return new UpdateDataDestinationCommand(
       overrides.id ?? targetId,
       projectId,
-      'Target Destination',
+      overrides.title ?? 'Target Destination',
       overrides.credentials as never,
       overrides.credentialId,
       overrides.sourceDestinationId,
@@ -73,6 +74,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       type?: DataDestinationType;
       credential?: object | null;
       config?: DestinationConfigOverride;
+      title?: string;
     } = {}
   ) => ({
     id: targetId,
@@ -81,7 +83,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     credentialId: 'credentialId' in overrides ? overrides.credentialId : null,
     credential: 'credential' in overrides ? overrides.credential : null,
     config: 'config' in overrides ? overrides.config : null,
-    title: 'Target Destination',
+    title: overrides.title ?? 'Target Destination',
     createdById: null,
     ownerIds: [],
   });
@@ -176,6 +178,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     const advancedSearchIndexSync = {
       scheduleReindex: jest.fn().mockResolvedValue(undefined),
       scheduleTypeProjectSync: jest.fn().mockResolvedValue(undefined),
+      scheduleReportsReindex: jest.fn().mockResolvedValue(undefined),
     };
 
     const service = new UpdateDataDestinationService(
@@ -359,7 +362,10 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
   it('re-syncs the report search index so report entries pick up the destination rename', async () => {
     const { service, dataDestinationService, dataDestinationRepository, advancedSearchIndexSync } =
       createService();
-    const target = makeTargetDestination({ type: DataDestinationType.EXCEL });
+    const target = makeTargetDestination({
+      type: DataDestinationType.EXCEL,
+      title: 'Old destination title',
+    });
     dataDestinationService.getByIdAndProjectId.mockResolvedValue(target);
     dataDestinationRepository.save.mockResolvedValue(target);
 
@@ -370,10 +376,47 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       targetId,
       projectId
     );
-    expect(advancedSearchIndexSync.scheduleTypeProjectSync).toHaveBeenCalledWith(
-      SearchableEntityType.REPORT,
+    expect(advancedSearchIndexSync.scheduleReportsReindex).toHaveBeenCalledWith(
+      SearchableEntityType.DATA_DESTINATION,
+      targetId,
       projectId
     );
+    expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
+  });
+
+  it('does not re-sync reports when a destination update keeps the same title', async () => {
+    const { service, dataDestinationService, dataDestinationRepository, advancedSearchIndexSync } =
+      createService();
+    const target = makeTargetDestination({ type: DataDestinationType.EXCEL });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue(target);
+    dataDestinationRepository.save.mockResolvedValue(target);
+
+    await service.run(makeCommand({ credentialId: null, availableForUse: false }));
+
+    expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
+    expect(advancedSearchIndexSync.scheduleReportsReindex).not.toHaveBeenCalled();
+  });
+
+  it('does not re-sync reports after credential copy when the title is unchanged', async () => {
+    const {
+      service,
+      dataDestinationService,
+      dataDestinationRepository,
+      dataDestinationCredentialService,
+      advancedSearchIndexSync,
+    } = createService();
+    const target = makeTargetDestination();
+    dataDestinationService.getByIdAndProjectId
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce(makeSourceDestination())
+      .mockResolvedValueOnce(target);
+    dataDestinationCredentialService.create.mockResolvedValue({ id: 'cred-new' });
+    dataDestinationRepository.save.mockResolvedValue(target);
+
+    await service.run(makeCommand({ sourceDestinationId: sourceId }));
+
+    expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
+    expect(advancedSearchIndexSync.scheduleReportsReindex).not.toHaveBeenCalled();
   });
 
   it('still allows a plain rename of a credentialless destination', async () => {

@@ -99,6 +99,7 @@ export class UpdateDataDestinationService {
       command.id,
       command.projectId
     );
+    const titleChanged = entity.title !== command.title;
 
     // Only re-validate the Drive folder (a live Drive API round-trip inside the
     // transaction) when the configured folder actually changes. Updates that
@@ -233,10 +234,13 @@ export class UpdateDataDestinationService {
         updatedEntity.id,
         command.projectId
       );
-      await this.advancedSearchIndexSync?.scheduleTypeProjectSync(
-        SearchableEntityType.REPORT,
-        command.projectId
-      );
+      if (titleChanged) {
+        await this.advancedSearchIndexSync?.scheduleReportsReindex(
+          SearchableEntityType.DATA_DESTINATION,
+          entity.id,
+          command.projectId
+        );
+      }
       return this.replaceOwnersAndBuildResponse(
         updatedEntity,
         command.ownerIds,
@@ -364,10 +368,13 @@ export class UpdateDataDestinationService {
       updatedEntity.id,
       command.projectId
     );
-    await this.advancedSearchIndexSync?.scheduleTypeProjectSync(
-      SearchableEntityType.REPORT,
-      command.projectId
-    );
+    if (titleChanged) {
+      await this.advancedSearchIndexSync?.scheduleReportsReindex(
+        SearchableEntityType.DATA_DESTINATION,
+        entity.id,
+        command.projectId
+      );
+    }
 
     return this.replaceOwnersAndBuildResponse(
       updatedEntity,

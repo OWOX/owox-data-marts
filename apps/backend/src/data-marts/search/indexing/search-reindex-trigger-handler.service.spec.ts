@@ -13,7 +13,7 @@ import {
 } from '../../../common/scheduler/shared/scheduler.facade';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
-import type { SearchReindexTrigger } from '../../entities/search/search-reindex-trigger.entity';
+import { SearchReindexTrigger } from '../../entities/search/search-reindex-trigger.entity';
 import type {
   SearchDataDestinationProjectReindexTrigger,
   SearchDataMartProjectReindexTrigger,
@@ -433,5 +433,32 @@ describe('Search reindex trigger handlers', () => {
         'search project reindex failed'
       );
     });
+  });
+  it('processes one parent-report page and keeps its cursor for the next fast-queue turn', async () => {
+    const cursor = { createdAt: '2026-09-18 12:00:00', id: 'report-50' };
+    const reindexReportsPage = jest.fn().mockResolvedValue({ nextCursor: cursor, errors: 0 });
+    Object.assign(indexer, { reindexReportsPage });
+    await compileEntityHandler();
+    const trigger = Object.assign(new SearchReindexTrigger(), {
+      ...makeEntityTrigger(),
+      operation: 'REINDEX_REPORTS',
+      reportProgress: null,
+      onSuccess: SearchReindexTrigger.prototype.onSuccess,
+    });
+    await entityHandler.handleTrigger(trigger);
+    trigger.onSuccess(new Date());
+    expect(reindexReportsPage).toHaveBeenCalledWith(
+      { entityType: SearchableEntityType.DATA_MART, entityId: 'dm-1' },
+      'proj-1',
+      null,
+      undefined
+    );
+    expect(trigger.reportProgress).toEqual({ cursor, errors: 0 });
+    expect(trigger.status).toBe(TriggerStatus.IDLE);
+    expect(indexer.reindexEntity).not.toHaveBeenCalled();
+    reindexReportsPage.mockResolvedValue({ nextCursor: null, errors: 0 });
+    await entityHandler.handleTrigger(trigger);
+    trigger.onSuccess(new Date());
+    expect(trigger.status).toBe(TriggerStatus.SUCCESS);
   });
 });

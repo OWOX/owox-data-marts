@@ -120,6 +120,70 @@ describe('SearchIndexRepository', () => {
 
   afterEach(async () => {
     await dataSource.query('DELETE FROM data_mart_search_index');
+    await dataSource.query('DELETE FROM report_search_index');
+  });
+
+  describe('conditional report writes', () => {
+    const REPORT = SearchableEntityType.REPORT;
+
+    it('does not replace a row written after the expected state was read', async () => {
+      const original = makeRow({ entityId: 'r1', docHash: 'original' });
+      await repo.upsert(REPORT, original);
+      const expected = await repo.listIndexStateByIds(REPORT, ['r1']);
+      await repo.upsert(REPORT, {
+        ...original,
+        docHash: 'newer',
+        embedding: float32Buffer([1, 0]),
+      });
+      expect(
+        await repo.upsertReportsIfUnchanged([{ ...original, docHash: 'stale' }], expected)
+      ).toEqual(['r1']);
+      const current = (await repo.listIndexStateByIds(REPORT, ['r1'])).get('r1');
+      expect(current).toEqual({ projectId: 'proj-1', docHash: 'newer', embeddingStatus: 'READY' });
+    });
+
+    it('does not replace a concurrently inserted row when the index was initially empty', async () => {
+      const row = makeRow({ entityId: 'r1', docHash: 'newer', embedding: float32Buffer([1, 0]) });
+      await repo.upsert(REPORT, row);
+      expect(
+        await repo.upsertReportsIfUnchanged([{ ...row, docHash: 'older' }], new Map())
+      ).toEqual(['r1']);
+      expect((await repo.listIndexStateByIds(REPORT, ['r1'])).get('r1')?.docHash).toBe('newer');
+    });
+
+    it('updates an unchanged batch across SQL parameter limits while retaining a conflicting row', async () => {
+      const original = Array.from({ length: 60 }, (_, i) =>
+        makeRow({
+          entityId: `report-${i}`,
+          docHash: `old-${i}`,
+        })
+      );
+      await repo.upsertMany(REPORT, original);
+      const expected = await repo.listIndexStateByIds(
+        REPORT,
+        original.map(row => row.entityId)
+      );
+      await repo.upsert(REPORT, { ...original[0], docHash: 'concurrent' });
+      const updates = original.map((row, i) => ({
+        ...row,
+        docHash: `new-${i}`,
+        document: JSON.stringify({ title: `Revenue ' " ${i}` }),
+        embedding: float32Buffer([i, 1]),
+      }));
+      expect(await repo.upsertReportsIfUnchanged(updates, expected)).toEqual(['report-0']);
+      const states = await repo.listIndexStateByIds(
+        REPORT,
+        original.map(row => row.entityId)
+      );
+      expect(states.get('report-0')?.docHash).toBe('concurrent');
+      for (let i = 1; i < original.length; i++) {
+        expect(states.get(`report-${i}`)).toEqual({
+          projectId: 'proj-1',
+          docHash: `new-${i}`,
+          embeddingStatus: 'READY',
+        });
+      }
+    });
   });
 
   describe('upsert', () => {

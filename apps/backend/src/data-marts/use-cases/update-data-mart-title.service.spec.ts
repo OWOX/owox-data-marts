@@ -20,6 +20,7 @@ describe('UpdateDataMartTitleService', () => {
     const advancedSearchIndexSync = {
       scheduleReindex: jest.fn().mockResolvedValue(undefined),
       scheduleTypeProjectSync: jest.fn().mockResolvedValue(undefined),
+      scheduleReportsReindex: jest.fn().mockResolvedValue(undefined),
     };
 
     const service = new UpdateDataMartTitleService(
@@ -57,9 +58,22 @@ describe('UpdateDataMartTitleService', () => {
       new UpdateDataMartTitleCommand('dm-1', 'proj-1', 'New title', 'user-1', ['editor'])
     );
 
-    expect(advancedSearchIndexSync.scheduleTypeProjectSync).toHaveBeenCalledWith(
-      SearchableEntityType.REPORT,
+    expect(advancedSearchIndexSync.scheduleReportsReindex).toHaveBeenCalledWith(
+      SearchableEntityType.DATA_MART,
+      'dm-1',
       'proj-1'
     );
+    expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
+  });
+
+  it('does not re-sync reports when the data mart title is unchanged', async () => {
+    const { service, advancedSearchIndexSync } = createService();
+
+    await service.run(
+      new UpdateDataMartTitleCommand('dm-1', 'proj-1', 'Old title', 'user-1', ['editor'])
+    );
+
+    expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
+    expect(advancedSearchIndexSync.scheduleReportsReindex).not.toHaveBeenCalled();
   });
 });

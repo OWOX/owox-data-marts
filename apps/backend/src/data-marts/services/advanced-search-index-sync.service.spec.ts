@@ -168,6 +168,7 @@ describe('AdvancedSearchIndexSyncService', () => {
           entityType: SearchableEntityType.DATA_MART,
           entityId: 'dm-1',
           status: TriggerStatus.IDLE,
+          operation: In(['REINDEX', 'DELETE']),
         },
       });
 
@@ -287,7 +288,12 @@ describe('AdvancedSearchIndexSyncService', () => {
       expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
     });
 
-    it('looks up existing project trigger across pending and running statuses', async () => {
+    it('deduplicates project triggers including one already processing by default', async () => {
+      dataStorageProjectTriggerRepo.findOne.mockResolvedValue({
+        projectId: 'proj-1',
+        status: TriggerStatus.PROCESSING,
+      } as SearchDataStorageProjectReindexTrigger);
+
       await service.scheduleTypeProjectSync(SearchableEntityType.DATA_STORAGE, 'proj-1');
 
       expect(dataStorageProjectTriggerRepo.findOne).toHaveBeenCalledWith({
@@ -296,6 +302,8 @@ describe('AdvancedSearchIndexSyncService', () => {
           status: In([TriggerStatus.IDLE, TriggerStatus.READY, TriggerStatus.PROCESSING]),
         },
       });
+      expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataStorageProjectTriggerRepo.save).not.toHaveBeenCalled();
     });
 
     it('does not reuse a project trigger from another project', async () => {
@@ -351,5 +359,23 @@ describe('AdvancedSearchIndexSyncService', () => {
         service.scheduleTypeProjectSync(SearchableEntityType.DATA_STORAGE, 'proj-1')
       ).resolves.toBeUndefined();
     });
+  });
+  it('schedules each parent rename in the fast queue without using the project queue', async () => {
+    await Promise.all([
+      service.scheduleReportsReindex(SearchableEntityType.DATA_MART, 'dm-1', 'proj-1'),
+      service.scheduleReportsReindex(SearchableEntityType.DATA_MART, 'dm-1', 'proj-1'),
+    ]);
+    expect(triggerRepo.save).toHaveBeenCalledTimes(2);
+    expect(triggerRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'REINDEX_REPORTS',
+        entityType: SearchableEntityType.DATA_MART,
+        entityId: 'dm-1',
+        projectId: 'proj-1',
+        reportProgress: null,
+        status: TriggerStatus.IDLE,
+      })
+    );
+    expect(reportProjectTriggerRepo.save).not.toHaveBeenCalled();
   });
 });

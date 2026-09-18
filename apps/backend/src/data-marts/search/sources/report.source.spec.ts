@@ -39,6 +39,9 @@ import { ContextAccessService } from '../../services/context/context-access.serv
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import type { PageCursor, SourceAccessScope } from './indexable-source.port';
 import { describeLoadSearchableOneContract } from './indexable-source.contract';
+import { SearchIndexerService } from '../indexing/search-indexer.service';
+import type { AdvancedSearchConfig } from '../config/advanced-search.config';
+import type { EmbeddingProvider } from '../embedding/embedding-provider';
 
 const TEST_ENTITIES = [
   DataMart,
@@ -279,7 +282,7 @@ describe('ReportIndexableSource', () => {
       });
     });
 
-    it('skips the empty title of a Looker Studio report in the embedding text', async () => {
+    it('uses the destination title as the display title for a Looker Studio report', async () => {
       const mart = await seedMart({ title: 'Orders' });
       const destination = await seedDestination({
         title: 'Looker',
@@ -292,10 +295,37 @@ describe('ReportIndexableSource', () => {
 
       const [descriptor] = (await source.listSearchablePage('proj-1', null, 100)).descriptors;
 
-      expect(descriptor.title).toBe('');
+      expect(descriptor.title).toBe('Looker');
+      expect(descriptor.richTextSlots[0]).toEqual({ kind: 'title', text: 'Looker' });
       expect(descriptor.embeddingText).toBe(
-        ['Orders', 'Looker', toHumanReadable(DataDestinationType.LOOKER_STUDIO)].join('\n')
+        ['Looker', 'Orders', 'Looker', toHumanReadable(DataDestinationType.LOOKER_STUDIO)].join(
+          '\n'
+        )
       );
+    });
+
+    it('hydrates only the fields used by the report search descriptor', async () => {
+      await seedReportOnMart();
+      const findSpy = jest.spyOn(reportRepo, 'find');
+
+      try {
+        await source.listSearchablePage('proj-1', null, 100);
+
+        expect(findSpy).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            select: {
+              id: true,
+              title: true,
+              modifiedAt: true,
+              dataMart: { id: true, title: true, projectId: true },
+              dataDestination: { id: true, title: true, type: true },
+            },
+          })
+        );
+      } finally {
+        findSpy.mockRestore();
+      }
     });
 
     it('omits reports whose data mart is soft-deleted', async () => {
@@ -320,6 +350,24 @@ describe('ReportIndexableSource', () => {
   });
 
   describe('listSearchablePage pagination', () => {
+    it('returns a cursor after a full page whose report has no destination', async () => {
+      const mart = await seedMart();
+      const destination = await seedDestination();
+      await seedReport(mart, destination);
+
+      await dataSource.query('PRAGMA foreign_keys = OFF');
+      try {
+        await dataSource.query('DELETE FROM data_destination WHERE id = ?', [destination.id]);
+      } finally {
+        await dataSource.query('PRAGMA foreign_keys = ON');
+      }
+
+      const page = await source.listSearchablePage('proj-1', null, 1);
+
+      expect(page.descriptors).toEqual([]);
+      expect(page.nextCursor).not.toBeNull();
+    });
+
     it('paginates using the keyset cursor', async () => {
       const mart = await seedMart();
       const destination = await seedDestination();
@@ -589,5 +637,208 @@ describe('ReportIndexableSource', () => {
 
       expect(results.map(result => result.entityId)).toEqual([visible.id]);
     });
+  });
+
+  it.each([SearchableEntityType.DATA_MART, SearchableEntityType.DATA_DESTINATION] as const)(
+    'indexes only the requested %s reports in bounded pages',
+    async entityType => {
+      const mart = await seedMart();
+      const otherMart = await seedMart({ title: 'Other mart' });
+      const destination = await seedDestination();
+      const otherDestination = await seedDestination({ title: 'Other destination' });
+      const one = await seedReport(mart, destination);
+      const two = await seedReport(mart, otherDestination);
+      const three = await seedReport(otherMart, destination);
+      const parent = {
+        entityType,
+        entityId: entityType === SearchableEntityType.DATA_MART ? mart.id : destination.id,
+      };
+      const embed = jest.fn(async (texts: string[]) => texts.map(() => new Float32Array([1, 0])));
+      const indexer = new SearchIndexerService(
+        new IndexableSourceRegistry([source]),
+        { modelId: 'test', embed } as unknown as EmbeddingProvider,
+        indexRepo,
+        { indexBatchSize: 1 } as AdvancedSearchConfig,
+        source
+      );
+      let cursor: PageCursor | null = null;
+      let pages = 0;
+      do {
+        const page = await indexer.reindexReportsPage(parent, 'proj-1', cursor);
+        expect(page.errors).toBe(0);
+        cursor = page.nextCursor;
+        expect(++pages).toBeLessThanOrEqual(3);
+      } while (cursor);
+      const rows = await dataSource.getRepository(ReportSearchIndex).find();
+      expect(rows.map(row => row.entityId).sort()).toEqual(
+        [one.id, entityType === SearchableEntityType.DATA_MART ? two.id : three.id].sort()
+      );
+      expect(embed.mock.calls).toHaveLength(2);
+      expect(embed.mock.calls.every(([texts]) => texts.length === 1)).toBe(true);
+      expect(await indexer.reindexReportsPage(parent, 'another-project', null)).toEqual({
+        nextCursor: null,
+        errors: 0,
+      });
+      expect(embed.mock.calls).toHaveLength(2);
+    }
+  );
+
+  it('retains successful embeddings in a partially failed report page and reports its failure', async () => {
+    const mart = await seedMart();
+    const destination = await seedDestination();
+    await seedReport(mart, destination);
+    await seedReport(mart, destination, { title: 'Second report' });
+    const vector = new Float32Array([1, 0]);
+    const embed = jest.fn().mockResolvedValueOnce([vector, null]).mockResolvedValue([vector]);
+    const indexer = new SearchIndexerService(
+      new IndexableSourceRegistry([source]),
+      { modelId: 'test', embed } as unknown as EmbeddingProvider,
+      indexRepo,
+      { indexBatchSize: 50 } as AdvancedSearchConfig,
+      source
+    );
+    const parent = { entityType: SearchableEntityType.DATA_MART as const, entityId: mart.id };
+    expect(await indexer.reindexReportsPage(parent, 'proj-1', null)).toEqual({
+      nextCursor: null,
+      errors: 2,
+    });
+    expect(await dataSource.getRepository(ReportSearchIndex).count()).toBe(1);
+    await indexer.reindexReportsPage(parent, 'proj-1', null);
+    expect(await dataSource.getRepository(ReportSearchIndex).count()).toBe(2);
+    expect(embed.mock.calls[1][0]).toHaveLength(1);
+  });
+
+  describe('concurrent report indexing', () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>(done => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    it('does not leave an intermediate title after a rename back to an already indexed title', async () => {
+      const report = await seedReportOnMart();
+      const started = deferred<void>();
+      const delayed = deferred<(Float32Array | null)[]>();
+      const vector = new Float32Array([1, 0]);
+      const embed = jest.fn().mockResolvedValue([vector]);
+      const indexer = new SearchIndexerService(
+        new IndexableSourceRegistry([source]),
+        { modelId: 'test', embed } as unknown as EmbeddingProvider,
+        indexRepo,
+        { indexBatchSize: 50 } as AdvancedSearchConfig,
+        source
+      );
+      await indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1');
+      await martRepo.update(report.dataMart.id, { title: 'Intermediate title' });
+      embed.mockImplementationOnce(() => {
+        started.resolve();
+        return delayed.promise;
+      });
+      const older = indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1');
+      await started.promise;
+      await martRepo.update(report.dataMart.id, { title: report.dataMart.title });
+      await indexer.reindexReportsPage(
+        { entityType: SearchableEntityType.DATA_MART, entityId: report.dataMart.id },
+        'proj-1',
+        null
+      );
+      expect(embed).toHaveBeenCalledTimes(2);
+      delayed.resolve([vector]);
+      expect((await older).errors).toBe(0);
+      const row = await dataSource.getRepository(ReportSearchIndex).findOneByOrFail({
+        entityId: report.id,
+      });
+      expect(JSON.parse(row.document!).report.dataMart.title).toBe(report.dataMart.title);
+    });
+
+    it('allows simultaneous writers on SQLite without overlapping transactions', async () => {
+      const report = await seedReportOnMart();
+      const indexer = new SearchIndexerService(
+        new IndexableSourceRegistry([source]),
+        {
+          modelId: 'test',
+          embed: jest.fn().mockResolvedValue([new Float32Array([1, 0])]),
+        } as unknown as EmbeddingProvider,
+        indexRepo,
+        { indexBatchSize: 50 } as AdvancedSearchConfig,
+        source
+      );
+      await Promise.all([
+        indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1'),
+        indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1'),
+      ]);
+      expect(await dataSource.getRepository(ReportSearchIndex).count()).toBe(1);
+    });
+
+    it('stops after three attempts when the report keeps changing during embedding', async () => {
+      const report = await seedReportOnMart();
+      const embed = jest.fn(async () => {
+        await martRepo.update(report.dataMart.id, { title: `Change ${embed.mock.calls.length}` });
+        return [new Float32Array([1, 0])];
+      });
+      const indexer = new SearchIndexerService(
+        new IndexableSourceRegistry([source]),
+        { modelId: 'test', embed } as unknown as EmbeddingProvider,
+        indexRepo,
+        { indexBatchSize: 50 } as AdvancedSearchConfig,
+        source
+      );
+      await expect(
+        indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1')
+      ).rejects.toThrow('changed repeatedly');
+      expect(embed).toHaveBeenCalledTimes(3);
+    });
+
+    it.each(['old first', 'new first'])(
+      'keeps the renamed parent when overlapping project syncs finish %s',
+      async order => {
+        const report = await seedReportOnMart();
+        const oldStarted = deferred<void>();
+        const newStarted = deferred<void>();
+        const oldEmbedding = deferred<(Float32Array | null)[]>();
+        const newEmbedding = deferred<(Float32Array | null)[]>();
+        const vector = new Float32Array([1, 0]);
+        const embed = jest
+          .fn()
+          .mockImplementationOnce(() => {
+            oldStarted.resolve();
+            return oldEmbedding.promise;
+          })
+          .mockImplementationOnce(() => {
+            newStarted.resolve();
+            return newEmbedding.promise;
+          })
+          .mockResolvedValue([vector]);
+        const indexer = new SearchIndexerService(
+          new IndexableSourceRegistry([source]),
+          { modelId: 'test', embed } as unknown as EmbeddingProvider,
+          indexRepo,
+          { indexBatchSize: 50 } as AdvancedSearchConfig,
+          source
+        );
+        const oldRun = indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1');
+        await oldStarted.promise;
+        await martRepo.update(report.dataMart.id, { title: 'Renamed Orders' });
+        const newRun = indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1');
+        await newStarted.promise;
+        if (order === 'old first') {
+          oldEmbedding.resolve([vector]);
+          await oldRun;
+          newEmbedding.resolve([vector]);
+        } else {
+          newEmbedding.resolve([vector]);
+          await newRun;
+          oldEmbedding.resolve([vector]);
+        }
+        const results = await Promise.all([oldRun, newRun]);
+        expect(results.every(result => result.errors === 0)).toBe(true);
+        const row = await dataSource.getRepository(ReportSearchIndex).findOneByOrFail({
+          entityId: report.id,
+        });
+        expect(JSON.parse(row.document!).report.dataMart.title).toBe('Renamed Orders');
+      }
+    );
   });
 });

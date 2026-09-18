@@ -26,12 +26,18 @@ const REPORT_JOIN_ALIAS = 'rp';
 const DATA_MART_JOIN_ALIAS = 'dm';
 const DESTINATION_JOIN_ALIAS = 'dd';
 
+export interface ReportSearchParent {
+  entityType: SearchableEntityType.DATA_MART | SearchableEntityType.DATA_DESTINATION;
+  entityId: string;
+}
+
 function toDescriptor(report: Report): EntityScoringDescriptor {
   const { dataMart, dataDestination } = report;
+  const title = report.title || dataDestination.title;
   const typeLabel = toHumanReadable(dataDestination.type as DataDestinationType);
   const contextTexts = [dataMart.title, dataDestination.title, typeLabel];
   const richTextSlots: RichTextSlot[] = [
-    { kind: 'title', text: report.title },
+    { kind: 'title', text: title },
     ...contextTexts.map((text): RichTextSlot => ({ kind: 'context', text })),
   ];
 
@@ -39,14 +45,14 @@ function toDescriptor(report: Report): EntityScoringDescriptor {
     entityType: SearchableEntityType.REPORT,
     entityId: report.id,
     projectId: dataMart.projectId,
-    title: report.title,
+    title,
     description: null,
     richTextSlots,
     atomicTokenSlots: [],
     fieldCount: 0,
     extendability: 0,
     modifiedAt: report.modifiedAt,
-    embeddingText: [report.title, ...contextTexts].filter(Boolean).join('\n'),
+    embeddingText: [title, ...contextTexts].filter(Boolean).join('\n'),
     isDraft: false,
     report: {
       dataMart: { id: dataMart.id, title: dataMart.title },
@@ -98,10 +104,20 @@ export class ReportIndexableSource implements IndexableSource {
   async listSearchablePage(
     projectId: string,
     cursor: PageCursor | null,
-    limit: number
+    limit: number,
+    parent?: ReportSearchParent
   ): Promise<SearchablePage> {
     const where = buildKeysetWhere<Report>(
-      { dataMart: { projectId, deletedAt: IsNull() } },
+      {
+        dataMart: {
+          projectId,
+          deletedAt: IsNull(),
+          ...(parent?.entityType === SearchableEntityType.DATA_MART ? { id: parent.entityId } : {}),
+        },
+        ...(parent?.entityType === SearchableEntityType.DATA_DESTINATION
+          ? { dataDestination: { id: parent.entityId } }
+          : {}),
+      },
       cursor
     );
 
@@ -115,18 +131,34 @@ export class ReportIndexableSource implements IndexableSource {
     if (pageRows.length === 0) return { descriptors: [], nextCursor: null };
 
     const pageIds = pageRows.map(report => report.id);
+    return {
+      descriptors: await this.loadSearchableByIds(projectId, pageIds),
+      nextCursor: nextPageCursor(pageRows, limit),
+    };
+  }
+
+  async loadSearchableByIds(
+    projectId: string,
+    pageIds: string[]
+  ): Promise<EntityScoringDescriptor[]> {
+    if (pageIds.length === 0) return [];
     const reports = await this.reportRepo.find({
       where: { id: In(pageIds), dataMart: { projectId, deletedAt: IsNull() } },
+      select: {
+        id: true,
+        title: true,
+        modifiedAt: true,
+        dataMart: { id: true, title: true, projectId: true },
+        dataDestination: { id: true, title: true, type: true },
+      },
       relations: { dataMart: true, dataDestination: true },
       loadEagerRelations: false,
     });
     const reportById = new Map(reports.map(report => [report.id, report]));
-    const descriptors = pageIds
+    return pageIds
       .map(id => reportById.get(id))
-      .filter((report): report is Report => report?.dataDestination !== undefined)
+      .filter((report): report is Report => report?.dataDestination != null)
       .map(toDescriptor);
-
-    return { descriptors, nextCursor: nextPageCursor(pageRows, limit) };
   }
 
   async listProjectIds(): Promise<string[]> {

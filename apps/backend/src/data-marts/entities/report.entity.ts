@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -41,6 +42,8 @@ import { ReportOwner } from './report-owner.entity';
 const REPORT_ID_NAMESPACE = '550e8400-e29b-41d4-a716-446655440000';
 
 @Entity()
+@Index('idx_report_search_by_mart', ['dataMart', 'createdAt', 'id'])
+@Index('idx_report_search_by_destination', ['dataDestination', 'createdAt', 'id'])
 export class Report implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

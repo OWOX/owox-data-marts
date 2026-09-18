@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
+import { DataSource, Table } from 'typeorm';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import {
   SearchIndexRepository,
@@ -13,6 +13,9 @@ import { DataMartSearchIndex } from 'src/data-marts/entities/search/data-mart-se
 import { DataStorageSearchIndex } from 'src/data-marts/entities/search/data-storage-search-index.entity';
 import { DataDestinationSearchIndex } from 'src/data-marts/entities/search/data-destination-search-index.entity';
 import { CreateSearchIndexTables1782131671353 } from 'src/migrations/1782131671353-create-search-index-tables';
+import { ReportSearchIndex } from 'src/data-marts/entities/search/report-search-index.entity';
+import { CreateReportSearchIndexTables1787788800004 } from 'src/migrations/1787788800004-create-report-search-index-tables';
+import { AddReportReindexProgress1787788800005 } from 'src/migrations/1787788800005-add-report-reindex-progress';
 
 const MYSQL_HOST = process.env.ADVANCED_SEARCH_MYSQL_HOST;
 const MYSQL_PORT = parseInt(process.env.ADVANCED_SEARCH_MYSQL_PORT ?? '3306', 10);
@@ -81,8 +84,17 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
       username: MYSQL_USER,
       password: MYSQL_PASSWORD!,
       database: MYSQL_DATABASE,
-      entities: [DataMartSearchIndex, DataStorageSearchIndex, DataDestinationSearchIndex],
-      migrations: [CreateSearchIndexTables1782131671353],
+      entities: [
+        DataMartSearchIndex,
+        DataStorageSearchIndex,
+        DataDestinationSearchIndex,
+        ReportSearchIndex,
+      ],
+      migrations: [
+        CreateSearchIndexTables1782131671353,
+        CreateReportSearchIndexTables1787788800004,
+        AddReportReindexProgress1787788800005,
+      ],
       migrationsTransactionMode: 'none',
       synchronize: false,
       logging: false,
@@ -94,9 +106,28 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
       'data_mart_search_index',
       'data_storage_search_index',
       'data_destination_search_index',
+      'report_search_index',
+      'search_report_project_reindex_triggers',
+      'report',
       'migrations',
     ]) {
       await dataSource.query(`DROP TABLE IF EXISTS ${table}`);
+    }
+    const runner = dataSource.createQueryRunner();
+    try {
+      await runner.createTable(
+        new Table({
+          name: 'report',
+          columns: [
+            { name: 'id', type: 'varchar', length: '36', isPrimary: true },
+            { name: 'dataMartId', type: 'varchar', length: '36' },
+            { name: 'dataDestinationId', type: 'varchar', length: '36' },
+            { name: 'createdAt', type: 'datetime' },
+          ],
+        })
+      );
+    } finally {
+      await runner.release();
     }
     await dataSource.runMigrations({ transaction: 'none' });
 
@@ -117,12 +148,20 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
         .query('DROP TABLE IF EXISTS data_destination_search_index')
         .catch(() => undefined);
       await dataSource.query('DROP TABLE IF EXISTS search_reindex_triggers').catch(() => undefined);
+      for (const table of [
+        'report_search_index',
+        'search_report_project_reindex_triggers',
+        'report',
+      ]) {
+        await dataSource.query(`DROP TABLE IF EXISTS ${table}`).catch(() => undefined);
+      }
       await dataSource.destroy();
     }
   }, 15000);
 
   afterEach(async () => {
     await dataSource.query('DELETE FROM data_mart_search_index');
+    await dataSource.query('DELETE FROM report_search_index');
   });
 
   describe('index table structure', () => {
@@ -131,13 +170,14 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
         `SELECT TABLE_NAME
          FROM information_schema.TABLES
          WHERE TABLE_SCHEMA = ?
-           AND TABLE_NAME IN ('data_mart_search_index', 'data_storage_search_index', 'data_destination_search_index')`,
+           AND TABLE_NAME IN ('data_mart_search_index', 'data_storage_search_index', 'data_destination_search_index', 'report_search_index')`,
         [MYSQL_DATABASE]
       );
       expect(tables.map(row => row.TABLE_NAME).sort()).toEqual([
         'data_destination_search_index',
         'data_mart_search_index',
         'data_storage_search_index',
+        'report_search_index',
       ]);
 
       const columns: { COLUMN_NAME: string }[] = await dataSource.query(
@@ -175,6 +215,75 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
     }, 15000);
   });
 
+  describe('report search', () => {
+    it('finds report titles through FULLTEXT and keeps project isolation', async () => {
+      const type = SearchableEntityType.REPORT;
+      await repo.upsertMany(type, [
+        makeRow({ entityId: 'orders-report', document: makeDocument('Orders export') }),
+        makeRow({
+          entityId: 'foreign-report',
+          projectId: 'other',
+          document: makeDocument('Orders export'),
+        }),
+      ]);
+      const querySpy = jest.spyOn(dataSource, 'query');
+      try {
+        const page = await repo.searchCandidates(type, 'proj-1', PASSTHROUGH_PREDICATE, 'order', {
+          candidateLimit: 10,
+        });
+        expect(page.rows.map(row => row.entityId)).toEqual(['orders-report']);
+        expect(
+          querySpy.mock.calls.some(
+            ([sql]) => sql.includes('report_search_index') && sql.includes('MATCH(idx.search_text)')
+          )
+        ).toBe(true);
+      } finally {
+        querySpy.mockRestore();
+      }
+    });
+
+    it('creates report FULLTEXT, cursor storage and parent pagination indexes', async () => {
+      const indexes: { INDEX_TYPE: string }[] = await dataSource.query(
+        `SELECT INDEX_TYPE FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'report_search_index'
+           AND INDEX_NAME = 'ftx_report_search_index_search_text'`
+      );
+      expect(indexes).toEqual([{ INDEX_TYPE: 'FULLTEXT' }]);
+      const runner = dataSource.createQueryRunner();
+      try {
+        expect(await runner.hasColumn('search_reindex_triggers', 'reportProgress')).toBe(true);
+        expect((await runner.getTable('report'))?.indices.map(index => index.name)).toEqual(
+          expect.arrayContaining(['idx_report_search_by_mart', 'idx_report_search_by_destination'])
+        );
+      } finally {
+        await runner.release();
+      }
+    });
+
+    it('does not overwrite concurrent report writes and commits the unchanged rows in a batch', async () => {
+      const type = SearchableEntityType.REPORT;
+      const first = makeRow({ entityId: 'report-1', docHash: 'old-1' });
+      const second = makeRow({ entityId: 'report-2', docHash: 'old-2' });
+      await repo.upsertMany(type, [first, second]);
+      const before = await repo.listIndexStateByIds(type, [first.entityId, second.entityId]);
+      await repo.upsert(type, { ...first, docHash: 'concurrent' });
+      const next = { ...second, docHash: 'next', embedding: vecToBuffer(new Float32Array([1, 0])) };
+      expect(
+        await repo.upsertReportsIfUnchanged([{ ...first, docHash: 'stale' }, next], before)
+      ).toEqual([first.entityId]);
+      expect(
+        await repo.upsertReportsIfUnchanged([{ ...first, docHash: 'stale-insert' }], new Map())
+      ).toEqual([first.entityId]);
+      const state = await repo.listIndexStateByIds(type, [first.entityId, second.entityId]);
+      expect(state.get(first.entityId)?.docHash).toBe('concurrent');
+      expect(state.get(second.entityId)).toEqual({
+        projectId: 'proj-1',
+        docHash: 'next',
+        embeddingStatus: 'READY',
+      });
+    });
+  });
+
   describe('SearchIndexRepository', () => {
     it('upserts rows and returns hash plus embedding status by ids', async () => {
       await repo.upsert(DATA_MART, makeRow({ entityId: 'dm-1', docHash: 'h1' }));
@@ -185,8 +294,16 @@ describeIfAvailable('Advanced Search — MySQL schema layer (integration)', () =
 
       const state = await repo.listIndexStateByIds(DATA_MART, ['dm-1', 'dm-2', 'missing']);
 
-      expect(state.get('dm-1')).toEqual({ docHash: 'h1', embeddingStatus: 'MISSING' });
-      expect(state.get('dm-2')).toEqual({ docHash: 'h2', embeddingStatus: 'READY' });
+      expect(state.get('dm-1')).toEqual({
+        projectId: 'proj-1',
+        docHash: 'h1',
+        embeddingStatus: 'MISSING',
+      });
+      expect(state.get('dm-2')).toEqual({
+        projectId: 'proj-1',
+        docHash: 'h2',
+        embeddingStatus: 'READY',
+      });
       expect(state.has('missing')).toBe(false);
     });
 

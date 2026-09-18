@@ -4,6 +4,8 @@
 
 **Find reports from search**
 
+**Self-hosted upgrades: stop the previous application and its background workers before starting this version. Running both versions together can leave report search results outdated.**
+
 **API client users: update the OWOX API client or explicitly filter by supported `entityTypes`. Unfiltered search results now include `REPORT`.**
 
 Find reports alongside Data Marts, storages, and destinations. Search by full words or the beginning of a word, with report names ranked highest. Each result shows its Data Mart and destination and opens the report directly. Results respect access to both the Data Mart and destination. Watch the search-to-report flow:

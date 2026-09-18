@@ -127,9 +127,34 @@ export class SearchEntityReindexTriggerHandler extends BaseSearchTriggerHandler<
 
   async handleTrigger(
     trigger: SearchReindexTrigger,
-    _options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal }
   ): Promise<void> {
     const entityType = trigger.entityType as SearchableEntityType;
+
+    if (trigger.operation === 'REINDEX_REPORTS') {
+      if (
+        entityType !== SearchableEntityType.DATA_MART &&
+        entityType !== SearchableEntityType.DATA_DESTINATION
+      ) {
+        throw new Error(`Invalid report parent type: ${entityType}`);
+      }
+      const page = await this.indexer.reindexReportsPage(
+        { entityType, entityId: trigger.entityId },
+        trigger.projectId,
+        trigger.reportProgress?.cursor ?? null,
+        options?.signal
+      );
+      trigger.reportProgress = {
+        cursor: page.nextCursor,
+        errors: (trigger.reportProgress?.errors ?? 0) + page.errors,
+      };
+      if (!page.nextCursor && trigger.reportProgress.errors > 0) {
+        throw new Error(
+          `Report parent reindex finished with ${trigger.reportProgress.errors} errors`
+        );
+      }
+      return;
+    }
 
     if (trigger.operation === 'DELETE') {
       await this.indexer.deleteEntity(entityType, trigger.entityId);

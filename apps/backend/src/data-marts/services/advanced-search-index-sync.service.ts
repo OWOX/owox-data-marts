@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
+import type { ReportSearchParent } from '../search/sources/report.source';
 import {
   ReindexOperation,
   SearchReindexTrigger,
@@ -73,6 +74,32 @@ export class AdvancedSearchIndexSyncService {
     );
   }
 
+  async scheduleReportsReindex(
+    entityType: ReportSearchParent['entityType'],
+    entityId: string,
+    projectId: string
+  ): Promise<void> {
+    await this.runBestEffort(
+      'scheduleReportsReindex',
+      { entityType, entityId, projectId },
+      async () => {
+        // One bounded, paginated job per rename. Do not coalesce into a running job
+        // whose cursor may already have passed the affected reports.
+        await this.triggerRepo.save(
+          this.triggerRepo.create({
+            entityType,
+            entityId,
+            projectId,
+            operation: 'REINDEX_REPORTS',
+            reportProgress: null,
+            isActive: true,
+            status: TriggerStatus.IDLE,
+          })
+        );
+      }
+    );
+  }
+
   private async runBestEffort(
     action: string,
     context: Record<string, string>,
@@ -99,6 +126,7 @@ export class AdvancedSearchIndexSyncService {
       entityType,
       entityId,
       status: TriggerStatus.IDLE,
+      operation: In(['REINDEX', 'DELETE']),
     };
 
     const existing = await this.triggerRepo.findOne({
