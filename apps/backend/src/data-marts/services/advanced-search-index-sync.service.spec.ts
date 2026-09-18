@@ -38,6 +38,7 @@ describe('AdvancedSearchIndexSyncService', () => {
   };
   let dataStorageProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
   let dataDestinationProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
+  let reportProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
 
   beforeEach(async () => {
     triggerRepo = {
@@ -56,6 +57,11 @@ describe('AdvancedSearchIndexSyncService', () => {
       create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
     };
     dataDestinationProjectTriggerRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
+    };
+    reportProjectTriggerRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockResolvedValue({}),
       create: jest.fn().mockImplementation((dto: object) => ({ ...dto })),
@@ -80,6 +86,10 @@ describe('AdvancedSearchIndexSyncService', () => {
           provide: 'SearchDataDestinationProjectReindexTriggerRepository',
           useValue: dataDestinationProjectTriggerRepo,
         },
+        {
+          provide: 'SearchReportProjectReindexTriggerRepository',
+          useValue: reportProjectTriggerRepo,
+        },
       ],
     })
       .overrideProvider('SearchReindexTriggerRepository')
@@ -90,9 +100,33 @@ describe('AdvancedSearchIndexSyncService', () => {
       .useValue(dataStorageProjectTriggerRepo)
       .overrideProvider('SearchDataDestinationProjectReindexTriggerRepository')
       .useValue(dataDestinationProjectTriggerRepo)
+      .overrideProvider('SearchReportProjectReindexTriggerRepository')
+      .useValue(reportProjectTriggerRepo)
       .compile();
 
     service = module.get(AdvancedSearchIndexSyncService);
+  });
+
+  describe.each(['scheduleReindex', 'scheduleDelete'] as const)('%s invalid entity IDs', action => {
+    it.each([undefined, null, '', '   '])(
+      'does not touch the queue when entityId is %p',
+      async entityId => {
+        const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+        try {
+          await expect(
+            service[action](SearchableEntityType.REPORT, entityId as string, 'proj-1')
+          ).resolves.toBeUndefined();
+
+          expect(triggerRepo.findOne).not.toHaveBeenCalled();
+          expect(triggerRepo.create).not.toHaveBeenCalled();
+          expect(triggerRepo.save).not.toHaveBeenCalled();
+          expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${action} failed:`));
+        } finally {
+          warn.mockRestore();
+        }
+      }
+    );
   });
 
   describe('scheduleReindex', () => {
@@ -134,6 +168,7 @@ describe('AdvancedSearchIndexSyncService', () => {
           entityType: SearchableEntityType.DATA_MART,
           entityId: 'dm-1',
           status: TriggerStatus.IDLE,
+          operation: In(['REINDEX', 'DELETE']),
         },
       });
 
@@ -229,6 +264,17 @@ describe('AdvancedSearchIndexSyncService', () => {
       expect(dataDestinationProjectTriggerRepo.create).not.toHaveBeenCalled();
     });
 
+    it('dispatches report syncs to the report queue', async () => {
+      await service.scheduleTypeProjectSync(SearchableEntityType.REPORT, 'proj-report');
+
+      expect(reportProjectTriggerRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'proj-report', status: TriggerStatus.IDLE })
+      );
+      expect(dataMartProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataDestinationProjectTriggerRepo.create).not.toHaveBeenCalled();
+    });
+
     it('dispatches data mart and data destination syncs to their own queues', async () => {
       await service.scheduleTypeProjectSync(SearchableEntityType.DATA_MART, 'proj-mart');
       await service.scheduleTypeProjectSync(SearchableEntityType.DATA_DESTINATION, 'proj-dest');
@@ -242,7 +288,12 @@ describe('AdvancedSearchIndexSyncService', () => {
       expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
     });
 
-    it('looks up existing project trigger across pending and running statuses', async () => {
+    it('deduplicates project triggers including one already processing by default', async () => {
+      dataStorageProjectTriggerRepo.findOne.mockResolvedValue({
+        projectId: 'proj-1',
+        status: TriggerStatus.PROCESSING,
+      } as SearchDataStorageProjectReindexTrigger);
+
       await service.scheduleTypeProjectSync(SearchableEntityType.DATA_STORAGE, 'proj-1');
 
       expect(dataStorageProjectTriggerRepo.findOne).toHaveBeenCalledWith({
@@ -251,6 +302,8 @@ describe('AdvancedSearchIndexSyncService', () => {
           status: In([TriggerStatus.IDLE, TriggerStatus.READY, TriggerStatus.PROCESSING]),
         },
       });
+      expect(dataStorageProjectTriggerRepo.create).not.toHaveBeenCalled();
+      expect(dataStorageProjectTriggerRepo.save).not.toHaveBeenCalled();
     });
 
     it('does not reuse a project trigger from another project', async () => {
@@ -306,5 +359,23 @@ describe('AdvancedSearchIndexSyncService', () => {
         service.scheduleTypeProjectSync(SearchableEntityType.DATA_STORAGE, 'proj-1')
       ).resolves.toBeUndefined();
     });
+  });
+  it('schedules each parent rename in the fast queue without using the project queue', async () => {
+    await Promise.all([
+      service.scheduleReportsReindex(SearchableEntityType.DATA_MART, 'dm-1', 'proj-1'),
+      service.scheduleReportsReindex(SearchableEntityType.DATA_MART, 'dm-1', 'proj-1'),
+    ]);
+    expect(triggerRepo.save).toHaveBeenCalledTimes(2);
+    expect(triggerRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'REINDEX_REPORTS',
+        entityType: SearchableEntityType.DATA_MART,
+        entityId: 'dm-1',
+        projectId: 'proj-1',
+        reportProgress: null,
+        status: TriggerStatus.IDLE,
+      })
+    );
+    expect(reportProjectTriggerRepo.save).not.toHaveBeenCalled();
   });
 });

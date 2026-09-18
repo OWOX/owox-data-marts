@@ -275,7 +275,83 @@ describe('InMemoryPaginatedSearch', () => {
     });
   });
 
+  describe('report references', () => {
+    const report = {
+      dataMart: { id: 'dm-1', title: 'Orders' },
+      dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+    };
+
+    it('returns the indexed report references with the scored entity', async () => {
+      const descriptor = makeDescriptor({
+        entityType: SearchableEntityType.REPORT,
+        entityId: 'rep-1',
+        report,
+      });
+      repository.searchCandidates.mockResolvedValue(makeSinglePage([makeIndexRow(descriptor)]));
+
+      const results = await search.search(
+        SearchableEntityType.REPORT,
+        'proj-1',
+        'revenue',
+        DEFAULT_PROMPT_VEC,
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].report).toEqual(report);
+    });
+
+    it('leaves report references undefined for entities without them', async () => {
+      repository.searchCandidates.mockResolvedValue(
+        makeSinglePage([makeIndexRow(makeDescriptor())])
+      );
+
+      const results = await search.search(
+        SearchableEntityType.DATA_MART,
+        'proj-1',
+        'revenue',
+        DEFAULT_PROMPT_VEC,
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].report).toBeUndefined();
+    });
+  });
+
   describe('keyword scoring component', () => {
+    it('ranks a Data Mart report title above a partial match with more fields', async () => {
+      repository.searchCandidates.mockResolvedValue(
+        makeSinglePage([
+          makeIndexRow(
+            makeDescriptor({
+              entityId: 'dm-reports',
+              title: 'Revenue reports',
+              richTextSlots: [{ kind: 'title', text: 'Revenue reports' }],
+            }),
+            null
+          ),
+          makeIndexRow(
+            makeDescriptor({
+              entityId: 'dm-orders',
+              title: 'Revenue orders',
+              richTextSlots: [{ kind: 'title', text: 'Revenue orders' }],
+              fieldCount: 20,
+            }),
+            null
+          ),
+        ])
+      );
+
+      const results = await search.search(
+        SearchableEntityType.DATA_MART,
+        'proj-1',
+        'revenue report',
+        null,
+        { ...DEFAULT_OPTIONS, topK: 1 }
+      );
+
+      expect(results).toEqual([expect.objectContaining({ entityId: 'dm-reports', kwScore: 100 })]);
+    });
+
     it('scores title match at 100 for a single-token prompt', async () => {
       const descriptor = makeDescriptor({
         entityId: 'dm-1',
@@ -295,6 +371,25 @@ describe('InMemoryPaginatedSearch', () => {
       expect(results[0].kwScore).toBe(100);
       expect(results[0].vecScore).toBe(100);
       expect(results[0].finalScore).toBe(100 + results[0].extendability);
+    });
+
+    it('scores a title match at 100 when the prompt adds the entity-type word', async () => {
+      const descriptor = makeDescriptor({
+        entityId: 'rep-1',
+        title: 'Revenue',
+        richTextSlots: [{ kind: 'title', text: 'Revenue' }],
+      });
+      repository.searchCandidates.mockResolvedValue(makeSinglePage([makeIndexRow(descriptor)]));
+
+      const results = await search.search(
+        SearchableEntityType.REPORT,
+        'proj-1',
+        'revenue report',
+        DEFAULT_PROMPT_VEC,
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].kwScore).toBe(100);
     });
 
     it('uses the strongest matching slot weight for a single-token prompt', async () => {

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { SearchReportRef } from '../../../common/search/search.facade';
 import type {
   SearchableDataMart,
   SearchableDataMartField,
@@ -15,6 +16,7 @@ export interface ParsedDocument {
   title: string;
   description: string | null;
   embeddingText: string;
+  report?: SearchReportRef;
 }
 
 export function embeddingText(descriptor: EntityScoringDescriptor): string {
@@ -51,6 +53,7 @@ export function buildDocument(descriptor: EntityScoringDescriptor): string {
     title: descriptor.title,
     description: descriptor.description,
     embeddingText: embeddingText(descriptor),
+    ...(descriptor.report ? { report: descriptor.report } : {}),
   });
 }
 

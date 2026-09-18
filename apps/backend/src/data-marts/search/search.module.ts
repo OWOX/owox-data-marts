@@ -9,11 +9,13 @@ import { DataMartContext } from '../entities/data-mart-context.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataDestination } from '../entities/data-destination.entity';
+import { Report } from '../entities/report.entity';
 import { SearchReindexTrigger } from '../entities/search/search-reindex-trigger.entity';
 import {
   SearchDataDestinationProjectReindexTrigger,
   SearchDataMartProjectReindexTrigger,
   SearchDataStorageProjectReindexTrigger,
+  SearchReportProjectReindexTrigger,
 } from '../entities/search/search-project-reindex-trigger.entity';
 import { SEARCH_FACADE, SEARCH_SEMANTIC_ENGINE } from '../../common/search/search.facade';
 import { SearchController } from '../controllers/search.controller';
@@ -35,6 +37,7 @@ import {
   SearchDataMartProjectReindexTriggerHandler,
   SearchDataStorageProjectReindexTriggerHandler,
   SearchEntityReindexTriggerHandler,
+  SearchReportProjectReindexTriggerHandler,
 } from './indexing/search-reindex-trigger-handler.service';
 import { SearchIndexDriftProcessor } from './indexing/search-index-drift.processor';
 import { AdvancedSearchService } from './engine/advanced-search.service';
@@ -43,6 +46,7 @@ import { IndexableSourceRegistry } from './sources/indexable-source.registry';
 import { DataMartIndexableSource } from './sources/data-mart.source';
 import { DataStorageIndexableSource } from './sources/data-storage.source';
 import { DataDestinationIndexableSource } from './sources/data-destination.source';
+import { ReportIndexableSource } from './sources/report.source';
 import { InMemoryPaginatedSearch } from './engine/in-memory-paginated.search';
 import { VECTOR_SEARCH_PORT } from './engine/vector-search.port';
 import { SearchFacadeImpl } from './search.facade.impl';
@@ -60,10 +64,12 @@ import { SearchFacadeImpl } from './search.facade.impl';
       DataMartRelationship,
       DataStorage,
       DataDestination,
+      Report,
       SearchReindexTrigger,
       SearchDataMartProjectReindexTrigger,
       SearchDataStorageProjectReindexTrigger,
       SearchDataDestinationProjectReindexTrigger,
+      SearchReportProjectReindexTrigger,
     ]),
   ],
   providers: [
@@ -92,18 +98,26 @@ import { SearchFacadeImpl } from './search.facade.impl';
     SearchDataMartProjectReindexTriggerHandler,
     SearchDataStorageProjectReindexTriggerHandler,
     SearchDataDestinationProjectReindexTriggerHandler,
+    SearchReportProjectReindexTriggerHandler,
     SearchIndexDriftProcessor,
     DataMartIndexableSource,
     DataStorageIndexableSource,
     DataDestinationIndexableSource,
+    ReportIndexableSource,
     {
       provide: INDEXABLE_SOURCES,
       useFactory: (
         dataMartSource: DataMartIndexableSource,
         dataStorageSource: DataStorageIndexableSource,
-        dataDestinationSource: DataDestinationIndexableSource
-      ) => [dataMartSource, dataStorageSource, dataDestinationSource],
-      inject: [DataMartIndexableSource, DataStorageIndexableSource, DataDestinationIndexableSource],
+        dataDestinationSource: DataDestinationIndexableSource,
+        reportSource: ReportIndexableSource
+      ) => [dataMartSource, dataStorageSource, dataDestinationSource, reportSource],
+      inject: [
+        DataMartIndexableSource,
+        DataStorageIndexableSource,
+        DataDestinationIndexableSource,
+        ReportIndexableSource,
+      ],
     },
     IndexableSourceRegistry,
     InMemoryPaginatedSearch,

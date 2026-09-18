@@ -90,6 +90,7 @@ export { type OWOXReportOutputSchemaField } from './reports.js';
 export {
   type OWOXSearchEntityType,
   type OWOXSearchOptions,
+  type OWOXSearchReportRef,
   type OWOXSearchResult,
 } from './search.js';
 export {

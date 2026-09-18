@@ -5,6 +5,12 @@ export enum SearchableEntityType {
   DATA_MART = 'DATA_MART',
   DATA_STORAGE = 'DATA_STORAGE',
   DATA_DESTINATION = 'DATA_DESTINATION',
+  REPORT = 'REPORT',
+}
+
+export interface SearchReportRef {
+  dataMart: { id: string; title: string };
+  dataDestination: { id: string; title: string; type: string };
 }
 
 export interface SearchResult {
@@ -15,6 +21,8 @@ export interface SearchResult {
   finalScore: number;
   kwScore: number;
   vecScore: number | null;
+  report?: SearchReportRef;
+  url?: string;
 }
 
 export interface SearchAccessScope {

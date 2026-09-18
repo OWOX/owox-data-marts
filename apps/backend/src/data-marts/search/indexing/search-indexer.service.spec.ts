@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchIndexerService } from './search-indexer.service';
+import { ReportIndexableSource } from '../sources/report.source';
 import { EMBEDDING_PROVIDER, EmbeddingProvider } from '../embedding/embedding-provider';
 import { SearchIndexRepository } from '../schema/search-index.repository';
 import { ADVANCED_SEARCH_CONFIG, AdvancedSearchConfig } from '../config/advanced-search.config';
 import { IndexableSourceRegistry } from '../sources/indexable-source.registry';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import type { EntityScoringDescriptor } from './entity-scoring-descriptor';
-import { docHash, indexSignature } from './document-builder';
+import { buildDocument, docHash, indexSignature } from './document-builder';
 import type { IndexableSource, PageCursor, SearchablePage } from '../sources/indexable-source.port';
 
 function makeDescriptor(overrides: Partial<EntityScoringDescriptor> = {}): EntityScoringDescriptor {
@@ -53,6 +54,7 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     dataMartProjectProcessingCron: '0,30 * * * * *',
     dataStorageProjectProcessingCron: '10,40 * * * * *',
     dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    reportProjectProcessingCron: '15,45 * * * * *',
     openRouterEmbeddingModel: 'google/gemini-embedding-2',
     openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
@@ -127,6 +129,7 @@ describe('SearchIndexerService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchIndexerService,
+        { provide: ReportIndexableSource, useValue: {} },
         { provide: IndexableSourceRegistry, useValue: registry },
         { provide: EMBEDDING_PROVIDER, useValue: provider },
         { provide: SearchIndexRepository, useValue: repository },
@@ -153,6 +156,56 @@ describe('SearchIndexerService', () => {
       expect(upsertArg.entityId).toBe('dm-1');
       expect(typeof upsertArg.document).toBe('string');
       expect(upsertArg.isDraft).toBe(false);
+    });
+
+    it('skips an unchanged descriptor that already has a ready embedding', async () => {
+      const descriptor = makeDescriptor();
+      const document = buildDocument(descriptor);
+      const hash = docHash(provider.modelId, indexSignature(descriptor, document));
+      source.loadSearchableOne.mockResolvedValue(descriptor);
+      repository.listIndexStateByIds.mockResolvedValue(
+        new Map([
+          [
+            descriptor.entityId,
+            { projectId: descriptor.projectId, docHash: hash, embeddingStatus: 'READY' },
+          ],
+        ])
+      );
+
+      await service.reindexEntity(SearchableEntityType.DATA_MART, descriptor.entityId);
+
+      expect(repository.listIndexStateByIds).toHaveBeenCalledWith(SearchableEntityType.DATA_MART, [
+        descriptor.entityId,
+      ]);
+      expect(provider.embed).not.toHaveBeenCalled();
+      expect(repository.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a missing embedding', 'matching-hash', 'MISSING'],
+      ['a changed document', 'stale-hash', 'READY'],
+    ] as const)('reindexes when the stored state has %s', async (_case, storedHash, status) => {
+      const descriptor = makeDescriptor();
+      const document = buildDocument(descriptor);
+      const currentHash = docHash(provider.modelId, indexSignature(descriptor, document));
+      source.loadSearchableOne.mockResolvedValue(descriptor);
+      repository.listIndexStateByIds.mockResolvedValue(
+        new Map([
+          [
+            descriptor.entityId,
+            {
+              projectId: descriptor.projectId,
+              docHash: storedHash === 'matching-hash' ? currentHash : storedHash,
+              embeddingStatus: status,
+            },
+          ],
+        ])
+      );
+
+      await service.reindexEntity(SearchableEntityType.DATA_MART, descriptor.entityId);
+
+      expect(provider.embed).toHaveBeenCalledTimes(1);
+      expect(repository.upsert).toHaveBeenCalledTimes(1);
     });
 
     it('deletes from index when descriptor is not found in source', async () => {
@@ -226,6 +279,36 @@ describe('SearchIndexerService', () => {
   });
 
   describe('syncTypeProject', () => {
+    it('continues after a filtered page when the source has another page', async () => {
+      const descriptor = makeDescriptor({ entityId: 'dm-2' });
+      source.listSearchablePage
+        .mockResolvedValueOnce({
+          descriptors: [],
+          nextCursor: { createdAt: '2024-01-01T00:00:00.000Z', id: 'dm-1' },
+        })
+        .mockResolvedValueOnce(makePage([descriptor]));
+
+      const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
+
+      expect(source.listSearchablePage).toHaveBeenCalledTimes(2);
+      expect(stats.indexed).toBe(1);
+      expect(provider.embed).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails instead of looping when a source repeats its cursor', async () => {
+      const repeatedCursor = { createdAt: '2024-01-01T00:00:00.000Z', id: 'dm-1' };
+      source.listSearchablePage
+        .mockResolvedValueOnce({ descriptors: [], nextCursor: repeatedCursor })
+        .mockResolvedValueOnce({ descriptors: [], nextCursor: repeatedCursor })
+        .mockResolvedValueOnce(makePage([]));
+
+      await expect(
+        service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1')
+      ).rejects.toThrow('repeated cursor');
+
+      expect(source.listSearchablePage).toHaveBeenCalledTimes(2);
+    });
+
     it('indexes a new descriptor in the project', async () => {
       const descriptor = makeDescriptor();
       source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchPage } from './SearchPage';
@@ -269,6 +269,58 @@ describe('SearchPage', () => {
         'href',
         '/ui/project-1/data-destinations?id=dest-77'
       );
+    });
+  });
+
+  describe('ENTITY_TYPE_META — REPORT', () => {
+    const reportResult = {
+      entityType: 'REPORT' as const,
+      entityId: 'rep-1',
+      title: 'Monthly revenue',
+      description: null,
+      finalScore: 0.9,
+      kwScore: 0.9,
+      vecScore: null,
+      report: {
+        dataMart: { id: 'dm-1', title: 'Orders' },
+        dataDestination: { id: 'dd-1', title: 'Finance Sheets', type: 'GOOGLE_SHEETS' },
+      },
+      url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports?reportId=rep-1',
+    };
+
+    it('renders a REPORT result with its data mart and destination as context', () => {
+      mockUseSearch.mockReturnValue(
+        defaultSearchState({ hasQuery: true, results: [reportResult] })
+      );
+      renderPage();
+      expect(screen.getByText('Monthly revenue')).toBeInTheDocument();
+      expect(screen.getByText('Report')).toBeInTheDocument();
+      expect(screen.getByText('Orders')).toBeInTheDocument();
+      expect(screen.getByText('Finance Sheets')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /monthly revenue/i })).toHaveAccessibleName(
+        'Monthly revenue Entity type: Report Data Mart: Orders Destination: Finance Sheets'
+      );
+    });
+
+    it('links to the data mart reports page with the report deep link', () => {
+      mockUseSearch.mockReturnValue(
+        defaultSearchState({ hasQuery: true, results: [reportResult] })
+      );
+      renderPage();
+      expect(screen.getByRole('link', { name: /monthly revenue/i })).toHaveAttribute(
+        'href',
+        '/ui/project-1/data-marts/dm-1/reports?reportId=rep-1'
+      );
+    });
+
+    it('falls back to the destination title for a report without a title', () => {
+      mockUseSearch.mockReturnValue(
+        defaultSearchState({ hasQuery: true, results: [{ ...reportResult, title: '' }] })
+      );
+      renderPage();
+      const link = screen.getByRole('link', { name: /finance sheets/i });
+      expect(within(link).getAllByText('Finance Sheets')).toHaveLength(2);
+      expect(within(link).getByText('Orders')).toBeInTheDocument();
     });
   });
 

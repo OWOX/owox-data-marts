@@ -9,6 +9,7 @@ import { buildDocument, embeddingText, docHash, indexSignature } from './documen
 import { vecToBuffer } from '../embedding/vector-codec';
 import type { EntityScoringDescriptor } from './entity-scoring-descriptor';
 import { SearchableEntityType } from '../../../common/search/search.facade';
+import { ReportIndexableSource, type ReportSearchParent } from '../sources/report.source';
 
 export interface TypeProjectSyncStats {
   indexed: number;
@@ -26,7 +27,8 @@ export class SearchIndexerService {
     private readonly registry: IndexableSourceRegistry,
     @Inject(EMBEDDING_PROVIDER) private readonly provider: EmbeddingProvider,
     private readonly repository: SearchIndexRepository,
-    @Inject(ADVANCED_SEARCH_CONFIG) private readonly config: AdvancedSearchConfig
+    @Inject(ADVANCED_SEARCH_CONFIG) private readonly config: AdvancedSearchConfig,
+    private readonly reportSource: ReportIndexableSource
   ) {}
 
   async reindexEntity(
@@ -34,6 +36,21 @@ export class SearchIndexerService {
     entityId: string,
     projectId?: string
   ): Promise<void> {
+    if (entityType === SearchableEntityType.REPORT) {
+      const reportProjectId =
+        projectId ?? (await this.reportSource.loadSearchableOne(entityId))?.projectId;
+      if (!reportProjectId) {
+        await this.repository.deleteByEntityId(entityType, entityId);
+        return;
+      }
+      const result = await this.indexReports([entityId], reportProjectId);
+      if (result.embedFailed > 0) {
+        throw new Error(
+          `reindexEntity: ${entityType} ${entityId} embedding could not be generated`
+        );
+      }
+      return;
+    }
     const source = this.registry.resolve(entityType);
     if (!source) {
       this.logger.debug(`reindexEntity: ${entityType} source not registered, skipping`);
@@ -51,7 +68,20 @@ export class SearchIndexerService {
       return;
     }
 
-    await this.upsertDescriptor(source.entityType, descriptor);
+    const document = buildDocument(descriptor);
+    const hash = docHash(this.provider.modelId, indexSignature(descriptor, document));
+    const state = (
+      await this.repository.listIndexStateByIds(source.entityType, [descriptor.entityId])
+    ).get(descriptor.entityId);
+    if (
+      state?.projectId === descriptor.projectId &&
+      state.docHash === hash &&
+      state.embeddingStatus === 'READY'
+    ) {
+      return;
+    }
+
+    await this.upsertDescriptor(source.entityType, descriptor, document, hash);
   }
 
   async deleteEntity(entityType: SearchableEntityType, entityId: string): Promise<void> {
@@ -78,15 +108,41 @@ export class SearchIndexerService {
     }
 
     let cursor: PageCursor | null = null;
+    const seenCursors = new Set<string>();
     const limit = this.config.indexBatchSize;
 
     do {
       if (signal?.aborted) break;
 
       const page = await source.listSearchablePage(projectId, cursor, limit);
+      if (page.nextCursor) {
+        const cursorKey = JSON.stringify(page.nextCursor);
+        if (seenCursors.has(cursorKey)) {
+          throw new Error(
+            `syncTypeProject: ${entityType} project ${projectId} returned a repeated cursor`
+          );
+        }
+        seenCursors.add(cursorKey);
+      }
       cursor = page.nextCursor;
 
-      if (page.descriptors.length === 0) break;
+      if (page.descriptors.length === 0) continue;
+
+      if (entityType === SearchableEntityType.REPORT) {
+        try {
+          const result = await this.indexReports(
+            page.descriptors.map(d => d.entityId),
+            projectId
+          );
+          stats.indexed += result.indexed;
+          stats.skipped += result.skipped;
+          stats.embedFailed += result.embedFailed;
+        } catch (err) {
+          stats.errors += page.descriptors.length;
+          this.logger.error(`syncTypeProject: report batch error for project ${projectId}`, err);
+        }
+        continue;
+      }
 
       const pageIds = page.descriptors.map(d => d.entityId);
       const existingState = await this.repository.listIndexStateByIds(entityType, pageIds);
@@ -178,12 +234,139 @@ export class SearchIndexerService {
     return stats;
   }
 
+  async reindexReportsPage(
+    parent: ReportSearchParent,
+    projectId: string,
+    cursor: PageCursor | null,
+    signal?: AbortSignal
+  ): Promise<{ nextCursor: PageCursor | null; errors: number }> {
+    if (signal?.aborted) throw new Error('Report reindex cancelled');
+    const page = await this.reportSource.listSearchablePage(
+      projectId,
+      cursor,
+      this.config.indexBatchSize,
+      parent
+    );
+    if (
+      cursor &&
+      page.nextCursor &&
+      (page.nextCursor.createdAt < cursor.createdAt ||
+        (page.nextCursor.createdAt === cursor.createdAt && page.nextCursor.id <= cursor.id))
+    ) {
+      throw new Error('Report reindex cursor did not advance');
+    }
+    let errors = 0;
+    try {
+      const result = await this.indexReports(
+        page.descriptors.map(d => d.entityId),
+        projectId
+      );
+      errors = result.embedFailed;
+    } catch (err) {
+      errors = page.descriptors.length;
+      this.logger.error(`Report parent reindex batch failed for ${parent.entityId}`, err);
+    }
+    if (signal?.aborted) throw new Error('Report reindex cancelled');
+    return { nextCursor: page.nextCursor, errors };
+  }
+
+  private async indexReports(
+    ids: string[],
+    projectId: string,
+    attempt = 0
+  ): Promise<{ indexed: number; skipped: number; embedFailed: number }> {
+    if (ids.length === 0) return { indexed: 0, skipped: 0, embedFailed: 0 };
+    const entityType = SearchableEntityType.REPORT;
+    // Read index state BEFORE refreshing source data, otherwise an old descriptor
+    // could overwrite a newer index row using that newer row as its expected state.
+    const expected = await this.repository.listIndexStateByIds(entityType, ids);
+    const descriptors = await this.reportSource.loadSearchableByIds(projectId, ids);
+    const found = new Set(descriptors.map(d => d.entityId));
+    const removedIds = ids.filter(id => !found.has(id));
+    for (const id of removedIds) {
+      await this.repository.deleteByEntityIdAndProjectId(entityType, id, projectId);
+    }
+    const stale = descriptors
+      .map(descriptor => {
+        const document = buildDocument(descriptor);
+        return {
+          descriptor,
+          document,
+          hash: docHash(this.provider.modelId, indexSignature(descriptor, document)),
+        };
+      })
+      .filter(({ descriptor, hash }) => {
+        const state = expected.get(descriptor.entityId);
+        return (
+          state?.projectId !== projectId ||
+          state.docHash !== hash ||
+          state.embeddingStatus !== 'READY'
+        );
+      });
+    const skipped = descriptors.length - stale.length;
+    if (stale.length === 0 && removedIds.length === 0) {
+      return { indexed: 0, skipped, embedFailed: 0 };
+    }
+    const vectors =
+      stale.length > 0
+        ? await this.provider.embed(
+            stale.map(({ descriptor }) => embeddingText(descriptor)),
+            {
+              inputType: 'search_document',
+            }
+          )
+        : [];
+    const rows: SearchIndexRow[] = [];
+    stale.forEach(({ descriptor, document, hash }, i) => {
+      const vector = vectors[i];
+      rows.push({
+        entityId: descriptor.entityId,
+        projectId,
+        isDraft: false,
+        document,
+        docHash: hash,
+        embedding: vector ? vecToBuffer(vector) : null,
+        fieldCount: 0,
+        updatedAt: new Date(),
+      });
+    });
+    const conflicts = new Set(await this.repository.upsertReportsIfUnchanged(rows, expected));
+    // Verify AFTER writing: a rename back to the original title can make the latest
+    // worker skip an unchanged index while an older embedding is still in flight.
+    // Include deletions so a recreated report is not erased by an older missing read.
+    const writtenHashes = new Map(rows.map(row => [row.entityId, row.docHash]));
+    const verifiedIds = [...writtenHashes.keys(), ...removedIds];
+    const currentDescriptors = await this.reportSource.loadSearchableByIds(projectId, verifiedIds);
+    const currentHashes = new Map(
+      currentDescriptors.map(descriptor => [
+        descriptor.entityId,
+        docHash(this.provider.modelId, indexSignature(descriptor, buildDocument(descriptor))),
+      ])
+    );
+    for (const id of verifiedIds) {
+      if (currentHashes.get(id) !== writtenHashes.get(id)) conflicts.add(id);
+    }
+    if (conflicts.size > 0 && attempt >= 2) {
+      throw new Error('Report index changed repeatedly during reindex');
+    }
+    const retry =
+      conflicts.size > 0
+        ? await this.indexReports([...conflicts], projectId, attempt + 1)
+        : { indexed: 0, skipped: 0, embedFailed: 0 };
+    const writtenRows = rows.filter(row => !conflicts.has(row.entityId));
+    return {
+      indexed: writtenRows.filter(row => row.embedding !== null).length + retry.indexed,
+      skipped: skipped + retry.skipped,
+      embedFailed: writtenRows.filter(row => row.embedding === null).length + retry.embedFailed,
+    };
+  }
+
   private async upsertDescriptor(
     entityType: SearchableEntityType,
-    descriptor: EntityScoringDescriptor
+    descriptor: EntityScoringDescriptor,
+    document: string,
+    hash: string
   ): Promise<void> {
-    const document = buildDocument(descriptor);
-    const hash = docHash(this.provider.modelId, indexSignature(descriptor, document));
     const vecs = await this.provider.embed([embeddingText(descriptor)], {
       inputType: 'search_document',
     });

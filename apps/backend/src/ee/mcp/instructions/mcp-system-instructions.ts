@@ -10,6 +10,7 @@ For a concrete analytical question:
 Discovery:
 - Use list_data_marts only when the user explicitly asks to list or browse data marts.
 - Use summarize_data_catalog when the user asks what data is available, what can be analyzed, or does not know where to start.
+- Use get_relevant_reports_by_prompt when the user refers to an existing report by name or subject (open, rerun, change, schedule, or find "the revenue report") and its id is not yet known; it returns each report's data mart and destination plus a direct link. Use get_data_mart_reports when the data mart is already known.
 - Call get_project_context before the first project-specific operation in a conversation so you receive the current project metadata and its complete admin-maintained description. Reuse that context for subsequent requests unless the user asks you to refresh it.
 
 Empty project:

@@ -5,6 +5,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DeleteReportService } from './delete-report.service';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 describe('DeleteReportService', () => {
   const report = {
@@ -27,15 +28,24 @@ describe('DeleteReportService', () => {
     const eventEmitter = {
       emit: jest.fn(),
     };
+    const advancedSearchIndexSync = { scheduleDelete: jest.fn().mockResolvedValue(undefined) };
 
     const service = new DeleteReportService(
       reportRepository as never,
       reportService as never,
       reportAccessService as never,
-      eventEmitter as never
+      eventEmitter as never,
+      advancedSearchIndexSync as never
     );
 
-    return { service, reportRepository, reportService, reportAccessService, eventEmitter };
+    return {
+      service,
+      reportRepository,
+      reportService,
+      reportAccessService,
+      eventEmitter,
+      advancedSearchIndexSync,
+    };
   };
 
   beforeEach(() => {
@@ -55,6 +65,18 @@ describe('DeleteReportService', () => {
       'proj-1'
     );
     expect(reportService.deleteReport).toHaveBeenCalledWith(report);
+  });
+
+  it('schedules removal of the report from the search index', async () => {
+    const { service, advancedSearchIndexSync } = createService();
+
+    await service.run(new DeleteReportCommand('report-1', 'proj-1', 'user-1', ['editor']));
+
+    expect(advancedSearchIndexSync.scheduleDelete).toHaveBeenCalledWith(
+      SearchableEntityType.REPORT,
+      'report-1',
+      'proj-1'
+    );
   });
 
   it('should throw ForbiddenException when access check fails', async () => {

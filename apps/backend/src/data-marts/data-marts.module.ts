@@ -12,6 +12,7 @@ import {
   SearchDataDestinationProjectReindexTrigger,
   SearchDataMartProjectReindexTrigger,
   SearchDataStorageProjectReindexTrigger,
+  SearchReportProjectReindexTrigger,
 } from './entities/search/search-project-reindex-trigger.entity';
 import { UpdateAvailabilityService } from './use-cases/update-availability.service';
 import { MemberOwnershipWarningsService } from './services/member-ownership-warnings.service';
@@ -483,6 +484,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
       SearchDataMartProjectReindexTrigger,
       SearchDataStorageProjectReindexTrigger,
       SearchDataDestinationProjectReindexTrigger,
+      SearchReportProjectReindexTrigger,
       DataMart,
       DataMartBusinessOwner,
       DataMartTechnicalOwner,

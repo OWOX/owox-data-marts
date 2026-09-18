@@ -22,6 +22,7 @@ export class UpdateDataMartTitleService {
 
   async run(command: UpdateDataMartTitleCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    const titleChanged = dataMart.title !== command.title;
 
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(
@@ -53,6 +54,13 @@ export class UpdateDataMartTitleService {
       dataMart.id,
       command.projectId
     );
+    if (titleChanged) {
+      await this.advancedSearchIndexSync?.scheduleReportsReindex(
+        SearchableEntityType.DATA_MART,
+        dataMart.id,
+        command.projectId
+      );
+    }
 
     return this.mapper.toDomainDto(dataMart);
   }
