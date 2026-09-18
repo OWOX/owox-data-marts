@@ -19,7 +19,8 @@ describe('ReportService', () => {
     const service = new ReportService(
       repository as unknown as Repository<Report>,
       scheduledTriggerService,
-      systemTimeService
+      systemTimeService,
+      {} as never
     );
 
     return { service, repository };

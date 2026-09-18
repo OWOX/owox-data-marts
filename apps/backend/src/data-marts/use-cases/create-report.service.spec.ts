@@ -53,6 +53,8 @@ describe('CreateReportService', () => {
     outputControlsValidatorOverride?: Partial<{ validateForReport: jest.Mock }>
   ) => {
     const reportRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+      restore: jest.fn().mockResolvedValue({ affected: 1 }),
       create: jest.fn().mockReturnValue(savedReport),
       save: jest.fn().mockResolvedValue(savedReport),
     };
@@ -124,11 +126,31 @@ describe('CreateReportService', () => {
       reportAccessService as never
     );
 
-    return { service, reportRepository, outputControlsValidator };
+    return { service, reportRepository, outputControlsValidator, reportAccessService };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('rejects invalid output controls before restoring a deleted Looker report', async () => {
+    const { service, reportRepository } = createService({
+      validateForReport: jest.fn().mockRejectedValue(new BadRequestException('Invalid columns')),
+    });
+    reportRepository.findOne.mockResolvedValue({
+      ...savedReport,
+      dataMart,
+      dataDestination,
+      deletedAt: new Date(),
+    });
+    const command = new CreateReportCommand('proj-1', 'user-0', 'Test', 'dm-1', 'dest-1', {
+      type: 'looker-studio-config',
+      cacheLifetime: 300,
+    } as never);
+
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
+    expect(reportRepository.restore).not.toHaveBeenCalled();
+    expect(reportRepository.save).not.toHaveBeenCalled();
   });
 
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {

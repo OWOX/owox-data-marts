@@ -24,6 +24,7 @@ describe('MoveLegacyDataStorageService', () => {
     } as unknown as jest.Mocked<LegacyDataStorageService>;
 
     const mockSubQueryBuilder = {
+      withDeleted: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -34,6 +35,7 @@ describe('MoveLegacyDataStorageService', () => {
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
+      softDelete: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
@@ -43,6 +45,7 @@ describe('MoveLegacyDataStorageService', () => {
         }
         return mockQueryBuilder;
       }),
+      andWhere: jest.fn().mockReturnThis(),
       subQuery: jest.fn().mockReturnValue(mockSubQueryBuilder),
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
       getRawMany: jest.fn().mockResolvedValue([{ id: 'dm-1' }, { id: 'dm-2' }]),
@@ -120,16 +123,17 @@ describe('MoveLegacyDataStorageService', () => {
     );
   });
 
-  it('should perform 5 delete queries and 1 update query inside transaction', async () => {
+  it('soft-deletes reports while deleting their cache and other non-movable entities', async () => {
     // Arrange
     const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
 
     // Act
     await service.run(storage, 'new_project');
 
-    // Assert: 5 deletes (reportRunTriggers, reports, scheduledTriggers, connectorRunTriggers, runs) + 1 update (data marts)
-    expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(6);
+    // Five hard deletes (including cache), report soft delete, and data mart update.
+    expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(7);
     expect(mockQueryBuilder.delete).toHaveBeenCalledTimes(5);
+    expect(mockQueryBuilder.softDelete).toHaveBeenCalledTimes(1);
     expect(mockQueryBuilder.update).toHaveBeenCalledTimes(1);
     // manager.update for storage + findOneOrFail to return fresh entity
     expect(mockManager.update).toHaveBeenCalledTimes(1);
