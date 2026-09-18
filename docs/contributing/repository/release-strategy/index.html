@@ -142,7 +142,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Naming</th><th>Version Example</th><th>npm tag</th><th>Audience</th></tr></thead><tbody><tr><td>Release</td><td><code dir="auto">0.7.0</code>, <code dir="auto">1.8.0</code></td><td><code dir="auto">latest</code></td><td>Community</td></tr><tr><td>Snapshot</td><td><code dir="auto">0.5.0-next-20250630211639</code></td><td><code dir="auto">next</code></td><td>Cloud</td></tr></tbody></table>
+
+
+
+<table><thead><tr><th>Naming</th><th>Version Example</th><th>npm tag</th><th>Container tag</th><th>Audience</th></tr></thead><tbody><tr><td>Release</td><td><code dir="auto">0.7.0</code>, <code dir="auto">1.8.0</code></td><td><code dir="auto">latest</code></td><td><code dir="auto">latest</code></td><td>Community</td></tr><tr><td>Snapshot</td><td><code dir="auto">0.5.0-next-20250630211639</code></td><td>—</td><td><code dir="auto">next</code></td><td>Cloud</td></tr></tbody></table>
+<p>Snapshots are published as container images only. They are not published to npm:
+every merge to <code dir="auto">main</code> added a version to each package’s registry metadata, and
+<code dir="auto">@owox/backend</code> grew large enough that npm needed up to fifteen minutes to serve
+a newly published version, which is time the image build spent waiting. Because
+npm forbids unpublishing, that metadata could only ever grow.</p>
+<p>This covers every released package. <code dir="auto">@owox/plugin-sdk</code>, <code dir="auto">@owox/api-client</code> and
+<code dir="auto">@owox/ctl</code> are not in the container image, so they have no snapshot channel at
+all — changes to them reach consumers in a release.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="installation-commands">Installation Commands</h2><a class="sl-anchor-link" href="#installation-commands"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Installation Commands”</span></a></div>
 
 
@@ -169,7 +180,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Need</th><th>Command</th></tr></thead><tbody><tr><td>Release (newest)</td><td><code dir="auto">npm install -g owox</code></td></tr><tr><td>Release (exact)</td><td><code dir="auto">npm install -g owox@1.8.0</code></td></tr><tr><td>Snapshot (newest)</td><td><code dir="auto">npm install -g owox@next</code></td></tr><tr><td>Snapshot (exact)</td><td><code dir="auto">npm install -g owox@0.5.0-next-20250630211639</code></td></tr></tbody></table>
+<table><thead><tr><th>Need</th><th>Command</th></tr></thead><tbody><tr><td>Release (newest)</td><td><code dir="auto">npm install -g owox</code></td></tr><tr><td>Release (exact)</td><td><code dir="auto">npm install -g owox@1.8.0</code></td></tr><tr><td>Snapshot (newest)</td><td><code dir="auto">docker pull ghcr.io/owox/owox-data-marts:next</code></td></tr><tr><td>Snapshot (exact)</td><td><code dir="auto">docker pull ghcr.io/owox/owox-data-marts:0.5.0-next-20250630211639</code></td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h2"><h2 id="changeset-policy">Changeset Policy</h2><a class="sl-anchor-link" href="#changeset-policy"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Changeset Policy”</span></a></div>
 <p>A changeset is a release note for a change to shipped product behavior. Decide
 whether one is required from the observable release impact, not merely from the
@@ -223,7 +234,7 @@ understand the release.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="2-automated-process">2. Automated Process</h3><a class="sl-anchor-link" href="#2-automated-process"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “2. Automated Process”</span></a></div>
 <p>On every push to <code dir="auto">main</code>:</p>
 <ol>
-<li><strong>Snapshot Build</strong> (<code dir="auto">publish.yml</code>): Automatically publishes a snapshot version to the <code dir="auto">next</code> tag for testing and early access</li>
+<li><strong>Snapshot Build</strong> (<code dir="auto">publish.yml</code>): Automatically builds and pushes a snapshot container image to the <code dir="auto">next</code> tag for testing and early access. The image is built from tarballs packed in the same job, so it never waits on the npm registry</li>
 <li><strong>Release Build</strong> (<code dir="auto">publish.yml</code>): When the “Version Packages” PR is merged, the workflow publishes the new release version to the <code dir="auto">latest</code> tag</li>
 <li><strong>Version PR</strong> (<code dir="auto">release-pr.yml</code>): Changesets bot creates/updates a “Version Packages” PR that collects all pending changesets</li>
 </ol>
