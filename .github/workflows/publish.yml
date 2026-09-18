@@ -2,6 +2,18 @@ name: Snapshot
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      rebuild_latest_image:
+        description: 'Rebuild the "latest" image from this ref even though nothing was published'
+        type: boolean
+        default: false
+
+# Two runs packing the same version from different trees would race to push the
+# same tag. Never cancel: a half-finished publish is worse than a queued one.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -64,8 +76,16 @@ jobs:
       #   run: node tools/generate-shrinkwrap.mjs
 
       - name: Publish to "latest"
+        id: publish_latest
         run: |
-          npx changeset publish
+          set -o pipefail
+          npx changeset publish | tee /tmp/changeset-publish.log
+          if grep -q "New tag:" /tmp/changeset-publish.log; then
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
+          cat $GITHUB_OUTPUT
 
       - name: Extract "latest" version
         id: extract_latest_version
@@ -85,11 +105,17 @@ jobs:
           cat $GITHUB_OUTPUT
 
       - name: Pack workspaces for the "latest" container image
-        if: steps.latest_image_exists.outputs.exists == 'false'
+        if: |
+          steps.latest_image_exists.outputs.exists == 'false'
+          && (steps.publish_latest.outputs.published == 'true'
+              || inputs.rebuild_latest_image)
         run: node tools/pack-owox-image-packages.mjs
 
       - name: Build and push "latest" container image
-        if: steps.latest_image_exists.outputs.exists == 'false'
+        if: |
+          steps.latest_image_exists.outputs.exists == 'false'
+          && (steps.publish_latest.outputs.published == 'true'
+              || inputs.rebuild_latest_image)
         uses: docker/build-push-action@v7
         with:
           context: .
