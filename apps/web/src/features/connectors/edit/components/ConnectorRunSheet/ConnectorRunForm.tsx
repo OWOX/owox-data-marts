@@ -30,7 +30,6 @@ import {
   BACKFILL_START_DATE_FIELD,
   MAX_MANUAL_BACKFILL_DAYS,
   countBackfillDays,
-  countBackfillRuns,
   todayIsoDay,
   toUtcDayMs,
 } from '../../../shared/constants/manual-backfill';
@@ -44,17 +43,17 @@ interface ConnectorRunFormProps {
 type BackfillFieldValue = ConnectorRunFormData['data'][string];
 type BackfillDateValidation = Record<string, Validate<BackfillFieldValue, ConnectorRunFormData>>;
 
-const BACKFILL_LIMIT_NOTICE = `Each backfill run covers at most ${MAX_MANUAL_BACKFILL_DAYS} days. Longer periods run as sequential runs of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one at a time.`;
+const BACKFILL_LIMIT_NOTICE = `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days.`;
+const BACKFILL_LIMIT_ERROR = `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`;
 
 function getBackfillSummary(days: number): string {
   if (days === 0) {
-    return `${BACKFILL_LIMIT_NOTICE} Pick a start and end date to see how many runs your period needs.`;
+    return `${BACKFILL_LIMIT_NOTICE} Pick a start and end date to see how many days your period covers.`;
   }
-  const runs = countBackfillRuns(days);
-  if (runs === 1) {
-    return `This backfill covers ${days} ${days === 1 ? 'day' : 'days'} and runs as one run.`;
+  if (days > MAX_MANUAL_BACKFILL_DAYS) {
+    return `This period covers ${days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
   }
-  return `This backfill covers ${days} days and will run as ${runs} sequential runs of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one at a time. Each run appears in Run History as Backfill 1/${runs}, 2/${runs}, and so on. A failed run does not stop the remaining runs; cancelling a run does.`;
+  return `This backfill covers ${days} ${days === 1 ? 'day' : 'days'}.`;
 }
 
 function getBackfillDateValidation(
@@ -76,6 +75,13 @@ function getBackfillDateValidation(
         if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
         return (
           countBackfillDays(startDate, value) > 0 || 'End date must be on or after the start date'
+        );
+      },
+      withinLimit: (value, formValues) => {
+        const startDate = formValues.data[BACKFILL_START_DATE_FIELD];
+        if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
+        return (
+          countBackfillDays(startDate, value) <= MAX_MANUAL_BACKFILL_DAYS || BACKFILL_LIMIT_ERROR
         );
       },
     };

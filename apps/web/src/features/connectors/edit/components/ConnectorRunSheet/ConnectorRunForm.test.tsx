@@ -54,46 +54,53 @@ function setPeriod(startDate: string, endDate: string) {
   fireEvent.input(dateInput('End Date'), { target: { value: endDate } });
 }
 
+async function submit() {
+  await act(async () => {
+    fireEvent.submit(screen.getByRole('button', { name: 'Run' }).closest('form')!);
+  });
+}
+
 describe('ConnectorRunForm backfill limit', () => {
   it('explains the per-run limit before any dates are chosen', async () => {
     await openBackfill();
 
     expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-      'Each backfill run covers at most 31 days'
+      'A backfill run can cover at most 31 days'
     );
   });
 
-  it('tells the user how many sequential runs a long period needs', async () => {
-    await openBackfill();
-
-    setPeriod('2026-01-01', '2026-03-16');
-
-    await waitFor(() => {
-      expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-        'covers 75 days and will run as 3 sequential runs of up to 31 days'
-      );
-    });
-  });
-
-  it('reports a full calendar month as a single run', async () => {
+  it('reports a full calendar month as a valid period', async () => {
     await openBackfill();
 
     setPeriod('2026-07-01', '2026-07-31');
 
     await waitFor(() => {
       expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-        'covers 31 days and runs as one run'
+        'This backfill covers 31 days.'
       );
     });
+  });
+
+  it('warns about and blocks a period longer than 31 days', async () => {
+    const onSubmit = await openBackfill();
+
+    setPeriod('2026-01-01', '2026-03-16');
+    await waitFor(() => {
+      expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
+        'covers 75 days, which exceeds the 31-day limit'
+      );
+    });
+    await submit();
+
+    expect(await screen.findByText('The period cannot exceed 31 days')).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('blocks submission when the end date precedes the start date', async () => {
     const onSubmit = await openBackfill();
 
     setPeriod('2026-07-10', '2026-07-01');
-    await act(async () => {
-      fireEvent.submit(screen.getByRole('button', { name: 'Run' }).closest('form')!);
-    });
+    await submit();
 
     expect(
       await screen.findByText('End date must be on or after the start date')

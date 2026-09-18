@@ -43,8 +43,8 @@ export class ConnectorRunService {
       );
     }
 
-    // A manual backfill longer than the per-run limit is stored as its first chunk plus a
-    // chain descriptor; ConnectorRunTriggerHandlerService enqueues the following chunks.
+    // Validates the backfill period (format, order, per-run day limit) before any row is
+    // written, so the caller gets a clear error instead of a failed run.
     const preparedPayload = prepareManualBackfillPayload(payload, this.systemTimeService.now());
     const dataMartRun = await this.createDataMartRun(
       dataMart,
