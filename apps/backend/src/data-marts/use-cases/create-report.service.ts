@@ -1,4 +1,4 @@
-import { IsNull, Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -25,7 +25,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { LookerStudioReportService } from '../services/looker-studio-report.service';
 
 @Injectable()
 export class CreateReportService {
@@ -44,6 +44,7 @@ export class CreateReportService {
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly reportAccessService: ReportAccessService,
+    private readonly lookerStudioReportService: LookerStudioReportService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -102,23 +103,6 @@ export class CreateReportService {
       dataDestination
     );
 
-    let existingReport: Report | null = null;
-    if (dataDestination.type === DataDestinationType.LOOKER_STUDIO) {
-      existingReport = await this.reportRepository.findOne({
-        where: {
-          dataMart: { id: dataMart.id, projectId: command.projectId },
-          dataDestination: { id: dataDestination.id },
-        },
-        withDeleted: true,
-      });
-
-      if (existingReport && !existingReport.deletedAt) {
-        throw new BusinessViolationException(
-          'A Looker Studio report already exists for this data mart and destination.'
-        );
-      }
-    }
-
     await this.outputControlsValidator.validateForReport({
       storageType: dataMart.storage.type,
       dataMartId: dataMart.id,
@@ -135,8 +119,10 @@ export class CreateReportService {
       rejectUnavailableUniqueCountSources: true,
     });
 
-    // Re-enabling uses the same settings and permissions as creating a new connection.
-    const reportConfig = {
+    const report = this.reportRepository.create({
+      title: command.title,
+      dataMart,
+      dataDestination,
       createdById: command.userId,
       destinationConfig: command.destinationConfig,
       columnConfig: command.columnConfig ?? null,
@@ -146,29 +132,9 @@ export class CreateReportService {
       aggregationConfig: command.aggregationConfig ?? null,
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: foldEmptyUniqueCountConfig(command.uniqueCountConfig),
-    };
-
-    let newReport: Report;
-    if (existingReport) {
-      const restored = await this.reportRepository.restore({
-        id: existingReport.id,
-        deletedAt: Not(IsNull()),
-      });
-      if (!restored.affected) {
-        throw new BusinessViolationException('This Looker Studio report has already been enabled.');
-      }
-      // Looker reads as the new caller; preserve the ID, creation date and run history.
-      await this.reportRepository.update(existingReport.id, { ...reportConfig, title: '' });
-      newReport = await this.reportRepository.findOneByOrFail({ id: existingReport.id });
-    } else {
-      const report = this.reportRepository.create({
-        ...reportConfig,
-        title: command.title,
-        dataMart,
-        dataDestination,
-      });
-      newReport = await this.reportRepository.save(report);
-    }
+    });
+    const restoredReport = await this.lookerStudioReportService.restoreIfDeleted(report);
+    const newReport = restoredReport ?? (await this.reportRepository.save(report));
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(
@@ -193,7 +159,7 @@ export class CreateReportService {
       return o;
     });
 
-    if (!existingReport) {
+    if (!restoredReport) {
       const reportCreatedEvent = new ReportCreatedEvent(
         newReport.id,
         dataMart.id,

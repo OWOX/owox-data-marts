@@ -174,6 +174,7 @@ import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-ma
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
+import { LookerStudioReportService } from './services/looker-studio-report.service';
 import { InsightService } from './services/insight.service';
 import { InsightArtifactService } from './services/insight-artifact.service';
 import { InsightArtifactSqlPreviewTriggerHandlerService } from './services/insight-artifact-sql-preview-trigger-handler.service';
@@ -802,6 +803,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     UpdateScheduledTriggerService,
     DeleteScheduledTriggerService,
     ReportService,
+    LookerStudioReportService,
     ReportAccessService,
     AccessDecisionService,
     AdvancedSearchIndexSyncService,
