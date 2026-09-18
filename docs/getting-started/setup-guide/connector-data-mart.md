@@ -136,13 +136,9 @@ Also you can check the **Run History** tab for logs and results
 
 Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date range from the source.
 
-Each backfill run covers at most 31 days, so a full calendar month fits in one run.
-Longer periods run as sequential runs of up to 31 days, one at a time.
-The form shows how many runs your period needs before you start.
-Each run appears in **Run History** as `Backfill 1/3`, `Backfill 2/3`, and so on, with its date range.
-
-A failed run does not stop the remaining runs. Check its logs and rerun that period afterwards.
-Cancelling a run stops the remaining runs. Start a new backfill from the next date to continue.
+One backfill run covers at most 31 days, so a full calendar month fits in one run.
+The form shows how many days your period covers and rejects longer periods before the run starts.
+To reload a longer history, run several backfills with consecutive periods, one after another.
 
 ## Step 6: Set Triggers (Optional but Recommended)
 

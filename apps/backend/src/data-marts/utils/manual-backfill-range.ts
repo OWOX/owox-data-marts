@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 // @ts-expect-error - Package lacks TypeScript declarations
@@ -21,26 +20,9 @@ export const MAX_MANUAL_BACKFILL_DAYS: number =
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ISO_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-const isoDaySchema = z.string().regex(ISO_DAY_PATTERN);
-
-/** Whole-range descriptor carried on every chunk run of a split backfill. */
-export const BackfillChainSchema = z.object({
-  startDate: isoDaySchema,
-  endDate: isoDaySchema,
-  chunkIndex: z.number().int().min(0),
-  totalChunks: z.number().int().min(1),
-});
-export type BackfillChain = z.infer<typeof BackfillChainSchema>;
-
 export interface BackfillDateRange {
   startDate: string;
   endDate: string;
-}
-
-/** Field names are the connector-core convention read by AbstractConnector. */
-export interface BackfillChunk {
-  StartDate: string;
-  EndDate: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -72,8 +54,8 @@ export function countBackfillDays(range: BackfillDateRange): number {
 
 /**
  * Validates the user-supplied StartDate/EndDate the same way AbstractConnector does
- * (EndDate defaults to today and is clamped to today), but before a run is created so
- * the caller gets a 4xx instead of a failed run.
+ * (EndDate defaults to today and is clamped to today) and enforces the per-run day limit,
+ * before a run is created so the caller gets a 4xx instead of a failed run.
  */
 export function parseManualBackfillRange(
   data: Record<string, unknown>,
@@ -100,77 +82,27 @@ export function parseManualBackfillRange(
     throw new BusinessViolationException('EndDate cannot be earlier than StartDate');
   }
 
-  return { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
-}
-
-export function splitBackfillRange(
-  range: BackfillDateRange,
-  maxDays: number = MAX_MANUAL_BACKFILL_DAYS
-): BackfillChunk[] {
-  const start = toUtcDay(range.startDate);
-  const end = toUtcDay(range.endDate);
-  if (start === undefined || end === undefined || end < start) return [];
-
-  const chunks: BackfillChunk[] = [];
-  for (let chunkStart = start; chunkStart <= end; chunkStart += maxDays * DAY_MS) {
-    const chunkEnd = Math.min(chunkStart + (maxDays - 1) * DAY_MS, end);
-    chunks.push({ StartDate: formatUtcDay(chunkStart), EndDate: formatUtcDay(chunkEnd) });
+  const range = { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
+  const days = countBackfillDays(range);
+  if (days > MAX_MANUAL_BACKFILL_DAYS) {
+    throw new BusinessViolationException(
+      `Manual backfill is limited to ${MAX_MANUAL_BACKFILL_DAYS} days per run (requested ${days} days)`
+    );
   }
-  return chunks;
-}
-
-export function readBackfillChain(payload: unknown): BackfillChain | undefined {
-  if (!isRecord(payload) || payload.backfillChain === undefined) return undefined;
-  const parsed = BackfillChainSchema.safeParse(payload.backfillChain);
-  if (!parsed.success) {
-    throw new BusinessViolationException('Invalid backfill chain descriptor');
-  }
-  if (parsed.data.chunkIndex >= parsed.data.totalChunks) {
-    throw new BusinessViolationException('Backfill chunk index is out of range');
-  }
-  return parsed.data;
+  return range;
 }
 
 /**
- * Normalizes a MANUAL_BACKFILL payload before a run is created: validates the range,
- * narrows `data` to the first chunk and, when the range spans several chunks, attaches
- * the chain descriptor. Payloads that already carry a chain (internal next-chunk calls)
- * and non-backfill payloads pass through untouched.
+ * Validates a MANUAL_BACKFILL payload before a run is created and normalizes its dates
+ * (EndDate filled in and clamped). Non-backfill payloads pass through untouched.
  */
 export function prepareManualBackfillPayload(
   payload: Record<string, unknown> | undefined,
   today: Date
 ): Record<string, unknown> | undefined {
   if (!payload || payload.runType !== MANUAL_BACKFILL_RUN_TYPE) return payload;
-  if (readBackfillChain(payload)) return payload;
 
   const data = isRecord(payload.data) ? payload.data : {};
-  const range = parseManualBackfillRange(data, today);
-  const chunks = splitBackfillRange(range);
-  const prepared = { ...payload, data: { ...data, ...chunks[0] } };
-  if (chunks.length === 1) return prepared;
-
-  return {
-    ...prepared,
-    backfillChain: { ...range, chunkIndex: 0, totalChunks: chunks.length },
-  };
-}
-
-/** Payload for the chunk after the one described by `payload`, or undefined when it was the last. */
-export function buildNextBackfillChunkPayload(
-  payload: unknown
-): (Record<string, unknown> & { data: BackfillChunk; backfillChain: BackfillChain }) | undefined {
-  const chain = readBackfillChain(payload);
-  if (!chain || !isRecord(payload)) return undefined;
-
-  const nextIndex = chain.chunkIndex + 1;
-  const chunks = splitBackfillRange(chain);
-  if (nextIndex >= chunks.length) return undefined;
-
-  const data = isRecord(payload.data) ? payload.data : {};
-  return {
-    ...payload,
-    data: { ...data, ...chunks[nextIndex] },
-    backfillChain: { ...chain, chunkIndex: nextIndex },
-  };
+  const { startDate, endDate } = parseManualBackfillRange(data, today);
+  return { ...payload, data: { ...data, StartDate: startDate, EndDate: endDate } };
 }

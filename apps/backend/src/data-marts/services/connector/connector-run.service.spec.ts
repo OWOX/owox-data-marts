@@ -97,24 +97,18 @@ describe('ConnectorRunService', () => {
       );
     });
 
-    it('stores a long manual backfill as its first chunk plus a chain descriptor', async () => {
+    it('normalizes a manual backfill payload before creating the run and trigger', async () => {
       const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
 
       await service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
         runType: 'MANUAL_BACKFILL',
-        data: { StartDate: '2026-06-01', EndDate: '2026-09-15' },
+        data: { StartDate: '2026-09-01' },
       });
 
       const expectedPayload = {
         runType: 'MANUAL_BACKFILL',
-        data: { StartDate: '2026-06-01', EndDate: '2026-07-01' },
-        backfillChain: {
-          startDate: '2026-06-01',
-          endDate: '2026-09-15',
-          chunkIndex: 0,
-          totalChunks: 4,
-        },
+        data: { StartDate: '2026-09-01', EndDate: '2026-09-17' },
       };
       expect(dataMartRunRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ additionalParams: { payload: expectedPayload } })
@@ -122,6 +116,19 @@ describe('ConnectorRunService', () => {
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledWith(
         expect.objectContaining({ payload: expectedPayload })
       );
+    });
+
+    it('rejects a backfill longer than the per-run limit before creating a run', async () => {
+      const { service, dataMartRunRepository } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: '2026-06-01', EndDate: '2026-09-15' },
+        })
+      ).rejects.toThrow('Manual backfill is limited to 31 days per run');
+      expect(dataMartRunRepository.save).not.toHaveBeenCalled();
     });
 
     it('rejects an invalid backfill range before creating a run', async () => {

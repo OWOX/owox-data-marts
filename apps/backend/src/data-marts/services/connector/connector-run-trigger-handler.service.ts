@@ -17,19 +17,6 @@ import { ConnectorExecutionService } from './connector-execution.service';
 import { DataMartRunService } from '../data-mart-run.service';
 import { DataMartService } from '../data-mart.service';
 import { BaseRunTriggerHandlerService } from '../base-run-trigger-handler.service';
-import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
-import { buildNextBackfillChunkPayload } from '../../utils/manual-backfill-range';
-
-/**
- * Terminal statuses after which the next chunk of a split manual backfill is started.
- * FAILED continues by product decision (later periods still load; the failed one stays
- * visible in Run History). CANCELLED and RESTRICTED stop the chain; INTERRUPTED is resumed
- * by the interrupted-run sweep and reaches this decision again once it finishes.
- */
-const BACKFILL_CHAIN_CONTINUE_STATUSES: readonly DataMartRunStatus[] = [
-  DataMartRunStatus.SUCCESS,
-  DataMartRunStatus.FAILED,
-];
 
 @Injectable()
 export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerService<ConnectorRunTrigger> {
@@ -83,8 +70,6 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
           trigger,
           `Cancelled run trigger ${trigger.id}: abort signal received for DataMartRun ${trigger.dataMartRunId}`
         );
-      } else {
-        await this.enqueueNextBackfillChunk(dataMart, run.id);
       }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
@@ -169,56 +154,6 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         where: { id: trigger.dataMartRunId },
       });
     });
-  }
-
-  /**
-   * Split manual backfills are processed strictly one chunk at a time: the next run is
-   * created only here, after the previous one reached a terminal status, and goes through
-   * the regular run creation path (already-running guard, run row, trigger).
-   */
-  private async enqueueNextBackfillChunk(dataMart: DataMart, runId: string): Promise<void> {
-    const finishedRun = await this.dataMartRunService.findById(runId);
-    if (!finishedRun || !BACKFILL_CHAIN_CONTINUE_STATUSES.includes(finishedRun.status)) {
-      return;
-    }
-
-    const nextPayload = buildNextBackfillChunkPayload(finishedRun.additionalParams?.payload);
-    if (!nextPayload) {
-      return;
-    }
-
-    const { chunkIndex, totalChunks } = nextPayload.backfillChain;
-    const logMeta = { dataMartId: dataMart.id, projectId: dataMart.projectId, runId };
-    try {
-      const nextRunId = await this.connectorExecutionService.run(
-        dataMart,
-        finishedRun.createdById ?? 'system',
-        finishedRun.runType,
-        nextPayload
-      );
-      this.logger.log(
-        `Enqueued backfill run ${chunkIndex + 1}/${totalChunks} (${nextRunId}) after run ${runId}`,
-        logMeta
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      const message = `Failed to start backfill run ${chunkIndex + 1}/${totalChunks} (${nextPayload.data.StartDate} - ${nextPayload.data.EndDate}): ${reason}`;
-      this.logger.error(message, error instanceof Error ? error.stack : undefined, logMeta);
-      // The finished run is the only place the user will look, so record why the chain stopped.
-      await this.dataMartRunRepository.update(
-        { id: runId },
-        {
-          errors: [
-            ...(finishedRun.errors ?? []),
-            JSON.stringify({
-              type: ConnectorMessageType.ERROR,
-              at: new Date().toISOString(),
-              error: message,
-            }),
-          ],
-        }
-      );
-    }
   }
 
   getTriggerRepository(): Repository<ConnectorRunTrigger> {

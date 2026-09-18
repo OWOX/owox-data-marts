@@ -29,7 +29,3 @@ export function countBackfillDays(startDate: unknown, endDate: unknown): number 
   if (start === undefined || end === undefined || end < start) return 0;
   return Math.round((end - start) / DAY_MS) + 1;
 }
-
-export function countBackfillRuns(days: number): number {
-  return Math.ceil(days / MAX_MANUAL_BACKFILL_DAYS);
-}
