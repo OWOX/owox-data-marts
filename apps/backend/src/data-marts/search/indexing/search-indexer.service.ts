@@ -43,7 +43,12 @@ export class SearchIndexerService {
         await this.repository.deleteByEntityId(entityType, entityId);
         return;
       }
-      await this.indexReports([entityId], reportProjectId);
+      const result = await this.indexReports([entityId], reportProjectId);
+      if (result.embedFailed > 0) {
+        throw new Error(
+          `reindexEntity: ${entityType} ${entityId} embedding could not be generated`
+        );
+      }
       return;
     }
     const source = this.registry.resolve(entityType);
@@ -131,6 +136,7 @@ export class SearchIndexerService {
           );
           stats.indexed += result.indexed;
           stats.skipped += result.skipped;
+          stats.embedFailed += result.embedFailed;
         } catch (err) {
           stats.errors += page.descriptors.length;
           this.logger.error(`syncTypeProject: report batch error for project ${projectId}`, err);
@@ -251,10 +257,11 @@ export class SearchIndexerService {
     }
     let errors = 0;
     try {
-      await this.indexReports(
+      const result = await this.indexReports(
         page.descriptors.map(d => d.entityId),
         projectId
       );
+      errors = result.embedFailed;
     } catch (err) {
       errors = page.descriptors.length;
       this.logger.error(`Report parent reindex batch failed for ${parent.entityId}`, err);
@@ -267,8 +274,8 @@ export class SearchIndexerService {
     ids: string[],
     projectId: string,
     attempt = 0
-  ): Promise<{ indexed: number; skipped: number }> {
-    if (ids.length === 0) return { indexed: 0, skipped: 0 };
+  ): Promise<{ indexed: number; skipped: number; embedFailed: number }> {
+    if (ids.length === 0) return { indexed: 0, skipped: 0, embedFailed: 0 };
     const entityType = SearchableEntityType.REPORT;
     // Read index state BEFORE refreshing source data, otherwise an old descriptor
     // could overwrite a newer index row using that newer row as its expected state.
@@ -297,7 +304,9 @@ export class SearchIndexerService {
         );
       });
     const skipped = descriptors.length - stale.length;
-    if (stale.length === 0 && removedIds.length === 0) return { indexed: 0, skipped };
+    if (stale.length === 0 && removedIds.length === 0) {
+      return { indexed: 0, skipped, embedFailed: 0 };
+    }
     const vectors =
       stale.length > 0
         ? await this.provider.embed(
@@ -310,14 +319,13 @@ export class SearchIndexerService {
     const rows: SearchIndexRow[] = [];
     stale.forEach(({ descriptor, document, hash }, i) => {
       const vector = vectors[i];
-      if (!vector) return;
       rows.push({
         entityId: descriptor.entityId,
         projectId,
         isDraft: false,
         document,
         docHash: hash,
-        embedding: vecToBuffer(vector),
+        embedding: vector ? vecToBuffer(vector) : null,
         fieldCount: 0,
         updatedAt: new Date(),
       });
@@ -344,13 +352,12 @@ export class SearchIndexerService {
     const retry =
       conflicts.size > 0
         ? await this.indexReports([...conflicts], projectId, attempt + 1)
-        : { indexed: 0, skipped: 0 };
-    if (rows.length < stale.length) {
-      throw new Error('Some report embeddings could not be generated');
-    }
+        : { indexed: 0, skipped: 0, embedFailed: 0 };
+    const writtenRows = rows.filter(row => !conflicts.has(row.entityId));
     return {
-      indexed: rows.filter(row => !conflicts.has(row.entityId)).length + retry.indexed,
+      indexed: writtenRows.filter(row => row.embedding !== null).length + retry.indexed,
       skipped: skipped + retry.skipped,
+      embedFailed: writtenRows.filter(row => row.embedding === null).length + retry.embedFailed,
     };
   }
 

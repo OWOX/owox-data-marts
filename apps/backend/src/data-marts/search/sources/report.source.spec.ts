@@ -700,12 +700,64 @@ describe('ReportIndexableSource', () => {
     const parent = { entityType: SearchableEntityType.DATA_MART as const, entityId: mart.id };
     expect(await indexer.reindexReportsPage(parent, 'proj-1', null)).toEqual({
       nextCursor: null,
-      errors: 2,
+      errors: 1,
     });
-    expect(await dataSource.getRepository(ReportSearchIndex).count()).toBe(1);
+    const states = await dataSource.getRepository(ReportSearchIndex).find();
+    expect(states.map(row => row.embeddingStatus).sort()).toEqual(['MISSING', 'READY']);
     await indexer.reindexReportsPage(parent, 'proj-1', null);
     expect(await dataSource.getRepository(ReportSearchIndex).count()).toBe(2);
     expect(embed.mock.calls[1][0]).toHaveLength(1);
+  });
+
+  it('keeps reports keyword-searchable during an embedding outage and recovers the missing vector', async () => {
+    const report = await seedReportOnMart();
+    const vector = new Float32Array([1, 0]);
+    const embed = jest.fn().mockResolvedValue([null]);
+    const registry = new IndexableSourceRegistry([source]);
+    const indexer = new SearchIndexerService(
+      registry,
+      { modelId: 'test', embed } as unknown as EmbeddingProvider,
+      indexRepo,
+      { indexBatchSize: 50 } as AdvancedSearchConfig,
+      source
+    );
+    const search = new InMemoryPaginatedSearch(registry, indexRepo);
+    const find = (prompt: string) =>
+      search.search(SearchableEntityType.REPORT, 'proj-1', prompt, null, {
+        candidateLimit: 10,
+        topK: 10,
+        minRelevance: 0,
+        accessScope: { userId: 'admin', roles: ['admin'] },
+      });
+
+    await expect(
+      indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1')
+    ).rejects.toThrow('embedding');
+    expect((await find('revenue')).map(row => row.entityId)).toEqual([report.id]);
+    expect(
+      (await dataSource.getRepository(ReportSearchIndex).findOneByOrFail({ entityId: report.id }))
+        .embeddingStatus
+    ).toBe('MISSING');
+
+    await reportRepo.update(report.id, { title: 'Inventory overview' });
+    const stats = await indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1');
+    expect(stats).toMatchObject({ indexed: 0, embedFailed: 1, errors: 0 });
+    expect((await find('inventory')).map(row => row.entityId)).toEqual([report.id]);
+    expect(await find('revenue')).toHaveLength(0);
+
+    embed.mockResolvedValue([vector]);
+    expect(await indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1')).toMatchObject({
+      indexed: 1,
+      embedFailed: 0,
+      errors: 0,
+    });
+    const ready = await dataSource
+      .getRepository(ReportSearchIndex)
+      .findOneByOrFail({ entityId: report.id });
+    expect(ready.embeddingStatus).toBe('READY');
+    expect(ready.embedding).toEqual(Buffer.from(vector.buffer));
+    await indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1');
+    expect(embed).toHaveBeenCalledTimes(3);
   });
 
   describe('concurrent report indexing', () => {
@@ -716,6 +768,41 @@ describe('ReportIndexableSource', () => {
       });
       return { promise, resolve };
     }
+
+    it('does not replace a recovered embedding with a delayed provider failure', async () => {
+      const report = await seedReportOnMart();
+      const started = deferred<void>();
+      const delayed = deferred<(Float32Array | null)[]>();
+      const vector = new Float32Array([1, 0]);
+      const embed = jest.fn().mockResolvedValueOnce([null]).mockResolvedValue([vector]);
+      const indexer = new SearchIndexerService(
+        new IndexableSourceRegistry([source]),
+        { modelId: 'test', embed } as unknown as EmbeddingProvider,
+        indexRepo,
+        { indexBatchSize: 50 } as AdvancedSearchConfig,
+        source
+      );
+      expect(await indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1')).toMatchObject({
+        indexed: 0,
+        embedFailed: 1,
+        errors: 0,
+      });
+      embed.mockImplementationOnce(() => {
+        started.resolve();
+        return delayed.promise;
+      });
+      const failing = indexer.syncTypeProject(SearchableEntityType.REPORT, 'proj-1');
+      await started.promise;
+      await indexer.reindexEntity(SearchableEntityType.REPORT, report.id, 'proj-1');
+      delayed.resolve([null]);
+      expect(await failing).toMatchObject({ indexed: 0, skipped: 1, embedFailed: 0, errors: 0 });
+      const row = await dataSource.getRepository(ReportSearchIndex).findOneByOrFail({
+        entityId: report.id,
+      });
+      expect(row.embeddingStatus).toBe('READY');
+      expect(row.embedding).toEqual(Buffer.from(vector.buffer));
+      expect(embed).toHaveBeenCalledTimes(3);
+    });
 
     it('does not leave an intermediate title after a rename back to an already indexed title', async () => {
       const report = await seedReportOnMart();
