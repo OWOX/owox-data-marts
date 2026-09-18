@@ -5,12 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       rebuild_latest_image:
-        description: 'Rebuild the "latest" image from this ref even though nothing was published'
+        description: 'Rebuild the "latest" image from this ref HEAD (there are no release tags, so run before anything else merges, or from a branch cut at the release commit)'
         type: boolean
         default: false
 
 # Two runs packing the same version from different trees would race to push the
 # same tag. Never cancel: a half-finished publish is worse than a queued one.
+# GitHub still keeps only one run pending, so merging right behind the Version
+# Packages PR can drop that run and publish the release from a later commit.
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
@@ -22,6 +24,9 @@ permissions:
 
 jobs:
   publish:
+    # workflow_dispatch can be started from any branch; publishing is irreversible
+    # and the pushed image becomes the k8s updater's newest tag.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -110,6 +115,14 @@ jobs:
           && (steps.publish_latest.outputs.published == 'true'
               || inputs.rebuild_latest_image)
         run: node tools/pack-owox-image-packages.mjs
+
+      - name: Warn that the "latest" image is missing and was not rebuilt
+        if: |
+          steps.latest_image_exists.outputs.exists == 'false'
+          && steps.publish_latest.outputs.published != 'true'
+          && !inputs.rebuild_latest_image
+        run: |
+          echo "::warning::${{ steps.extract_latest_version.outputs.version }} has no container image and this run published nothing, so none was built. Re-run this workflow via workflow_dispatch with rebuild_latest_image=true, from a ref whose HEAD is that release."
 
       - name: Build and push "latest" container image
         if: |

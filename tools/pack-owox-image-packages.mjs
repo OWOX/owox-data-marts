@@ -197,9 +197,16 @@ for (const name of toPack) {
     entry.replace(/^\.\//, '').startsWith('dist')
   );
 
-  if (needsDist && !fs.existsSync(path.join(dir, 'dist'))) {
+  if (!needsDist) continue;
+
+  // An empty dist/ is what a cleaned or half-finished build leaves behind, and it
+  // packs just as quietly as a missing one.
+  const distDir = path.join(dir, 'dist');
+  const isEmpty = !fs.existsSync(distDir) || fs.readdirSync(distDir).length === 0;
+
+  if (isEmpty) {
     throw new Error(
-      `${name} has no dist/ -- build the workspaces before packing (npm run build --workspace owox)`
+      `${name} has no built dist/ -- build the workspaces before packing (npm run build --workspace owox)`
     );
   }
 }

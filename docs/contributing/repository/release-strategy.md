@@ -17,7 +17,12 @@ This repository follows a structured release strategy with the following princip
 Snapshots are published as container images only. They are not published to npm:
 every merge to `main` added a version to each package's registry metadata, and
 `@owox/backend` grew large enough that npm needed up to fifteen minutes to serve
-a newly published version, which is time the image build spent waiting.
+a newly published version, which is time the image build spent waiting. Because
+npm forbids unpublishing, that metadata could only ever grow.
+
+This covers every released package. `@owox/plugin-sdk`, `@owox/api-client` and
+`@owox/ctl` are not in the container image, so they have no snapshot channel at
+all — changes to them reach consumers in a release.
 
 ## Installation Commands
 
