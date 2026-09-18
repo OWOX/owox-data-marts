@@ -1,0 +1,4 @@
+# The image installs only the tarballs packed into docker-packages/, so nothing
+# else belongs in the build context -- node_modules alone would be gigabytes.
+*
+!docker-packages

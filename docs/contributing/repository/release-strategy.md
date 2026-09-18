@@ -9,19 +9,24 @@ This repository follows a structured release strategy with the following princip
 
 ## Version & Distribution Tags
 
-| Naming   | Version Example              | npm tag | Audience |
-|----------|------------------------------|---------|----------|
-| Release  | `0.7.0`, `1.8.0`             | `latest`| Community|
-| Snapshot | `0.5.0-next-20250630211639`  | `next`  | Cloud    |
+| Naming   | Version Example              | npm tag | Container tag | Audience |
+|----------|------------------------------|---------|---------------|----------|
+| Release  | `0.7.0`, `1.8.0`             | `latest`| `latest`      | Community|
+| Snapshot | `0.5.0-next-20250630211639`  | —       | `next`        | Cloud    |
+
+Snapshots are published as container images only. They are not published to npm:
+every merge to `main` added a version to each package's registry metadata, and
+`@owox/backend` grew large enough that npm needed up to fifteen minutes to serve
+a newly published version, which is time the image build spent waiting.
 
 ## Installation Commands
 
-| Need             | Command                                          |
-| ---------------- | ------------------------------------------------ |
-| Release (newest) | `npm install -g owox`                            |
-| Release (exact)  | `npm install -g owox@1.8.0`                      |
-| Snapshot (newest)| `npm install -g owox@next`                       |
-| Snapshot (exact) | `npm install -g owox@0.5.0-next-20250630211639`  |
+| Need             | Command                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| Release (newest) | `npm install -g owox`                                                |
+| Release (exact)  | `npm install -g owox@1.8.0`                                          |
+| Snapshot (newest)| `docker pull ghcr.io/owox/owox-data-marts:next`                      |
+| Snapshot (exact) | `docker pull ghcr.io/owox/owox-data-marts:0.5.0-next-20250630211639` |
 
 ## Changeset Policy
 
@@ -107,7 +112,7 @@ git push
 
 On every push to `main`:
 
-1. **Snapshot Build** (`publish.yml`): Automatically publishes a snapshot version to the `next` tag for testing and early access
+1. **Snapshot Build** (`publish.yml`): Automatically builds and pushes a snapshot container image to the `next` tag for testing and early access. The image is built from tarballs packed in the same job, so it never waits on the npm registry
 2. **Release Build** (`publish.yml`): When the "Version Packages" PR is merged, the workflow publishes the new release version to the `latest` tag
 3. **Version PR** (`release-pr.yml`): Changesets bot creates/updates a "Version Packages" PR that collects all pending changesets
 
