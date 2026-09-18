@@ -449,6 +449,23 @@ describe('ReportIndexableSource', () => {
     });
 
     it.each([undefined, { userId: 'admin-1', roles: ['admin'] }])(
+      'hides a soft-deleted report before index cleanup and reveals it after restore with accessScope %j',
+      async accessScope => {
+        const live = await seedReportOnMart();
+        const deleted = await seedReportOnMart();
+        await seedIndexRow(live.id);
+        await seedIndexRow(deleted.id);
+        await reportRepo.softDelete(deleted.id);
+
+        expect(await visibleIds('proj-1', accessScope)).toEqual(new Set([live.id]));
+
+        await reportRepo.restore(deleted.id);
+
+        expect(await visibleIds('proj-1', accessScope)).toEqual(new Set([live.id, deleted.id]));
+      }
+    );
+
+    it.each([undefined, { userId: 'admin-1', roles: ['admin'] }])(
       'excludes deleted and cross-project destinations with accessScope %j',
       async accessScope => {
         const mart = await seedMart({ availableForReporting: true });

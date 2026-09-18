@@ -84,6 +84,7 @@ export class ReportIndexableSource implements IndexableSource {
         `JOIN data_mart ${DATA_MART_JOIN_ALIAS} ON ${DATA_MART_JOIN_ALIAS}.id = ${REPORT_JOIN_ALIAS}.dataMartId AND ${DATA_MART_JOIN_ALIAS}.projectId = ${indexAlias}.project_id ` +
         `JOIN data_destination ${DESTINATION_JOIN_ALIAS} ON ${DESTINATION_JOIN_ALIAS}.id = ${REPORT_JOIN_ALIAS}.dataDestinationId AND ${DESTINATION_JOIN_ALIAS}.projectId = ${indexAlias}.project_id`,
       extraClauses: [
+        `${REPORT_JOIN_ALIAS}.deletedAt IS NULL`,
         `${DATA_MART_JOIN_ALIAS}.deletedAt IS NULL`,
         `${DESTINATION_JOIN_ALIAS}.deletedAt IS NULL`,
       ],
