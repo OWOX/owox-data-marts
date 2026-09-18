@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
@@ -8,6 +9,7 @@ import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerService } from './scheduled-trigger.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { ReportDataCacheService } from './report-data-cache.service';
 
 /**
  * Service managing Report entity persistence and queries.
@@ -26,7 +28,8 @@ export class ReportService {
     @InjectRepository(Report)
     private readonly repository: Repository<Report>,
     private readonly scheduledTriggerService: ScheduledTriggerService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly reportDataCacheService: ReportDataCacheService
   ) {}
 
   /**
@@ -36,10 +39,11 @@ export class ReportService {
    * @returns Report with dataMart and dataDestination relations
    * @throws NotFoundException if report not found
    */
-  async getById(id: string): Promise<Report> {
+  async getById(id: string, options: { withDeleted?: boolean } = {}): Promise<Report> {
     const report = await this.repository.findOne({
       where: { id },
       relations: ['dataMart', 'dataDestination'],
+      withDeleted: options.withDeleted,
     });
 
     if (!report) {
@@ -311,15 +315,17 @@ export class ReportService {
   }
 
   /**
-   * Deletes report with cascade to triggers.
-   *
-   * Steps:
-   * 1. Deletes all scheduled triggers for report
-   * 2. Removes report entity
+   * Soft-deletes the report, retaining its configuration and owners.
+   * Scheduled triggers and cached reader data are removed explicitly.
    *
    * @param report - Report to delete (must have dataMart relation loaded)
    */
+  @Transactional()
   async deleteReport(report: Report): Promise<void> {
+    // Lock the report before cache publication can pass its active/version check.
+    // softRemove would cascade to the shared data mart and destination.
+    await this.repository.softDelete(report.id);
+
     // Delete all triggers related to this report
     await this.scheduledTriggerService.deleteAllByReportIdAndDataMartIdAndProjectId(
       report.id,
@@ -327,8 +333,7 @@ export class ReportService {
       report.dataMart.projectId
     );
 
-    // Delete report
-    await this.repository.remove(report);
+    await this.reportDataCacheService.invalidateByReportId(report.id);
   }
 
   /**

@@ -1,3 +1,8 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
 import { BadRequestException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartReadFailedException } from '../errors/data-mart-read-failed.error';
@@ -37,6 +42,10 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       getState: jest.fn().mockReturnValue(null),
     };
     const cacheRepository = {
+      manager: {
+        connection: { options: { type: 'better-sqlite3' } },
+        findOne: jest.fn().mockResolvedValue({ id: 'rep-1' }),
+      },
       findOne: jest.fn().mockResolvedValue(null), // force cache miss → createNewCachedReader
       save: jest.fn().mockResolvedValue({}),
     };

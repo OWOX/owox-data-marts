@@ -2,6 +2,7 @@ import {
   BeforeInsert,
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
@@ -140,6 +141,10 @@ export class Report implements CreatorAwareEntity {
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  // Only softDelete/restore may change lifecycle state, never a stale entity save.
+  @DeleteDateColumn({ type: 'datetime', nullable: true, update: false })
+  deletedAt?: Date | null;
 
   /**
    * Version number for optimistic locking. This helps prevent concurrent modifications to the same report.

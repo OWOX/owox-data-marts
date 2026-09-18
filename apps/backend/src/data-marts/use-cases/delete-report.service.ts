@@ -48,9 +48,7 @@ export class DeleteReportService {
 
     await this.reportService.deleteReport(report);
 
-    this.logger.debug(
-      `[Report] Report ${report.id} deleted from database | Emitting report.deleted event`
-    );
+    this.logger.debug(`[Report] Report ${report.id} soft-deleted | Emitting report.deleted event`);
 
     // Emit event for external systems (e.g., Google Sheets metadata cleanup)
     this.eventEmitter.emit('report.deleted', deletedEvent);
