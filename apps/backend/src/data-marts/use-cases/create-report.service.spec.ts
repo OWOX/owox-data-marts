@@ -53,12 +53,13 @@ describe('CreateReportService', () => {
     outputControlsValidatorOverride?: Partial<{ validateForReport: jest.Mock }>
   ) => {
     const reportRepository = {
-      findOne: jest.fn().mockResolvedValue(null),
-      restore: jest.fn().mockResolvedValue({ affected: 1 }),
       create: jest.fn().mockReturnValue(savedReport),
       save: jest.fn().mockResolvedValue(savedReport),
     };
     const reportOwnerRepository = {};
+    const lookerStudioReportService = {
+      restoreIfDeleted: jest.fn().mockResolvedValue(null),
+    };
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
     };
@@ -123,10 +124,17 @@ describe('CreateReportService', () => {
       accessDecisionService as never,
       eventDispatcher as never,
       outputControlsValidator as never,
-      reportAccessService as never
+      reportAccessService as never,
+      lookerStudioReportService as never
     );
 
-    return { service, reportRepository, outputControlsValidator, reportAccessService };
+    return {
+      service,
+      reportRepository,
+      outputControlsValidator,
+      reportAccessService,
+      lookerStudioReportService,
+    };
   };
 
   beforeEach(() => {
@@ -134,14 +142,8 @@ describe('CreateReportService', () => {
   });
 
   it('rejects invalid output controls before restoring a deleted Looker report', async () => {
-    const { service, reportRepository } = createService({
+    const { service, reportRepository, lookerStudioReportService } = createService({
       validateForReport: jest.fn().mockRejectedValue(new BadRequestException('Invalid columns')),
-    });
-    reportRepository.findOne.mockResolvedValue({
-      ...savedReport,
-      dataMart,
-      dataDestination,
-      deletedAt: new Date(),
     });
     const command = new CreateReportCommand('proj-1', 'user-0', 'Test', 'dm-1', 'dest-1', {
       type: 'looker-studio-config',
@@ -149,7 +151,7 @@ describe('CreateReportService', () => {
     } as never);
 
     await expect(service.run(command)).rejects.toThrow(BadRequestException);
-    expect(reportRepository.restore).not.toHaveBeenCalled();
+    expect(lookerStudioReportService.restoreIfDeleted).not.toHaveBeenCalled();
     expect(reportRepository.save).not.toHaveBeenCalled();
   });
 

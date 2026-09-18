@@ -210,6 +210,12 @@ export class RunReportService {
       );
     }
 
+    if (reportRun.getReport().deletedAt) {
+      reportRun.markAsCancelled();
+      await this.reportRunService.finish(reportRun);
+      return;
+    }
+
     await this.executeReportRunWithCleanup(reportRun, runByUserId, signal);
   }
 

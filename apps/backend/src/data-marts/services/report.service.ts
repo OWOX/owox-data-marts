@@ -39,10 +39,11 @@ export class ReportService {
    * @returns Report with dataMart and dataDestination relations
    * @throws NotFoundException if report not found
    */
-  async getById(id: string): Promise<Report> {
+  async getById(id: string, options: { withDeleted?: boolean } = {}): Promise<Report> {
     const report = await this.repository.findOne({
       where: { id },
       relations: ['dataMart', 'dataDestination'],
+      withDeleted: options.withDeleted,
     });
 
     if (!report) {

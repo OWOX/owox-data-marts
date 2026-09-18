@@ -97,7 +97,7 @@ export class ReportRunService {
       return null;
     }
 
-    const report = await this.reportService.getById(dataMartRun.reportId);
+    const report = await this.reportService.getById(dataMartRun.reportId, { withDeleted: true });
     return ReportRun.create(report, dataMartRun);
   }
 

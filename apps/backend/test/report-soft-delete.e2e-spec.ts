@@ -11,21 +11,32 @@ import {
   ScheduledTriggerBuilder,
   setupReportPrerequisites,
 } from '@owox/test-utils';
+import { TriggerStatus } from '../src/common/scheduler/shared/entities/trigger-status';
+import { RunType } from '../src/common/scheduler/shared/types';
+import { DirectTriggerRunnerService } from '../src/common/scheduler/services/runners/direct-trigger-runner.service';
+import { SystemTimeService } from '../src/common/scheduler/services/system-time.service';
+import { GracefulShutdownService } from '../src/common/scheduler/services/graceful-shutdown.service';
 import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.dto';
 import { CachedReaderData } from '../src/data-marts/dto/domain/cached-reader-data.dto';
 import { DataMartScheduledTrigger } from '../src/data-marts/entities/data-mart-scheduled-trigger.entity';
+import { DataMartRun } from '../src/data-marts/entities/data-mart-run.entity';
+import { ReportRunTrigger } from '../src/data-marts/entities/report-run-trigger.entity';
 import { DataStorage } from '../src/data-marts/entities/data-storage.entity';
 import { ReportDataCache } from '../src/data-marts/entities/report-data-cache.entity';
 import { Report } from '../src/data-marts/entities/report.entity';
 import { ReportOwner } from '../src/data-marts/entities/report-owner.entity';
 import { ReportRunStatus } from '../src/data-marts/enums/report-run-status.enum';
+import { DataMartRunStatus } from '../src/data-marts/enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../src/data-marts/enums/data-mart-run-type.enum';
 import { ScheduledTriggerType } from '../src/data-marts/scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ScheduledReportRunConfigType } from '../src/data-marts/scheduled-trigger-types/scheduled-report-run/schemas/scheduled-report-run-config.schema';
 import { LegacyDataStorageService } from '../src/data-marts/services/legacy-data-marts/legacy-data-storage.service';
 import { ReportDataCacheService } from '../src/data-marts/services/report-data-cache.service';
+import { ReportRunService } from '../src/data-marts/services/report-run.service';
+import { ReportRunTriggerHandlerService } from '../src/data-marts/services/report-run-trigger-handler.service';
 import { resolveBlendableSchemaAccessor } from '../src/data-marts/services/blendable-schema.service';
 import { MoveLegacyDataStorageService } from '../src/data-marts/use-cases/legacy-data-marts/move-legacy-data-storage.service';
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
@@ -310,6 +321,95 @@ describe('Report soft deletion (e2e)', () => {
 
     const next = await agent.post('/api/reports').set(AUTH_HEADER).send(payload).expect(201);
     expect(next.body.id).not.toBe(report.id);
+  });
+
+  it.each(['report', 'data-mart'])(
+    'cancels a queued run at execution time after deleting its %s',
+    async target => {
+      const { report, dataMartId } = await createReport(DataDestinationType.EMAIL);
+      const runs = dataSource.getRepository(DataMartRun);
+      const triggers = dataSource.getRepository(ReportRunTrigger);
+      const run = await runs.save({
+        dataMartId,
+        reportId: report.id,
+        type: DataMartRunType.EMAIL,
+        status: DataMartRunStatus.PENDING,
+        runType: RunType.scheduled,
+        createdById: report.createdById,
+      });
+      const trigger = await triggers.save(
+        triggers.create({
+          reportId: report.id,
+          dataMartRunId: run.id,
+          projectId: report.dataMart.projectId,
+          createdById: report.createdById,
+          runType: run.runType,
+          status: TriggerStatus.READY,
+          isActive: true,
+        })
+      );
+      const path =
+        target === 'report' ? `/api/reports/${report.id}` : `/api/data-marts/${dataMartId}`;
+      await agent.delete(path).set(AUTH_HEADER).expect(200);
+      expect(await runs.findOneByOrFail({ id: run.id })).toMatchObject({
+        status: DataMartRunStatus.PENDING,
+      });
+
+      const startSpy = jest.spyOn(app.get(ReportRunService), 'markAsStarted');
+      try {
+        const runner = new DirectTriggerRunnerService(
+          app.get(ReportRunTriggerHandlerService),
+          app.get(SystemTimeService),
+          app.get(GracefulShutdownService)
+        );
+        await runner.runTriggers([trigger]);
+        expect(startSpy).not.toHaveBeenCalled();
+        expect(await runs.findOneByOrFail({ id: run.id })).toMatchObject({
+          status: DataMartRunStatus.CANCELLED,
+          finishedAt: expect.any(Date),
+        });
+        expect(await triggers.findOneByOrFail({ id: trigger.id })).toMatchObject({
+          status: TriggerStatus.SUCCESS,
+        });
+      } finally {
+        startSpy.mockRestore();
+      }
+    }
+  );
+
+  it('preserves an in-flight run and its result after report deletion', async () => {
+    const { report, dataMartId } = await createReport(DataDestinationType.EMAIL);
+    const runs = dataSource.getRepository(DataMartRun);
+    const run = await runs.save({
+      dataMartId,
+      reportId: report.id,
+      type: DataMartRunType.EMAIL,
+      status: DataMartRunStatus.RUNNING,
+      runType: RunType.manual,
+      createdById: report.createdById,
+    });
+    const runService = app.get(ReportRunService);
+    const reportRun = await runService.loadByDataMartRunId(run.id);
+    expect(reportRun).not.toBeNull();
+
+    await agent.delete(`/api/reports/${report.id}`).set(AUTH_HEADER).expect(200);
+    expect(await runs.findOneByOrFail({ id: run.id })).toMatchObject({
+      status: DataMartRunStatus.RUNNING,
+    });
+    reportRun!.markAsSuccess();
+    await runService.finish(reportRun!, { logs: ['Completed after deletion'] });
+
+    expect(await runs.findOneByOrFail({ id: run.id })).toMatchObject({
+      status: DataMartRunStatus.SUCCESS,
+      logs: ['Completed after deletion'],
+      finishedAt: expect.any(Date),
+    });
+    expect(
+      await dataSource.getRepository(Report).findOne({
+        where: { id: report.id },
+        withDeleted: true,
+      })
+    ).toMatchObject({ deletedAt: expect.any(Date), lastRunStatus: ReportRunStatus.SUCCESS });
   });
 
   it('soft-deletes reports when their Data Mart is deleted and clears their cache', async () => {
