@@ -8,7 +8,22 @@ import {
 import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
-import { extractAuthFlowParams, persistAuthFlowContext } from '../utils/request-utils.js';
+import {
+  clearPendingAction,
+  extractAuthFlowParams,
+  extractState,
+  persistAuthFlowContext,
+} from '../utils/request-utils.js';
+
+type AutoSubmitProvider = 'google' | 'microsoft';
+
+function resolveAutoSubmitProvider(
+  hasState: boolean,
+  pendingAction: string | undefined
+): AutoSubmitProvider | undefined {
+  if (!hasState) return undefined;
+  return pendingAction === 'google' || pendingAction === 'microsoft' ? pendingAction : undefined;
+}
 
 /**
  * Renders static auth pages and persists auth-flow context.
@@ -26,7 +41,15 @@ export class PageController {
   }
 
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    const hasState = Boolean(extractState(req));
+    const autoSubmitProvider = resolveAutoSubmitProvider(
+      hasState,
+      extractAuthFlowParams(req).pendingAction
+    );
     this.persistAuthFlowContext(req, res);
+    // pendingAction is single-use: once read for this render, drop it so a
+    // later reload of this same page does not silently replay a stale action.
+    clearPendingAction(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
@@ -36,12 +59,20 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
+        hasState,
+        autoSubmitProvider,
       })
     );
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    const hasState = Boolean(extractState(req));
+    const autoSubmitProvider = resolveAutoSubmitProvider(
+      hasState,
+      extractAuthFlowParams(req).pendingAction
+    );
     this.persistAuthFlowContext(req, res);
+    clearPendingAction(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
@@ -51,6 +82,8 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
+        hasState,
+        autoSubmitProvider,
       })
     );
   }
