@@ -1,5 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import type { z } from 'zod';
+import { z } from 'zod-v4';
 import {
   ADVERTISED_MCP_OPERATORS,
   LEGACY_MCP_OPERATORS,
@@ -39,7 +38,7 @@ describe('MCP operator advertising contract', () => {
   it.each(tools)(
     '%s advertises only the blank pair — no legacy operator names',
     (_name, schema) => {
-      const json = zodToJsonSchema(schema);
+      const json = z.toJSONSchema(schema);
       const serialized = JSON.stringify(json);
 
       for (const legacy of LEGACY_MCP_OPERATORS) {

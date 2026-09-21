@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod-v4';
 import {
   collectRealFieldNames,
   findUniqueCountClauseViolations,
@@ -435,14 +435,16 @@ describe('queryDataMartInputSchema filter value typing', () => {
   });
 });
 
-// Guards the OpenAI tool-verification contract. The MCP SDK's v3 path
-// (server/zod-json-schema-compat.js) converts with zodToJsonSchema at strictUnions + input pipe and
-// the default $refStrategy 'root'; if slices/filters ever share a schema instance again, a $ref
-// reappears and OpenAI collapses `filters` to any[] ("Unclear Arguments").
+// Guards the OpenAI tool-verification contract. The MCP SDK converts tool input schemas with
+// `z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'input' })` (see
+// normalizeRawShapeSchema/standardSchemaToJsonSchema in @modelcontextprotocol/server) — mirrored
+// here exactly so this test tracks the real advertised contract; if slices/filters ever share a
+// schema instance again, a $ref reappears and OpenAI collapses `filters` to any[] ("Unclear
+// Arguments").
 describe('query_data_mart tool JSON Schema (OpenAI verification)', () => {
-  const json = zodToJsonSchema(queryDataMartInputSchema, {
-    strictUnions: true,
-    pipeStrategy: 'input',
+  const json = z.toJSONSchema(queryDataMartInputSchema, {
+    target: 'draft-2020-12',
+    io: 'input',
   }) as {
     properties: Record<string, { items: { type?: string; properties: Record<string, unknown> } }>;
   };

@@ -1,6 +1,6 @@
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { McpScope } from '@owox/idp-protocol';
-import type { ZodRawShape } from 'zod';
+import type { ZodRawShape } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 
 export const MCP_TOOL_DEFINITIONS = Symbol('MCP_TOOL_DEFINITIONS');

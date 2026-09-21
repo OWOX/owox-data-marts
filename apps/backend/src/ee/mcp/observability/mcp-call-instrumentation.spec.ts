@@ -117,7 +117,7 @@ describe('McpCallInstrumentation', () => {
       makeCls({ projectId: 'p1' }) as never
     );
     const wrapped = instr.wrap('query_data_mart', async () => ({ content: [] }));
-    await wrapped({}, { _meta: { 'openai/session': 'sess-x' } });
+    await wrapped({}, { mcpReq: { _meta: { 'openai/session': 'sess-x' } } } as never);
     const ev = dispatcher.publishExternalSafely.mock.calls[0][0];
     expect(ev.payload['owox_conversation_id']).toBe('sess-x');
     expect(ev.payload['owox_conversation_id_is_pseudo']).toBe(false);
@@ -133,8 +133,8 @@ describe('McpCallInstrumentation', () => {
     const callB = instr.wrap('list_data_marts', async () => ({ content: [] }));
 
     // Two JSON-RPC messages in one batch, each with its own conversation _meta.
-    await callA({}, { _meta: { 'openai/session': 'conv-A' } });
-    await callB({}, { _meta: { 'openai/session': 'conv-B' } });
+    await callA({}, { mcpReq: { _meta: { 'openai/session': 'conv-A' } } } as never);
+    await callB({}, { mcpReq: { _meta: { 'openai/session': 'conv-B' } } } as never);
 
     const [evA, evB] = dispatcher.publishExternalSafely.mock.calls.map(c => c[0]);
     expect(evA.payload['owox_conversation_id']).toBe('conv-A');

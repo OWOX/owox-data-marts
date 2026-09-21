@@ -1,6 +1,6 @@
 import { castError } from '@owox/internal-helpers';
 import { Logger } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import { ACCESS_MATRIX } from '../../../data-marts/services/access-decision/access-matrix.config';
 import {

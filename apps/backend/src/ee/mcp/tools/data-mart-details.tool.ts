@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_DATA_MARTS_FACADE,

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import type { McpToolDefinition } from '../tools/mcp-tool.definition';
@@ -29,7 +29,7 @@ describe('McpSdkServerFactory', () => {
     jest.resetModules();
     mockRegisterTool.mockClear();
     mockMcpServer.mockClear();
-    jest.doMock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+    jest.doMock('@modelcontextprotocol/server', () => ({
       McpServer: mockMcpServer,
     }));
   });
@@ -85,14 +85,14 @@ describe('McpSdkServerFactory', () => {
 
     const sdkHandler = mockRegisterTool.mock.calls[0][2];
     const signal = new AbortController().signal;
-    await expect(sdkHandler({ query: 'orders' }, { signal })).resolves.toEqual({
+    await expect(sdkHandler({ query: 'orders' }, { mcpReq: { signal } })).resolves.toEqual({
       content: [{ type: 'text', text: 'ok' }],
     });
     // The SDK's per-request abort signal (client disconnect/cancel) must reach the tool handler.
     expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, signal);
   });
 
-  it('forwards an undefined signal when the SDK provides no extra', async () => {
+  it('forwards an undefined signal when the SDK provides no ctx', async () => {
     const handler = jest.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
     const tool = {
       name: 'list_data_marts',
