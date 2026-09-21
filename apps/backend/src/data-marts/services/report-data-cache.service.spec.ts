@@ -464,6 +464,7 @@ describe('ReportDataCacheService — cleanup finalize path', () => {
     const cacheRepository = {
       find: jest.fn().mockResolvedValue([entry]),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const readerResolver = { resolve: jest.fn().mockResolvedValue(reader) };
     const blendedReportDataService = { resolveBlendingDecision: jest.fn() };
@@ -491,6 +492,19 @@ describe('ReportDataCacheService — cleanup finalize path', () => {
     );
     expect(reader.finalize).toHaveBeenCalledTimes(1);
     expect(cacheRepository.delete).toHaveBeenCalled();
+  });
+
+  it('expires entries missed by the read snapshot without deleting their reader state', async () => {
+    const { service, cacheRepository } = setupCleanup();
+    cacheRepository.find.mockResolvedValue([]);
+
+    await service.invalidateByReportId('rep-1');
+
+    expect(cacheRepository.delete).not.toHaveBeenCalled();
+    expect(cacheRepository.update).toHaveBeenCalledWith(
+      { report: { id: 'rep-1' } },
+      { expiresAt: new Date(0) }
+    );
   });
 
   it.each([

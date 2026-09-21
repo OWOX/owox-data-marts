@@ -272,7 +272,7 @@ export class ReportDataCacheService {
     this.logger.log(`Found ${expiredEntries.length} expired cache entries to cleanup`);
     await this.finalizeEntriesInParallel(expiredEntries);
 
-    const result = await this.cacheRepository.delete(where);
+    const result = await this.cacheRepository.delete(expiredEntries.map(entry => entry.id));
     this.logger.log(`Cleaned up ${result.affected || 0} expired cache entries`);
   }
 
@@ -356,8 +356,8 @@ export class ReportDataCacheService {
   async invalidateByReportId(reportId: string): Promise<void> {
     await this.invalidateWhere({ report: { id: reportId } }, `report ${reportId}`);
     // A surrounding MySQL transaction may have an older read snapshot than the deletion lock.
-    // DELETE is a current read: remove entries committed after that snapshot as well.
-    await this.cacheRepository.delete({ report: { id: reportId } });
+    // UPDATE is a current read: expire unseen entries, keeping their state for background finalization.
+    await this.cacheRepository.update({ report: { id: reportId } }, { expiresAt: new Date(0) });
   }
 
   async invalidateByDataMartId(dataMartId: string): Promise<void> {
@@ -381,7 +381,7 @@ export class ReportDataCacheService {
 
     await this.finalizeEntriesInParallel(entries);
 
-    const result = await this.cacheRepository.delete(where);
+    const result = await this.cacheRepository.delete(entries.map(entry => entry.id));
     if (result.affected && result.affected > 0) {
       this.logger.log(`Invalidated ${result.affected} cache entries for ${contextLabel}`);
     }

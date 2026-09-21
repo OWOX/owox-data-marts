@@ -448,6 +448,63 @@ describe('Report soft deletion (e2e)', () => {
     await agent.get(`/api/reports/${report.id}`).set(AUTH_HEADER).expect(404);
   });
 
+  it.each(['invalidateByReportId', 'invalidateByDataMartId', 'cleanupExpiredCache'] as const)(
+    '%s keeps a concurrently published cache entry available for later finalization',
+    async operation => {
+      const { report, dataMartId } = await createReport();
+      const repository = dataSource.getRepository(ReportDataCache);
+      const cache = {
+        report,
+        dataDescription: new ReportDataDescription([], 0),
+        readerState: {
+          type: DataStorageType.AWS_ATHENA as const,
+          outputBucket: 'test-results',
+          outputPrefix: 'query-results/',
+        },
+        storageType: DataStorageType.AWS_ATHENA,
+        expiresAt: new Date(0),
+      };
+      const initialEntry = await repository.save({ ...cache });
+      let concurrentEntryId: string;
+      const reader = {
+        prepareReportData: async () => new ReportDataDescription([], 0),
+        initFromState: async () => undefined,
+        finalize: jest.fn().mockImplementationOnce(async () => {
+          // A query can publish its cache while the selected entries are being finalized.
+          const concurrentEntry = await repository.save({
+            ...cache,
+            readerState: { ...cache.readerState, outputPrefix: 'concurrent-query-results/' },
+            expiresAt:
+              operation === 'invalidateByReportId'
+                ? new Date(Date.now() + 60_000)
+                : cache.expiresAt,
+          });
+          concurrentEntryId = concurrentEntry.id;
+        }),
+      };
+      const cacheService = new ReportDataCacheService(
+        repository,
+        { resolve: async () => reader } as never,
+        {} as never,
+        {} as never
+      );
+
+      await cacheService[operation](
+        operation === 'invalidateByDataMartId' ? dataMartId : report.id
+      );
+
+      expect(await repository.findOneBy({ id: initialEntry.id })).toBeNull();
+      const pendingEntry = await repository.findOneByOrFail({ id: concurrentEntryId! });
+      expect(pendingEntry.expiresAt.getTime()).toBeLessThan(Date.now());
+      expect(reader.finalize).toHaveBeenCalledTimes(1);
+
+      await cacheService.cleanupExpiredCache();
+
+      expect(await repository.findOneBy({ id: concurrentEntryId! })).toBeNull();
+      expect(reader.finalize).toHaveBeenCalledTimes(2);
+    }
+  );
+
   it.each([false, true])(
     'does not publish an in-flight cache after deletion (re-enabled: %s)',
     async reenable => {

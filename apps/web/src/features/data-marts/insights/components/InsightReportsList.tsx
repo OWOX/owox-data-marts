@@ -312,7 +312,7 @@ export function InsightReportsList({
           if (!open) setReportToDelete(null);
         }}
         title='Delete Report'
-        description='Are you sure you want to delete this report? This action cannot be undone.'
+        description='Are you sure you want to delete this report? The report will be removed from the list.'
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => void handleDelete()}
