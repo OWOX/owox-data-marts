@@ -167,7 +167,7 @@ describe('OAuthTokenController', () => {
     expect(clientRegistry.markSuccessfulTokenExchange).not.toHaveBeenCalled();
   });
 
-  it('maps an upstream AuthenticationException surfaced only via status 401 to 400 invalid_grant', async () => {
+  it('does not map a C2C authentication failure with status 401 to invalid_grant', async () => {
     const { controller, idp } = createController({
       grantType: 'authorization_code',
       code: 'code-1',
@@ -176,12 +176,14 @@ describe('OAuthTokenController', () => {
       resource: 'https://mcp.owox.com/mcp',
       codeVerifier: 'verifier',
     });
-    const upstreamError = Object.assign(new Error('unauthorized'), { status: 401 });
+    const upstreamError = Object.assign(new Error('C2C service identity rejected'), {
+      name: 'IdpFailedException',
+      status: 401,
+    });
     idp.exchangeToken.mockRejectedValueOnce(upstreamError);
 
-    let thrown: HttpException | undefined;
-    try {
-      await controller.token(
+    await expect(
+      controller.token(
         {
           grant_type: 'authorization_code',
           code: 'code-1',
@@ -190,13 +192,8 @@ describe('OAuthTokenController', () => {
           code_verifier: 'verifier',
         },
         {} as Request
-      );
-    } catch (error) {
-      thrown = error as HttpException;
-    }
-
-    expect(thrown?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
-    expect(thrown?.getResponse()).toMatchObject({ error: 'invalid_grant' });
+      )
+    ).rejects.toBe(upstreamError);
   });
 
   it('exports a stable OAuth IDP injection token', () => {

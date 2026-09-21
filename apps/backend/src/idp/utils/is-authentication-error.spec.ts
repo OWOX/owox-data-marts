@@ -17,9 +17,9 @@ describe('isAuthenticationError', () => {
     expect(isAuthenticationError(err)).toBe(true);
   });
 
-  it('returns true when an Error carries status === 401 (transport repackaging)', () => {
+  it('returns false when a non-authentication Error carries status === 401', () => {
     const err = Object.assign(new Error('unauthorized'), { status: 401 });
-    expect(isAuthenticationError(err)).toBe(true);
+    expect(isAuthenticationError(err)).toBe(false);
   });
 
   it('returns false for Errors with a non-401 status', () => {
@@ -40,9 +40,11 @@ describe('isAuthenticationError', () => {
   });
 
   it('narrows the type to Error when truthy', () => {
-    const err: unknown = Object.assign(new Error('x'), { status: 401 });
-    if (isAuthenticationError(err)) {
-      expect(typeof err.message).toBe('string');
+    const err = new Error('x');
+    err.name = 'AuthenticationException';
+    const unknownError: unknown = err;
+    if (isAuthenticationError(unknownError)) {
+      expect(typeof unknownError.message).toBe('string');
     }
   });
 });
