@@ -317,7 +317,10 @@ authentication or any network request.</p>
 starts a manual connector run and requires Technical User access to the Data Mart. Omit the options,
 or set <code dir="auto">runType</code> to <code dir="auto">INCREMENTAL</code> without <code dir="auto">data</code>, for an incremental run. To send connector-specific
 backfill fields in <code dir="auto">data</code>, set <code dir="auto">runType</code> to <code dir="auto">MANUAL_BACKFILL</code>; connectors without backfill fields can
-omit <code dir="auto">data</code>. The API client rejects <code dir="auto">data</code> on implicit or explicit incremental runs before
+omit <code dir="auto">data</code>. A connector that reads <code dir="auto">StartDate</code> and <code dir="auto">EndDate</code> accepts <code dir="auto">YYYY-MM-DD</code>, or the date part
+of an ISO-8601 timestamp. A missing or future <code dir="auto">EndDate</code> counts as today. The resulting period may
+cover at most 31 days, and the backend rejects a longer one before it starts the run.
+The API client rejects <code dir="auto">data</code> on implicit or explicit incremental runs before
 authentication or any network request. The backend HTTP endpoint separately tolerates retained
 object-valued <code dir="auto">data</code> on incremental requests for compatibility with existing run forms. The method
 returns the new run ID. The serialized options must not exceed 1 MB.</p>
