@@ -96,6 +96,12 @@ export class OAuthAuthorizationController {
     const redirectUrl = new URL(authorizationRequest.redirectUri);
     redirectUrl.searchParams.set('code', authorizationCode.code);
     redirectUrl.searchParams.set('state', authorizationRequest.state);
+    // RFC 9207 issuer-bound callbacks: only meaningful (and only advertised via
+    // authorization_response_iss_parameter_supported) for project-specific issuers — see
+    // OAuthMetadataController.getBaseMetadata for why the shared host doesn't need this.
+    if (resourceContext.kind === 'project') {
+      redirectUrl.searchParams.set('iss', resourceContext.publicBaseUrl);
+    }
     response.redirect(redirectUrl.toString());
   }
 

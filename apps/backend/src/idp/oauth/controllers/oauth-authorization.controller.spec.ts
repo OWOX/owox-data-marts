@@ -405,9 +405,13 @@ describe('OAuthAuthorizationController', () => {
       projectAuthorizationRequest,
       projectMember
     );
-    expect(response.redirect).toHaveBeenCalledWith(
-      'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
-    );
+    // RFC 9207: project-specific redirects must be issuer-bound so clients like Codex, which
+    // enforce this, can trust that the authorize response really came from the project issuer.
+    const expectedRedirect = new URL('http://127.0.0.1:63888/callback');
+    expectedRedirect.searchParams.set('code', 'auth-code-1');
+    expectedRedirect.searchParams.set('state', 'state-1');
+    expectedRedirect.searchParams.set('iss', `https://${projectId}.mcp.owox.com`);
+    expect(response.redirect).toHaveBeenCalledWith(expectedRedirect.toString());
   });
 
   it('attaches user to dynamic client when authorization flow starts even if authorization code creation fails', async () => {
