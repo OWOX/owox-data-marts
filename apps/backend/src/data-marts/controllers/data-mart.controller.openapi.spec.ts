@@ -455,6 +455,12 @@ describe('DataMartController list OpenAPI', () => {
       type: 'array',
       items: { type: 'string' },
     });
+    // Same kind of fact, opposite use: these names are stripped from `nativeFields` too, and
+    // publishing them is what lets a client say "hidden" instead of "your schema is broken".
+    expect(schemaSchema.properties.hiddenFieldNames).toMatchObject({
+      type: 'array',
+      items: { type: 'string' },
+    });
 
     const availableSourceSchema = resolveRef('#/components/schemas/AvailableSourceDto');
     expect(availableSourceSchema.properties.uniqueCountAvailability).toMatchObject({

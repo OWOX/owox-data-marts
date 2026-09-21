@@ -36,6 +36,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import {
   collectPrimaryKeyRowIdentity,
+  collectHiddenForReportingPaths,
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
   getMainUniqueCountKeyFields,
@@ -925,7 +926,13 @@ export class BlendedReportDataService {
     });
     if (unknownColumns.length === 0) return;
 
-    throwDisconnectedReportColumnsError(dataMart.id, unknownColumns);
+    // Which of them the analyst hid rather than lost. Read from the same RAW schema this check
+    // already holds, so the answer costs nothing and cannot drift from what `nativeNames` pruned.
+    throwDisconnectedReportColumnsError(
+      dataMart.id,
+      unknownColumns,
+      new Set(collectHiddenForReportingPaths(schemaFields))
+    );
   }
 
   private async assertAllRequestedSourcesAccessible(

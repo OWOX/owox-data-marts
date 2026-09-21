@@ -251,6 +251,14 @@ export interface BlendableSchema {
    * absent entry for a metric this DOES know about.
    */
   calculatedFieldIssues?: CalculatedFieldIssue[];
+  /**
+   * Column paths the analyst hid from reporting, as full dotted paths. Absent from `nativeFields`
+   * like everything else hidden, so a stored report that still selects one is indistinguishable
+   * from a report on a column the schema lost — this is what tells the two apart. A response
+   * cached before the field existed carries none, which reads as "nothing here is hidden": the
+   * report still cannot resolve the column, it is simply called disconnected, exactly as before.
+   */
+  hiddenFieldNames?: string[];
 }
 
 export interface CalculatedFieldIssue {

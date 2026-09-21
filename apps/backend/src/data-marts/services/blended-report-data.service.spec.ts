@@ -2394,6 +2394,54 @@ describe('BlendedReportDataService', () => {
         });
       });
 
+      it('calls those fields hidden, not disconnected — nothing is missing and no schema needs restoring', async () => {
+        // The assertion above is deliberately partial and passed before this distinction existed.
+        // This is the half that would not: the message the analyst reads, and the key that tells
+        // a consumer which columns can simply be shown again.
+        const report = makeReport({ columnConfig: ['date', 'secret'] });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('secret', { isHiddenForReporting: true }),
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeBlendableSchema([]));
+
+        const error = await service
+          .resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+          .catch((e: unknown) => e as { message: string; errorDetails: unknown });
+
+        expect(error.message).toContain('Hidden columns: "secret".');
+        expect(error.message).toContain(
+          'They are still in the Data Mart, but hidden from reporting.'
+        );
+        expect(error.message).toContain('or ask your analyst to show them in reports again.');
+        expect(error.message).not.toContain('Disconnected columns');
+        expect(error.errorDetails).toMatchObject({
+          unknownColumns: ['secret'],
+          hiddenColumns: ['secret'],
+        });
+      });
+
+      it('keeps the restore-the-schema advice when one of the two really is gone', async () => {
+        const report = makeReport({ columnConfig: ['date', 'secret', 'old_column'] });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('secret', { isHiddenForReporting: true }),
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeBlendableSchema([]));
+
+        const error = await service
+          .resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+          .catch((e: unknown) => e as { message: string; errorDetails: unknown });
+
+        expect(error.message).toContain('Disconnected columns: "old_column".');
+        expect(error.message).toContain('Hidden columns: "secret".');
+        expect(error.message).toContain('or contact your analyst to restore the schema.');
+        expect(error.errorDetails).toMatchObject({
+          unknownColumns: ['secret', 'old_column'],
+          hiddenColumns: ['secret'],
+        });
+      });
+
       it('treats blended fields hidden in the joined data marts setup as no longer available', async () => {
         const report = makeReport({
           columnConfig: ['date', 'alias__hidden_field', 'blended_field'],

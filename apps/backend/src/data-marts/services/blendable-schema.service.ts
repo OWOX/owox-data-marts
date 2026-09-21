@@ -21,6 +21,7 @@ import {
 } from '../calculated-fields/calculated-field.utils';
 import {
   classifyJoinedUniqueCountAvailability,
+  collectHiddenForReportingPaths,
   collectPrimaryKeyRowIdentity,
   getReportFieldType,
   getMainUniqueCountKeyFields,
@@ -132,6 +133,8 @@ interface CollectContext {
   relationshipsBySource: Map<string, DataMartRelationship[]>;
   result: BlendedFieldDto[];
   availableSources: AvailableSourceDto[];
+  /** Joined column names withheld from `result` because someone hid them — see `hiddenFieldNames`. */
+  hiddenFieldNames: string[];
   branchDmIds: Set<string>;
   depth: number;
   storageType: DataStorageType;
@@ -187,6 +190,7 @@ export class BlendableSchemaService {
 
     const blendedFields: BlendedFieldDto[] = [];
     const availableSources: AvailableSourceDto[] = [];
+    const hiddenBlendedFieldNames: string[] = [];
     const branchDmIds = new Set<string>([dataMartId]);
 
     this.collectBlendedFields({
@@ -196,6 +200,7 @@ export class BlendableSchemaService {
       relationshipsBySource,
       result: blendedFields,
       availableSources,
+      hiddenFieldNames: hiddenBlendedFieldNames,
       branchDmIds,
       depth: 1,
       storageType: dataMart.storage.type,
@@ -216,6 +221,9 @@ export class BlendableSchemaService {
         relationshipsBySource,
         result: publishedFields,
         availableSources: publishedSources,
+        // Discarded: this pass exists only to tell draft targets from published ones, and the
+        // names it would collect are the same ones the pass above already has.
+        hiddenFieldNames: [],
         branchDmIds,
         depth: 1,
         storageType: dataMart.storage.type,
@@ -262,6 +270,16 @@ export class BlendableSchemaService {
         },
         []
       ),
+      // RAW again, and for the same reason turned inside out: every other list here has already
+      // dropped these, which is what makes a report that still selects one look like a report on a
+      // column the schema lost. It is not — someone hid it, and saying so is the difference
+      // between "your analyst must restore the schema" and "your analyst can show it again".
+      // Own columns plus joined ones, in two namespaces that cannot collide: an own column is a
+      // dotted path (`metrics.cost`), a joined one is prefixed (`orders__internal_id`).
+      hiddenFieldNames: [
+        ...collectHiddenForReportingPaths(rawSchemaFields),
+        ...hiddenBlendedFieldNames,
+      ],
     };
   }
 
@@ -329,12 +347,22 @@ export class BlendableSchemaService {
       const sourceConfig = ctx.sourcesByPath.get(currentPath);
       const isExcluded = sourceConfig?.isExcluded === true;
 
-      const targetSchemaFields = (rel.targetDataMart.schema?.fields ?? []).filter(
-        f => !f.isHiddenForReporting
-      );
+      const rawTargetFields = rel.targetDataMart.schema?.fields ?? [];
+      const targetSchemaFields = rawTargetFields.filter(f => !f.isHiddenForReporting);
       // The draft-target opt-in identifies the relationship editor's configuration payload, which
       // also keeps disconnected fields available for overrides without exposing them to reports.
       const flatTargetFields = flattenSchemaFields(targetSchemaFields, '', ctx.includeDraftTargets);
+      // The unified names the line above just withheld. Built by the same flattening and the same
+      // name builder as the fields below, so what a report stored before the field was hidden
+      // matches here byte for byte — otherwise this surface keeps calling a hidden joined column
+      // disconnected, which is the one thing this list exists to prevent.
+      for (const field of flattenSchemaFields(
+        rawTargetFields.filter(f => f.isHiddenForReporting),
+        '',
+        ctx.includeDraftTargets
+      )) {
+        ctx.hiddenFieldNames.push(buildBlendedFieldUnifiedName(currentPath, field.name));
+      }
 
       // Each `targetAlias` segment in `currentPath` is validated against
       // `^[a-z0-9_]+$` in the Join Settings form, so the SQL-safe prefix
@@ -402,6 +430,10 @@ export class BlendableSchemaService {
         dto.alias = fieldOverride?.alias ?? field.alias ?? '';
         dto.description = field.description ?? '';
         dto.isHidden = fieldOverride?.isHidden ?? false;
+        // Hidden in Join Settings rather than in the joined Data Mart's own schema. Different
+        // switch, same fact for a report that selected the column: it is still there, and the
+        // person who hid it can show it again.
+        if (dto.isHidden) ctx.hiddenFieldNames.push(dto.name);
         dto.isCalculated = field.isCalculated === true;
         dto.aggregateFunction = dedupFunction;
         // Arrays cannot be aggregated after the join. For other values, no override → the
@@ -426,6 +458,7 @@ export class BlendableSchemaService {
         ...ctx,
         sourceId: rel.targetDataMart.id,
         parentPath: currentPath,
+        hiddenFieldNames: ctx.hiddenFieldNames,
         branchDmIds: new Set([...ctx.branchDmIds, rel.targetDataMart.id]),
         depth: ctx.depth + 1,
       });

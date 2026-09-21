@@ -34,13 +34,13 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 
 ### Supported operators by column type
 
-| Column type                 | Available operators                                                                                                                                 |
-| --------------------------- |-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Column type                 | Available operators                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | String                      | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null                                                                              |
-| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null                                |
-| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null                                          |
-| Boolean                     | is true, is false, is blank, is not blank                                                                                                                                 |
+| Number                      | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null                                                                                                   |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null                                                     |
+| Time                        | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null                                                               |
+| Boolean                     | is true, is false, is blank, is not blank                                                                                                                                |
 
 **Is blank / is not blank** match by what a rendered cell shows: a string column is blank when it is `NULL`, an empty string, or whitespace-only; every other type is blank only when it is `NULL`. These replace the former `is empty` / `is not empty` / `is null` / `is not null` operators — rules saved with those keep working and keep their original labels, but new rules use the blank pair.
 
@@ -191,6 +191,22 @@ You have two options:
 - **Restore the schema** — does the column still belong? Ask whoever manages the Data Mart to add it back. Then reopen the report.
 
 ![Edit report panel with a red "Disconnected columns" group at the top of the column list, containing order_date with a checked checkbox. A tooltip is open showing "They are missing from the current Data Mart output schema. Uncheck them and remove any filter, sort, aggregation or date bucket rule that references them, or contact your analyst to restore the schema." The remaining columns (order_id, customer_id, order_timestamp, product_id, product_name, category, customer_name, country) are listed below and appear valid.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6616af2b-e216-406b-b11a-e876b17df900/public)
+
+### Hidden columns warning
+
+Hiding a field from reporting is not the same event, and the picker says so. A report that already selected the field lists it under an amber **Hidden columns** label with an 👁 icon:
+
+> _They are still in the Data Mart, but hidden from reporting. Uncheck them and remove any filter, sort, aggregation or date bucket rule that references them, or ask your analyst to show them in reports again._
+
+Nothing is missing here and there is no schema to restore — someone decided the column should not be reported on. Any of the three switches leads here, and the fix is to reverse the one that was used:
+
+- **Hide from reports** in a field's ⋯ menu on the Data Mart's **Data Setup → Output Schema** — the Data Mart's own columns, calculated fields included.
+- The same action [on a joined Data Mart's field](./joinable-data-marts.md#per-field-overrides), which hides it for every report built on that Data Mart.
+- **Hidden** in Join Settings, which hides a joined field for this Data Mart's reports only.
+
+Uncheck the column to take it out of the report, or ask whoever hid it to show it again. Everything else behaves as above: the report cannot run until the column is out of it, and a filter, sort, aggregation or date bucket rule on it has to go too.
+
+A report that carries one of each is told about both, and the advice to restore the schema stays — one of those columns really is gone.
 
 ### Validation error on save
 

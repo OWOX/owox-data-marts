@@ -236,4 +236,14 @@ export class BlendableSchemaDto {
       'and that list has already had those stripped. A field with no issue is simply absent here.',
   })
   calculatedFieldIssues: CalculatedFieldIssueDto[];
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Column paths the analyst hid from reporting, as full dotted paths (a hidden RECORD brings ' +
+      'its subtree). Absent from `nativeFields` by design — this list exists so a report that ' +
+      'still selects one can be told it was HIDDEN rather than lost, which is a different fact ' +
+      'with a different fix. A column that is also disconnected is left out: it really is gone.',
+  })
+  hiddenFieldNames: string[];
 }

@@ -77,6 +77,45 @@ export function collectSchemaFieldPathDescriptors(
   return result;
 }
 
+/**
+ * Column paths the analyst took off the reporting menu — hidden, not gone.
+ *
+ * A stored report that selected one of these still carries the name, and every list built for
+ * reporting has already dropped it, so it reads to the rest of the system exactly like a column
+ * the schema lost. It is not the same fact, and it does not have the same fix: nothing is broken
+ * and no schema needs restoring — someone decided this column should not be reported on.
+ *
+ * Hiding a RECORD takes its subtree with it (`collectSchemaFieldPathDescriptors` stops descending),
+ * so every path underneath is hidden too. A DISCONNECTED field is skipped even when it also
+ * carries the flag: that column really is gone, which is the more useful thing to be told.
+ */
+export function collectHiddenForReportingPaths(
+  fields: readonly DataMartSchemaField[],
+  prefix = ''
+): string[] {
+  const result: string[] = [];
+  for (const field of fields) {
+    if (!isConnected(field)) continue;
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    const children =
+      'fields' in field && field.fields?.length && !isArrayFieldType(getReportFieldType(field))
+        ? (field.fields as DataMartSchemaField[])
+        : [];
+
+    if (field.isHiddenForReporting) {
+      // Every path underneath, hidden flag or not — the parent's flag already hides them all, and
+      // `collectSchemaFieldPaths` would drop the ones carrying a flag of their own.
+      result.push(
+        fullName,
+        ...collectFormulaReferenceableFields(children, fullName).map(({ name }) => name)
+      );
+      continue;
+    }
+    result.push(...collectHiddenForReportingPaths(children, fullName));
+  }
+  return result;
+}
+
 // A calculated-field formula may legally reference a HIDDEN field: isHiddenForReporting takes a
 // column off the reporting menu, it does not remove it from the source, and computing is not
 // projecting. Deliberately NOT built on collectSchemaFieldPathDescriptors, whose callers

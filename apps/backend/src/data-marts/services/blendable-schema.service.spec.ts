@@ -1301,6 +1301,34 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[0].name).toBe('orders__revenue');
     });
 
+    it('names the main Data Mart fields it hid, so a report selecting one can be told which fact it hit', async () => {
+      // `nativeFields` drops them, which makes a stored report on one look exactly like a report
+      // on a column the schema lost. It is not the same thing and does not have the same fix.
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-1',
+          schema: makeSchema([
+            { name: 'clicks', type: 'INTEGER' },
+            { name: 'internal_id', type: 'STRING', isHiddenForReporting: true },
+            {
+              name: 'gone',
+              type: 'STRING',
+              status: DataMartSchemaFieldStatus.DISCONNECTED,
+              isHiddenForReporting: true,
+            },
+          ]),
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      // The disconnected one is left out on purpose: it really is gone, and that is the more
+      // useful thing to say about it.
+      expect(result.hiddenFieldNames).toEqual(['internal_id']);
+      expect(result.nativeFields.map(f => f.name)).toEqual(['clicks']);
+    });
+
     it('should filter out isHiddenForReporting fields from target schema', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
 
