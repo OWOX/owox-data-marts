@@ -1,3 +1,4 @@
+import { HttpException, HttpStatus } from '@nestjs/common';
 import type { Request } from 'express';
 import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { OAuthIdpPort, OAUTH_IDP_PORT } from '../oauth-idp.port';
@@ -128,6 +129,74 @@ describe('OAuthTokenController', () => {
     ).rejects.toThrow('token exchange failed');
 
     expect(clientRegistry.markSuccessfulTokenExchange).not.toHaveBeenCalled();
+  });
+
+  it('maps an upstream AuthenticationException (expired/invalid refresh token) to 400 invalid_grant', async () => {
+    const { controller, idp, clientRegistry } = createController({
+      grantType: 'refresh_token',
+      refreshToken: 'refresh-token',
+      clientId: 'client-1',
+      resource: 'https://mcp.owox.com/mcp',
+    });
+    // Matches by `.name`, not `instanceof` — apps/backend deliberately avoids a runtime
+    // import from the ESM-only `@owox/idp-owox-better-auth` package (see isAuthenticationError).
+    const upstreamError = new Error('Invalid or expired credentials');
+    upstreamError.name = 'AuthenticationException';
+    idp.exchangeToken.mockRejectedValueOnce(upstreamError);
+
+    let thrown: HttpException | undefined;
+    try {
+      await controller.token(
+        {
+          grant_type: 'refresh_token',
+          refresh_token: 'refresh-token',
+          client_id: 'client-1',
+        },
+        {} as Request
+      );
+    } catch (error) {
+      thrown = error as HttpException;
+    }
+
+    expect(thrown).toBeInstanceOf(HttpException);
+    expect(thrown?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(thrown?.getResponse()).toMatchObject({
+      error: 'invalid_grant',
+      error_description: expect.any(String),
+    });
+    expect(clientRegistry.markSuccessfulTokenExchange).not.toHaveBeenCalled();
+  });
+
+  it('maps an upstream AuthenticationException surfaced only via status 401 to 400 invalid_grant', async () => {
+    const { controller, idp } = createController({
+      grantType: 'authorization_code',
+      code: 'code-1',
+      clientId: 'client-1',
+      redirectUri: 'https://client.example/callback',
+      resource: 'https://mcp.owox.com/mcp',
+      codeVerifier: 'verifier',
+    });
+    const upstreamError = Object.assign(new Error('unauthorized'), { status: 401 });
+    idp.exchangeToken.mockRejectedValueOnce(upstreamError);
+
+    let thrown: HttpException | undefined;
+    try {
+      await controller.token(
+        {
+          grant_type: 'authorization_code',
+          code: 'code-1',
+          client_id: 'client-1',
+          redirect_uri: 'https://client.example/callback',
+          code_verifier: 'verifier',
+        },
+        {} as Request
+      );
+    } catch (error) {
+      thrown = error as HttpException;
+    }
+
+    expect(thrown?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(thrown?.getResponse()).toMatchObject({ error: 'invalid_grant' });
   });
 
   it('exports a stable OAuth IDP injection token', () => {
