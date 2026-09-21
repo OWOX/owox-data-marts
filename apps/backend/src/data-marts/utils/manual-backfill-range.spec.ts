@@ -74,6 +74,28 @@ describe('manual-backfill-range', () => {
       });
     });
 
+    it.each([
+      ['no data at all', { runType: 'MANUAL_BACKFILL' }],
+      ['data without StartDate', { runType: 'MANUAL_BACKFILL', data: { SheetId: 'abc' } }],
+    ])('passes through a backfill for a connector with no date fields (%s)', (_label, payload) => {
+      expect(prepareManualBackfillPayload(payload, TODAY)).toBe(payload);
+    });
+
+    it('accepts the date part of an ISO-8601 timestamp, as JSON.stringify(Date) produces', () => {
+      expect(
+        prepareManualBackfillPayload(
+          {
+            runType: 'MANUAL_BACKFILL',
+            data: { StartDate: '2026-09-01T00:00:00.000Z', EndDate: '2026-09-10T12:34:56.000Z' },
+          },
+          TODAY
+        )
+      ).toEqual({
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-09-01', EndDate: '2026-09-10' },
+      });
+    });
+
     it('rejects a range longer than the limit', () => {
       expect(() =>
         prepareManualBackfillPayload(

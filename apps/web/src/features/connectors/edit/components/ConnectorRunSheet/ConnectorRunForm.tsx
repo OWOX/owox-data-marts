@@ -37,14 +37,37 @@ interface ConnectorRunFormProps {
   onSubmit?: (data: ConnectorRunFormData) => void;
 }
 
-function getBackfillSummary(days: number): string {
-  if (days === 0) {
-    return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
+type BackfillPeriod =
+  | { status: 'incomplete' }
+  | { status: 'reversed' }
+  | { status: 'startInFuture' }
+  | { status: 'tooLong'; days: number }
+  | { status: 'ok'; days: number };
+
+/** Single source of truth for the period: the notice and the field validators both read it. */
+function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string): BackfillPeriod {
+  if (toUtcDayMs(startDate) === undefined || toUtcDayMs(endDate) === undefined) {
+    return { status: 'incomplete' };
   }
-  if (days > MAX_MANUAL_BACKFILL_DAYS) {
-    return `This period covers ${days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
+  if ((startDate as string) > today) return { status: 'startInFuture' };
+  const days = countBackfillDays(startDate, endDate);
+  if (days === 0) return { status: 'reversed' };
+  return days > MAX_MANUAL_BACKFILL_DAYS ? { status: 'tooLong', days } : { status: 'ok', days };
+}
+
+function getBackfillSummary(period: BackfillPeriod): string {
+  switch (period.status) {
+    case 'incomplete':
+      return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
+    case 'startInFuture':
+      return 'The start date cannot be in the future. Pick a date up to today.';
+    case 'reversed':
+      return 'The end date must be on or after the start date.';
+    case 'tooLong':
+      return `This period covers ${period.days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
+    case 'ok':
+      return `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}.`;
   }
-  return `This backfill covers ${days} ${days === 1 ? 'day' : 'days'}.`;
 }
 
 function getBackfillDateValidation(
@@ -64,14 +87,12 @@ function getBackfillDateValidation(
   if (fieldName === 'EndDate') {
     return {
       period: (value, formValues) => {
-        const startDate = formValues.data.StartDate;
-        if (toUtcDayMs(value) === undefined || toUtcDayMs(startDate) === undefined) return true;
-        const days = countBackfillDays(startDate, value);
-        if (days === 0) return 'End date must be on or after the start date';
-        return (
-          days <= MAX_MANUAL_BACKFILL_DAYS ||
-          `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`
-        );
+        const period = readBackfillPeriod(formValues.data.StartDate, value, today);
+        if (period.status === 'reversed') return 'End date must be on or after the start date';
+        if (period.status === 'tooLong') {
+          return `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`;
+        }
+        return true;
       },
     };
   }
@@ -93,12 +114,13 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const { dataMart } = useDataMartContext();
 
   const runType = form.watch('runType');
-  const startDate = form.watch('data.StartDate');
-  const endDate = form.watch('data.EndDate');
   const today = new Date().toISOString().slice(0, 10);
-  // The backend defaults a missing EndDate to today, so the preview does the same.
-  const effectiveEndDate = endDate === undefined || endDate === '' ? today : endDate;
-  const backfillDays = countBackfillDays(startDate, effectiveEndDate);
+  // Both dates are required fields, so the notice reports only what the user actually picked.
+  const backfillPeriod = readBackfillPeriod(
+    form.watch('data.StartDate'),
+    form.watch('data.EndDate'),
+    today
+  );
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -232,8 +254,12 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     )}
                   />
                 ))}
-              <Alert data-testid='backfill-limit-notice'>
-                <AlertDescription>{getBackfillSummary(backfillDays)}</AlertDescription>
+              <Alert
+                role='status'
+                variant={backfillPeriod.status === 'ok' ? 'default' : 'destructive'}
+                data-testid='backfill-limit-notice'
+              >
+                <AlertDescription>{getBackfillSummary(backfillPeriod)}</AlertDescription>
               </Alert>
             </FormSection>
           )}

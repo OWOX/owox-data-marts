@@ -19,7 +19,6 @@ export function getMaxManualBackfillDays(): number {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const ISO_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function formatUtcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -29,14 +28,15 @@ function toUtcDay(value: string): number {
   return Date.parse(`${value}T00:00:00.000Z`);
 }
 
-/** A calendar day that exists: the regex catches the shape, the refine catches 2026-02-30. */
+/**
+ * A calendar day that exists. The date part of an ISO-8601 timestamp is accepted too, because
+ * `JSON.stringify` serializes a `Date` that way and that shape worked before this validation.
+ */
 const isoDaySchema = z
   .string()
-  .regex(ISO_DAY_PATTERN)
-  .refine(value => {
-    const ms = toUtcDay(value);
-    return !Number.isNaN(ms) && formatUtcDay(ms) === value;
-  });
+  .regex(/^\d{4}-\d{2}-\d{2}(?:T.*)?$/)
+  .transform(value => value.slice(0, 10))
+  .pipe(z.string().date());
 
 const manualBackfillDatesSchema = z.object({
   StartDate: isoDaySchema,
@@ -97,9 +97,14 @@ export function parseManualBackfillRange(data: unknown, today: Date): BackfillDa
   return range;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 /**
  * Validates a MANUAL_BACKFILL payload before a run is created and normalizes its dates
- * (EndDate filled in and clamped). Non-backfill payloads pass through untouched.
+ * (EndDate filled in and clamped). Non-backfill payloads, and backfills for connectors that
+ * declare no date fields, pass through untouched.
  */
 export function prepareManualBackfillPayload(
   payload: Record<string, unknown> | undefined,
@@ -107,8 +112,11 @@ export function prepareManualBackfillPayload(
 ): Record<string, unknown> | undefined {
   if (!payload || payload.runType !== MANUAL_BACKFILL_RUN_TYPE) return payload;
 
+  // A connector without backfill date fields (Google Sheets, for example) treats a manual
+  // backfill as a full refresh and posts no StartDate. Leave that payload untouched; the
+  // connector still raises "StartDate is required" for the connectors that do need one.
+  if (!isRecord(payload.data) || payload.data.StartDate === undefined) return payload;
+
   const { startDate, endDate } = parseManualBackfillRange(payload.data, today);
-  // A successful parse proves payload.data is an object.
-  const data = payload.data as Record<string, unknown>;
-  return { ...payload, data: { ...data, StartDate: startDate, EndDate: endDate } };
+  return { ...payload, data: { ...payload.data, StartDate: startDate, EndDate: endDate } };
 }

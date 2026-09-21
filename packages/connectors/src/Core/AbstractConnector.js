@@ -7,348 +7,347 @@
 
 var AbstractConnector = class AbstractConnector {
   //---- constructor -------------------------------------------------
-  constructor(config, source, storage = null, runConfig = null) {
-    if (typeof config.setParametersValues !== 'function') {
-      throw new Error(
-        `Unable to create a Connector. The first parameter must inherit from the AbstractConfig class`
-      );
-    } else if (typeof source.fetchData !== 'function') {
-      throw new Error(
-        `Unable to create a Connector. The second parameter must inherit from the AbstractSource class`
-      );
+    constructor(config, source, storage = null, runConfig = null) {
+
+      if( typeof config.setParametersValues !== "function" ) { 
+        throw new Error(`Unable to create a Connector. The first parameter must inherit from the AbstractConfig class`);
+        
+      } else if( typeof source.fetchData !== "function" ) {
+        throw new Error(`Unable to create a Connector. The second parameter must inherit from the AbstractSource class`);
 
       // storage might be null in case it will be dynmicaly assigned in Connector.startImportProcess()
-    } else if (storage !== null && !(storage instanceof AbstractStorage)) {
-      throw new Error(
-        `Unable to create a Connector. The third parameter must inherit from the AbstractStorage class`
-      );
-    }
-
-    // Set default run config if not provided (fallback for backwards compatibility)
-    this.runConfig = runConfig || new AbstractRunConfig();
-
-    try {
-      config.validate();
-      this.runConfig.validate(config);
-    } catch (error) {
-      config.logMessage(`${error.stack}`);
-
-      // in case current status is not In progress, we need to update it to "Error". We cannot overwrite "In progress" status with "Error" to avoid import dublication
-      if (!config.isInProgress()) {
-        config.handleStatusUpdate({
-          status: EXECUTION_STATUS.ERROR,
-          error: error,
-        });
+      } else if ( storage !== null && !(storage instanceof AbstractStorage) ) {
+        throw new Error(`Unable to create a Connector. The third parameter must inherit from the AbstractStorage class`);
       }
 
-      throw error;
-    }
+      // Set default run config if not provided (fallback for backwards compatibility)
+      this.runConfig = runConfig || new AbstractRunConfig();
 
-    // if created directly, storageName is not passed as a parameter and we need to set it dynamically
-    if (storage !== null) {
-      this.storageName = storage.constructor.name;
-    }
+      try {
 
-    this.config = config;
-    this.source = source;
-    this.storage = storage;
+        config.validate();
+        this.runConfig.validate(config);
 
-    // Apply run config to the configuration
-    this._processRunConfig();
-  }
-  //----------------------------------------------------------------
+      } catch(error) {
 
-  //---- _processRunConfig -------------------------------------------
-  /**
-   * Processes run configuration and applies it to the connector config
-   * @private
-   */
-  _processRunConfig() {
-    if (this.runConfig.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
-      // Apply manual backfill parameters
-      this.runConfig.data.forEach(item => {
-        if (
-          this.config[item.configField] &&
-          this.config[item.configField].attributes &&
-          this.config[item.configField].attributes.includes(CONFIG_ATTRIBUTES.MANUAL_BACKFILL)
-        ) {
-          // Convert date strings to Date objects if needed
-          let value = item.value;
-          if (this.config[item.configField].requiredType === 'date' && typeof value === 'string') {
-            value = new Date(value);
-          }
+        config.logMessage(`${error.stack}`);
 
-          this.config[item.configField].value = value;
+        // in case current status is not In progress, we need to update it to "Error". We cannot overwrite "In progress" status with "Error" to avoid import dublication
+        if( !config.isInProgress() ) {
+          config.handleStatusUpdate({ 
+            status: EXECUTION_STATUS.ERROR, 
+            error: error
+          });
         }
-      });
 
-      this.config.logMessage(`Manual Backfill mode activated with custom parameters`);
-    } else if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.logMessage(`Incremental mode activated`);
+        throw error;
+
+      }
+
+      // if created directly, storageName is not passed as a parameter and we need to set it dynamically
+      if (storage !== null) {
+        this.storageName = storage.constructor.name;
+      }
+      
+      this.config = config;
+      this.source = source;
+      this.storage = storage;
+
+      // Apply run config to the configuration
+      this._processRunConfig();
+
     }
-  }
-  //----------------------------------------------------------------
-
+    //----------------------------------------------------------------
+      
+  //---- _processRunConfig -------------------------------------------
+    /**
+     * Processes run configuration and applies it to the connector config
+     * @private
+     */
+    _processRunConfig() {
+      if (this.runConfig.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
+        // Apply manual backfill parameters
+        this.runConfig.data.forEach(item => { 
+          if (this.config[item.configField] && 
+              this.config[item.configField].attributes && 
+              this.config[item.configField].attributes.includes(CONFIG_ATTRIBUTES.MANUAL_BACKFILL)) {
+            
+            // Convert date strings to Date objects if needed
+            let value = item.value;
+            if (this.config[item.configField].requiredType === 'date' && typeof value === 'string') {
+              value = new Date(value);
+            }
+            
+            this.config[item.configField].value = value;
+          }
+        });
+        
+        this.config.logMessage(`Manual Backfill mode activated with custom parameters`);
+        
+      } else if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.logMessage(`Incremental mode activated`);
+      }
+    }
+    //----------------------------------------------------------------
+      
   //---- run ---------------------------------------------------------
-  /**
-   * Initiates imports new data from a data source
-   */
-  async run() {
-    try {
-      // if import is already in progress skip this run in order to avoid dublication
-      if (this.config.isInProgress()) {
-        this.config.addWarningToCurrentStatus('Import is already in progress');
+    /**
+     * Initiates imports new data from a data source
+     */
+    async run() {
+
+      try {
+
+        // if import is already in progress skip this run in order to avoid dublication
+        if( this.config.isInProgress() ) {
+
+          this.config.addWarningToCurrentStatus("Import is already in progress");
 
         // stat a new import
-      } else {
-        this.config.logMessage('Configuration was loaded successfully', true);
-        this.config.handleStatusUpdate({ status: EXECUTION_STATUS.IMPORT_IN_PROGRESS });
+        } else {
+
+          this.config.logMessage("Configuration was loaded successfully", true);
+          this.config.handleStatusUpdate({ status: EXECUTION_STATUS.IMPORT_IN_PROGRESS });
+          this.config.updateLastImportDate();
+          this.config.logMessage("Start importing new data");
+
+          await this.startImportProcess();
+
+          this.config.logMessage("Import is finished");
+          this.config.handleStatusUpdate({
+            status: EXECUTION_STATUS.IMPORT_DONE
+          });
+        }
+
         this.config.updateLastImportDate();
-        this.config.logMessage('Start importing new data');
 
-        await this.startImportProcess();
+      } catch( error ) {
 
-        this.config.logMessage('Import is finished');
         this.config.handleStatusUpdate({
-          status: EXECUTION_STATUS.IMPORT_DONE,
+          status: EXECUTION_STATUS.ERROR,
+          error: error
         });
+        this.config.logMessage(`${error.stack}`);
+        throw error;
+
       }
 
-      this.config.updateLastImportDate();
-    } catch (error) {
-      this.config.handleStatusUpdate({
-        status: EXECUTION_STATUS.ERROR,
-        error: error,
-      });
-      this.config.logMessage(`${error.stack}`);
-      throw error;
     }
-  }
-  //----------------------------------------------------------------
-
+    //----------------------------------------------------------------  
+    
   //---- startImportProcess ------------------------------------------
-  /**
-   * A method for calling from Root script for determining parameters needed to fetch new data.
-   */
-  async startImportProcess() {
-    let startDate = null;
-    let endDate = new Date();
-    let daysToFetch = null;
-    [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
+    /**
+     * A method for calling from Root script for determining parameters needed to fetch new data.
+     */
+    async startImportProcess() {
+      
+      let startDate = null;
+      let endDate = new Date();
+      let daysToFetch = null;
+      [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
-    if (!startDate) {
-      this.config.logMessage('There is nothing to import in this data range');
-      return;
-    }
+      if( !startDate ) {
+        this.config.logMessage("There is nothing to import in this data range");
+        return;
+      }
 
-    endDate.setDate(startDate.getDate() + daysToFetch);
+      endDate.setDate(startDate.getDate() + daysToFetch);
 
-    // fetching new data from a data source
-    let data = await this.source.fetchData(startDate, endDate);
+      // fetching new data from a data source
+      let data = await this.source.fetchData(startDate, endDate);
 
-    // there are fetched records to update
-    this.config.logMessage(
-      data.length ? `${data.length} rows were fetched` : `No records have been fetched`
-    );
+      // there are fetched records to update
+      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
-    if (data.length || this.config.CreateEmptyTables?.value === 'true') {
-      await this.storage.saveData(data);
-    }
+      if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
+        await this.storage.saveData(data);
+      }
 
-    // Only update LastRequestedDate for incremental runs
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Only update LastRequestedDate for incremental runs
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
       this.config.updateLastRequstedDate(endDate);
-    }
-  }
-  //----------------------------------------------------------------
+      }
 
+    }
+    //----------------------------------------------------------------
+    
   //---- addMissingFieldsToData ---------------------------------
-  /**
-   * Ensures all fields selected in the configuration are present in each data record.
-   * This is useful when API returns data without some fields that were selected.
-   *
-   * @param {Array} data - Array of data records from the API
-   * @param {Array} selectedFields - Array of field names selected in the configuration
-   * @returns {Array} - Data with all selected fields present in each record
-   */
-  addMissingFieldsToData(data, selectedFields) {
-    if (!data || !data.length || !selectedFields || !selectedFields.length) {
-      return data;
-    }
-
-    return data.map(record => {
-      const result = { ...record };
-
-      // Add null values for any selected fields missing from the record
-      selectedFields.forEach(fieldName => {
-        if (!(fieldName in result)) {
-          result[fieldName] = null;
-        }
+    /**
+     * Ensures all fields selected in the configuration are present in each data record.
+     * This is useful when API returns data without some fields that were selected.
+     * 
+     * @param {Array} data - Array of data records from the API
+     * @param {Array} selectedFields - Array of field names selected in the configuration
+     * @returns {Array} - Data with all selected fields present in each record
+     */
+    addMissingFieldsToData(data, selectedFields) {
+      if (!data || !data.length || !selectedFields || !selectedFields.length) {
+        return data;
+      }
+      
+      return data.map(record => {
+        const result = { ...record };
+        
+        // Add null values for any selected fields missing from the record
+        selectedFields.forEach(fieldName => {
+          if (!(fieldName in result)) {
+            result[fieldName] = null;
+          }
+        });
+        
+        return result;
       });
-
-      return result;
-    });
-  }
-  //----------------------------------------------------------------
+    }
+    //----------------------------------------------------------------
 
   //---- getStartDateAndDaysToFetch ----------------------------------
-  /**
-   * calculates start date and days to fetch time series data
-   * @return StartData (date) and daysToFetch (integer)
-   */
-  getStartDateAndDaysToFetch() {
-    if (this.runConfig.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
-      return this._getManualBackfillDateRange();
-    } else if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      return this._getIncrementalDateRange();
-    } else {
-      throw new Error(`Unknown RunConfig type: ${this.runConfig.type}`);
+    /**
+     * calculates start date and days to fetch time series data
+     * @return StartData (date) and daysToFetch (integer)
+     */
+    getStartDateAndDaysToFetch() {
+
+      if (this.runConfig.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
+        return this._getManualBackfillDateRange();
+        
+      } else if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        return this._getIncrementalDateRange();
+        
+      } else {
+        throw new Error(`Unknown RunConfig type: ${this.runConfig.type}`);
+      }
     }
-  }
-  //----------------------------------------------------------------
+    //----------------------------------------------------------------
 
   //---- _getManualBackfillDateRange ---------------------------------
-  /**
-   * Calculates date range for manual backfill
-   * @return [startDate, daysToFetch]
-   * @private
-   */
-  _getManualBackfillDateRange() {
-    if (!this.config.StartDate.value) {
-      throw new Error('StartDate is required for manual backfill');
-    }
-    let startDate = this.config.StartDate.value;
-    let endDate = this.config.EndDate.value || new Date();
-    const today = new Date();
+    /**
+     * Calculates date range for manual backfill
+     * @return [startDate, daysToFetch]
+     * @private
+     */
+    _getManualBackfillDateRange() {
+      if (!this.config.StartDate.value) {
+        throw new Error('StartDate is required for manual backfill');
+      }
+      let startDate = this.config.StartDate.value;
+      let endDate = this.config.EndDate.value || new Date();
+      const today = new Date();
 
-    // Validate that EndDate is not earlier than StartDate
-    if (endDate < startDate) {
-      throw new Error(
-        `EndDate (${endDate.toISOString().split('T')[0]}) cannot be earlier than StartDate (${startDate.toISOString().split('T')[0]})`
+      // Validate that EndDate is not earlier than StartDate
+      if (endDate < startDate) {
+        throw new Error(`EndDate (${endDate.toISOString().split('T')[0]}) cannot be earlier than StartDate (${startDate.toISOString().split('T')[0]})`);
+      }
+      
+      // Validate that dates are not in the future
+      if (startDate > today) {
+        throw new Error(`StartDate (${startDate.toISOString().split('T')[0]}) cannot be in the future`);
+        }
+      
+      if (endDate > today) {
+        this.config.logMessage(`Warning: EndDate (${endDate.toISOString().split('T')[0]}) is in the future, adjusting to today`);
+        endDate = today;
+      }
+
+      // Calculate days between start and end date
+      const daysToFetch = Math.max(
+        0,
+        Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
       );
+
+      if( daysToFetch > MAX_MANUAL_BACKFILL_DAYS ) {
+        throw new Error(`Manual backfill is limited to ${MAX_MANUAL_BACKFILL_DAYS} days per run (requested ${daysToFetch} days)`);
+      }
+      
+      return [startDate, daysToFetch];
     }
-
-    // Validate that dates are not in the future
-    if (startDate > today) {
-      throw new Error(
-        `StartDate (${startDate.toISOString().split('T')[0]}) cannot be in the future`
-      );
-    }
-
-    if (endDate > today) {
-      this.config.logMessage(
-        `Warning: EndDate (${endDate.toISOString().split('T')[0]}) is in the future, adjusting to today`
-      );
-      endDate = today;
-    }
-
-    // Calculate days between start and end date
-    const daysToFetch = Math.max(
-      0,
-      Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    );
-
-    if (daysToFetch > MAX_MANUAL_BACKFILL_DAYS) {
-      throw new Error(
-        `Manual backfill is limited to ${MAX_MANUAL_BACKFILL_DAYS} days per run (requested ${daysToFetch} days)`
-      );
-    }
-
-    return [startDate, daysToFetch];
-  }
-  //----------------------------------------------------------------
+    //----------------------------------------------------------------
 
   //---- _getIncrementalDateRange ------------------------------------
-  /**
-   * Calculates date range for incremental import
-   * @return [startDate, daysToFetch]
-   * @private
-   */
-  _getIncrementalDateRange() {
-    let startDate = this._getIncrementalStartDate();
+    /**
+     * Calculates date range for incremental import
+     * @return [startDate, daysToFetch]
+     * @private
+     */
+    _getIncrementalDateRange() {
+      let startDate = this._getIncrementalStartDate();
+      
+      // Calculate days to fetch from startDate to today
+      const today = new Date();
+      const daysToFetch = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    // Calculate days to fetch from startDate to today
-    const today = new Date();
-    const daysToFetch = Math.max(
-      0,
-      Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    );
-
-    return [startDate, daysToFetch];
-  }
-  //----------------------------------------------------------------
+      return [startDate, daysToFetch];
+    }
+    //----------------------------------------------------------------
 
   //---- _getIncrementalStartDate ------------------------------------
-  /**
-   * Determines start date for incremental import considering lookback
-   * @return Date
-   * @private
-   */
-  _getIncrementalStartDate() {
-    // If lastRequestedDate exists, always use it (apply lookback window)
-    if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
-      let lastRequestedDate = this._parseLastRequestedDate();
-      let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
-      return lookbackDate;
-    }
+    /**
+     * Determines start date for incremental import considering lookback
+     * @return Date
+     * @private
+     */
+    _getIncrementalStartDate() {
+      // If lastRequestedDate exists, always use it (apply lookback window)
+      if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
+        let lastRequestedDate = this._parseLastRequestedDate();
+        let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
+        return lookbackDate;
+      }
 
-    // First run: no state exists, start from the 1st of last month
-    const today = new Date();
-    return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-  }
-  //----------------------------------------------------------------
+      // First run: no state exists, start from the 1st of last month
+      const today = new Date();
+      return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+    }
+    //----------------------------------------------------------------
 
   //---- _parseLastRequestedDate -------------------------------------
-  /**
-   * Parses LastRequestedDate from config (handles both string and Date types)
-   * @return Date
-   * @private
-   */
-  _parseLastRequestedDate() {
-    if (typeof this.config.LastRequestedDate.value === 'string') {
-      return new Date(this.config.LastRequestedDate.value);
-    } else {
-      return new Date(this.config.LastRequestedDate.value.getTime());
+    /**
+     * Parses LastRequestedDate from config (handles both string and Date types)
+     * @return Date
+     * @private
+     */
+    _parseLastRequestedDate() {
+      if (typeof this.config.LastRequestedDate.value === 'string') {
+        return new Date(this.config.LastRequestedDate.value);
+      } else {
+        return new Date(this.config.LastRequestedDate.value.getTime());
+      }
     }
-  }
-  //----------------------------------------------------------------
+    //----------------------------------------------------------------
 
   //---- _applyLookbackWindow ----------------------------------------
-  /**
-   * Applies ReimportLookbackWindow to a date
-   * @param Date date
-   * @return Date
-   * @private
-   */
-  _applyLookbackWindow(date) {
-    return new Date(
-      date.getTime() - this.config.ReimportLookbackWindow.value * 24 * 60 * 60 * 1000
-    );
-  }
-  //----------------------------------------------------------------
+    /**
+     * Applies ReimportLookbackWindow to a date
+     * @param Date date
+     * @return Date
+     * @private
+     */
+    _applyLookbackWindow(date) {
+      return new Date(date.getTime() - this.config.ReimportLookbackWindow.value * 24 * 60 * 60 * 1000);
+    }
+    //----------------------------------------------------------------
 
   //---- getDestinationName ----------------------------------
-  /**
-   * Resolves destination table name for a given node.
-   * Looks for an override in `config.DestinationTableNameOverride` using the format:
-   * "NodeA NewNameA, NodeB NewNameB". If an override for the `nodeName` is found,
-   * it returns the corresponding `NewName`; otherwise returns `defaultName`.
-   *
-   * @param {string} nodeName - Name of the node to resolve the destination name for
-   * @param {Object} config - Connector configuration object
-   * @param {string} defaultName - Fallback destination table name
-   * @returns {string} - Overridden destination name if present, otherwise `defaultName`
-   */
-  getDestinationName(nodeName, config, defaultName) {
-    const raw = config?.DestinationTableNameOverride?.value;
-    if (!raw) return defaultName;
+    /**
+     * Resolves destination table name for a given node.
+     * Looks for an override in `config.DestinationTableNameOverride` using the format:
+     * "NodeA NewNameA, NodeB NewNameB". If an override for the `nodeName` is found,
+     * it returns the corresponding `NewName`; otherwise returns `defaultName`.
+     *
+     * @param {string} nodeName - Name of the node to resolve the destination name for
+     * @param {Object} config - Connector configuration object
+     * @param {string} defaultName - Fallback destination table name
+     * @returns {string} - Overridden destination name if present, otherwise `defaultName`
+     */
+    getDestinationName(nodeName, config, defaultName) {
+      const raw = config?.DestinationTableNameOverride?.value;
+      if (!raw) return defaultName;
 
-    const match = raw
-      .split(',')
-      .map(s => s.trim())
-      .find(s => s.startsWith(nodeName + ' '));
+      const match = raw
+        .split(',')
+        .map(s => s.trim())
+        .find(s => s.startsWith(nodeName + ' '));
 
-    return match ? match.slice(nodeName.length).trim() : defaultName;
-  }
-  //----------------------------------------------------------------
-};
+      return match ? match.slice(nodeName.length).trim() : defaultName;
+    }
+    //----------------------------------------------------------------
+}

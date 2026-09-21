@@ -19,8 +19,8 @@ var RUN_CONFIG_TYPE = {
 };
 
 // Upper bound on the inclusive date range a single MANUAL_BACKFILL run may cover.
-// 31 so that any full calendar month fits in one run. The backend splits longer
-// ranges into sequential runs; the connector enforces it as a last line of defense.
+// 31 so that any full calendar month fits in one run. The backend rejects a longer
+// range before a run is created; this is re-checked here as a last line of defense.
 var MAX_MANUAL_BACKFILL_DAYS = 31;
 
 var CONFIG_ATTRIBUTES = {

@@ -54,58 +54,66 @@ function setPeriod(startDate: string, endDate: string) {
   fireEvent.input(dateInput('End Date'), { target: { value: endDate } });
 }
 
-async function submit() {
-  await act(async () => {
-    fireEvent.submit(screen.getByRole('button', { name: 'Run' }).closest('form')!);
-  });
-}
+const notice = () => screen.getByTestId('backfill-limit-notice');
+const runButton = () => screen.getByRole('button', { name: 'Run' });
 
 describe('ConnectorRunForm backfill limit', () => {
   it('explains the per-run limit before any dates are chosen', async () => {
     await openBackfill();
 
-    expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-      'A backfill run can cover at most 31 days'
-    );
+    expect(notice()).toHaveTextContent('A backfill run can cover at most 31 days');
+    expect(runButton()).toBeDisabled();
   });
 
-  it('reports a full calendar month as a valid period', async () => {
+  it('reports a full calendar month as a valid period and enables Run', async () => {
     await openBackfill();
 
     setPeriod('2026-07-01', '2026-07-31');
 
     await waitFor(() => {
-      expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-        'This backfill covers 31 days.'
-      );
+      expect(notice()).toHaveTextContent('This backfill covers 31 days.');
+      expect(runButton()).toBeEnabled();
     });
   });
 
-  it('warns about and blocks a period longer than 31 days', async () => {
-    const onSubmit = await openBackfill();
+  it('explains and blocks a period longer than 31 days', async () => {
+    await openBackfill();
 
     setPeriod('2026-01-01', '2026-03-16');
-    await waitFor(() => {
-      expect(screen.getByTestId('backfill-limit-notice')).toHaveTextContent(
-        'covers 75 days, which exceeds the 31-day limit'
-      );
-    });
-    await submit();
 
-    expect(await screen.findByText('The period cannot exceed 31 days')).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('covers 75 days, which exceeds the 31-day limit');
+      expect(runButton()).toBeDisabled();
+    });
   });
 
-  it('blocks submission when the end date precedes the start date', async () => {
-    const onSubmit = await openBackfill();
+  it('explains and blocks an end date before the start date', async () => {
+    await openBackfill();
 
     setPeriod('2026-07-10', '2026-07-01');
-    await submit();
 
-    expect(
-      await screen.findByText('End date must be on or after the start date')
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('The end date must be on or after the start date.');
+      expect(runButton()).toBeDisabled();
+    });
+  });
+
+  it('explains and blocks a start date in the future', async () => {
+    await openBackfill();
+
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setPeriod(future, future);
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('The start date cannot be in the future.');
+      expect(runButton()).toBeDisabled();
+    });
+  });
+
+  it('marks the notice as a status region so it is not announced assertively', async () => {
+    await openBackfill();
+
+    expect(notice()).toHaveAttribute('role', 'status');
   });
 
   it('caps the date inputs at today', async () => {
