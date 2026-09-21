@@ -11,6 +11,7 @@ type RunConfigDto = InstanceType<typeof Core.RunConfigDto>;
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorStateItem } from '../../connector-types/interfaces/connector-state';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import { unwrapRunPayload } from '../../utils/manual-backfill-range';
 
 @Injectable()
 export class ConnectorSourceConfigService {
@@ -56,13 +57,7 @@ export class ConnectorSourceConfigService {
     payload?: Record<string, unknown> | null,
     state?: ConnectorStateItem
   ): RunConfigDto {
-    const payloadObject =
-      payload !== null && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-    const nestedPayload = payloadObject.payload;
-    const bodyObject =
-      nestedPayload !== null && typeof nestedPayload === 'object'
-        ? (nestedPayload as Record<string, unknown>)
-        : payloadObject;
+    const bodyObject = unwrapRunPayload(payload);
 
     const runTypeRaw = bodyObject.runType;
     const dataRaw = bodyObject.data;

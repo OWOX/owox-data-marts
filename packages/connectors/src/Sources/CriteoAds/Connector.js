@@ -21,7 +21,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
 
     // A blank-but-truthy AdvertiserIDs (e.g. ";") passes required-field validation and parses
     // to an empty list. Without this the day loop would still run, fetch nothing, and walk the
-    // incremental cursor to today — marking days as imported that never were.
+    // checkpoint to today — marking days as imported that never were.
     if (!advertiserIds.length) {
       throw new Error('No valid Advertiser IDs found in the AdvertiserIDs parameter');
     }
@@ -43,7 +43,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
   /**
    * Imports every node for every advertiser, one date at a time.
    *
-   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * The loop is date-outer on purpose: the checkpoint may only move once a
    * date is complete for *all* advertisers and nodes, so a run interrupted midway
    * resumes from the last fully imported date instead of restarting the range.
    *
@@ -79,10 +79,8 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
         }
       }
 
-      // Every advertiser and node stored this date, so the cursor can move past it.
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(currentDate);
-      }
+      // Every advertiser and node stored this date, so the checkpoint can move past it.
+      this.config.updateLastRequstedDate(currentDate);
     }
   }
 

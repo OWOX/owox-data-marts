@@ -30,7 +30,16 @@ import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
+import { castError } from '@owox/internal-helpers';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
+import {
+  BACKFILL_PROGRESS_KEY,
+  isManualBackfillPayload,
+  parseBackfillDay,
+  readBackfillProgress,
+  resumeManualBackfillPayload,
+  unwrapRunPayload,
+} from '../../utils/manual-backfill-range';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
@@ -139,7 +148,7 @@ export class ConnectorExecutorService {
       }
 
       configurationResults = await this.runConnectorConfigurations(
-        runId,
+        run,
         processId,
         dataMart,
         payload,
@@ -303,15 +312,24 @@ export class ConnectorExecutorService {
   }
 
   private async runConnectorConfigurations(
-    runId: string,
+    run: DataMartRun,
     processId: string,
     dataMart: DataMart,
     payload?: Record<string, unknown> | null,
     signal?: AbortSignal
   ): Promise<ConfigurationExecutionResult[]> {
+    const runId = run.id;
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
     const configurationResults: ConfigurationExecutionResult[] = [];
+
+    const runBody = unwrapRunPayload(payload);
+    // Decided once, from the same body that is shipped to the connector process, so the
+    // backend and the process can never disagree about which run type produced a date.
+    const isBackfill = isManualBackfillPayload(runBody);
+    // Seeded from the row, so a configuration that already finished on an earlier attempt
+    // keeps its progress when a later configuration checkpoints during this one.
+    let backfillProgress = readBackfillProgress(run.additionalParams);
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
       const configId = (config as Record<string, unknown>)._id as string;
@@ -347,6 +365,10 @@ export class ConnectorExecutorService {
 
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
+      // Serialises this configuration's checkpoint writes and is awaited before its result is
+      // recorded, so the run's terminal status is never written before its last checkpoint.
+      let progressWrite: Promise<void> = Promise.resolve();
+      const resume = resumeManualBackfillPayload(runBody, backfillProgress[configId]);
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
       let fieldsUpdate: ConfigurationExecutionResult['fieldsUpdate'];
@@ -377,27 +399,58 @@ export class ConnectorExecutorService {
                 configId,
               });
               break;
-            case ConnectorMessageType.REQUESTED_DATE:
-              this.connectorStateService
-                .updateState(dataMart.id, configId, {
-                  state: { date: message.date },
-                  at: message.at,
-                })
-                .catch(error => {
-                  const errorMessage = error instanceof Error ? error.message : String(error);
-                  this.logger.error(
-                    `Failed to save state: ${errorMessage}`,
-                    (error as Error)?.stack,
-                    {
-                      dataMartId: dataMart.id,
-                      projectId: dataMart.projectId,
-                      runId,
-                      configId,
-                      error: errorMessage,
-                    }
-                  );
+            case ConnectorMessageType.REQUESTED_DATE: {
+              if (!isBackfill) {
+                this.connectorStateService
+                  .updateState(dataMart.id, configId, {
+                    state: { date: message.date },
+                    at: message.at,
+                  })
+                  .catch(error => {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    this.logger.error(
+                      `Failed to save state: ${errorMessage}`,
+                      (error as Error)?.stack,
+                      {
+                        dataMartId: dataMart.id,
+                        projectId: dataMart.projectId,
+                        runId,
+                        configId,
+                        error: errorMessage,
+                      }
+                    );
+                  });
+                break;
+              }
+
+              // A manual backfill reloads a past period, so its dates must never reach the
+              // incremental cursor: that cursor would jump back to the period's end and the
+              // next scheduled run would skip everything imported since. The date is recorded
+              // against the run instead, letting a retry resume from the last day this
+              // backfill fully loaded.
+              const completedDay = parseBackfillDay(message.date);
+              if (!completedDay) {
+                this.logger.warn(`Ignoring unusable backfill progress date: ${message.date}`, {
+                  dataMartId: dataMart.id,
+                  projectId: dataMart.projectId,
+                  runId,
+                  configId,
                 });
+                break;
+              }
+
+              backfillProgress = { ...backfillProgress, [configId]: completedDay };
+              const progressToPersist = backfillProgress;
+              progressWrite = progressWrite.then(() =>
+                this.persistBackfillProgress(run, progressToPersist, {
+                  dataMartId: dataMart.id,
+                  projectId: dataMart.projectId,
+                  runId,
+                  configId,
+                })
+              );
               break;
+            }
             case ConnectorMessageType.CREDENTIALS_UPDATE:
               credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
               break;
@@ -487,7 +540,26 @@ export class ConnectorExecutorService {
           storage: await this.storageConfigService.buildStorageConfig(dataMart),
         });
 
-        const runConfig = this.sourceConfigService.buildRunConfig(payload, configState);
+        if (resume.resumedFrom) {
+          // Recorded as a run log, not only through the application logger: run history is
+          // where someone looks to understand why a retry requested fewer days.
+          const resumeMessage = `Resuming manual backfill from ${resume.resumedFrom}; days through ${resume.lastLoadedDate} were loaded by a previous attempt`;
+          addMessageToArray(configLogs, {
+            type: ConnectorMessageType.LOG,
+            at: this.systemTimeService.now().toISOString(),
+            message: resumeMessage,
+            toFormattedString: () => `[LOG] ${resumeMessage}`,
+          });
+          this.logger.log(resumeMessage, {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            configId,
+            configIndex,
+          });
+        }
+
+        const runConfig = this.sourceConfigService.buildRunConfig(resume.body, configState);
 
         await this.processSpawner.spawnConnector(
           dataMart.id,
@@ -509,10 +581,11 @@ export class ConnectorExecutorService {
         } else if (configErrors.length === 0) {
           const errorMessage = 'Connector process finished without terminal success status';
           // Only a shutdown makes this transient: that run is marked INTERRUPTED and the
-          // retry sweep resumes it, continuing from its last completed date. Every other
-          // cause reaching here — exiting 0 without IMPORT_DONE, or reporting STATUS:ERROR
-          // with no detail — ends FAILED and is never resumed, so it stays an error.
-          // Downgrading those would leave a fleet-wide regression with no error signal.
+          // retry sweep resumes it, continuing from its last completed date — an incremental
+          // run from its cursor, a manual backfill from its recorded run progress. Every
+          // other cause reaching here — exiting 0 without IMPORT_DONE, or reporting
+          // STATUS:ERROR with no detail — ends FAILED and is never resumed, so it stays an
+          // error. Downgrading those would leave a fleet-wide regression with no error signal.
           const wasInterrupted = this.gracefulShutdownService.isInShutdownMode();
           const summary = `Configuration ${configIndex + 1} failed: ${errorMessage}`;
           const at = this.systemTimeService.now().toISOString();
@@ -589,6 +662,11 @@ export class ConnectorExecutorService {
           this.logger.error(summary, (error as Error)?.stack, logMeta);
         }
       } finally {
+        // Before the result is recorded, so the run's terminal status — INTERRUPTED for the
+        // shutdown that makes resuming worthwhile — is never written ahead of the checkpoint
+        // the retry has to start from.
+        await progressWrite;
+
         if (credentialUpdates) {
           try {
             await this.saveConnectorCredentials(
@@ -829,6 +907,40 @@ export class ConnectorExecutorService {
     }
 
     return undefined;
+  }
+
+  /**
+   * Records how far a manual backfill has loaded, so a retry of this run resumes instead of
+   * re-importing the whole period.
+   *
+   * Writes the single column rather than saving the entity: the row is concurrently written
+   * by the terminal status update and by a cancellation, and saving a stale entity would
+   * revert them.
+   */
+  private async persistBackfillProgress(
+    run: DataMartRun,
+    backfillProgress: Record<string, string>,
+    logMeta: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await this.dataMartRunRepository.update(
+        { id: run.id },
+        {
+          additionalParams: {
+            ...(run.additionalParams ?? {}),
+            [BACKFILL_PROGRESS_KEY]: backfillProgress,
+          },
+        }
+      );
+    } catch (error) {
+      // A lost checkpoint only costs the retry a re-import of days it already stored, which
+      // every storage merges idempotently — never fail the run over it.
+      const failure = castError(error);
+      this.logger.error(`Failed to save backfill progress: ${failure.message}`, failure.stack, {
+        ...logMeta,
+        error: failure.message,
+      });
+    }
   }
 
   private isSuccessfulConnectorStatus(status: number): boolean {

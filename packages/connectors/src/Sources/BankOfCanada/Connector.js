@@ -72,9 +72,10 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
       await storage.saveData(preparedData);
     }
 
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.updateLastRequstedDate(new Date(dateRange.endDate));
-    }
+    // Safe to checkpoint a backfill only because this connector declares a single
+    // time-series node. The node loop is outside this one, so a second time-series
+    // node would make a completed date here say nothing about that node.
+    this.config.updateLastRequstedDate(new Date(dateRange.endDate));
   }
   
   /**

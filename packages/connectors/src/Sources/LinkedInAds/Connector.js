@@ -40,7 +40,7 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
   /**
    * Imports every time series node for every account, one date at a time.
    *
-   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * The loop is date-outer on purpose: the checkpoint may only move once a
    * date is complete for *all* accounts and nodes, so a run interrupted midway
    * resumes from the last fully imported date instead of restarting the range.
    * It also keeps memory bounded to one day of analytics instead of the whole range.
@@ -79,10 +79,8 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
         }
       }
 
-      // Every account and node stored this date, so the cursor can move past it.
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(date);
-      }
+      // Every account and node stored this date, so the checkpoint can move past it.
+      this.config.updateLastRequstedDate(date);
     }
 
     this.reportTruncatedAnalytics();

@@ -21,7 +21,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
     // A blank-but-truthy AccountIDs (e.g. ",") passes required-field validation and parses
     // to an empty list. Without this the day loop would still run, import nothing, and walk
-    // the incremental cursor to today — silently skipping every day once the config is fixed.
+    // the checkpoint to today — silently skipping every day once the config is fixed.
     if (!accountIds.length) {
       throw new Error('No valid Account IDs found in the AccountIDs parameter');
     }
@@ -69,7 +69,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
   /**
    * Imports every time series node for every account, one date at a time.
    *
-   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * The loop is date-outer on purpose: the checkpoint may only move once a
    * date is complete for *all* accounts and nodes, so a run interrupted midway
    * resumes from the last fully imported date instead of restarting the range.
    *
@@ -104,10 +104,8 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         }
       }
 
-      // Every account and node stored this date, so the cursor can move past it.
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(currentDate);
-      }
+      // Every account and node stored this date, so the checkpoint can move past it.
+      this.config.updateLastRequstedDate(currentDate);
     }
   }
 

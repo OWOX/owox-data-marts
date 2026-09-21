@@ -77,9 +77,10 @@ A method for invoking importNewData() to determine the parameters required for f
         await storage.saveData(preparedData);
       }
 
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(currentDate);
-      }
+      // Safe to checkpoint a backfill only because this connector declares a single
+      // time-series node. The node loop is outside this one, so a second time-series
+      // node would make a completed date here say nothing about that node.
+      this.config.updateLastRequstedDate(currentDate);
     }
   }
 

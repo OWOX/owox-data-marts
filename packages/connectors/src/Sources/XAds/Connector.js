@@ -47,12 +47,12 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   /**
    * Imports every time series node for every account, one date at a time.
    *
-   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * The loop is date-outer on purpose: the checkpoint may only move once a
    * date is complete for *all* accounts and nodes, so a run interrupted midway
    * resumes from the last fully imported date instead of restarting the range.
    *
    * Async nodes submit one job per chunk of dates, so when any of them is selected
-   * the cursor advances a whole chunk at a time. Otherwise every chunk is one day.
+   * the checkpoint advances a whole chunk at a time. Otherwise every chunk is one day.
    *
    * @param {Object} options - Processing options
    * @param {Array<string>} options.accountIds - Account IDs to import
@@ -91,10 +91,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       await this.importAsyncNodesForChunk({ dateChunk, asyncNodes, accountIds, fields });
       await this.importSyncNodesForChunk({ dateChunk, syncNodes, accountIds, fields, dayLookup });
 
-      // Every account and node stored every date in this chunk, so the cursor can move past it.
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(dayLookup.get(dateChunk[dateChunk.length - 1]));
-      }
+      // Every account and node stored every date in this chunk, so the checkpoint can move past it.
+      this.config.updateLastRequstedDate(dayLookup.get(dateChunk[dateChunk.length - 1]));
     }
   }
 
