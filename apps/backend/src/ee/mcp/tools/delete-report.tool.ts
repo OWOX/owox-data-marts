@@ -16,7 +16,7 @@ type DeleteReportInput = z.infer<typeof inputSchema>;
 export class DeleteReportTool implements McpToolDefinition<DeleteReportInput> {
   readonly name = 'delete_report';
   readonly description =
-    'Soft-delete a report by id. The report stops running and disappears from the project; its configuration and run history are retained. The underlying data mart, destination, and any already-exported documents are not affected.';
+    'Delete a report by id. The report stops running and disappears from the project; the underlying data mart, destination, and any already-exported documents are not affected. This cannot be undone.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the deleted report'),

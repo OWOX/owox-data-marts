@@ -594,7 +594,7 @@ At least one change parameter must be provided (and `message`, when present, nee
 
 ### `delete_report` (requires `mcp:write`)
 
-Soft-deletes a report. The report stops running and disappears from the project, while its configuration and run history are retained. The underlying data mart, destination, and any already-exported documents are not affected.
+Deletes a report. The report stops running and disappears from the project; the underlying data mart, destination, and any already-exported documents are not affected. This cannot be undone, so your assistant asks for confirmation before calling it.
 
 **Input:**
 

@@ -162,7 +162,7 @@ export function EmailActionsCell({
           <p className='break-words'>
             Are you sure you want to delete "
             <span className='font-semibold [overflow-wrap:anywhere]'>{row.original.title}</span>
-            "? The report will be removed from the list.
+            "? This action cannot be undone.
           </p>
         }
         confirmLabel='Delete'
