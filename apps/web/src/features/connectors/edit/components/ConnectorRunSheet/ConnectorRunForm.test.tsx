@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConnectorRunForm } from './ConnectorRunForm';
 import { RequiredType } from '../../../shared/api';
@@ -13,17 +13,22 @@ const dateField = (name: string, title: string) => ({
   attributes: [ConnectorSpecificationAttribute.MANUAL_BACKFILL],
 });
 
+const specification = {
+  current: [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')] as unknown[],
+};
+
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
   useConnector: () => ({
     loading: false,
     loadingSpecification: false,
-    connectorSpecification: [
-      dateField('StartDate', 'Start Date'),
-      dateField('EndDate', 'End Date'),
-    ],
+    connectorSpecification: specification.current,
     fetchConnectorSpecification: vi.fn(),
   }),
 }));
+
+beforeEach(() => {
+  specification.current = [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')];
+});
 
 vi.mock('../../../../data-marts/edit/model', () => ({
   useDataMartContext: () => ({ dataMart: null }),
@@ -58,11 +63,22 @@ const notice = () => screen.getByTestId('backfill-limit-notice');
 const runButton = () => screen.getByRole('button', { name: 'Run' });
 
 describe('ConnectorRunForm backfill limit', () => {
-  it('explains the per-run limit before any dates are chosen', async () => {
+  it('explains the per-run limit before any dates are chosen, without flagging an error', async () => {
     await openBackfill();
 
     expect(notice()).toHaveTextContent('A backfill run can cover at most 31 days');
+    // The untouched state is a hint, not a validation failure.
+    expect(notice().className).not.toContain('destructive');
     expect(runButton()).toBeDisabled();
+  });
+
+  it('shows no period notice for a connector that declares no backfill date fields', async () => {
+    specification.current = [];
+
+    await openBackfill();
+
+    expect(screen.queryByTestId('backfill-limit-notice')).not.toBeInTheDocument();
+    expect(runButton()).toBeEnabled();
   });
 
   it('reports a full calendar month as a valid period and enables Run', async () => {
@@ -85,6 +101,7 @@ describe('ConnectorRunForm backfill limit', () => {
       expect(notice()).toHaveTextContent('covers 75 days, which exceeds the 31-day limit');
       expect(runButton()).toBeDisabled();
     });
+    expect(notice().className).toContain('destructive');
   });
 
   it('explains and blocks an end date before the start date', async () => {

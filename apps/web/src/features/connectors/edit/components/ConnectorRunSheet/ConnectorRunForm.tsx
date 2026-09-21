@@ -172,6 +172,13 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     return <div>No connector specification found</div>;
   }
 
+  const backfillFields = connectorSpecification.filter(field =>
+    field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
+  );
+  // A connector with no date fields treats a backfill as a full refresh, so a period notice
+  // would describe a period it never reads.
+  const hasBackfillPeriod = backfillFields.some(field => field.name === 'StartDate');
+
   return (
     <Form {...form}>
       <AppForm id={formId} noValidate onSubmit={e => void form.handleSubmit(handleSubmit)(e)}>
@@ -216,51 +223,53 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
           </FormSection>
           {runType === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>
-              {connectorSpecification
-                .filter(field =>
-                  field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
-                )
-                .map(connectorField => (
-                  <FormField
-                    key={connectorField.name}
-                    control={form.control}
-                    name={`data.${connectorField.name}`}
-                    render={() => (
-                      <FormItem>
-                        <FormLabel tooltip={connectorField.description}>
-                          {connectorField.title ?? connectorField.name}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={connectorField.description}
-                            type={getInputType(connectorField.requiredType)}
-                            max={
-                              connectorField.requiredType === RequiredType.DATE ? today : undefined
-                            }
-                            defaultValue={
-                              typeof connectorField.default === 'string' ||
-                              typeof connectorField.default === 'number'
-                                ? connectorField.default.toString()
-                                : undefined
-                            }
-                            {...form.register(`data.${connectorField.name}`, {
-                              required: true,
-                              validate: getBackfillDateValidation(connectorField.name, today),
-                            })}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              <Alert
-                role='status'
-                variant={backfillPeriod.status === 'ok' ? 'default' : 'destructive'}
-                data-testid='backfill-limit-notice'
-              >
-                <AlertDescription>{getBackfillSummary(backfillPeriod)}</AlertDescription>
-              </Alert>
+              {backfillFields.map(connectorField => (
+                <FormField
+                  key={connectorField.name}
+                  control={form.control}
+                  name={`data.${connectorField.name}`}
+                  render={() => (
+                    <FormItem>
+                      <FormLabel tooltip={connectorField.description}>
+                        {connectorField.title ?? connectorField.name}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={connectorField.description}
+                          type={getInputType(connectorField.requiredType)}
+                          max={
+                            connectorField.requiredType === RequiredType.DATE ? today : undefined
+                          }
+                          defaultValue={
+                            typeof connectorField.default === 'string' ||
+                            typeof connectorField.default === 'number'
+                              ? connectorField.default.toString()
+                              : undefined
+                          }
+                          {...form.register(`data.${connectorField.name}`, {
+                            required: true,
+                            validate: getBackfillDateValidation(connectorField.name, today),
+                          })}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
+              {hasBackfillPeriod && (
+                <Alert
+                  role='status'
+                  variant={
+                    backfillPeriod.status === 'ok' || backfillPeriod.status === 'incomplete'
+                      ? 'default'
+                      : 'destructive'
+                  }
+                  data-testid='backfill-limit-notice'
+                >
+                  <AlertDescription>{getBackfillSummary(backfillPeriod)}</AlertDescription>
+                </Alert>
+              )}
             </FormSection>
           )}
         </FormLayout>
