@@ -27,6 +27,7 @@ const DATA_MART_RUN_TYPE_VALUES = [
   'HTTP_DATA',
   'MCP_QUERY',
   'DATA_QUALITY',
+  'PREVIEW',
 ] as const;
 export type OWOXDataMartRunType = (typeof DATA_MART_RUN_TYPE_VALUES)[number];
 

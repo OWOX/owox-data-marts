@@ -55,6 +55,8 @@ import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { QueryDataMartService } from './use-cases/query-data-mart.service';
+import { PreviewDataMartService } from './use-cases/preview-data-mart.service';
+import { DataMartPreviewController } from './controllers/data-mart-preview.controller';
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
@@ -566,6 +568,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    DataMartPreviewController,
     PublishDraftsTriggerController,
     AiHelperTriggerController,
     InsightRunTriggerController,
@@ -632,6 +635,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     GetModelCanvasDataMartsService,
     GetModelCanvasEdgesService,
     QueryDataMartService,
+    PreviewDataMartService,
     SummarizeMcpDataCatalogService,
     {
       provide: MCP_DATA_MARTS_FACADE,
@@ -999,13 +1003,15 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(180000))
       .forRoutes(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT }
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/preview', method: RequestMethod.POST }
       );
     consumer
       .apply(createOperationTimeoutMiddleware(30000))
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/preview', method: RequestMethod.POST },
         { path: 'external/{*path}', method: RequestMethod.ALL },
         ...MCP_OPERATION_TIMEOUT_EXCLUSIONS
       )

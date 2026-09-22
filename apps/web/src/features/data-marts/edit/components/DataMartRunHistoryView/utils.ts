@@ -204,6 +204,10 @@ export const getRunSummaryParts = (
       runType = 'data quality';
       title = getDataQualitySummaryLabel(run);
       break;
+    case DataMartRunType.PREVIEW:
+      runType = 'data preview';
+      title = getPreviewSummaryLabel(run);
+      break;
     default:
       break;
   }
@@ -286,4 +290,16 @@ export const getTooltipContent = (run: DataMartRunItem) => {
 
 export const formatDateForTooltipContent = (date: Date | null): string => {
   return date ? formatDateTime(date.toISOString()) : 'N/A';
+};
+
+/** "10 rows · 1 filter" for a Data Setup preview run, read from its journalled request. */
+export const getPreviewSummaryLabel = (run: DataMartRunItem): string => {
+  const preview = run.additionalParams?.preview as
+    | { rowCount?: unknown; filterCount?: unknown }
+    | undefined;
+  if (!preview || typeof preview.rowCount !== 'number') return '';
+  const rows = `${String(preview.rowCount)} ${preview.rowCount === 1 ? 'row' : 'rows'}`;
+  const filterCount = typeof preview.filterCount === 'number' ? preview.filterCount : 0;
+  if (filterCount === 0) return rows;
+  return `${rows} · ${String(filterCount)} ${filterCount === 1 ? 'filter' : 'filters'}`;
 };

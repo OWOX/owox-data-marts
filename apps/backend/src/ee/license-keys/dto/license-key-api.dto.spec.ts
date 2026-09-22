@@ -51,6 +51,7 @@ describe('LicenseConsumptionRequestDto', () => {
     },
     [RunKind.HTTP_DATA_RUN]: { ...basePayload, reportRunId: 'run-1' },
     [RunKind.MCP_QUERY_RUN]: { ...basePayload, runId: 'run-1' },
+    [RunKind.DATA_MART_PREVIEW_RUN]: { ...basePayload, runId: 'run-1' },
     [RunKind.CONNECTOR_RUN]: {},
     [RunKind.DATA_QUALITY_RUN]: {},
     [RunKind.AI_PROCESS_RUN]: {},

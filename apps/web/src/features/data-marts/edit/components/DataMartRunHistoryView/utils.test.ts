@@ -74,6 +74,29 @@ describe('getRunSummaryParts', () => {
     expect(title).toBe('');
   });
 
+  it('labels PREVIEW runs with the rows read and filters applied', () => {
+    const run = {
+      type: DataMartRunType.PREVIEW,
+      triggerType: 'manual',
+      additionalParams: { preview: { rowCount: 2, filterCount: 1 } },
+    } as unknown as DataMartRunItem;
+
+    const [description, title] = getRunSummaryParts(run, null);
+
+    expect(description).toBe('Manual data preview run');
+    expect(title).toBe('2 rows · 1 filter');
+  });
+
+  it('labels a PREVIEW run without filters by its row count only', () => {
+    const run = {
+      type: DataMartRunType.PREVIEW,
+      triggerType: 'manual',
+      additionalParams: { preview: { rowCount: 1, filterCount: 0 } },
+    } as unknown as DataMartRunItem;
+
+    expect(getRunSummaryParts(run, null)[1]).toBe('1 row');
+  });
+
   it('labels DATA_QUALITY runs and exposes their lightweight finding summary', () => {
     const run = {
       type: DataMartRunType.DATA_QUALITY,

@@ -2,6 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import { extractApiError } from '../../../../../app/api';
 import { TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { DataMartPreviewPanel } from '../DataMartPreview/DataMartPreviewPanel';
 import toast from 'react-hot-toast';
 import { useOutletContext } from 'react-router';
 import type {
@@ -207,6 +208,11 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
   } = useOutletContext<DataMartContextType>();
 
   const { id: dataMartId = '', schema: initialSchema } = dataMart ?? {};
+  const previewDisabledReason = !dataMart?.definition
+    ? 'Set up the Input Source to preview data.'
+    : !initialSchema?.fields.length
+      ? 'Refresh the schema to preview data.'
+      : null;
 
   const { schema, isDirty, updateSchema, resetSchema, markSchemaSaved, keepUnsavedEdits } =
     useSchemaState(initialSchema);
@@ -668,6 +674,17 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         </div>
 
         <div className='flex items-center gap-2'></div>
+      </div>
+      <div className='border-border mt-6 border-t pt-6'>
+        <DataMartPreviewPanel
+          dataMartId={dataMartId}
+          savedSchemaVersion={initialSchema}
+          disabledReason={previewDisabledReason}
+          runGuarded={action => {
+            if (runGuarded) runGuarded(action, { intent: 'preview' });
+            else void action();
+          }}
+        />
       </div>
     </div>
   );

@@ -53,6 +53,10 @@ export class RestrictedProjectBillingService extends ProjectBillingService {
     this.skip(RunKind.MCP_QUERY_RUN);
   }
 
+  public async registerDataMartPreviewRunConsumption(): Promise<void> {
+    this.skip(RunKind.DATA_MART_PREVIEW_RUN);
+  }
+
   private skip(kind: RunKind): void {
     this.logger.debug(`No licensed billing binding, skipping ${kind} consumption`);
   }

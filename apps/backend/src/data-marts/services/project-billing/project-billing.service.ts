@@ -15,6 +15,7 @@ export enum RunKind {
   EXCEL_REPORT_RUN = 'EXCEL_REPORT_RUN',
   HTTP_DATA_RUN = 'HTTP_DATA_RUN',
   MCP_QUERY_RUN = 'MCP_QUERY_RUN',
+  DATA_MART_PREVIEW_RUN = 'DATA_MART_PREVIEW_RUN',
 }
 
 export const REPORT_RUN_KINDS: readonly RunKind[] = [
@@ -24,6 +25,7 @@ export const REPORT_RUN_KINDS: readonly RunKind[] = [
   RunKind.EXCEL_REPORT_RUN,
   RunKind.HTTP_DATA_RUN,
   RunKind.MCP_QUERY_RUN,
+  RunKind.DATA_MART_PREVIEW_RUN,
 ];
 
 export function isReportRun(kind: RunKind): boolean {
@@ -81,6 +83,13 @@ export abstract class ProjectBillingService {
 
   abstract registerMcpQueryRunConsumption(dataMart: DataMart, runId: string): Promise<void>;
 
+  /**
+   * A Data Setup preview reads rows from the warehouse on a person's request, so it is charged as
+   * a report run like any other read of Data Mart data. Takes the DataMartRun id so the charge and
+   * the Run History entry can be matched afterwards.
+   */
+  abstract registerDataMartPreviewRunConsumption(dataMart: DataMart, runId: string): Promise<void>;
+
   protected baseDataMartConsumptionPayload(dataMart: DataMart) {
     return {
       projectId: dataMart.projectId,
@@ -131,6 +140,13 @@ export abstract class ProjectBillingService {
   }
 
   protected mcpQueryConsumptionPayload(dataMart: DataMart, runId: string) {
+    return {
+      ...this.baseDataMartConsumptionPayload(dataMart),
+      runId,
+    };
+  }
+
+  protected dataMartPreviewConsumptionPayload(dataMart: DataMart, runId: string) {
     return {
       ...this.baseDataMartConsumptionPayload(dataMart),
       runId,

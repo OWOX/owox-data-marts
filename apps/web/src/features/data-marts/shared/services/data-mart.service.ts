@@ -22,6 +22,8 @@ import type {
   AiHelperTriggerResponseDto,
   ValidateFormulaRequestDto,
   ValidateFormulaResponseDto,
+  PreviewDataMartRequestDto,
+  PreviewDataMartResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -156,6 +158,22 @@ export class DataMartService extends ApiService {
    */
   async runDataMart(id: string, payload: Record<string, unknown>): Promise<{ runId: string }> {
     return this.post<{ runId: string }>(`/${id}/manual-run`, { payload });
+  }
+
+  /**
+   * Read a sample of rows for the Data Setup preview. Every call queries the warehouse and is
+   * recorded in Run History; aborting `signal` cancels the warehouse query.
+   */
+  async previewDataMart(
+    id: string,
+    body: PreviewDataMartRequestDto,
+    signal?: AbortSignal
+  ): Promise<PreviewDataMartResponseDto> {
+    return this.post<PreviewDataMartResponseDto>(`/${id}/preview`, body, {
+      signal,
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**

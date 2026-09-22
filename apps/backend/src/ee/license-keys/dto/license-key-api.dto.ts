@@ -57,6 +57,7 @@ const consumptionPayloadSchemas: Partial<Record<RunKind, z.ZodTypeAny>> = {
   }),
   [RunKind.HTTP_DATA_RUN]: baseConsumptionPayload.extend({ reportRunId: id }),
   [RunKind.MCP_QUERY_RUN]: baseConsumptionPayload.extend({ runId: id }),
+  [RunKind.DATA_MART_PREVIEW_RUN]: baseConsumptionPayload.extend({ runId: id }),
 };
 
 export class CreateLicenseKeyRequestDto {

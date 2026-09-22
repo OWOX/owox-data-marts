@@ -74,4 +74,8 @@ export class BindingAwareProjectBillingService extends ProjectBillingService {
   registerMcpQueryRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
     return this.delegate().registerMcpQueryRunConsumption(dataMart, runId);
   }
+
+  registerDataMartPreviewRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
+    return this.delegate().registerDataMartPreviewRunConsumption(dataMart, runId);
+  }
 }
