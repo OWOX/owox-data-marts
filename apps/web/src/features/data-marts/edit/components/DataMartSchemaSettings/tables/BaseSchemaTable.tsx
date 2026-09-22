@@ -11,6 +11,7 @@ import { EditableText } from '@owox/ui/components/common/editable-text';
 import {
   SchemaFieldActionsButton,
   SchemaFieldCalculatedIcon,
+  SchemaFieldDescriptionText,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldStatusIcon,
   SchemaHeaderAiButton,
@@ -508,13 +509,11 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           }
           const fname = fields[row.index]?.name;
           return (
-            <EditableText
+            <SchemaFieldDescriptionText
               value={row.getValue('description')}
               onValueChange={value => {
                 updateField(row.index, { description: value } as Partial<T>);
               }}
-              minRows={5}
-              placeholder='-'
               editorAction={renderFieldDescriptionAi(aiHelper, fname)}
             />
           );

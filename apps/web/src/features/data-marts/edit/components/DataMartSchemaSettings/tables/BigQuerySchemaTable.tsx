@@ -17,6 +17,7 @@ import {
 } from '../../../../shared/types/data-mart-schema.types';
 import {
   SchemaFieldActionsButton,
+  SchemaFieldDescriptionText,
   SchemaFieldModeSelect,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldTypeSelect,
@@ -287,13 +288,11 @@ export function BigQuerySchemaTable({
       const field = flattenedFields[row.index];
       const isTopLevel = (field.level ?? 0) === 0;
       return (
-        <EditableText
+        <SchemaFieldDescriptionText
           value={row.getValue('description')}
           onValueChange={value => {
             updateField(row.index, { description: value });
           }}
-          minRows={5}
-          placeholder='-'
           editorAction={isTopLevel ? renderFieldDescriptionAi(aiHelper, field.name) : undefined}
         />
       );
