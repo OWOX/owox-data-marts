@@ -31,7 +31,7 @@ describe('McpCallInstrumentation', () => {
   it('зберігає результат handler і емітить подію success', async () => {
     const dispatcher = makeDispatcher();
     const instr = new McpCallInstrumentation(dispatcher as never, makeCls() as never);
-    const result = { content: [{ type: 'text', text: 'ok' }] };
+    const result = { content: [{ type: 'text' as const, text: 'ok' }] };
     const wrapped = instr.wrap('query_data_mart', async () => result);
 
     await expect(wrapped({ id: 'dm1' })).resolves.toBe(result);
@@ -75,8 +75,8 @@ describe('McpCallInstrumentation', () => {
     const handler = jest.fn(async () => ({ content: [] }));
     const wrapped = instr.wrap('x', handler);
     const signal = new AbortController().signal;
-    await wrapped({ a: 1 }, { signal });
-    expect(handler).toHaveBeenCalledWith({ a: 1 }, { signal });
+    await wrapped({ a: 1 }, { mcpReq: { signal } } as never);
+    expect(handler).toHaveBeenCalledWith({ a: 1 }, { mcpReq: { signal } });
   });
 
   it('executedSql з CLS-діагностики потрапляє у подію', async () => {

@@ -199,6 +199,50 @@ describe('McpAuthMiddleware', () => {
     }
   );
 
+  it('responds 500 without leaking the raw error when verifyToken fails unexpectedly (e.g. IB unreachable)', async () => {
+    const auth = {
+      verifyToken: jest.fn().mockRejectedValue(new Error('ECONNREFUSED: IB unreachable')),
+    } as unknown as McpAuthPort;
+    const middleware = createMiddleware(auth);
+    const request = createRequest('Bearer access-token');
+    const response = createResponse();
+    const next = jest.fn();
+
+    await middleware.handle(request, response as unknown as Response, next as NextFunction);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith({
+      statusCode: 500,
+      message: 'Internal server error',
+      error: 'Internal Server Error',
+    });
+    // Not an auth decision, so no WWW-Authenticate challenge and no leaked internal message.
+    expect(response.setHeader).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a normal 401 (not a hang) when resource resolution itself throws, e.g. misconfiguration', async () => {
+    const auth = { verifyToken: jest.fn() } as unknown as McpAuthPort;
+    const badConfigService = new ConfigService({ MCP_PUBLIC_BASE_URL: 'not-a-valid-url' });
+    const middleware = new McpAuthMiddleware(
+      auth,
+      new McpResourceResolverService(badConfigService),
+      new McpConfigService(badConfigService)
+    );
+    const request = createRequest('Bearer access-token');
+    const response = createResponse();
+    const next = jest.fn();
+
+    await middleware.handle(request, response as unknown as Response, next as NextFunction);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(auth.verifyToken).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Invalid MCP resource' })
+    );
+  });
+
   it('logs an unauthenticated GET /mcp probe at a lower level than a real rejection (no distinguishable side effect asserted here beyond the 401 itself)', async () => {
     const auth = { verifyToken: jest.fn() } as unknown as McpAuthPort;
     const middleware = createMiddleware(auth);

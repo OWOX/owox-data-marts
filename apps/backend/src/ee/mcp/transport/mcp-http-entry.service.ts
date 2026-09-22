@@ -4,32 +4,32 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import {
   createMcpHandler,
+  SUPPORTED_PROTOCOL_VERSIONS,
   UnsupportedProtocolVersionError,
   type McpHttpHandler,
 } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
+import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
 import { toMcpAuthContext, type McpAuthenticatedRequest } from '../auth/mcp-auth.middleware';
 import { McpAuthMiddleware } from '../auth/mcp-auth.middleware';
+import { firstHeaderValue } from '../http-headers.util';
 import { McpInstructionsService } from '../instructions/mcp-instructions.service';
-import { MCP_LOG_CONTEXT_KEY } from '../observability/mcp-log-context';
+import { MCP_LOG_CONTEXT_KEY, type McpLogContext } from '../observability/mcp-log-context';
 import { McpSdkServerFactory } from '../sdk/mcp-sdk-server.factory';
 
 // Above query_data_mart's 3-min deadline so the global socket-idle timeout (SERVER_TIMEOUT_MS)
 // doesn't blunt-reset a computing MCP call before it can return a clean query_timeout. LB (1h) caps.
 export const MCP_REQUEST_SOCKET_TIMEOUT_MS = 4 * 60_000;
 
-// Protocol revisions ODM's MCP endpoint is meant to serve post-migration: the 2026-07-28 "modern"
-// era plus every "legacy" 2025/2024 revision the previous SDK generation supported. Used only to
-// decide onerror's log severity for a rejected protocol version — never for negotiation itself,
-// which createMcpHandler owns entirely.
-const EXPECTED_SUPPORTED_PROTOCOL_VERSIONS = new Set([
+// Protocol revisions ODM's MCP endpoint is meant to serve post-migration: every "legacy" revision
+// the SDK's own legacy-fallback path supports, plus the 2026-07-28 "modern" era (negotiated via
+// server/discover, outside that legacy set — the SDK has no single constant covering both). Used
+// only to decide onerror's log severity for a rejected protocol version — never for negotiation
+// itself, which createMcpHandler owns entirely.
+const EXPECTED_SUPPORTED_PROTOCOL_VERSIONS = new Set<string>([
+  ...SUPPORTED_PROTOCOL_VERSIONS,
   '2026-07-28',
-  '2025-11-25',
-  '2025-06-18',
-  '2025-03-26',
-  '2024-11-05',
-  '2024-10-07',
 ]);
 
 /**
@@ -52,10 +52,18 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     private readonly authMiddleware: McpAuthMiddleware,
     private readonly serverFactory: McpSdkServerFactory,
     private readonly instructionsService: McpInstructionsService,
-    private readonly clsContextService: ClsContextService
+    private readonly clsContextService: ClsContextService,
+    private readonly gracefulShutdownService: GracefulShutdownService
   ) {}
 
   onModuleInit(): void {
+    // Idempotent: a second call (double app.init(), hot-reload tooling) would otherwise register a
+    // second `/mcp` route that Express never reaches (the first never calls `next()`) while `this.handler`
+    // gets reassigned to the new, never-serving instance — silently leaking the one actually in use.
+    if (this.handler) {
+      return;
+    }
+
     const express = this.adapterHost.httpAdapter.getInstance<Express>();
 
     this.handler = createMcpHandler(
@@ -66,7 +74,9 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
         ),
       { onerror: error => this.onTransportError(error) }
     );
-    const nodeHandler = toNodeHandler(this.handler);
+    const nodeHandler = toNodeHandler(this.handler, {
+      onerror: error => this.onTransportError(error),
+    });
 
     express.all(
       '/mcp',
@@ -77,6 +87,12 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    // Idempotent (a no-op if some other shutdown path already called it): waits for in-flight
+    // requests registered with GracefulShutdownService — including MCP calls, see handleRequest
+    // below — to finish (or the configured timeout) before this handler is closed, the same
+    // guarantee ActiveRequestInterceptor gives every Nest-routed endpoint. Without it, a rolling
+    // deploy could abort a multi-minute query_data_mart call mid-query instead of draining it.
+    await this.gracefulShutdownService.initiateShutdown();
     await this.handler?.close();
   }
 
@@ -93,64 +109,74 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     const requestSessionId = this.getRequestedSessionId(request);
     const mcpContext = toMcpAuthContext(request.auth);
 
-    await this.clsContextService.runWithContext(
-      MCP_LOG_CONTEXT_KEY,
-      {
-        projectId: mcpContext.projectId,
-        userId: mcpContext.userId,
-        clientId: mcpContext.clientId,
-        sessionId: requestSessionId,
-        requestId,
-        protocolVersion: this.firstHeader(request, 'mcp-protocol-version'),
-        userAgent: this.firstHeader(request, 'user-agent'),
-        clientVendor: this.firstHeader(request, 'x-anthropic-client'),
-        traceparent: this.firstHeader(request, 'traceparent'),
-      },
-      async () => {
-        const startedAt = Date.now();
-        const rpc = this.getJsonRpcSummary(request.body);
+    // /mcp is mounted directly on Express, outside ActiveRequestInterceptor's reach (it only wraps
+    // Nest-routed requests) — register/unregister here so graceful shutdown still waits for this
+    // request the same way it does for every other long-running operation in this app.
+    const processId = `mcp-${requestId}`;
+    this.gracefulShutdownService.registerActiveProcess(processId);
 
-        this.logger.debug('MCP request received', {
-          method: request.method,
-          url: request.originalUrl ?? request.url,
-          requestSessionId,
-          accept: request.headers?.accept,
-          contentType: request.headers?.['content-type'],
-          rpc,
+    try {
+      await this.clsContextService.runWithContext(
+        MCP_LOG_CONTEXT_KEY,
+        {
           projectId: mcpContext.projectId,
+          userId: mcpContext.userId,
           clientId: mcpContext.clientId,
-        });
+          sessionId: requestSessionId,
+          requestId,
+          protocolVersion: firstHeaderValue(request, 'mcp-protocol-version'),
+          userAgent: firstHeaderValue(request, 'user-agent'),
+          clientVendor: firstHeaderValue(request, 'x-anthropic-client'),
+          traceparent: firstHeaderValue(request, 'traceparent'),
+        },
+        async () => {
+          const startedAt = Date.now();
+          const rpc = this.getJsonRpcSummary(request.body);
 
-        if (typeof response.once === 'function') {
-          response.once('finish', () => {
-            const metadata = {
-              statusCode: response.statusCode,
-              durationMs: Date.now() - startedAt,
-              contentType: response.getHeader('content-type'),
-              requestSessionId,
-              responseSessionId: response.getHeader('mcp-session-id'),
-              rpc,
-              projectId: mcpContext.projectId,
-              userId: mcpContext.userId,
-              clientId: mcpContext.clientId,
-              requestId,
-            };
-
-            if (
-              response.statusCode >= 400 &&
-              !this.isExpectedStandaloneSseRejection(request, response)
-            ) {
-              this.logger.warn('MCP response finished with error status', metadata);
-              return;
-            }
-
-            this.logger.debug('MCP response finished', metadata);
+          this.logger.debug('MCP request received', {
+            method: request.method,
+            url: request.originalUrl ?? request.url,
+            requestSessionId,
+            accept: request.headers?.accept,
+            contentType: request.headers?.['content-type'],
+            rpc,
+            projectId: mcpContext.projectId,
+            clientId: mcpContext.clientId,
           });
-        }
 
-        await nodeHandler(request, response, request.body);
-      }
-    );
+          if (typeof response.once === 'function') {
+            response.once('finish', () => {
+              const metadata = {
+                statusCode: response.statusCode,
+                durationMs: Date.now() - startedAt,
+                contentType: response.getHeader('content-type'),
+                requestSessionId,
+                responseSessionId: response.getHeader('mcp-session-id'),
+                rpc,
+                projectId: mcpContext.projectId,
+                userId: mcpContext.userId,
+                clientId: mcpContext.clientId,
+                requestId,
+              };
+
+              if (
+                response.statusCode >= 400 &&
+                !this.isExpectedStandaloneSseRejection(request, response)
+              ) {
+                this.logger.warn('MCP response finished with error status', metadata);
+                return;
+              }
+
+              this.logger.debug('MCP response finished', metadata);
+            });
+          }
+
+          await nodeHandler(request, response, request.body);
+        }
+      );
+    } finally {
+      this.gracefulShutdownService.unregisterActiveProcess(processId);
+    }
   }
 
   /**
@@ -162,10 +188,16 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
    */
   private onTransportError(error: Error): void {
     const isVersionRejection = UnsupportedProtocolVersionError.isInstance(error);
+    // onerror fires causally downstream of the runWithContext(...) call in handleRequest (it's
+    // invoked while awaiting nodeHandler, which the SDK calls from inside that same async chain),
+    // so the CLS context bound there is still readable here — carry it into this alert the same
+    // way every other MCP log line already does.
+    const logContext = this.clsContextService.get<McpLogContext>(MCP_LOG_CONTEXT_KEY);
     const metadata = {
       message: error.message,
       requestedProtocolVersion: isVersionRejection ? error.requested : undefined,
       supportedProtocolVersions: isVersionRejection ? error.supported : undefined,
+      ...logContext,
     };
 
     if (isVersionRejection && EXPECTED_SUPPORTED_PROTOCOL_VERSIONS.has(error.requested)) {
@@ -176,13 +208,8 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     this.logger.warn('MCP SDK transport error', metadata);
   }
 
-  private firstHeader(request: Request, name: string): string | undefined {
-    const header = request.headers?.[name];
-    return Array.isArray(header) ? header[0] : header;
-  }
-
   private getRequestedSessionId(request: Request): string | undefined {
-    return this.firstHeader(request, 'mcp-session-id');
+    return firstHeaderValue(request, 'mcp-session-id');
   }
 
   private isExpectedStandaloneSseRejection(request: Request, response: Response): boolean {

@@ -1,6 +1,7 @@
 import { UnsupportedProtocolVersionError } from '@modelcontextprotocol/server';
 import type { HttpAdapterHost } from '@nestjs/core';
 import type { ClsContextService } from '../../../common/logger/cls-context.service';
+import type { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { DEFAULT_QUERY_DEADLINE_MS } from '../../../data-marts/use-cases/query-data-mart.service';
 import type { McpAuthMiddleware } from '../auth/mcp-auth.middleware';
 import type { McpInstructionsService } from '../instructions/mcp-instructions.service';
@@ -31,7 +32,13 @@ describe('McpHttpEntryService', () => {
       ),
       update: jest.fn(),
       set: jest.fn(),
+      get: jest.fn(),
     } as unknown as ClsContextService;
+    const gracefulShutdownService = {
+      initiateShutdown: jest.fn().mockResolvedValue(undefined),
+      registerActiveProcess: jest.fn(),
+      unregisterActiveProcess: jest.fn(),
+    } as unknown as GracefulShutdownService;
 
     return {
       service: new McpHttpEntryService(
@@ -39,11 +46,13 @@ describe('McpHttpEntryService', () => {
         authMiddleware,
         serverFactory,
         instructionsService,
-        cls
+        cls,
+        gracefulShutdownService
       ),
       adapterHost,
       authMiddleware,
       cls,
+      gracefulShutdownService,
     };
   };
 
@@ -197,17 +206,64 @@ describe('McpHttpEntryService', () => {
     // No throw is the contract here; onModuleInit's real createMcpHandler() provides a real
     // close() — asserting it resolves is the meaningful check without mocking the SDK's factory.
   });
+
+  it('waits for graceful shutdown to drain in-flight requests before closing the handler', async () => {
+    const { service, adapterHost, gracefulShutdownService } = createService();
+    (adapterHost.httpAdapter.getInstance as jest.Mock).mockReturnValue({ all: jest.fn() });
+    service.onModuleInit();
+    const calls: string[] = [];
+    (gracefulShutdownService.initiateShutdown as jest.Mock).mockImplementation(async () => {
+      calls.push('drained');
+    });
+    const closeSpy = jest
+      .spyOn((service as unknown as { handler: { close: () => Promise<void> } }).handler, 'close')
+      .mockImplementation(async () => {
+        calls.push('closed');
+      });
+
+    await service.onModuleDestroy();
+
+    expect(gracefulShutdownService.initiateShutdown).toHaveBeenCalledTimes(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['drained', 'closed']);
+  });
+
+  it('registers and unregisters the request as an active process for graceful shutdown', async () => {
+    const { service, gracefulShutdownService } = createService();
+    const request = { auth: { extra: { mcpContext } }, setTimeout: jest.fn(), headers: {} };
+
+    await callHandleRequest(service, request, {}, jest.fn().mockResolvedValue(undefined));
+
+    expect(gracefulShutdownService.registerActiveProcess).toHaveBeenCalledTimes(1);
+    expect(gracefulShutdownService.unregisterActiveProcess).toHaveBeenCalledTimes(1);
+    expect(gracefulShutdownService.registerActiveProcess).toHaveBeenCalledWith(
+      (gracefulShutdownService.unregisterActiveProcess as jest.Mock).mock.calls[0][0]
+    );
+  });
+
+  it('unregisters the active process even when the node handler throws', async () => {
+    const { service, gracefulShutdownService } = createService();
+    const request = { auth: { extra: { mcpContext } }, setTimeout: jest.fn(), headers: {} };
+    const boom = new Error('boom');
+
+    await expect(
+      callHandleRequest(service, request, {}, jest.fn().mockRejectedValue(boom))
+    ).rejects.toThrow(boom);
+
+    expect(gracefulShutdownService.unregisterActiveProcess).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('McpHttpEntryService onTransportError', () => {
-  const createService = () => {
+  const createService = (cls: Partial<ClsContextService> = { get: jest.fn() }) => {
     const adapterHost = { httpAdapter: { getInstance: jest.fn() } } as unknown as HttpAdapterHost;
     return new McpHttpEntryService(
       adapterHost,
       {} as McpAuthMiddleware,
       {} as McpSdkServerFactory,
       {} as McpInstructionsService,
-      {} as ClsContextService
+      cls as unknown as ClsContextService,
+      {} as GracefulShutdownService
     );
   };
 
@@ -266,6 +322,26 @@ describe('McpHttpEntryService onTransportError', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       'MCP SDK transport error',
       expect.objectContaining({ message: 'connection reset' })
+    );
+  });
+
+  it('enriches the ERROR alert with the bound McpLogContext (projectId, clientId, ...)', () => {
+    const service = createService({
+      get: jest.fn().mockReturnValue({ projectId: 'p1', clientId: 'c1', requestId: 'r1' }),
+    });
+    const errorSpy = jest
+      .spyOn((service as unknown as { logger: { error: () => void } }).logger, 'error')
+      .mockImplementation(() => undefined);
+    const error = new UnsupportedProtocolVersionError({
+      requested: '2026-07-28',
+      supported: ['2025-11-25'],
+    });
+
+    callOnTransportError(service, error);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'MCP rejected a protocol version it is expected to support',
+      expect.objectContaining({ projectId: 'p1', clientId: 'c1', requestId: 'r1' })
     );
   });
 });

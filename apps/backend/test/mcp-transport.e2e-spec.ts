@@ -112,6 +112,23 @@ describe('MCP transport (e2e)', () => {
     }
   });
 
+  it('answers a standalone GET (legacy server-initiated SSE probe) with 405, pinning the onTransportError log-severity heuristic', async () => {
+    // McpHttpEntryService.isExpectedStandaloneSseRejection assumes a legacy client's standalone GET
+    // (opening a server-initiated stream outside a request/response) comes back as exactly GET+405
+    // under the new SDK, the same signature the deleted transport handler used to generate itself —
+    // pinning it here so a future SDK bump that changes this status silently breaks that assumption
+    // via a real test failure instead of quietly turning expected-probe logs into WARN noise.
+    const response = await fetch(baseUrl, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${TEST_TOKEN}`,
+        accept: 'text/event-stream',
+      },
+    });
+
+    expect(response.status).toBe(405);
+  });
+
   it('rejects a token for the wrong resource scope (still real auth, not just a stub pass-through)', async () => {
     const client = new Client({ name: 'e2e-test-client', version: '1.0.0' });
     const transport = new StreamableHTTPClientTransport(baseUrl, {

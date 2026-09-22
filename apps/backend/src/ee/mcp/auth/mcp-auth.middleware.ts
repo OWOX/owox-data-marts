@@ -1,10 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AuthInfo } from '@modelcontextprotocol/server';
+import { castError } from '@owox/internal-helpers';
 import type { McpScope, McpTokenPayload } from '@owox/idp-protocol';
 import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import type { McpResourceContext } from '../../../mcp-resource/mcp-resource-context';
 import { McpConfigService } from '../config/mcp.config';
+import { firstHeaderValue } from '../http-headers.util';
 import { MCP_AUTH_PORT, type McpAuthPort } from './mcp-auth.port';
 
 const REQUIRED_SCOPES: McpScope[] = ['mcp:read'];
@@ -40,22 +42,43 @@ export class McpAuthMiddleware {
 
   // Express never awaits a middleware's return value, so an async handler is a safe drop-in — and
   // it lets tests `await middleware.handle(req, res, next)` instead of racing internal promises.
+  // Resource resolution is computed once here (not re-derived by verify()/reject()) so a second,
+  // unguarded throw from it can never leave a request with no response sent.
   handle: RequestHandler = async (
     request: McpAuthenticatedRequest,
     response: Response,
     next: NextFunction
   ) => {
+    const resourceContext = this.resolveResourceContext(request);
     try {
-      request.auth = await this.verify(request);
+      request.auth = await this.verify(request, resourceContext);
       next();
     } catch (error) {
-      this.reject(request, response, error);
+      if (error instanceof McpAuthRejection) {
+        this.reject(request, response, error.message, resourceContext);
+      } else {
+        this.rejectUnexpected(request, response, error);
+      }
     }
   };
 
-  private async verify(request: Request): Promise<AuthInfo> {
+  // Never throws: an unresolvable resource (bad request) and a resolver failure (bad config) both
+  // become `null` here, and verify() turns `null` into the same 'Invalid MCP resource' rejection —
+  // the config-failure case is still distinguished from a routine bad request via the ERROR log.
+  private resolveResourceContext(request: Request): McpResourceContext | null {
+    try {
+      return this.resourceResolver.tryResolveRequest(request);
+    } catch (error) {
+      this.logger.error('MCP resource resolution failed', { message: castError(error).message });
+      return null;
+    }
+  }
+
+  private async verify(
+    request: Request,
+    resourceContext: McpResourceContext | null
+  ): Promise<AuthInfo> {
     const token = this.extractBearerToken(request);
-    const resourceContext = this.resourceResolver.tryResolveRequest(request);
     if (!resourceContext) {
       throw new McpAuthRejection('Invalid MCP resource');
     }
@@ -88,8 +111,12 @@ export class McpAuthMiddleware {
     };
   }
 
-  private reject(request: Request, response: Response, error: unknown): void {
-    const message = error instanceof Error ? error.message : 'Unauthorized';
+  private reject(
+    request: Request,
+    response: Response,
+    message: string,
+    resourceContext: McpResourceContext | null
+  ): void {
     const metadata = {
       method: request.method,
       url: request.originalUrl ?? request.url,
@@ -106,11 +133,29 @@ export class McpAuthMiddleware {
       this.logger.warn('MCP auth rejected', metadata);
     }
 
-    response.setHeader('WWW-Authenticate', this.getChallengeHeader(request));
+    response.setHeader('WWW-Authenticate', this.getChallengeHeader(resourceContext));
     response.status(401).json({
       statusCode: 401,
       message,
       error: 'Unauthorized',
+    });
+  }
+
+  // Anything that isn't a deliberate McpAuthRejection (e.g. verifyToken failing because IB itself
+  // is unreachable) is a server-side failure, not an auth decision — it must not be reported to the
+  // caller as a 401 with the internal error message attached, the way a bare catch-all would.
+  private rejectUnexpected(request: Request, response: Response, error: unknown): void {
+    this.logger.error('MCP auth failed unexpectedly', {
+      method: request.method,
+      url: request.originalUrl ?? request.url,
+      requestSessionId: this.getRequestedSessionId(request),
+      message: castError(error).message,
+    });
+
+    response.status(500).json({
+      statusCode: 500,
+      message: 'Internal server error',
+      error: 'Internal Server Error',
     });
   }
 
@@ -131,8 +176,7 @@ export class McpAuthMiddleware {
   }
 
   private getRequestedSessionId(request: Request): string | undefined {
-    const header = request.headers?.['mcp-session-id'];
-    return Array.isArray(header) ? header[0] : header;
+    return firstHeaderValue(request, 'mcp-session-id');
   }
 
   private assertPayload(payload: McpTokenPayload, resourceContext: McpResourceContext): void {
@@ -163,8 +207,7 @@ export class McpAuthMiddleware {
     }
   }
 
-  private getChallengeHeader(request: Request): string {
-    const resourceContext = this.resourceResolver.tryResolveRequest(request);
+  private getChallengeHeader(resourceContext: McpResourceContext | null): string {
     const metadataUrl = resourceContext
       ? `${resourceContext.publicBaseUrl}/.well-known/oauth-protected-resource`
       : this.config.protectedResourceMetadataUrl;
