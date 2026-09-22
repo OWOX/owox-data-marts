@@ -15,6 +15,8 @@ Click a card to highlight every relationship it takes part in. Click it again, o
 - **Status filter** shows all Data Marts, published ones only, or drafts only.
 - **Actions** runs bulk operations on the Data Marts the canvas currently shows. Those are publish, delete, [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) checks. It also holds the [Export](models-canvas-export.md) submenu.
 
+![The Models canvas relationships filter open with All Data Marts, With relationships only and Without relationships only, the last one selected and a single unconnected Data Mart left on the canvas](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ff20092f-b242-4ad6-2ce5-c8e196db5100/w=800)
+
 The page URL carries the filters and the search (`rel`, `status`, `search`). Share the link to share the filtered canvas.
 
 ## Canvas settings
@@ -32,6 +34,8 @@ The gear button on the canvas opens the view settings. They are preferences stor
   - **Field descriptions** adds the Output Schema description under each field in the Detailed view, when the field has one. The line shows one row of text. Hover it to read the whole description.
 
   **Check all** turns every label back on. **Uncheck all** leaves only the titles. In the Detailed view it also leaves the technical field names and their types.
+
+![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 
 ## Notes
 
