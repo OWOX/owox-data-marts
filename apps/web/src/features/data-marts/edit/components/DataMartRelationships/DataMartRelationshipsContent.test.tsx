@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AvailableSource,
   BlendableSchema,
   DataMartRelationship,
   RelationshipGraph,
@@ -428,25 +429,48 @@ describe('DataMartRelationshipsContent config saves', () => {
 
 describe('DataMartRelationshipsContent relationship saves', () => {
   const service = vi.mocked(dataMartRelationshipService);
+  const SCHEMA_KEY = [BLENDABLE_SCHEMA_QUERY_KEY, 'dm-1', 'include-draft-targets'];
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(res => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  }
+
+  const buildSource = (aliasPath: string, relationshipId: string): AvailableSource => ({
+    aliasPath,
+    title: aliasPath,
+    defaultAlias: aliasPath,
+    depth: aliasPath.split('.').length,
+    fieldCount: 1,
+    isIncluded: true,
+    relationshipId,
+    dataMartId: `dm-${aliasPath}`,
+    isAccessibleForReporting: true,
+  });
 
   beforeEach(() => {
     service.getRelationshipGraph.mockClear();
     service.getBlendableSchema.mockClear();
+    service.updateBlendedFieldsConfig.mockReset();
     harness.toast.success.mockClear();
     harness.accordionPropsByRowKey.clear();
   });
 
   async function renderRows() {
-    renderContent();
+    const rendered = renderContent();
     await waitFor(() => {
       expect(harness.accordionPropsByRowKey.get('alpha')).toBeDefined();
     });
     await waitFor(() => {
       expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
     });
+    return rendered;
   }
 
-  it('applies a description autosave in place: the rows stay mounted and the list is not reloaded', async () => {
+  it('applies a description autosave in place: rows stay mounted, no reload, no toast', async () => {
     await renderRows();
     const alpha = harness.accordionPropsByRowKey.get('alpha')!;
     const rowBefore = screen.getAllByTestId('relationship-row')[0];
@@ -455,6 +479,7 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       alpha.onRelationshipDescriptionSaved({
         ...alpha.row.relationship,
         description: 'Product where run was occurring',
+        modifiedAt: '2026-09-22T12:00:00.000Z',
       });
     });
 
@@ -466,14 +491,86 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       'Product where run was occurring'
     );
     expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
-    // The effective per-join description lives in the blendable schema, so that one is refreshed.
+    // The server's copy is merged whole, not field by field.
+    expect(harness.accordionPropsByRowKey.get('alpha')?.row.relationship.modifiedAt).toBe(
+      '2026-09-22T12:00:00.000Z'
+    );
+    // Silent, like the row's other autosaving fields — a toast after every typing pause is noise.
+    expect(harness.toast.success).not.toHaveBeenCalled();
+  });
+
+  it('patches the cached blendable schema instead of refetching it, keeping per-join overrides', async () => {
+    service.getBlendableSchema.mockResolvedValueOnce({
+      ...harness.schema,
+      availableSources: [
+        buildSource('alpha', 'rel-alpha'),
+        { ...buildSource('beta.alpha', 'rel-alpha'), joinDescription: 'own text' },
+        buildSource('beta', 'rel-beta'),
+      ],
+    });
+    service.updateBlendedFieldsConfig.mockResolvedValue({} as never);
+    const { queryClient } = await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // The transient reuse of the same relationship carries its own override.
+    act(() => {
+      alpha.onDescriptionOverrideChange(
+        { aliasPath: 'beta.alpha', alias: 'Alpha' } as SourceEntry,
+        'own text'
+      );
+    });
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+      });
+    });
+
+    const cached = queryClient.getQueryData<BlendableSchema>(SCHEMA_KEY);
+    const byPath = new Map(cached?.availableSources.map(s => [s.aliasPath, s.joinDescription]));
+    expect(byPath.get('alpha')).toBe('Product where run was occurring');
+    expect(byPath.get('beta.alpha')).toBe('own text');
+    expect(byPath.get('beta')).toBeUndefined();
+    expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
+
+    // Clearing the description drops the effective text where nothing overrides it.
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({ ...alpha.row.relationship, description: undefined });
+    });
+    const cleared = queryClient.getQueryData<BlendableSchema>(SCHEMA_KEY);
+    expect(cleared?.availableSources.find(s => s.aliasPath === 'alpha')).not.toHaveProperty(
+      'joinDescription'
+    );
+    expect(cleared?.availableSources.find(s => s.aliasPath === 'beta.alpha')?.joinDescription).toBe(
+      'own text'
+    );
+  });
+
+  it('re-applies a description saved while a reload was in flight over the stale response', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // A Join Settings save reloads the graph; the reload is answered from before the
+    // description PATCH committed, so the payload it returns still lacks the description.
+    const reload = deferred<RelationshipGraph>();
+    service.getRelationshipGraph.mockReturnValueOnce(reload.promise);
+    act(() => {
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship });
+    });
+    expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({ ...alpha.row.relationship, description: 'late' });
+    });
+    await act(async () => {
+      reload.resolve(harness.graph);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
-      expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('relationship-description-alpha')).toHaveTextContent('late');
     });
-    // One notification per relationship, replaced on repeated autosaves rather than stacked.
-    expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated', {
-      id: 'relationship-updated-rel-alpha',
-    });
+    expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
   });
 
   it('still reloads the list after a Join Settings save', async () => {

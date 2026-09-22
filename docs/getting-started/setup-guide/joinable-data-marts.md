@@ -51,7 +51,7 @@ Expand the relationship row and open the **Join Settings** tab.
 
 ### SQL Alias
 
-The internal identifier for the relationship in the generated SQL — used in CTE names and JOIN keys. It never appears in the Column Picker or in report output (those use the Output Alias from Step 3). Auto-generated from the target Data Mart title; must be unique among the source Data Mart's relationships.
+The internal identifier for the relationship in the generated SQL — used in CTE names and JOIN keys. It never appears in the Column Picker or in report output (those use the Output Alias from Step 4). Auto-generated from the target Data Mart title; must be unique among the source Data Mart's relationships.
 
 ### Join Fields
 
@@ -64,7 +64,15 @@ For composite keys, click **+ Add Join Field** to chain additional pairs. All co
 
 > ⚠️ Field types must be compatible across both sides of a condition (e.g., `STRING` ↔ `STRING`, `INT64` ↔ `INT64`). Type-mismatched joins are blocked at save.
 
-## Step 3: Configure Report Fields
+## Step 3: Describe the Relationship (optional)
+
+Open the **Description** tab of the same relationship row and explain what the join means in business terms — for example, "Visitors from the website sign up for the product and convert into users". The text is saved automatically while you type; the row stays expanded and the cursor stays in the field.
+
+The description is not shown in reports. AI assistants connected through [MCP](mcp.md) read it together with the join fields, so they understand how the joined data relates and not just how the rows are matched. It also appears in the column picker's join-path tooltip.
+
+For a transitive join (see [Transitive Joins](#transitive-joins)) the tab shows the description inherited from the Data Mart that owns the relationship. Typing there overrides the text for this join path only; **Reset to inherited** or clearing the field falls back to the inherited description.
+
+## Step 4: Configure Report Fields
 
 Open the **Report Fields** tab on the same relationship.
 
@@ -113,7 +121,7 @@ To hide every field of a joined Data Mart in one go, toggle off **Allow for repo
 | `COUNT`          | You want the number of rows on the target side.                                        | `INTEGER`     |
 | `COUNT_DISTINCT` | You want the number of unique values.                                                  | `INTEGER`     |
 
-## Step 4: Use Joined Fields in a Report
+## Step 5: Use Joined Fields in a Report
 
 On any report (Google Sheets, Data Studio, Email) attached to the source Data Mart, open the report editor and locate the **Report Columns** section.
 
@@ -122,7 +130,7 @@ On any report (Google Sheets, Data Studio, Email) attached to the source Data Ma
 You'll see:
 
 - **Native fields** — flat list at the top (the source Data Mart's own columns).
-- **Joined fields** — collapsible groups, one per relationship. Each field appears under its **Output Alias** (configured in Step 3).
+- **Joined fields** — collapsible groups, one per relationship. Each field appears under its **Output Alias** (configured in Step 4).
 
 The badge in the section header (e.g., `9/29`) shows how many of the available fields are currently selected.
 

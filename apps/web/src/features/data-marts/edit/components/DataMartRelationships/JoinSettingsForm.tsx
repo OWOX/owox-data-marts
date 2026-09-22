@@ -166,15 +166,22 @@ export function JoinSettingsForm({
     name: 'joinConditions',
   });
 
+  // Reset on what the form edits, not on the prop's identity: the row's relationship object is
+  // replaced in place after a description autosave, and a reset keyed on the object would wipe
+  // an alias or join condition typed while that save was still on the wire.
+  const relationshipRef = useRef(relationship);
+  relationshipRef.current = relationship;
+  const savedJoinConditionsKey = JSON.stringify(relationship.joinConditions);
   useEffect(() => {
-    form.reset(getInitialDefaults(relationship));
+    const current = relationshipRef.current;
+    form.reset(getInitialDefaults(current));
     const snapshot = {
-      targetAlias: relationship.targetAlias,
-      joinConditionsKey: JSON.stringify(relationship.joinConditions),
+      targetAlias: current.targetAlias,
+      joinConditionsKey: JSON.stringify(current.joinConditions),
     };
     lastSavedRef.current = snapshot;
     lastAttemptedRef.current = snapshot;
-  }, [relationship, form]);
+  }, [relationship.id, relationship.targetAlias, savedJoinConditionsKey, form]);
 
   useEffect(() => {
     // Inherited (transient) rows don't own the join — source schema must come from the actual

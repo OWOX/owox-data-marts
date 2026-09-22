@@ -35,6 +35,7 @@ import {
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
   AvailableSource,
+  BlendableSchema,
   BlendedField,
   BlendedFieldOverride,
   BlendedFieldsConfig,
@@ -139,6 +140,26 @@ function buildSourceList(
   });
 }
 
+/**
+ * Merges a saved relationship into the loaded graph without replacing the graph: every node of
+ * that relationship (a direct join and its transient reuses share one id) gets the server's copy.
+ * Returns the same graph instance when nothing matched, so unrelated renders are skipped.
+ */
+function mergeRelationshipIntoGraph(
+  graph: RelationshipGraph,
+  updated: DataMartRelationship
+): RelationshipGraph {
+  if (!graph.nodes.some(node => node.relationship.id === updated.id)) return graph;
+  return {
+    ...graph,
+    nodes: graph.nodes.map(node =>
+      node.relationship.id === updated.id
+        ? { ...node, relationship: { ...node.relationship, ...updated } }
+        : node
+    ),
+  };
+}
+
 export function DataMartRelationshipsContent({
   onRelationshipsChanged,
 }: DataMartRelationshipsContentProps) {
@@ -151,6 +172,11 @@ export function DataMartRelationshipsContent({
 
   const [relationshipGraph, setRelationshipGraph] = useState<RelationshipGraph | null>(null);
   const loadRelationshipsRequestIdRef = useRef(0);
+  const isLoadingRelationshipsRef = useRef(false);
+  // Relationship saves that resolved while a graph reload was on the wire. The reload may have
+  // been served before the save committed, so its payload is re-applied on top of the fetched
+  // graph instead of being lost to a stale response.
+  const relationshipPatchesPendingReloadRef = useRef(new Map<string, DataMartRelationship>());
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
@@ -185,19 +211,28 @@ export function DataMartRelationshipsContent({
   const loadRelationships = useCallback(async () => {
     if (!dataMartId) return;
     const requestId = ++loadRelationshipsRequestIdRef.current;
+    isLoadingRelationshipsRef.current = true;
     setRelationshipGraph(null);
     setIsLoading(true);
     try {
-      const graph = await dataMartRelationshipService.getRelationshipGraph(dataMartId, {
+      const fetched = await dataMartRelationshipService.getRelationshipGraph(dataMartId, {
         skipLoadingIndicator: true,
       });
       if (loadRelationshipsRequestIdRef.current !== requestId) return;
+      let graph = fetched;
+      for (const updated of relationshipPatchesPendingReloadRef.current.values()) {
+        graph = mergeRelationshipIntoGraph(graph, updated);
+      }
+      relationshipPatchesPendingReloadRef.current.clear();
       setRelationshipGraph(graph);
     } catch {
       if (loadRelationshipsRequestIdRef.current !== requestId) return;
       toast.error('Failed to load relationships');
     } finally {
-      if (loadRelationshipsRequestIdRef.current === requestId) setIsLoading(false);
+      if (loadRelationshipsRequestIdRef.current === requestId) {
+        isLoadingRelationshipsRef.current = false;
+        setIsLoading(false);
+      }
     }
   }, [dataMartId]);
 
@@ -412,34 +447,53 @@ export function DataMartRelationshipsContent({
     ]
   );
 
+  // The blendable schema publishes the effective description of every join node (the per-join
+  // override when set, otherwise the relationship's text) for MCP and the report column picker.
+  // A description save only moves that one field, so the cached schema is patched instead of
+  // refetched — a full schema round trip after every typing pause is wasted work. Falls back to
+  // invalidation when nothing is cached yet.
+  const patchBlendableSchemaJoinDescription = useCallback(
+    (updated: DataMartRelationship) => {
+      const overrides = new Map<string, string>();
+      for (const source of localConfigRef.current.sources) {
+        if (source.description) overrides.set(source.path, source.description);
+      }
+      const patched = queryClient.setQueriesData<BlendableSchema>(
+        { queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId] },
+        cached => {
+          if (!cached) return cached;
+          return {
+            ...cached,
+            availableSources: cached.availableSources.map(source => {
+              if (source.relationshipId !== updated.id) return source;
+              const joinDescription = overrides.get(source.aliasPath) ?? updated.description;
+              const next: AvailableSource = { ...source };
+              if (joinDescription) next.joinDescription = joinDescription;
+              else delete next.joinDescription;
+              return next;
+            }),
+          };
+        }
+      );
+      if (patched.length === 0) invalidateBlendableSchema();
+    },
+    [queryClient, dataMartId, invalidateBlendableSchema]
+  );
+
   // The relationship description autosaves after every typing pause, so its save path must not
   // go through `handleRelationshipUpdated`: reloading the graph swaps the list for a skeleton,
   // which unmounts the expanded row, its Description tab and the focused textarea mid-sentence.
-  // Only the description changed, so the loaded graph is patched in place (every node of the
-  // same relationship, including transient reuses) and only the blendable schema is refreshed —
-  // that is where the effective per-join description (MCP, column picker) is resolved.
+  // The saved relationship is merged into the loaded graph in place instead. Silent on success,
+  // like the other autosaving fields of the row (alias, overrides); the editor reports failures.
   const handleRelationshipDescriptionSaved = useCallback(
     (updated: DataMartRelationship) => {
-      // Stable id: repeated autosaves replace one notification instead of stacking.
-      toast.success('Relationship updated', { id: `relationship-updated-${updated.id}` });
-      setRelationshipGraph(graph => {
-        if (!graph) return graph;
-        return {
-          ...graph,
-          nodes: graph.nodes.map(node =>
-            node.relationship.id === updated.id
-              ? {
-                  ...node,
-                  relationship: { ...node.relationship, description: updated.description },
-                }
-              : node
-          ),
-        };
-      });
-      invalidateBlendableSchema();
-      onRelationshipsChanged?.();
+      if (isLoadingRelationshipsRef.current) {
+        relationshipPatchesPendingReloadRef.current.set(updated.id, updated);
+      }
+      setRelationshipGraph(graph => (graph ? mergeRelationshipIntoGraph(graph, updated) : graph));
+      patchBlendableSchemaJoinDescription(updated);
     },
-    [invalidateBlendableSchema, onRelationshipsChanged]
+    [patchBlendableSchemaJoinDescription]
   );
 
   // Config saves are whole-document PUTs fired from debounced editors (alias, description,
