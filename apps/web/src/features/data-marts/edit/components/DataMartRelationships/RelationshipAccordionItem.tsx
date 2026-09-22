@@ -106,6 +106,12 @@ interface RelationshipAccordionItemProps {
   readOnly?: boolean;
   onDelete: (id: string) => Promise<void>;
   onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  /**
+   * Fired by the Description tab's autosave. Kept apart from `onRelationshipUpdated` because it
+   * runs while the user is still typing: the parent must update the row in place, not reload
+   * the list (which would unmount this row and the focused field).
+   */
+  onRelationshipDescriptionSaved: (updated: DataMartRelationship) => void;
   onAliasChange: (source: SourceEntry, alias: string) => void;
   onHideForReportingChange: (aliasPath: string, alias: string, isHidden: boolean) => void;
   onFieldOverrideChange: (
@@ -125,6 +131,7 @@ export function RelationshipAccordionItem({
   readOnly = false,
   onDelete,
   onRelationshipUpdated,
+  onRelationshipDescriptionSaved,
   onAliasChange,
   onHideForReportingChange,
   onFieldOverrideChange,
@@ -531,7 +538,7 @@ export function RelationshipAccordionItem({
                             : undefined
                         }
                         onSaved={updated => {
-                          onRelationshipUpdated(updated);
+                          onRelationshipDescriptionSaved(updated);
                         }}
                       />
                     </TabsContent>

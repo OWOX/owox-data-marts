@@ -25,6 +25,8 @@ interface CanvasStubProps {
 
 interface AccordionStubProps {
   row: { relationship: DataMartRelationship; rowKey: string };
+  onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  onRelationshipDescriptionSaved: (updated: DataMartRelationship) => void;
   onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
 }
 
@@ -86,6 +88,7 @@ const harness = vi.hoisted(() => {
     schema,
     canvasProps: { current: null as CanvasStubProps | null },
     accordionProps: { current: null as AccordionStubProps | null },
+    accordionPropsByRowKey: new Map<string, AccordionStubProps>(),
     syncDataMartFromResponse: vi.fn(),
     toast: { success: vi.fn(), error: vi.fn() },
   };
@@ -131,7 +134,15 @@ vi.mock('./useRelationshipDefinitionTypes', () => ({
 vi.mock('./RelationshipAccordionItem', () => ({
   RelationshipAccordionItem: (props: AccordionStubProps) => {
     harness.accordionProps.current = props;
-    return <div data-testid='relationship-row'>{props.row.relationship.targetDataMart.title}</div>;
+    harness.accordionPropsByRowKey.set(props.row.rowKey, props);
+    return (
+      <>
+        <div data-testid='relationship-row'>{props.row.relationship.targetDataMart.title}</div>
+        <div data-testid={`relationship-description-${props.row.rowKey}`}>
+          {props.row.relationship.description ?? ''}
+        </div>
+      </>
+    );
   },
 }));
 
@@ -412,5 +423,70 @@ describe('DataMartRelationshipsContent config saves', () => {
       expect(harness.toast.error).toHaveBeenCalledWith('Failed to save changes');
     });
     expect(harness.syncDataMartFromResponse).not.toHaveBeenCalled();
+  });
+});
+
+describe('DataMartRelationshipsContent relationship saves', () => {
+  const service = vi.mocked(dataMartRelationshipService);
+
+  beforeEach(() => {
+    service.getRelationshipGraph.mockClear();
+    service.getBlendableSchema.mockClear();
+    harness.toast.success.mockClear();
+    harness.accordionPropsByRowKey.clear();
+  });
+
+  async function renderRows() {
+    renderContent();
+    await waitFor(() => {
+      expect(harness.accordionPropsByRowKey.get('alpha')).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it('applies a description autosave in place: the rows stay mounted and the list is not reloaded', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+    const rowBefore = screen.getAllByTestId('relationship-row')[0];
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+      });
+    });
+
+    // The graph was fetched once on mount and never again: no skeleton, no unmount of the
+    // expanded row and its focused textarea while the user is still typing.
+    expect(service.getRelationshipGraph).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByTestId('relationship-row')[0]).toBe(rowBefore);
+    expect(screen.getByTestId('relationship-description-alpha')).toHaveTextContent(
+      'Product where run was occurring'
+    );
+    expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
+    // The effective per-join description lives in the blendable schema, so that one is refreshed.
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
+    });
+    // One notification per relationship, replaced on repeated autosaves rather than stacked.
+    expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated', {
+      id: 'relationship-updated-rel-alpha',
+    });
+  });
+
+  it('still reloads the list after a Join Settings save', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    act(() => {
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship, targetAlias: 'alpha' });
+    });
+
+    await waitFor(() => {
+      expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
+    });
+    expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated');
   });
 });

@@ -412,6 +412,36 @@ export function DataMartRelationshipsContent({
     ]
   );
 
+  // The relationship description autosaves after every typing pause, so its save path must not
+  // go through `handleRelationshipUpdated`: reloading the graph swaps the list for a skeleton,
+  // which unmounts the expanded row, its Description tab and the focused textarea mid-sentence.
+  // Only the description changed, so the loaded graph is patched in place (every node of the
+  // same relationship, including transient reuses) and only the blendable schema is refreshed —
+  // that is where the effective per-join description (MCP, column picker) is resolved.
+  const handleRelationshipDescriptionSaved = useCallback(
+    (updated: DataMartRelationship) => {
+      // Stable id: repeated autosaves replace one notification instead of stacking.
+      toast.success('Relationship updated', { id: `relationship-updated-${updated.id}` });
+      setRelationshipGraph(graph => {
+        if (!graph) return graph;
+        return {
+          ...graph,
+          nodes: graph.nodes.map(node =>
+            node.relationship.id === updated.id
+              ? {
+                  ...node,
+                  relationship: { ...node.relationship, description: updated.description },
+                }
+              : node
+          ),
+        };
+      });
+      invalidateBlendableSchema();
+      onRelationshipsChanged?.();
+    },
+    [invalidateBlendableSchema, onRelationshipsChanged]
+  );
+
   // Config saves are whole-document PUTs fired from debounced editors (alias, description,
   // field overrides), so two of them can otherwise be in flight at once and land out of
   // order — an older config would then win. One request at a time: while one is in flight the
@@ -720,6 +750,7 @@ export function DataMartRelationshipsContent({
               readOnly={false}
               onDelete={handleDelete}
               onRelationshipUpdated={handleRelationshipUpdated}
+              onRelationshipDescriptionSaved={handleRelationshipDescriptionSaved}
               onAliasChange={handleSourceAliasChange}
               onHideForReportingChange={handleSourceHideChange}
               onFieldOverrideChange={handleFieldOverrideChange}
