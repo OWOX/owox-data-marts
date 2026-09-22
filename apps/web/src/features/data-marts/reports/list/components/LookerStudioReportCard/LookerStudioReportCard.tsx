@@ -7,11 +7,30 @@ import {
   SwitchItemCardTitle,
   SwitchItemCardToggle,
 } from '@owox/ui/components/common/switch-item-card';
+import { Button } from '@owox/ui/components/button';
+import { ExternalLink } from 'lucide-react';
 import { type ComponentPropsWithoutRef, useCallback } from 'react';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useLookerStudioReport } from './hooks/useLookerStudioReport';
+
+const LOOKER_STUDIO_CONNECTOR_ID =
+  'AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A';
+
+function getLookerStudioConnectionUrl(
+  destinationId: string,
+  reportId: string,
+  dataSourceName: string
+) {
+  const url = new URL('https://datastudio.google.com/reporting/create');
+  url.searchParams.set('ds.connector', 'community');
+  url.searchParams.set('ds.connectorId', LOOKER_STUDIO_CONNECTOR_ID);
+  url.searchParams.set('ds.datasourceName', dataSourceName);
+  url.searchParams.set('ds.destinationId', destinationId);
+  url.searchParams.set('ds.reportId', reportId);
+  return url.toString();
+}
 
 interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
   destination: DataDestination;
@@ -76,6 +95,26 @@ export function LookerStudioReportCard({
           )}
         </SwitchItemCardDescription>
       </SwitchItemCardContent>
+
+      {isChecked && existingReport && (
+        <Button asChild variant='outline' size='sm' className='shrink-0 self-center'>
+          <a
+            href={getLookerStudioConnectionUrl(
+              destination.id,
+              existingReport.id,
+              existingReport.dataMart.title
+            )}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={event => {
+              event.stopPropagation();
+            }}
+          >
+            Connect in Data Studio
+            <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
+          </a>
+        </Button>
+      )}
 
       {isChecked && existingReport && <SwitchItemCardChevronRight />}
     </SwitchItemCard>
