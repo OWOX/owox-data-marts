@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
   Optional,
   RequestTimeoutException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -22,7 +24,7 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
-import { implicitAllNativeColumnNames } from '../services/http-data/http-data-column-sets.util';
+import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
 import {
   ProjectBillingService,
   RunKind,
@@ -124,7 +126,12 @@ export class PreviewDataMartService {
       dataMart.projectId,
       accessor
     );
-    const fields = implicitAllNativeColumnNames(schema);
+    // Top-level fields only: a RECORD is shown as one JSON column, not as the record plus every
+    // nested path. Calculated fields are left out — they are composed only when asked for by name.
+    const calculatedNames = new Set(calculatedFieldsOf(schema.nativeFields).map(f => f.name));
+    const fields = schema.nativeFields
+      .map(field => field.name)
+      .filter(name => !calculatedNames.has(name));
     if (fields.length === 0) {
       throw new BadRequestException(
         'This Data Mart has no visible fields in its Output Schema yet. Refresh the schema, then preview again.'
@@ -180,10 +187,14 @@ export class PreviewDataMartService {
       result = await this.readRows(dataMart, readPlan, composed, limit, signal);
     } catch (error) {
       // A preview the person cancelled did not produce anything worth a Run History entry.
-      if (!(error instanceof PreviewAbortedError)) {
-        await this.recordFailure(runId, dataMart, command.userId, startedAt, failedMetadata, error);
-      }
-      throw error;
+      if (error instanceof PreviewAbortedError) throw error;
+      await this.recordFailure(runId, dataMart, command.userId, startedAt, failedMetadata, error);
+      // A warehouse error (bad column, missing table, permissions) is not a server fault: hand the
+      // warehouse's own sentence back so the person can fix the schema or the filter.
+      if (error instanceof HttpException) throw error;
+      throw new UnprocessableEntityException(
+        `The data warehouse could not run the preview query: ${messageOf(error)}`
+      );
     }
 
     const truncated = result.rows.length > limit;

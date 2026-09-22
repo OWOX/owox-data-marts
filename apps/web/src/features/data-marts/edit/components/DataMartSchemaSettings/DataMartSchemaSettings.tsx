@@ -430,6 +430,15 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     );
   }, [runGuarded, runSchemaActualization, invalidateBlendableSchema]);
 
+  // Preview reads the SAVED schema, so unsaved edits are saved or discarded first.
+  const runPreviewGuarded = useCallback(
+    (action: () => void | Promise<void>) => {
+      if (runGuarded) runGuarded(action, { intent: 'preview' });
+      else void action();
+    },
+    [runGuarded]
+  );
+
   // Handle discard
   const handleDiscard = useCallback(() => {
     resetSchema();
@@ -680,10 +689,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
           dataMartId={dataMartId}
           savedSchemaVersion={initialSchema}
           disabledReason={previewDisabledReason}
-          runGuarded={action => {
-            if (runGuarded) runGuarded(action, { intent: 'preview' });
-            else void action();
-          }}
+          runGuarded={runPreviewGuarded}
         />
       </div>
     </div>

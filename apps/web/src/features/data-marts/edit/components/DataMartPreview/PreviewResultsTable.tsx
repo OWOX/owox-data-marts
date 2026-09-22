@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import {
   type ColumnDef,
   flexRender,
@@ -31,6 +31,43 @@ interface PreviewResultsTableProps {
   /** Replaces the column's filter (one per column), or removes it when `rule` is null. */
   onFilterChange: (column: string, rule: FilterRule | null) => void;
   filtersDisabled?: boolean;
+}
+
+interface FilterContextValue {
+  filters: FilterRule[];
+  onFilterChange: PreviewResultsTableProps['onFilterChange'];
+  disabled?: boolean;
+}
+
+// Filters reach the headers through context, not through the column definitions: rebuilding the
+// definitions remounts every header, which would close an open filter popover mid-edit.
+const PreviewFilterContext = createContext<FilterContextValue>({
+  filters: [],
+  onFilterChange: () => undefined,
+});
+
+function PreviewColumnHeader({ column }: { column: DataMartPreviewColumnDto }) {
+  const { filters, onFilterChange, disabled } = useContext(PreviewFilterContext);
+  return (
+    <div className='group/header flex items-start justify-between gap-2'>
+      <div className='min-w-0' title={column.alias ?? column.name}>
+        <div className='text-foreground truncate text-xs font-semibold uppercase'>
+          {column.name}
+        </div>
+        {column.type && (
+          <div className='text-muted-foreground truncate text-[10px] font-normal uppercase'>
+            {column.type}
+          </div>
+        )}
+      </div>
+      <ColumnFilterButton
+        column={column}
+        filter={filters.find(rule => rule.column === column.name)}
+        onFilterChange={onFilterChange}
+        disabled={disabled}
+      />
+    </div>
+  );
 }
 
 function PreviewCellValue({ value }: { value: DataMartPreviewCell }) {
@@ -111,29 +148,14 @@ export function PreviewResultsTable({
       columns.map((column, index) => ({
         id: `c${String(index)}`,
         accessorFn: row => row[index],
-        header: () => (
-          <div className='group/header flex items-start justify-between gap-2'>
-            <div className='min-w-0' title={column.alias ?? column.name}>
-              <div className='text-foreground truncate text-xs font-semibold uppercase'>
-                {column.name}
-              </div>
-              {column.type && (
-                <div className='text-muted-foreground truncate text-[10px] font-normal uppercase'>
-                  {column.type}
-                </div>
-              )}
-            </div>
-            <ColumnFilterButton
-              column={column}
-              filter={filters.find(rule => rule.column === column.name)}
-              onFilterChange={onFilterChange}
-              disabled={filtersDisabled}
-            />
-          </div>
-        ),
+        header: () => <PreviewColumnHeader column={column} />,
         cell: info => <PreviewCellValue value={info.getValue() as DataMartPreviewCell} />,
       })),
-    [columns, filters, onFilterChange, filtersDisabled]
+    [columns]
+  );
+  const filterContext = useMemo(
+    () => ({ filters, onFilterChange, disabled: filtersDisabled }),
+    [filters, onFilterChange, filtersDisabled]
   );
 
   const table = useReactTable({
@@ -146,51 +168,53 @@ export function PreviewResultsTable({
   });
 
   return (
-    <div className='space-y-3'>
-      <div className='overflow-x-auto rounded-md border'>
-        <Table className='min-w-full'>
-          <TableHeader className='bg-muted/50'>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className='hover:bg-transparent'>
-                {headerGroup.headers.map(header => (
-                  <TableHead key={header.id} className='h-auto min-w-40 px-4 py-2 align-top'>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
-              <TableRow className='hover:bg-transparent'>
-                <TableCell
-                  colSpan={columns.length}
-                  className='text-muted-foreground px-4 py-8 text-center text-sm'
-                >
-                  No rows match the current filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map(row => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell key={cell.id} className='max-w-80 px-4 py-2 text-sm'>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+    <PreviewFilterContext.Provider value={filterContext}>
+      <div className='space-y-3'>
+        <div className='overflow-x-auto rounded-md border'>
+          <Table className='min-w-full'>
+            <TableHeader className='bg-muted/50'>
+              {table.getHeaderGroups().map(headerGroup => (
+                <TableRow key={headerGroup.id} className='hover:bg-transparent'>
+                  {headerGroup.headers.map(header => (
+                    <TableHead key={header.id} className='h-auto min-w-40 px-4 py-2 align-top'>
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length === 0 ? (
+                <TableRow className='hover:bg-transparent'>
+                  <TableCell
+                    colSpan={columns.length}
+                    className='text-muted-foreground px-4 py-8 text-center text-sm'
+                  >
+                    No rows match the current filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                table.getRowModel().rows.map(row => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <TableCell key={cell.id} className='max-w-80 px-4 py-2 text-sm'>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {rows.length > PAGE_SIZE_OPTIONS[0] && (
+          <TablePagination
+            table={table}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            displaySelected={false}
+          />
+        )}
       </div>
-      {rows.length > PAGE_SIZE_OPTIONS[0] && (
-        <TablePagination
-          table={table}
-          pageSizeOptions={PAGE_SIZE_OPTIONS}
-          displaySelected={false}
-        />
-      )}
-    </div>
+    </PreviewFilterContext.Provider>
   );
 }

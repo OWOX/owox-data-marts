@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, RequestTimeoutException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  RequestTimeoutException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -38,7 +43,8 @@ describe('PreviewDataMartService', () => {
       batches?: ReportDataBatch[];
       accessAllowed?: boolean;
       balanceAllowed?: boolean;
-      nativeFields?: { name: string; type: string }[];
+      nativeFields?: { name: string; type: string; fields?: unknown[] }[];
+      readerError?: Error;
       deadlineMs?: number;
       readerNeverResolves?: boolean;
       recordFails?: boolean;
@@ -73,14 +79,16 @@ describe('PreviewDataMartService', () => {
       prepareReportData: jest
         .fn()
         .mockImplementation(() =>
-          overrides.readerNeverResolves
-            ? new Promise(() => undefined)
-            : Promise.resolve(
-                new ReportDataDescription([
-                  new ReportDataHeader('channel', 'Channel', undefined, 'STRING' as never),
-                  new ReportDataHeader('revenue', undefined, undefined, 'INTEGER' as never),
-                ])
-              )
+          overrides.readerError
+            ? Promise.reject(overrides.readerError)
+            : overrides.readerNeverResolves
+              ? new Promise(() => undefined)
+              : Promise.resolve(
+                  new ReportDataDescription([
+                    new ReportDataHeader('channel', 'Channel', undefined, 'STRING' as never),
+                    new ReportDataHeader('revenue', undefined, undefined, 'INTEGER' as never),
+                  ])
+                )
         ),
       readReportDataBatch: jest.fn(),
       finalize: jest.fn().mockResolvedValue(undefined),
@@ -214,6 +222,40 @@ describe('PreviewDataMartService', () => {
 
     await expect(service.run(command())).rejects.toBeInstanceOf(ForbiddenException);
     expect(composer.compose).not.toHaveBeenCalled();
+  });
+
+  it('projects a RECORD as one top-level column, not its nested paths', async () => {
+    const { service, composer } = createService({
+      nativeFields: [
+        { name: 'id', type: 'INTEGER' },
+        { name: 'device', type: 'RECORD', fields: [{ name: 'isBot', type: 'BOOLEAN' }] },
+      ],
+    });
+
+    await service.run(command());
+
+    expect(composer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: ['id', 'device'] }),
+      expect.anything()
+    );
+  });
+
+  it('returns the warehouse error as a 422 and records a FAILED run', async () => {
+    const { service, dataMartRunService, projectBilling } = createService({
+      readerError: new Error('Unrecognized name: device'),
+    });
+
+    const failure = service.run(command());
+
+    await expect(failure).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(failure).rejects.toThrow(/Unrecognized name: device/);
+    expect(dataMartRunService.recordPreviewRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+        errors: ['Unrecognized name: device'],
+      })
+    );
+    expect(projectBilling.registerDataMartPreviewRunConsumption).not.toHaveBeenCalled();
   });
 
   it('asks to refresh the schema when there is nothing to project', async () => {
