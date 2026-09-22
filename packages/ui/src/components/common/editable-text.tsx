@@ -250,7 +250,12 @@ export function EditableText({
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className={cn('w-auto max-w-[600px] min-w-[300px] p-2', popoverClassName)}
+        className={cn(
+          // Capped by the space Radix reports beside the trigger, so a consumer's fixed width is
+          // honoured on a desktop and shrinks on a phone instead of running off its edge.
+          'w-auto max-w-[min(600px,var(--radix-popover-content-available-width))] min-w-[300px] p-2',
+          popoverClassName
+        )}
         align='start'
         // The dialog's accessible name. Only when there IS a title — pointing at an absent element
         // would leave it worse named than the default.

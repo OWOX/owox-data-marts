@@ -478,6 +478,9 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       },
       {
         accessorKey: 'description',
+        // The one column that holds prose: its cells fold to the column's width instead of
+        // running the table out to the longest line, see `SchemaFieldDescriptionText`.
+        meta: { wrap: true },
         header: () => (
           <div className='group flex items-center gap-1'>
             <Tooltip>

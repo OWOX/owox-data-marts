@@ -271,7 +271,9 @@ export function SchemaTable<T extends BaseSchemaField>({
                             className='bg-background dark:bg-muted'
                             style={getStickyColumnStyle(cell.column.id, {
                               width: size !== 0 ? size : undefined,
-                              whiteSpace: 'pre',
+                              // `pre` keeps a name or a formula on one line; a column that
+                              // declares itself prose folds instead, line breaks kept.
+                              whiteSpace: cell.column.columnDef.meta?.wrap ? 'pre-wrap' : 'pre',
                               paddingTop: 8,
                               paddingBottom: 8,
                             })}
