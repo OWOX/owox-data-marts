@@ -97,7 +97,19 @@ Use the ribbon buttons on the **OWOX Data Marts** tab:
 
 You can also open **All reports** in the task pane and refresh a report from the list.
 
-A refresh clears the whole bound sheet, then writes the rows again. Anything you typed on that sheet disappears, including formulas and formatting. Keep your own formulas on another sheet and reference the report sheet from there.
+A refresh rewrites only the columns the report imported and leaves the rest of the sheet to you. The rules are the same as for a [Google Sheets](google-sheets.md#working-with-imported-data) report:
+
+- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields are matched by their name in the Data Mart, not by position, so an alias in the header does not change the matching.
+- **New report columns** appear at the right edge of the imported range, and your content to the right shifts right. **Removed** report columns are deleted; a formula that pointed at one shows `#REF!`.
+- **Formulas and columns to the right of the imported range survive.** A formula in row 2 of such a column is filled down to the last data row on every refresh. A static value in row 2 is left alone, so lookup tables and notes stay as you wrote them.
+- **Your formats on imported columns survive.** A date or currency format you set on a column stays across refreshes.
+- **The imported cells are rewritten from scratch.** A value or formula typed inside an imported column disappears on the next refresh. Keep your own columns **to the right** of the imported range: a column inserted between imported columns, or a header you retype, is not a report field and is removed on the next refresh. The imported column it displaced is written again at the right edge, and its old copy stays just past the imported range until you delete it.
+- **Fewer rows than last time** clear the imported cells below the new last row. A formula you filled down in a column to the right is left in place there and now points at empty cells.
+- **If the refresh fails before any data arrives**, the sheet is left as it was.
+- **Excel Tables** over the imported columns do not survive a refresh: the table is removed and the cells are rewritten as a plain range. Keep tables to the right of the imported range or on another sheet.
+- **On the first refresh** the add-in freezes row 1 and colours the tab. Unfreeze or recolour as you like; the add-in does not set them again.
+
+After you update the add-in, the first refresh of an existing sheet writes from column A in the report's order without clearing the sheet. If the report lost columns since the last refresh, the old ones — with their data and header notes — stay to the right. Delete them once by hand.
 
 ### Share the workbook
 
@@ -111,7 +123,7 @@ Each header note holds the column description from the Data Mart. On Windows and
 
 ### Copy or delete a sheet
 
-- Copying a worksheet copies its report binding. The add-in refreshes the copy you are viewing. When neither copy is active, it picks one of them. Delete the copy you do not need.
+- Copying a worksheet copies the values, not the report. The copy has no binding and no column layout, so a refresh never touches it. To refresh a report on two sheets, link the report to each sheet from **All reports**.
 - Deleting a bound sheet removes the binding. The report stays in **All reports**, but a refresh reports that it lost the sheet.
 
 ### Limits
@@ -204,9 +216,9 @@ Excel on the web cannot resize notes. The full text is there. Drag the note's ed
 
 ### A refresh reports nothing, or the wrong sheet changed
 
-**The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh starts by clearing the sheet.
+**The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh rewrites the imported columns of whichever sheet it picks.
 
-**Two sheets share one report.** Copying a worksheet copies its binding. Delete the copy you do not need.
+**Two sheets share one report.** The report was linked to two sheets. The add-in refreshes the one you are viewing; when neither is active, it picks one. Unlink or delete the sheet you do not need.
 
 ### Still stuck
 
