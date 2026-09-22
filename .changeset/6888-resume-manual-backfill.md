@@ -2,14 +2,17 @@
 'owox': minor
 ---
 
-# Resume a manual backfill from the last fully loaded date
+# Resume an interrupted manual backfill from the last fully loaded date
 
-A manual backfill that stops before it finishes now continues from the day after the last one it fully
-loaded, instead of starting the whole period again. This matters most when a deploy or a restart
-interrupts a long backfill: the retry keeps the days it already imported and requests only the rest.
+When a deploy or a restart interrupts a manual backfill, the automatic retry now continues from the day
+after the last one it fully loaded, instead of starting the whole period again. It keeps the days it
+already imported and requests only the rest, which matters most on a long backfill.
 
-Run History names the day a retry starts from, so you can see why it covers a shorter period than the one
-you chose.
+Starting a backfill yourself always loads the whole period you choose, including after one that failed.
+Only the automatic retry of an interrupted run resumes.
+
+Run History names the day that retry starts from, so you can see why it covers a shorter period than the
+one you chose.
 
 Scheduled and incremental runs are unaffected. A backfill still never moves the incremental load position,
 so the next scheduled run continues to pick up where regular loading left off.

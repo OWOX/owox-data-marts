@@ -543,7 +543,14 @@ export class ConnectorExecutorService {
         if (resume.resumedFrom) {
           // Recorded as a run log, not only through the application logger: run history is
           // where someone looks to understand why a retry requested fewer days.
-          const resumeMessage = `Resuming manual backfill from ${resume.resumedFrom}; days through ${resume.lastLoadedDate} were loaded by a previous attempt`;
+          // The clamped case reads as a contradiction otherwise: a previous attempt that
+          // reached EndDate leaves resumedFrom and lastLoadedDate on the same day, and
+          // "resuming from X; days through X were loaded" looks like a defect rather than
+          // the deliberate re-check of one already-stored day.
+          const resumeMessage =
+            resume.resumedFrom === resume.lastLoadedDate
+              ? `A previous attempt loaded this manual backfill through ${resume.lastLoadedDate}, the end of the period; re-checking that day`
+              : `Resuming manual backfill from ${resume.resumedFrom}; days through ${resume.lastLoadedDate} were loaded by a previous attempt`;
           addMessageToArray(configLogs, {
             type: ConnectorMessageType.LOG,
             at: this.systemTimeService.now().toISOString(),

@@ -251,7 +251,9 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         // Runs before the checkpoint moves: a day nobody could import must be requested again
         this._throwIfAllAccountsSkipped(accountsIds, skipped, `for ${DateUtils.formatDate(startDate)}`);
 
-        // Every account stored this date, so the checkpoint can move past it.
+        // At least one account stored this date and any others were skipped deliberately,
+        // as accounts the token cannot reach stay unreachable however often they are retried.
+        // A date no account could import throws above, so the checkpoint can move past it.
         this.config.updateLastRequstedDate(startDate);
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 

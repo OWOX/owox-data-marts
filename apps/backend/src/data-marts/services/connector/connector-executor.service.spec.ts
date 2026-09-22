@@ -1414,29 +1414,46 @@ describe('ConnectorExecutorService', () => {
       });
     });
 
-    it('records the last checkpoint before the run reaches a terminal status', async () => {
+    it('waits for an in-flight checkpoint before writing the terminal status', async () => {
       // A retry starts from the persisted checkpoint, so a status written first would strand
-      // the days this attempt actually loaded.
+      // the days this attempt actually loaded. Comparing call order alone cannot show that:
+      // a checkpoint that resolves immediately lands first whether or not it is awaited, so
+      // the write is held open here and the run must not reach a terminal status until it
+      // completes. Deleting the `await` in the configuration's `finally` fails this test.
       const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+
+      let releaseCheckpoint: () => void = () => undefined;
+      const checkpointWritten = new Promise<void>(resolve => {
+        releaseCheckpoint = resolve;
+      });
+
+      const terminalStatuses = [DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED];
+      const terminalWrites = () =>
+        (dataMartRunRepository.update as jest.Mock).mock.calls.filter(([, update]) =>
+          terminalStatuses.includes(update.status)
+        );
+
+      (dataMartRunRepository.update as jest.Mock).mockImplementation(async (_criteria, update) => {
+        if (update.additionalParams !== undefined) {
+          await checkpointWritten;
+        }
+        return { affected: 1 };
+      });
       (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
         emitCompletedDay(emitMessage, '2026-08-11');
         return Promise.resolve();
       });
 
-      await service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+      const execution = service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+      // Let every microtask that does not depend on the checkpoint settle.
+      await new Promise(resolve => setImmediate(resolve));
 
-      const calls = (dataMartRunRepository.update as jest.Mock).mock;
-      const lastProgress = calls.calls.findIndex(
-        ([, update]) => update.additionalParams !== undefined
-      );
-      const terminal = calls.calls.findIndex(([, update]) =>
-        [DataMartRunStatus.FAILED, DataMartRunStatus.SUCCESS].includes(update.status)
-      );
-      expect(lastProgress).toBeGreaterThanOrEqual(0);
-      expect(terminal).toBeGreaterThanOrEqual(0);
-      expect(calls.invocationCallOrder[lastProgress]).toBeLessThan(
-        calls.invocationCallOrder[terminal]
-      );
+      expect(terminalWrites()).toHaveLength(0);
+
+      releaseCheckpoint();
+      await execution;
+
+      expect(terminalWrites()).not.toHaveLength(0);
     });
 
     it('ignores a completed day the connector reported in an unusable form', async () => {
