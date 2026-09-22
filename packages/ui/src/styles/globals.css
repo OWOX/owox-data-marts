@@ -34,6 +34,9 @@
   --notice: var(--muted-foreground);
   --notice-bg: var(--muted);
   --border: oklch(0.922 0 0);
+  /* A separator drawn ON a `muted` surface (e.g. table cells painted `bg-muted` so their sticky
+     columns stay opaque). In the light theme the ordinary border already stands out against it. */
+  --border-muted: var(--border);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -106,6 +109,9 @@
   --notice: var(--muted-foreground);
   --notice-bg: var(--muted);
   --border: oklch(0.269 0 0);
+  /* `--border` is the very shade of `--muted` here, so a border on a muted surface would vanish;
+     a touch of white keeps such separators visible. */
+  --border-muted: oklch(1 0 0 / 8%);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
@@ -177,6 +183,7 @@
   --color-notice: var(--notice);
   --color-notice-bg: var(--notice-bg);
   --color-border: var(--border);
+  --color-border-muted: var(--border-muted);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);

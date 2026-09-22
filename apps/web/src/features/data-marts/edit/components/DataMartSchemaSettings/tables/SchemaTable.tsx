@@ -229,7 +229,11 @@ export function SchemaTable<T extends BaseSchemaField>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
+          <TableBody
+            // The bottom edge closes the last row (`[&_tr:last-child]:border-0` takes that row's own
+            // separator away), so it uses the same separator colour as the rows above it.
+            className='dark:border-border-muted border-b border-gray-200 bg-white dark:bg-white/1'
+          >
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
                 {table.getRowModel().rows.map(row => {
@@ -257,11 +261,9 @@ export function SchemaTable<T extends BaseSchemaField>({
                       id={getRowId ? getRowId(row) : row.index}
                       row={row}
                       className={cn(
-                        // The cells below are painted `dark:bg-muted`, and the dark theme's
-                        // `--border` is that very same shade: the row's default separator was
-                        // drawn in the colour of the cells and vanished. A touch of white keeps
-                        // it visible without touching the shared tokens.
-                        'dark:border-white/8',
+                        // The cells below are painted `dark:bg-muted`, on which the ordinary
+                        // `border` colour is invisible in the dark theme — see `--border-muted`.
+                        'border-border-muted',
                         row.original.isHiddenForReporting && 'opacity-70'
                       )}
                     >
@@ -333,12 +335,8 @@ export function SchemaTable<T extends BaseSchemaField>({
           {onAddCalculatedField && (
             <Button
               variant='outline'
-              className={cn(
-                'bg-background dark:bg-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l',
-                // Same collision as the rows: on a `dark:bg-muted` surface the default divider
-                // colour is invisible.
-                'dark:border-white/8'
-              )}
+              // `border-border-muted`, like the rows: the divider sits on a `dark:bg-muted` surface.
+              className='bg-background dark:bg-muted border-border-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
               onClick={onAddCalculatedField}
               disabled={isSchemaActualizationLoading}
               aria-label='Add calculated field'
