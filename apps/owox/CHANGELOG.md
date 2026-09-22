@@ -2,7 +2,7 @@
 
 ## 0.35.0
 
-### Minor Changes
+### Minor Changes 0.35.0
 
 - 6a5d52e: **Deleted reports are retained**
 
@@ -173,7 +173,7 @@
   `npm install -g owox@1.8.0` still installs an exact one, and every release still
   ships a `latest` container image alongside it.
 
-### Patch Changes
+### Patch Changes 0.35.0
 
 - @owox/internal-helpers@0.35.0
 - @owox/idp-protocol@0.35.0
