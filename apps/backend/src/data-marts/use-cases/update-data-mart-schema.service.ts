@@ -8,11 +8,13 @@ import {
   DryRunContext,
 } from '../calculated-fields/calculated-field-validator.service';
 import { FormulaViolations } from '../calculated-fields/formula-violations';
+import { withoutUntouchedJoinAdvisories } from '../calculated-fields/join-grain';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import type {
   DataMartSchema,
   DataMartSchemaField,
 } from '../data-storage-types/data-mart-schema.type';
+import { declaredPrimaryKeyFields } from '../data-storage-types/data-mart-schema.utils';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataMartSchemaParserFacade } from '../data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
@@ -61,6 +63,7 @@ export class UpdateDataMartSchemaService {
       dataMart.storage.type
     );
     const introducesNativeField = applyServerOwnedFieldStatuses(parsed, dataMart.schema);
+    const previousFields = dataMart.schema?.fields ?? [];
 
     // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
     // reads `ctx.dataMart.schema` to find each metric's formula, so the context below must carry
@@ -154,7 +157,17 @@ export class UpdateDataMartSchemaService {
     );
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
-    return { ...this.mapper.toDomainDto(dataMart), warnings };
+    // Compared AFTER `validate`, which rewrites each new formula into the canonical spelling the
+    // stored ones already have — before it, a field saved untouched would read as edited.
+    return {
+      ...this.mapper.toDomainDto(dataMart),
+      warnings: withoutUntouchedJoinAdvisories(
+        warnings,
+        editedCalculatedFields(previousFields, calculatedFields),
+        declaredPrimaryKeyFields(previousFields).sort().join('\n') !==
+          declaredPrimaryKeyFields(parsed.fields).sort().join('\n')
+      ),
+    };
   }
 
   /**
@@ -221,4 +234,19 @@ function applyFieldStatuses(
 
 function nestedFieldsOf(field: DataMartSchemaField): DataMartSchemaField[] | undefined {
   return 'fields' in field && Array.isArray(field.fields) ? field.fields : undefined;
+}
+
+/** The calculated fields this save added or whose formula it changed. */
+function editedCalculatedFields(
+  previousFields: readonly DataMartSchemaField[],
+  calculatedFields: ReturnType<typeof calculatedFieldsOf>
+): Set<string> {
+  const previous = new Map(
+    calculatedFieldsOf(previousFields).map(field => [field.name, field.calculated.formula])
+  );
+  return new Set(
+    calculatedFields
+      .filter(field => previous.get(field.name) !== field.calculated.formula)
+      .map(field => field.name)
+  );
 }

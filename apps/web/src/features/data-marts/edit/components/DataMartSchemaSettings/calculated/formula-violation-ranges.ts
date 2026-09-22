@@ -29,8 +29,11 @@ export interface PlaceableViolation {
  * Every rule below prefers reporting NO range to guessing one — a squiggle under the wrong token is
  * worse than none, and the message renders beneath the editor either way.
  */
-// Deliberately NOT anchored to the start: the fallback's one reachable case is
-// FORMULA_STATEMENT_SEPARATOR_NOT_ALLOWED, whose backticked `;` sits mid-sentence.
+// Deliberately NOT anchored to the start: FORMULA_STATEMENT_SEPARATOR_NOT_ALLOWED carries its
+// backticked `;` mid-sentence. It is not the only subjectless message the editor can receive, so an
+// unanchored search over one that names something other than a formula token would mark the wrong
+// thing — FORMULA_JOINED_ROWS_EXCLUDED spells its Data Mart names without backticks for exactly
+// that reason.
 const SUBJECT_PATTERN = /`([^`]+)`/;
 
 /** Identifier characters plus `.`, so `SUM` never matches inside `SUMX` nor `clicks` inside

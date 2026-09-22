@@ -387,6 +387,36 @@ describe('useFormulaDiagnostics', () => {
     expect(result.current.warnings[0].message).toMatch(/divides without guarding/);
   });
 
+  // The join-grain family (formula-violations.ts) is advice, never a refusal — the endpoint puts it
+  // in `warnings`, and this hook is a pass-through, so the only thing worth pinning here is that it
+  // stays a warning end to end instead of collapsing into `errors` alongside a real syntax problem.
+  it('surfaces a join-grain warning without marking the formula invalid', async () => {
+    validateFormula.mockResolvedValue(
+      verdict({
+        warnings: [
+          {
+            code: 'FORMULA_JOINED_MEASURE_MULTIPLIED',
+            field: 'roas',
+            subject: 'costs.adCost',
+            message:
+              '`costs.adCost` comes from `Costs`, joined on `orderId`, which can match several ' +
+              "rows of this Data Mart — so COUNT counts matches, not that Data Mart's rows. Use " +
+              'COUNT(DISTINCT ...) on a column that identifies them.',
+          },
+        ],
+      })
+    );
+
+    const { result } = renderHook(props => useFormulaDiagnostics(props), {
+      initialProps: options({ formula: 'COUNT({{ref path="costs" field="adCost"}})' }),
+    });
+    await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+    await settle();
+
+    expect(result.current.warnings.map(w => w.code)).toEqual(['FORMULA_JOINED_MEASURE_MULTIPLIED']);
+    expect(result.current.errors).toEqual([]);
+  });
+
   it('keeps the last verdict on screen while the next check is in flight', async () => {
     validateFormula.mockResolvedValueOnce(verdict({ errors: [violation('`clicks` is gone')] }));
     const pending = deferred<ValidateFormulaResponseDto>();

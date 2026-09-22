@@ -191,6 +191,31 @@ An empty source array contributes `[]` (one such row produces `[[]]`); a source 
 
 These columns cannot use output controls. Opaque JSON, Snowflake VARIANT, and Redshift SUPER values keep their existing behavior.
 
+## Calculated Fields Across a Join
+
+> 💡 A calculated field can combine its own Data Mart's fields with a joined Data Mart's fields — see [Referencing a Joined Data Mart's Field](calculated-fields.md#referencing-a-joined-data-marts-field). Two things about such a field are worth knowing before you read its number, and OWOX Data Marts points both out while you write the formula and when you save it. Neither of them blocks the save, and an AI assistant reading the field through the MCP server is told the same.
+
+### `SUM` and `AVG` over a joined Data Mart are already set-based
+
+A joined Data Mart's rows are pre-aggregated to the join key before they're attached to the source Data Mart (see [How It Works](#how-it-works)), and that pre-aggregated value then lands on every source row sharing the key. A formula that sums or averages it does **not** add it up once per matching row: each such aggregation is computed over the distinct combinations of report dimensions and the joined row's own identity, so a value that reaches several report rows still contributes once. The same holds at any depth of a transitive join (`orders.items`), and for `MIN`, `MAX`, `ANY_VALUE`, `COUNT(DISTINCT …)` and your dialect's approximate distinct counters.
+
+### A joined `COUNT` counts this Data Mart's rows, not the joined one's
+
+`COUNT` written **without** `DISTINCT` over a joined Data Mart's column is the one exception. It is computed where the equivalent report metric is — after the join, over the joined Data Mart collapsed to one row per key — so it counts the rows of **the Data Mart the formula belongs to** that found a match, not the joined Data Mart's own rows. The two agree only when each row here matches exactly one row there. Otherwise the count is off in either direction:
+
+- **Higher**, when one joined row matches several rows here — the join key doesn't cover this Data Mart's primary key. One order reached from two sessions counts twice.
+- **Lower**, when several joined rows share one key — the join key doesn't cover the joined Data Mart's primary key. A customer with three orders counts as one.
+
+> ⚠️ OWOX warns about a joined `COUNT` unless every join on the way is keyed by a primary key on both sides, and says which way it can be off. Where this Data Mart — or a joined one it is judged against — declares no primary key, it warns that it cannot tell either way; that is the most common way you'll meet it, and declaring a primary key is what turns "cannot tell" into a definite answer. To count the joined Data Mart's own rows instead, use `COUNT(DISTINCT …)` over a column of **that** Data Mart which identifies its rows — not over the join key, which is a column of the Data Mart the formula belongs to. When the joined Data Mart declares a usable primary key it also publishes a **Unique Count** measure, which you can select as a report column (a formula cannot reference it), and the warning says so.
+
+### A joined measure leaves out the joined Data Mart's unmatched rows
+
+Independently of any key and of the aggregate, every join runs outwards from the Data Mart the formula belongs to and keeps **all** of its rows. A row of this Data Mart with no counterpart survives with nothing to add from the joined side; a row of the **joined** Data Mart that matched nothing here is left out entirely. So `SUM(costs.spend)` on an Orders Data Mart is the spend of campaigns that have orders, not all spend, and a ROAS built from `revenue` and `costs.spend` will not reconcile with the Costs Data Mart's own totals. OWOX points this out on every formula that reads a joined Data Mart, when you write it and when you save it — not again on every later save that leaves the formula alone. No key configuration recovers rows that never matched.
+
+### When you need a ratio of two facts, conform the grain first
+
+A join can't express what a cross-fact ratio needs: one row per grain shared by both facts, with neither side's rows dropped. Aggregate the two measures to the grain they share — day and traffic source, say — in a **separate Data Mart** built with `UNION ALL`, and calculate the ratio there instead of across the join.
+
 ## Limitations and Considerations
 
 - **Same storage.** All Data Marts in a chain must live on the same storage type and connection. Cross-storage joins are not supported.

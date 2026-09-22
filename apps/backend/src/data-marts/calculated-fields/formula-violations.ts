@@ -18,6 +18,97 @@ export interface FormulaViolation {
   subject?: string;
 }
 
+/**
+ * The stand-in for a joined Data Mart's title when the reader may not see the real one — the MCP
+ * caveat on a source the caller has no reporting access to, and the name of a source that can no
+ * longer be resolved at all.
+ *
+ * SUBSTITUTED for the title, never used to drop the source: dropping it takes the VERDICT with it,
+ * and the verdict is the whole of what the caveat has to say. Nothing else about such a source
+ * stays: not the reference (its alias names the join, its column the source's schema), not the
+ * key columns of a hop whose parent is withheld, not which of its Data Marts lacks a primary key.
+ */
+export const UNNAMED_JOINED_SOURCE = 'a joined Data Mart';
+
+/**
+ * A Data Mart's name as a message spells it: backticked, because a title is a proper name — but
+ * PLAIN for the generic phrases that stand in for one. A phrase inside backticks reads as an
+ * identifier, and in a subjectless message it is also what the web's prose fallback marks on.
+ */
+const GENERIC_MART_PHRASES = new Set(['this Data Mart', UNNAMED_JOINED_SOURCE]);
+
+const martName = (name: string): string => (GENERIC_MART_PHRASES.has(name) ? name : `\`${name}\``);
+
+/**
+ * The SECOND Data Mart one sentence names, spelled so it cannot read as the first.
+ *
+ * Both slots collapse to the neutral phrase when neither mart may be named, and that is the
+ * ordinary case rather than a corner: `applyReportingAccess` makes a child inaccessible whenever
+ * its parent is. "a joined Data Mart … a joined Data Mart" then reads as one mart mentioned twice
+ * when they are two.
+ */
+const otherMartName = (name: string, alreadyNamed: string): string =>
+  name === UNNAMED_JOINED_SOURCE && alreadyNamed === UNNAMED_JOINED_SOURCE
+    ? 'another joined Data Mart'
+    : martName(name);
+
+/**
+ * Whose rows the offending key matches more than one of.
+ *
+ * The concrete phrase whenever the failing hop hangs straight off the main Data Mart — which is
+ * most joins, and is the one an analyst can act on without first working out where they are in the
+ * chain. A hop deeper down is keyed on ANOTHER joined Data Mart, and saying "this Data Mart" about
+ * it would be false.
+ */
+export type MultipliedRowsOf = 'this Data Mart' | 'its parent';
+
+/**
+ * A Data Mart title with any backtick taken out, for the one message that spells titles PLAIN.
+ *
+ * Without it that message's backtick-freeness rests on the titles, and a title is unconstrained
+ * free text: a single backtick in one re-arms the web's prose fallback on a violation that
+ * deliberately blames no token, and the fallback then marks whatever in the formula shares the
+ * text it finds.
+ */
+const withoutBackticks = (name: string): string => name.split('`').join('');
+
+/** `A`, `A and B`, `A, B and C`. */
+const listed = (names: readonly string[]): string =>
+  names.length < 2
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+/**
+ * How a counting message opens: the reference it is about, or — when the reader may not see that
+ * reference — only that some COUNT reads the source.
+ */
+const countedFrom = (ref: string | undefined, source: string): string =>
+  ref === undefined
+    ? `A COUNT here reads ${martName(source)}`
+    : `\`${ref}\` comes from ${martName(source)}`;
+
+/**
+ * The clause naming WHICH relationship is at fault.
+ *
+ * A verdict is inherited down the join chain from the hop that earned it, so for a source sitting
+ * under a failing ANCESTOR the key is not that source's own. Saying it is tells the analyst that
+ * `Campaigns` is joined on `traffic_source` when `Costs` is, and sends them to edit a relationship
+ * that is not at fault. `via` is the ancestor's name, absent when the failing hop is the source
+ * itself; `key` is absent when its columns belong to a Data Mart the reader may not see.
+ */
+const joinedOn = (source: string, key?: readonly string[], via?: string): string => {
+  const through = via === undefined ? undefined : `reached through ${otherMartName(via, source)}`;
+  if (key === undefined || key.length === 0) {
+    return through === undefined ? 'whose join' : `${through}, whose join`;
+  }
+  const spelled = `joined on ${key.map(k => `\`${k}\``).join(' + ')}`;
+  return `${through === undefined ? spelled : `${through} ${spelled}`}, which`;
+};
+
+const distinctAdvice = (uniqueCountAvailable: boolean): string =>
+  `Use COUNT(DISTINCT ...) on a column that identifies them` +
+  `${uniqueCountAvailable ? ', or pick its Unique Count measure in a report' : ''}.`;
+
 export const FormulaViolations = {
   levelMixing: (field: string, column: string): FormulaViolation => ({
     code: 'FORMULA_LEVEL_MIXING',
@@ -333,6 +424,113 @@ export const FormulaViolations = {
         `NULLIF(it, 0), which turns the zero into an empty cell. Advice only: this does not block ` +
         `the save.`,
   }),
+  // Scoped to the ONE joined call the blending engine leaves in the outer SELECT: a non-DISTINCT
+  // joined COUNT, rendered over the dedup CTE exactly where the report metric
+  // `COUNT(<joined column>)` is (`metric-sleeve.planner.ts`, `isJoinedCallLeftInPlace`). It
+  // therefore counts MAIN rows, and a key matching several of them inflates it. Every other joined
+  // aggregate gets its own `SELECT DISTINCT` sleeve and is already set-based, which is why nothing
+  // here speaks about SUM or AVG.
+  //
+  // `ref` and `key` are absent when the reader may not see them — see `UNNAMED_JOINED_SOURCE`.
+  joinedMeasureMultiplied: (
+    field: string,
+    ref: string | undefined,
+    source: string,
+    key: readonly string[] | undefined,
+    multipliedBy?: string,
+    rowsOf: MultipliedRowsOf = 'this Data Mart',
+    // Whether that source actually OFFERS this reader a Unique Count measure. Defaults to
+    // withholding the offer: a source publishes the metric only when IT declares a usable primary
+    // key, which is a different question from the one this verdict answers (whether the join key
+    // covers its PARENT's key). A formula cannot reference the measure, hence "in a report".
+    uniqueCountAvailable = false
+  ): FormulaViolation => ({
+    code: 'FORMULA_JOINED_MEASURE_MULTIPLIED',
+    field,
+    ...(ref === undefined ? {} : { subject: ref }),
+    message:
+      `${countedFrom(ref, source)}, ${joinedOn(source, key, multipliedBy)} can match several ` +
+      `rows of ${rowsOf} — so COUNT counts matches, not that Data Mart's rows. ` +
+      distinctAdvice(uniqueCountAvailable),
+  }),
+  // The same counting question with nothing proven either way, and the most common shape in
+  // practice: the Data Mart that would have to prove the key unique declares no Primary Key at all.
+  // Its own sentence rather than the one above because it has no key to name — and because telling
+  // an analyst their number IS inflated, when that was never established, is the same kind of
+  // confident wrong answer this feature exists to stop. `unprovenMart` is absent when the reader
+  // may not learn which Data Mart that is, or the verdict never said.
+  joinedMeasureGrainUnproven: (
+    field: string,
+    ref: string | undefined,
+    source: string,
+    unprovenMart: string | undefined
+  ): FormulaViolation => ({
+    code: 'FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN',
+    field,
+    ...(ref === undefined ? {} : { subject: ref }),
+    message:
+      unprovenMart === undefined
+        ? `${countedFrom(ref, source)}, and it can't be checked whether the join matches one row ` +
+          `or several — if several, COUNT is inflated.`
+        : `${countedFrom(ref, source)}, and ${otherMartName(unprovenMart, source)} has no ` +
+          `Primary Key, so it can't be checked whether the join matches one row or several — if ` +
+          `several, COUNT is inflated. Set a Primary Key to find out.`,
+  }),
+  // The other side of the same join. The joined Data Mart is collapsed to ONE row per key before
+  // it is attached (`blend-cte.builder.ts`, `buildAggregationCte`), so however many of its rows
+  // share a key the COUNT sees one match per main row: a customer with three orders counts once.
+  // Hedged with "can": a joined Data Mart without a primary key may still be one row per key.
+  joinedMeasureCollapsed: (
+    field: string,
+    ref: string | undefined,
+    source: string,
+    collapsedBy?: string,
+    uniqueCountAvailable = false
+  ): FormulaViolation => ({
+    code: 'FORMULA_JOINED_MEASURE_COLLAPSED',
+    field,
+    ...(ref === undefined ? {} : { subject: ref }),
+    message:
+      `${countedFrom(ref, source)}, ` +
+      (collapsedBy === undefined ? '' : `reached through ${otherMartName(collapsedBy, source)}, `) +
+      `where several rows can share one join key value — so COUNT counts the rows of this Data ` +
+      `Mart they match, which can be fewer than that Data Mart's own rows. ` +
+      distinctAdvice(uniqueCountAvailable),
+  }),
+  // Independent of any key and of the aggregate. ONE-DIRECTIONAL: every hop is a `LEFT JOIN` from
+  // the main Data Mart (`blend-cte.builder.ts`, `metric-sleeve.builder.ts`), so a main row with no
+  // counterpart survives with a NULL joined value while a joined row with no counterpart is dropped
+  // outright — for a lone `SUM(costs.adCost)` exactly as for a ratio. No configuration makes that
+  // untrue, and none makes it wrong to want — hence advice, never a refusal.
+  //
+  // The ONE message here whose names carry no backticks: it is SUBJECTLESS, so the web helper's
+  // prose fallback would read the first backticked token out of it and mark whatever in the
+  // formula happens to share that text — reachable, since a Data Mart title is unconstrained free
+  // text. Plain, the fallback finds nothing and places no marker, which is the right outcome for a
+  // violation that deliberately blames no single token.
+  joinedRowsExcluded: (field: string, sources: readonly string[]): FormulaViolation => {
+    const named = [
+      ...new Set(sources.filter(s => s !== UNNAMED_JOINED_SOURCE).map(withoutBackticks)),
+    ];
+    const unnamed = sources.filter(s => s === UNNAMED_JOINED_SOURCE).length;
+    const anonymous =
+      unnamed === 1
+        ? named.length === 0
+          ? UNNAMED_JOINED_SOURCE
+          : 'another joined Data Mart'
+        : `${unnamed} ${named.length === 0 ? '' : 'other '}joined Data Marts`;
+    const names = unnamed === 0 ? named : [...named, anonymous];
+    return {
+      code: 'FORMULA_JOINED_ROWS_EXCLUDED',
+      field,
+      message:
+        named.length + unnamed === 1
+          ? `This formula reads ${listed(names)} through a join. Its rows that match nothing ` +
+            `here are dropped, so the result may not match that Data Mart's own totals.`
+          : `This formula reads ${listed(names)} through joins. Their rows that match nothing ` +
+            `here are dropped, so the result may not match those Data Marts' own totals.`,
+    };
+  },
   // Used by the dry-run pass. Defined here so every message this feature can emit
   // lives in one file.
   warehouseRejected: (field: string, detail?: string): FormulaViolation => ({

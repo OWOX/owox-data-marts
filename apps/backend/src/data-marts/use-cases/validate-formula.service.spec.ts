@@ -26,7 +26,7 @@ const schemaWith = (fields: FieldSpec[]) => ({
 });
 
 const blendable = (opts: {
-  sources?: { aliasPath: string }[];
+  sources?: (Record<string, unknown> & { aliasPath: string })[];
   fields?: { aliasPath: string; originalFieldName: string }[];
 }) => ({
   nativeFields: [],
@@ -482,6 +482,46 @@ describe('ValidateFormulaService', () => {
     expect(result.otherFieldErrors).toEqual([]);
   });
 
+  // The probe is the STORED schema with the draft spliced in, so every SIBLING formula in it is
+  // judged too. #6926 never refuses, so a sibling reading a joined Data Mart through a multiplying
+  // join contributes a WARNING — and a sibling's warnings are dropped — rather than the error that
+  // would make the editor render "Saving will fail on `roas`" on mount, before the analyst has
+  // typed anything, about a save that in fact succeeds.
+  it('never turns a sibling\u2019s join-grain advice into a blocker', async () => {
+    const { service } = buildService({
+      schema: schemaWith([
+        { name: 'clicks', type: 'INTEGER' },
+        {
+          name: 'roas',
+          type: 'FLOAT',
+          calculated: {
+            formula:
+              'SUM({{ref field="clicks"}}) / NULLIF(COUNT({{ref path="costs" field="adCost"}}), 0)',
+            level: 'metric',
+          },
+        },
+      ]),
+      blendableSchema: blendable({
+        sources: [
+          {
+            aliasPath: 'costs',
+            title: 'Costs',
+            mainGrainMultiplication: 'multiplies',
+            mainGrainKeyFields: ['traffic_source'],
+          },
+        ],
+        fields: [{ aliasPath: 'costs', originalFieldName: 'adCost' }],
+      }),
+    });
+
+    const result = await service.run(
+      command({ name: 'ctr', formula: 'SUM({{ref field="clicks"}})' })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.otherFieldErrors).toEqual([]);
+  });
+
   // `fields` is typed as required but lives in a JSON column: a hand-written or half-migrated row
   // can arrive without it, and the unguarded path throws a TypeError where the analyst should be
   // getting an answer about their formula.
@@ -654,7 +694,8 @@ describe('ValidateFormulaService', () => {
     expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
       'target-1',
       'project-1',
-      { userId: 'user-9', roles: ['editor'] }
+      { userId: 'user-9', roles: ['editor'] },
+      { unsavedMainSchemaFields: expect.any(Array) }
     );
   });
 

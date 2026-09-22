@@ -39,6 +39,12 @@ export interface McpGetDataMartDetailsRequest {
   roles: string[];
   dataMartId: string;
   includeJoinedFields?: boolean;
+  /**
+   * Whether to judge each calculated field against the joins it reads (`grainCaveats`). Costs a
+   * formula analysis per field and, for a Data Mart whose formulas read a joined one, the
+   * blendable schema — so only a caller that shows the result asks for it.
+   */
+  includeGrainCaveats?: boolean;
 }
 
 export interface McpDataMartListItem {
@@ -104,6 +110,12 @@ export interface McpDataMartDetailsResponse {
   joinedFields: McpJoinedFieldDto[];
   joins: McpJoinDto[];
   uniqueCountSources: McpUniqueCountSourceDto[];
+  /**
+   * Calculated field name → what a join does to its number, for a field whose formula reads a
+   * joined Data Mart. Present only when the request asked for it. Advice, never a refusal: the
+   * field is still selectable, and the sentence is for the reader to pass on with the number.
+   */
+  grainCaveats?: Record<string, string>;
 }
 
 export interface McpQueryDataMartRequest {

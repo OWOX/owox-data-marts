@@ -1,14 +1,29 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
+import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from '../ai-insights/ai-insights.constants';
 import { prepareSchema } from '../ai-insights/utils/prepare-schema';
+import { analyzeFormula } from '../calculated-fields/formula-analyzer';
+import {
+  calculatedFieldsOf,
+  readsJoinedDataMart,
+} from '../calculated-fields/calculated-field.utils';
+import {
+  FORMULA_FUNCTION_DIALECT_RESOLVER,
+  FormulaFunctionDialect,
+} from '../calculated-fields/formula-function-dialect';
+import { buildJoinGrainSources, checkJoinGrain } from '../calculated-fields/join-grain';
 import type {
   DataMartSchema,
   DataMartSchemaField,
 } from '../data-storage-types/data-mart-schema.type';
 import { isConnected } from '../data-storage-types/data-mart-schema.utils';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import type { DataMart } from '../entities/data-mart.entity';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data-catalog.command';
+import type { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { formatBlendedFieldDisplayName } from '../services/blended-field-display-name';
 import { buildJoinedUniqueCountColumnName } from '../services/blended-field-name';
@@ -46,7 +61,9 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     private readonly queryDataMartService: QueryDataMartService,
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly relationshipService: DataMartRelationshipService,
-    private readonly summarizeMcpDataCatalogService: SummarizeMcpDataCatalogService
+    private readonly summarizeMcpDataCatalogService: SummarizeMcpDataCatalogService,
+    @Inject(FORMULA_FUNCTION_DIALECT_RESOLVER)
+    private readonly dialects: TypeResolver<DataStorageType, FormulaFunctionDialect>
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
@@ -94,8 +111,25 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         } as DataMartSchema) as { fields: Array<Record<string, unknown>> })
       : undefined;
 
+    // ONE relationship-tree walk and ONE `canAccessMany` round trip per call, however many of the
+    // two consumers below run — and on detail_level=with_joined_fields over a Data Mart whose
+    // formulas read a joined one, both do. Scoped to THIS method: `queryDataMart` delegates to
+    // `QueryDataMartService` and never comes through here. Lazy, so the (common) Data Mart with no
+    // relationships and no joined formula still pays nothing; each consumer awaits it inside its
+    // OWN try/catch, so a failure degrades that consumer alone exactly as it did when each
+    // computed its own.
+    const blendable = this.blendableSchemaOnce(request);
+    const publishedNames = this.topLevelFieldNames(schema?.fields ?? []);
+
+    // The blendable schema is otherwise computed only for detail_level=with_joined_fields, but a
+    // main Data Mart's own joined formula is published on the NATIVE path — the default one, and
+    // the one the incident that created this feature came through.
+    const grainCaveats = request.includeGrainCaveats
+      ? await this.grainCaveats(request, dataMart, publishedNames, blendable)
+      : undefined;
+
     const { joinedFields, joins, uniqueCountSources } = request.includeJoinedFields
-      ? await this.resolveJoinedFields(request, this.topLevelFieldNames(schema?.fields ?? []))
+      ? await this.resolveJoinedFields(request, publishedNames, blendable)
       : { joinedFields: [], joins: [], uniqueCountSources: [] };
 
     return {
@@ -106,6 +140,27 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       joinedFields,
       joins,
       uniqueCountSources,
+      ...(grainCaveats === undefined ? {} : { grainCaveats }),
+    };
+  }
+
+  /**
+   * The request's blendable schema, computed at most once however many consumers ask for it.
+   *
+   * Returns the same promise to every caller, so a rejection reaches each of them — and each
+   * handles it in its own try/catch, which is where the degrade-on-failure behaviour lives.
+   */
+  private blendableSchemaOnce(
+    request: McpGetDataMartDetailsRequest
+  ): () => Promise<BlendableSchemaDto> {
+    let pending: Promise<BlendableSchemaDto> | undefined;
+    return () => {
+      pending ??= this.blendableSchemaService.computeBlendableSchema(
+        request.dataMartId,
+        request.projectId,
+        { userId: request.userId, roles: request.roles }
+      );
+      return pending;
     };
   }
 
@@ -121,7 +176,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
    */
   private async resolveJoinedFields(
     request: McpGetDataMartDetailsRequest,
-    nativeFieldNames: ReadonlySet<string>
+    nativeFieldNames: ReadonlySet<string>,
+    blendableSchema: () => Promise<BlendableSchemaDto>
   ): Promise<{
     joinedFields: McpJoinedFieldDto[];
     joins: McpJoinDto[];
@@ -137,11 +193,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         return { joinedFields: [], joins: [], uniqueCountSources: [] };
       }
 
-      const blendable = await this.blendableSchemaService.computeBlendableSchema(
-        request.dataMartId,
-        request.projectId,
-        { userId: request.userId, roles: request.roles }
-      );
+      const blendable = await blendableSchema();
 
       // Expose only fields from included sources the caller may report on — mirror the report
       // UI's gate (isIncluded + isAccessibleForReporting). computeBlendableSchema resolves access
@@ -288,6 +340,75 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         `resolveJoins failed; returning joined fields without joins: ${err instanceof Error ? err.message : String(err)}`
       );
       return [];
+    }
+  }
+
+  /**
+   * What a join does to the number of each PUBLISHED calculated field whose own formula reads a
+   * joined Data Mart — the same verdict `checkJoinGrain` computes for a save, and the same
+   * sentences: #6926 warns and never refuses, on every surface.
+   *
+   * The formulas come from `dataMart.schema.fields`, the only list still carrying their text
+   * (`prepareSchema` strips it); `publishedNames` keeps a caveat off a field this response does not
+   * return.
+   *
+   * Best-effort, exactly like `resolveJoinedFields`: a deleted or unresolvable join target is an
+   * expected, recoverable state, and the caveat is a bonus on top of the native fields, never a
+   * cost to them — so a failure degrades to "no caveat" rather than failing the response.
+   */
+  private async grainCaveats(
+    request: McpGetDataMartDetailsRequest,
+    dataMart: DataMart,
+    publishedNames: ReadonlySet<string>,
+    blendableSchema: () => Promise<BlendableSchemaDto>
+  ): Promise<Record<string, string>> {
+    // A string test over formulas already in hand, so a Data Mart with no joined formula never
+    // triggers the blendable schema and keeps today's fast discovery path.
+    const readers = calculatedFieldsOf(dataMart.schema?.fields ?? []).filter(
+      field => publishedNames.has(field.name) && readsJoinedDataMart(field)
+    );
+    if (readers.length === 0) return {};
+
+    let blendable: BlendableSchemaDto;
+    try {
+      blendable = await blendableSchema();
+    } catch (err) {
+      // `resolveJoinedFields` reports this same rejection whenever it runs.
+      if (!request.includeJoinedFields) {
+        this.logger.warn(`Join caveats skipped: ${castError(err).message}`);
+      }
+      return {};
+    }
+
+    try {
+      // The agent audience, on the same gate `resolveJoinedFields` applies to this very list: on
+      // the native path `prepareSchema` has stripped the formula, so naming a source the caller
+      // may not report on — or a field hidden from it — would DISCLOSE it, not restate it.
+      const sources = buildJoinGrainSources(blendable.availableSources, {
+        kind: 'agent',
+        blendedFields: blendable.blendedFields,
+      });
+      const dialect = await this.dialects.resolve(dataMart.storage.type);
+
+      const caveats: Record<string, string> = {};
+      for (const field of readers) {
+        // A caveat needs only the aggregate CALLS a formula makes, not the reference-by-reference
+        // validation a save performs — every formula reaching here already passed that at save
+        // time. `aggregateCalls` is derived straight from each call's own arguments, before
+        // `knownField` is ever consulted, so a stub costs nothing.
+        const { aggregateCalls } = analyzeFormula({
+          fieldName: field.name,
+          formula: field.calculated.formula,
+          dialect,
+          knownField: () => 'ok',
+        });
+        const { warnings } = checkJoinGrain({ fieldName: field.name, aggregateCalls, sources });
+        if (warnings.length > 0) caveats[field.name] = warnings.map(w => w.message).join(' ');
+      }
+      return caveats;
+    } catch (err) {
+      this.logger.warn(`Join caveats skipped: ${castError(err).message}`);
+      return {};
     }
   }
 

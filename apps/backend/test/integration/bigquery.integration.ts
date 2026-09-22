@@ -4820,6 +4820,7 @@ describeIfCredentials(
       metric('joined_sum', `SUM(${AMOUNT})`),
       metric('ratio', `SUM(${COST}) / NULLIF(SUM(${AMOUNT}), 0)`),
       metric('orders_counted', `COUNT(DISTINCT ${ORDER_ID})`),
+      metric('orders_counted_plain', `COUNT(${ORDER_ID})`),
     ];
 
     function blendContext(dimensions: string[]): BlendedQueryContext {
@@ -5088,6 +5089,35 @@ describeIfCredentials(
         expect(counted('keys')).toBe(2);
         expect(counted('zero')).toBe(2);
         expect(counted('fanmain')).toBe(1);
+      },
+      180000
+    );
+
+    // The ONE joined call the planner leaves in the outer SELECT (`isJoinedCallLeftInPlace`), and
+    // the reason #6926's counting advisories exist: it counts the MAIN rows that found a match,
+    // over the joined Data Mart collapsed to one row per key — HIGHER where two main rows share one
+    // order, LOWER where one main row reaches two. `COUNT(DISTINCT ...)`, the advice, reads true.
+    it(
+      'a non-DISTINCT COUNT over the joined Data Mart counts matched main rows — fanmain 2 for ' +
+        'one order, fanjoin and twins 1 for two orders each',
+      async () => {
+        const rows = await runBlend(blendContext(['channel']));
+        const byChannel = new Map(rows.map(r => [String(r.channel), r]));
+        const plain = (channel: string) => num(byChannel.get(channel)!.orders_counted_plain);
+        const distinct = (channel: string) => num(byChannel.get(channel)!.orders_counted);
+
+        // Two visits share s5's single order: the join multiplies it.
+        expect(plain('fanmain')).toBe(2);
+        expect(distinct('fanmain')).toBe(1);
+        // One visit reaches two orders: they collapse into one match.
+        expect(plain('fanjoin')).toBe(1);
+        expect(distinct('fanjoin')).toBe(2);
+        expect(plain('twins')).toBe(1);
+        expect(distinct('twins')).toBe(2);
+        // One-to-one on both sides — the only shape where the two readings agree by construction.
+        expect(plain('organic')).toBe(1);
+        expect(distinct('organic')).toBe(1);
+        expect(plain('none')).toBe(0);
       },
       180000
     );

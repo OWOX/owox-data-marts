@@ -3,6 +3,7 @@ import type {
   FormulaAggregateCall,
   FormulaOwnerPlan,
 } from '../../calculated-fields/formula-owner-plan';
+import { readSetQuantifier } from '../../calculated-fields/set-quantifier';
 import { scanSql, type SqlToken } from '../../calculated-fields/sql-token-scanner';
 import {
   SLEEVE_ROUTED_FUNCTIONS,
@@ -211,28 +212,6 @@ export interface FormulaSleevePlan {
 }
 
 /**
- * The set quantifier a call's argument opens with, and where the value expression begins after it.
- * Read off the same token scan `buildFormulaOwnerPlan` uses, so a `DISTINCT` written inside a
- * comment or a string is not one. A bare leading word can only be the quantifier here: every field
- * reference in a formula is a `{{ref}}` tag, never a bare identifier.
- */
-function readArgumentQuantifier(
-  tokens: readonly SqlToken[],
-  call: FormulaAggregateCall
-): { distinct: boolean; valueStart: number } {
-  const first = tokens.find(
-    t => t.kind !== 'comment' && t.start >= call.argStart && t.end <= call.argEnd
-  );
-  const word = first?.kind === 'word' ? first.value.toUpperCase() : '';
-  // `ALL` is the default and means nothing to the sleeve, but left in the slot it is the same
-  // syntax error `DISTINCT` would be.
-  if (word === 'DISTINCT' || word === 'ALL') {
-    return { distinct: word === 'DISTINCT', valueStart: first!.end };
-  }
-  return { distinct: false, valueStart: call.argStart };
-}
-
-/**
  * The ONE joined call shape `planFormulaSleeves` leaves in the outer SELECT: a non-DISTINCT
  * `COUNT`, computed off the dedup CTE exactly where the report metric `COUNT(<joined column>)` is.
  *
@@ -245,9 +224,7 @@ export function isJoinedCallLeftInPlace(
   call: FormulaAggregateCall
 ): boolean {
   return (
-    call.owner.kind === 'joined' &&
-    call.fn === 'COUNT' &&
-    !readArgumentQuantifier(tokens, call).distinct
+    call.owner.kind === 'joined' && call.fn === 'COUNT' && !readSetQuantifier(tokens, call).distinct
   );
 }
 
@@ -350,7 +327,7 @@ export function planFormulaSleeves(
           { calculatedField: outputName, aliasPath, function: call.fn }
         );
       }
-      const quantifier = readArgumentQuantifier(tokens, call);
+      const quantifier = readSetQuantifier(tokens, call);
       // Only COUNT's DISTINCT has somewhere to go: the sleeve's outer wrapper spells it through the
       // dialect's own `COUNT(DISTINCT …)`. Every other aggregate would have to carry the quantifier
       // into the deduped inner slot, where it is a syntax error the analyst would meet at report

@@ -479,6 +479,16 @@ describe('DataMartController list OpenAPI', () => {
       dataMartId: { type: 'string' },
       isIncluded: { type: 'boolean' },
       isAccessibleForReporting: { type: 'boolean' },
+      uniqueCountKeyFields: { type: 'array', items: { type: 'string' } },
+      mainGrainMultiplication: {
+        type: 'string',
+        enum: ['none', 'multiplies', 'unknown'],
+      },
+      mainGrainKeyFields: { type: 'array', items: { type: 'string' } },
+      mainGrainUnprovenAt: { type: 'string' },
+      mainGrainMultipliedAt: { type: 'string' },
+      mainGrainCollapse: { type: 'string', enum: ['none', 'collapses'] },
+      mainGrainCollapsedAt: { type: 'string' },
     });
     // The metric's display label is derived per source from `defaultAlias`, exactly the way an
     // ordinary joined field's is, so nothing is published for it.

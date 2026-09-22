@@ -15,6 +15,7 @@ jest.mock('../use-cases/summarize-mcp-data-catalog.service', () => ({
 }));
 
 import { NotFoundException } from '@nestjs/common';
+import { createFormulaFunctionDialectRegistry } from '../calculated-fields/formula-function-dialect';
 import { BigQueryFieldMode } from '../data-storage-types/bigquery/enums/bigquery-field-mode.enum';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { BigQueryDataMartSchemaType } from '../data-storage-types/bigquery/schemas/bigquery-data-mart.schema';
@@ -120,7 +121,8 @@ describe('McpDataMartsFacadeImpl', () => {
       queryDataMartService,
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.listDataMarts({
@@ -180,7 +182,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.listDataMarts({
@@ -298,7 +301,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     await expect(
@@ -377,7 +381,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     await expect(
@@ -400,7 +405,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     await expect(
@@ -430,7 +436,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     await expect(
@@ -524,7 +531,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -627,7 +635,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       relationshipService,
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -701,7 +710,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -758,7 +768,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -817,7 +828,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -881,7 +893,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -936,7 +949,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -994,7 +1008,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -1054,7 +1069,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -1111,7 +1127,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -1142,7 +1159,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(0),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -1173,7 +1191,8 @@ describe('McpDataMartsFacadeImpl', () => {
       queryDataMartService,
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
     const request = {
       projectId: 'project-1',
@@ -1203,7 +1222,8 @@ describe('McpDataMartsFacadeImpl', () => {
       queryDataMartService,
       createBlendableSchemaService(),
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
     const request = {
       projectId: 'project-1',
@@ -1239,7 +1259,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createQueryDataMartService(),
       blendableSchemaService,
       createRelationshipService(),
-      createSummarizeMcpDataCatalogService()
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
     );
 
     const result = await facade.getDataMartDetails({
@@ -1250,5 +1271,297 @@ describe('McpDataMartsFacadeImpl', () => {
     });
 
     expect(result.joinedFields).toEqual([]);
+  });
+
+  // The incident this feature exists for happened through exactly this call: an agent reading
+  // native fields by default, never opting into with_joined_fields.
+  describe('grain caveats on the default native detail level', () => {
+    const request = {
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: false,
+      includeGrainCaveats: true,
+    };
+
+    const dataMartWithFormula = (formula: string, extra: Record<string, unknown> = {}) =>
+      createDataMartService({
+        id: 'dm_1',
+        title: 'Ads',
+        description: '',
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY } as unknown as DataMart['storage'],
+        schema: {
+          type: BigQueryDataMartSchemaType,
+          fields: [
+            {
+              name: 'roas',
+              type: BigQueryFieldType.FLOAT,
+              status: DataMartSchemaFieldStatus.CONNECTED,
+              calculated: { formula, level: 'metric' },
+              ...extra,
+            },
+          ],
+        } as never,
+      });
+
+    // A non-DISTINCT joined COUNT: the ONE call shape the planner leaves in the outer SELECT
+    // counting main rows, and so the only one with something to say about counting.
+    const joinedCount = (aliasPath = 'costs') =>
+      dataMartWithFormula(`COUNT({{ref path="${aliasPath}" field="spend"}})`);
+
+    const facadeWith = (
+      dataMartService: jest.Mocked<DataMartService>,
+      blendableSchemaService: jest.Mocked<BlendableSchemaService>
+    ) =>
+      new McpDataMartsFacadeImpl(
+        createListDataMartsService([]),
+        createGetDataMartService(),
+        dataMartService,
+        createQueryDataMartService(),
+        blendableSchemaService,
+        createRelationshipService(),
+        createSummarizeMcpDataCatalogService(),
+        createFormulaFunctionDialectRegistry()
+      );
+
+    const multiplyingCosts = {
+      aliasPath: 'costs',
+      title: 'Costs',
+      isIncluded: true,
+      isAccessibleForReporting: true,
+      mainGrainMultiplication: 'multiplies',
+      mainGrainKeyFields: ['traffic_source'],
+      mainGrainCollapse: 'none',
+    };
+    const costsSpend = {
+      aliasPath: 'costs',
+      originalFieldName: 'spend',
+      name: 'costs__spend',
+      type: 'FLOAT',
+      isHidden: false,
+    };
+
+    const caveatFor = async (source: Record<string, unknown>, blendedFields: unknown[] = []) => {
+      const response = await facadeWith(
+        joinedCount(source.aliasPath as string),
+        createBlendableSchemaService(blendedFields, [source])
+      ).getDataMartDetails(request);
+      return response.grainCaveats?.roas;
+    };
+
+    it('carries the caveat on the default native detail level', async () => {
+      const caveat = await caveatFor(multiplyingCosts, [costsSpend]);
+
+      expect(caveat).toContain('`Costs`, joined on `traffic_source`');
+      expect(caveat).toContain('This formula reads Costs through a join.');
+    });
+
+    // `query_data_mart` reads the details only to resolve Unique Count pseudo-fields; it must not
+    // pay for a formula analysis it throws away.
+    it('computes nothing for a caller that does not ask for caveats', async () => {
+      const blendableSchemaService = createBlendableSchemaService([], [multiplyingCosts]);
+
+      const response = await facadeWith(joinedCount(), blendableSchemaService).getDataMartDetails({
+        ...request,
+        includeGrainCaveats: false,
+      });
+
+      expect(response).not.toHaveProperty('grainCaveats');
+      expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    // The agent is told the field by the name it can query, not by the formula's `path.field`.
+    it('spells the reference by its published name', async () => {
+      const caveat = await caveatFor(multiplyingCosts, [costsSpend]);
+
+      expect(caveat).toContain('`costs__spend` comes from `Costs`');
+      expect(caveat).not.toContain('costs.spend');
+    });
+
+    // The caveat would carry a joined Data Mart's TITLE, alias and column, and on this path
+    // `prepareSchema` has already stripped the formula that would otherwise reveal them — so for a
+    // caller with no reporting access the sentence would be the FIRST place they learn of them.
+    //
+    // The alias, title and column are deliberately UNRELATED strings, sharing no substring with
+    // anything the message legitimately carries.
+    it('names nothing of a joined Data Mart the caller may not report on, and keeps the verdict', async () => {
+      const caveat = await caveatFor(
+        {
+          ...multiplyingCosts,
+          aliasPath: 'finance_eu',
+          title: 'Restricted Finance EU',
+          isAccessibleForReporting: false,
+          uniqueCountAvailability: 'available',
+        },
+        [{ ...costsSpend, aliasPath: 'finance_eu', name: 'finance_eu__spend' }]
+      );
+
+      expect(caveat).not.toContain('Restricted Finance EU');
+      expect(caveat).not.toContain('finance_eu');
+      expect(caveat).not.toContain('spend');
+      expect(caveat).not.toContain('Unique Count');
+      expect(caveat).toContain('A COUNT here reads a joined Data Mart');
+      // The key is a column of the MAIN Data Mart at depth 1, which the caller is reading anyway.
+      expect(caveat).toContain('`traffic_source`');
+      expect(caveat).toContain('COUNT counts matches');
+    });
+
+    // DROPPING an inaccessible source from the verdict map would make the lookup miss, and a miss
+    // means "unresolvable" — so the caveat would say nothing true about a source whose grain is
+    // known, here provably one-to-one. What is left is the rows the join drops.
+    it('claims nothing about counting for an inaccessible source whose grain is proven', async () => {
+      const caveat = await caveatFor({
+        ...multiplyingCosts,
+        isAccessibleForReporting: false,
+        mainGrainMultiplication: 'none',
+        mainGrainKeyFields: [],
+      });
+
+      expect(caveat).toBe(
+        'This formula reads a joined Data Mart through a join. Its rows that match nothing here ' +
+          "are dropped, so the result may not match that Data Mart's own totals."
+      );
+    });
+
+    it('keeps the unproven-grain verdict of an inaccessible source without naming it', async () => {
+      const caveat = await caveatFor({
+        ...multiplyingCosts,
+        title: 'Restricted Finance EU',
+        isAccessibleForReporting: false,
+        mainGrainMultiplication: 'unknown',
+        mainGrainKeyFields: [],
+        mainGrainUnprovenAt: '',
+      });
+
+      expect(caveat).not.toContain('Restricted Finance EU');
+      expect(caveat).toContain('and this Data Mart has no Primary Key');
+    });
+
+    it('offers the Unique Count measure only where the agent can select it', async () => {
+      const offered = await caveatFor({
+        ...multiplyingCosts,
+        uniqueCountAvailability: 'available',
+      });
+      expect(offered).toContain('pick its Unique Count measure in a report');
+
+      const excluded = await caveatFor({
+        ...multiplyingCosts,
+        isIncluded: false,
+        uniqueCountAvailability: 'available',
+      });
+      expect(excluded).not.toContain('Unique Count');
+    });
+
+    // The engine gives every OTHER joined aggregate its own `SELECT DISTINCT` sleeve, so a joined
+    // `SUM` is already set-based: the only thing left to say is which rows the join drops.
+    it('says nothing about counting for a joined SUM through the very same join', async () => {
+      const response = await facadeWith(
+        dataMartWithFormula('SUM({{ref path="costs" field="spend"}})'),
+        createBlendableSchemaService([], [multiplyingCosts])
+      ).getDataMartDetails(request);
+
+      expect(response.grainCaveats).toEqual({
+        roas:
+          'This formula reads Costs through a join. Its rows that match nothing here are dropped, ' +
+          "so the result may not match that Data Mart's own totals.",
+      });
+    });
+
+    // A deleted relationship or unpublished target: the path is in the formula but not in the
+    // blendable schema. Nothing about its grain is known, and its alias is not a name to use.
+    it('degrades to the dropped-rows sentence for a source it cannot resolve', async () => {
+      const response = await facadeWith(
+        joinedCount('deleted_target'),
+        createBlendableSchemaService([], [])
+      ).getDataMartDetails(request);
+
+      expect(response.grainCaveats?.roas).toContain('reads a joined Data Mart through a join');
+      expect(response.grainCaveats?.roas).not.toContain('deleted_target');
+    });
+
+    // Two joins deep, the key at fault belongs to the ancestor hop, and the sentence must name
+    // THAT join — the same answer the save path gives.
+    it('names the ancestor join that multiplies a COUNT two joins deep', async () => {
+      const response = await facadeWith(
+        dataMartWithFormula('COUNT({{ref path="costs.campaigns" field="budget"}})'),
+        createBlendableSchemaService(
+          [],
+          [
+            multiplyingCosts,
+            {
+              ...multiplyingCosts,
+              aliasPath: 'costs.campaigns',
+              title: 'Campaigns',
+              mainGrainMultipliedAt: 'costs',
+            },
+          ]
+        )
+      ).getDataMartDetails(request);
+
+      expect(response.grainCaveats?.roas).toContain(
+        '`Campaigns`, reached through `Costs` joined on `traffic_source`'
+      );
+    });
+
+    // Only a field this response returns can carry a caveat, and a hidden one is not returned —
+    // so it must not be the reason the blendable schema gets computed either.
+    it('judges no field the response does not publish', async () => {
+      const blendableSchemaService = createBlendableSchemaService([], [multiplyingCosts]);
+
+      const response = await facadeWith(
+        dataMartWithFormula('COUNT({{ref path="costs" field="spend"}})', {
+          isHiddenForReporting: true,
+        }),
+        blendableSchemaService
+      ).getDataMartDetails(request);
+
+      expect(response.grainCaveats).toEqual({});
+      expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    // The mart DOES have a calculated field; only its OWN reference (`{{ref field="spend"}}`, no
+    // `path`) decides that no join is involved and the blendable schema stays uncomputed.
+    it('does not compute the blendable schema when no formula reads a joined Data Mart', async () => {
+      const blendableSchemaService = createBlendableSchemaService();
+
+      await facadeWith(
+        dataMartWithFormula('SUM({{ref field="spend"}})'),
+        blendableSchemaService
+      ).getDataMartDetails(request);
+
+      expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    // Both consumers asked for the same blendable schema with the same arguments — two
+    // relationship-tree walks and two `canAccessMany` round trips for one answer.
+    it('computes the blendable schema once when both consumers need it', async () => {
+      const blendableSchemaService = createBlendableSchemaService([costsSpend], [multiplyingCosts]);
+
+      const response = await facadeWith(joinedCount(), blendableSchemaService).getDataMartDetails({
+        ...request,
+        includeJoinedFields: true,
+      });
+
+      expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledTimes(1);
+      // Both consumers still got their answer off that one computation.
+      expect(response.grainCaveats?.roas).toContain('`Costs`');
+      expect(response.joinedFields.map(f => f.name)).toEqual(['costs__spend']);
+    });
+
+    // The caveat is a bonus on top of the native fields, never a cost to them: a deleted or
+    // unresolvable join target must not take the whole response down with it.
+    it('returns the native fields with no caveat when computeBlendableSchema rejects', async () => {
+      const blendableSchemaService = {
+        computeBlendableSchema: jest.fn().mockRejectedValue(new Error('deleted join target')),
+      } as unknown as jest.Mocked<BlendableSchemaService>;
+
+      const response = await facadeWith(joinedCount(), blendableSchemaService).getDataMartDetails(
+        request
+      );
+
+      expect(response.fields.find(f => f['name'] === 'roas')).toBeDefined();
+      expect(response.grainCaveats).toEqual({});
+    });
   });
 });
