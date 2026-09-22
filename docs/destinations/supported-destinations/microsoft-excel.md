@@ -123,7 +123,7 @@ Each header note holds the column description from the Data Mart. On Windows and
 
 ### Copy or delete a sheet
 
-- Copying a worksheet copies the values, not the report. The copy has no binding and no column layout, so a refresh never touches it. To refresh a report on two sheets, link the report to each sheet from **All reports**.
+- Copying a worksheet copies the values, not the report. The copy has no binding and no column layout, so a refresh never touches it. To refresh the same data on another sheet, create a report there.
 - Deleting a bound sheet removes the binding. The report stays in **All reports**, but a refresh reports that it lost the sheet.
 
 ### Limits
@@ -217,8 +217,6 @@ Excel on the web cannot resize notes. The full text is there. Drag the note's ed
 ### A refresh reports nothing, or the wrong sheet changed
 
 **The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh rewrites the imported columns of whichever sheet it picks.
-
-**Two sheets share one report.** The report was linked to two sheets. The add-in refreshes the one you are viewing; when neither is active, it picks one. Unlink or delete the sheet you do not need.
 
 ### Still stuck
 
