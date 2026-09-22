@@ -9,7 +9,7 @@ Before you start, verify:
 ## Create the Data Mart
 
 - Click **New Data Mart** (available from any page in OWOX Data Marts).
-- Enter a title and select the Storage. If you haven't configured a storage yet, click **New Storage** to create one now and configure it later.
+- Enter a title and select the Storage. If you have no storage yet, choose **Create new storage** in the dropdown, then pick a storage type. You can add its settings later.
 - Click **Create Data Mart**.
 
 ![Create Data Mart dialog with Title set to "X Ads Data Mart", Storage selected, and the Create Data Mart button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/7985e452-5a2b-40e3-dd63-1c59c4a8a400/public)

@@ -7,7 +7,7 @@ Use this guide to create a TikTok Ads Data Mart.
 Check these items before you create the Data Mart:
 
 - You have set up [OWOX Data Marts](https://docs.owox.com/docs/getting-started/quick-start/).
-- You have at least one [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
+- You have an [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage), or you create one during setup.
 - You can access the target advertiser account in [TikTok Ads Manager](https://ads.tiktok.com/).
 - You know your numeric [Advertiser IDs](#set-up-the-connector).
 - You chose an authentication method in [Credentials](CREDENTIALS.md).
@@ -21,7 +21,7 @@ For a general connector walkthrough, see [Connector-based Data Mart](https://doc
 3. Select a storage.
 4. Click **Create Data Mart**.
 
-If you have no storage yet, click **New Storage**. You can create the storage now and configure it later.
+If you have no storage yet, choose **Create new storage** in the **Storage** dropdown, then pick a storage type. You can add its settings later. The Data Mart cannot publish until the storage settings are valid.
 
 ![Create Data Mart dialog with the title, storage, and Create Data Mart button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fcadd80a-5adf-4396-0036-3ff423186100/public)
 
@@ -116,22 +116,27 @@ Open **Advanced settings** to reach these options. The defaults suit most import
 2020-12-08 through 2020-12-19 only. It does not support `AUCTION_ADVERTISER`, the `advertiser`
 endpoint, or the `audiences` endpoint. See [Troubleshooting](TROUBLESHOOTING.md#sandbox-mode-limits).
 
-## Run the Data Mart
+## Start a Manual Run
 
-You can run the Data Mart manually after setup. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+**Publish & Run Data Mart** already started the first import. To import again, click **Manual Run** and choose a run type. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
 
 ### Incremental Load
 
 Choose **Manual run → Incremental load**.
 
 The first incremental run imports data from the first day of the previous month through today.
+
+![TikTok Ads Data Mart page with the Manual Run button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64ea3679-8033-4786-b8fa-b85100f94100/public)
+
+![Manual Run dialog with Incremental load selected and the Run button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/97a8b0f5-e01f-4b3b-24ee-5f159c2b3e00/public)
+
 Each successful run saves the last requested date. Later runs start from that date minus
 **Reimport Lookback Window**. The default window is two days. This lookback refreshes TikTok
 metrics that changed after the first import.
 
-![Manual run menu showing the Incremental load option](res/tiktok_ads_incremental.png)
+![TikTok Ads Data Mart page with the Edit config link highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f0a2ac6b-8ba3-4589-5dfe-79b93f5ec300/public)
 
-![Reimport Lookback Window setting for additional days in incremental loads](res/tiktok_ads_reimportwindow.png)
+![Edit Connector panel with the Reimport Lookback Window field highlighted in Advanced settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8464b564-0e91-44b6-2fa0-47aae9864400/public)
 
 ### Backfill
 
@@ -149,7 +154,7 @@ backfills with consecutive periods, one after another.
 Both dates are required. The date picker does not offer future dates. The **End Date** must be
 on or after the **Start Date**.
 
-![Backfill dialog with Start Date, End Date, and Run button](res/tiktok_ads_daterange.png)
+![Manual Run dialog with Backfill selected, a 31-day date range, and the day-count notice](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/21c821ed-c599-47ac-570d-20762d342800/public)
 
 ## Check the Result
 

@@ -7,7 +7,7 @@ Use this guide to create a Facebook Ads Data Mart.
 Check these items before you create the Data Mart:
 
 - You have set up [OWOX Data Marts](https://docs.owox.com/docs/getting-started/quick-start/).
-- You have at least one [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
+- You have an [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage), or you create one during setup.
 - You can access the target ad account in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).
 - You know the numeric [Facebook Account ID](#set-up-the-connector).
 - You chose an authentication method in [Credentials](CREDENTIALS.md).
@@ -21,7 +21,7 @@ For a general connector walkthrough, see [Connector-based Data Mart](https://doc
 3. Select a storage.
 4. Click **Create Data Mart**.
 
-If you have no storage yet, click **New Storage**. You can create the storage now and configure it later.
+If you have no storage yet, choose **Create new storage** in the **Storage** dropdown, then pick a storage type. You can add its settings later. The Data Mart cannot publish until the storage settings are valid.
 
 ![OWOX Data Mart creation screen with title and storage fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2e1163df-bd1c-4825-4ce9-c6f66f11b500/public)
 
@@ -77,9 +77,9 @@ If your short link service uses several path parts, enter its domain in **Short 
 
 OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page.
 
-## Run the Data Mart
+## Start a Manual Run
 
-You can run the Data Mart manually after setup. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+**Publish & Run Data Mart** already started the first import. To import again, click **Manual Run** and choose a run type. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
 
 ### Incremental Load
 
