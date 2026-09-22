@@ -479,7 +479,8 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       alpha.onRelationshipDescriptionSaved({
         ...alpha.row.relationship,
         description: 'Product where run was occurring',
-        modifiedAt: '2026-09-22T12:00:00.000Z',
+        // A description response that overtook a Join Settings save carries older settings.
+        targetAlias: 'stale-alias',
       });
     });
 
@@ -491,9 +492,10 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       'Product where run was occurring'
     );
     expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
-    // The server's copy is merged whole, not field by field.
-    expect(harness.accordionPropsByRowKey.get('alpha')?.row.relationship.modifiedAt).toBe(
-      '2026-09-22T12:00:00.000Z'
+    // Only the description is taken from the response: the PATCH sent nothing else, so nothing
+    // else may move — an older alias in the response must not revert the Join Settings form.
+    expect(harness.accordionPropsByRowKey.get('alpha')?.row.relationship.targetAlias).toBe(
+      'dm-alpha'
     );
     // Silent, like the row's other autosaving fields — a toast after every typing pause is noise.
     expect(harness.toast.success).not.toHaveBeenCalled();
@@ -544,6 +546,55 @@ describe('DataMartRelationshipsContent relationship saves', () => {
     expect(cleared?.availableSources.find(s => s.aliasPath === 'beta.alpha')?.joinDescription).toBe(
       'own text'
     );
+  });
+
+  it('refetches the schema when a save lands while a schema fetch is in flight', async () => {
+    const stale = deferred<BlendableSchema>();
+    const withSource = (joinDescription?: string): BlendableSchema => ({
+      ...harness.schema,
+      availableSources: [
+        joinDescription
+          ? { ...buildSource('alpha', 'rel-alpha'), joinDescription }
+          : buildSource('alpha', 'rel-alpha'),
+      ],
+    });
+    service.getBlendableSchema
+      .mockResolvedValueOnce(withSource())
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(withSource('Product where run was occurring'));
+    const { queryClient } = await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // Something else (a config save) started a schema refetch that predates the description.
+    act(() => {
+      void queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });
+    });
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
+    });
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+      });
+    });
+    // The in-flight fetch is replaced by one that sees the committed description; the stale
+    // response, whenever it arrives, must not win.
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(3);
+    });
+    await act(async () => {
+      stale.resolve(withSource());
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryData<BlendableSchema>(SCHEMA_KEY)
+          ?.availableSources.find(s => s.aliasPath === 'alpha')?.joinDescription
+      ).toBe('Product where run was occurring');
+    });
   });
 
   it('re-applies a description saved while a reload was in flight over the stale response', async () => {

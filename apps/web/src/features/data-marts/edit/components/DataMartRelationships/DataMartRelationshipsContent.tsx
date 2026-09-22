@@ -141,11 +141,13 @@ function buildSourceList(
 }
 
 /**
- * Merges a saved relationship into the loaded graph without replacing the graph: every node of
- * that relationship (a direct join and its transient reuses share one id) gets the server's copy.
- * Returns the same graph instance when nothing matched, so unrelated renders are skipped.
+ * Applies a saved description to the loaded graph without replacing the graph: every node of
+ * that relationship (a direct join and its transient reuses share one id) gets the new text.
+ * Only the description is taken from the response — it is the one field the PATCH sent, and a
+ * response that overtook a Join Settings save would otherwise drag an older alias or join
+ * conditions back into the UI. Returns the same graph instance when nothing matched.
  */
-function mergeRelationshipIntoGraph(
+function applyRelationshipDescriptionToGraph(
   graph: RelationshipGraph,
   updated: DataMartRelationship
 ): RelationshipGraph {
@@ -154,7 +156,7 @@ function mergeRelationshipIntoGraph(
     ...graph,
     nodes: graph.nodes.map(node =>
       node.relationship.id === updated.id
-        ? { ...node, relationship: { ...node.relationship, ...updated } }
+        ? { ...node, relationship: { ...node.relationship, description: updated.description } }
         : node
     ),
   };
@@ -221,12 +223,15 @@ export function DataMartRelationshipsContent({
       if (loadRelationshipsRequestIdRef.current !== requestId) return;
       let graph = fetched;
       for (const updated of relationshipPatchesPendingReloadRef.current.values()) {
-        graph = mergeRelationshipIntoGraph(graph, updated);
+        graph = applyRelationshipDescriptionToGraph(graph, updated);
       }
       relationshipPatchesPendingReloadRef.current.clear();
       setRelationshipGraph(graph);
     } catch {
       if (loadRelationshipsRequestIdRef.current !== requestId) return;
+      // Nothing to replay onto: the saves were for a graph this load never delivered, and a
+      // later reload starts from the server's current state.
+      relationshipPatchesPendingReloadRef.current.clear();
       toast.error('Failed to load relationships');
     } finally {
       if (loadRelationshipsRequestIdRef.current === requestId) {
@@ -450,32 +455,38 @@ export function DataMartRelationshipsContent({
   // The blendable schema publishes the effective description of every join node (the per-join
   // override when set, otherwise the relationship's text) for MCP and the report column picker.
   // A description save only moves that one field, so the cached schema is patched instead of
-  // refetched — a full schema round trip after every typing pause is wasted work. Falls back to
-  // invalidation when nothing is cached yet.
+  // refetched — a full schema round trip after every typing pause is wasted work. Two cases
+  // still need the network: nothing cached yet (the initial load is on the wire or failed), and
+  // a fetch already in flight, whose response predates the save and would overwrite the patch.
+  // Invalidation covers both — it cancels the in-flight refetch and starts one that sees the
+  // committed description.
   const patchBlendableSchemaJoinDescription = useCallback(
     (updated: DataMartRelationship) => {
+      const queryKey = [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId];
       const overrides = new Map<string, string>();
       for (const source of localConfigRef.current.sources) {
         if (source.description) overrides.set(source.path, source.description);
       }
-      const patched = queryClient.setQueriesData<BlendableSchema>(
-        { queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId] },
-        cached => {
-          if (!cached) return cached;
-          return {
-            ...cached,
-            availableSources: cached.availableSources.map(source => {
-              if (source.relationshipId !== updated.id) return source;
-              const joinDescription = overrides.get(source.aliasPath) ?? updated.description;
-              const next: AvailableSource = { ...source };
-              if (joinDescription) next.joinDescription = joinDescription;
-              else delete next.joinDescription;
-              return next;
-            }),
-          };
-        }
-      );
-      if (patched.length === 0) invalidateBlendableSchema();
+      queryClient.setQueriesData<BlendableSchema>({ queryKey }, cached => {
+        if (!cached) return cached;
+        return {
+          ...cached,
+          availableSources: cached.availableSources.map(source => {
+            if (source.relationshipId !== updated.id) return source;
+            const joinDescription = overrides.get(source.aliasPath) ?? updated.description;
+            const next: AvailableSource = { ...source };
+            if (joinDescription) next.joinDescription = joinDescription;
+            else delete next.joinDescription;
+            return next;
+          }),
+        };
+      });
+      const hasCachedData = queryClient
+        .getQueriesData<BlendableSchema>({ queryKey })
+        .some(([, data]) => data !== undefined);
+      if (!hasCachedData || queryClient.isFetching({ queryKey }) > 0) {
+        invalidateBlendableSchema();
+      }
     },
     [queryClient, dataMartId, invalidateBlendableSchema]
   );
@@ -490,7 +501,9 @@ export function DataMartRelationshipsContent({
       if (isLoadingRelationshipsRef.current) {
         relationshipPatchesPendingReloadRef.current.set(updated.id, updated);
       }
-      setRelationshipGraph(graph => (graph ? mergeRelationshipIntoGraph(graph, updated) : graph));
+      setRelationshipGraph(graph =>
+        graph ? applyRelationshipDescriptionToGraph(graph, updated) : graph
+      );
       patchBlendableSchemaJoinDescription(updated);
     },
     [patchBlendableSchemaJoinDescription]
