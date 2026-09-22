@@ -16,10 +16,10 @@ import type { ErdFieldRowLabels } from './erd-fields';
 export type ObjectLabelPart = 'source' | 'fields' | 'status' | 'fieldAlias' | 'fieldDescription';
 export type ObjectLabelsHidden = Readonly<Record<ObjectLabelPart, boolean>>;
 
+/** The parts that shape the card header — hiding all of them is "title only". */
+export const CARD_HEADER_PARTS: readonly ObjectLabelPart[] = ['source', 'fields', 'status'];
 export const OBJECT_LABEL_PARTS: readonly ObjectLabelPart[] = [
-  'source',
-  'fields',
-  'status',
+  ...CARD_HEADER_PARTS,
   'fieldAlias',
   'fieldDescription',
 ];
@@ -69,8 +69,12 @@ export function isNothingHidden(hidden: ObjectLabelsHidden): boolean {
   return OBJECT_LABEL_PARTS.every(part => !hidden[part]);
 }
 
-export function isAllHidden(hidden: ObjectLabelsHidden): boolean {
-  return OBJECT_LABEL_PARTS.every(part => hidden[part]);
+/**
+ * Title-only mode: every header part is hidden. Judged on the header parts
+ * alone so a preference saved before the field-row parts existed still counts.
+ */
+export function isTitleOnly(hidden: ObjectLabelsHidden): boolean {
+  return CARD_HEADER_PARTS.every(part => hidden[part]);
 }
 
 /** The Detailed-view half of the preference, in the shape the field rows consume. */

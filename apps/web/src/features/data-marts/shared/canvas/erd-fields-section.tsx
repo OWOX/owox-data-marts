@@ -3,21 +3,28 @@ import { OWOX_YELLOW_BASE } from './owox-palette';
 import {
   ALL_FIELD_ROW_LABELS,
   collapsedRowCount,
-  fieldAliasLine,
   fieldDescriptionLine,
+  fieldRowLabel,
+  hasDistinctAlias,
   orderFields,
   type ErdCardField,
   type ErdFieldRowLabels,
 } from './erd-fields';
 
 function FieldRow({ field, labels }: { field: ErdCardField; labels: ErdFieldRowLabels }) {
-  const alias = fieldAliasLine(field, labels);
+  const label = fieldRowLabel(field, labels);
   const description = fieldDescriptionLine(field, labels);
+  // The tooltip carries what the row does not: the technical name behind an
+  // alias, or the alias behind a technical name.
+  const other = hasDistinctAlias(field) ? (label === field.name ? field.alias : field.name) : null;
+  const tooltip = [other ?? label, field.isHidden ? '(hidden from reporting)' : null]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div
       className='border-border/50 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
       style={{ opacity: field.isHidden ? 0.5 : 1 }}
-      title={field.isHidden ? `${field.name} (hidden from reporting)` : field.name}
+      title={tooltip}
     >
       <div className='flex items-center gap-2'>
         {field.isPrimaryKey ? (
@@ -29,21 +36,13 @@ function FieldRow({ field, labels }: { field: ErdCardField; labels: ErdFieldRowL
         ) : (
           <span className='w-3 shrink-0' />
         )}
-        <span className='text-foreground flex-1 truncate'>{field.name}</span>
+        <span className='text-foreground flex-1 truncate'>{label}</span>
         <span className='text-muted-foreground shrink-0 font-mono text-[10px] tracking-tight'>
           {field.type}
         </span>
       </div>
-      {/* Optional lines are single-line (truncated) so the row height stays
-          predictable for the layout; the full text lives in the tooltip. */}
-      {alias && (
-        <div
-          className='text-muted-foreground truncate pl-5 text-[10.5px] leading-[14px]'
-          title={alias}
-        >
-          {alias}
-        </div>
-      )}
+      {/* Single-line (truncated) so the row height stays predictable for the
+          layout; the full text lives in the tooltip. */}
       {description && (
         <div
           className='text-muted-foreground/80 truncate pl-5 text-[10.5px] leading-[14px] italic'

@@ -6,8 +6,9 @@ import {
   ERD_ROW_HEIGHT,
   erdFieldsBodyHeight,
   erdRowHeight,
-  fieldAliasLine,
   fieldDescriptionLine,
+  fieldRowLabel,
+  hasDistinctAlias,
   type ErdCardField,
 } from './erd-fields';
 
@@ -17,31 +18,42 @@ function field(name: string, extra: Partial<ErdCardField> = {}): ErdCardField {
 
 const NO_LABELS = { alias: false, description: false };
 
-describe('field row lines', () => {
-  it('shows the alias only when it differs from the field name', () => {
-    expect(fieldAliasLine(field('order_id', { alias: 'Order ID' }), ALL_FIELD_ROW_LABELS)).toBe(
-      'Order ID'
-    );
-    expect(fieldAliasLine(field('order_id'), ALL_FIELD_ROW_LABELS)).toBeNull();
-    expect(fieldAliasLine(field('order_id', { alias: 'Order ID' }), NO_LABELS)).toBeNull();
+describe('field row label', () => {
+  it('leads with the alias when the label is on and the alias adds information', () => {
+    const aliased = field('order_id', { alias: 'Order ID' });
+    expect(fieldRowLabel(aliased, ALL_FIELD_ROW_LABELS)).toBe('Order ID');
+    expect(fieldRowLabel(aliased, NO_LABELS)).toBe('order_id');
+    expect(fieldRowLabel(field('order_id'), ALL_FIELD_ROW_LABELS)).toBe('order_id');
   });
 
-  it('shows the description only when set and enabled', () => {
+  it('ignores whitespace-only alias differences', () => {
+    const padded = field('order_id', { alias: ' order_id ' });
+    expect(hasDistinctAlias(padded)).toBe(false);
+    expect(fieldRowLabel(padded, ALL_FIELD_ROW_LABELS)).toBe('order_id');
+    expect(hasDistinctAlias(field('order_id', { alias: 'Order ID' }))).toBe(true);
+  });
+});
+
+describe('field description line', () => {
+  it('shows the description only when set, non-blank and enabled', () => {
     const described = field('order_id', { description: 'Order key' });
     expect(fieldDescriptionLine(described, ALL_FIELD_ROW_LABELS)).toBe('Order key');
     expect(fieldDescriptionLine(field('order_id'), ALL_FIELD_ROW_LABELS)).toBeNull();
+    expect(
+      fieldDescriptionLine(field('order_id', { description: '   ' }), ALL_FIELD_ROW_LABELS)
+    ).toBeNull();
     expect(fieldDescriptionLine(described, NO_LABELS)).toBeNull();
   });
 });
 
 describe('erdRowHeight', () => {
-  it('adds one line per label that has content', () => {
+  it('adds one line for a shown description and nothing for the alias', () => {
     const full = field('order_id', { alias: 'Order ID', description: 'Order key' });
     expect(erdRowHeight(field('order_id'), ALL_FIELD_ROW_LABELS)).toBe(ERD_ROW_HEIGHT);
     expect(erdRowHeight(full, ALL_FIELD_ROW_LABELS)).toBe(
-      ERD_ROW_HEIGHT + 2 * ERD_ROW_EXTRA_LINE_HEIGHT
+      ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT
     );
-    expect(erdRowHeight(full, { alias: true, description: false })).toBe(
+    expect(erdRowHeight(full, { alias: false, description: true })).toBe(
       ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT
     );
     expect(erdRowHeight(full, NO_LABELS)).toBe(ERD_ROW_HEIGHT);

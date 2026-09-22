@@ -122,21 +122,22 @@ describe('RelationshipFlowNode', () => {
     expect(screen.getByRole('button', { name: /Show less/ })).toBeInTheDocument();
   });
 
-  it('renders the blend alias and description under the field name in Detailed view', () => {
+  it('leads with the blend alias and adds the description under it in Detailed view', () => {
     const [aliased, plain] = buildFields(2);
-    renderNode(vi.fn(), {
+    const { container } = renderNode(vi.fn(), {
       viewMode: 'erd',
       fields: [{ ...aliased, alias: 'Customer key', description: 'Joins to orders' }, plain],
     });
 
-    expect(screen.getByText('field_0')).toBeInTheDocument();
     expect(screen.getByText('Customer key')).toBeInTheDocument();
+    expect(screen.queryByText('field_0')).not.toBeInTheDocument();
+    expect(container.querySelector('[title="field_0"]')).toBeInTheDocument();
     expect(screen.getByText('Joins to orders')).toBeInTheDocument();
-    // An alias equal to the name adds nothing, so no second line renders for it.
-    expect(screen.getAllByText('field_1')).toHaveLength(1);
+    // An alias equal to the name just shows the name.
+    expect(screen.getByText('field_1')).toBeInTheDocument();
   });
 
-  it('drops the alias and description lines when their object labels are unticked', () => {
+  it('shows the technical name and no description when their object labels are unticked', () => {
     const [aliased] = buildFields(1);
     renderNode(vi.fn(), {
       viewMode: 'erd',

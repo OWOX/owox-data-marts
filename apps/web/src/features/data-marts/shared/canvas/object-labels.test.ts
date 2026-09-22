@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_HIDDEN,
-  isAllHidden,
   isNothingHidden,
+  isTitleOnly,
   NOTHING_HIDDEN,
   parseObjectLabelsHidden,
   serializeObjectLabelsHidden,
@@ -32,8 +32,8 @@ describe('object labels state', () => {
     const legacy = parseObjectLabelsHidden('source,fields,status');
     expect(legacy.fieldAlias).toBe(false);
     expect(legacy.fieldDescription).toBe(false);
-    // Which also means an old "everything hidden" preference is no longer "all hidden".
-    expect(isAllHidden(legacy)).toBe(false);
+    // An old "title only" preference still reads as title only.
+    expect(isTitleOnly(legacy)).toBe(true);
   });
 
   it('toggles a single part without touching the others', () => {
@@ -45,8 +45,10 @@ describe('object labels state', () => {
   it('detects the two extremes', () => {
     expect(isNothingHidden(NOTHING_HIDDEN)).toBe(true);
     expect(isNothingHidden(ALL_HIDDEN)).toBe(false);
-    expect(isAllHidden(ALL_HIDDEN)).toBe(true);
-    expect(isAllHidden({ ...ALL_HIDDEN, status: false })).toBe(false);
+    expect(isTitleOnly(ALL_HIDDEN)).toBe(true);
+    expect(isTitleOnly({ ...ALL_HIDDEN, status: false })).toBe(false);
+    // The field-row parts do not decide title-only mode either way.
+    expect(isTitleOnly({ ...ALL_HIDDEN, fieldDescription: false })).toBe(true);
   });
 
   it('maps the field-row parts to the shape the rows consume', () => {

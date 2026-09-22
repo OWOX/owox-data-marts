@@ -15,13 +15,13 @@ export interface ErdCardField {
 }
 
 /**
- * Which optional lines an ERD field row shows under the field name — the
- * Detailed-view half of the object-labels preference (see object-labels.ts).
+ * The Detailed-view half of the object-labels preference (see object-labels.ts):
+ * what an ERD field row shows besides the type.
  */
 export interface ErdFieldRowLabels {
-  /** The Output Schema alias, when set and different from the field name. */
+  /** Lead the row with the Output Schema alias (when set) instead of the technical name. */
   alias: boolean;
-  /** The Output Schema description, when set. */
+  /** Add the Output Schema description, when set, as a line under the name. */
   description: boolean;
 }
 
@@ -30,7 +30,7 @@ export const ALL_FIELD_ROW_LABELS: ErdFieldRowLabels = { alias: true, descriptio
 /** ERD card width — one value for every canvas that renders ErdCardFieldsSection. */
 export const ERD_NODE_WIDTH = 256;
 export const ERD_ROW_HEIGHT = 26;
-/** Height of each optional line (alias, description) rendered under a field name. */
+/** Height of the optional description line rendered under a field name. */
 export const ERD_ROW_EXTRA_LINE_HEIGHT = 14;
 export const ERD_EXPAND_ROW_HEIGHT = 26;
 /** ERD cards show at most this many rows before collapsing behind a toggle. */
@@ -51,28 +51,31 @@ export function collapsedRowCount(fields: ErdCardField[]): number {
   return Math.min(fields.length, Math.max(ERD_COLLAPSED_ROWS, keyCount));
 }
 
-/** The alias line shows only when it adds information over the field name. */
-export function fieldAliasLine(field: ErdCardField, labels: ErdFieldRowLabels): string | null {
-  return labels.alias && field.alias !== field.name ? field.alias : null;
+/** True when the alias carries information beyond the technical name (whitespace aside). */
+export function hasDistinctAlias(field: ErdCardField): boolean {
+  return field.alias.trim() !== field.name.trim();
+}
+
+/** The row's leading text: the alias when that label is on, else the technical name. */
+export function fieldRowLabel(field: ErdCardField, labels: ErdFieldRowLabels): string {
+  return labels.alias && hasDistinctAlias(field) ? field.alias : field.name;
 }
 
 export function fieldDescriptionLine(
   field: ErdCardField,
   labels: ErdFieldRowLabels
 ): string | null {
-  return labels.description && field.description ? field.description : null;
+  return labels.description && field.description?.trim() ? field.description : null;
 }
 
 /**
- * Height of one field row: the name line plus one extra line per optional
- * label that actually has content for this field. Each line is single-line
- * (truncated), so the height depends only on which labels are present — the
- * layout can size the card before render.
+ * Height of one field row: the name line plus the description line when it is
+ * shown for this field. Both are single-line (truncated), so the height depends
+ * only on whether the description is present — the layout can size the card
+ * before render.
  */
 export function erdRowHeight(field: ErdCardField, labels: ErdFieldRowLabels): number {
-  const extraLines =
-    (fieldAliasLine(field, labels) ? 1 : 0) + (fieldDescriptionLine(field, labels) ? 1 : 0);
-  return ERD_ROW_HEIGHT + extraLines * ERD_ROW_EXTRA_LINE_HEIGHT;
+  return ERD_ROW_HEIGHT + (fieldDescriptionLine(field, labels) ? ERD_ROW_EXTRA_LINE_HEIGHT : 0);
 }
 
 /**

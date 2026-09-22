@@ -10,8 +10,10 @@ import {
   ERD_ROW_HEIGHT,
   collapsedRowCount,
   computeNodeHeight,
+  nodeLayoutOptions,
   orderFields,
 } from './erd-node';
+import { ALL_HIDDEN, NOTHING_HIDDEN } from '../../shared/canvas/object-labels';
 import type { CanvasNodeField } from './types';
 
 function field(name: string, isPrimaryKey = false): CanvasNodeField {
@@ -60,38 +62,55 @@ describe('computeNodeHeight', () => {
   });
 
   it('shrinks by the meta row height when object labels hide the whole meta row', () => {
-    expect(computeNodeHeight({ fields: [] }, 'compact', true)).toBe(
+    expect(computeNodeHeight({ fields: [] }, 'compact', { metaRowHidden: true })).toBe(
       COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT
     );
     const fields = [field('a')];
-    expect(computeNodeHeight({ fields }, 'erd', true)).toBe(
+    expect(computeNodeHeight({ fields }, 'erd', { metaRowHidden: true })).toBe(
       ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT + ERD_ROW_HEIGHT
     );
   });
 
   it('also shrinks by the status icons row in title-only mode', () => {
-    expect(computeNodeHeight({ fields: [] }, 'compact', true, true)).toBe(
+    const titleOnly = { metaRowHidden: true, statusRowHidden: true };
+    expect(computeNodeHeight({ fields: [] }, 'compact', titleOnly)).toBe(
       COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT
     );
     const fields = [field('a')];
-    expect(computeNodeHeight({ fields }, 'erd', true, true)).toBe(
+    expect(computeNodeHeight({ fields }, 'erd', titleOnly)).toBe(
       ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + ERD_ROW_HEIGHT
     );
   });
 
-  it('adds a line per shown alias/description and drops them when the labels are off', () => {
+  it('adds a line per shown description and drops it when the label is off', () => {
     const fields = [field('a'), { ...field('b'), alias: 'B alias', description: 'B described' }];
+    // The alias swaps the row text, so only the description adds height.
     expect(computeNodeHeight({ fields }, 'erd')).toBe(
-      ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + 2 * ERD_ROW_EXTRA_LINE_HEIGHT
+      ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT
     );
     expect(
-      computeNodeHeight({ fields }, 'erd', false, false, { alias: false, description: true })
-    ).toBe(ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT);
-    expect(
-      computeNodeHeight({ fields }, 'erd', false, false, { alias: false, description: false })
+      computeNodeHeight({ fields }, 'erd', { fieldLabels: { alias: false, description: false } })
     ).toBe(ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT);
     // Compact cards have no field rows, so the labels never change their height.
     expect(computeNodeHeight({ fields }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
+  });
+
+  it('derives the layout options from the object-labels preference', () => {
+    expect(nodeLayoutOptions(NOTHING_HIDDEN)).toEqual({
+      metaRowHidden: false,
+      statusRowHidden: false,
+      fieldLabels: { alias: true, description: true },
+    });
+    expect(nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true, status: true })).toEqual({
+      metaRowHidden: true,
+      statusRowHidden: false,
+      fieldLabels: { alias: true, description: true },
+    });
+    expect(nodeLayoutOptions(ALL_HIDDEN)).toEqual({
+      metaRowHidden: true,
+      statusRowHidden: true,
+      fieldLabels: { alias: false, description: false },
+    });
   });
 
   it('sums header and visible rows, adding the expand row only when collapsed rows remain', () => {

@@ -28,10 +28,10 @@ The gear button on the canvas opens the view settings. They are browser preferen
   - **Input source** — the badge naming the definition type (VIEW / TABLE / SQL / PATTERN / CONNECTOR).
   - **Field count** — the number of fields in the Output Schema.
   - **Status** — the published/draft indicator.
-  - **Field aliases** — in the Detailed view, the Output Schema alias under each field name, when it is set and differs from the name.
+  - **Field aliases** — in the Detailed view, lead each field row with the Output Schema alias (when it is set) instead of the technical field name. Hover a row to see the one that is not shown.
   - **Field descriptions** — in the Detailed view, the Output Schema description under each field, when it is set. Long descriptions are cut to one line; hover the line to read the whole text.
 
-  **Check all** turns everything back on; **Uncheck all** leaves only the titles (and, in the Detailed view, the field names and types).
+  **Check all** turns everything back on; **Uncheck all** leaves only the titles (and, in the Detailed view, the technical field names and types).
 
 ## Notes
 

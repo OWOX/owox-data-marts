@@ -6,8 +6,8 @@ import { Button } from '../../../../shared/components/Button';
 import { CANVAS_DIRECTION_OPTIONS, type CanvasDirection } from './canvas-direction';
 import {
   ALL_HIDDEN,
-  isAllHidden,
   isNothingHidden,
+  isTitleOnly,
   NOTHING_HIDDEN,
   OBJECT_LABEL_PARTS,
   toggleObjectLabelPart,
@@ -31,7 +31,7 @@ const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string
   },
   fieldAlias: {
     label: 'Field aliases',
-    helper: 'The Output Schema alias under each field name (Detailed view)',
+    helper: 'The Output Schema alias in place of the field name (Detailed view)',
   },
   fieldDescription: {
     label: 'Field descriptions',
@@ -188,9 +188,9 @@ export function CanvasSettingsPanel({
         </button>
         <button
           type='button'
-          aria-pressed={isAllHidden(objectLabels)}
+          aria-pressed={isTitleOnly(objectLabels)}
           className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-            isAllHidden(objectLabels)
+            isTitleOnly(objectLabels)
               ? 'bg-primary/10 text-primary'
               : 'text-foreground hover:bg-muted'
           }`}

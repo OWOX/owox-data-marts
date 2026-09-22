@@ -147,12 +147,12 @@ describe('ModelCanvasFlowNode', () => {
   it('shows all field rows without an expand toggle when they fit the collapsed cap', () => {
     renderNode();
 
-    expect(screen.getByText('order_id')).toBeInTheDocument();
-    expect(screen.getByText('status')).toBeInTheDocument();
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /more field/ })).not.toBeInTheDocument();
   });
 
-  it('shows the Output Schema alias and description under the field name', () => {
+  it('leads each row with the alias, keeps the technical name on hover, and adds the description', () => {
     const fields: CanvasNodeField[] = [
       {
         name: 'order_id',
@@ -166,16 +166,17 @@ describe('ModelCanvasFlowNode', () => {
     ];
     const { container } = renderNode(vi.fn(), fields);
 
-    expect(screen.getByText('order_id')).toBeInTheDocument();
     expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.queryByText('order_id')).not.toBeInTheDocument();
+    expect(container.querySelector('[title="order_id"]')).toBeInTheDocument();
     expect(screen.getByText('Unique order key')).toBeInTheDocument();
     // The full description is reachable on hover even when the line truncates.
     expect(container.querySelector('[title="Unique order key"]')).toBeInTheDocument();
-    // An alias equal to the name is noise — no second line for it.
-    expect(screen.getAllByText('status')).toHaveLength(1);
+    // A field without a distinct alias just shows its name.
+    expect(screen.getByText('status')).toBeInTheDocument();
   });
 
-  it('drops only the alias or the description line when its label is unticked', () => {
+  it('swaps in the technical name or drops the description when its label is unticked', () => {
     const fields: CanvasNodeField[] = [
       {
         name: 'order_id',
@@ -186,11 +187,14 @@ describe('ModelCanvasFlowNode', () => {
         isHidden: false,
       },
     ];
-    const { unmount } = renderNode(vi.fn(), fields, undefined, undefined, undefined, {
+    const { unmount, container } = renderNode(vi.fn(), fields, undefined, undefined, undefined, {
       ...NOTHING_HIDDEN,
       fieldAlias: true,
     });
+    expect(screen.getByText('order_id')).toBeInTheDocument();
     expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
+    // …and the alias moves to the tooltip.
+    expect(container.querySelector('[title="Order ID"]')).toBeInTheDocument();
     expect(screen.getByText('Unique order key')).toBeInTheDocument();
     unmount();
 
@@ -240,7 +244,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Data Last Updated for Orders/)).not.toBeInTheDocument();
     // The ERD body (field rows) is a view-mode concern and stays visible —
-    // only the optional alias/description lines go with the labels.
+    // only the alias swaps back to the technical name.
     expect(screen.getByText('order_id')).toBeInTheDocument();
     expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
     expect(container.querySelector('[title="Orders"]')).toBeInTheDocument();
@@ -267,6 +271,7 @@ describe('ModelCanvasFlowNode', () => {
     const rowTexts = [...container.querySelectorAll('[title]')]
       .map(el => el.getAttribute('title'))
       .filter(title => title === 'a' || title === 'b');
+    // Rows lead with the alias and keep the technical name in the tooltip.
     expect(rowTexts).toEqual(['a', 'b']);
   });
 

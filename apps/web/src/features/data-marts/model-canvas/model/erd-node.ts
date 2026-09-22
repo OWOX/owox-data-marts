@@ -3,6 +3,11 @@ import {
   erdFieldsBodyHeight,
   type ErdFieldRowLabels,
 } from '../../shared/canvas/erd-fields';
+import {
+  isTitleOnly,
+  toFieldRowLabels,
+  type ObjectLabelsHidden,
+} from '../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../shared/canvas/view-mode';
 import type { ModelCanvasNode } from './types';
 
@@ -37,22 +42,39 @@ export function nodeWidth(viewMode: CanvasViewMode): number {
   return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
 }
 
+/** How the object-labels preference changes a card's collapsed height. */
+export interface NodeLayoutOptions {
+  /** Both the status pill and the source badge are hidden, so the meta row is dropped. */
+  metaRowHidden?: boolean;
+  /** Title-only mode: the quality indicators row (shield + clock + field count) is dropped too. */
+  statusRowHidden?: boolean;
+  /** Which optional lines each ERD field row shows. */
+  fieldLabels?: ErdFieldRowLabels;
+}
+
+/** Derive the layout options once per preference — every node shares them. */
+export function nodeLayoutOptions(objectLabels: ObjectLabelsHidden): Required<NodeLayoutOptions> {
+  // The field count lives in the status icons row, so the meta row only holds
+  // the status pill and the source badge — hiding both drops the whole row.
+  return {
+    metaRowHidden: objectLabels.source && objectLabels.status,
+    statusRowHidden: isTitleOnly(objectLabels),
+    fieldLabels: toFieldRowLabels(objectLabels),
+  };
+}
+
 /**
  * Collapsed layout height for a node, used by dagre and as the initial render
- * size. `metaRowHidden` reflects the object-labels preference: when both the
- * status pill and the source badge are hidden, the card drops its meta row
- * (the field count lives in the status icons row).
- * `statusRowHidden` reflects title-only mode, which also drops the quality
- * indicators row (Data Quality shield + Data Last Updated clock).
- * `fieldLabels` picks the optional alias/description lines under each ERD
- * field row — every shown line adds to the collapsed height.
+ * size. See `NodeLayoutOptions` for what the preference takes away or adds.
  */
 export function computeNodeHeight(
   node: Pick<ModelCanvasNode, 'fields'>,
   viewMode: CanvasViewMode,
-  metaRowHidden = false,
-  statusRowHidden = false,
-  fieldLabels: ErdFieldRowLabels = ALL_FIELD_ROW_LABELS
+  {
+    metaRowHidden = false,
+    statusRowHidden = false,
+    fieldLabels = ALL_FIELD_ROW_LABELS,
+  }: NodeLayoutOptions = {}
 ): number {
   const metaAdjustment =
     (metaRowHidden ? -CARD_META_ROW_HEIGHT : 0) + (statusRowHidden ? -CARD_STATUS_ROW_HEIGHT : 0);

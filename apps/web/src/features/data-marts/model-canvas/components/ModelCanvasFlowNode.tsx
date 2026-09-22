@@ -12,6 +12,7 @@ import {
 import { ErdDefinitionBadge, ErdStatusBadge } from '../../shared/canvas/erd-card';
 import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
 import {
+  isTitleOnly,
   NOTHING_HIDDEN,
   toFieldRowLabels,
   type ObjectLabelsHidden,
@@ -89,7 +90,7 @@ export default function ModelCanvasFlowNode({
   const metaBadgesJoined = withStatus && withDefinitionBadge;
   // "Uncheck all — title only" strips the card down to its name: the quality
   // indicators (Data Quality shield + Data Last Updated clock) go too.
-  const titleOnly = labels.source && labels.fields && labels.status;
+  const titleOnly = isTitleOnly(labels);
   // The stripe now runs full-height along the left edge (absolutely
   // positioned) instead of sitting inline in the header, so every row needs
   // extra left padding to clear it — but only while the stripe is shown.
