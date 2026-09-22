@@ -240,10 +240,14 @@ export class BlendableSchemaDto {
   @ApiProperty({
     type: [String],
     description:
-      'Column paths the analyst hid from reporting, as full dotted paths (a hidden RECORD brings ' +
-      'its subtree). Absent from `nativeFields` by design — this list exists so a report that ' +
-      'still selects one can be told it was HIDDEN rather than lost, which is a different fact ' +
-      'with a different fix. A column that is also disconnected is left out: it really is gone.',
+      'Column names someone hid from reporting, in the form a report stores them: own columns as ' +
+      'dotted paths (`metrics.cost`, a hidden RECORD bringing its subtree), joined columns by ' +
+      'their unified blended name — the same form as `blendedFields[].name`, hash suffix and all. ' +
+      'Covers both joined switches: a field hidden on the joined Data Mart (absent from ' +
+      '`blendedFields` entirely) and one hidden per join (present there with `isHidden: true`). ' +
+      'The list exists so a report that still selects such a column can be told it was HIDDEN ' +
+      'rather than lost, which is a different fact with a different fix. A column that is also ' +
+      'disconnected is left out: it really is gone.',
   })
   hiddenFieldNames: string[];
 }

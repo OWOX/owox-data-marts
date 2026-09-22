@@ -455,23 +455,26 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     }
 
     if (err instanceof BusinessViolationException && err.errorDetails?.['unknownColumns']) {
-      // A HIDDEN column is a dead end for an agent, not a typo: it is absent from the schema
-      // this error tells the caller to re-fetch, so "look it up and copy it verbatim" sends a
-      // model round the same loop forever. Say it exists and cannot be queried instead.
+      // A HIDDEN column is a dead end for an agent, not a typo: it is absent from the schema this
+      // error tells the caller to re-fetch, so "look it up and copy it verbatim" sends a model
+      // round the same loop forever — and `field_not_found` is exactly what the system
+      // instructions answer with "call it again with detail_level=with_joined_fields". Its own
+      // code, so that advice does not apply, and the name may have come from any clause: the
+      // validator raises this for a filter, slice, sort, aggregation or date bucket too, not only
+      // for `fields`.
       const hidden = (err.errorDetails['hiddenColumns'] as string[] | undefined) ?? [];
       const unknown = (err.errorDetails['unknownColumns'] as string[]).filter(
         column => !hidden.includes(column)
       );
       if (hidden.length > 0 && unknown.length === 0) {
         return toStructuredToolError(
-          'field_not_found',
-          `Field(s) ${hidden.join(', ')} exist in this data mart but are hidden from reporting, so they cannot be queried and will not appear in get_data_mart_details_by_id. Drop them from "fields" and retry; only the data mart's analyst can show them again. Do not re-fetch the schema looking for them.`
+          'field_hidden_from_reporting',
+          `Field(s) ${hidden.join(', ')} exist in this data mart but are hidden from reporting, so they cannot be queried and will never appear in get_data_mart_details_by_id. Remove them from "fields" and from any filter, slice, sort, aggregation or date bucket that names them, then retry; only the data mart's analyst can show them again. Do not re-fetch the schema looking for them.`
         );
       }
-      const cols = (err.errorDetails['unknownColumns'] as string[]).join(', ');
       return toStructuredToolError(
         'field_not_found',
-        `Unknown field(s) in this data mart: ${cols}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and copy them verbatim into "fields"; never guess or invent field names.${hidden.length > 0 ? ` Of these, ${hidden.join(', ')} exist but are hidden from reporting: drop them and do not look for them in the schema.` : ''}`
+        `Unknown field(s) in this data mart: ${unknown.join(', ')}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and copy them verbatim into "fields"; never guess or invent field names.${hidden.length > 0 ? ` Field(s) ${hidden.join(', ')} exist but are hidden from reporting: remove them from "fields" and from any filter, slice, sort, aggregation or date bucket that names them, and do not look for them in the schema.` : ''}`
       );
     }
 

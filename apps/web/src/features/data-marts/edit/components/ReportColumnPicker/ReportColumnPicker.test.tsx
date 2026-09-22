@@ -1076,6 +1076,61 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('2');
   });
 
+  it('puts a slice on a hidden joined field in the amber block, where save and run already put it', () => {
+    // Same fixture as above plus the one fact the schema now carries: the joined field was hidden,
+    // not lost. Save and run answer "Hidden columns … ask your analyst to show them in reports
+    // again", so the editor must not be telling the reader to have the schema restored.
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__hidden_field',
+          originalFieldName: 'hidden_field',
+          isHidden: true,
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+      hiddenFieldNames: ['b__hidden_field'],
+    });
+    vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(schema);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData([BLENDABLE_SCHEMA_QUERY_KEY, DATA_MART_ID], schema);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    render(
+      <ReportColumnPicker
+        dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
+        storageType={DataStorageType.GOOGLE_BIGQUERY}
+        value={['native_one']}
+        onChange={() => {}}
+        outputConfig={{
+          filterConfig: [
+            {
+              column: 'b__hidden_field',
+              operator: 'eq',
+              value: 'x',
+              placement: 'pre-join',
+            },
+          ],
+          sortConfig: [],
+          limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: [],
+        }}
+        onOutputConfigChange={() => {}}
+      />,
+      { wrapper }
+    );
+
+    const hidden = screen.getByTestId('hidden-columns-title').closest('div[class*="border"]');
+    expect(within(hidden as HTMLElement).getByText('b__hidden_field')).toBeInTheDocument();
+    expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
+  });
+
   // A JOINED Data Mart's calculated field is refused on every report surface — the backend answers
   // JOINED_CALCULATED_FIELD_UNSUPPORTED. The Slices picker offered one anyway, and because
   // `knownSliceKeys` counted it as a known field the resulting rule never showed as disconnected

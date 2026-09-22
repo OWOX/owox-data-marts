@@ -194,15 +194,15 @@ You have two options:
 
 ### Hidden columns warning
 
-Hiding a field from reporting is not the same event, and the picker says so. A report that already selected the field lists it under an amber **Hidden columns** label with an 👁 icon:
+Hiding a field from reporting is not the same event, and the picker says so. A report that already selected the field lists it under an amber **Hidden columns** label with an eye-off icon:
 
 > _They are still in the Data Mart, but hidden from reporting. Uncheck them and remove any filter, sort, aggregation or date bucket rule that references them, or ask your analyst to show them in reports again._
 
 Nothing is missing here and there is no schema to restore — someone decided the column should not be reported on. Any of the three switches leads here, and the fix is to reverse the one that was used:
 
 - **Hide from reports** in a field's ⋯ menu on the Data Mart's **Data Setup → Output Schema** — the Data Mart's own columns, calculated fields included.
-- The same action [on a joined Data Mart's field](./joinable-data-marts.md#per-field-overrides), which hides it for every report built on that Data Mart.
-- **Hidden** in Join Settings, which hides a joined field for this Data Mart's reports only.
+- The same action on the **joined** Data Mart's own Output Schema, which hides the field from its own reports and from every Data Mart that joins it.
+- **Hide from reports** in the ⋯ menu of the join's **Report Fields** tab ([per-field overrides](./joinable-data-marts.md#per-field-overrides)), which hides a joined field for this Data Mart's reports only.
 
 Uncheck the column to take it out of the report, or ask whoever hid it to show it again. Everything else behaves as above: the report cannot run until the column is out of it, and a filter, sort, aggregation or date bucket rule on it has to go too.
 
@@ -210,7 +210,7 @@ A report that carries one of each is told about both, and the advice to restore 
 
 ### Validation error on save
 
-A filter, slice, sort, aggregation, or date bucket rule may still point to a disconnected column. Save the report, and OWOX blocks it with a **Disconnected columns** error that names the columns. Open the report, remove the affected rules from the Filters, Slices, Sort, or Aggregations sections, then save again.
+A filter, slice, sort, aggregation, or date bucket rule may still point to a column the report can no longer be built from. Save the report, and OWOX blocks it with an error that names the columns — **Disconnected columns** for the ones the schema lost, **Hidden columns** for the ones someone hid, and both when the report carries one of each. Open the report, remove the affected rules from the Filters, Slices, Sort, or Aggregations sections, then save again.
 
 Only the delivery of a saved report degrades a sort on a disconnected column: a report run (scheduled or manual), a Looker Studio data pull, or a Google Sheets or Excel pull of the saved report drops the sort rule and continues, with a warning in the server log. The values of the rows do not change, only their order — unless the report also has a **Limit**: the limit is kept, so the rows that make the cut may then differ from the ones the sort used to pick (a former top 10 becomes an arbitrary 10). Saving the report, the Generated SQL preview, and ad-hoc queries from MCP or the HTTP Data API still report the column as disconnected. An aggregation or date bucket on a disconnected column fails the run with the same error, since it would change the values.
 

@@ -2010,12 +2010,65 @@ export function ReportColumnPicker({
     [unresolvedRows, hiddenColumnNames]
   );
 
-  // A pre-join slice belongs here whatever happened to it: it is addressed through a join, not
-  // through the main schema, so hiding a column of this Data Mart is never what orphaned it.
   const disconnectedUnresolvedRows = useMemo(
     () => unresolvedRows.filter(({ name }) => !hiddenColumnNames.has(name)),
     [unresolvedRows, hiddenColumnNames]
   );
+
+  // A slice is addressed through a join, so it can only be orphaned by something on the joined
+  // side — but "hidden there" is one of those things, and `hiddenFieldNames` lists it under the
+  // same unified name the rule carries. A joined calculated field is left out: the backend
+  // refuses it by name, with its own error, whatever anyone hid.
+  const hiddenUnresolvedSlices = useMemo(
+    () =>
+      visibleUnresolvedSlices.filter(
+        slice => hiddenColumnNames.has(slice.column) && !joinedCalculatedNames.has(slice.column)
+      ),
+    [visibleUnresolvedSlices, hiddenColumnNames, joinedCalculatedNames]
+  );
+
+  const disconnectedUnresolvedSlices = useMemo(
+    () => visibleUnresolvedSlices.filter(slice => !hiddenUnresolvedSlices.includes(slice)),
+    [visibleUnresolvedSlices, hiddenUnresolvedSlices]
+  );
+
+  function renderUnresolvedSlice(
+    {
+      column,
+      fieldType,
+      sliceFieldType,
+    }: { column: string; fieldType?: string; sliceFieldType?: string },
+    hoverClass: string
+  ) {
+    const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
+    return (
+      <label
+        key={column}
+        className={cn(
+          'group/row flex cursor-pointer items-center gap-2 rounded px-1 py-1',
+          hoverClass
+        )}
+      >
+        <Checkbox checked={false} disabled />
+        <span className='font-mono text-xs'>{column}</span>
+        {outputControlsAvailable && slices.rules.length > 0 && (
+          <RowFilterIcon
+            column={column}
+            fieldType={fieldType ?? 'STRING'}
+            sliceFieldType={sliceFieldType ?? fieldType ?? 'STRING'}
+            activeRules={EMPTY_COLUMN_FILTERS.rules}
+            onRemoveAt={() => undefined}
+            sliceIconProps={{
+              unifiedFieldName: column,
+              existingSlices: slices.rules,
+              existingSliceIndices: slices.indices,
+              onRemoveSliceAt: handleRemoveFilterAt,
+            }}
+          />
+        )}
+      </label>
+    );
+  }
 
   function renderUnresolvedRow(
     { name, selected }: { name: string; selected: boolean },
@@ -2243,7 +2296,7 @@ export function ReportColumnPicker({
           selectedNativeCount === 0 ? 'border-destructive' : 'border-border'
         )}
       >
-        {hiddenUnresolvedRows.length > 0 && (
+        {(hiddenUnresolvedRows.length > 0 || hiddenUnresolvedSlices.length > 0) && (
           <div className='rounded border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/30'>
             <div className='flex items-start gap-1.5 px-1 py-1'>
               <div className='min-w-0 flex-1'>
@@ -2275,9 +2328,12 @@ export function ReportColumnPicker({
             {hiddenUnresolvedRows.map(row =>
               renderUnresolvedRow(row, 'hover:bg-amber-100/60 dark:hover:bg-amber-900/50')
             )}
+            {hiddenUnresolvedSlices.map(slice =>
+              renderUnresolvedSlice(slice, 'hover:bg-amber-100/60 dark:hover:bg-amber-900/50')
+            )}
           </div>
         )}
-        {(disconnectedUnresolvedRows.length > 0 || visibleUnresolvedSlices.length > 0) && (
+        {(disconnectedUnresolvedRows.length > 0 || disconnectedUnresolvedSlices.length > 0) && (
           <div className='border-destructive bg-destructive/10 rounded border'>
             <div className='flex items-start gap-1.5 px-1 py-1'>
               <div className='min-w-0 flex-1'>
@@ -2302,33 +2358,9 @@ export function ReportColumnPicker({
             {disconnectedUnresolvedRows.map(row =>
               renderUnresolvedRow(row, 'hover:bg-destructive/20')
             )}
-            {visibleUnresolvedSlices.map(({ column, fieldType, sliceFieldType }) => {
-              const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
-              return (
-                <label
-                  key={column}
-                  className='group/row hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-                >
-                  <Checkbox checked={false} disabled />
-                  <span className='font-mono text-xs'>{column}</span>
-                  {outputControlsAvailable && slices.rules.length > 0 && (
-                    <RowFilterIcon
-                      column={column}
-                      fieldType={fieldType ?? 'STRING'}
-                      sliceFieldType={sliceFieldType ?? fieldType ?? 'STRING'}
-                      activeRules={EMPTY_COLUMN_FILTERS.rules}
-                      onRemoveAt={() => undefined}
-                      sliceIconProps={{
-                        unifiedFieldName: column,
-                        existingSlices: slices.rules,
-                        existingSliceIndices: slices.indices,
-                        onRemoveSliceAt: handleRemoveFilterAt,
-                      }}
-                    />
-                  )}
-                </label>
-              );
-            })}
+            {disconnectedUnresolvedSlices.map(slice =>
+              renderUnresolvedSlice(slice, 'hover:bg-destructive/20')
+            )}
           </div>
         )}
         {!hasVisibleColumns && (
