@@ -457,7 +457,9 @@ it('calls AI callbacks when header buttons are clicked', () => {
 describe('BaseSchemaTable — row separators', () => {
   // The cells are painted `bg-muted` in the dark theme, where the ordinary border colour is that
   // very shade; the rows, the table's bottom edge and the footer divider therefore all draw with
-  // `border-border-muted`, the token that stays visible on a muted surface.
+  // `border-border-on-muted`, the token that stays visible on a muted surface. That the token
+  // itself exists is border-on-muted-token.test.ts's job — jsdom compiles no CSS, so these
+  // assertions only pin the markup to it.
   it('every field row, the table bottom edge and the footer divider use the muted-surface separator', () => {
     const fields = [buildAthenaField({ name: 'clicks' }), buildAthenaField({ name: 'cost' })];
     render(
@@ -470,13 +472,13 @@ describe('BaseSchemaTable — row separators', () => {
 
     const [, ...bodyRows] = screen.getAllByRole('row');
     expect(bodyRows).toHaveLength(2);
-    for (const row of bodyRows) expect(row).toHaveClass('border-border-muted');
+    for (const row of bodyRows) expect(row).toHaveClass('border-border-on-muted');
 
     const body = document.querySelector('[data-slot="table-body"]');
-    expect(body).toHaveClass('dark:border-border-muted');
+    expect(body).toHaveClass('border-border-on-muted');
 
     const addCalculated = screen.getAllByRole('button', { name: 'Add calculated field' }).at(-1);
-    expect(addCalculated).toHaveClass('border-l', 'border-border-muted');
+    expect(addCalculated).toHaveClass('border-l', 'border-border-on-muted');
   });
 
   it('a field hidden from reports is still dimmed, alongside its separator', () => {
@@ -493,7 +495,7 @@ describe('BaseSchemaTable — row separators', () => {
     );
 
     const [, visibleRow, hiddenRow] = screen.getAllByRole('row');
-    expect(hiddenRow).toHaveClass('opacity-70', 'border-border-muted');
+    expect(hiddenRow).toHaveClass('opacity-70', 'border-border-on-muted');
     expect(visibleRow).not.toHaveClass('opacity-70');
   });
 });

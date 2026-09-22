@@ -232,7 +232,7 @@ export function SchemaTable<T extends BaseSchemaField>({
           <TableBody
             // The bottom edge closes the last row (`[&_tr:last-child]:border-0` takes that row's own
             // separator away), so it uses the same separator colour as the rows above it.
-            className='dark:border-border-muted border-b border-gray-200 bg-white dark:bg-white/1'
+            className='border-border-on-muted border-b bg-white dark:bg-white/1'
           >
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
@@ -262,8 +262,8 @@ export function SchemaTable<T extends BaseSchemaField>({
                       row={row}
                       className={cn(
                         // The cells below are painted `dark:bg-muted`, on which the ordinary
-                        // `border` colour is invisible in the dark theme — see `--border-muted`.
-                        'border-border-muted',
+                        // `border` colour is invisible in the dark theme — see `--border-on-muted`.
+                        'border-border-on-muted',
                         row.original.isHiddenForReporting && 'opacity-70'
                       )}
                     >
@@ -335,8 +335,8 @@ export function SchemaTable<T extends BaseSchemaField>({
           {onAddCalculatedField && (
             <Button
               variant='outline'
-              // `border-border-muted`, like the rows: the divider sits on a `dark:bg-muted` surface.
-              className='bg-background dark:bg-muted border-border-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
+              // `border-border-on-muted`, like the rows: the divider sits on a `dark:bg-muted` surface.
+              className='bg-background dark:bg-muted border-border-on-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
               onClick={onAddCalculatedField}
               disabled={isSchemaActualizationLoading}
               aria-label='Add calculated field'
