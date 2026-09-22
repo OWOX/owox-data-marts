@@ -256,7 +256,14 @@ export function SchemaTable<T extends BaseSchemaField>({
                       key={row.id}
                       id={getRowId ? getRowId(row) : row.index}
                       row={row}
-                      className={row.original.isHiddenForReporting ? 'opacity-70' : undefined}
+                      className={cn(
+                        // The cells below are painted `dark:bg-muted`, and the dark theme's
+                        // `--border` is that very same shade: the row's default separator was
+                        // drawn in the colour of the cells and vanished. A touch of white keeps
+                        // it visible without touching the shared tokens.
+                        'dark:border-white/8',
+                        row.original.isHiddenForReporting && 'opacity-70'
+                      )}
                     >
                       {cells.map((cell, index) => {
                         if (spanStart !== -1 && index > spanStart && index <= spanEnd) return null;
@@ -326,7 +333,12 @@ export function SchemaTable<T extends BaseSchemaField>({
           {onAddCalculatedField && (
             <Button
               variant='outline'
-              className='bg-background dark:bg-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
+              className={cn(
+                'bg-background dark:bg-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l',
+                // Same collision as the rows: on a `dark:bg-muted` surface the default divider
+                // colour is invisible.
+                'dark:border-white/8'
+              )}
               onClick={onAddCalculatedField}
               disabled={isSchemaActualizationLoading}
               aria-label='Add calculated field'
