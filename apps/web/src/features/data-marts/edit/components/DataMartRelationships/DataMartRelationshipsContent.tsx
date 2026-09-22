@@ -336,6 +336,7 @@ export function DataMartRelationshipsContent({
         // canvas mapper applies (alias?.trim() ? alias : name).
         alias: field.alias.trim() ? field.alias : field.originalFieldName,
         type: field.sourceFieldType ?? field.type,
+        ...(field.description.trim() ? { description: field.description } : {}),
         isPrimaryKey: false,
         isHidden: field.isHidden,
       });

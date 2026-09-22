@@ -1,3 +1,5 @@
+import type { ErdFieldRowLabels } from './erd-fields';
+
 /**
  * What each ERD card shows on the Models canvas. A per-browser view preference
  * (not model data), ported from the standalone OWOX Model Canvas (owox/models).
@@ -6,14 +8,36 @@
  * the field count but drop the status dot). Stored as the set of HIDDEN parts:
  * the empty set means "show everything", and a part added later defaults to
  * visible for everyone who already has a preference stored.
+ *
+ * `source`, `fields` and `status` shape the card header; `fieldAlias` and
+ * `fieldDescription` are the optional lines under each field row, so they only
+ * show in the Detailed view.
  */
-export type ObjectLabelPart = 'source' | 'fields' | 'status';
+export type ObjectLabelPart = 'source' | 'fields' | 'status' | 'fieldAlias' | 'fieldDescription';
 export type ObjectLabelsHidden = Readonly<Record<ObjectLabelPart, boolean>>;
 
-export const OBJECT_LABEL_PARTS: readonly ObjectLabelPart[] = ['source', 'fields', 'status'];
+export const OBJECT_LABEL_PARTS: readonly ObjectLabelPart[] = [
+  'source',
+  'fields',
+  'status',
+  'fieldAlias',
+  'fieldDescription',
+];
 
-export const NOTHING_HIDDEN: ObjectLabelsHidden = { source: false, fields: false, status: false };
-export const ALL_HIDDEN: ObjectLabelsHidden = { source: true, fields: true, status: true };
+export const NOTHING_HIDDEN: ObjectLabelsHidden = {
+  source: false,
+  fields: false,
+  status: false,
+  fieldAlias: false,
+  fieldDescription: false,
+};
+export const ALL_HIDDEN: ObjectLabelsHidden = {
+  source: true,
+  fields: true,
+  status: true,
+  fieldAlias: true,
+  fieldDescription: true,
+};
 
 function isPart(value: string): value is ObjectLabelPart {
   return (OBJECT_LABEL_PARTS as readonly string[]).includes(value);
@@ -47,4 +71,9 @@ export function isNothingHidden(hidden: ObjectLabelsHidden): boolean {
 
 export function isAllHidden(hidden: ObjectLabelsHidden): boolean {
   return OBJECT_LABEL_PARTS.every(part => hidden[part]);
+}
+
+/** The Detailed-view half of the preference, in the shape the field rows consume. */
+export function toFieldRowLabels(hidden: ObjectLabelsHidden): ErdFieldRowLabels {
+  return { alias: !hidden.fieldAlias, description: !hidden.fieldDescription };
 }

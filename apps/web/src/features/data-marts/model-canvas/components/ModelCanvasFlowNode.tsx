@@ -11,7 +11,11 @@ import {
 } from '../../shared/canvas/constants';
 import { ErdDefinitionBadge, ErdStatusBadge } from '../../shared/canvas/erd-card';
 import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
-import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../../shared/canvas/object-labels';
+import {
+  NOTHING_HIDDEN,
+  toFieldRowLabels,
+  type ObjectLabelsHidden,
+} from '../../shared/canvas/object-labels';
 import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
@@ -216,6 +220,7 @@ export default function ModelCanvasFlowNode({
       {showBody && (
         <ErdCardFieldsSection
           fields={fields}
+          labels={toFieldRowLabels(labels)}
           expanded={expanded}
           onToggleExpanded={() => {
             setExpanded(v => !v);

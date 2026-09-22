@@ -122,6 +122,33 @@ describe('RelationshipFlowNode', () => {
     expect(screen.getByRole('button', { name: /Show less/ })).toBeInTheDocument();
   });
 
+  it('renders the blend alias and description under the field name in Detailed view', () => {
+    const [aliased, plain] = buildFields(2);
+    renderNode(vi.fn(), {
+      viewMode: 'erd',
+      fields: [{ ...aliased, alias: 'Customer key', description: 'Joins to orders' }, plain],
+    });
+
+    expect(screen.getByText('field_0')).toBeInTheDocument();
+    expect(screen.getByText('Customer key')).toBeInTheDocument();
+    expect(screen.getByText('Joins to orders')).toBeInTheDocument();
+    // An alias equal to the name adds nothing, so no second line renders for it.
+    expect(screen.getAllByText('field_1')).toHaveLength(1);
+  });
+
+  it('drops the alias and description lines when their object labels are unticked', () => {
+    const [aliased] = buildFields(1);
+    renderNode(vi.fn(), {
+      viewMode: 'erd',
+      fields: [{ ...aliased, alias: 'Customer key', description: 'Joins to orders' }],
+      objectLabels: { ...NOTHING_HIDDEN, fieldAlias: true, fieldDescription: true },
+    });
+
+    expect(screen.getByText('field_0')).toBeInTheDocument();
+    expect(screen.queryByText('Customer key')).not.toBeInTheDocument();
+    expect(screen.queryByText('Joins to orders')).not.toBeInTheDocument();
+  });
+
   it('renders no field rows in Compact view even when fields exist', () => {
     renderNode(vi.fn(), { viewMode: 'compact', fields: buildFields(3) });
 

@@ -1,33 +1,65 @@
 import { ChevronDown, ChevronRight, KeyRound } from 'lucide-react';
 import { OWOX_YELLOW_BASE } from './owox-palette';
-import { collapsedRowCount, orderFields, type ErdCardField } from './erd-fields';
+import {
+  ALL_FIELD_ROW_LABELS,
+  collapsedRowCount,
+  fieldAliasLine,
+  fieldDescriptionLine,
+  orderFields,
+  type ErdCardField,
+  type ErdFieldRowLabels,
+} from './erd-fields';
 
-function FieldRow({ field }: { field: ErdCardField }) {
+function FieldRow({ field, labels }: { field: ErdCardField; labels: ErdFieldRowLabels }) {
+  const alias = fieldAliasLine(field, labels);
+  const description = fieldDescriptionLine(field, labels);
   return (
     <div
-      className='border-border/50 flex items-center gap-2 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
+      className='border-border/50 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
       style={{ opacity: field.isHidden ? 0.5 : 1 }}
-      title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
+      title={field.isHidden ? `${field.name} (hidden from reporting)` : field.name}
     >
-      {field.isPrimaryKey ? (
-        <KeyRound
-          className='h-3 w-3 shrink-0'
-          style={{ color: OWOX_YELLOW_BASE }}
-          aria-label='Primary key'
-        />
-      ) : (
-        <span className='w-3 shrink-0' />
+      <div className='flex items-center gap-2'>
+        {field.isPrimaryKey ? (
+          <KeyRound
+            className='h-3 w-3 shrink-0'
+            style={{ color: OWOX_YELLOW_BASE }}
+            aria-label='Primary key'
+          />
+        ) : (
+          <span className='w-3 shrink-0' />
+        )}
+        <span className='text-foreground flex-1 truncate'>{field.name}</span>
+        <span className='text-muted-foreground shrink-0 font-mono text-[10px] tracking-tight'>
+          {field.type}
+        </span>
+      </div>
+      {/* Optional lines are single-line (truncated) so the row height stays
+          predictable for the layout; the full text lives in the tooltip. */}
+      {alias && (
+        <div
+          className='text-muted-foreground truncate pl-5 text-[10.5px] leading-[14px]'
+          title={alias}
+        >
+          {alias}
+        </div>
       )}
-      <span className='text-foreground flex-1 truncate'>{field.alias}</span>
-      <span className='text-muted-foreground shrink-0 font-mono text-[10px] tracking-tight'>
-        {field.type}
-      </span>
+      {description && (
+        <div
+          className='text-muted-foreground/80 truncate pl-5 text-[10.5px] leading-[14px] italic'
+          title={description}
+        >
+          {description}
+        </div>
+      )}
     </div>
   );
 }
 
 interface ErdCardFieldsSectionProps {
   fields: ErdCardField[];
+  /** Which optional lines each row shows; defaults to all of them. */
+  labels?: ErdFieldRowLabels;
   /**
    * Expansion state is owned by the node component (which stays mounted across
    * Compact↔Detailed toggles), so an expanded card survives a view-mode
@@ -44,6 +76,7 @@ interface ErdCardFieldsSectionProps {
  */
 export function ErdCardFieldsSection({
   fields,
+  labels = ALL_FIELD_ROW_LABELS,
   expanded,
   onToggleExpanded,
 }: ErdCardFieldsSectionProps) {
@@ -61,7 +94,7 @@ export function ErdCardFieldsSection({
   return (
     <div className='border-t'>
       {visible.map(field => (
-        <FieldRow key={field.name} field={field} />
+        <FieldRow key={field.name} field={field} labels={labels} />
       ))}
       {hiddenCount > 0 && (
         <button

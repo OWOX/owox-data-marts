@@ -64,6 +64,22 @@ describe('filterCanvasData', () => {
     expect(result.nodes.map(n => n.id)).toEqual(['a', 'b', 'c']);
   });
 
+  it('unconnected keeps only nodes without edges and returns no edges', () => {
+    const result = filterCanvasData(data, 'all', 'unconnected');
+    expect(result.nodes.map(n => n.id)).toEqual(['isolated']);
+    expect(result.edges).toEqual([]);
+  });
+
+  it('unconnected counts a node whose only neighbour is filtered out by status', () => {
+    // b–c is the only edge touching c; with drafts hidden, b keeps a–b and
+    // stays connected, while c is gone — nothing new becomes unconnected.
+    expect(filterCanvasData(data, 'published', 'unconnected').nodes.map(n => n.id)).toEqual([
+      'isolated',
+    ]);
+    // Draft-only view: c's neighbour b is hidden, so c has no edge left.
+    expect(filterCanvasData(data, 'draft', 'unconnected').nodes.map(n => n.id)).toEqual(['c']);
+  });
+
   it('connected is evaluated after the status filter', () => {
     const result = filterCanvasData(data, 'published', 'connected');
     expect(result.nodes.map(n => n.id)).toEqual(['a', 'b']);

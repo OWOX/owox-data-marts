@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import type { CanvasRelFilter } from '../model/graph/filter-canvas-data';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 
-function renderToolbar(actions?: ReactNode) {
+function renderToolbar(actions?: ReactNode, rel: CanvasRelFilter = 'connected') {
   return render(
     <ModelCanvasToolbar
       actions={actions}
       status='published'
       onStatusChange={vi.fn()}
-      rel='connected'
+      rel={rel}
       onRelChange={vi.fn()}
       searchQuery=''
       onSearchChange={vi.fn()}
@@ -24,6 +25,19 @@ describe('ModelCanvasToolbar', () => {
 
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Relationships' })).toBeInTheDocument();
+  });
+
+  it('names every relationships filter value', () => {
+    const { unmount } = renderToolbar(undefined, 'connected');
+    expect(screen.getByRole('combobox', { name: 'Relationships' })).toHaveTextContent(
+      'With relationships only'
+    );
+    unmount();
+
+    renderToolbar(undefined, 'unconnected');
+    expect(screen.getByRole('combobox', { name: 'Relationships' })).toHaveTextContent(
+      'Without relationships only'
+    );
   });
 
   it('renders the actions slot within the row, ahead of the download button', () => {

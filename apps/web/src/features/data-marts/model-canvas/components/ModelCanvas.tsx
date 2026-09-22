@@ -51,6 +51,7 @@ import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-
 import {
   parseObjectLabelsHidden,
   serializeObjectLabelsHidden,
+  toFieldRowLabels,
   type ObjectLabelsHidden,
 } from '../../shared/canvas/object-labels';
 import { parseCanvasViewMode } from '../../shared/canvas/view-mode';
@@ -162,7 +163,13 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
     type: 'modelCanvasNode',
     position: params.position,
     width: nodeWidth(viewMode),
-    height: computeNodeHeight(node, viewMode, metaRowHidden, statusRowHidden),
+    height: computeNodeHeight(
+      node,
+      viewMode,
+      metaRowHidden,
+      statusRowHidden,
+      toFieldRowLabels(objectLabels)
+    ),
     draggable: true,
     selectable: false,
     focusable: false,
@@ -335,10 +342,12 @@ function ModelCanvasInner({
     );
 
     const metaRowHidden = objectLabels.source && objectLabels.status;
+    const statusRowHidden = metaRowHidden && objectLabels.fields;
+    const fieldLabels = toFieldRowLabels(objectLabels);
     const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
-      height: computeNodeHeight(n, viewMode, metaRowHidden),
+      height: computeNodeHeight(n, viewMode, metaRowHidden, statusRowHidden, fieldLabels),
     }));
     const joinLabels = showJoinLabels
       ? new Map(topologyEdges.map(e => [e.id, buildJoinLabel(e)]))

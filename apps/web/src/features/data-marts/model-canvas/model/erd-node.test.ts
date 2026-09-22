@@ -6,6 +6,7 @@ import {
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
   ERD_HEADER_HEIGHT,
+  ERD_ROW_EXTRA_LINE_HEIGHT,
   ERD_ROW_HEIGHT,
   collapsedRowCount,
   computeNodeHeight,
@@ -76,6 +77,21 @@ describe('computeNodeHeight', () => {
     expect(computeNodeHeight({ fields }, 'erd', true, true)).toBe(
       ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + ERD_ROW_HEIGHT
     );
+  });
+
+  it('adds a line per shown alias/description and drops them when the labels are off', () => {
+    const fields = [field('a'), { ...field('b'), alias: 'B alias', description: 'B described' }];
+    expect(computeNodeHeight({ fields }, 'erd')).toBe(
+      ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + 2 * ERD_ROW_EXTRA_LINE_HEIGHT
+    );
+    expect(
+      computeNodeHeight({ fields }, 'erd', false, false, { alias: false, description: true })
+    ).toBe(ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT);
+    expect(
+      computeNodeHeight({ fields }, 'erd', false, false, { alias: false, description: false })
+    ).toBe(ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT);
+    // Compact cards have no field rows, so the labels never change their height.
+    expect(computeNodeHeight({ fields }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });
 
   it('sums header and visible rows, adding the expand row only when collapsed rows remain', () => {

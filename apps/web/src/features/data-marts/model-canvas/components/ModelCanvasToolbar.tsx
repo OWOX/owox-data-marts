@@ -50,6 +50,7 @@ export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
           <SelectContent>
             <SelectItem value='all'>All Data Marts</SelectItem>
             <SelectItem value='connected'>With relationships only</SelectItem>
+            <SelectItem value='unconnected'>Without relationships only</SelectItem>
           </SelectContent>
         </Select>
         <Select

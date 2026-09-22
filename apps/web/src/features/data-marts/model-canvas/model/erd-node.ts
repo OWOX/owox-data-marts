@@ -1,7 +1,7 @@
 import {
-  collapsedRowCount,
-  ERD_EXPAND_ROW_HEIGHT,
-  ERD_ROW_HEIGHT,
+  ALL_FIELD_ROW_LABELS,
+  erdFieldsBodyHeight,
+  type ErdFieldRowLabels,
 } from '../../shared/canvas/erd-fields';
 import type { CanvasViewMode } from '../../shared/canvas/view-mode';
 import type { ModelCanvasNode } from './types';
@@ -12,6 +12,7 @@ export {
   collapsedRowCount,
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
+  ERD_ROW_EXTRA_LINE_HEIGHT,
   ERD_ROW_HEIGHT,
   orderFields,
 } from '../../shared/canvas/erd-fields';
@@ -43,24 +44,20 @@ export function nodeWidth(viewMode: CanvasViewMode): number {
  * (the field count lives in the status icons row).
  * `statusRowHidden` reflects title-only mode, which also drops the quality
  * indicators row (Data Quality shield + Data Last Updated clock).
+ * `fieldLabels` picks the optional alias/description lines under each ERD
+ * field row — every shown line adds to the collapsed height.
  */
 export function computeNodeHeight(
   node: Pick<ModelCanvasNode, 'fields'>,
   viewMode: CanvasViewMode,
   metaRowHidden = false,
-  statusRowHidden = false
+  statusRowHidden = false,
+  fieldLabels: ErdFieldRowLabels = ALL_FIELD_ROW_LABELS
 ): number {
   const metaAdjustment =
     (metaRowHidden ? -CARD_META_ROW_HEIGHT : 0) + (statusRowHidden ? -CARD_STATUS_ROW_HEIGHT : 0);
   if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT + metaAdjustment;
   const fields = node.fields ?? [];
   if (fields.length === 0) return COMPACT_NODE_HEIGHT + metaAdjustment;
-  const rows = collapsedRowCount(fields);
-  const hasMore = fields.length > rows;
-  return (
-    ERD_HEADER_HEIGHT +
-    metaAdjustment +
-    rows * ERD_ROW_HEIGHT +
-    (hasMore ? ERD_EXPAND_ROW_HEIGHT : 0)
-  );
+  return ERD_HEADER_HEIGHT + metaAdjustment + erdFieldsBodyHeight(fields, fieldLabels);
 }

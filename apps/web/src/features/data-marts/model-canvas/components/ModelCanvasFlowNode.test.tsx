@@ -2,6 +2,11 @@ import type { NodeProps } from '@xyflow/react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import {
+  ALL_HIDDEN,
+  NOTHING_HIDDEN,
+  type ObjectLabelsHidden,
+} from '../../shared/canvas/object-labels';
 import type { CanvasNodeField } from '../model/types';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -35,7 +40,7 @@ function renderNode(
   onOpenQuality = vi.fn(),
   onRunQuality = vi.fn().mockResolvedValue(undefined),
   onParentClick = vi.fn(),
-  objectLabels?: { source: boolean; fields: boolean; status: boolean }
+  objectLabels?: ObjectLabelsHidden
 ) {
   const props = {
     id: 'orders',
@@ -142,9 +147,59 @@ describe('ModelCanvasFlowNode', () => {
   it('shows all field rows without an expand toggle when they fit the collapsed cap', () => {
     renderNode();
 
-    expect(screen.getByText('Order ID')).toBeInTheDocument();
-    expect(screen.getByText('Status')).toBeInTheDocument();
+    expect(screen.getByText('order_id')).toBeInTheDocument();
+    expect(screen.getByText('status')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /more field/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the Output Schema alias and description under the field name', () => {
+    const fields: CanvasNodeField[] = [
+      {
+        name: 'order_id',
+        alias: 'Order ID',
+        type: 'STRING',
+        description: 'Unique order key',
+        isPrimaryKey: true,
+        isHidden: false,
+      },
+      { name: 'status', alias: 'status', type: 'STRING', isPrimaryKey: false, isHidden: false },
+    ];
+    const { container } = renderNode(vi.fn(), fields);
+
+    expect(screen.getByText('order_id')).toBeInTheDocument();
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.getByText('Unique order key')).toBeInTheDocument();
+    // The full description is reachable on hover even when the line truncates.
+    expect(container.querySelector('[title="Unique order key"]')).toBeInTheDocument();
+    // An alias equal to the name is noise — no second line for it.
+    expect(screen.getAllByText('status')).toHaveLength(1);
+  });
+
+  it('drops only the alias or the description line when its label is unticked', () => {
+    const fields: CanvasNodeField[] = [
+      {
+        name: 'order_id',
+        alias: 'Order ID',
+        type: 'STRING',
+        description: 'Unique order key',
+        isPrimaryKey: true,
+        isHidden: false,
+      },
+    ];
+    const { unmount } = renderNode(vi.fn(), fields, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      fieldAlias: true,
+    });
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
+    expect(screen.getByText('Unique order key')).toBeInTheDocument();
+    unmount();
+
+    renderNode(vi.fn(), fields, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      fieldDescription: true,
+    });
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.queryByText('Unique order key')).not.toBeInTheDocument();
   });
 
   it('collapses long field lists and expands them in place', () => {
@@ -168,11 +223,14 @@ describe('ModelCanvasFlowNode', () => {
   });
 
   it('hides the badge, field count and status pill when all object labels are hidden', () => {
-    const { container } = renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
-      source: true,
-      fields: true,
-      status: true,
-    });
+    const { container } = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      undefined,
+      undefined,
+      undefined,
+      ALL_HIDDEN
+    );
 
     expect(screen.queryByText('View')).not.toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
@@ -181,16 +239,17 @@ describe('ModelCanvasFlowNode', () => {
     // Title-only mode also drops the quality indicators row.
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Data Last Updated for Orders/)).not.toBeInTheDocument();
-    // The ERD body (field rows) is a view-mode concern and stays visible.
-    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    // The ERD body (field rows) is a view-mode concern and stays visible —
+    // only the optional alias/description lines go with the labels.
+    expect(screen.getByText('order_id')).toBeInTheDocument();
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
     expect(container.querySelector('[title="Orders"]')).toBeInTheDocument();
   });
 
   it('hides only the field count when the fields label is unticked', () => {
     renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
-      source: false,
+      ...NOTHING_HIDDEN,
       fields: true,
-      status: false,
     });
 
     expect(screen.getByText('View')).toBeInTheDocument();
@@ -207,8 +266,8 @@ describe('ModelCanvasFlowNode', () => {
 
     const rowTexts = [...container.querySelectorAll('[title]')]
       .map(el => el.getAttribute('title'))
-      .filter(title => title === 'A' || title === 'B');
-    expect(rowTexts).toEqual(['A', 'B']);
+      .filter(title => title === 'a' || title === 'b');
+    expect(rowTexts).toEqual(['a', 'b']);
   });
 
   it('opens the Quality tab from the status details without bubbling to the node', async () => {
