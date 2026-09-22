@@ -23,7 +23,7 @@ For a general connector walkthrough, see [Connector-based Data Mart](https://doc
 
 If you have no storage yet, click **New Storage**. You can create the storage now and configure it later.
 
-![Create Data Mart dialog with the title, storage, and Create Data Mart button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fcadd80a-5adf-4396-0036-3ff423186100/w=800)
+![Create Data Mart dialog with the title, storage, and Create Data Mart button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fcadd80a-5adf-4396-0036-3ff423186100/public)
 
 ## Set Up the Connector
 
@@ -31,12 +31,12 @@ If you have no storage yet, click **New Storage**. You can create the storage no
 2. Click **Set up connector** and choose **TikTok Ads**.
 3. Choose your authentication method.
 
-![Definition Type dropdown with the Connector option selected](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/740574ba-3e2e-49f7-9ee9-41c1d7075700/w=800)
+![Definition Type dropdown with the Connector option selected](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/740574ba-3e2e-49f7-9ee9-41c1d7075700/public)
 
 For OAuth, click **Continue with TikTok**, then sign in with a TikTok user who can access the
 advertiser account. If the button does not appear, use the **Access Token** method.
 
-![Set Up Connector panel comparing the Continue with TikTok button and the manual Access Token fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6f78606d-2ba8-49c2-a70f-21c21c64eb00/w=800)
+![Set Up Connector panel comparing the Continue with TikTok button and the manual Access Token fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6f78606d-2ba8-49c2-a70f-21c21c64eb00/public)
 
 For manual authentication, fill in these fields:
 
@@ -49,7 +49,7 @@ Find the App ID and App Secret in **My Apps → App Detail → Basic Information
 Then fill in **Advertiser IDs**. Use numeric IDs only. To import from several advertisers, separate the IDs with commas. You receive these IDs with the access token. You can also find
 them in [TikTok Ads Manager](https://ads.tiktok.com/). The authorized TikTok user must access every listed advertiser.
 
-![TikTok Ads connector fields for access token, App ID, App Secret, and Advertiser IDs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1e0af015-839d-4600-fceb-c94095e58f00/w=800)
+![TikTok Ads connector fields for access token, App ID, App Secret, and Advertiser IDs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1e0af015-839d-4600-fceb-c94095e58f00/public)
 
 ### Choose Data Level Before Fields
 
@@ -63,6 +63,8 @@ merge correctly.
 | `AUCTION_ADGROUP` | Daily metrics per ad group. | `adgroup_id`, `stat_time_day`, `advertiser_id` |
 | `AUCTION_CAMPAIGN` | Daily metrics per campaign. | `campaign_id`, `stat_time_day`, `advertiser_id` |
 | `AUCTION_ADVERTISER` | Advertiser-level daily totals. | `stat_time_day`, `advertiser_id` |
+
+![Data Level dropdown open with the four reporting grains and AUCTION_AD selected](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/815bd5c5-f787-47b5-d0a6-d9ee54045f00/public)
 
 `ad_insights_by_country` uses the same grain and adds `country_code` to the pinned fields.
 
@@ -94,7 +96,7 @@ For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 **Publish & Run Data Mart** stays inactive until your storage has valid settings. Open the
 storage, check its settings, then come back to this step. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
-![TikTok Ads Data Mart with the Publish & Run Data Mart button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e0a5b161-c80b-434b-ae8f-e2304e6be400/w=800)
+![TikTok Ads Data Mart with the Publish & Run Data Mart button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e0a5b161-c80b-434b-ae8f-e2304e6be400/public)
 
 ## Advanced Settings
 
@@ -139,9 +141,13 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-The import includes both the start date and the end date. Leave **End Date** empty to import
-through today. You cannot pick a **Start Date** in the future, or an **End Date** earlier than
-the **Start Date**. A future **End Date** imports through today and logs a warning.
+The import includes both the start date and the end date. One backfill run covers at most
+31 days, so a full calendar month fits in one run. The form shows how many days your period
+covers and rejects a longer one before the run starts. To reload a longer history, run several
+backfills with consecutive periods, one after another.
+
+Both dates are required. The date picker does not offer future dates. The **End Date** must be
+on or after the **Start Date**.
 
 ![Backfill dialog with Start Date, End Date, and Run button](res/tiktok_ads_daterange.png)
 
