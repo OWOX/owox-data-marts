@@ -52,8 +52,11 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
       ...dateInfo
     });
 
-    // Update LastRequestedDate only for time series data and incremental runs
-    if (isTimeSeriesNode && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+    // Only time series nodes have a date to checkpoint
+    if (isTimeSeriesNode) {
+      // Safe to checkpoint a backfill only because this connector declares a single
+      // time-series node. The node loop is outside this one, so a second time-series
+      // node would make a completed date here say nothing about that node.
       this.config.updateLastRequstedDate(dateInfo.actualEndDate);
     }
   }

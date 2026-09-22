@@ -653,6 +653,54 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(within(block as HTMLElement).getByText('page_hash__pagePath')).toBeInTheDocument();
   });
 
+  it('puts a column the analyst hid in its own block, not among the disconnected ones', () => {
+    // Hidden and disconnected arrive here identically — every reporting list drops both — but
+    // they are not the same fact: nothing is missing, so there is no schema to restore, and the
+    // analyst who hid the column is the one who can show it again.
+    const schema = buildSchema({ hiddenFieldNames: ['ROAS'] });
+
+    renderPicker(schema, ['native_one', 'ROAS', 'old_column']);
+
+    const hidden = screen.getByTestId('hidden-columns-title').closest('div[class*="border"]');
+    expect(within(hidden as HTMLElement).getByText('ROAS')).toBeInTheDocument();
+
+    const disconnected = screen.getByText('Disconnected columns').closest('div[class*="border"]');
+    expect(within(disconnected as HTMLElement).getByText('old_column')).toBeInTheDocument();
+    expect(within(disconnected as HTMLElement).queryByText('ROAS')).not.toBeInTheDocument();
+  });
+
+  it('shows no Disconnected block at all when every unresolved column is merely hidden', () => {
+    const schema = buildSchema({ hiddenFieldNames: ['ROAS'] });
+
+    renderPicker(schema, ['native_one', 'ROAS']);
+
+    expect(screen.getByTestId('hidden-columns-title')).toBeInTheDocument();
+    expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
+  });
+
+  it('lets a hidden column be unchecked away, exactly like a disconnected one', () => {
+    const schema = buildSchema({ hiddenFieldNames: ['ROAS'] });
+
+    const { onChange } = renderPicker(schema, ['native_one', 'ROAS']);
+
+    const row = screen.getByText('ROAS').closest('label');
+    fireEvent.click(within(row!).getByRole('checkbox'));
+
+    expect(onChange.mock.calls[0][0]).toEqual(['native_one']);
+  });
+
+  it('calls a column disconnected when the schema says nothing about hidden fields', () => {
+    // An older cached blendable schema carries no such list. The column still does not resolve,
+    // so the report is just as broken — it is only the explanation that goes back to the old one.
+    const schema = buildSchema();
+
+    renderPicker(schema, ['native_one', 'ROAS']);
+
+    expect(screen.queryByTestId('hidden-columns-title')).not.toBeInTheDocument();
+    const block = screen.getByText('Disconnected columns').closest('div[class*="border"]');
+    expect(within(block as HTMLElement).getByText('ROAS')).toBeInTheDocument();
+  });
+
   it('removes an unresolved column from the report when its checkbox is unchecked', () => {
     const schema = buildSchema();
 
@@ -802,7 +850,9 @@ describe('ReportColumnPicker unresolved columns', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText('Output controls count')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
@@ -843,7 +893,7 @@ describe('ReportColumnPicker unresolved columns', () => {
 
     const block = screen.getByText('Disconnected columns').closest('div[class*="border"]');
     expect(block).not.toBeNull();
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
     const row = within(block as HTMLElement)
       .getByText('ghost__col')
       .closest('label');
@@ -888,7 +938,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     );
 
     expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
 
@@ -1021,7 +1071,62 @@ describe('ReportColumnPicker unresolved columns', () => {
       within(row as HTMLElement).getByRole('button', { name: 'Manage filters and slices' })
     ).toBeInTheDocument();
     expect(within(block as HTMLElement).queryByText('b__visible_field')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('2');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('2');
+  });
+
+  it('puts a slice on a hidden joined field in the amber block, where save and run already put it', () => {
+    // Same fixture as above plus the one fact the schema now carries: the joined field was hidden,
+    // not lost. Save and run answer "Hidden columns … ask your analyst to show them in reports
+    // again", so the editor must not be telling the reader to have the schema restored.
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__hidden_field',
+          originalFieldName: 'hidden_field',
+          isHidden: true,
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+      hiddenFieldNames: ['b__hidden_field'],
+    });
+    vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(schema);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData([BLENDABLE_SCHEMA_QUERY_KEY, DATA_MART_ID], schema);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    render(
+      <ReportColumnPicker
+        dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
+        storageType={DataStorageType.GOOGLE_BIGQUERY}
+        value={['native_one']}
+        onChange={() => {}}
+        outputConfig={{
+          filterConfig: [
+            {
+              column: 'b__hidden_field',
+              operator: 'eq',
+              value: 'x',
+              placement: 'pre-join',
+            },
+          ],
+          sortConfig: [],
+          limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: [],
+        }}
+        onOutputConfigChange={() => {}}
+      />,
+      { wrapper }
+    );
+
+    const hidden = screen.getByTestId('hidden-columns-title').closest('div[class*="border"]');
+    expect(within(hidden as HTMLElement).getByText('b__hidden_field')).toBeInTheDocument();
+    expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
   });
 
   // A JOINED Data Mart's calculated field is refused on every report surface — the backend answers
@@ -1097,7 +1202,9 @@ describe('ReportColumnPicker unresolved columns', () => {
     });
 
     expect(screen.getByLabelText('Output controls count')).toHaveTextContent('1');
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
   });
 
   it('does not mark output controls on inaccessible but known blended fields as disconnected', () => {
@@ -1123,7 +1230,9 @@ describe('ReportColumnPicker unresolved columns', () => {
     });
 
     expect(screen.getByLabelText('Output controls count')).toHaveTextContent('2');
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
   });
 
@@ -1576,7 +1685,9 @@ describe('ReportColumnPicker aggregation', () => {
         onOutputConfigChange: vi.fn(),
       });
 
-      expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('Output controls with unresolved columns')
+      ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
       expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
@@ -2293,7 +2404,9 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
 
@@ -2312,7 +2425,7 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
 
@@ -2399,7 +2512,9 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
   });
 
   // An ungrouped report may sort by an unselected column — but not by one that owns a Unique Count
@@ -2416,7 +2531,7 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
     openPicker(/Add sort by/);
@@ -2497,7 +2612,9 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
         onOutputConfigChange,
       });
 
-      expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+      expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent(
+        '1'
+      );
       fireEvent.click(within(uniqueCountRowOf('Unique Count')).getByRole('checkbox'));
 
       expect(onOutputConfigChange).toHaveBeenCalledWith({
@@ -2575,7 +2692,7 @@ describe('ReportColumnPicker Unique Count virtual row', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
     expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
@@ -3330,7 +3447,9 @@ describe('ReportColumnPicker Unique Count per joined source', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Output controls with unresolved columns')
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
 
@@ -3352,7 +3471,7 @@ describe('ReportColumnPicker Unique Count per joined source', () => {
       onOutputConfigChange: vi.fn(),
     });
 
-    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Output controls with unresolved columns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
 

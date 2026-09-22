@@ -205,6 +205,11 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         }
       }
 
+      // Incremental only, unlike the other date-outer connectors: the loops above swallow
+      // every fetch and storage error, transient ones included, and only report them once the
+      // whole range has been walked. A date nothing could be imported for would still be
+      // checkpointed, so a resumed backfill would skip it for good. Restore this once a date
+      // that failed for every advertiser stops the run before this line.
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }

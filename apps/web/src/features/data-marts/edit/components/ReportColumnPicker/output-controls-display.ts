@@ -10,6 +10,18 @@ export const DISCONNECTED_COLUMNS_ADVICE =
   'filter, sort, aggregation or date bucket rule that references them, or contact your analyst ' +
   'to restore the schema.';
 
+/**
+ * The same, for a column that is not missing at all — the analyst took it off the reporting menu.
+ * Word for word the hidden half of that error, for the same reason: the block and the save have
+ * to send the reader to the same fix. The fix differs from the one above, which is the whole
+ * point — nothing is broken here, so there is no schema to restore, and the person who hid the
+ * column is the person who can show it again.
+ */
+export const HIDDEN_COLUMNS_ADVICE =
+  'They are still in the Data Mart, but hidden from reporting. Uncheck them and remove any ' +
+  'filter, sort, aggregation or date bucket rule that references them, or ask your analyst to ' +
+  'show them in reports again.';
+
 /** Last dotted segment of a flattened field name: `a.b.c` → `c`. */
 export function fieldLeafName(name: string): string {
   const i = name.lastIndexOf('.');

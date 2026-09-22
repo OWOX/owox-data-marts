@@ -7,6 +7,16 @@ export default function ExcelDescription() {
       <AccordionTrigger>How do I connect to Microsoft Excel?</AccordionTrigger>
       <AccordionContent>
         <p className='mb-2'>
+          Install the{' '}
+          <ExternalAnchor
+            className='underline'
+            href='https://marketplace.microsoft.com/en-us/product/WA200011946?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-excel'
+          >
+            OWOX Data Marts add-in
+          </ExternalAnchor>{' '}
+          from the Microsoft Marketplace to build reports from your Excel workbooks.
+        </p>
+        <p className='mb-2'>
           There is nothing to set up here beyond a title. Name it after the workbook or team that
           will use it: this is how you tell your Excel destinations apart in the add-in. You can
           also leave this to the OWOX add-in for Excel: if you have no Excel destination you can

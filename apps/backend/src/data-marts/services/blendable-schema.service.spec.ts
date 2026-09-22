@@ -1301,6 +1301,133 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[0].name).toBe('orders__revenue');
     });
 
+    it('names the main Data Mart fields it hid, so a report selecting one can be told which fact it hit', async () => {
+      // `nativeFields` drops them, which makes a stored report on one look exactly like a report
+      // on a column the schema lost. It is not the same thing and does not have the same fix.
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-1',
+          schema: makeSchema([
+            { name: 'clicks', type: 'INTEGER' },
+            { name: 'internal_id', type: 'STRING', isHiddenForReporting: true },
+            {
+              name: 'gone',
+              type: 'STRING',
+              status: DataMartSchemaFieldStatus.DISCONNECTED,
+              isHiddenForReporting: true,
+            },
+          ]),
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      // The disconnected one is left out on purpose: it really is gone, and that is the more
+      // useful thing to say about it.
+      expect(result.hiddenFieldNames).toEqual(['internal_id']);
+      expect(result.nativeFields.map(f => f.name)).toEqual(['clicks']);
+    });
+
+    it('names a joined field hidden on its own Data Mart, by the name a report would have stored', async () => {
+      // It never becomes a BlendedFieldDto — the filter below drops it — so without this list the
+      // run path sees a name nothing resolves and calls the column lost.
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'customers',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Customers',
+            schema: makeSchema([
+              { name: 'customer_name', type: 'STRING' },
+              { name: 'internal_id', type: 'STRING', isHiddenForReporting: true },
+            ]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.hiddenFieldNames).toEqual(['customers__internal_id']);
+      expect(result.blendedFields.map(f => f.name)).toEqual(['customers__customer_name']);
+    });
+
+    it('names a field hidden per join, which stays in blendedFields with isHidden', async () => {
+      // The other joined switch: the DTO is built and flagged, and a report may still carry the
+      // name. Both routes end at the same dead end, so both belong in one list.
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-1',
+          blendedFieldsConfig: {
+            sources: [
+              {
+                path: 'customers',
+                fields: { customer_name: { isHidden: true } },
+              },
+            ],
+          } as unknown as DataMart['blendedFieldsConfig'],
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'customers',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Customers',
+            schema: makeSchema([{ name: 'customer_name', type: 'STRING' }]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.hiddenFieldNames).toEqual(['customers__customer_name']);
+      expect(result.blendedFields[0]).toMatchObject({
+        name: 'customers__customer_name',
+        isHidden: true,
+      });
+    });
+
+    it('uses the hashed unified name for a hidden NESTED joined field', async () => {
+      // A nested name is not the dotted path: it is hashed, and a report stored it hashed. Built
+      // by the same builder as the fields beside it, which is what keeps the two matching.
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'customers',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Customers',
+            schema: {
+              type: 'bigquery-data-mart-schema',
+              fields: [
+                {
+                  name: 'campaign',
+                  type: 'RECORD',
+                  status: DataMartSchemaFieldStatus.CONNECTED,
+                  isHiddenForReporting: true,
+                  fields: [
+                    { name: 'id', type: 'STRING', status: DataMartSchemaFieldStatus.CONNECTED },
+                  ],
+                },
+              ],
+            } as unknown as DataMart['schema'],
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.hiddenFieldNames).toEqual([
+        buildBlendedFieldUnifiedName('customers', 'campaign.id'),
+      ]);
+      expect(result.blendedFields).toEqual([]);
+    });
+
     it('should filter out isHiddenForReporting fields from target schema', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
 

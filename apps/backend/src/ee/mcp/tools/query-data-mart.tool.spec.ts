@@ -996,6 +996,76 @@ describe('QueryDataMartTool', () => {
       });
     });
 
+    it('tells the agent a HIDDEN field cannot be found by re-fetching the schema', async () => {
+      // The standard advice — look it up and copy it verbatim — is an endless loop here: a hidden
+      // column is stripped from the very schema the agent is sent to re-read. `field_not_found`
+      // would be that same loop by another route: the system instructions answer it with "call it
+      // again with detail_level=with_joined_fields".
+      const err = new BusinessViolationException('Hidden columns: "ROAS"', {
+        unknownColumns: ['ROAS'],
+        hiddenColumns: ['ROAS'],
+        dataMartId: 'dm1',
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['ROAS'] },
+        AUTH_CTX as never
+      );
+
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(result.structuredContent).toMatchObject({
+        error_code: 'field_hidden_from_reporting',
+      });
+      expect(msg).toContain('hidden from reporting');
+      expect(msg).toContain('Do not re-fetch the schema');
+      expect(msg).not.toContain('never guess or invent field names');
+    });
+
+    it('names every clause a hidden field has to be removed from, not just "fields"', async () => {
+      // The validator raises this for a filter, sort, aggregation, slice or date bucket as well,
+      // and "drop it from fields" changes nothing when the name is in a filter.
+      const err = new BusinessViolationException('Hidden columns: "cost"', {
+        unknownColumns: ['cost'],
+        hiddenColumns: ['cost'],
+        dataMartId: 'dm1',
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['date'],
+          filters: [{ field: 'cost', operator: 'gt', value: 10 }],
+        },
+        AUTH_CTX as never
+      );
+
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('any filter, slice, sort, aggregation or date bucket');
+    });
+
+    it('still sends the agent to the schema when a real unknown rides along with a hidden one', async () => {
+      const err = new BusinessViolationException('…', {
+        unknownColumns: ['ROAS', 'typo_field'],
+        hiddenColumns: ['ROAS'],
+        dataMartId: 'dm1',
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['ROAS', 'typo_field'] },
+        AUTH_CTX as never
+      );
+
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('get_data_mart_details_by_id');
+      // …and still says which of them re-fetching will never turn up.
+      expect(msg).toContain('ROAS exist but are hidden from reporting');
+      // The hidden one is carved out of the list the agent is told to look up, not listed twice.
+      expect(msg).toContain('Unknown field(s) in this data mart: typo_field.');
+    });
+
     it('maps BusinessViolationException with reservedNameColumns → field_name_reserved, without the raw message', async () => {
       const err = new BusinessViolationException(
         "buildValueSleeveGroupCte: dimension column(s) [_val] collide with a reserved internal alias ('_oid', '_val', '_dedup') of the sleeve 'sleeve_orders_hitId' computing [SUM(revenue)] — rename the field/output alias",

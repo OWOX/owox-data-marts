@@ -140,6 +140,12 @@ One backfill run covers at most 31 days, so a full calendar month fits in one ru
 The form shows how many days your period covers and rejects longer periods before the run starts.
 To reload a longer history, run several backfills with consecutive periods, one after another.
 
+If a deploy or restart interrupts a backfill, the automatic retry resumes it.
+That retry starts from the day after the last one it fully loaded.
+It does not reload the days it already imported.
+Starting a backfill yourself always loads the whole period you choose.
+Shopify and TikTok Ads always reload the whole period.
+
 ## Step 6: Set Triggers (Optional but Recommended)
 
 You can automate the connector by setting a trigger to run it on a schedule.

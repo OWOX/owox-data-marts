@@ -8,7 +8,7 @@ import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { AlertTriangle, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, EyeOff, TriangleAlert } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { useBlendableSchema } from '../../../shared/hooks/useBlendableSchema';
@@ -41,7 +41,11 @@ import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
 import type { AggregationDropdownColumn } from './AggregationSettingsDropdown';
-import { DISCONNECTED_COLUMNS_ADVICE, fieldDisplayLabel } from './output-controls-display';
+import {
+  DISCONNECTED_COLUMNS_ADVICE,
+  fieldDisplayLabel,
+  HIDDEN_COLUMNS_ADVICE,
+} from './output-controls-display';
 import {
   buildJoinedUniqueCountColumnName,
   UNIQUE_COUNT_LABEL,
@@ -978,9 +982,10 @@ export function ReportColumnPicker({
     [includedBlendedFields]
   );
 
-  // Excluded-source blended fields still resolve on the backend, but fields hidden
-  // in the joined data marts setup are rejected by the report-run orphan check —
-  // they must surface as disconnected alongside names absent from the schema.
+  // Excluded-source blended fields still resolve on the backend, but fields hidden in the joined
+  // data marts setup are rejected by the report-run orphan check — they must surface above the
+  // list alongside names absent from the schema. Which of the two blocks they land in is
+  // `hiddenFieldNames`' answer, and it names those join-hidden fields too.
   const knownFieldNames = useMemo(() => {
     const names = new Set(nativeFields.map(f => f.name));
     for (const field of schema?.blendedFields ?? []) {
@@ -1073,6 +1078,16 @@ export function ReportColumnPicker({
   const unresolvedColumns = useMemo(
     () => (schema ? effectiveValue.filter(name => !knownFieldNames.has(name)) : []),
     [schema, effectiveValue, knownFieldNames]
+  );
+
+  // Of the unresolved names, the ones the analyst HID rather than lost. They reach the picker the
+  // same way — every list built for reporting drops both — so without this the editor tells the
+  // reader their schema is broken and sends them to have it restored, over a column that is
+  // exactly where it was. An older cached schema carries no such list: nothing reads as hidden,
+  // and the block behaves exactly as it did before.
+  const hiddenColumnNames = useMemo(
+    () => new Set(schema?.hiddenFieldNames ?? []),
+    [schema?.hiddenFieldNames]
   );
 
   const unresolvedFilterOnlyColumns = useMemo(() => {
@@ -2033,6 +2048,117 @@ export function ReportColumnPicker({
     [unresolvedSlices, searchQuery]
   );
 
+  // One list of rows, split by WHY the name no longer resolves. `selected` is what the row's
+  // checkbox means: a projected column can be unchecked away, a filter-only one has nothing to
+  // uncheck and its rule is removed through the filter icon instead.
+  const unresolvedRows = useMemo(
+    () => [
+      ...visibleUnresolvedColumns.map(name => ({ name, selected: true })),
+      ...visibleUnresolvedFilterOnlyColumns.map(name => ({ name, selected: false })),
+    ],
+    [visibleUnresolvedColumns, visibleUnresolvedFilterOnlyColumns]
+  );
+
+  const hiddenUnresolvedRows = useMemo(
+    () => unresolvedRows.filter(({ name }) => hiddenColumnNames.has(name)),
+    [unresolvedRows, hiddenColumnNames]
+  );
+
+  const disconnectedUnresolvedRows = useMemo(
+    () => unresolvedRows.filter(({ name }) => !hiddenColumnNames.has(name)),
+    [unresolvedRows, hiddenColumnNames]
+  );
+
+  // A slice is addressed through a join, so it can only be orphaned by something on the joined
+  // side — but "hidden there" is one of those things, and `hiddenFieldNames` lists it under the
+  // same unified name the rule carries. A joined calculated field is left out: the backend
+  // refuses it by name, with its own error, whatever anyone hid.
+  const hiddenUnresolvedSlices = useMemo(
+    () =>
+      visibleUnresolvedSlices.filter(
+        slice => hiddenColumnNames.has(slice.column) && !joinedCalculatedNames.has(slice.column)
+      ),
+    [visibleUnresolvedSlices, hiddenColumnNames, joinedCalculatedNames]
+  );
+
+  const disconnectedUnresolvedSlices = useMemo(
+    () => visibleUnresolvedSlices.filter(slice => !hiddenUnresolvedSlices.includes(slice)),
+    [visibleUnresolvedSlices, hiddenUnresolvedSlices]
+  );
+
+  function renderUnresolvedSlice(
+    {
+      column,
+      fieldType,
+      sliceFieldType,
+    }: { column: string; fieldType?: string; sliceFieldType?: string },
+    hoverClass: string
+  ) {
+    const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
+    return (
+      <label
+        key={column}
+        className={cn(
+          'group/row flex cursor-pointer items-center gap-2 rounded px-1 py-1',
+          hoverClass
+        )}
+      >
+        <Checkbox checked={false} disabled />
+        <span className='font-mono text-xs'>{column}</span>
+        {outputControlsAvailable && slices.rules.length > 0 && (
+          <RowFilterIcon
+            column={column}
+            fieldType={fieldType ?? 'STRING'}
+            sliceFieldType={sliceFieldType ?? fieldType ?? 'STRING'}
+            activeRules={EMPTY_COLUMN_FILTERS.rules}
+            onRemoveAt={() => undefined}
+            sliceIconProps={{
+              unifiedFieldName: column,
+              existingSlices: slices.rules,
+              existingSliceIndices: slices.indices,
+              onRemoveSliceAt: handleRemoveFilterAt,
+            }}
+          />
+        )}
+      </label>
+    );
+  }
+
+  function renderUnresolvedRow(
+    { name, selected }: { name: string; selected: boolean },
+    hoverClass: string
+  ) {
+    const columnFilters = filtersByColumn.get(name) ?? EMPTY_COLUMN_FILTERS;
+    return (
+      <label
+        key={name}
+        className={cn(
+          'group/row flex cursor-pointer items-center gap-2 rounded px-1 py-1',
+          hoverClass
+        )}
+      >
+        <Checkbox
+          checked={selected}
+          disabled={!selected}
+          onCheckedChange={() => {
+            if (selected) toggleField(name, false);
+          }}
+        />
+        <span className='font-mono text-xs'>{name}</span>
+        {outputControlsAvailable && columnFilters.rules.length > 0 && (
+          <RowFilterIcon
+            column={name}
+            fieldType={fieldTypeByName.get(name) ?? 'STRING'}
+            activeRules={columnFilters.rules}
+            onRemoveAt={localIndex => {
+              handleRemoveFilterAt(columnFilters.indices[localIndex]);
+            }}
+          />
+        )}
+      </label>
+    );
+  }
+
   const targetSelectableFieldNames = useMemo(
     () => [
       ...searchedNativeFields.map(field => field.name),
@@ -2225,9 +2351,44 @@ export function ReportColumnPicker({
           selectedNativeCount === 0 ? 'border-destructive' : 'border-border'
         )}
       >
-        {(visibleUnresolvedColumns.length > 0 ||
-          visibleUnresolvedFilterOnlyColumns.length > 0 ||
-          visibleUnresolvedSlices.length > 0) && (
+        {(hiddenUnresolvedRows.length > 0 || hiddenUnresolvedSlices.length > 0) && (
+          <div className='rounded border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/30'>
+            <div className='flex items-start gap-1.5 px-1 py-1'>
+              <div className='min-w-0 flex-1'>
+                <span
+                  className='truncate text-xs font-semibold text-amber-700 dark:text-amber-300'
+                  data-testid='hidden-columns-title'
+                >
+                  Hidden columns
+                </span>
+              </div>
+              <Tooltip>
+                {/* A button, not the bare icon: `asChild` clones whatever it is given, and an
+                    <svg> takes no focus — the advice would be mouse-only. */}
+                <TooltipTrigger asChild>
+                  <button type='button' aria-label='About hidden columns' className='inline-flex'>
+                    <EyeOff
+                      className='mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300'
+                      aria-hidden='true'
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-xs'>
+                  <div className='space-y-1'>
+                    <p>{HIDDEN_COLUMNS_ADVICE}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            {hiddenUnresolvedRows.map(row =>
+              renderUnresolvedRow(row, 'hover:bg-amber-100/60 dark:hover:bg-amber-900/50')
+            )}
+            {hiddenUnresolvedSlices.map(slice =>
+              renderUnresolvedSlice(slice, 'hover:bg-amber-100/60 dark:hover:bg-amber-900/50')
+            )}
+          </div>
+        )}
+        {(disconnectedUnresolvedRows.length > 0 || disconnectedUnresolvedSlices.length > 0) && (
           <div className='border-destructive bg-destructive/10 rounded border'>
             <div className='flex items-start gap-1.5 px-1 py-1'>
               <div className='min-w-0 flex-1'>
@@ -2249,64 +2410,12 @@ export function ReportColumnPicker({
                 </TooltipContent>
               </Tooltip>
             </div>
-            {[
-              ...visibleUnresolvedColumns.map(name => ({ name, selected: true })),
-              ...visibleUnresolvedFilterOnlyColumns.map(name => ({ name, selected: false })),
-            ].map(({ name, selected }) => {
-              const columnFilters = filtersByColumn.get(name) ?? EMPTY_COLUMN_FILTERS;
-              return (
-                <label
-                  key={name}
-                  className='group/row hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-                >
-                  <Checkbox
-                    checked={selected}
-                    disabled={!selected}
-                    onCheckedChange={() => {
-                      if (selected) toggleField(name, false);
-                    }}
-                  />
-                  <span className='font-mono text-xs'>{name}</span>
-                  {outputControlsAvailable && columnFilters.rules.length > 0 && (
-                    <RowFilterIcon
-                      column={name}
-                      fieldType={fieldTypeByName.get(name) ?? 'STRING'}
-                      activeRules={columnFilters.rules}
-                      onRemoveAt={localIndex => {
-                        handleRemoveFilterAt(columnFilters.indices[localIndex]);
-                      }}
-                    />
-                  )}
-                </label>
-              );
-            })}
-            {visibleUnresolvedSlices.map(({ column, fieldType, sliceFieldType }) => {
-              const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
-              return (
-                <label
-                  key={column}
-                  className='group/row hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-                >
-                  <Checkbox checked={false} disabled />
-                  <span className='font-mono text-xs'>{column}</span>
-                  {outputControlsAvailable && slices.rules.length > 0 && (
-                    <RowFilterIcon
-                      column={column}
-                      fieldType={fieldType ?? 'STRING'}
-                      sliceFieldType={sliceFieldType ?? fieldType ?? 'STRING'}
-                      activeRules={EMPTY_COLUMN_FILTERS.rules}
-                      onRemoveAt={() => undefined}
-                      sliceIconProps={{
-                        unifiedFieldName: column,
-                        existingSlices: slices.rules,
-                        existingSliceIndices: slices.indices,
-                        onRemoveSliceAt: handleRemoveFilterAt,
-                      }}
-                    />
-                  )}
-                </label>
-              );
-            })}
+            {disconnectedUnresolvedRows.map(row =>
+              renderUnresolvedRow(row, 'hover:bg-destructive/20')
+            )}
+            {disconnectedUnresolvedSlices.map(slice =>
+              renderUnresolvedSlice(slice, 'hover:bg-destructive/20')
+            )}
           </div>
         )}
         {!hasVisibleColumns && (

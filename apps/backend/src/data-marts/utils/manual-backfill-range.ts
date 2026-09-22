@@ -120,3 +120,99 @@ export function prepareManualBackfillPayload(
   const { startDate, endDate } = parseManualBackfillRange(payload.data, today);
   return { ...payload, data: { ...payload.data, StartDate: startDate, EndDate: endDate } };
 }
+
+/** Key under `DataMartRun.additionalParams` holding the per-configuration backfill cursor. */
+export const BACKFILL_PROGRESS_KEY = 'backfillProgress';
+
+/**
+ * The run body as the connector layer consumes it, `{ runType, data }`.
+ *
+ * A run receives that shape directly on its first attempt, but the interrupted-run sweep
+ * replays `DataMartRun.additionalParams`, which nests the same body under `payload` next to
+ * the run's own state. Both shapes unwrap here so callers never have to know which attempt
+ * they are on.
+ */
+export function unwrapRunPayload(payload: unknown): Record<string, unknown> {
+  if (!isRecord(payload)) return {};
+  return isRecord(payload.payload) ? payload.payload : payload;
+}
+
+export function isManualBackfillPayload(body: Record<string, unknown>): boolean {
+  return body.runType === MANUAL_BACKFILL_RUN_TYPE;
+}
+
+/**
+ * Normalizes a connector-reported date to a UTC calendar day, or undefined when it is
+ * unusable. Connectors pass a `Date`, which serializes as a full ISO timestamp, so the day
+ * part is taken rather than required.
+ */
+export function parseBackfillDay(value: unknown): string | undefined {
+  const parsed = isoDaySchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Per-configuration backfill progress recorded by previous attempts of the same run.
+ *
+ * Entries are validated one by one: a single corrupt value must not discard the progress of
+ * every other configuration, since that would silently re-import days already stored.
+ */
+export function readBackfillProgress(additionalParams: unknown): Record<string, string> {
+  if (!isRecord(additionalParams)) return {};
+
+  const stored = additionalParams[BACKFILL_PROGRESS_KEY];
+  if (!isRecord(stored)) return {};
+
+  return Object.entries(stored).reduce<Record<string, string>>((progress, [configId, value]) => {
+    const day = parseBackfillDay(value);
+    return day ? { ...progress, [configId]: day } : progress;
+  }, {});
+}
+
+export interface BackfillResume {
+  /** The body to run, with StartDate moved forward when a previous attempt got further. */
+  readonly body: Record<string, unknown>;
+  /** The day the resumed run starts from; absent when nothing was resumed. */
+  readonly resumedFrom?: string;
+  /** The last day a previous attempt fully loaded; absent when nothing was resumed. */
+  readonly lastLoadedDate?: string;
+}
+
+/**
+ * Continues a manual backfill from the day after the last one a previous attempt fully
+ * loaded, instead of re-importing the whole selected period.
+ *
+ * The body is returned untouched when there is nothing to resume: a non-backfill run, a
+ * connector that declares no date fields, a payload whose EndDate was never normalized, or a
+ * checkpoint that is unusable. A checkpoint earlier than StartDate is also ignored — it
+ * belongs to a different period, and honouring it would widen the run past the day limit the
+ * caller already validated.
+ */
+export function resumeManualBackfillPayload(
+  body: Record<string, unknown>,
+  lastLoadedDate: string | undefined
+): BackfillResume {
+  if (!isManualBackfillPayload(body) || !lastLoadedDate || !isRecord(body.data)) return { body };
+
+  const lastLoadedDay = parseBackfillDay(lastLoadedDate);
+  const dates = manualBackfillDatesSchema.safeParse(body.data);
+  if (!lastLoadedDay || !dates.success || !dates.data.EndDate) return { body };
+
+  const lastLoaded = toUtcDay(lastLoadedDay);
+  const start = toUtcDay(dates.data.StartDate);
+  const end = toUtcDay(dates.data.EndDate);
+  if (lastLoaded < start) return { body };
+
+  // Clamped rather than skipped when the whole period was already loaded: re-importing one
+  // stored day is idempotent, because every storage merges on its unique keys. Skipping the
+  // run instead would need a second code path that reports success without the connector
+  // ever confirming its own field and catalog work.
+  const resumeFrom = formatUtcDay(Math.min(lastLoaded + DAY_MS, end));
+  if (resumeFrom === dates.data.StartDate) return { body };
+
+  return {
+    body: { ...body, data: { ...body.data, StartDate: resumeFrom } },
+    resumedFrom: resumeFrom,
+    lastLoadedDate: lastLoadedDay,
+  };
+}

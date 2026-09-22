@@ -35,8 +35,12 @@ export function OutputSettingsButton({
           {typeof count === 'number' && count > 0 && (
             <Badge
               variant={hasDisconnectedControls ? 'destructive' : 'default'}
+              // "Unresolved", not "disconnected": the rule may name a column that is merely
+              // hidden, which the picker's own block right below now says in so many words.
               aria-label={
-                hasDisconnectedControls ? 'Disconnected output controls' : 'Output controls count'
+                hasDisconnectedControls
+                  ? 'Output controls with unresolved columns'
+                  : 'Output controls count'
               }
               className='pointer-events-none absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[8px] leading-none'
             >

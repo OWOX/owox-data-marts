@@ -229,7 +229,11 @@ export function SchemaTable<T extends BaseSchemaField>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
+          <TableBody
+            // The bottom edge closes the last row (`[&_tr:last-child]:border-0` takes that row's own
+            // separator away), so it uses the same separator colour as the rows above it.
+            className='border-border-on-muted border-b bg-white dark:bg-white/1'
+          >
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
                 {table.getRowModel().rows.map(row => {
@@ -256,7 +260,12 @@ export function SchemaTable<T extends BaseSchemaField>({
                       key={row.id}
                       id={getRowId ? getRowId(row) : row.index}
                       row={row}
-                      className={row.original.isHiddenForReporting ? 'opacity-70' : undefined}
+                      className={cn(
+                        // The cells below are painted `dark:bg-muted`, on which the ordinary
+                        // `border` colour is invisible in the dark theme — see `--border-on-muted`.
+                        'border-border-on-muted',
+                        row.original.isHiddenForReporting && 'opacity-70'
+                      )}
                     >
                       {cells.map((cell, index) => {
                         if (spanStart !== -1 && index > spanStart && index <= spanEnd) return null;
@@ -328,7 +337,8 @@ export function SchemaTable<T extends BaseSchemaField>({
           {onAddCalculatedField && (
             <Button
               variant='outline'
-              className='bg-background dark:bg-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
+              // `border-border-on-muted`, like the rows: the divider sits on a `dark:bg-muted` surface.
+              className='bg-background dark:bg-muted border-border-on-muted flex-1 rounded-t-none rounded-bl-none border-0 border-l'
               onClick={onAddCalculatedField}
               disabled={isSchemaActualizationLoading}
               aria-label='Add calculated field'
