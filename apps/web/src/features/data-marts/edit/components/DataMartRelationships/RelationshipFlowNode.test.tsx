@@ -131,7 +131,7 @@ describe('RelationshipFlowNode', () => {
 
     expect(screen.getByText('Customer key')).toBeInTheDocument();
     expect(screen.queryByText('field_0')).not.toBeInTheDocument();
-    expect(container.querySelector('[title="field_0"]')).toBeInTheDocument();
+    expect(container.querySelector('[title="Customer key · field_0"]')).toBeInTheDocument();
     expect(screen.getByText('Joins to orders')).toBeInTheDocument();
     // An alias equal to the name just shows the name.
     expect(screen.getByText('field_1')).toBeInTheDocument();

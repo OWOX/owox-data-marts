@@ -168,7 +168,7 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.getByText('Order ID')).toBeInTheDocument();
     expect(screen.queryByText('order_id')).not.toBeInTheDocument();
-    expect(container.querySelector('[title="order_id"]')).toBeInTheDocument();
+    expect(container.querySelector('[title="Order ID · order_id"]')).toBeInTheDocument();
     expect(screen.getByText('Unique order key')).toBeInTheDocument();
     // The full description is reachable on hover even when the line truncates.
     expect(container.querySelector('[title="Unique order key"]')).toBeInTheDocument();
@@ -193,8 +193,8 @@ describe('ModelCanvasFlowNode', () => {
     });
     expect(screen.getByText('order_id')).toBeInTheDocument();
     expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
-    // …and the alias moves to the tooltip.
-    expect(container.querySelector('[title="Order ID"]')).toBeInTheDocument();
+    // …and the alias moves to the tooltip, after the (possibly truncated) row text.
+    expect(container.querySelector('[title="order_id · Order ID"]')).toBeInTheDocument();
     expect(screen.getByText('Unique order key')).toBeInTheDocument();
     unmount();
 
@@ -270,9 +270,9 @@ describe('ModelCanvasFlowNode', () => {
 
     const rowTexts = [...container.querySelectorAll('[title]')]
       .map(el => el.getAttribute('title'))
-      .filter(title => title === 'a' || title === 'b');
-    // Rows lead with the alias and keep the technical name in the tooltip.
-    expect(rowTexts).toEqual(['a', 'b']);
+      .filter(title => title === 'A · a' || title === 'B · b');
+    // Rows lead with the alias and add the technical name to the tooltip.
+    expect(rowTexts).toEqual(['A · a', 'B · b']);
   });
 
   it('opens the Quality tab from the status details without bubbling to the node', async () => {

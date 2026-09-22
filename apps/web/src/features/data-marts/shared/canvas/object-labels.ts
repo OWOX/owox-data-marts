@@ -77,6 +77,11 @@ export function isTitleOnly(hidden: ObjectLabelsHidden): boolean {
   return CARD_HEADER_PARTS.every(part => hidden[part]);
 }
 
+/** Every part hidden — what the "Uncheck all" shortcut produces. */
+export function isAllHidden(hidden: ObjectLabelsHidden): boolean {
+  return OBJECT_LABEL_PARTS.every(part => hidden[part]);
+}
+
 /** The Detailed-view half of the preference, in the shape the field rows consume. */
 export function toFieldRowLabels(hidden: ObjectLabelsHidden): ErdFieldRowLabels {
   return { alias: !hidden.fieldAlias, description: !hidden.fieldDescription };

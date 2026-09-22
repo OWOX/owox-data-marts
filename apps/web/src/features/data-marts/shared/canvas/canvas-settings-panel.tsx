@@ -6,8 +6,8 @@ import { Button } from '../../../../shared/components/Button';
 import { CANVAS_DIRECTION_OPTIONS, type CanvasDirection } from './canvas-direction';
 import {
   ALL_HIDDEN,
+  isAllHidden,
   isNothingHidden,
-  isTitleOnly,
   NOTHING_HIDDEN,
   OBJECT_LABEL_PARTS,
   toggleObjectLabelPart,
@@ -188,9 +188,9 @@ export function CanvasSettingsPanel({
         </button>
         <button
           type='button'
-          aria-pressed={isTitleOnly(objectLabels)}
+          aria-pressed={isAllHidden(objectLabels)}
           className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-            isTitleOnly(objectLabels)
+            isAllHidden(objectLabels)
               ? 'bg-primary/10 text-primary'
               : 'text-foreground hover:bg-muted'
           }`}

@@ -14,10 +14,14 @@ import {
 function FieldRow({ field, labels }: { field: ErdCardField; labels: ErdFieldRowLabels }) {
   const label = fieldRowLabel(field, labels);
   const description = fieldDescriptionLine(field, labels);
-  // The tooltip carries what the row does not: the technical name behind an
-  // alias, or the alias behind a technical name.
+  // The tooltip repeats the row text (it may be truncated) and adds what the
+  // row does not show: the technical name behind an alias, or the alias behind
+  // a technical name.
   const other = hasDistinctAlias(field) ? (label === field.name ? field.alias : field.name) : null;
-  const tooltip = [other ?? label, field.isHidden ? '(hidden from reporting)' : null]
+  const tooltip = [
+    [label, other].filter(Boolean).join(' · '),
+    field.isHidden ? '(hidden from reporting)' : null,
+  ]
     .filter(Boolean)
     .join(' ');
   return (

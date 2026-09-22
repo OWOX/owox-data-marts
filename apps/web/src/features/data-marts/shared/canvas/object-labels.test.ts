@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_HIDDEN,
+  isAllHidden,
   isNothingHidden,
   isTitleOnly,
   NOTHING_HIDDEN,
@@ -47,8 +48,11 @@ describe('object labels state', () => {
     expect(isNothingHidden(ALL_HIDDEN)).toBe(false);
     expect(isTitleOnly(ALL_HIDDEN)).toBe(true);
     expect(isTitleOnly({ ...ALL_HIDDEN, status: false })).toBe(false);
-    // The field-row parts do not decide title-only mode either way.
+    // The field-row parts do not decide title-only mode either way…
     expect(isTitleOnly({ ...ALL_HIDDEN, fieldDescription: false })).toBe(true);
+    // …but they do decide whether everything is hidden.
+    expect(isAllHidden(ALL_HIDDEN)).toBe(true);
+    expect(isAllHidden({ ...ALL_HIDDEN, fieldDescription: false })).toBe(false);
   });
 
   it('maps the field-row parts to the shape the rows consume', () => {
