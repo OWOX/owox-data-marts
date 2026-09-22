@@ -241,6 +241,21 @@ describe('McpHttpEntryService', () => {
     );
   });
 
+  it('does not register a long-lived subscriptions/listen stream as a drainable process', async () => {
+    const { service, gracefulShutdownService } = createService();
+    const request = {
+      auth: { extra: { mcpContext } },
+      body: { jsonrpc: '2.0', id: 1, method: 'subscriptions/listen' },
+      setTimeout: jest.fn(),
+      headers: {},
+    };
+
+    await callHandleRequest(service, request, {}, jest.fn().mockResolvedValue(undefined));
+
+    expect(gracefulShutdownService.registerActiveProcess).not.toHaveBeenCalled();
+    expect(gracefulShutdownService.unregisterActiveProcess).not.toHaveBeenCalled();
+  });
+
   it('unregisters the active process even when the node handler throws', async () => {
     const { service, gracefulShutdownService } = createService();
     const request = { auth: { extra: { mcpContext } }, setTimeout: jest.fn(), headers: {} };

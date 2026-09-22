@@ -110,10 +110,14 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     const mcpContext = toMcpAuthContext(request.auth);
 
     // /mcp is mounted directly on Express, outside ActiveRequestInterceptor's reach (it only wraps
-    // Nest-routed requests) — register/unregister here so graceful shutdown still waits for this
-    // request the same way it does for every other long-running operation in this app.
-    const processId = `mcp-${requestId}`;
-    this.gracefulShutdownService.registerActiveProcess(processId);
+    // Nest-routed requests) — register ordinary exchanges so shutdown drains tool calls. A modern
+    // subscriptions/listen response is intentionally long-lived, however: handler.close() owns
+    // terminating those streams after the drain. Registering one here would deadlock shutdown
+    // until its timeout because onModuleDestroy() waits for active processes before close().
+    const processId = this.isLongLivedSubscription(request.body) ? undefined : `mcp-${requestId}`;
+    if (processId) {
+      this.gracefulShutdownService.registerActiveProcess(processId);
+    }
 
     try {
       await this.clsContextService.runWithContext(
@@ -175,8 +179,19 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
         }
       );
     } finally {
-      this.gracefulShutdownService.unregisterActiveProcess(processId);
+      if (processId) {
+        this.gracefulShutdownService.unregisterActiveProcess(processId);
+      }
     }
+  }
+
+  private isLongLivedSubscription(body: unknown): boolean {
+    return (
+      !Array.isArray(body) &&
+      body !== null &&
+      typeof body === 'object' &&
+      (body as { method?: unknown }).method === 'subscriptions/listen'
+    );
   }
 
   /**

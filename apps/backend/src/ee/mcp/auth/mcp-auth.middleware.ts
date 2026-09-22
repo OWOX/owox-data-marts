@@ -49,8 +49,12 @@ export class McpAuthMiddleware {
     response: Response,
     next: NextFunction
   ) => {
-    const resourceContext = this.resolveResourceContext(request);
+    let resourceContext: McpResourceContext | null = null;
     try {
+      // tryResolveRequest() already maps an invalid request host/resource to null. Any exception
+      // escaping it is therefore a server/configuration failure and must follow the sanitized 500
+      // path below instead of being misreported as an authentication decision.
+      resourceContext = this.resourceResolver.tryResolveRequest(request);
       request.auth = await this.verify(request, resourceContext);
       next();
     } catch (error) {
@@ -61,18 +65,6 @@ export class McpAuthMiddleware {
       }
     }
   };
-
-  // Never throws: an unresolvable resource (bad request) and a resolver failure (bad config) both
-  // become `null` here, and verify() turns `null` into the same 'Invalid MCP resource' rejection —
-  // the config-failure case is still distinguished from a routine bad request via the ERROR log.
-  private resolveResourceContext(request: Request): McpResourceContext | null {
-    try {
-      return this.resourceResolver.tryResolveRequest(request);
-    } catch (error) {
-      this.logger.error('MCP resource resolution failed', { message: castError(error).message });
-      return null;
-    }
-  }
 
   private async verify(
     request: Request,

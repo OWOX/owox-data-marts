@@ -221,7 +221,7 @@ describe('McpAuthMiddleware', () => {
     expect(response.setHeader).not.toHaveBeenCalled();
   });
 
-  it('falls back to a normal 401 (not a hang) when resource resolution itself throws, e.g. misconfiguration', async () => {
+  it('responds 500 without an OAuth challenge when resource resolution fails unexpectedly', async () => {
     const auth = { verifyToken: jest.fn() } as unknown as McpAuthPort;
     const badConfigService = new ConfigService({ MCP_PUBLIC_BASE_URL: 'not-a-valid-url' });
     const middleware = new McpAuthMiddleware(
@@ -237,10 +237,13 @@ describe('McpAuthMiddleware', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(auth.verifyToken).not.toHaveBeenCalled();
-    expect(response.status).toHaveBeenCalledWith(401);
-    expect(response.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Invalid MCP resource' })
-    );
+    expect(response.setHeader).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith({
+      statusCode: 500,
+      message: 'Internal server error',
+      error: 'Internal Server Error',
+    });
   });
 
   it('logs an unauthenticated GET /mcp probe at a lower level than a real rejection (no distinguishable side effect asserted here beyond the 401 itself)', async () => {
