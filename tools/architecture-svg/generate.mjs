@@ -313,6 +313,25 @@ function connectorStats(name) {
  * storage; a mart names its storage, its sources and its destinations; a report
  * or a plugin names the destination it reads through. Same derivation the
  * /product canvas uses. */
+/* Every id a card names must be a card that is drawn. A stale reference — a
+ * report pointing at a data mart that was taken out of the picture — would
+ * otherwise render as a card with no mark and an edge that goes nowhere, which
+ * is a wrong picture rather than a crash. */
+function checkReferences(blocks) {
+  const cards = blocks.flatMap(b => b.cards);
+  const known = new Set(cards.map(c => c.id));
+  const bad = [];
+  for (const c of cards) {
+    for (const [key, value] of Object.entries(c)) {
+      if (!['storage', 'mart', 'destination', 'sources', 'destinations', 'related'].includes(key))
+        continue;
+      for (const id of [value].flat()) if (!known.has(id)) bad.push(`${c.id}.${key} -> ${id}`);
+    }
+  }
+  if (bad.length)
+    throw new Error(`architecture.json names cards that do not exist:\n  ${bad.join('\n  ')}`);
+}
+
 function wiresOf(blocks) {
   const seen = new Set();
   const wires = [];
@@ -721,6 +740,7 @@ function bandHead(t, b) {
 function draw(theme, data) {
   const t = { ...THEMES[theme], dim: DIM[theme] };
   const blocks = data.blocks;
+  checkReferences(blocks);
   const byId = new Map(blocks.flatMap(b => b.cards).map(c => [c.id, c]));
   const { placed, bands, height } = layout(blocks);
   const selected = new Set(data.highlight?.cards ?? []);
