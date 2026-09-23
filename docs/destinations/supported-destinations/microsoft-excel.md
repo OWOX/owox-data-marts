@@ -97,17 +97,22 @@ Use the ribbon buttons on the **OWOX Data Marts** tab:
 
 You can also open **All reports** in the task pane and refresh a report from the list.
 
-A refresh rewrites only the columns the report imported and leaves the rest of the sheet to you. The rules are the same as for a [Google Sheets](google-sheets.md#working-with-imported-data) report:
+A refresh rewrites only the columns the report imported and leaves the rest of the sheet to you. These rules match a [Google Sheets](google-sheets.md#working-with-imported-data) report:
 
-- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields are matched by their name in the Data Mart, not by position, so an alias in the header does not change the matching.
+- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields match by their name in the Data Mart, not by position, so an alias in the header does not change the matching.
 - **New report columns** appear at the right edge of the imported range, and your content to the right shifts right. **Removed** report columns are deleted; a formula that pointed at one shows `#REF!`.
 - **Formulas and columns to the right of the imported range survive.** A formula in row 2 of such a column is filled down to the last data row on every refresh. A static value in row 2 is left alone, so lookup tables and notes stay as you wrote them.
 - **Your formats on imported columns survive.** A date or currency format you set on a column stays across refreshes.
-- **The imported cells are rewritten from scratch.** A value or formula typed inside an imported column disappears on the next refresh. Keep your own columns **to the right** of the imported range: a column inserted between imported columns, or a header you retype, is not a report field and is removed on the next refresh. The imported column it displaced is written again at the right edge, and its old copy stays just past the imported range until you delete it.
 - **Fewer rows than last time** clear the imported cells below the new last row. A formula you filled down in a column to the right is left in place there and now points at empty cells.
 - **If the refresh fails before any data arrives**, the sheet is left as it was.
-- **Excel Tables** over the imported columns do not survive a refresh: the table is removed and the cells are rewritten as a plain range. Keep tables to the right of the imported range or on another sheet.
-- **On the first refresh** the add-in freezes row 1 and colours the tab. Unfreeze or recolour as you like; the add-in does not set them again.
+
+Keep your own columns **to the right** of the imported range. Inside that range, Excel does this:
+
+- **A value or formula typed in an imported cell disappears** on the next refresh. The refresh rewrites that cell.
+- **A column inserted between imported columns is deleted.** The refresh writes each imported field in the column it moved to. No second copy is left behind.
+- **A retyped header is not a report field.** If an imported header still sits to its right, the refresh deletes the retyped column and writes that field again at the right edge of the imported range. If the retyped header is the last imported column, the refresh leaves it in place, writes the field again at the right edge, and the retyped column stays just past the imported range until you delete it.
+- **Excel Tables** over the imported columns do not survive a refresh: the add-in removes the table and rewrites the cells as a plain range. Keep tables to the right of the imported range or on another sheet.
+- **On the first refresh** the add-in freezes row 1 and colors the tab. Unfreeze or recolor as you like; the add-in does not set them again.
 
 After you update the add-in, the first refresh of an existing sheet writes from column A in the report's order without clearing the sheet. If the report lost columns since the last refresh, the old ones — with their data and header notes — stay to the right. Delete them once by hand.
 
