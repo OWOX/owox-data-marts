@@ -536,15 +536,13 @@ function layout(blocks, logo) {
       cy += h + (r < rowsOf.length - 1 ? ROW_GAP : 0);
     });
 
-    /* The corner mark lives inside the last lane's bottom padding, not in a
-     * strip under it: a strip is padding by another name, and the drawing is
-     * meant to end MARGIN below the lanes on every side. */
-    const last = block === blocks[blocks.length - 1];
-    const pad = BAND_PAD + (last && logo ? LOGO_SIZE + 8 : 0);
-    bands.push({ block, top: bandTop, bottom: cy + pad });
-    y = cy + pad + BAND_GAP;
+    bands.push({ block, top: bandTop, bottom: cy + BAND_PAD });
+    y = cy + BAND_PAD + BAND_GAP;
   }
-  const height = y - BAND_GAP + MARGIN;
+  /* The signature sits under the lanes rather than inside the last one, so it
+   * belongs to the drawing and not to Plugins. It is a row with content, not
+   * padding: MARGIN still closes the drawing beneath it. */
+  const height = y - BAND_GAP + (logo ? BAND_GAP + LOGO_SIZE : 0) + MARGIN;
   return { placed, bands, height };
 }
 
@@ -791,6 +789,23 @@ function bandHead(t, b) {
   return parts.join('');
 }
 
+/* The OWOX mark and the address, bottom right, under the last lane. The mark
+ * leads and the address follows it, the pair right-aligned to the margin every
+ * lane edge keeps. */
+const SIGNATURE = 'www.owox.com';
+
+function signature(t, show, height) {
+  if (!show) return '';
+  const size = 12;
+  const w = textWidth(SIGNATURE, size);
+  const top = height - MARGIN - LOGO_SIZE;
+  const textX = WIDTH - MARGIN - w;
+  return (
+    mark('owox', textX - 8 - LOGO_SIZE, top, LOGO_SIZE) +
+    text(textX, top + LOGO_SIZE / 2, SIGNATURE, { size, fill: t.muted })
+  );
+}
+
 function draw(theme, data) {
   const t = { ...THEMES[theme], dim: DIM[theme] };
   const blocks = data.blocks;
@@ -847,14 +862,7 @@ function draw(theme, data) {
     wires.join(''),
     cards.join(''),
     bands.map(b => bandHead(t, { ...b, showTotals: data.showTotals })).join(''),
-    data.showLogo === true
-      ? mark(
-          'owox',
-          WIDTH - MARGIN - BAND_PAD - LOGO_SIZE,
-          bands[bands.length - 1].bottom - BAND_PAD - LOGO_SIZE,
-          LOGO_SIZE
-        )
-      : '',
+    signature(t, data.showLogo === true, height),
     '</svg>',
     '',
   ].join('\n');
