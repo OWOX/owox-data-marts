@@ -169,15 +169,13 @@ only after it has walked the whole range, so it cannot yet tell which days it tr
 <p><strong>Self-hosted upgrades: stop the previous application and its background workers before starting this version. Running both versions together can leave report search results outdated.</strong></p>
 <p><strong>API client users: update the OWOX API client or explicitly filter by supported <code dir="auto">entityTypes</code>. Unfiltered search results now include <code dir="auto">REPORT</code>.</strong></p>
 <p>Find reports alongside Data Marts, storages, and destinations. Search by full words or the beginning of a word, with report names ranked highest. Each result shows its Data Mart and destination and opens the report directly. Results respect access to both the Data Mart and destination. Watch the search-to-report flow:</p>
-</li>
-</ul>
 <!-- markdownlint-disable-next-line MD033 MD034 -->
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/eac0d3867887ef1b3648c93a966e0e36/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
 <p>Existing reports become searchable automatically, and results stay up to date as reports, Data Marts, and destinations change. Report search is also available through the <a href="/docs/api/api-client/#search-project-entities">API client</a> and <a href="/docs/getting-started/setup-guide/mcp/#get_relevant_reports_by_prompt">MCP for AI assistants</a>.</p>
-  <!-- markdownlint-disable-file MD041 MD036 -->
-<ul>
+<!-- markdownlint-disable-file MD041 MD036 -->
+</li>
 <li>
 <p>34ec11a: <strong>A hidden column no longer reads as a broken schema</strong></p>
 <p>Hiding a field from reporting takes it off the reporting menu — it does not remove it from the Data Mart. A report that already selected that field said otherwise: it listed the column under <strong>Disconnected columns</strong> and refused to build with <em>“They are missing from the current Data Mart output schema… contact your analyst to restore the schema.”</em> Nothing was missing, and the analyst being contacted was usually the person who had just hidden it.</p>
@@ -194,8 +192,6 @@ only after it has walked the whole range, so it cannot yet tell which days it tr
 <p>A report with an explicit column selection and no aggregation, date bucket, or Unique Count set anywhere used to deliver every underlying row — most visibly from a join that fans one source row out across many. OWOX now collapses it on delivery.</p>
 <p><strong>Two things to check before upgrading.</strong> An automatically aggregated column is relabelled exactly as a manually chosen one always has been — <code dir="auto">sessions</code> becomes <code dir="auto">sessions | SUM</code> — so a Google Sheets formula or Looker Studio binding that reads the plain <code dir="auto">sessions</code> header stops resolving. And a Data Mart defined by SQL now counts as having output controls, which materialises its definition as a view (<code dir="auto">CREATE OR REPLACE VIEW</code>) on every run and on every Generated SQL preview: a <strong>read-only storage credential that worked before will now fail</strong>.</p>
 <p>Watch a report that sets no aggregation get one applied, and the query it will actually run.</p>
-</li>
-</ul>
 <!-- markdownlint-disable-next-line MD033 MD034 -->
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/0cb8b88b38e4a328dbc002eb87d51384/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
@@ -210,7 +206,7 @@ only after it has walked the whole range, so it cannot yet tell which days it tr
 <p>The report editor fills the choice in for you rather than only predicting it: open a report that sets no aggregation and the function is already ticked on the column, counted on the <strong>Aggregations</strong> button, and listed in the panel — exactly as one you picked yourself, and changed or removed the same way. While the choice is fresh, a note names the columns OWOX chose for; once the report is saved the rule is simply yours, like any other. Pressing <strong>Save</strong> is enough to store it, and removing it leaves a note saying what delivery will still do — an unaggregated report on these destinations is collapsed either way. Run history records what was applied.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2d3c870c-b0c9-40ee-0366-e48b2c83cc00/public" alt="The Aggregations panel of a report that set none, reading &#x22;Applied automatically because this report set none: cost — Sum. Change or remove it below.&#x22; above a cost rule aggregated by Sum, with the Aggregations button counting it"></p>
 <p>Ad-hoc reads are unchanged: <strong>HTTP Data</strong>, the MCP <code dir="auto">query_data_mart</code> tool, <code dir="auto">apps/ctl</code>, the Looker Studio cache-fill query, “copy as Data Mart”, and a report’s save-time dry run all keep returning exactly what was asked for, duplicates included — including pulling somebody’s Google Sheets report over HTTP Data, where the caller is a third party rather than the report’s reader. The two pull destinations part ways: a <strong>Microsoft Excel</strong> report collapses like every other report, because the add-in fetches the very rows it writes into the workbook, while a <strong>Looker Studio</strong> report stays uncollapsed, because its connector reads the report the way any other ad-hoc caller does. See <a href="/docs/getting-started/setup-guide/report-aggregations/">Report Aggregations</a> for the full list of cases where a report is deliberately left uncollapsed.</p>
-<ul>
+</li>
 <li>
 <p>ccff2c9: <strong>Google Sheets source: pick the sheet tab from a list and a leaner setup form</strong></p>
 <p>The Google Sheets source setup now lists the tabs of the selected spreadsheet so the Sheet Name can be picked instead of typed, for both Google OAuth and Service Account authentication. With Google OAuth the spreadsheet is chosen with Google Picker only, so the manual “Spreadsheet ID or URL” input no longer appears in that mode. Header Row and Range moved to Advanced Settings because most sheets keep their headers in the first row and import the whole tab.</p>
