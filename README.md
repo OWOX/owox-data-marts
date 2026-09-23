@@ -22,6 +22,25 @@ At OWOX, we believe data analysts shouldn’t have to waste time on CSV files an
 
 <https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a>
 
+## How It Fits Together
+
+Six layers, one flow. Sources land raw data in the storage you already own; a
+data mart defines each metric once on top of it; destinations, reports and
+plugins all read that same definition — so ad spend means the same thing in
+Looker Studio, in a spreadsheet and in ChatGPT.
+
+The highlighted chain follows one question end to end: Facebook Ads and Google
+Ads land in BigQuery, become the **Unified AdSpend** mart, and — joined with
+**Orders** — answer it in Data Studio, in ChatGPT, and in Google Sheets, where
+a scheduled **Campaign Performance** report refreshes itself.
+
+<!-- markdownlint-disable MD033 -- <picture> is the only way to serve GitHub's two themes -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
+  <img alt="OWOX Data Marts architecture: Sources, Storages, Data Marts, Data Destinations, Reports and Plugins, with one highlighted flow from Facebook Ads and Google Ads through Google BigQuery and the Unified AdSpend data mart to Data Studio, ChatGPT and Google Sheets, where a scheduled Campaign Performance report lands" src="./docs/res/architecture/architecture-light.svg">
+</picture>
+<!-- markdownlint-enable MD033 -->
+
 ## The Reporting Skills OWOX Automates
 
 We analyzed **1,438 job postings** for reporting data analysts at US ecommerce SMBs. Here's what companies pay $70–120k/yr for — and what OWOX handles out of the box:

@@ -37,6 +37,8 @@
     "format:root": "prettier --write \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
     "format:root:check": "prettier --check \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
     "format:packages": "node tools/format-package-info.mjs",
+    "generate:architecture": "node tools/architecture-svg/generate.mjs",
+    "generate:architecture:check": "node tools/architecture-svg/generate.mjs --check",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "lint:root": "eslint . --config ./eslint.config.mjs",

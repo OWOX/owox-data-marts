@@ -1,0 +1,341 @@
+{
+  "title": "OWOX Data Marts \u2014 one flow from source to answer",
+  "showTotals": false,
+  "highlight": {
+    "note": "The chain the picture tells: paid spend lands in the warehouse, becomes one governed metric, and answers a question in three places at once.",
+    "cards": [
+      "facebook-ads",
+      "google-ads",
+      "bigquery",
+      "unified-adspend",
+      "orders",
+      "chatgpt",
+      "google-sheets",
+      "data-studio",
+      "campaign-performance"
+    ]
+  },
+  "blocks": [
+    {
+      "id": "sources",
+      "name": "Sources",
+      "icon": "plug",
+      "total": 18,
+      "cards": [
+        {
+          "id": "facebook-ads",
+          "name": "Facebook Ads",
+          "logo": "facebook-ads",
+          "connector": "FacebookMarketing",
+          "storage": "bigquery"
+        },
+        {
+          "id": "google-ads",
+          "name": "Google Ads",
+          "logo": "google-ads",
+          "connector": "GoogleAds",
+          "storage": "bigquery"
+        },
+        {
+          "id": "shopify",
+          "name": "Shopify",
+          "logo": "shopify",
+          "connector": "Shopify",
+          "storage": "bigquery"
+        },
+        {
+          "id": "all-sources",
+          "name": "See all",
+          "href": "https://docs.owox.com/docs/connectors/"
+        }
+      ]
+    },
+    {
+      "id": "storages",
+      "name": "Storages",
+      "icon": "database",
+      "total": 11,
+      "cards": [
+        {
+          "id": "bigquery",
+          "name": "Google BigQuery",
+          "logo": "bigquery"
+        },
+        {
+          "id": "snowflake",
+          "name": "Snowflake",
+          "logo": "snowflake",
+          "count": 14
+        },
+        {
+          "id": "databricks",
+          "name": "Databricks",
+          "logo": "databricks",
+          "count": 17
+        },
+        {
+          "id": "aws-athena",
+          "name": "AWS Athena",
+          "logo": "aws-athena",
+          "count": 11
+        }
+      ]
+    },
+    {
+      "id": "marts",
+      "name": "Data Marts",
+      "icon": "box",
+      "total": 24,
+      "cards": [
+        {
+          "id": "insights",
+          "name": "Insights",
+          "note": "SQL",
+          "fields": 21,
+          "triggers": 2,
+          "relationships": 1,
+          "quality": "passed",
+          "fresh": "Updated 40 minutes ago",
+          "shared": "Shared for reporting",
+          "owners": ["Maria Chen"],
+          "storage": "bigquery",
+          "sources": [],
+          "destinations": ["claude", "chatgpt"],
+          "related": ["sessions"]
+        },
+        {
+          "id": "ad-performance",
+          "name": "AdPerformance",
+          "note": "View",
+          "fields": 19,
+          "triggers": 1,
+          "relationships": 1,
+          "quality": "passed",
+          "fresh": "Updated 2 hours ago",
+          "shared": "Shared for reporting",
+          "owners": ["Maria Chen"],
+          "storage": "bigquery",
+          "sources": ["facebook-ads", "google-ads"],
+          "destinations": ["data-studio"],
+          "related": ["unified-adspend"]
+        },
+        {
+          "id": "unified-adspend",
+          "name": "Unified AdSpend",
+          "note": "SQL",
+          "fields": 24,
+          "triggers": 2,
+          "relationships": 2,
+          "quality": "passed",
+          "fresh": "Updated 2 hours ago",
+          "shared": "Shared for reporting & maintenance",
+          "owners": ["Maria Chen"],
+          "storage": "bigquery",
+          "sources": ["facebook-ads", "google-ads"],
+          "destinations": ["chatgpt", "data-studio", "google-sheets"],
+          "related": ["ad-performance", "orders"]
+        },
+        {
+          "id": "orders",
+          "name": "Orders",
+          "note": "Table",
+          "fields": 18,
+          "triggers": 1,
+          "relationships": 3,
+          "quality": "passed",
+          "fresh": "Updated 1 hour ago",
+          "shared": "Shared for reporting",
+          "owners": ["Alex Novak"],
+          "storage": "bigquery",
+          "sources": ["shopify"],
+          "destinations": ["chatgpt", "data-studio", "excel"],
+          "related": ["unified-adspend", "customers", "products"]
+        },
+        {
+          "id": "customers",
+          "name": "Customers",
+          "note": "View",
+          "fields": 12,
+          "triggers": 1,
+          "relationships": 2,
+          "quality": "issues",
+          "fresh": "Updated 1 day ago",
+          "shared": "Shared for reporting",
+          "owners": ["Alex Novak"],
+          "storage": "bigquery",
+          "sources": ["shopify"],
+          "destinations": ["claude", "google-sheets"],
+          "related": ["orders", "sessions"]
+        },
+        {
+          "id": "products",
+          "name": "Products",
+          "note": "Table",
+          "fields": 15,
+          "triggers": 1,
+          "relationships": 1,
+          "quality": "passed",
+          "fresh": "Updated 3 hours ago",
+          "shared": "Shared for reporting & maintenance",
+          "owners": ["Maria Chen"],
+          "storage": "bigquery",
+          "sources": ["shopify"],
+          "destinations": ["excel", "google-sheets"],
+          "related": ["orders"]
+        },
+        {
+          "id": "sessions",
+          "name": "Sessions",
+          "note": "SQL",
+          "fields": 27,
+          "triggers": 2,
+          "relationships": 2,
+          "quality": "passed",
+          "fresh": "Updated 6 hours ago",
+          "shared": "Shared for reporting",
+          "owners": ["Alex Novak"],
+          "storage": "bigquery",
+          "sources": [],
+          "destinations": ["data-studio"],
+          "related": ["insights", "customers"]
+        },
+        {
+          "id": "all-marts",
+          "name": "See all",
+          "href": "https://docs.owox.com/docs/getting-started/setup-guide/"
+        }
+      ]
+    },
+    {
+      "id": "destinations",
+      "name": "Data Destinations",
+      "icon": "archive-restore",
+      "total": 9,
+      "cards": [
+        {
+          "id": "claude",
+          "name": "Claude",
+          "logo": "claude",
+          "count": 412,
+          "unit": "conversation"
+        },
+        {
+          "id": "chatgpt",
+          "name": "ChatGPT",
+          "logo": "chatgpt",
+          "count": 468,
+          "unit": "conversation"
+        },
+        {
+          "id": "google-sheets",
+          "name": "Google Sheets",
+          "logo": "google-sheets"
+        },
+        {
+          "id": "data-studio",
+          "name": "Data Studio",
+          "logo": "data-studio",
+          "count": 6
+        },
+        {
+          "id": "api",
+          "name": "API",
+          "icon": "key-round",
+          "count": 4,
+          "unit": "key"
+        },
+        {
+          "id": "email",
+          "name": "Email",
+          "logo": "email",
+          "count": 2
+        },
+        {
+          "id": "excel",
+          "name": "Excel",
+          "logo": "excel"
+        },
+        {
+          "id": "all-destinations",
+          "name": "See all",
+          "href": "https://docs.owox.com/docs/destinations/manage-destinations/"
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "name": "Reports",
+      "icon": "file-text",
+      "total": 117,
+      "cards": [
+        {
+          "id": "campaign-performance",
+          "name": "Campaign Performance",
+          "mart": "unified-adspend",
+          "destination": "google-sheets",
+          "columns": 8,
+          "schedule": "Daily at 06:00",
+          "aggregations": 2,
+          "ran": "2 hours ago",
+          "owners": ["Maria Chen"]
+        },
+        {
+          "id": "sales-forecast",
+          "name": "Sales Forecast",
+          "mart": "orders",
+          "destination": "google-sheets",
+          "columns": 10,
+          "schedule": "Weekly on Monday",
+          "filter": 1,
+          "aggregations": 3,
+          "ran": "1 day ago",
+          "owners": ["Alex Novak"]
+        },
+        {
+          "id": "product-stock",
+          "name": "Product Stock",
+          "mart": "products",
+          "destination": "excel",
+          "columns": 12,
+          "schedule": "Daily at 07:00",
+          "filter": 2,
+          "ran": "1 hour ago",
+          "owners": ["Alex Novak"]
+        },
+        {
+          "id": "all-reports",
+          "name": "See all",
+          "href": "https://docs.owox.com/docs/destinations/manage-reports/"
+        }
+      ]
+    },
+    {
+      "id": "plugins",
+      "name": "Plugins",
+      "icon": "puzzle",
+      "total": 4,
+      "cards": [
+        {
+          "id": "data-flow",
+          "name": "Data Flow",
+          "destination": "api"
+        },
+        {
+          "id": "custom-attribution",
+          "name": "Custom Attribution",
+          "destination": "api"
+        },
+        {
+          "id": "okf-model-import",
+          "name": "OKF Model Import",
+          "destination": "api"
+        },
+        {
+          "id": "gyroscope",
+          "name": "Gyroscope",
+          "destination": "api"
+        }
+      ]
+    }
+  ]
+}
