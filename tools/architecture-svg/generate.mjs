@@ -559,11 +559,17 @@ function bezierAcross(sx, sy, tx, ty) {
 }
 
 /** A solid arrow head at (x, y), pointing down — the head an edge arrives with. */
-const arrow = (x, y, colour, size = 5.4) =>
-  `<path d="M${n(x - size)} ${n(y - size * 1.4)}L${n(x)} ${n(y)}L${n(x + size)} ${n(y - size * 1.4)}Z" fill="${colour}"/>`;
+const ARROW_HALF = 5.4; // half the head's base
+const ARROW_LEN = ARROW_HALF * 1.4; // base to tip
+
+const arrow = (x, y, colour) =>
+  `<path d="M${n(x - ARROW_HALF)} ${n(y - ARROW_LEN)}L${n(x)} ${n(y)}L${n(x + ARROW_HALF)} ${n(y - ARROW_LEN)}Z" fill="${colour}"/>`;
 
 /** A wire from a card's bottom handle to the top handle of a card below it. */
-const wirePath = (a, b) => bezierDown(a.x + a.w / 2, a.y + a.h, b.x + b.w / 2, b.y);
+/* The curve stops where the head starts, not at the border: run it the whole
+ * way and the 2.5px stroke shows through the head's point and past it as a
+ * stalk. The head then spans the last ARROW_LEN on its own, tip on the border. */
+const wirePath = (a, b) => bezierDown(a.x + a.w / 2, a.y + a.h, b.x + b.w / 2, b.y - ARROW_LEN);
 
 /* Two data marts are relevant to each other. No arrow: the relation has no
  * direction. It always leaves one card's right edge and enters the other's
