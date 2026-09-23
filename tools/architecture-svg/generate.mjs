@@ -260,9 +260,12 @@ function glyph(name, x, y, size, colour, width = 2) {
 
 /* ------------------------------------------------------------- connectors */
 
-/* What a source card says about itself is read out of the connector, never
- * typed into the JSON: how many endpoints it exposes and how many fields those
- * land in total — the pair the data-connectors page puts on a source tile.
+/* Every number a card shows is declared in architecture.json. For a source
+ * that is `endpoints` and `fields` — the pair the data-connectors page puts on
+ * a source tile — and the connector is still read here to check them, because
+ * a number nobody can verify is a number that quietly goes wrong: this drawing
+ * already shipped once with Shopify at 337 fields after the connector moved to
+ * 339. Declared in the JSON, checked against the source of truth.
  *
  * `<Source>/<...>APIReference/*FieldsSchema.js` is the registry, endpoint name
  * to `{ fields }`. Those files are Apps Script globals rather than modules, so
@@ -317,6 +320,26 @@ function connectorStats(name) {
  * report pointing at a data mart that was taken out of the picture — would
  * otherwise render as a card with no mark and an edge that goes nowhere, which
  * is a wrong picture rather than a crash. */
+/* The declared endpoint and field counts, against the connector they name. */
+function checkConnectorCounts(blocks) {
+  const wrong = [];
+  for (const card of blocks.flatMap(b => b.cards)) {
+    if (!card.connector) continue;
+    const real = connectorStats(card.connector);
+    if (card.endpoints !== real.endpoints || card.fields !== real.fields) {
+      wrong.push(
+        `${card.id}: declares ${card.endpoints}/${card.fields}, ` +
+          `${card.connector} has ${real.endpoints}/${real.fields}`
+      );
+    }
+  }
+  if (wrong.length) {
+    throw new Error(
+      `architecture.json is out of date with packages/connectors (endpoints/fields):\n  ${wrong.join('\n  ')}`
+    );
+  }
+}
+
 function checkReferences(blocks) {
   const cards = blocks.flatMap(b => b.cards);
   const known = new Set(cards.map(c => c.id));
@@ -350,17 +373,6 @@ function wiresOf(blocks) {
   return wires;
 }
 
-/** How many marts touch a card — what a source feeds, or a storage holds. */
-const martsTouching = (blocks, id) =>
-  blocks
-    .flatMap(b => b.cards)
-    .filter(c => c.sources)
-    .filter(m => m.storage === id || m.sources.includes(id) || m.destinations?.includes(id)).length;
-
-/** How many reports write to a destination. */
-const reportsTo = (blocks, id) =>
-  blocks.flatMap(b => b.cards).filter(c => c.mart && c.destination === id).length;
-
 const count = (v, word) => `${v} ${word}${v === 1 ? '' : 's'}`;
 
 /* The definition-type glyphs, as the plugin's own KIND table has them. */
@@ -383,9 +395,8 @@ function badgesOf(blocks, blockId, card) {
   const out = card.note ? [{ text: card.note, icon: KIND_ICON[card.note] }] : [];
   if (card.connector) {
     /* A source says what it imports: its endpoints, and the fields they land. */
-    const { endpoints, fields } = connectorStats(card.connector);
-    out.push({ icon: 'plug', text: count(endpoints, 'endpoint') });
-    out.push({ icon: 'columns-3', text: `${fields.toLocaleString('en-US')} fields` });
+    out.push({ icon: 'plug', text: count(card.endpoints, 'endpoint') });
+    out.push({ icon: 'columns-3', text: `${card.fields.toLocaleString('en-US')} fields` });
   } else if (card.sources) {
     if (card.fields) out.push({ icon: 'columns-3', text: count(card.fields, 'field') });
     if (card.triggers) out.push({ icon: 'calendar-clock', text: count(card.triggers, 'trigger') });
@@ -406,11 +417,9 @@ function badgesOf(blocks, blockId, card) {
      * about it is the door it reads the project through. */
     const through = blocks.flatMap(b => b.cards).find(c => c.id === card.destination);
     if (through) out.push({ icon: 'key-round', text: `via ${through.name}` });
-  } else {
-    const reports = blockId === 'destinations';
-    const v = card.count ?? (reports ? reportsTo(blocks, card.id) : martsTouching(blocks, card.id));
-    const unit = card.unit ?? (reports ? 'report' : 'data mart');
-    if (v || reports) out.push({ icon: UNIT_ICON[unit], text: count(v, unit) });
+  } else if (card.count !== undefined) {
+    const unit = card.unit ?? (blockId === 'destinations' ? 'report' : 'data mart');
+    out.push({ icon: UNIT_ICON[unit], text: count(card.count, unit) });
   }
   return out;
 }
@@ -741,6 +750,7 @@ function draw(theme, data) {
   const t = { ...THEMES[theme], dim: DIM[theme] };
   const blocks = data.blocks;
   checkReferences(blocks);
+  checkConnectorCounts(blocks);
   const byId = new Map(blocks.flatMap(b => b.cards).map(c => [c.id, c]));
   const { placed, bands, height } = layout(blocks);
   const selected = new Set(data.highlight?.cards ?? []);

@@ -27,6 +27,8 @@
           "name": "Facebook Ads",
           "logo": "facebook-ads",
           "connector": "FacebookMarketing",
+          "endpoints": 15,
+          "fields": 1172,
           "storage": "bigquery"
         },
         {
@@ -34,6 +36,8 @@
           "name": "Google Ads",
           "logo": "google-ads",
           "connector": "GoogleAds",
+          "endpoints": 9,
+          "fields": 166,
           "storage": "bigquery"
         },
         {
@@ -41,6 +45,8 @@
           "name": "Shopify",
           "logo": "shopify",
           "connector": "Shopify",
+          "endpoints": 25,
+          "fields": 339,
           "storage": "bigquery"
         },
         {
@@ -59,7 +65,8 @@
         {
           "id": "bigquery",
           "name": "Google BigQuery",
-          "logo": "bigquery"
+          "logo": "bigquery",
+          "count": 3
         },
         {
           "id": "snowflake",
@@ -165,7 +172,8 @@
         {
           "id": "google-sheets",
           "name": "Google Sheets",
-          "logo": "google-sheets"
+          "logo": "google-sheets",
+          "count": 2
         },
         {
           "id": "data-studio",
@@ -189,7 +197,8 @@
         {
           "id": "excel",
           "name": "Excel",
-          "logo": "excel"
+          "logo": "excel",
+          "count": 1
         },
         {
           "id": "all-destinations",
