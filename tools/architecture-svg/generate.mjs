@@ -179,6 +179,28 @@ const esc = s =>
 
 const n = v => (Math.round(v * 100) / 100).toString();
 
+/* Text, pinned to the width the layout reserved for it.
+ *
+ * The layout is computed from one metric table, but the machine rendering this
+ * file picks its own face from the stack — on a Mac with no Roboto that is SF
+ * Pro, about 9% wider than the Helvetica the table describes, which pushed
+ * "468 conversations" 2.2px past its plate. A README image cannot know what is
+ * installed where it is read, so it does not guess: `textLength` makes the run
+ * occupy exactly the reserved width, and the picture is the same everywhere.
+ */
+const text = (x, y, content, { size, weight, fill, opacity, anchor } = {}) => {
+  const body = String(content);
+  const px = size ?? TITLE_SIZE;
+  return (
+    `<text x="${n(x)}" y="${n(y)}" font-family="${SANS}" font-size="${px}"` +
+    `${weight ? ` font-weight="${weight}"` : ''} fill="${fill}"` +
+    `${opacity !== undefined ? ` fill-opacity="${opacity}"` : ''}` +
+    `${anchor ? ` text-anchor="${anchor}"` : ''}` +
+    ` dominant-baseline="central" textLength="${n(textWidth(body, px, weight ?? 400))}"` +
+    ` lengthAdjust="spacingAndGlyphs">${esc(body)}</text>`
+  );
+};
+
 /* ------------------------------------------------------------------- marks */
 
 /* Brand marks are inlined as they are — a logo keeps its own colours, which is
@@ -572,8 +594,7 @@ function card(t, place, blocks, byId, selected, focused) {
       `<rect x="${n(x + 0.5)}" y="${n(y + 0.5)}" width="${n(w - 1)}" height="${n(h - 1)}" rx="10" ` +
         `fill="${t.elevated}" fill-opacity="0.55" stroke="${t.border}" stroke-width="1" stroke-dasharray="5 4"/>`,
       glyph('arrow-right', ix, y + h / 2 - 8, 16, t.muted, 1.75),
-      `<text x="${n(ix + 22)}" y="${n(y + h / 2)}" font-family="${SANS}" font-size="${TITLE_SIZE}" ` +
-        `fill="${t.muted}" dominant-baseline="central">${esc(label)}</text>`
+      text(ix + 22, y + h / 2, label, { size: TITLE_SIZE, fill: t.muted })
     );
     return `<g><title>${esc(label)}</title>${parts.join('')}</g>`;
   }
@@ -611,9 +632,12 @@ function card(t, place, blocks, byId, selected, focused) {
   const titleX = x + CARD_PAD + MARK + HEAD_GAP;
   const titleMax = w - CARD_PAD * 2 - MARK - HEAD_GAP;
   parts.push(
-    `<text x="${n(titleX)}" y="${n(headY + MARK / 2)}" font-family="${SANS}" font-size="${TITLE_SIZE}" ` +
-      `font-weight="500" fill="${t.primary}" fill-opacity="${back}" dominant-baseline="central">` +
-      `${esc(clip(c.name, TITLE_SIZE, titleMax, 500))}</text>`
+    text(titleX, headY + MARK / 2, clip(c.name, TITLE_SIZE, titleMax, 500), {
+      size: TITLE_SIZE,
+      weight: 500,
+      fill: t.primary,
+      opacity: back,
+    })
   );
 
   /* The badges, wrapping the way .nodecard__badges does. */
@@ -634,10 +658,7 @@ function card(t, place, blocks, byId, selected, focused) {
           tx += 12 + (b.text ? 4 : 0);
         }
         if (b.text) {
-          parts.push(
-            `<text x="${n(tx)}" y="${n(ly + BADGE_H / 2)}" font-family="${SANS}" font-size="${BADGE_SIZE}" ` +
-              `fill="${t.muted}" dominant-baseline="central">${esc(b.text)}</text>`
-          );
+          parts.push(text(tx, ly + BADGE_H / 2, b.text, { size: BADGE_SIZE, fill: t.muted }));
         }
         bx += bw + BADGE_GAP;
       }
@@ -687,8 +708,7 @@ function card(t, place, blocks, byId, selected, focused) {
         lx += 14 + 6;
       } else {
         parts.push(
-          `<text x="${n(lx)}" y="${n(cy + FOOT_H / 2)}" font-family="${SANS}" font-size="${META_SIZE}" ` +
-            `fill="${t.muted}" dominant-baseline="central">${esc(clip(f.text, META_SIZE, 70))}</text>`
+          text(lx, cy + FOOT_H / 2, clip(f.text, META_SIZE, 70), { size: META_SIZE, fill: t.muted })
         );
         lx += textWidth(f.text, META_SIZE) + 6;
       }
@@ -731,16 +751,17 @@ function bandHead(t, b) {
   const parts = [
     `<rect x="${n(hx)}" y="${n(hy)}" width="${plate}" height="${plate}" rx="7" fill="${t.plate}"/>`,
     glyph(b.block.icon, hx + (plate - 15) / 2, hy + (plate - 15) / 2, 15, tint, 1.9),
-    `<text x="${n(nameX)}" y="${n(hy + plate / 2)}" font-family="${SANS}" font-size="14" font-weight="500" ` +
-      `fill="${t.primary}" dominant-baseline="central">${esc(name)}</text>`,
+    text(nameX, hy + plate / 2, name, { size: 14, weight: 500, fill: t.primary }),
   ];
   /* The count beside the name, as the plugin's header carries it: how many the
    * project holds, not how many this picture had room for. */
   const total = b.showTotals ? b.block.total : undefined;
   if (total) {
     parts.push(
-      `<text x="${n(nameX + textWidth(name, 14, 500) + 10)}" y="${n(hy + plate / 2)}" font-family="${SANS}" ` +
-        `font-size="12" fill="${t.muted}" dominant-baseline="central">${esc(total)}</text>`
+      text(nameX + textWidth(name, 14, 500) + 10, hy + plate / 2, total, {
+        size: 12,
+        fill: t.muted,
+      })
     );
   }
   return parts.join('');
@@ -780,7 +801,7 @@ function draw(theme, data) {
     if (!a || !b || b.row <= a.row) continue;
     wires.push(
       `<path d="${wirePath(a, b)}" fill="none" stroke="${t.link}" stroke-width="2.5" stroke-linecap="round"/>` +
-        arrow(b.x + b.w / 2, b.y - 1, t.link)
+        arrow(b.x + b.w / 2, b.y, t.link)
     );
   }
 
