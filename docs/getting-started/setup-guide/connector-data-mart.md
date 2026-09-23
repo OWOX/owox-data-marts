@@ -111,7 +111,7 @@ Don’t forget to:
 - **Publish** the data mart
 - **Run** the Data Mart manually for the first time
 
-The **Manual Run** button is in the header of the **Input Source** card on the **Data Setup** tab, so you can start a run while the card is collapsed.
+The **Manual Run** button sits in the header of the **Input Source** card on the **Data Setup** tab. You can start a run while the card is collapsed.
 
 ![The Data Setup tab of a published connector Data Mart, with the Manual Run button in the Input Source card header](../../res/screens/Manual-run.png)
 

@@ -94,8 +94,15 @@ describe('ConnectorManualRunButton', () => {
     expect(screen.queryByRole('button', { name: 'Submit run' })).not.toBeInTheDocument();
   });
 
+  it('is disabled for a draft Data Mart', () => {
+    setContext({ status: DataMartStatus.DRAFT });
+    render(<ConnectorManualRunButton />);
+
+    expect(screen.getByRole('button', { name: 'Manual Run' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Submit run' })).not.toBeInTheDocument();
+  });
+
   it.each([
-    ['a draft Data Mart', { status: DataMartStatus.DRAFT }],
     ['a non-connector Data Mart', { definitionType: DataMartDefinitionType.SQL }],
     ['a connector without a definition', { definition: null }],
     [

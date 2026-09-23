@@ -10,7 +10,7 @@ The video collapses the Input Source card and starts a run from its header:
 
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9adc9651c6f316f975710cee6e75604a/iframe>
 
-- The button appears once the connector is configured and the Data Mart is published.
-- While a run is in progress it stays disabled, as before.
+- The button appears once the connector is configured.
+- It stays disabled, with the reason in a tooltip, while the Data Mart is a draft or a run is in progress, as before.
 
 See [Connector-based Data Mart](../../docs/getting-started/setup-guide/connector-data-mart.md) for running a connector manually.
