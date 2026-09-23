@@ -237,7 +237,12 @@ export class DataMartMapper {
           item.connector = runDto;
         } else if (runDto.type === DataMartRunType.INSIGHT) {
           item.insight = runDto;
-        } else if (runDto.type !== DataMartRunType.DATA_QUALITY) {
+        } else if (
+          // Data Quality checks and exploratory previews do not deliver data,
+          // so they must not replace the Data Mart's report health.
+          runDto.type !== DataMartRunType.DATA_QUALITY &&
+          runDto.type !== DataMartRunType.PREVIEW
+        ) {
           if (!item.report || runDto.createdAt > item.report.createdAt) {
             item.report = runDto;
           }

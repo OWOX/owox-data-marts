@@ -14,8 +14,9 @@ import {
 export class DataMartPreviewController {
   constructor(private readonly previewDataMartService: PreviewDataMartService) {}
 
-  // POST: not idempotent — every call queries the warehouse and is a new billable run.
-  @Auth(Role.viewer(Strategy.PARSE))
+  // POST: not idempotent — every call queries the warehouse and is a new billable run, so the
+  // token is re-checked with the IdP (INTROSPECT) like the other billable data reads.
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post(':id/preview')
   @HttpCode(200)
   @ApiOperation({ summary: 'Read a sample of Data Mart rows for the Data Setup preview' })

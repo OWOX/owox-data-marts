@@ -21,6 +21,7 @@ import type { DataMartPreviewCell, DataMartPreviewColumnDto } from '../../../sha
 import type { FilterRule } from '../../../shared/types/output-config';
 import { FilterEditorPopover } from '../ReportColumnPicker/FilterEditorPopover';
 import { isFilterableType } from '../ReportColumnPicker/output-controls-operators';
+import type { PreviewFilterTypes } from './preview-filter-types';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -28,6 +29,8 @@ interface PreviewResultsTableProps {
   columns: DataMartPreviewColumnDto[];
   rows: DataMartPreviewCell[][];
   filters: FilterRule[];
+  /** Comparison type per saved field; a column missing from it falls back to its reported type. */
+  filterTypes?: PreviewFilterTypes;
   /** Replaces the column's filter (one per column), or removes it when `rule` is null. */
   onFilterChange: (column: string, rule: FilterRule | null) => void;
   filtersDisabled?: boolean;
@@ -35,6 +38,7 @@ interface PreviewResultsTableProps {
 
 interface FilterContextValue {
   filters: FilterRule[];
+  filterTypes?: PreviewFilterTypes;
   onFilterChange: PreviewResultsTableProps['onFilterChange'];
   disabled?: boolean;
 }
@@ -47,7 +51,7 @@ const PreviewFilterContext = createContext<FilterContextValue>({
 });
 
 function PreviewColumnHeader({ column }: { column: DataMartPreviewColumnDto }) {
-  const { filters, onFilterChange, disabled } = useContext(PreviewFilterContext);
+  const { filters, filterTypes, onFilterChange, disabled } = useContext(PreviewFilterContext);
   return (
     <div className='group/header flex items-start justify-between gap-2'>
       <div className='min-w-0' title={column.alias ?? column.name}>
@@ -62,6 +66,7 @@ function PreviewColumnHeader({ column }: { column: DataMartPreviewColumnDto }) {
       </div>
       <ColumnFilterButton
         column={column}
+        fieldType={filterTypes?.get(column.name) ?? column.type ?? ''}
         filter={filters.find(rule => rule.column === column.name)}
         onFilterChange={onFilterChange}
         disabled={disabled}
@@ -84,17 +89,19 @@ function PreviewCellValue({ value }: { value: DataMartPreviewCell }) {
 
 function ColumnFilterButton({
   column,
+  fieldType,
   filter,
   onFilterChange,
   disabled,
 }: {
   column: DataMartPreviewColumnDto;
+  /** The saved field's comparison type: a REPEATED field compares as ARRAY<T>, not as T. */
+  fieldType: string;
   filter: FilterRule | undefined;
   onFilterChange: PreviewResultsTableProps['onFilterChange'];
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const fieldType = column.type ?? '';
   if (!isFilterableType(fieldType)) return null;
 
   return (
@@ -140,6 +147,7 @@ export function PreviewResultsTable({
   columns,
   rows,
   filters,
+  filterTypes,
   onFilterChange,
   filtersDisabled,
 }: PreviewResultsTableProps) {
@@ -154,8 +162,8 @@ export function PreviewResultsTable({
     [columns]
   );
   const filterContext = useMemo(
-    () => ({ filters, onFilterChange, disabled: filtersDisabled }),
-    [filters, onFilterChange, filtersDisabled]
+    () => ({ filters, filterTypes, onFilterChange, disabled: filtersDisabled }),
+    [filters, filterTypes, onFilterChange, filtersDisabled]
   );
 
   const table = useReactTable({

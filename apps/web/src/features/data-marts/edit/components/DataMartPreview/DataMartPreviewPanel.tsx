@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Loader2, RotateCw, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import type { FilterRule } from '../../../shared/types/output-config';
 import { operatorLabelFor } from '../ReportColumnPicker/output-controls-operators';
 import { summarizeFilterRule } from '../ReportColumnPicker/filter-rule-summary';
+import type { PreviewDataMartResponseDto } from '../../../shared/types/api';
 import { PreviewResultsTable } from './PreviewResultsTable';
+import type { PreviewFilterTypes } from './preview-filter-types';
 import {
   PREVIEW_DEFAULT_LIMIT,
   PREVIEW_MAX_LIMIT,
@@ -17,6 +19,8 @@ interface DataMartPreviewPanelProps {
   dataMartId: string;
   /** Changes identity whenever the saved schema changes — marks an older preview as outdated. */
   savedSchemaVersion: unknown;
+  /** Comparison type per top-level saved field — decides which columns offer a filter. */
+  filterTypes?: PreviewFilterTypes;
   /** Why the preview cannot run right now; the button is disabled with this as its hint. */
   disabledReason?: string | null;
   /** Wraps a run so unsaved schema edits are saved or discarded first. */
@@ -28,6 +32,55 @@ function parseLimit(value: string): number | null {
   return Number.isInteger(limit) && limit >= 1 && limit <= PREVIEW_MAX_LIMIT ? limit : null;
 }
 
+/** Stands in for "an older schema" when rows were read before a save that landed mid-run. */
+const SCHEMA_CHANGED_MID_RUN: unknown = Symbol('schema-changed-mid-run');
+
+interface RowsSchemaSnapshot {
+  /** The result `schema` belongs to. */
+  result: PreviewDataMartResponseDto | null;
+  /** The saved schema `result` was read with. */
+  schema: unknown;
+  /** Values seen on the previous render — to tell a mid-run save from one before the run. */
+  prevSchema: unknown;
+  prevLoading: boolean;
+  /** The saved schema changed while the current run was in flight. */
+  staleInFlight: boolean;
+}
+
+/** Returns `prev` itself when nothing changed, so the caller can skip the state update. */
+function nextRowsSchemaSnapshot(
+  prev: RowsSchemaSnapshot,
+  result: PreviewDataMartResponseDto | null,
+  savedSchemaVersion: unknown,
+  isLoading: boolean
+): RowsSchemaSnapshot {
+  let staleInFlight = prev.staleInFlight;
+  // A new run starts clean; "Save & continue" replaces the schema before or with this render.
+  if (isLoading && !prev.prevLoading) staleInFlight = false;
+  // The schema changed after an earlier render had already shown the run as loading.
+  if (savedSchemaVersion !== prev.prevSchema && prev.prevLoading) staleInFlight = true;
+
+  let { schema } = prev;
+  if (result !== prev.result) {
+    schema = staleInFlight ? SCHEMA_CHANGED_MID_RUN : savedSchemaVersion;
+    staleInFlight = false;
+  } else if (!isLoading) {
+    // The run failed or was cancelled; its mid-run flag must not leak into the next one.
+    staleInFlight = false;
+  }
+
+  if (
+    result === prev.result &&
+    schema === prev.schema &&
+    savedSchemaVersion === prev.prevSchema &&
+    isLoading === prev.prevLoading &&
+    staleInFlight === prev.staleInFlight
+  ) {
+    return prev;
+  }
+  return { result, schema, prevSchema: savedSchemaVersion, prevLoading: isLoading, staleInFlight };
+}
+
 /**
  * Data Setup preview: reads a sample of the Data Mart's rows from the warehouse. Every run —
  * the first one, Re-run, a new limit or a filter change — is a new warehouse query, recorded in
@@ -36,18 +89,31 @@ function parseLimit(value: string): number | null {
 export function DataMartPreviewPanel({
   dataMartId,
   savedSchemaVersion,
+  filterTypes,
   disabledReason,
   runGuarded,
 }: DataMartPreviewPanelProps) {
   const { result, appliedRequest, isLoading, error, run, cancel } = useDataMartPreview(dataMartId);
   const [limitInput, setLimitInput] = useState(String(PREVIEW_DEFAULT_LIMIT));
 
-  // Remember which saved schema the shown rows came from.
-  const schemaAtRunRef = useRef<unknown>(null);
-  const [isOutdated, setIsOutdated] = useState(false);
-  useEffect(() => {
-    if (result && schemaAtRunRef.current !== savedSchemaVersion) setIsOutdated(true);
-  }, [savedSchemaVersion, result]);
+  // The saved schema the shown rows were read with. Taken when the rows ARRIVE, not on click: a run
+  // behind "Save & continue" starts only after the save has replaced the saved schema. A save made
+  // while a run is already in flight (e.g. the main Save button) still marks those rows outdated.
+  const [rowsSchema, setRowsSchema] = useState<RowsSchemaSnapshot>({
+    result,
+    schema: savedSchemaVersion,
+    prevSchema: savedSchemaVersion,
+    prevLoading: isLoading,
+    staleInFlight: false,
+  });
+  const nextRowsSchema = nextRowsSchemaSnapshot(rowsSchema, result, savedSchemaVersion, isLoading);
+  if (nextRowsSchema !== rowsSchema) {
+    setRowsSchema(nextRowsSchema);
+  }
+  const isOutdated =
+    result !== null &&
+    nextRowsSchema.result === result &&
+    nextRowsSchema.schema !== savedSchemaVersion;
 
   const appliedLimit = appliedRequest?.limit ?? PREVIEW_DEFAULT_LIMIT;
   const appliedFilters = useMemo(() => appliedRequest?.filters ?? [], [appliedRequest]);
@@ -58,12 +124,10 @@ export function DataMartPreviewPanel({
   const start = useCallback(
     (request: PreviewRequest) => {
       runGuarded(async () => {
-        schemaAtRunRef.current = savedSchemaVersion;
-        setIsOutdated(false);
         await run(request);
       });
     },
-    [runGuarded, run, savedSchemaVersion]
+    [runGuarded, run]
   );
 
   const handleFilterChange = useCallback(
@@ -167,7 +231,10 @@ export function DataMartPreviewPanel({
       {appliedFilters.length > 0 && (
         <div className='flex flex-wrap gap-2'>
           {appliedFilters.map(rule => {
-            const type = result?.columns.find(c => c.name === rule.column)?.type ?? '';
+            const type =
+              filterTypes?.get(rule.column) ??
+              result?.columns.find(c => c.name === rule.column)?.type ??
+              '';
             const value = summarizeFilterRule(rule);
             return (
               <span
@@ -215,6 +282,7 @@ export function DataMartPreviewPanel({
             columns={result.columns}
             rows={result.rows}
             filters={appliedFilters}
+            filterTypes={filterTypes}
             onFilterChange={handleFilterChange}
             filtersDisabled={isLoading || isDisabled}
           />

@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
-  RequestTimeoutException,
+  GatewayTimeoutException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
@@ -277,13 +277,13 @@ describe('PreviewDataMartService', () => {
     expect(projectBilling.registerDataMartPreviewRunConsumption).not.toHaveBeenCalled();
   });
 
-  it('records a FAILED run on timeout and does not bill it', async () => {
+  it('records a FAILED run on timeout as a 504 (never an auto-retried 408) and does not bill it', async () => {
     const { service, dataMartRunService, projectBilling } = createService({
       deadlineMs: 5,
       readerNeverResolves: true,
     });
 
-    await expect(service.run(command())).rejects.toBeInstanceOf(RequestTimeoutException);
+    await expect(service.run(command())).rejects.toBeInstanceOf(GatewayTimeoutException);
     expect(dataMartRunService.recordPreviewRun).toHaveBeenCalledWith(
       expect.objectContaining({ status: DataMartRunStatus.FAILED })
     );
@@ -302,6 +302,37 @@ describe('PreviewDataMartService', () => {
     }, 5);
 
     await expect(pending).rejects.toBeInstanceOf(PreviewAbortedError);
+    await expect(pending).rejects.toMatchObject({ status: 499 });
+    expect(dataMartRunService.recordPreviewRun).not.toHaveBeenCalled();
+    expect(projectBilling.registerDataMartPreviewRunConsumption).not.toHaveBeenCalled();
+  });
+
+  it('stops the warehouse work when the caller cancels mid-read', async () => {
+    const { service, reader } = createService({ readerNeverResolves: true });
+    const controller = new AbortController();
+
+    const pending = service.run(command(), controller.signal);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const workSignal = (reader.prepareReportData.mock.calls[0][1] as { signal: AbortSignal })
+      .signal;
+    expect(workSignal.aborted).toBe(false);
+
+    controller.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(PreviewAbortedError);
+    expect(workSignal.aborted).toBe(true);
+  });
+
+  it('starts no warehouse work, records nothing and bills nothing when already cancelled', async () => {
+    const { service, reader, dataMartRunService, projectBilling } = createService();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(service.run(command(), controller.signal)).rejects.toBeInstanceOf(
+      PreviewAbortedError
+    );
+    expect(projectBilling.verifyCanPerformOperations).not.toHaveBeenCalled();
+    expect(reader.prepareReportData).not.toHaveBeenCalled();
     expect(dataMartRunService.recordPreviewRun).not.toHaveBeenCalled();
     expect(projectBilling.registerDataMartPreviewRunConsumption).not.toHaveBeenCalled();
   });

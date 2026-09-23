@@ -1,12 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  GatewayTimeoutException,
   HttpException,
   Inject,
   Injectable,
   Logger,
   Optional,
-  RequestTimeoutException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -36,6 +36,8 @@ export const PREVIEW_MAX_LIMIT = 1000;
 
 // Stays under the 180s operation timeout the preview route runs with (see DataMartsModule), so the
 // caller gets this service's clean timeout message rather than the middleware's generic 408.
+// The deadline itself answers 504, never 408: a browser may silently re-send a POST that got a 408
+// on a reused keep-alive connection, which would re-run (and re-bill) the warehouse query.
 export const DEFAULT_PREVIEW_DEADLINE_MS = 150_000;
 
 export class PreviewDataMartCommand {
@@ -67,9 +69,13 @@ export interface DataMartPreviewResult {
   truncated: boolean;
 }
 
-export class PreviewAbortedError extends Error {
+// 499 "Client Closed Request" (nginx convention): a cancel is neither a server fault nor worth an
+// error-level log, and nobody reads the response anyway.
+export const CLIENT_CLOSED_REQUEST_STATUS = 499;
+
+export class PreviewAbortedError extends HttpException {
   constructor() {
-    super('Preview was cancelled');
+    super('Preview was cancelled', CLIENT_CLOSED_REQUEST_STATUS);
     this.name = 'PreviewAbortedError';
   }
 }
@@ -172,6 +178,9 @@ export class PreviewDataMartService {
       query,
     };
 
+    // Already cancelled: start no warehouse work, record nothing, charge nothing.
+    throwIfAborted(signal);
+
     try {
       await this.projectBillingService.verifyCanPerformOperations(
         dataMart.projectId,
@@ -181,6 +190,8 @@ export class PreviewDataMartService {
       await this.recordFailure(runId, dataMart, command.userId, startedAt, failedMetadata, error);
       throw error;
     }
+
+    throwIfAborted(signal);
 
     let result: { columns: DataMartPreviewColumn[]; rows: unknown[][] };
     try {
@@ -279,7 +290,7 @@ export class PreviewDataMartService {
       deadlineTimer = setTimeout(() => {
         workController.abort();
         reject(
-          new RequestTimeoutException(
+          new GatewayTimeoutException(
             `The preview query did not finish within ${Math.round(this.deadlineMs / 1000)} seconds. Add a filter or lower the limit, then try again.`
           )
         );
@@ -288,6 +299,7 @@ export class PreviewDataMartService {
     const aborted = new Promise<never>((_, reject) => {
       if (!signal) return;
       if (signal.aborted) {
+        workController.abort();
         reject(new PreviewAbortedError());
         return;
       }
@@ -302,6 +314,7 @@ export class PreviewDataMartService {
       // `produce` owns its reader: the race below may settle first and must not finalize it.
       let reader: DataStorageReportReader | undefined;
       try {
+        if (workController.signal.aborted) throw new PreviewAbortedError();
         reader = await this.readerResolver.resolve(dataMart.storage.type);
         const description = await reader.prepareReportData(readPlan, {
           sqlOverride: composed.sql,
@@ -374,6 +387,10 @@ export class PreviewDataMartService {
       this.logger.warn(`Failed to record failed preview run ${runId}: ${messageOf(auditError)}`);
     }
   }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new PreviewAbortedError();
 }
 
 function messageOf(error: unknown): string {

@@ -3,6 +3,7 @@ import { extractApiError } from '../../../../../app/api';
 import { TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { DataMartPreviewPanel } from '../DataMartPreview/DataMartPreviewPanel';
+import { previewFilterTypesFromSchema } from '../DataMartPreview/preview-filter-types';
 import toast from 'react-hot-toast';
 import { useOutletContext } from 'react-router';
 import type {
@@ -213,6 +214,10 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     : !initialSchema?.fields.length
       ? 'Refresh the schema to preview data.'
       : null;
+  const previewFilterTypes = useMemo(
+    () => previewFilterTypesFromSchema(initialSchema),
+    [initialSchema]
+  );
 
   const { schema, isDirty, updateSchema, resetSchema, markSchemaSaved, keepUnsavedEdits } =
     useSchemaState(initialSchema);
@@ -685,9 +690,13 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         <div className='flex items-center gap-2'></div>
       </div>
       <div className='border-border mt-6 border-t pt-6'>
+        {/* Keyed by Data Mart: this outlet stays mounted when navigating between Data Marts, and
+            one Data Mart's rows, filters or in-flight query must not land in another's panel. */}
         <DataMartPreviewPanel
+          key={dataMartId}
           dataMartId={dataMartId}
           savedSchemaVersion={initialSchema}
+          filterTypes={previewFilterTypes}
           disabledReason={previewDisabledReason}
           runGuarded={runPreviewGuarded}
         />
