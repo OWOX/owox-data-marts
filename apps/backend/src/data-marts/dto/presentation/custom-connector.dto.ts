@@ -30,11 +30,8 @@ import { MaxJsonSize } from '../../../common/validators/max-json-size.validator'
  * most field-heavy node of any bundled connector (CriteoAds ad statistics, 156 fields) renders to
  * ~24 KiB with full descriptions -- so five nodes of that weight still fit.
  *
- * Exported because this DTO is not the only way in: the MCP tools (connector-publish,
- * connector-test) accept a manifest through their own Zod schemas and never reach here. Each
- * service that can reach a spawn re-applies it at its own choke point -- ConnectorDefinitionService
- * on create()/saveDraft(), ConnectorTestService on runTest(). There is no single one they share:
- * a test stores nothing, so it passes through neither create() nor saveDraft().
+ * Exported because each service that can reach a spawn re-applies it at its own choke point --
+ * ConnectorDefinitionService on create()/saveDraft(), ConnectorTestService on runTest().
  */
 export const MAX_MANIFEST_SIZE_BYTES = 120 * 1024;
 

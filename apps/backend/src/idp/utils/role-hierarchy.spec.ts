@@ -1,8 +1,7 @@
 import { ROLE_HIERARCHY, satisfiesRole } from './role-hierarchy';
 
 /**
- * The hierarchy is now shared by IdpGuard (every `@Auth(Role.x)` REST handler) and the MCP
- * facades, so widening a row here widens both surfaces at once. These cases pin the whole
+ * IdpGuard enforces this hierarchy for every `@Auth(Role.x)` REST handler. These cases pin the whole
  * table rather than a sampling of it: a change has to be stated deliberately, and a viewer
  * quietly gaining an editor's row would otherwise only fail wherever someone happened to
  * have written a test.

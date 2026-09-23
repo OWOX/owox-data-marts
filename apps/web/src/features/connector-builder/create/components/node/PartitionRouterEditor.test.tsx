@@ -16,7 +16,7 @@ const latest: { state?: BuilderState } = {};
 /**
  * Seed the store straight from Code-mode JSON. `parseManifestJson` normalizes only the top
  * level (`parameters`/`nodes` defaults), so whatever node shape an author — or an
- * MCP-authored manifest — pastes reaches this editor verbatim. A `substream` router with no
+ * AI-authored manifest — pastes reaches this editor verbatim. A `substream` router with no
  * `parent` is a shape the engine ultimately rejects (`ManifestParser` demands a parent
  * request object), but it is exactly what a half-finished Code-mode paste looks like, and
  * the pane has to survive long enough for the author to finish it.

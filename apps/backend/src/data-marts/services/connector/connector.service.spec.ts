@@ -383,34 +383,3 @@ describe('ConnectorService', () => {
     });
   });
 });
-
-// 'TestConnector' is the only bundled connector name allowed by this file's top-level
-// jest.mock('@owox/connectors') → bundled branch (no DB lookup); 'MyCustom' is not
-// in that mocked registry → custom branch.
-describe('ConnectorService.resolveConnectorFieldsSchema', () => {
-  it('resolves a bundled connector via getConnectorFieldsSchema (no DB lookup)', async () => {
-    const defService = { tryResolveManifest: jest.fn() };
-    const service = new ConnectorService({} as never, defService as never);
-    const spy = jest
-      .spyOn(service, 'getConnectorFieldsSchema')
-      .mockResolvedValue([{ name: 'Repos' }] as never);
-
-    const result = await service.resolveConnectorFieldsSchema('p1', 'TestConnector');
-
-    expect(defService.tryResolveManifest).not.toHaveBeenCalled();
-    expect(spy).toHaveBeenCalledWith('TestConnector');
-    expect(result).toEqual([{ name: 'Repos' }]);
-  });
-
-  it('resolves a custom connector from its manifest', async () => {
-    const manifest = { source: { name: 'Custom' } };
-    const defService = { tryResolveManifest: jest.fn().mockResolvedValue(manifest) };
-    const service = new ConnectorService({} as never, defService as never);
-    jest.spyOn(service, 'getFieldsSchemaFromManifest').mockReturnValue([{ name: 'Rows' }] as never);
-
-    const result = await service.resolveConnectorFieldsSchema('p1', 'MyCustom', 2);
-
-    expect(defService.tryResolveManifest).toHaveBeenCalledWith('p1', 'MyCustom', 2);
-    expect(result).toEqual([{ name: 'Rows' }]);
-  });
-});

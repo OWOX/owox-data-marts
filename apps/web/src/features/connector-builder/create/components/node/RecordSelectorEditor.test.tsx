@@ -16,7 +16,7 @@ const latest: { state?: BuilderState } = {};
 /**
  * Seed the store straight from Code-mode JSON. `parseManifestJson` normalizes only the top
  * level (`parameters`/`nodes` defaults), so whatever node shape an author — or an
- * MCP-authored manifest — pastes reaches this editor verbatim. That is exactly the input
+ * AI-authored manifest — pastes reaches this editor verbatim. That is exactly the input
  * under test here: the engine tolerates a `recordSelector` with no `recordPath`
  * (`RecordSelector` falls back to `[]`) and, for an async retriever, no `recordSelector`
  * at all (`ManifestParser` only requires it for sync nodes).

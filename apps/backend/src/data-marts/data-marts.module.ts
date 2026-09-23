@@ -64,12 +64,6 @@ import { MCP_REPORTS_FACADE } from './facades/mcp-reports.facade';
 import { McpReportsFacadeImpl } from './facades/mcp-reports.facade.impl';
 import { MCP_SCHEDULED_TRIGGERS_FACADE } from './facades/mcp-scheduled-triggers.facade';
 import { McpScheduledTriggersFacadeImpl } from './facades/mcp-scheduled-triggers.facade.impl';
-import { MCP_CONNECTORS_FACADE } from './facades/mcp-connectors.facade';
-import { McpConnectorsFacadeImpl } from './facades/mcp-connectors.facade.impl';
-import { MCP_CONNECTOR_AUTHORING_FACADE } from './facades/mcp-connector-authoring.facade';
-import { McpConnectorAuthoringFacadeImpl } from './facades/mcp-connector-authoring.facade.impl';
-import { MCP_CONNECTOR_RUN_FACADE } from './facades/mcp-connector-run.facade';
-import { McpConnectorRunFacadeImpl } from './facades/mcp-connector-run.facade.impl';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
 import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
@@ -664,18 +658,6 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
       provide: MCP_SCHEDULED_TRIGGERS_FACADE,
       useClass: McpScheduledTriggersFacadeImpl,
     },
-    {
-      provide: MCP_CONNECTORS_FACADE,
-      useClass: McpConnectorsFacadeImpl,
-    },
-    {
-      provide: MCP_CONNECTOR_AUTHORING_FACADE,
-      useClass: McpConnectorAuthoringFacadeImpl,
-    },
-    {
-      provide: MCP_CONNECTOR_RUN_FACADE,
-      useClass: McpConnectorRunFacadeImpl,
-    },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     GetDataMartInputSourceChangeImpactService,
@@ -1019,9 +1001,6 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     MCP_DATA_DESTINATIONS_FACADE,
     MCP_REPORTS_FACADE,
     MCP_SCHEDULED_TRIGGERS_FACADE,
-    MCP_CONNECTORS_FACADE,
-    MCP_CONNECTOR_AUTHORING_FACADE,
-    MCP_CONNECTOR_RUN_FACADE,
     ContextAccessService,
     AdvancedSearchIndexSyncService,
   ],
