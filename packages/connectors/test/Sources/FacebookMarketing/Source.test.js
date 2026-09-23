@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,8 +93,8 @@ describe('_getShortLinkDomains', () => {
     expect(withValue('')).toEqual([]);
   });
 
-  it('strips ports and ignores entries without a dot', () => {
-    expect(withValue('https://short.example:8443/abc, com, localhost, brand.example')).toEqual([
+  it('strips ports and trailing dots and ignores entries without a dot', () => {
+    expect(withValue('https://short.example:8443/abc, com, localhost, brand.example.')).toEqual([
       'short.example',
       'brand.example',
     ]);
@@ -106,5 +106,55 @@ describe('_getShortLinkDomains', () => {
       'short.example',
       'other.example',
     ]);
+  });
+});
+
+describe('_fetchInsightsData short link workflow', () => {
+  const nodeName = 'ad-account/insights-by-link-url-asset';
+  const rows = [
+    { ad_id: '1', link_url_asset: { id: '2', website_url: 'https://short.example/a/b' } },
+  ];
+
+  const buildSource = ({ processShortLinks, shortLinkDomains }) =>
+    Object.assign(Object.create(proto), {
+      fieldsSchema: { [nodeName]: { breakdowns: ['link_url_asset'], level: 'ad', fields: {} } },
+      config: {
+        ProcessShortLinks: { value: processShortLinks },
+        ShortLinkDomains: { value: shortLinkDomains },
+      },
+      _prepareFields: () => [],
+      _buildInsightsUrl: () => 'https://graph.example/insights',
+      _fetchPaginatedData: vi.fn(async () => rows),
+    });
+
+  const params = {
+    nodeName,
+    accountId: '1',
+    fields: ['ad_id', 'link_url_asset'],
+    timeRange: '',
+    url: '',
+  };
+
+  it('passes fetched rows and configured domains to processShortLinks', async () => {
+    globalThis.processShortLinks = vi.fn(async data => data);
+    const source = buildSource({ processShortLinks: true, shortLinkDomains: 'short.example' });
+
+    await proto._fetchInsightsData.call(source, params);
+
+    expect(globalThis.processShortLinks).toHaveBeenCalledWith(rows, {
+      shortLinkField: 'link_url_asset',
+      urlFieldName: 'website_url',
+      nestedPathHosts: ['short.example'],
+    });
+  });
+
+  it('skips short link processing when the setting is disabled', async () => {
+    globalThis.processShortLinks = vi.fn(async data => data);
+    const source = buildSource({ processShortLinks: false, shortLinkDomains: 'short.example' });
+
+    const result = await proto._fetchInsightsData.call(source, params);
+
+    expect(globalThis.processShortLinks).not.toHaveBeenCalled();
+    expect(result).toBe(rows);
   });
 });

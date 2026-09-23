@@ -520,7 +520,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
   /**
    * Parses the configured short link domains whose links contain nested paths.
-   * Accepts bare domains as well as full URLs; scheme, port and path are stripped.
+   * Accepts bare domains as well as full URLs; scheme, port, path and trailing dot are stripped.
    * Entries without a dot (bare TLDs, localhost) are ignored.
    *
    * @return {Array<string>} Lower-cased domains, empty when not configured
@@ -531,7 +531,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     if (!value) return [];
     return String(value)
       .split(/[,;\s]+/)
-      .map(entry => entry.replace(/^[a-z]+:\/\//i, '').split('/')[0].split(':')[0].trim().toLowerCase())
+      .map(entry => entry.replace(/^[a-z]+:\/\//i, '').split('/')[0].split(':')[0].replace(/\.$/, '').trim().toLowerCase())
       .filter(host => host.includes('.'));
   }
 
