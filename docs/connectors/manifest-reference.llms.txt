@@ -6,7 +6,7 @@ You are authoring an OWOX no-code **declarative connector manifest** (a single J
 
 Output contract: produce exactly ONE JSON object — the manifest itself. No prose, no Markdown code fences, nothing before or after it, unless the tool or conversation you are operating in explicitly asks for a different envelope (e.g. a `{ "message": ..., "manifest": ... }` wrapper). Never invent secret values (API keys, client secrets, tokens) — leave the corresponding `parameters` entries for a human to fill in.
 
-Lifecycle reminder: this reference is normally fetched first (`connector_manifest_schema`), then you author or edit the manifest, then you dry-run it with `connector_test` using non-secret configuration only (e.g. date ranges, IDs, filters — never API keys or tokens), fix anything the test reports, and finally persist it (`connector_publish`). Secure credentials are entered by the user via the browser, not through the assistant. See §20 for the full workflow.
+Lifecycle reminder: you author the manifest; the user imports it into the OWOX connector builder, tests one node there with non-secret configuration only (e.g. date ranges, IDs, filters — never API keys or tokens), brings back anything the test reports for you to fix, and publishes it. Secure credentials are entered by the user in OWOX, never through the assistant. See §20 for the full workflow.
 
 ## 2. Top-level manifest keys
 
@@ -816,8 +816,9 @@ Expands the `partitionRouter: substream` shape (§10) into one complete node: fe
 
 ## 20. Authoring workflow
 
-1. Call `connector_manifest_schema` (this document) if you have not already read it.
+1. Read this whole reference before writing or editing a manifest.
 2. Research the target API (its own docs, pasted after this reference) and author the manifest — pick the auth type (§5), define one node per data stream you need (§6–§7), and add pagination/incremental/filters/transformations/error-handling only where the API actually needs them.
-3. Call `connector_test` with the full manifest and non-secret configuration values only (e.g. date ranges, IDs, filters) — this dry-runs one node against the live API. Never put API keys or tokens in `configuration`.
-4. If it fails, read the returned error, make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API), and re-run `connector_test`.
-5. Once it passes, call `connector_publish` to persist the manifest. Connecting real credentials happens separately: the user signs in / enters them via the browser, never through the assistant.
+3. The user saves your output as a `.json` file and imports it in the OWOX connector builder (⋮ menu → Import JSON…), or pastes it into the builder's Code mode.
+4. The user runs Test on one node with non-secret configuration values only (e.g. date ranges, IDs, filters) — this dry-runs that node against the live API. API keys and tokens never go into that configuration.
+5. If the test fails, the user brings you the error. Make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API) and return the whole corrected manifest.
+6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user enters them in OWOX (on the Data Mart page, or in the connector's Test), never through the assistant.

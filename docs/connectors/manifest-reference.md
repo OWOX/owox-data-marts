@@ -4,6 +4,11 @@ A **declarative connector manifest** is a single JSON document that tells OWOX D
 
 This page is the complete grammar the engine accepts, written for a person authoring or reviewing a manifest by hand — every key, every enum value, and the mistakes that most often make the parser reject a manifest.
 
+> **Building a connector with an AI assistant?** Give your assistant the
+> [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt)
+> together with the target API's documentation, then import the manifest it writes in the
+> connector builder (**⋮** → **Import JSON…**).
+
 ## Contents
 
 - [How the engine turns responses into rows](#how-the-engine-turns-responses-into-rows)
@@ -576,13 +581,14 @@ An unresolved path normally throws and fails the run — except inside `transfor
 
 ## Authoring workflow
 
-1. Read this reference (or, if you're an AI assistant with MCP access, call the `connector_manifest_schema` tool) before writing or editing a manifest.
+1. Read this reference before writing or editing a manifest. An AI assistant gets the same grammar from the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt).
 2. Research the target API and author the manifest: pick the authentication type, define one node per data stream you need, and add pagination, incremental extraction, filters, transformations, or error handling only where the API actually needs them.
-3. Dry-run one node with `connector_test`, passing **non-secret configuration values only** — date ranges, IDs, filters, and similar. Never put API keys, tokens, or any credential in that configuration; `connector_test` is not where credentials are entered.
-4. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then re-run `connector_test`.
-5. Once it passes, call `connector_publish` to persist the manifest.
+3. Open the connector builder and bring the manifest in: **⋮** → **Import JSON…** for a `.json` file, or paste it into Code mode.
+4. Run **Test** on one node with **non-secret configuration values only** — date ranges, IDs, filters, and similar. Never put API keys, tokens, or any credential in that configuration.
+5. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then test again.
+6. Once it passes, **Publish** the connector.
 
-Real credentials are connected separately, afterward: the person setting up the connector signs in or enters their API key/token through the connector's configuration form in the browser. Credentials are never typed into a manifest, into `connector_test`, or into an AI assistant.
+Real credentials are connected separately, afterward: the person setting up the connector enters their API key/token on the Data Mart page, or in the connector's Test. Credentials are never typed into a manifest or into an AI assistant.
 
 ## Worked examples
 
@@ -811,7 +817,7 @@ A larger, realistic manifest: a header-injected API key, three sibling nodes, `d
 }
 ```
 
-*(Shortened for readability: this shows 3 of the connector's 4 nodes — the `ad_groups` node follows the same pattern — and a subset of each node's fields. For the complete, byte-for-byte manifest, see [`manifest-reference.llms.txt`](https://github.com/OWOX/owox-data-marts/blob/main/docs/connectors/manifest-reference.llms.txt) or the `connector_manifest_schema` MCP tool.)*
+*(Shortened for readability: this shows 3 of the connector's 4 nodes — the `ad_groups` node follows the same pattern — and a subset of each node's fields. For the complete, byte-for-byte manifest, see the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt).)*
 
 ### 5. `partitionRouter: substream`, expanded into a full node
 
@@ -859,9 +865,3 @@ Expands the `substream` shape into one complete node: fetch the list of ad accou
   }
 }
 ```
-
----
-
-> **Authoring with an AI?** Paste [`manifest-reference.llms.txt`](https://github.com/OWOX/owox-data-marts/blob/main/docs/connectors/manifest-reference.llms.txt)
-> into your assistant, or have an MCP client call the `connector_manifest_schema` tool —
-> both return the same machine-optimized reference.
