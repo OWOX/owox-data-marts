@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -26,6 +27,9 @@ import { manifestToJson, parseManifestJson } from '../../shared/model/manifestJs
 import type { BuilderManifest } from '../../shared/model/manifest.types';
 import { downloadBlob } from '../../../data-marts/model-canvas/export/download';
 import { VersionHistoryPopover } from './VersionHistoryPopover';
+
+const AI_GUIDE_URL = 'https://docs.owox.com/docs/connectors/manifest-reference.llms.txt';
+
 export function BuilderTopBar({
   onToggleTest,
   onBack,
@@ -184,6 +188,18 @@ export function BuilderTopBar({
             >
               <Download className='h-4 w-4' />
               <span>Export JSON</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a
+                href={AI_GUIDE_URL}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='flex items-center gap-2'
+                data-testid='builderAiGuide'
+              >
+                <BookOpen className='h-4 w-4' />
+                Guide for AI assistants
+              </a>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

@@ -446,8 +446,8 @@ connector — point it at a `logo.svg` beside the manifest and the build inlines
 
 The full grammar — six authentication types, four pagination types, incremental strategies,
 partition routers, async retrievers, transformations, record filters and error handling — lives in
-`apps/backend/src/ee/mcp/tools/manifest-schema.reference.ts`, which is also what the
-`connector_manifest_schema` MCP tool serves to assistants.
+the [manifest reference](../../docs/connectors/manifest-reference.md). The same grammar written for
+AI assistants is `docs/connectors/manifest-reference.llms.txt`.
 
 ### Two things to do besides writing the file
 

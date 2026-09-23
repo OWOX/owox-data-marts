@@ -85,6 +85,18 @@ describe('Builder import and export', () => {
     });
   });
 
+  it('links the guide for AI assistants from the menu', async () => {
+    await renderExisting();
+    openMoreActions();
+    const guide = await screen.findByTestId('builderAiGuide');
+
+    expect(guide).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/connectors/manifest-reference.llms.txt'
+    );
+    expect(guide).toHaveAttribute('target', '_blank');
+  });
+
   it('opens the file picker from the menu', async () => {
     await renderExisting();
     const click = vi.spyOn(screen.getByTestId('builderImportInput'), 'click');
