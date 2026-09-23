@@ -5,3 +5,4 @@ export { DataMartCodeEditor } from './DataMartDefinitionSettings/form/DataMartCo
 export { DataMartDataStorageView } from './DataMartDataStorageView.tsx';
 export { DataMartDefinitionSettings } from './DataMartDefinitionSettings/DataMartDefinitionSettings.tsx';
 export { DataMartSchemaSettings } from './DataMartSchemaSettings/DataMartSchemaSettings.tsx';
+export { ConnectorManualRunButton } from './DataMartDefinitionSettings/ConnectorManualRunButton.tsx';

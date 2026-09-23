@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
-import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
 import { FormControl, FormField, FormItem, FormMessage } from '@owox/ui/components/form';
 import { Button } from '@owox/ui/components/button';
-import { Edit3, Play } from 'lucide-react';
+import { Edit3 } from 'lucide-react';
 import { DataStorageType } from '../../../../../data-storage';
 import {
   type ConnectorDefinitionConfig,
@@ -26,10 +25,7 @@ import {
 import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
-import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
-import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -46,7 +42,7 @@ export function ConnectorDefinitionField({
   autoOpen = false,
   saveDataMartDefinition,
 }: ConnectorDefinitionFieldProps) {
-  const { dataMart, runDataMart, hasActiveRuns } = useOutletContext<DataMartContextType>();
+  const { dataMart } = useOutletContext<DataMartContextType>();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
@@ -79,18 +75,6 @@ export function ConnectorDefinitionField({
       },
     };
     await applyDefinitionAndSave(newDefinition);
-  };
-
-  const handleManualRun = async (payload: Record<string, unknown>) => {
-    if (!dataMart) return;
-    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
-      toast.error('Manual run is only available for published data marts');
-      return;
-    }
-    await runDataMart({
-      id: dataMart.id,
-      payload,
-    });
   };
 
   const updateConnectorConfiguration =
@@ -152,10 +136,6 @@ export function ConnectorDefinitionField({
       await applyDefinitionAndSave(updatedDefinition);
     }
     setIsEditSheetOpen(false);
-  };
-
-  const onManualRunHandler: (data: ConnectorRunFormData) => void = data => {
-    void handleManualRun({ runType: data.runType, data: data.data });
   };
 
   const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
@@ -258,15 +238,6 @@ export function ConnectorDefinitionField({
   const normalizedDataMartStatus =
     typeof datamartStatus === 'object' ? datamartStatus.code : datamartStatus;
 
-  const isManualRunDisabled = hasActiveRuns || normalizedDataMartStatus === DataMartStatus.DRAFT;
-
-  const manualRunButton = (
-    <Button variant='outline' disabled={isManualRunDisabled}>
-      <Play className='h-4 w-4' />
-      <span>Manual Run...</span>
-    </Button>
-  );
-
   return (
     <>
       <FormField
@@ -292,7 +263,7 @@ export function ConnectorDefinitionField({
                   />
                 ) : (
                   <div className='space-y-3'>
-                    <div className='flex items-center justify-between'>
+                    <div className='flex items-center'>
                       <div className='flex items-center gap-2'>
                         {(field.value as ConnectorDefinitionConfig).connector.source.name !==
                           GOOGLE_SHEETS_CONNECTOR_NAME && (
@@ -313,32 +284,6 @@ export function ConnectorDefinitionField({
                         )}
                         {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        {dataMart?.definitionType === DataMartDefinitionType.CONNECTOR && (
-                          <>
-                            {isManualRunDisabled ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div>{manualRunButton}</div>
-                                </TooltipTrigger>
-
-                                <TooltipContent>
-                                  {hasActiveRuns
-                                    ? 'Please wait for the current run to complete.'
-                                    : 'Manual run is available only for published Data Marts.'}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <ConnectorRunView
-                                configuration={dataMart.definition as ConnectorDefinitionConfig}
-                                onManualRun={onManualRunHandler}
-                              >
-                                {manualRunButton}
-                              </ConnectorRunView>
-                            )}
-                          </>
-                        )}
                       </div>
                     </div>
                     <div className='space-y-3'>

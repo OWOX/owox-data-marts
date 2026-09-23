@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import {
+  ConnectorManualRunButton,
   DataMartDataStorageView,
   DataMartDefinitionSettings,
   DataMartSchemaSettings,
@@ -12,6 +13,7 @@ import {
   CollapsibleCardHeaderTitle,
   CollapsibleCardContent,
   CollapsibleCardFooter,
+  CollapsibleCardHeaderActions,
 } from '../../../shared/components/CollapsibleCard';
 import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
@@ -64,6 +66,9 @@ export default function DataMartDataSetupContent() {
           >
             Input Source
           </CollapsibleCardHeaderTitle>
+          <CollapsibleCardHeaderActions>
+            <ConnectorManualRunButton />
+          </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           {dataMart && (

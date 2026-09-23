@@ -111,6 +111,8 @@ Don’t forget to:
 - **Publish** the data mart
 - **Run** the Data Mart manually for the first time
 
+The **Manual Run...** button is in the header of the **Input Source** card on the **Data Setup** tab, so you can start a run while the card is collapsed.
+
 ![Output Schema Auto-Generated](../../res/screens/Manual-run.png)
 
 After the first run, you’ll see that the **Output schema was generated automatically**.
