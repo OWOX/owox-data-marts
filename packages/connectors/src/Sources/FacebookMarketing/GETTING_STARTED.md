@@ -63,6 +63,18 @@ For spend, clicks, impressions, conversions, and ROAS, choose **Ad Account Insig
 
 For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
+### Resolve Short Links
+
+Facebook ads often point to short links. **Ad Account Insights by Link URL Asset** returns these short links in `link_url_asset.website_url`. OWOX can follow each short link and store the final landing page in `link_url_asset.parsed_url`.
+
+To turn this on, open **Advanced** settings and enable **Process Short Links**. OWOX enables it by default.
+
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. OWOX treats links with several path parts, such as `https://links.example.com/abc/xyz`, as landing pages and leaves them unchanged.
+
+If your short link service uses several path parts, enter its domain in **Short Link Domains**, for example `links.example.com`. You can also paste a full short link, such as `https://links.example.com/abc/xyz`, and OWOX keeps only the domain. Separate several entries with commas. OWOX then resolves links on these domains and their subdomains.
+
+OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page.
+
 If OWOX disables **Publish & Run Data Mart**, check the storage. OWOX cannot publish a Data Mart until the selected storage has valid settings. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
 ![Configure Data Import screen with Facebook Ads endpoint, fields, and dataset settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5975a655-aeea-4ec6-d5f6-f74cb5db4500/public)

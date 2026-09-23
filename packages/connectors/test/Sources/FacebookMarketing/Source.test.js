@@ -83,3 +83,21 @@ describe('_isAuthError', () => {
     expect(proto._isAuthError.call(stub, { statusCode: 500 })).toBe(false);
   });
 });
+
+describe('_getShortLinkDomains', () => {
+  const withValue = value =>
+    proto._getShortLinkDomains.call({ config: { ShortLinkDomains: { value } } });
+
+  it('returns an empty list when the setting is not configured', () => {
+    expect(proto._getShortLinkDomains.call({ config: {} })).toEqual([]);
+    expect(withValue('')).toEqual([]);
+  });
+
+  it('normalizes full URLs, paths, casing, and separators to bare domains', () => {
+    expect(withValue('https://Links.Example.com/abc/xyz, short.example; other.example/')).toEqual([
+      'links.example.com',
+      'short.example',
+      'other.example',
+    ]);
+  });
+});

@@ -15,12 +15,13 @@
  * @param {Object} config - Configuration object
  * @param {string} config.shortLinkField - Field that contains URL objects
  * @param {string} config.urlFieldName - Name of the URL field within the object
+ * @param {Array<string>} [config.nestedPathHosts] - Short-link domains whose links may contain nested paths
  * @return {Array} Data with processed links
  */
-async function processShortLinks(data, { shortLinkField, urlFieldName }) {
+async function processShortLinks(data, { shortLinkField, urlFieldName, nestedPathHosts = [] }) {
   if (!Array.isArray(data) || data.length === 0) return data;
 
-  const shortLinks = _collectUniqueShortLinks(data, shortLinkField, urlFieldName);
+  const shortLinks = _collectUniqueShortLinks(data, shortLinkField, urlFieldName, nestedPathHosts);
   if (shortLinks.length === 0) return data;
 
   const resolvedShortLinks = await _resolveShortLinks(shortLinks);
@@ -34,17 +35,18 @@ async function processShortLinks(data, { shortLinkField, urlFieldName }) {
  * @param {Array} data - Data records
  * @param {string} shortLinkField - Field that contains URLs
  * @param {string} urlFieldName - Name of the URL field within the object
+ * @param {Array<string>} nestedPathHosts - Short-link domains whose links may contain nested paths
  * @return {Array} Array of unique short link objects
  * @private
  */
-function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
+function _collectUniqueShortLinks(data, shortLinkField, urlFieldName, nestedPathHosts) {
   const uniqueLinks = new Map();
 
   data.forEach(record => {
     const urlAsset = record[shortLinkField];
     const url = urlAsset && urlAsset[urlFieldName];
 
-    if (!url || !_isPotentialShortLink(url) || uniqueLinks.has(url)) return;
+    if (!url || uniqueLinks.has(url) || !_isPotentialShortLink(url, nestedPathHosts)) return;
 
     uniqueLinks.set(url, {
       originalUrl: url,
@@ -60,18 +62,38 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
  * Determines if URL is a potential short link
  * 
  * @param {string} url - URL to check
+ * @param {Array<string>} nestedPathHosts - Short-link domains whose links may contain nested paths
  * @return {boolean} True if potentially a short link
  * @private
  */
-function _isPotentialShortLink(url) {
+function _isPotentialShortLink(url, nestedPathHosts) {
   if (!url || typeof url !== 'string') return false;
 
-  // Skip URLs with query parameters or UTM parameters
-  const hasParams = url.includes('?') || ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].some(param => url.includes(param));
-  if (hasParams) return false;
+  try {
+    const parsedUrl = new URL(url);
+    const pathSegments = parsedUrl.pathname.slice(1).split('/');
 
-  // Check for simple structure: https://hostname.com/path (no subpaths)
-  return /^https:\/\/[^\/]+\/[^\/]+$/.test(url);
+    if (parsedUrl.protocol !== 'https:' || url.includes('?') || !pathSegments.every(Boolean)) {
+      return false;
+    }
+
+    return pathSegments.length === 1 || _isNestedPathHost(parsedUrl.hostname, nestedPathHosts);
+  } catch (_error) {
+    return false;
+  }
+}
+
+//---- _isNestedPathHost --------------------------------------------------
+/**
+ * Checks whether hostname equals or is a subdomain of a configured nested-path short-link domain
+ *
+ * @param {string} hostname - Hostname to check
+ * @param {Array<string>} nestedPathHosts - Configured short-link domains
+ * @return {boolean} True if hostname matches a configured domain
+ * @private
+ */
+function _isNestedPathHost(hostname, nestedPathHosts) {
+  return nestedPathHosts.some(host => hostname === host || hostname.endsWith(`.${host}`));
 }
 
 //---- _resolveShortLinks -------------------------------------------------
