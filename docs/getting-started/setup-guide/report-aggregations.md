@@ -204,8 +204,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - A Unique Count — the report's own Data Mart's or a **joined** one's — can be selected as a column and used as a sort column, but not in a filter or as the input to another aggregation.
 - Unique Count ignores rows whose primary key is **empty** — an empty key is not an identity, so such rows are neither counted nor merged together. Declare a primary key only on columns that are genuinely unique and always filled.
 - **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: the report looks the same while each row now stands for several records.
-- For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
-- **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
+- On a joined field, what a report's aggregations and Totals read depends on the field's [Dedup](./joinable-data-marts.md#dedup). With `ANY_VALUE` they read the joined Data Mart's own rows; with any other Dedup, `Average` and percentiles read one collapsed value per join key — an average of those values, not of the joined rows.
 
 ## Related Links
 
