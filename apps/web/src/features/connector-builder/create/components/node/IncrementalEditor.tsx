@@ -53,7 +53,7 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
     }
     // This is the one place that replaces the whole `incremental` object rather than a leaf,
     // so spread what's already there: keys this editor doesn't render — a legacy
-    // `cursorField`, anything a Code-mode or MCP author added — survive the switch instead
+    // `cursorField`, anything a Code-mode author added — survive the switch instead
     // of being dropped on the author's behalf.
     setPath(base, { ...incremental, strategy, request: nextRequest });
   };

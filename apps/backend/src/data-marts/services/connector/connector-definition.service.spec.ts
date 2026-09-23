@@ -948,9 +948,8 @@ describe('ConnectorDefinitionService', () => {
    * variable, and Linux refuses a single env string past MAX_ARG_STRLEN (131072 bytes) with
    * an opaque `spawn E2BIG` -- by which point the connector is published and bound to a Data
    * Mart, so every run of it dies. `@MaxJsonSize` on CreateCustomConnectorRequestApiDto
-   * covers the HTTP path only: the MCP `connector_publish` tool takes its manifest through
-   * a Zod schema (`z.record(z.unknown())`) and reaches create()/saveDraft() without passing
-   * that DTO at all. These cases drive the service directly, which is what both paths share.
+   * covers only the create request; these cases drive the service directly, which every path
+   * into create()/saveDraft() shares.
    *
    * The number is re-stated rather than imported on purpose, as in custom-connector.dto.spec.ts:
    * it is a reasoned trade-off against a kernel limit, so moving it should turn these red

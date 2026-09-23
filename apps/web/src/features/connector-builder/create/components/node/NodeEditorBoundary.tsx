@@ -7,7 +7,7 @@ import { ComponentErrorBoundary } from '../../../../../components/errors';
  * Wraps the node pane so an unrenderable node costs the author that pane and nothing else.
  *
  * The pane's editors read a node body that nothing has validated — Code mode is a
- * first-class authoring surface, and it is also the shape an MCP-authored manifest arrives
+ * first-class authoring surface, and it is also the shape an AI-authored manifest arrives
  * in — so any one of them can meet a field the declared types promise is there and is not.
  * Individual reads are guarded, but a boundary is what turns the next unguarded one from a
  * white screen into a message. It sits around the node editor only: the top bar, the nav

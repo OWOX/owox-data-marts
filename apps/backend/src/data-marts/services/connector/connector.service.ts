@@ -238,24 +238,6 @@ export class ConnectorService {
     );
   }
 
-  /**
-   * Resolves the fields schema for a bundled or custom connector, over the shared
-   * resolveBundledOrCustom cascade.
-   */
-  async resolveConnectorFieldsSchema(
-    projectId: string,
-    connectorName: string,
-    version?: number
-  ): Promise<ConnectorFieldsSchema> {
-    return this.resolveBundledOrCustom(
-      projectId,
-      connectorName,
-      version,
-      name => this.getConnectorFieldsSchema(name),
-      manifest => this.getFieldsSchemaFromManifest(manifest)
-    );
-  }
-
   private createDeclarativeSourceFromManifest(manifest: Record<string, unknown>) {
     const context = new Core.AbstractContext({
       source: { name: 'custom', config: {} },
@@ -684,8 +666,7 @@ export class ConnectorService {
    * ConnectorDefinitionController draws: the manifest is @Auth(Role.editor()) because it is
    * author-written JSON
    * that may carry a literal credential, while the spec is served to every project member
-   * (and, over MCP, to anything holding `mcp:read`) on the grounds that it carries no part
-   * of the body. `default` broke that grounds outright -- the config form ASSIGNS it as the
+   * on the grounds that it carries no part of the body. `default` broke that grounds outright -- the config form ASSIGNS it as the
    * parameter's value when the Data Mart has none (ConfigurationStep), so a `default` on a
    * SECRET parameter is not decoration, it is a working credential shipped to everyone who
    * can open the connector. The manifest grammar permits it and the builder's parameter
@@ -703,8 +684,8 @@ export class ConnectorService {
    * into a description is the same class of author mistake as one typed into `baseUrl`, and
    * the answer to that class is the publish-time warning, not blanking the whole form.
    *
-   * Applied here rather than at each boundary so it is one choke point for every caller --
-   * REST, MCP and anything added later. Nothing server-side reads a SECRET parameter's
+   * Applied here rather than at each boundary so it is one choke point for every caller.
+   * Nothing server-side reads a SECRET parameter's
    * default: ConnectorSecretService takes only names, attributes and `oneOf` from the spec.
    */
   private mapConfigFieldToSchema(name: string, field: ConnectorConfigField) {

@@ -4,7 +4,7 @@ import { InfoLabel } from '../fields';
 
 /**
  * A node as it actually arrives here, before anything has validated it. Code mode is a
- * first-class authoring surface (and the shape an MCP-authored manifest can arrive in),
+ * first-class authoring surface (and the shape an AI-authored manifest can arrive in),
  * and `parseManifestJson` normalizes only the top level — so a node can reach this editor
  * with no `recordSelector` at all (the engine's `ManifestParser` demands one only for sync
  * retrievers) or with a `recordSelector` that carries no `recordPath` (the engine's

@@ -22,7 +22,7 @@ vi.mock('./FieldsEditor', () => ({
 /**
  * Seed the store straight from Code-mode JSON. `parseManifestJson` normalizes only the top
  * level (`parameters`/`nodes` defaults), so whatever node shape an author — or an
- * MCP-authored manifest — pastes reaches this pane verbatim. The engine is likewise tolerant:
+ * AI-authored manifest — pastes reaches this pane verbatim. The engine is likewise tolerant:
  * `ManifestParser` requires `recordSelector` only for sync retrievers, and `RecordSelector`
  * falls back to an empty record path. So `request`, `recordSelector` and `fields` can all be
  * missing from a node the engine still runs.

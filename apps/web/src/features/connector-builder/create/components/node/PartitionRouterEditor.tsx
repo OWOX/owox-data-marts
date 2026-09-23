@@ -27,7 +27,7 @@ type SubstreamRouter = Extract<PartitionRouter, { type: 'substream' }>;
 
 /**
  * A partition router as it actually arrives here, before anything has validated it. Code
- * mode is a first-class authoring surface (and the shape an MCP-authored manifest can
+ * mode is a first-class authoring surface (and the shape an AI-authored manifest can
  * arrive in), and `parseManifestJson` normalizes only the top level — so a node body
  * reaches this editor verbatim. The engine rejects a `substream` router with no `parent`,
  * no `parent.request` object and no `parent.key`, but it never validates `parent.recordPath`

@@ -19,7 +19,7 @@ type Loosen<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 /**
  * A record filter as it actually arrives here, before anything has validated it. Code mode
- * is a first-class authoring surface (and the shape an MCP-authored manifest can arrive in),
+ * is a first-class authoring surface (and the shape an AI-authored manifest can arrive in),
  * and `parseManifestJson` normalizes only the top level — so a node body reaches this editor
  * verbatim. The engine does reject a `recordFilter` without a non-empty string `path`, so
  * this shape never runs; it is still what a half-finished Code-mode paste looks like, and the
