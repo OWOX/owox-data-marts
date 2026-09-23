@@ -192,7 +192,7 @@ const n = v => (Math.round(v * 100) / 100).toString();
  * installed where it is read, so it does not guess: `textLength` makes the run
  * occupy exactly the reserved width, and the picture is the same everywhere.
  */
-const text = (x, y, content, { size, weight, fill, opacity, anchor } = {}) => {
+const text = (x, y, content, { size, weight, fill, opacity, anchor, underline } = {}) => {
   const body = String(content);
   const px = size ?? TITLE_SIZE;
   return (
@@ -200,14 +200,13 @@ const text = (x, y, content, { size, weight, fill, opacity, anchor } = {}) => {
     `${weight ? ` font-weight="${weight}"` : ''} fill="${fill}"` +
     `${opacity !== undefined ? ` fill-opacity="${opacity}"` : ''}` +
     `${anchor ? ` text-anchor="${anchor}"` : ''}` +
+    `${underline ? ' text-decoration="underline"' : ''}` +
     ` dominant-baseline="central" textLength="${n(textWidth(body, px, weight ?? 400))}"` +
     ` lengthAdjust="spacingAndGlyphs">${esc(body)}</text>`
   );
 };
 
 /* ------------------------------------------------------------------- brand */
-
-const LOGO_SIZE = 26;
 
 /* The OWOX icon sits in the corner as itself: it carries its own gradients,
  * and markBody() namespaces their ids, so it goes in as a mark like any other
@@ -275,9 +274,18 @@ function markBody(name) {
   return body;
 }
 
-const mark = (name, x, y, size) => {
+const mark = (name, x, y, w, h = w) => {
   const { viewBox, inner, paint } = markBody(name);
-  return `<svg x="${n(x)}" y="${n(y)}" width="${size}" height="${size}" viewBox="${viewBox}"${paint ? ` ${paint}` : ''} overflow="visible">${inner}</svg>`;
+  return `<svg x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" viewBox="${viewBox}"${paint ? ` ${paint}` : ''} overflow="visible">${inner}</svg>`;
+};
+
+/** How wide a mark is at a given height, from its own viewBox. */
+const markWidth = (name, h) => {
+  const [, , vw, vh] = markBody(name)
+    .viewBox.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  return (h * vw) / vh;
 };
 
 /** A Lucide glyph, stroked in `colour`, its 24×24 box scaled to `size`. */
@@ -542,7 +550,7 @@ function layout(blocks, logo) {
   /* The signature sits under the lanes rather than inside the last one, so it
    * belongs to the drawing and not to Plugins. It is a row with content, not
    * padding: MARGIN still closes the drawing beneath it. */
-  const height = y - BAND_GAP + (logo ? BAND_GAP + LOGO_SIZE : 0) + MARGIN;
+  const height = y - BAND_GAP + (logo ? BAND_GAP + LOGO_H : 0) + MARGIN;
   return { placed, bands, height };
 }
 
@@ -789,20 +797,27 @@ function bandHead(t, b) {
   return parts.join('');
 }
 
-/* The OWOX mark and the address, bottom right, under the last lane. The mark
- * leads and the address follows it, the pair right-aligned to the margin every
- * lane edge keeps. */
+/* The drawing signs itself under the lanes: the address at the left edge as a
+ * link, the OWOX logo at the right, both on the margin every lane keeps. */
 const SIGNATURE = 'www.owox.com';
+const SIGNATURE_URL = 'https://www.owox.com';
+const LOGO_H = 22;
 
 function signature(t, show, height) {
   if (!show) return '';
   const size = 12;
-  const w = textWidth(SIGNATURE, size);
-  const top = height - MARGIN - LOGO_SIZE;
-  const textX = WIDTH - MARGIN - w;
+  const top = height - MARGIN - LOGO_H;
+  const mid = top + LOGO_H / 2;
+  const link = text(MARGIN, mid, SIGNATURE, { size, fill: t.link, underline: true });
   return (
-    mark('owox', textX - 8 - LOGO_SIZE, top, LOGO_SIZE) +
-    text(textX, top + LOGO_SIZE / 2, SIGNATURE, { size, fill: t.muted })
+    `<a href="${SIGNATURE_URL}" target="_blank" rel="noopener">${link}</a>` +
+    mark(
+      'owox-logo',
+      WIDTH - MARGIN - markWidth('owox-logo', LOGO_H),
+      top,
+      markWidth('owox-logo', LOGO_H),
+      LOGO_H
+    )
   );
 }
 
