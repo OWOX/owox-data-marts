@@ -134,7 +134,7 @@
           "note": "Table",
           "fields": 18,
           "triggers": 1,
-          "relationships": 2,
+          "relationships": 9,
           "quality": "passed",
           "fresh": "Updated 1 hour ago",
           "shared": "Shared for reporting",
