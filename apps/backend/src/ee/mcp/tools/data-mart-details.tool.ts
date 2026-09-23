@@ -93,10 +93,11 @@ const AGGREGATE_LEVEL_USAGE =
   'value. Do not recompute it from other fields, and do not name it in "aggregations".';
 
 // The caveat is written for the analyst who owns the formula — it names a fix to make there. The
-// agent reads it next to "do not recompute it", so it has to know the fix is not its to make.
+// agent reads it next to "do not recompute it", so it has to know a change to the FORMULA is not
+// its to make; the one query-side step the caveat may offer (a joined Unique Count) stays open.
 const GRAIN_CAVEAT_PREFIX =
-  'Caveat to pass on to the user with this number — the fix belongs in the Data Mart, not in ' +
-  'your query:';
+  'Caveat to pass on to the user with this number — a change to its formula belongs in the ' +
+  'Data Mart:';
 
 const DataMartFieldSchema = z
   .object({
@@ -272,9 +273,15 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
     });
 
     const categories = new Set<FieldTypeCategory>();
+    // A plain object keyed by field name: a field called `constructor` must not read the inherited
+    // member as its caveat.
+    const grainCaveats = result.grainCaveats ?? {};
     const fields = result.fields.map(f => {
       const field = f as RawField;
-      const caveat = typeof field.name === 'string' ? result.grainCaveats?.[field.name] : undefined;
+      const caveat =
+        typeof field.name === 'string' && Object.hasOwn(grainCaveats, field.name)
+          ? grainCaveats[field.name]
+          : undefined;
       return this.enrichField(field, categories, caveat);
     });
     // Joined fields go through the same enrichment as native ones (they simply have no

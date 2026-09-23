@@ -105,9 +105,20 @@ const joinedOn = (source: string, key?: readonly string[], via?: string): string
   return `${through === undefined ? spelled : `${through} ${spelled}`}, which`;
 };
 
-const distinctAdvice = (uniqueCountAvailable: boolean): string =>
-  `Use COUNT(DISTINCT ...) on a column that identifies them` +
-  `${uniqueCountAvailable ? ', or pick its Unique Count measure in a report' : ''}.`;
+/**
+ * Where the reader can pick the joined Data Mart's Unique Count measure: the analyst in a report
+ * (a formula cannot reference it), the agent as a field of its own query.
+ */
+export type UniqueCountOffer = 'none' | 'report' | 'query';
+
+const UNIQUE_COUNT_OFFER_CLAUSE: Record<UniqueCountOffer, string> = {
+  none: '',
+  report: ', or pick its Unique Count measure in a report',
+  query: ", or select that Data Mart's Unique Count field instead",
+};
+
+const distinctAdvice = (uniqueCount: UniqueCountOffer): string =>
+  `Use COUNT(DISTINCT ...) on a column that identifies them${UNIQUE_COUNT_OFFER_CLAUSE[uniqueCount]}.`;
 
 export const FormulaViolations = {
   levelMixing: (field: string, column: string): FormulaViolation => ({
@@ -439,11 +450,11 @@ export const FormulaViolations = {
     key: readonly string[] | undefined,
     multipliedBy?: string,
     rowsOf: MultipliedRowsOf = 'this Data Mart',
-    // Whether that source actually OFFERS this reader a Unique Count measure. Defaults to
-    // withholding the offer: a source publishes the metric only when IT declares a usable primary
-    // key, which is a different question from the one this verdict answers (whether the join key
-    // covers its PARENT's key). A formula cannot reference the measure, hence "in a report".
-    uniqueCountAvailable = false
+    // Whether that source actually OFFERS this reader a Unique Count measure, and where. Defaults
+    // to withholding the offer: a source publishes the metric only when IT declares a usable
+    // primary key, which is a different question from the one this verdict answers (whether the
+    // join key covers its PARENT's key).
+    uniqueCount: UniqueCountOffer = 'none'
   ): FormulaViolation => ({
     code: 'FORMULA_JOINED_MEASURE_MULTIPLIED',
     field,
@@ -451,30 +462,38 @@ export const FormulaViolations = {
     message:
       `${countedFrom(ref, source)}, ${joinedOn(source, key, multipliedBy)} can match several ` +
       `rows of ${rowsOf} — so COUNT counts matches, not that Data Mart's rows. ` +
-      distinctAdvice(uniqueCountAvailable),
+      distinctAdvice(uniqueCount),
   }),
   // The same counting question with nothing proven either way, and the most common shape in
   // practice: the Data Mart that would have to prove the key unique declares no Primary Key at all.
   // Its own sentence rather than the one above because it has no key to name — and because telling
   // an analyst their number IS inflated, when that was never established, is the same kind of
   // confident wrong answer this feature exists to stop. `unprovenMart` is absent when the reader
-  // may not learn which Data Mart that is, or the verdict never said.
+  // may not learn which Data Mart that is, or the verdict never said. `collapses` is the target
+  // side's verdict, which is proven independently: without it, setting the key the message asks
+  // for can flip the advice from "inflated" to "fewer".
   joinedMeasureGrainUnproven: (
     field: string,
     ref: string | undefined,
     source: string,
-    unprovenMart: string | undefined
+    unprovenMart: string | undefined,
+    collapses = false,
+    uniqueCount: UniqueCountOffer = 'none'
   ): FormulaViolation => ({
     code: 'FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN',
     field,
     ...(ref === undefined ? {} : { subject: ref }),
     message:
-      unprovenMart === undefined
+      (unprovenMart === undefined
         ? `${countedFrom(ref, source)}, and it can't be checked whether the join matches one row ` +
           `or several — if several, COUNT is inflated.`
         : `${countedFrom(ref, source)}, and ${otherMartName(unprovenMart, source)} has no ` +
           `Primary Key, so it can't be checked whether the join matches one row or several — if ` +
-          `several, COUNT is inflated. Set a Primary Key to find out.`,
+          `several, COUNT is inflated. Set a Primary Key to find out.`) +
+      (collapses
+        ? ` Several rows of ${martName(source)} can also share one join key value, so COUNT can ` +
+          `come out lower too. ${distinctAdvice(uniqueCount)}`
+        : ''),
   }),
   // The other side of the same join. The joined Data Mart is collapsed to ONE row per key before
   // it is attached (`blend-cte.builder.ts`, `buildAggregationCte`), so however many of its rows
@@ -485,7 +504,7 @@ export const FormulaViolations = {
     ref: string | undefined,
     source: string,
     collapsedBy?: string,
-    uniqueCountAvailable = false
+    uniqueCount: UniqueCountOffer = 'none'
   ): FormulaViolation => ({
     code: 'FORMULA_JOINED_MEASURE_COLLAPSED',
     field,
@@ -495,7 +514,7 @@ export const FormulaViolations = {
       (collapsedBy === undefined ? '' : `reached through ${otherMartName(collapsedBy, source)}, `) +
       `where several rows can share one join key value — so COUNT counts the rows of this Data ` +
       `Mart they match, which can be fewer than that Data Mart's own rows. ` +
-      distinctAdvice(uniqueCountAvailable),
+      distinctAdvice(uniqueCount),
   }),
   // Independent of any key and of the aggregate. ONE-DIRECTIONAL: every hop is a `LEFT JOIN` from
   // the main Data Mart (`blend-cte.builder.ts`, `metric-sleeve.builder.ts`), so a main row with no

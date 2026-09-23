@@ -28,6 +28,7 @@ const sources = (
         title: path,
         titleHidden: false,
         uniqueCountAvailable: false,
+        reader: 'editor',
         ...s,
       },
     ])
@@ -113,6 +114,47 @@ describe('checkJoinGrain', () => {
     const notOffered = run([call('COUNT', 'costs', 'adCost')], multiplyingCosts);
     expect(notOffered.warnings[0].message).not.toContain('Unique Count');
     expect(notOffered.warnings[0].message).toMatch(/identifies them\.$/);
+  });
+
+  it('offers the agent the Unique Count field rather than a report measure', () => {
+    const r = run(
+      [call('COUNT', 'costs', 'adCost')],
+      sources({
+        costs: {
+          multiplication: 'multiplies',
+          keyFields: ['traffic_source'],
+          title: 'Costs',
+          uniqueCountAvailable: true,
+          reader: 'agent',
+          fieldNames: new Map([['adCost', 'costs__adCost']]),
+        },
+      })
+    );
+    expect(r.warnings[0].message).toMatch(
+      /identifies them, or select that Data Mart's Unique Count field instead\.$/
+    );
+  });
+
+  // The parent side undecidable, the target side proven to collapse: both directions are open,
+  // and a sentence naming only "inflated" flips to "fewer" once the analyst sets the key it asks for.
+  it('adds the collapse to the unproven-grain message when the joined rows share keys', () => {
+    const r = run(
+      [call('COUNT', 'orders', 'amount')],
+      sources({
+        orders: {
+          multiplication: 'unknown',
+          collapse: 'collapses',
+          title: 'Orders',
+          unprovenAt: '',
+        },
+      })
+    );
+    expect(codes(r)).toEqual([
+      'FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN',
+      'FORMULA_JOINED_ROWS_EXCLUDED',
+    ]);
+    expect(r.warnings[0].message).toContain('if several, COUNT is inflated');
+    expect(r.warnings[0].message).toContain('so COUNT can come out lower too');
   });
 
   // Undecidable is its OWN message: an unknown verdict carries no key to name, and telling an
@@ -552,6 +594,7 @@ describe('buildJoinGrainSources', () => {
       title: 'a joined Data Mart',
       titleHidden: true,
       uniqueCountAvailable: false,
+      reader: 'agent',
       fieldNames: new Map(),
       unprovenAt: undefined,
       multipliedAt: 'costs',

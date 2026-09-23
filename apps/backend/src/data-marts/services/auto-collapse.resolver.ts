@@ -97,8 +97,9 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     // A joined column, a hidden one, or a name the schema has since lost: we cannot read its type,
     // so we cannot tell a dimension from a metric. Treating it as a dimension would make it a
     // grouping key — and grouping by a metric drops its duplicate rows, which changes that
-    // column's total exactly as DISTINCT would. Joined fields are #6926's subject; until then a
-    // report that projects one is left alone.
+    // column's total exactly as DISTINCT would. #6926 only warns about joined measures in formulas
+    // and leaves collapsing a report that projects a joined field to a follow-up; until one lands,
+    // such a report is left alone.
     if (!descriptor) return { kind: 'none', reason: 'unresolvable-column' };
 
     if (categorizeFieldType(descriptor.type) === 'other') {

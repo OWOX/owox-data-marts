@@ -6,7 +6,12 @@ import type {
 } from '../dto/domain/blendable-schema.dto';
 import { AggregateCall } from './formula-analyzer';
 import { FormulaReference } from './formula-reference';
-import { FormulaViolation, FormulaViolations, UNNAMED_JOINED_SOURCE } from './formula-violations';
+import {
+  FormulaViolation,
+  FormulaViolations,
+  UNNAMED_JOINED_SOURCE,
+  UniqueCountOffer,
+} from './formula-violations';
 
 export interface JoinGrainSource {
   multiplication: MainGrainMultiplication;
@@ -26,6 +31,11 @@ export interface JoinGrainSource {
    * join key, the measure about this source's own key.
    */
   uniqueCountAvailable: boolean;
+  /**
+   * Who reads the sentences, and so where the Unique Count measure is picked: the analyst in a
+   * report, the agent as a field of its own query.
+   */
+  reader: JoinGrainAudience['kind'];
   /**
    * How a reference to one of this source's fields is spelled for the AGENT — its published MCP
    * name. A field the map does not carry is withheld from the reader, and so is its reference.
@@ -94,6 +104,7 @@ export function buildJoinGrainSources(
         title: hidden(source) ? UNNAMED_JOINED_SOURCE : (source.title ?? source.aliasPath),
         titleHidden: hidden(source),
         uniqueCountAvailable: reportable(source) && source.uniqueCountAvailability === 'available',
+        reader: audience.kind,
         fieldNames: fieldNames(source),
         unprovenAt: source.mainGrainUnprovenAt,
         multipliedAt: source.mainGrainMultipliedAt,
@@ -160,13 +171,21 @@ export function checkJoinGrain(input: JoinGrainInput): { warnings: FormulaViolat
     reported.add(call.owner);
 
     const ref = spell(source, reference);
+    const uniqueCount = uniqueCountOffer(source);
 
     if (source.multiplication === 'unknown') {
       const at = source.unprovenAt;
       const unprovenMart =
         at === undefined || isWithheld(at) ? undefined : at === '' ? 'this Data Mart' : titleOf(at);
       warnings.push(
-        FormulaViolations.joinedMeasureGrainUnproven(fieldName, ref, source.title, unprovenMart)
+        FormulaViolations.joinedMeasureGrainUnproven(
+          fieldName,
+          ref,
+          source.title,
+          unprovenMart,
+          source.collapse === 'collapses',
+          uniqueCount
+        )
       );
       continue;
     }
@@ -192,7 +211,7 @@ export function checkJoinGrain(input: JoinGrainInput): { warnings: FormulaViolat
           key,
           multipliedBy,
           rowsOf,
-          source.uniqueCountAvailable
+          uniqueCount
         )
       );
       continue;
@@ -205,7 +224,7 @@ export function checkJoinGrain(input: JoinGrainInput): { warnings: FormulaViolat
         ref,
         source.title,
         collapsingHop !== call.owner ? titleOf(collapsingHop) : undefined,
-        source.uniqueCountAvailable
+        uniqueCount
       )
     );
   }
@@ -221,6 +240,11 @@ export function checkJoinGrain(input: JoinGrainInput): { warnings: FormulaViolat
   }
 
   return { warnings };
+}
+
+function uniqueCountOffer(source: JoinGrainSource): UniqueCountOffer {
+  if (!source.uniqueCountAvailable) return 'none';
+  return source.reader === 'agent' ? 'query' : 'report';
 }
 
 /** The reference as this reader may see it, or undefined when it may not see it at all. */

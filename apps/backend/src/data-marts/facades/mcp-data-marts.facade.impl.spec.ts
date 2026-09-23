@@ -1443,7 +1443,9 @@ describe('McpDataMartsFacadeImpl', () => {
         ...multiplyingCosts,
         uniqueCountAvailability: 'available',
       });
-      expect(offered).toContain('pick its Unique Count measure in a report');
+      // The agent selects the joined Unique Count as a field of its own query; it has no report.
+      expect(offered).toContain("or select that Data Mart's Unique Count field instead");
+      expect(offered).not.toContain('in a report');
 
       const excluded = await caveatFor({
         ...multiplyingCosts,

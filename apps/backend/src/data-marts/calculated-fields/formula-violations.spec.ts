@@ -239,7 +239,7 @@ describe('FormulaViolations', () => {
       ...args,
       undefined,
       'this Data Mart',
-      true
+      'report'
     );
     const withheld = FormulaViolations.joinedMeasureMultiplied(...args);
     expect(offered.message).toContain(
@@ -247,6 +247,51 @@ describe('FormulaViolations', () => {
     );
     expect(withheld.message).not.toContain('Unique Count');
     expect(withheld.message).toMatch(/identifies them\.$/);
+  });
+
+  // The agent has no report to pick a measure in, but it can select the joined Unique Count field
+  // in its own query — so "in a report" would be advice it cannot map to anything.
+  it('offers the agent the Unique Count field to select, not a report measure', () => {
+    const v = FormulaViolations.joinedMeasureMultiplied(
+      'spend',
+      'costs__adCost',
+      'Costs',
+      ['traffic_source'],
+      undefined,
+      'this Data Mart',
+      'query'
+    );
+    expect(v.message).toMatch(
+      /identifies them, or select that Data Mart's Unique Count field instead\.$/
+    );
+    expect(v.message).not.toContain('in a report');
+  });
+
+  // The target side is proven on its own, so an undecidable parent key must not leave the sentence
+  // pointing one way: once the analyst sets that key, a collapsing join reads "fewer" instead.
+  it('says an unproven COUNT can also come out lower when the joined rows collapse', () => {
+    const both = FormulaViolations.joinedMeasureGrainUnproven(
+      'roas',
+      'costs.adCost',
+      'Costs',
+      'this Data Mart',
+      true,
+      'report'
+    );
+    expect(both.message).toContain('if several, COUNT is inflated');
+    expect(both.message).toContain(
+      'Several rows of `Costs` can also share one join key value, so COUNT can come out lower too.'
+    );
+    expect(both.message).toMatch(/or pick its Unique Count measure in a report\.$/);
+
+    const oneWay = FormulaViolations.joinedMeasureGrainUnproven(
+      'roas',
+      'costs.adCost',
+      'Costs',
+      'this Data Mart'
+    );
+    expect(oneWay.message).not.toContain('lower');
+    expect(oneWay.message).toMatch(/Set a Primary Key to find out\.$/);
   });
 
   // Scoped to a joined COUNT, which is the one call the planner leaves in the outer SELECT. A
@@ -367,7 +412,7 @@ describe('FormulaViolations', () => {
       'users.orgs.name',
       'Organizations',
       'Users',
-      true
+      'report'
     );
     expect(v.message).toContain('`Organizations`, reached through `Users`, where several rows');
     expect(v.message).toMatch(/pick its Unique Count measure in a report\.$/);

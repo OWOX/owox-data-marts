@@ -382,6 +382,8 @@ describe('GetDataMartDetailsTool', () => {
       fieldName: string;
       level?: string;
       caveat?: string;
+      /** What the facade answers when no formula reads a joined Data Mart: `{}`, not undefined. */
+      noCaveats?: boolean;
     }): Promise<{ facade: jest.Mocked<McpDataMartsFacade>; out: Record<string, unknown> }> {
       const facade = {
         getDataMartDetails: jest.fn().mockResolvedValue({
@@ -398,7 +400,9 @@ describe('GetDataMartDetailsTool', () => {
           joinedFields: [],
           ...(field.caveat !== undefined
             ? { grainCaveats: { [field.fieldName]: field.caveat } }
-            : {}),
+            : field.noCaveats
+              ? { grainCaveats: {} }
+              : {}),
         }),
       } as unknown as jest.Mocked<McpDataMartsFacade>;
       const tool = new GetDataMartDetailsTool(facade, publicOrigin);
@@ -422,14 +426,23 @@ describe('GetDataMartDetailsTool', () => {
     });
 
     // The sentence names a fix to make in the formula, next to "do not recompute it": the agent
-    // must be told the fix is not its to make, and that the number carries the caveat onward.
-    it('frames the caveat as one to pass on, not a fix for the query', async () => {
+    // must be told the formula is not its to change, and that the number carries the caveat onward.
+    it('frames the caveat as one to pass on, with the formula fix left to the Data Mart', async () => {
       const { out } = await details({ fieldName: 'roas', level: 'metric', caveat: CAVEAT });
       expect(out.usage).toContain(
-        'Caveat to pass on to the user with this number — the fix belongs in the Data Mart, not ' +
-          `in your query: ${CAVEAT}`
+        'Caveat to pass on to the user with this number — a change to its formula belongs in the ' +
+          `Data Mart: ${CAVEAT}`
       );
     });
+
+    // `grainCaveats` is a plain object, so a lookup by name reaches Object.prototype.
+    it.each(['constructor', 'toString', 'hasOwnProperty'])(
+      'gives a field named %s no inherited member as its caveat',
+      async fieldName => {
+        const { out } = await details({ fieldName, noCaveats: true });
+        expect(out.usage).toBeUndefined();
+      }
+    );
 
     it('makes the framed caveat the whole usage note when the field is not aggregate-level', async () => {
       const { out } = await details({ fieldName: 'ratio', level: 'column', caveat: CAVEAT });
