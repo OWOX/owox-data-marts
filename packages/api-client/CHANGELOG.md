@@ -8,7 +8,7 @@
 
 ### Minor Changes 0.33.0
 
-- a4dc4ff: # Send Data Mart reports to Microsoft Excel
+- a4dc4ff: **Send Data Mart reports to Microsoft Excel**
 
   Open the OWOX add-in in a workbook, pick a published Data Mart, and the report's rows land in the worksheet. The report then appears in OWOX Data Marts with its title, its run history and its last-run status, and its columns, filters and sorting can be edited there afterwards.
 
