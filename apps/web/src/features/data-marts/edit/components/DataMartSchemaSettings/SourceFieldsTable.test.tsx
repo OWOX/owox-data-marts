@@ -32,6 +32,22 @@ describe('SourceFieldsTable — empty states', () => {
   });
 });
 
+describe('SourceFieldsTable — Dedup column', () => {
+  it('links the Dedup tooltip to the guide section that explains how to choose one', async () => {
+    render(<SourceFieldsTable fields={[buildBlendedField()]} onFieldOverrideChange={() => {}} />);
+
+    fireEvent.focus(screen.getByText('Dedup'));
+
+    const tooltips = await screen.findAllByRole('tooltip');
+    const link = within(tooltips[0]).getByRole('link', { name: /Learn more/ });
+    expect(link).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/getting-started/setup-guide/joinable-data-marts/#dedup'
+    );
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+});
+
 describe('SourceFieldsTable — Post-join column', () => {
   beforeEach(() => {
     vi.clearAllMocks();
