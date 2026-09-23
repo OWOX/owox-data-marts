@@ -29,9 +29,11 @@ export const McpOAuthTokenExchangeResponseSchema = OAuthTokenExchangeResultSchem
 export type McpOAuthTokenExchangeResponse = z.infer<typeof McpOAuthTokenExchangeResponseSchema>;
 
 /**
- * Error body returned by the IB MCP OAuth service when the submitted grant is invalid.
- * C2C authentication failures are emitted by the internal interceptor without this body,
- * allowing the client to keep infrastructure authentication failures separate from grants.
+ * Error body returned by the IB `IpdApiExceptionHandler` when MCP grant validation throws
+ * `AuthenticationException` or `InvalidTokenException`. The IB internal authorization
+ * interceptor emits an empty 401 instead, keeping C2C failures separate from invalid grants.
+ * Keep this list aligned with those producer-side exception reasons and fail closed when an
+ * unknown 401 body appears.
  */
 export const McpOAuthGrantErrorResponseSchema = z.object({
   message: z.enum(['Authentication Error', 'Authentication Error, Invalid token']),

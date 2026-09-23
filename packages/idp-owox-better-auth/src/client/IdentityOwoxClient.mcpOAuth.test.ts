@@ -128,11 +128,37 @@ describe('IdentityOwoxClient MCP OAuth flow', () => {
     expect(result.access_token).toBe('mcp-access-token');
   });
 
-  it('classifies a structured IB grant rejection as an authentication error', async () => {
+  it.each(['Authentication Error', 'Authentication Error, Invalid token'])(
+    'classifies the IB grant rejection %j as an authentication error',
+    async message => {
+      const upstreamError = {
+        response: {
+          status: 401,
+          data: { message },
+        },
+      };
+      isAxiosErrorMock.mockImplementation(error => error === upstreamError);
+      httpMock.post.mockRejectedValueOnce(upstreamError);
+
+      await expect(
+        createClient().exchangeMcpOAuthToken({
+          grantType: 'refresh_token',
+          refreshToken: 'expired-refresh-token',
+          clientId: 'mcp-client',
+          resource: 'https://mcp.owox.com/mcp',
+        })
+      ).rejects.toMatchObject({
+        name: 'AuthenticationException',
+        status: 401,
+      });
+    }
+  );
+
+  it('keeps a C2C interceptor 401 as an upstream failure', async () => {
     const upstreamError = {
       response: {
         status: 401,
-        data: { message: 'Authentication Error, Invalid token' },
+        data: undefined,
       },
     };
     isAxiosErrorMock.mockImplementation(error => error === upstreamError);
@@ -141,21 +167,21 @@ describe('IdentityOwoxClient MCP OAuth flow', () => {
     await expect(
       createClient().exchangeMcpOAuthToken({
         grantType: 'refresh_token',
-        refreshToken: 'expired-refresh-token',
+        refreshToken: 'valid-refresh-token',
         clientId: 'mcp-client',
         resource: 'https://mcp.owox.com/mcp',
       })
     ).rejects.toMatchObject({
-      name: 'AuthenticationException',
+      name: 'IdpFailedException',
       status: 401,
     });
   });
 
-  it('keeps a C2C interceptor 401 as an upstream failure', async () => {
+  it('keeps an unknown structured 401 as an upstream failure', async () => {
     const upstreamError = {
       response: {
         status: 401,
-        data: undefined,
+        data: { message: 'A new upstream authentication response' },
       },
     };
     isAxiosErrorMock.mockImplementation(error => error === upstreamError);
