@@ -95,6 +95,36 @@ describe('processShortLinks', () => {
     expect(result).toBe(data);
   });
 
+  it('keeps rejecting links with UTM tags in the fragment', async () => {
+    const data = buildData('https://brand.example/landing#utm_source=facebook&utm_medium=cpc');
+
+    const result = await globalThis.processShortLinks(data, CONFIG);
+
+    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(result).toBe(data);
+  });
+
+  it('accepts one trailing slash on a configured host', async () => {
+    const data = buildData('https://go.brand.example/summer/');
+
+    const result = await globalThis.processShortLinks(data, {
+      ...CONFIG,
+      nestedPathHosts: ['go.brand.example'],
+    });
+
+    expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
+  });
+
+  it('still rejects empty path segments and a bare root on a configured host', async () => {
+    const options = { ...CONFIG, nestedPathHosts: ['go.brand.example'] };
+
+    for (const url of ['https://go.brand.example/a//b', 'https://go.brand.example/']) {
+      const result = await globalThis.processShortLinks(buildData(url), options);
+      expect(result[0].link_url_asset.parsed_url).toBeUndefined();
+    }
+    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+  });
+
   it('keeps rejecting query-bearing short links', async () => {
     const data = buildData('https://short.example/abc/xyz?source=facebook');
 
@@ -169,7 +199,7 @@ describe('processShortLinks', () => {
       CONFIG
     );
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(6);
+    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(21);
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
   });
 

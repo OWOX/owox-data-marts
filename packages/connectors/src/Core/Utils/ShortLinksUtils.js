@@ -57,6 +57,9 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName, nestedPath
   return Array.from(uniqueLinks.values());
 }
 
+// Links carrying UTM tags anywhere (query or fragment) already point at the landing page
+const UTM_PARAM_PATTERN = /utm_(source|medium|campaign|term|content)/;
+
 //---- _isPotentialShortLink ---------------------------------------------- 
 /**
  * Determines if URL is a potential short link
@@ -71,16 +74,35 @@ function _isPotentialShortLink(url, nestedPathHosts) {
 
   try {
     const parsedUrl = new URL(url);
-    const pathSegments = parsedUrl.pathname.slice(1).split('/');
 
-    if (parsedUrl.protocol !== 'https:' || url.includes('?') || !pathSegments.every(Boolean)) {
+    if (parsedUrl.protocol !== 'https:' || url.includes('?') || UTM_PARAM_PATTERN.test(url)) {
       return false;
     }
 
-    return pathSegments.length === 1 || _isNestedPathHost(parsedUrl.hostname, nestedPathHosts);
+    const isConfiguredHost = _isNestedPathHost(parsedUrl.hostname, nestedPathHosts);
+    const pathSegments = _getPathSegments(parsedUrl.pathname, isConfiguredHost);
+
+    if (!pathSegments.every(Boolean)) return false;
+
+    return pathSegments.length === 1 || isConfiguredHost;
   } catch (_error) {
     return false;
   }
+}
+
+//---- _getPathSegments ---------------------------------------------------
+/**
+ * Splits a pathname into segments; on configured hosts one trailing slash is tolerated
+ *
+ * @param {string} pathname - URL pathname
+ * @param {boolean} allowTrailingSlash - Whether a single trailing slash is accepted
+ * @return {Array<string>} Path segments, empty strings kept so callers can reject them
+ * @private
+ */
+function _getPathSegments(pathname, allowTrailingSlash) {
+  const segments = pathname.slice(1).split('/');
+  const hasTrailingSlash = segments.length > 1 && segments[segments.length - 1] === '';
+  return allowTrailingSlash && hasTrailingSlash ? segments.slice(0, -1) : segments;
 }
 
 //---- _isNestedPathHost --------------------------------------------------
@@ -98,7 +120,7 @@ function _isNestedPathHost(hostname, nestedPathHosts) {
 
 //---- _resolveShortLinks -------------------------------------------------
 const SHORT_LINK_FETCH_TIMEOUT_MS = 10000;
-const SHORT_LINK_MAX_REDIRECTS = 5;
+const SHORT_LINK_MAX_REDIRECTS = 20;
 const SHORT_LINK_CONCURRENCY = 10;
 
 /**
