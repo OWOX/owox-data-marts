@@ -238,7 +238,7 @@ export function SourceFieldsTable({
                       join never multiplies rows.{' '}
                       <ExternalAnchor
                         href={DEDUP_DOCS_URL}
-                        className='hover:text-foreground text-tooltip underline'
+                        className='hover:text-foreground underline'
                       >
                         Learn more
                       </ExternalAnchor>

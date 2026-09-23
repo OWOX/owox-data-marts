@@ -122,37 +122,39 @@ Hover over the **Dedup** column header for a short reminder with a link back to 
 The Dedup function decides three things:
 
 - **The value in a report column.** A joined field selected as a plain column shows its collapsed value — one per row of the source Data Mart.
-- **The field's type, and with it Σ available.** `COUNT` and `COUNT_DISTINCT` turn any field into an integer, `STRING_AGG` into text and `AVG` into a decimal; the other functions keep the field's type. Change the Dedup across types and **Σ available** switches to that type's defaults — set a text `hit_id` to `COUNT_DISTINCT` and a report can `Sum` it.
-- **What a report's aggregations read.** With `ANY_VALUE`, a report's `Sum`, `Average`, `Min`, `Max`, `Combined` and percentiles are computed over the joined Data Mart's own rows. With any other Dedup they are computed over the collapsed values, one per join key. Either way each joined row or key counts once, however many source rows it matches. A report's `Count Unique` counts the joined Data Mart's own values rather than the collapsed ones; its `Count` counts the source rows the join matched.
+- **The field's type, and with it Σ available.** `COUNT` and `COUNT_DISTINCT` turn any field into an integer, `STRING_AGG` into text and `AVG` into a float; the other functions keep the field's type. Change the Dedup across types and **Σ available** switches to that type's defaults — set a text `hit_id` to `COUNT_DISTINCT` and a report can `Sum` it.
+- **What a report's aggregations read.** With `ANY_VALUE`, a report's `Sum`, `Average`, `Min`, `Max`, `Combined` and percentiles are computed over the joined Data Mart's own rows. With any other Dedup they are computed over the collapsed values, one per join key. Either way each joined row or key counts once, however many source rows it matches. A report's `Count Unique` counts the joined Data Mart's own values rather than the collapsed ones; its `Count` counts the source rows that got a joined value.
 
-A new field starts with `SUM` for numbers, `MAX` for dates and timestamps and `STRING_AGG` for everything else. Array fields always collapse into a JSON array — see [Joined array columns](#joined-array-columns).
+A new field starts with `SUM` for numbers, `MAX` for dates, times and timestamps and `STRING_AGG` for everything else. Array fields always collapse into a JSON array — see [Joined array columns](#joined-array-columns).
 
-| Dedup            | Collapses the rows of one join key into                             | Type          |
-| ---------------- | ------------------------------------------------------------------- | ------------- |
-| `ANY_VALUE`      | One of their values — meant for a join with one row per key.        | Original type |
-| `SUM`            | Their total. Numbers only.                                          | Original type |
-| `AVG`            | Their average. Numbers only.                                        | Decimal       |
-| `MIN` / `MAX`    | The smallest / largest value — the earliest / latest date.          | Original type |
-| `COUNT`          | The number of rows with a value.                                    | Integer       |
-| `COUNT_DISTINCT` | The number of distinct values.                                      | Integer       |
-| `STRING_AGG`     | All values as one comma-separated text, e.g. `paid, shipped, paid`. | Text          |
+| Dedup            | Collapses the rows of one join key into                                      | Type          |
+| ---------------- | ---------------------------------------------------------------------------- | ------------- |
+| `ANY_VALUE`      | One of their values — meant for a join with one row per key.                 | Original type |
+| `SUM`            | Their total. Numbers only.                                                   | Original type |
+| `AVG`            | Their average. Numbers only.                                                 | Float         |
+| `MIN` / `MAX`    | The smallest / largest value — the earliest / latest date.                   | Original type |
+| `COUNT`          | The number of rows with a value.                                             | Integer       |
+| `COUNT_DISTINCT` | The number of distinct values.                                               | Integer       |
+| `STRING_AGG`     | All values, sorted, as one comma-separated text, e.g. `paid, paid, shipped`. | Text          |
+
+The editor offers every function for any field, so it does not stop you from picking `SUM` or `AVG` for text or dates; a report that reads such a field fails when it runs.
 
 #### Choosing a Dedup
 
-| You join                                                                  | Dedup                         | What you get                                                                                                                                                               |
-| ------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A lookup with one row per key — sessions to users for `country` or `plan` | `ANY_VALUE`                   | The value as it is. Report aggregations read the joined rows directly.                                                                                                     |
-| Orders to customers, and each customer row should carry its revenue       | `SUM` on `amount`             | A per-customer total in the column; a report's `Sum` adds the customers up.                                                                                                |
-| Orders to customers, and reports need per-order figures                   | `ANY_VALUE` on `amount`       | A report's `Average` is the average **order**, and its `Max` the largest order — not the average or largest customer total.                                                |
-| Hits to sessions, to show how many each session had                       | `COUNT_DISTINCT` on `hit_id`  | An integer per session, which a report can `Sum` or `Average`. For the total number of hits alone, leave `hit_id` as text (`ANY_VALUE`) and use a report's `Count Unique`. |
-| Orders to customers for the first or last purchase                        | `MIN` / `MAX` on `order_date` | The earliest or latest date per customer.                                                                                                                                  |
-| A text attribute that varies per key — order statuses per customer        | `STRING_AGG`                  | Every value, e.g. `paid, shipped`. Values grow long on keys with many rows; use `ANY_VALUE` if all rows share one value.                                                   |
+| You join                                                                  | Dedup                         | What you get                                                                                                                                                                              |
+| ------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A lookup with one row per key — sessions to users for `country` or `plan` | `ANY_VALUE`                   | The value as it is. Report aggregations read the joined rows directly.                                                                                                                    |
+| Orders to customers, and each customer row should carry its revenue       | `SUM` on `amount`             | A per-customer total in the column; a report's `Sum` adds the customers up.                                                                                                               |
+| Orders to customers, and reports need per-order figures                   | `ANY_VALUE` on `amount`       | A report's `Average` is the average **order**, and its `Max` the largest order — not the average or largest customer total. The column itself shows a single order's amount per customer. |
+| Hits to sessions, to show how many each session had                       | `COUNT_DISTINCT` on `hit_id`  | An integer per session, which a report can `Sum` or `Average`. For the total number of hits alone, keep `hit_id` text (for example with `ANY_VALUE`) and use a report's `Count Unique`.   |
+| Orders to customers for the first or last purchase                        | `MIN` / `MAX` on `order_date` | The earliest or latest date per customer.                                                                                                                                                 |
+| A text attribute that varies per key — order statuses per customer        | `STRING_AGG`                  | Every value, e.g. `paid, shipped`. Values grow long on keys with many rows; use `ANY_VALUE` if all rows share one value.                                                                  |
 
 > ⚠️ Pick the Dedup for the question the column answers. `SUM` and `ANY_VALUE` on the same `amount` both give the right grand total, but `Average` and `Max` read different things: customer totals with `SUM`, individual orders with `ANY_VALUE`.
 
-A `COUNT_DISTINCT` Dedup counts distinct values **per join key**. Adding those counts up across keys counts a value twice when it appears under two keys — fine for hits, which belong to one session each, but not for products bought by several customers. For a distinct count across the whole report, use a report's `Count Unique` on a text field instead.
+A `COUNT_DISTINCT` Dedup counts distinct values **per join key**. Adding those counts up across keys counts a value twice when it appears under two keys — fine for hits, which belong to one session each, but not for products bought by several customers. For a distinct count across the whole report, use a report's `Count Unique` instead — it is not available for number fields.
 
-On a [transitive join](#transitive-joins) a deeper Data Mart's collapsed value is collapsed again at each Data Mart on the way up. `SUM`, `MIN`, `MAX` and `COUNT` stay exact; a `COUNT_DISTINCT` is added up across the intermediate rows, with the same double counting, and an `AVG` becomes an average of averages.
+On a [transitive join](#transitive-joins) the column value of a deeper Data Mart's field is collapsed again at each Data Mart on the way up, over the rows of the Data Mart in between. `MIN` and `MAX` stay exact. `SUM` and `COUNT` stay exact only while the Data Mart in between has one row per deeper key; when several of its rows share one — many orders of one customer — the deeper value is added once per row. `COUNT_DISTINCT` is added up the same way, on top of the double counting above. `AVG` becomes an average of averages, `ANY_VALUE` the largest value, and `STRING_AGG` repeats the deeper list once per row. A report's `Sum`, `Average`, `Min`, `Max`, `Combined` and percentiles are not affected: they read the deeper Data Mart directly, as described above.
 
 ## Step 5: Use Joined Fields in a Report
 
