@@ -566,10 +566,12 @@ const arrow = (x, y, colour) =>
   `<path d="M${n(x - ARROW_HALF)} ${n(y - ARROW_LEN)}L${n(x)} ${n(y)}L${n(x + ARROW_HALF)} ${n(y - ARROW_LEN)}Z" fill="${colour}"/>`;
 
 /** A wire from a card's bottom handle to the top handle of a card below it. */
-/* The curve stops where the head starts, not at the border: run it the whole
- * way and the 2.5px stroke shows through the head's point and past it as a
- * stalk. The head then spans the last ARROW_LEN on its own, tip on the border. */
-const wirePath = (a, b) => bezierDown(a.x + a.w / 2, a.y + a.h, b.x + b.w / 2, b.y - ARROW_LEN);
+/* With heads on, the curve stops where the head starts rather than at the
+ * border: run it the whole way and the 2.5px stroke shows through the head's
+ * point and past it as a stalk. With heads off there is nothing to make room
+ * for, so the curve runs on and lands on the border itself. */
+const wirePath = (a, b, heads) =>
+  bezierDown(a.x + a.w / 2, a.y + a.h, b.x + b.w / 2, b.y - (heads ? ARROW_LEN : 0));
 
 /* Two data marts are relevant to each other. No arrow: the relation has no
  * direction. It always leaves one card's right edge and enters the other's
@@ -798,7 +800,11 @@ function draw(theme, data) {
     }
   }
 
-  /* Then the chain: every wire whose two ends are both in the selection. */
+  /* Then the chain: every wire whose two ends are both in the selection.
+   * `showArrows` is a schema-level switch: a head says which way the data
+   * moves, but a picture whose every edge already runs downwards can read
+   * cleaner without them. Absent means on, so an older file keeps its heads. */
+  const heads = data.showArrows !== false;
   const wires = [];
   for (const wire of wiresOf(blocks)) {
     if (!selected.has(wire.from) || !selected.has(wire.to)) continue;
@@ -806,8 +812,8 @@ function draw(theme, data) {
     const b = placed.get(wire.to);
     if (!a || !b || b.row <= a.row) continue;
     wires.push(
-      `<path d="${wirePath(a, b)}" fill="none" stroke="${t.link}" stroke-width="2.5" stroke-linecap="round"/>` +
-        arrow(b.x + b.w / 2, b.y, t.link)
+      `<path d="${wirePath(a, b, heads)}" fill="none" stroke="${t.link}" stroke-width="2.5" stroke-linecap="round"/>` +
+        (heads ? arrow(b.x + b.w / 2, b.y, t.link) : '')
     );
   }
 
