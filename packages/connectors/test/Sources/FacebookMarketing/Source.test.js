@@ -93,6 +93,13 @@ describe('_getShortLinkDomains', () => {
     expect(withValue('')).toEqual([]);
   });
 
+  it('strips ports and ignores entries without a dot', () => {
+    expect(withValue('https://short.example:8443/abc, com, localhost, brand.example')).toEqual([
+      'short.example',
+      'brand.example',
+    ]);
+  });
+
   it('normalizes full URLs, paths, casing, and separators to bare domains', () => {
     expect(withValue('https://Links.Example.com/abc/xyz, short.example; other.example/')).toEqual([
       'links.example.com',

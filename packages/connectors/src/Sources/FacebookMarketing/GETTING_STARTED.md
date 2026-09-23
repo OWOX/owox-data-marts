@@ -67,7 +67,7 @@ For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
 Facebook ads often point to short links. **Ad Account Insights by Link URL Asset** returns these short links in `link_url_asset.website_url`. OWOX can follow each short link and store the final landing page in `link_url_asset.parsed_url`.
 
-To turn this on, open **Advanced** settings and enable **Process Short Links**. OWOX enables it by default.
+To turn this on, keep the `link_url_asset` field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects both by default for this endpoint. OWOX follows HTTP redirects only, so a short link that opens an interstitial page stays unresolved.
 
 OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. OWOX treats links with several path parts, such as `https://links.example.com/abc/xyz`, as landing pages and leaves them unchanged.
 
