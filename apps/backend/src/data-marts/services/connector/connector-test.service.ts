@@ -160,8 +160,11 @@ export class ConnectorTestService {
    * raw "spawn node E2BIG" on an otherwise 200-shaped result: true, and useless to the
    * author who has to act on it.
    *
-   * Enforced on the service as well as the HTTP DTO: unlike create()/saveDraft(), a test
-   * stores nothing, so there is no later choke point it has to pass.
+   * Enforced on the service rather than at each entrance, because there are several and
+   * none of them is shared: the HTTP DTO bounds its own body, but the MCP `connector_test`
+   * tool takes both values through its own Zod schema and the MCP transport accepts a 2 MiB
+   * body -- roughly sixteen times the kernel's limit. Unlike create()/saveDraft(), a test
+   * stores nothing, so there is no other choke point it has to pass.
    *
    * MAX_MANIFEST_SIZE_BYTES is the ceiling those two already apply for the same kernel
    * reason: a manifest that can be tested but never saved would be its own kind of trap.
@@ -262,7 +265,8 @@ export class ConnectorTestService {
    * endpoint actually costs: one `node` process holding a slot for up to 20s while it
    * drives up to 50 pages of outbound HTTP at a host the manifest author chose. Rate
    * limiting the route would leave a slow caller free to keep any number of them alive at
-   * once.
+   * once, and would not cover the MCP `connector_test` tool, which reaches `runTest`
+   * without passing through the HTTP route at all.
    *
    * Refusal is immediate; there is no queue. `data-marts.module.ts` deliberately excludes
    * this route from the 30s operation timeout, so a waiting request has no server-side
@@ -475,6 +479,8 @@ export class ConnectorTestService {
               `returns 0 records too.`
           );
         }
+        // Last, so it survives the MCP boundary: boundTestLogsForMcp keeps the NEWEST
+        // entries, and this is the one piece of news a passing test cannot otherwise carry.
         if (untestedNodeError) {
           logs.push(
             `This test ran only the node "${args.node}". Publishing validates every node, and ` +

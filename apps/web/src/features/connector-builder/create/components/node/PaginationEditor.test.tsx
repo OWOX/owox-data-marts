@@ -15,7 +15,7 @@ vi.mock('@owox/ui/components/select', async () =>
 /**
  * Seeds the builder with a node whose `pagination` block is taken verbatim, the way a
  * published manifest reaches the form: `parseManifestJson` normalizes only the top level,
- * so whatever an AI-authored or hand-written manifest declared arrives here untouched.
+ * so whatever an MCP client or a hand-written manifest declared arrives here untouched.
  */
 function Seed({ pagination }: { pagination: unknown }) {
   const { setManifest } = useBuilder();
