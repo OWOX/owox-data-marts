@@ -87,7 +87,7 @@ type Loosen<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 /**
  * A node as it actually arrives here, before anything has validated it. Code mode is a
- * first-class authoring surface (and the shape an AI-authored manifest can arrive in),
+ * first-class authoring surface (and the shape an MCP-authored manifest can arrive in),
  * and `parseManifestJson` normalizes only the top level — so a node body reaches this
  * editor verbatim and may carry no `fields` at all. The engine never inspects `fields`
  * during parsing, so such a connector runs; `ManifestNode` still declares `fields` as

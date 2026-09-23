@@ -211,6 +211,24 @@ export class ConnectorService {
     return fieldsSchemaFromManifest(manifest);
   }
 
+  /**
+   * Resolves the fields schema for a bundled or custom connector, over the shared
+   * resolveBundledOrCustom cascade.
+   */
+  async resolveConnectorFieldsSchema(
+    projectId: string,
+    connectorName: string,
+    version?: number
+  ): Promise<ConnectorFieldsSchema> {
+    return this.resolveBundledOrCustom(
+      projectId,
+      connectorName,
+      version,
+      name => this.getConnectorFieldsSchema(name),
+      manifest => this.getFieldsSchemaFromManifest(manifest)
+    );
+  }
+
   async getOAuthUiVariables(
     connectorName: string,
     fieldPath: string

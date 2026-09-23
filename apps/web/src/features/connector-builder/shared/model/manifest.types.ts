@@ -29,7 +29,7 @@ export interface PaginationNone {
  * pre-`inject`/pre-`cursor` spellings, and the engine accepts either side of each pair
  * (`ManifestParser` demands an `inject` block *or* the legacy param name, and a `cursor`
  * block *or* the legacy `cursorPath`). A manifest written against the current grammar —
- * the one the manifest reference documents, and the one an AI assistant emits — carries only
+ * the one the MCP reference documents, and the one an AI assistant emits — carries only
  * the modern half, so anything reading these must treat them as possibly absent.
  */
 export interface PaginationOffset {

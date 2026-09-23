@@ -56,7 +56,7 @@ export function declaresDateWindow(node) {
  * requiring both spellings was a grammar our own first-party callers failed
  * independently: the no-code builder emits `incremental` and never writes
  * `isTimeSeries` (apps/web's PaginationIncremental.test.tsx pins that), and the
- * manifest reference's canonical example (§19.4) declares `day-by-day` without the word
+ * canonical MCP manifest example (§19.4) declares `day-by-day` without the word
  * `isTimeSeries` anywhere in it. Declaring a date strategy IS declaring that the
  * node is fetched by date; making the author repeat it under a second name only
  * created a way to write a manifest that reads as incremental and silently is
