@@ -99,22 +99,22 @@ You can also open **All reports** in the task pane and refresh a report from the
 
 A refresh rewrites only the columns the report imported and leaves the rest of the sheet to you. These rules match a [Google Sheets](google-sheets.md#working-with-imported-data) report:
 
-- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields match by their name in the Data Mart, not by position, so an alias in the header does not change the matching.
-- **New report columns** appear at the right edge of the imported range, and your content to the right shifts right. **Removed** report columns are deleted; a formula that pointed at one shows `#REF!`.
-- **Formulas and columns to the right of the imported range survive.** A formula in row 2 of such a column is filled down to the last data row on every refresh. A static value in row 2 is left alone, so lookup tables and notes stay as you wrote them.
+- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields match by their name in the Data Mart, not by position. An alias in the header does not change the matching.
+- **New report columns** appear at the right edge of the imported range, and your content to the right shifts right. **Removed** report columns disappear; a formula that pointed at one shows `#REF!`.
+- **Formulas and columns to the right of the imported range survive.** The add-in fills a row-2 formula in such a column down to the last data row on every refresh. It leaves a static value in row 2 alone, so lookup tables and notes stay as you wrote them.
 - **Your formats on imported columns survive.** A date or currency format you set on a column stays across refreshes.
-- **Fewer rows than last time** clear the imported cells below the new last row. A formula you filled down in a column to the right is left in place there and now points at empty cells.
-- **If the refresh fails before any data arrives**, the sheet is left as it was.
+- **Fewer rows than last time** clear the imported cells below the new last row. A formula you filled down in a column to the right stays in place and now points at empty cells.
+- **If the refresh fails before any data arrives**, the sheet stays as it was.
 
 Keep your own columns **to the right** of the imported range. Inside that range, Excel does this:
 
 - **A value or formula typed in an imported cell disappears** on the next refresh. The refresh rewrites that cell.
-- **A column inserted between imported columns is deleted.** The refresh writes each imported field in the column it moved to. No second copy is left behind.
-- **A retyped header is not a report field.** If an imported header still sits to its right, the refresh deletes the retyped column and writes that field again at the right edge of the imported range. If the retyped header is the last imported column, the refresh leaves it in place, writes the field again at the right edge, and the retyped column stays just past the imported range until you delete it.
-- **Excel Tables** over the imported columns do not survive a refresh: the add-in removes the table and rewrites the cells as a plain range. Keep tables to the right of the imported range or on another sheet.
+- **The refresh deletes a column you insert between imported columns.** It writes each imported field in the column the field moved to. No second copy remains.
+- **A retyped header is not a report field.** If an imported header still sits to its right, the refresh deletes the retyped column. It writes that field again at the right edge of the imported range. If the retyped header is the last imported column, the refresh leaves it in place. It writes the field again at the right edge. The retyped column stays just past the imported range until you delete it.
+- **Excel Tables** over the imported columns do not survive a refresh. The add-in removes the table and rewrites the cells as a plain range. Keep tables to the right of the imported range or on another sheet.
 - **On the first refresh** the add-in freezes row 1 and colors the tab. Unfreeze or recolor as you like; the add-in does not set them again.
 
-After you update the add-in, the first refresh of an existing sheet writes from column A in the report's order without clearing the sheet. If the report lost columns since the last refresh, the old ones — with their data and header notes — stay to the right. Delete them once by hand.
+After you update the add-in, the first refresh of an existing sheet writes from column A in the report's order. It does not clear the sheet. If the report lost columns, the old ones — with their data and header notes — stay to the right. Delete them once by hand.
 
 ### Share the workbook
 
