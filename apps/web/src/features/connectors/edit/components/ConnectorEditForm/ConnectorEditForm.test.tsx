@@ -66,6 +66,10 @@ vi.mock('../../../../idp', () => ({
   }),
 }));
 
+vi.mock('../../../../../app/permissions', () => ({
+  usePermissions: () => ({ canEdit: true }),
+}));
+
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
   useConnector: () => connectorHook.current,
 }));

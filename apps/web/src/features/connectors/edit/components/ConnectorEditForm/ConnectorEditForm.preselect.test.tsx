@@ -43,6 +43,10 @@ vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
   useProjectRoute: () => ({ navigate: vi.fn(), scope: (p: string) => p }),
 }));
 
+vi.mock('../../../../../app/permissions', () => ({
+  usePermissions: () => ({ canEdit: true }),
+}));
+
 const CUSTOM_ID = 'cdef-1';
 const CUSTOM_NAME = 'MyCustomApi';
 const CUSTOM_ACTIVE_VERSION = 2;
