@@ -1,12 +1,30 @@
 const LAST_RELOAD_AT_KEY = 'owox:stale-chunk-reload-at';
-/** A second failure right after a reload means the new build is broken too — stop there. */
-const MIN_RELOAD_INTERVAL_MS = 10_000;
+/**
+ * A second failure soon after a reload means the failure repeats on every load
+ * (a broken build, a browser missing an API the chunk needs) — stop there.
+ * The window starts at reload() and must outlast bootstrap plus the queries
+ * that run before the canvas chunk is requested, so it is minutes, not seconds.
+ */
+const MIN_RELOAD_INTERVAL_MS = 5 * 60_000;
 
 interface ReloadTarget {
   addEventListener: Window['addEventListener'];
   sessionStorage: Pick<Storage, 'getItem' | 'setItem'>;
   location: Pick<Location, 'reload'>;
   now: () => number;
+}
+
+let isReloading = false;
+
+/**
+ * True from the moment a stale-chunk reload was requested until the page is
+ * replaced. A stale load can fail more than once before the reload completes
+ * (a chunk's CSS dependency, then the chunk itself), and a prevented event
+ * still makes the dynamic import resolve to `undefined`, so an error can reach
+ * the route error boundary. The boundary uses this to stay blank meanwhile.
+ */
+export function isReloadingForStaleChunk(): boolean {
+  return isReloading;
 }
 
 /**
@@ -22,6 +40,7 @@ export function reloadOnStaleChunk(target: ReloadTarget = browserTarget()): void
     if (target.now() - lastReloadAt < MIN_RELOAD_INTERVAL_MS) return;
     target.sessionStorage.setItem(LAST_RELOAD_AT_KEY, String(target.now()));
     event.preventDefault();
+    isReloading = true;
     target.location.reload();
   });
 }

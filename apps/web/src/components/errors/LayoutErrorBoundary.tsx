@@ -3,13 +3,22 @@ import { useRouteError, isRouteErrorResponse, Link } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { logRouteError } from './logRouteError';
+import { isReloadingForStaleChunk } from '../../app/reload-on-stale-chunk';
 
 export function LayoutErrorBoundary() {
   const error = useRouteError();
 
   useEffect(() => {
-    logRouteError(error);
+    if (!isReloadingForStaleChunk()) {
+      logRouteError(error);
+    }
   }, [error]);
+
+  // A stale-chunk reload is in flight: the page is about to be replaced, so
+  // showing "Something went wrong" for a moment would only confuse the user.
+  if (isReloadingForStaleChunk()) {
+    return null;
+  }
 
   if (isRouteErrorResponse(error) && error.status === 404) {
     return null;
