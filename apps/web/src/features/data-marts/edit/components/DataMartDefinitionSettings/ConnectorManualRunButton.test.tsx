@@ -77,7 +77,7 @@ describe('ConnectorManualRunButton', () => {
   it('starts a manual run of a published connector Data Mart', () => {
     render(<ConnectorManualRunButton />);
 
-    expect(screen.getByRole('button', { name: 'Manual Run...' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Manual Run' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Submit run' }));
 
     expect(harness.runDataMart).toHaveBeenCalledWith({
@@ -90,7 +90,7 @@ describe('ConnectorManualRunButton', () => {
     setContext({ hasActiveRuns: true });
     render(<ConnectorManualRunButton />);
 
-    expect(screen.getByRole('button', { name: 'Manual Run...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Manual Run' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Submit run' })).not.toBeInTheDocument();
   });
 

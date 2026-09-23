@@ -40,7 +40,7 @@ export function ConnectorManualRunButton() {
   const button = (
     <Button type='button' variant='outline' size='sm' disabled={hasActiveRuns}>
       <Play className='h-4 w-4' />
-      <span>Manual Run...</span>
+      <span>Manual Run</span>
     </Button>
   );
 
