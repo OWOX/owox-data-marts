@@ -32,6 +32,7 @@ import type { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-r
 
 export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
+  | 'analyst-opted-out'
   | 'no-explicit-projection'
   | 'non-groupable-column'
   | 'unresolvable-column'
@@ -78,6 +79,13 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     filtersIntoHaving(report.filterConfig, schemaFields)
   ) {
     return { kind: 'none', reason: 'analyst-aggregated' };
+  }
+
+  // The analyst removed an aggregation from a projected column, so the rows are wanted as stored.
+  // Grouping by that column instead would still drop its duplicate rows, as DISTINCT does.
+  const optedOut = new Set(report.autoAggregationOptOut ?? []);
+  if (columns.some(name => optedOut.has(name))) {
+    return { kind: 'none', reason: 'analyst-opted-out' };
   }
 
   // A sort on an unprojected column is valid while ungrouped and invalid once collapsed — every

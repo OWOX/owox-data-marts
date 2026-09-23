@@ -11,6 +11,7 @@ import {
 import { REPORT_AGGREGATE_FUNCTIONS } from '../../dto/schemas/aggregate-function.schema';
 import { DATE_TRUNC_UNITS } from '../../dto/schemas/date-trunc-config.schema';
 import { UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI } from '../../dto/schemas/unique-count-config.schema';
+import { AUTO_AGGREGATION_OPT_OUT_OPENAPI } from '../../dto/schemas/auto-aggregation-opt-out.schema';
 
 const primitiveValueSchema = {
   oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
@@ -309,6 +310,7 @@ const commonReportRequestProperties = {
     description: 'Date-trunc rules. A date/timestamp dimension is bucketed by a calendar unit.',
   },
   uniqueCountConfig: UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI,
+  autoAggregationOptOut: AUTO_AGGREGATION_OPT_OUT_OPENAPI,
 };
 
 export const createReportRequestBodySchema = {
@@ -327,6 +329,7 @@ export const createReportRequestBodySchema = {
     aggregationConfig: commonReportRequestProperties.aggregationConfig,
     dateTruncConfig: commonReportRequestProperties.dateTruncConfig,
     uniqueCountConfig: commonReportRequestProperties.uniqueCountConfig,
+    autoAggregationOptOut: commonReportRequestProperties.autoAggregationOptOut,
   },
 };
 

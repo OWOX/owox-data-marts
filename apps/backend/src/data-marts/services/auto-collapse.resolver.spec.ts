@@ -68,6 +68,48 @@ describe('resolveAutoCollapse', () => {
     });
   });
 
+  it('leaves a report alone while it projects a column the analyst opted out of', () => {
+    const report = reportWith(
+      [field('review_id', 'INTEGER'), field('rating', 'INTEGER'), field('date', 'DATE')],
+      ['review_id', 'rating', 'date'],
+      { aggregationConfig: [], autoAggregationOptOut: ['review_id'] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({ kind: 'none', reason: 'analyst-opted-out' });
+  });
+
+  it('does not fall back to DISTINCT when every opted-out metric becomes a grouping key', () => {
+    const report = reportWith(
+      [field('landing_page', 'STRING'), field('sessions', 'INTEGER')],
+      ['landing_page', 'sessions'],
+      { autoAggregationOptOut: ['sessions'] }
+    );
+    expect(applyAutoCollapse(report).report).toBe(report);
+  });
+
+  it('collapses again once the opted-out column leaves the projection', () => {
+    const report = reportWith(
+      [field('landing_page', 'STRING'), field('sessions', 'INTEGER'), field('rating', 'INTEGER')],
+      ['landing_page', 'sessions'],
+      { autoAggregationOptOut: ['rating'] }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({
+      kind: 'aggregate',
+      aggregations: [{ column: 'sessions', function: 'SUM' }],
+    });
+  });
+
+  it('reports the analyst’s own aggregation ahead of an opt-out', () => {
+    const report = reportWith(
+      [field('landing_page', 'STRING'), field('sessions', 'INTEGER'), field('rating', 'INTEGER')],
+      ['landing_page', 'sessions', 'rating'],
+      {
+        aggregationConfig: [{ column: 'sessions', function: 'SUM' }],
+        autoAggregationOptOut: ['rating'],
+      }
+    );
+    expect(resolveAutoCollapse(report)).toEqual({ kind: 'none', reason: 'analyst-aggregated' });
+  });
+
   it('leaves a report with a date-trunc bucket alone', () => {
     const report = reportWith(
       [field('landing_page', 'STRING'), field('sessions', 'INTEGER')],

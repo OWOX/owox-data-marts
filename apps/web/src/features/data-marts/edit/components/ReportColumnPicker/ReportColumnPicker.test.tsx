@@ -5317,18 +5317,30 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(note).toHaveTextContent('Sum');
   });
 
-  it('keeps saying what delivery will do after the analyst removes the rule', async () => {
-    // The backend has not changed its mind: an empty config on a collapsing destination still
-    // groups the rows and still renames the column. Before the fill-in the ghost said so; without
-    // this the editor goes silent on a report that does in fact collapse.
-    renderControlled(['landing_page', 'sessions']);
+  it('records the removal as an opt-out, so delivery does not put the rule back', async () => {
+    const { onOutputConfigChange } = renderControlled(['landing_page', 'sessions']);
     await screen.findByRole('button', { name: 'Manage aggregations' });
     await removeTheRuleFromThePanel();
 
-    const note = await screen.findByTestId('predicted-aggregation-note');
-    expect(note).toHaveTextContent('This report sets no aggregation, so delivery will apply');
-    expect(note).toHaveTextContent('sessions');
-    expect(note).toHaveTextContent('Sum');
+    expect(onOutputConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ aggregationConfig: [], autoAggregationOptOut: ['sessions'] }),
+      undefined
+    );
+    // Nothing is predicted any more: the run returns the rows as they are.
+    expect(screen.queryByTestId('predicted-aggregation-note')).not.toBeInTheDocument();
+  });
+
+  it('does not fill the rule in again on a report saved with the opt-out', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      collapsesOnDelivery: true,
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...emptyControls, autoAggregationOptOut: ['sessions'] },
+      onOutputConfigChange,
+    });
+
+    expect(onOutputConfigChange).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('predicted-aggregation-note')).not.toBeInTheDocument();
   });
 
   it('shows no such note once the analyst set an aggregation of their own', () => {

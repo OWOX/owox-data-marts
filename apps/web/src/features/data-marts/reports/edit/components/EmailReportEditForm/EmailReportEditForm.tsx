@@ -318,6 +318,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           aggregationConfig: null,
           dateTruncConfig: null,
           uniqueCountConfig: [],
+          autoAggregationOptOut: [],
         });
       }
     }, [
@@ -931,6 +932,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                   'aggregationConfig',
                   'dateTruncConfig',
                   'uniqueCountConfig',
+                  'autoAggregationOptOut',
                 ]}
               >
                 <FormField
@@ -957,6 +959,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                 aggregationConfig: form.watch('aggregationConfig') ?? [],
                                 dateTruncConfig: form.watch('dateTruncConfig') ?? [],
                                 uniqueCountConfig: form.watch('uniqueCountConfig'),
+                                autoAggregationOptOut: form.watch('autoAggregationOptOut'),
                               }}
                               onOutputConfigChange={(config, options) => {
                                 applyOutputConfigChange(form, config, options);

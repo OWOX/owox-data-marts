@@ -368,6 +368,7 @@ export class StreamHttpDataService {
           aggregationConfig: report.aggregationConfig ?? undefined,
           dateTruncConfig: report.dateTruncConfig ?? undefined,
           uniqueCountConfig: report.uniqueCountConfig ?? undefined,
+          autoAggregationOptOut: report.autoAggregationOptOut ?? undefined,
           limitConfig: limit ?? report.limitConfig ?? null,
         };
 

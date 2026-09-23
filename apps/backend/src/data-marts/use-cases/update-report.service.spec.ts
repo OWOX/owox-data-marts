@@ -461,6 +461,64 @@ describe('UpdateReportService', () => {
     );
   });
 
+  const optOutCommand = (autoAggregationOptOut?: string[] | null) =>
+    new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      null,
+      null,
+      undefined,
+      autoAggregationOptOut
+    );
+
+  it('stores the auto-aggregation opt-out and invalidates the cache', async () => {
+    const { service, reportDataCacheService, reportRepository } = createService();
+
+    await service.run(optOutCommand(['review_id', 'review_id']));
+
+    expect(reportRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ autoAggregationOptOut: ['review_id'] })
+    );
+    expect(reportDataCacheService.invalidateByReportId).toHaveBeenCalledWith('report-1');
+  });
+
+  it('keeps the stored opt-out when a client does not send the field', async () => {
+    const { service, reportDataCacheService, reportRepository } = createService();
+    const stored = { ...makeReport(), autoAggregationOptOut: ['review_id'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    await service.run(optOutCommand(undefined));
+
+    expect(reportRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ autoAggregationOptOut: ['review_id'] })
+    );
+    expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
+  it('clears the stored opt-out when a client sends an empty list', async () => {
+    const { service, reportRepository } = createService();
+    const stored = { ...makeReport(), autoAggregationOptOut: ['review_id'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    await service.run(optOutCommand([]));
+
+    expect(reportRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ autoAggregationOptOut: null })
+    );
+  });
+
   it('should not invalidate cache when no output control configs change', async () => {
     const { service, reportDataCacheService } = createService();
 
