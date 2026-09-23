@@ -5330,6 +5330,25 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(screen.queryByTestId('predicted-aggregation-note')).not.toBeInTheDocument();
   });
 
+  it('drops the opt-out of a column the analyst unchecks, as a user edit', () => {
+    const onOutputConfigChange = vi.fn();
+    const { onChange } = renderPicker(autoSchema(), ['landing_page', 'sessions'], {
+      collapsesOnDelivery: true,
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...emptyControls, autoAggregationOptOut: ['sessions'] },
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('sessions').closest('label') as HTMLElement;
+    fireEvent.click(within(row).getByRole('checkbox'));
+
+    expect(onChange).toHaveBeenCalledWith(['landing_page']);
+    expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+    // One argument: the form must dirty, which a repair would not.
+    expect(onOutputConfigChange.mock.calls[0]).toHaveLength(1);
+    expect(onOutputConfigChange.mock.calls[0][0]).toMatchObject({ autoAggregationOptOut: [] });
+  });
+
   it('does not fill the rule in again on a report saved with the opt-out', () => {
     const onOutputConfigChange = vi.fn();
     renderPicker(autoSchema(), ['landing_page', 'sessions'], {

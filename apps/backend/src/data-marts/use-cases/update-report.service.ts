@@ -27,7 +27,10 @@ import {
   foldEmptyUniqueCountConfig,
   normalizeUniqueCountSources,
 } from '../dto/schemas/unique-count-sources';
-import { foldEmptyAutoAggregationOptOut } from '../dto/schemas/auto-aggregation-opt-out.schema';
+import {
+  foldEmptyAutoAggregationOptOut,
+  selectedAutoAggregationOptOut,
+} from '../dto/schemas/auto-aggregation-opt-out.schema';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 
@@ -184,10 +187,12 @@ export class UpdateReportService {
     const previousAutoAggregationOptOut = foldEmptyAutoAggregationOptOut(
       report.autoAggregationOptOut
     );
-    const nextAutoAggregationOptOut =
+    const nextAutoAggregationOptOut = selectedAutoAggregationOptOut(
       command.autoAggregationOptOut === undefined
         ? previousAutoAggregationOptOut
-        : foldEmptyAutoAggregationOptOut(command.autoAggregationOptOut);
+        : command.autoAggregationOptOut,
+      nextColumnConfig
+    );
     const autoAggregationOptOutChanged =
       JSON.stringify(previousAutoAggregationOptOut) !== JSON.stringify(nextAutoAggregationOptOut);
 

@@ -108,9 +108,9 @@ interface AggregationSettingsDropdownProps {
    */
   autoAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
   /**
-   * What delivery WILL apply while the config carries nothing — the state an analyst reaches by
-   * deleting the filled-in rule. The backend has not changed its mind there, so the panel has to
-   * keep saying what the delivered rows will be.
+   * What delivery WILL apply while the config carries nothing and no selected column is opted
+   * out — reached when the analyst takes an opted-out column out of a report that still selects a
+   * metric. The panel has to say what the delivered rows will be.
    */
   predictedAggregations?: ReadonlyMap<string, ReportAggregateFunction>;
 }
@@ -180,9 +180,8 @@ function AggregationSection({
     ...(autoAggregations ?? new Map<string, ReportAggregateFunction>()),
   ].filter(([column]) => columnByName.has(column));
 
-  // The other side of the same fact: the config carries nothing, so delivery will collapse the
-  // report itself. Reached by deleting the filled-in rule — the editor must not fall silent
-  // there, because the rows are grouped and the column renamed either way.
+  // The other side of the same fact: the config carries nothing and nothing selected is opted
+  // out, so delivery will collapse the report itself — the editor must not fall silent there.
   const predicted: [string, ReportAggregateFunction][] =
     autoApplied.length > 0
       ? []

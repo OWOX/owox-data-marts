@@ -8,7 +8,7 @@ When a report with a selected column list has no aggregation, OWOX picks one for
 
 - Remove some of the automatic aggregations and the report runs with the ones you kept.
 - Remove all of them and the report returns every row as stored, with no aggregation and no `DISTINCT`, on every run and every reopen.
-- Add an aggregation back to a column, or take the column out of the report, and automatic aggregation applies to it again.
+- Add an aggregation back to a column and the report runs with the aggregation you chose. Take the column out of the report and OWOX forgets the removal.
 
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/4c9cc84d08e16bc7deb65729ecc21852/iframe>
 

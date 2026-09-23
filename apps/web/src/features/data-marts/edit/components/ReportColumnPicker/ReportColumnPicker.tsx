@@ -1798,10 +1798,10 @@ export function ReportColumnPicker({
   // `value`/`outputConfig` props, not the `effective*` ones: a null `value` means no explicit
   // projection, which the resolver must read as "nothing to predict yet".
   //
-  // This goes empty the moment anything is materialised below, because the resolver refuses a
-  // report that already carries an aggregation — so it is non-empty in exactly one visible state:
-  // the analyst deleted the rule we filled in. Delivery still collapses there, and the panel says
-  // so from this value; everything else reads `autoApplied`.
+  // This goes empty the moment anything is materialised below, and removing a rule records an
+  // opt-out that empties it too. It is non-empty after the fill-in only when an opted-out column
+  // is taken out while a metric stays selected: delivery collapses again, and the panel says so
+  // from this value; everything else reads `autoApplied`.
   const predictedAggregations = useMemo(
     () =>
       collapsesOnDelivery && schema

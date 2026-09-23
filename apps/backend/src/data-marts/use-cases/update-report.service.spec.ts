@@ -461,7 +461,10 @@ describe('UpdateReportService', () => {
     );
   });
 
-  const optOutCommand = (autoAggregationOptOut?: string[] | null) =>
+  const optOutCommand = (
+    autoAggregationOptOut?: string[] | null,
+    columnConfig: string[] = ['review_id', 'rating']
+  ) =>
     new UpdateReportCommand(
       'report-1',
       'proj-1',
@@ -471,7 +474,7 @@ describe('UpdateReportService', () => {
       'dest-1',
       {} as never,
       undefined,
-      undefined,
+      columnConfig,
       null,
       null,
       null,
@@ -494,7 +497,11 @@ describe('UpdateReportService', () => {
 
   it('keeps the stored opt-out when a client does not send the field', async () => {
     const { service, reportDataCacheService, reportRepository } = createService();
-    const stored = { ...makeReport(), autoAggregationOptOut: ['review_id'] };
+    const stored = {
+      ...makeReport(),
+      columnConfig: ['review_id', 'rating'],
+      autoAggregationOptOut: ['review_id'],
+    };
     reportRepository.findOne.mockResolvedValue(stored);
     reportRepository.save.mockResolvedValue(stored);
 
@@ -508,11 +515,33 @@ describe('UpdateReportService', () => {
 
   it('clears the stored opt-out when a client sends an empty list', async () => {
     const { service, reportRepository } = createService();
-    const stored = { ...makeReport(), autoAggregationOptOut: ['review_id'] };
+    const stored = {
+      ...makeReport(),
+      columnConfig: ['review_id', 'rating'],
+      autoAggregationOptOut: ['review_id'],
+    };
     reportRepository.findOne.mockResolvedValue(stored);
     reportRepository.save.mockResolvedValue(stored);
 
     await service.run(optOutCommand([]));
+
+    expect(reportRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ autoAggregationOptOut: null })
+    );
+  });
+
+  it('drops the opt-out of a column the update takes out of the report', async () => {
+    const { service, reportRepository } = createService();
+    const stored = {
+      ...makeReport(),
+      columnConfig: ['review_id', 'rating'],
+      autoAggregationOptOut: ['rating'],
+    };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    // Sent without the field, as MCP update_report and older clients do.
+    await service.run(optOutCommand(undefined, ['review_id']));
 
     expect(reportRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ autoAggregationOptOut: null })

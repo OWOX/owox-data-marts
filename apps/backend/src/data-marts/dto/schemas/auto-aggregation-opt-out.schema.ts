@@ -22,6 +22,18 @@ export function foldEmptyAutoAggregationOptOut(
   return [...new Set(value)];
 }
 
+/**
+ * Keeps only the columns the report selects: an opt-out protects a projected column, and one left
+ * for a column taken out would still hold the report raw when that column is added back.
+ */
+export function selectedAutoAggregationOptOut(
+  value: AutoAggregationOptOut | undefined,
+  columnConfig: readonly string[] | null | undefined
+): string[] | null {
+  const selected = new Set(columnConfig ?? []);
+  return foldEmptyAutoAggregationOptOut((value ?? []).filter(column => selected.has(column)));
+}
+
 export const AUTO_AGGREGATION_OPT_OUT_OPENAPI = {
   type: 'array',
   nullable: true,
