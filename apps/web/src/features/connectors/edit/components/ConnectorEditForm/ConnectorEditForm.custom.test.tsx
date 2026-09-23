@@ -45,6 +45,11 @@ vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
   useProjectRoute: () => ({ navigate: vi.fn(), scope: (p: string) => p }),
 }));
 
+const permissions = vi.hoisted(() => ({ canEdit: true }));
+vi.mock('../../../../../app/permissions', () => ({
+  usePermissions: () => permissions,
+}));
+
 const CUSTOM_ID = 'cdef-1';
 const CUSTOM_NAME = 'MyCustomApi';
 const CUSTOM_ACTIVE_VERSION = 2;
@@ -81,6 +86,7 @@ function renderForm(onSubmit: (c: ConnectorConfig) => void) {
 describe('ConnectorEditForm — custom connector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissions.canEdit = true;
     // The bundled list must be non-empty so the form's init effect settles
     // (an empty list re-triggers fetchAvailableConnectors and keeps loading=true,
     // leaving the selection step in its loading skeleton). The bundled connector
@@ -117,6 +123,36 @@ describe('ConnectorEditForm — custom connector', () => {
         { version: 2, status: 'published', publishedAt: '2026-02-01' },
       ],
     });
+  });
+
+  it('offers the builder pencil to admins and editors', async () => {
+    renderForm(vi.fn());
+
+    expect(await screen.findByRole('button', { name: `Edit ${CUSTOM_NAME}` })).toBeInTheDocument();
+  });
+
+  it('hides the ways into the builder from users the builder would turn away', async () => {
+    permissions.canEdit = false;
+    renderForm(vi.fn());
+
+    await screen.findByText(CUSTOM_NAME);
+    expect(screen.queryByRole('button', { name: `Edit ${CUSTOM_NAME}` })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '+ Create custom connector' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the custom-connector icon in the header of the following steps', async () => {
+    renderForm(vi.fn());
+
+    fireEvent.click(await screen.findByText(CUSTOM_NAME));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    await screen.findByLabelText(/API Token/i);
+    expect(screen.getByRole('img', { name: 'Custom connector' })).toBeInTheDocument();
   });
 
   it('routes spec/fields to the CUSTOM endpoints and follows active by default', async () => {

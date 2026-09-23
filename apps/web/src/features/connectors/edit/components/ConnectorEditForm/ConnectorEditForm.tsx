@@ -36,6 +36,7 @@ import {
 import { ConnectorBuilderApiService } from '../../../../connector-builder/shared/api/connector-builder-api.service';
 import type { CustomConnectorListItemDto } from '../../../../connector-builder/shared/api/types';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
+import { usePermissions } from '../../../../../app/permissions';
 import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
 
 const connectorKey = (c: ConnectorListItem) =>
@@ -65,6 +66,7 @@ export function ConnectorEditForm({
   isOpen = true,
 }: ConnectorEditFormProps) {
   const { navigate } = useProjectRoute();
+  const { canEdit } = usePermissions();
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
@@ -819,12 +821,21 @@ export function ConnectorEditForm({
               setCurrentStep(prev => (prev < totalSteps ? prev + 1 : prev));
             }}
             customConnectors={customAsListItems}
-            onCreateNew={() => {
-              navigate('/connectors/builder/new');
-            }}
-            onEditConnector={connector => {
-              if (connector.id) navigate(`/connectors/builder/${connector.id}`);
-            }}
+            // The builder opens only for admins and editors, so nobody else is sent to it.
+            onCreateNew={
+              canEdit
+                ? () => {
+                    navigate('/connectors/builder/new');
+                  }
+                : undefined
+            }
+            onEditConnector={
+              canEdit
+                ? connector => {
+                    if (connector.id) navigate(`/connectors/builder/${connector.id}`);
+                  }
+                : undefined
+            }
           />
         );
       case 2:

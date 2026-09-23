@@ -37,6 +37,10 @@ vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
   useProjectRoute: () => ({ navigate, scope: (p: string) => p }),
 }));
 
+vi.mock('../../../../../app/permissions', () => ({
+  usePermissions: () => ({ canEdit: true }),
+}));
+
 const DRAFT_ID = 'cdef-draft';
 const DRAFT_NAME = 'MyDraftApi';
 
