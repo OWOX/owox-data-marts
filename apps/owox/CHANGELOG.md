@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.35.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/904807b00496db5eeca1a76de410fcf5/iframe>
+
 - 6a5d52e: **Deleted reports are retained**
 
   **This update includes a database migration. Older backend versions do not hide deleted reports; reverting the migration makes those reports visible again.**
