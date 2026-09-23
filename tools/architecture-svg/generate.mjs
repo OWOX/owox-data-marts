@@ -102,6 +102,10 @@ const GAP = 16;
 const ROW_GAP = GAP;
 const BAND_GAP = 10; // layers all but touch; the plugin stacks them tight
 const BAND_PAD = 16;
+/* The margin round the whole drawing. A lane starts BAND_PAD inside the column
+ * grid, so this is what is actually left at the left and right edges — and the
+ * top and bottom take the same, rather than PAD's wider gap. */
+const MARGIN = PAD - BAND_PAD;
 const BAND_HEAD = 28; // the layer's own header row, inside the container
 const BAND_HEAD_GAP = 14;
 
@@ -200,6 +204,19 @@ const text = (x, y, content, { size, weight, fill, opacity, anchor } = {}) => {
     ` lengthAdjust="spacingAndGlyphs">${esc(body)}</text>`
   );
 };
+
+/* ------------------------------------------------------------------- brand */
+
+const LOGO_SIZE = 26;
+
+/* The OWOX mark, the O on its own, copied from the web app's OWOXBIIcon so the
+ * README and the product wear the same one. It is a filled outline rather than
+ * a stroked glyph, so it takes a colour rather than going through glyph(). */
+const OWOX_MARK =
+  'M12.455 21.73c-4.585 0-7.749-.347-7.964-.371-.164-.013-1.55-.141-2.44-1.037-.9-.907-1.26-2.518-1.274-2.586-.01-.044-.29-1.267-.432-3.389a61.23 61.23 0 0 1-.078-2.403c0-3.559.49-5.744.511-5.835.016-.068.377-1.522 1.273-2.423.873-.88 2.11-1.02 2.296-1.036.244-.036 2.712-.38 7.444-.38 1.422 0 3.843.082 3.867.083 2.365.106 3.696.274 3.86.296.186.014 1.554.149 2.437 1.037.895.9 1.255 2.355 1.27 2.417.018.069.508 1.963.508 5.743 0 .89-.065 2.337-.068 2.399-.131 2.248-.405 3.447-.416 3.497-.043.174-.422 1.66-1.123 2.383-1.035 1.066-2.154 1.212-2.356 1.23-.248.039-2.558.375-7.315.375Zm-.664-18.502c-4.815 0-7.295.367-7.32.371a.446.446 0 0 1-.038.004c-.009 0-1.04.086-1.711.76-.705.709-1.016 1.955-1.02 1.967-.003.015-.485 2.174-.485 5.614 0 .836.076 2.331.077 2.347.135 2.028.407 3.222.41 3.234.004.02.317 1.413 1.018 2.12.67.673 1.831.758 1.843.759l.024.002c.031.004 3.198.366 7.866.366 4.848 0 7.161-.362 7.184-.365a.484.484 0 0 1 .05-.005c.033-.003.91-.074 1.757-.947.441-.455.784-1.552.879-1.937 0-.004.265-1.173.391-3.323 0-.01.067-1.48.067-2.349 0-3.636-.475-5.488-.48-5.507-.005-.021-.316-1.267-1.02-1.976-.67-.674-1.832-.759-1.844-.76a.391.391 0 0 1-.033-.003c-.013-.002-1.362-.182-3.785-.29-.02 0-2.424-.082-3.83-.082Z';
+
+const owoxMark = (x, y, size, colour) =>
+  `<g transform="translate(${n(x)} ${n(y)}) scale(${n(size / 24)})" fill="${colour}"><path d="${OWOX_MARK}"/></g>`;
 
 /* ------------------------------------------------------------------- marks */
 
@@ -476,11 +493,11 @@ function badgeLines(badges, maxW) {
 
 /* ------------------------------------------------------------------ layout */
 
-function layout(blocks) {
+function layout(blocks, logo) {
   const placed = new Map();
   const bands = [];
   const rows = []; // every row of the whole drawing, top to bottom
-  let y = PAD;
+  let y = MARGIN;
 
   for (const block of blocks) {
     const bandTop = y;
@@ -528,7 +545,9 @@ function layout(blocks) {
     bands.push({ block, top: bandTop, bottom: cy + BAND_PAD });
     y = cy + BAND_PAD + BAND_GAP;
   }
-  const height = y - BAND_GAP + PAD;
+  /* The strip the mark sits in, when there is one. */
+  const footer = logo ? BAND_GAP + LOGO_SIZE : 0;
+  const height = y - BAND_GAP + footer + MARGIN;
   return { placed, bands, height };
 }
 
@@ -744,7 +763,7 @@ function card(t, place, blocks, byId, selected, focused) {
  * layer, and the cards sit in it. */
 function bandBody(t, b) {
   const h = b.bottom - b.top;
-  const x = PAD - BAND_PAD;
+  const x = MARGIN;
   return `<rect x="${n(x)}" y="${n(b.top)}" width="${n(WIDTH - 2 * x)}" height="${n(h)}" rx="14" fill="${t.band}"/>`;
 }
 
@@ -781,7 +800,7 @@ function draw(theme, data) {
   checkReferences(blocks);
   checkConnectorCounts(blocks);
   const byId = new Map(blocks.flatMap(b => b.cards).map(c => [c.id, c]));
-  const { placed, bands, height } = layout(blocks);
+  const { placed, bands, height } = layout(blocks, data.showLogo === true);
   const selected = new Set(data.highlight?.cards ?? []);
   const focused = selected.size > 0;
 
@@ -831,6 +850,9 @@ function draw(theme, data) {
     wires.join(''),
     cards.join(''),
     bands.map(b => bandHead(t, { ...b, showTotals: data.showTotals })).join(''),
+    data.showLogo === true
+      ? owoxMark(WIDTH - MARGIN - LOGO_SIZE, height - MARGIN - LOGO_SIZE, LOGO_SIZE, t.muted)
+      : '',
     '</svg>',
     '',
   ].join('\n');

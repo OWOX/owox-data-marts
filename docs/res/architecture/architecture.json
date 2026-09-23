@@ -2,6 +2,7 @@
   "title": "OWOX Data Marts \u2014 one flow from source to answer",
   "showTotals": false,
   "showArrows": false,
+  "showLogo": true,
   "highlight": {
     "note": "The chain the picture tells: paid spend lands in the warehouse, becomes one governed metric, and answers a question in three places at once.",
     "cards": [
