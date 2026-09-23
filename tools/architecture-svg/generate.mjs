@@ -536,8 +536,8 @@ function bezierAcross(sx, sy, tx, ty) {
   return `M${n(sx)} ${n(sy)} C ${n(sx + c)} ${n(sy)}, ${n(tx - c)} ${n(ty)}, ${n(tx)} ${n(ty)}`;
 }
 
-/** A solid arrow head at (x, y), pointing down. */
-const arrow = (x, y, colour, size = 4.5) =>
+/** A solid arrow head at (x, y), pointing down — the head an edge arrives with. */
+const arrow = (x, y, colour, size = 5.4) =>
   `<path d="M${n(x - size)} ${n(y - size * 1.4)}L${n(x)} ${n(y)}L${n(x + size)} ${n(y - size * 1.4)}Z" fill="${colour}"/>`;
 
 /** A wire from a card's bottom handle to the top handle of a card below it. */

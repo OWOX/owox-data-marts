@@ -151,7 +151,7 @@
     },
     {
       "id": "destinations",
-      "name": "Data Destinations",
+      "name": "Destinations",
       "icon": "archive-restore",
       "total": 9,
       "cards": [
@@ -173,7 +173,7 @@
           "id": "google-sheets",
           "name": "Google Sheets",
           "logo": "google-sheets",
-          "count": 2
+          "count": 242
         },
         {
           "id": "data-studio",
@@ -215,7 +215,7 @@
       "cards": [
         {
           "id": "campaign-performance",
-          "name": "Campaign Performance",
+          "name": "Campaigns Performance",
           "mart": "unified-adspend",
           "destination": "google-sheets",
           "columns": 8,
@@ -238,7 +238,7 @@
         },
         {
           "id": "product-stock",
-          "name": "Product Stock",
+          "name": "Products Stock",
           "mart": "orders",
           "destination": "excel",
           "columns": 12,

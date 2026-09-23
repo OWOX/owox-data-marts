@@ -32,12 +32,12 @@ Looker Studio, in a spreadsheet and in ChatGPT.
 The highlighted chain follows one question end to end: Facebook Ads and Google
 Ads land in BigQuery, become the **Unified AdSpend** mart, and — joined with
 **Orders** — answer it in Data Studio, in ChatGPT, and in Google Sheets, where
-a scheduled **Campaign Performance** report refreshes itself.
+a scheduled **Campaigns Performance** report refreshes itself.
 
 <!-- markdownlint-disable MD033 -- <picture> is the only way to serve GitHub's two themes -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
-  <img alt="OWOX Data Marts architecture: Sources, Storages, Data Marts, Data Destinations, Reports and Plugins, with one highlighted flow from Facebook Ads and Google Ads through Google BigQuery and the Unified AdSpend data mart to Data Studio, ChatGPT and Google Sheets, where a scheduled Campaign Performance report lands" src="./docs/res/architecture/architecture-light.svg">
+  <img alt="OWOX Data Marts architecture: Sources, Storages, Data Marts, Destinations, Reports and Plugins, with one highlighted flow from Facebook Ads and Google Ads through Google BigQuery and the Unified AdSpend data mart to Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report lands" src="./docs/res/architecture/architecture-light.svg">
 </picture>
 <!-- markdownlint-enable MD033 -->
 
