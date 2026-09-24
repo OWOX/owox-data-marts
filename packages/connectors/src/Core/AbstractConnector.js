@@ -319,6 +319,8 @@ export class AbstractConnector {
    */
   _createRunState(accounts) {
     return {
+      // A source without accounts runs one pass with a null account; its messages must not name one.
+      accountless: accounts.every(account => account === null || account === undefined),
       attemptedCount: new Set(accounts.map(account => this._accountKey(account))).size,
       issues: new Map(),
       succeeded: new Set(),
@@ -497,8 +499,13 @@ export class AbstractConnector {
     if (entry.reported.has(error.message)) return;
     entry.reported.add(error.message);
 
-    const what = isSkip ? 'Skipped account' : 'Error processing account';
-    this.context.log(level, `${what} ${accountId}: ${error.message}`);
+    const what =
+      account === null || account === undefined
+        ? isSkip
+          ? 'Skipped'
+          : 'Import failed'
+        : `${isSkip ? 'Skipped account' : 'Error processing account'} ${accountId}`;
+    this.context.log(level, `${what}: ${error.message}`);
   }
 
   /**
@@ -560,18 +567,20 @@ export class AbstractConnector {
   /**
    * Reports how the accounts fared, once every account has been attempted.
    *
-   * Only skipped accounts reach this point: _recordAccountFailure rethrows
-   * anything else, so a run that gets here failed no account outright. Two
-   * outcomes, checked in this order (the port of main's
+   * Two outcomes, checked in this order (the port of main's
    * _throwIfAllAccountsSkipped, plus its caller's trailing warning):
    *
-   * - no account imported anything: every account failing at once is not a set
-   *   of individual accounts losing access on the same day, it points to a
-   *   global cause such as an expired access token. Reporting success there
-   *   would hide a total outage behind a run that imported nothing.
+   * - no account imported anything: when every account was skipped for
+   *   permissions, that is not a set of individual accounts losing access on the
+   *   same day, it points to a global cause such as an expired access token. When
+   *   any of them failed outright, the run fails with that failure instead -- the
+   *   error itself for a single account or a source without accounts, as main's
+   *   fail-fast did. Reporting success there would hide a total outage behind a
+   *   run that imported nothing.
    * - some accounts skipped, others imported: completes, but as a warning --
    *   otherwise the only trace would be a log line and the run would report
-   *   plain success while that account's data is missing.
+   *   plain success while that account's data is missing. A failed account still
+   *   fails the run, so the window is requested again.
    *
    * Attempted accounts are counted DISTINCT (see _accountKey). Comparing
    * against the raw array length let a repeated id -- `AccountIDs = "act_1,
@@ -589,7 +598,8 @@ export class AbstractConnector {
       entries
         .map(([accountId, entry]) => {
           const last = entry.errors[entry.errors.length - 1];
-          return `${accountId}: ${last ? last.message : 'unknown error'}`;
+          const message = last ? last.message : 'unknown error';
+          return state.accountless ? message : `${accountId}: ${message}`;
         })
         .join('; ');
 
@@ -607,10 +617,15 @@ export class AbstractConnector {
     );
 
     if (state.succeeded.size === 0) {
+      if (failed.length && state.attemptedCount === 1) {
+        throw failed[0][1].errors.filter(error => error?.isWarning !== true).pop();
+      }
       const error = new Error(
-        `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
-          `to a global failure, such as an expired access token, rather than individual accounts ` +
-          `being inaccessible. Errors: ${describe(entries)}`
+        failed.length
+          ? `None of the ${state.attemptedCount} accounts imported any data. Errors: ${describe(entries)}`
+          : `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
+              `to a global failure, such as an expired access token, rather than individual accounts ` +
+              `being inaccessible. Errors: ${describe(entries)}`
       );
       // Flagged ONLY when every account was turned away for permissions -- something the
       // customer can act on, and RunFailureReport then keeps the readable message instead
@@ -625,8 +640,10 @@ export class AbstractConnector {
     if (skipped.length) {
       this.context.log(
         LOG_LEVEL.WARN,
-        `${skipped.length} out of ${state.attemptedCount} accounts were skipped and their ` +
-          `data is missing. Skipped accounts: ${skipped.map(([id]) => id).join(', ')}`
+        state.accountless
+          ? `Part of the import was skipped and its data is missing: ${describe(skipped)}`
+          : `${skipped.length} out of ${state.attemptedCount} accounts were skipped and their ` +
+              `data is missing. Skipped accounts: ${skipped.map(([id]) => id).join(', ')}`
       );
     }
 
@@ -637,8 +654,11 @@ export class AbstractConnector {
       // would tell the scheduler the window is done when part of it was never read.
       // Unflagged, so it pages; the cursor was already withheld for those passes.
       throw new Error(
-        `${failed.length} out of ${state.attemptedCount} accounts did not import, so this ` +
-          `window is incomplete and will be requested again. Errors: ${describe(failed)}`
+        state.accountless
+          ? `Part of the import failed, so this window is incomplete and will be requested ` +
+              `again. Errors: ${describe(failed)}`
+          : `${failed.length} out of ${state.attemptedCount} accounts did not import, so this ` +
+              `window is incomplete and will be requested again. Errors: ${describe(failed)}`
       );
     }
   }
