@@ -80,7 +80,7 @@ Then check each field:
 
 - **Type** — `string`, `integer`, `number`, `boolean`, `date`, `datetime` or `object`. A date the API sends as text is discovered as `string`; set it to `date`, like `day` in the example.
 - **Data path** — where the value is in the record, e.g. `stats.clicks`. Empty means the same as the field name.
-- **Primary key** — the fields that identify a row, e.g. `day`. Later runs update these rows instead of adding duplicates.
+- **Primary key** — the fields that identify a row, e.g. `day`. Later runs update these rows instead of adding duplicates. Every node needs one before you can publish.
 - **Default** — the fields selected when someone adds this node to a Data Mart.
 
 ## Step 7: Save and publish

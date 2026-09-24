@@ -519,6 +519,7 @@ export class ConnectorDefinitionService {
     } catch (e) {
       throw new BadRequestException(`Invalid connector manifest: ${(e as Error).message}`);
     }
+    this.assertNodesHavePrimaryKeys(draft.manifest);
 
     const warnings = this.reportSecretCoverage(def.name, draft.version, model);
 
@@ -530,6 +531,43 @@ export class ConnectorDefinitionService {
     await this.definitionRepo.save(def);
 
     return { version: published, warnings };
+  }
+
+  /**
+   * The storage merges rows on a node's primary key and cannot be created without one, so a
+   * node without a usable key would publish and then fail every run. Checked here rather than
+   * in ManifestParser: a Test run stores nothing, and the key is picked after testing.
+   */
+  private assertNodesHavePrimaryKeys(manifest: Record<string, unknown>): void {
+    const nodes = (manifest.nodes ?? {}) as Record<
+      string,
+      { uniqueKeys?: unknown; fields?: unknown }
+    >;
+    const problems: string[] = [];
+    for (const [name, node] of Object.entries(nodes)) {
+      const keys: unknown[] = Array.isArray(node?.uniqueKeys) ? node.uniqueKeys : [];
+      if (keys.length === 0) {
+        problems.push(
+          `Node "${name}" has no primary key. Mark the fields that identify a row as its primary key.`
+        );
+        continue;
+      }
+      const fields = node.fields && typeof node.fields === 'object' ? node.fields : {};
+      const unknownKeys = keys.filter(
+        key => typeof key !== 'string' || !Object.prototype.hasOwnProperty.call(fields, key)
+      );
+      if (unknownKeys.length > 0) {
+        const list = unknownKeys.map(key => `"${String(key)}"`).join(', ');
+        problems.push(
+          unknownKeys.length === 1
+            ? `Node "${name}" uses ${list} as its primary key, but it is not one of the node's fields.`
+            : `Node "${name}" uses ${list} as its primary key, but they are not among the node's fields.`
+        );
+      }
+    }
+    if (problems.length > 0) {
+      throw new BadRequestException(problems.join(' '));
+    }
   }
 
   async setActiveVersion(

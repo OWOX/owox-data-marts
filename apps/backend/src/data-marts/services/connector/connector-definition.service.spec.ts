@@ -129,6 +129,7 @@ describe('ConnectorDefinitionService', () => {
     nodes: {
       items: {
         fields: { id: { type: 'string' } },
+        uniqueKeys: ['id'],
         request: { method: 'GET', path: '/items' },
         recordSelector: { recordPath: [] },
       },
@@ -641,6 +642,45 @@ describe('ConnectorDefinitionService', () => {
     await expect(service.publish('proj-1', def.id)).rejects.toThrow(BadRequestException);
   });
 
+  // Storage merges rows on the primary key and cannot be created without one, so such a
+  // node would publish and then fail every run.
+  it('publish() refuses a node without a primary key and leaves the draft unpublished', async () => {
+    const { service, store } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: {
+        ...validManifest,
+        nodes: { items: { ...validManifest.nodes.items, uniqueKeys: [] } },
+      },
+    });
+
+    const publishing = service.publish('proj-1', def.id);
+
+    await expect(publishing).rejects.toBeInstanceOf(BadRequestException);
+    await expect(publishing).rejects.toThrow(
+      'Node "items" has no primary key. Mark the fields that identify a row as its primary key.'
+    );
+    expect(store.versions[0].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    expect(store.defs.find(d => d.id === def.id).activeVersionId).toBeFalsy();
+  });
+
+  it('publish() refuses a primary key that is not one of the node fields', async () => {
+    const { service } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: {
+        ...validManifest,
+        nodes: { items: { ...validManifest.nodes.items, uniqueKeys: ['id', 'missing'] } },
+      },
+    });
+
+    await expect(service.publish('proj-1', def.id)).rejects.toThrow(
+      'Node "items" uses "missing" as its primary key, but it is not one of the node\'s fields.'
+    );
+  });
+
   it('publish() throws when there is no open draft', async () => {
     const { service } = make();
     const def = await service.create('proj-1', 'u', {
@@ -695,6 +735,7 @@ describe('ConnectorDefinitionService', () => {
         nodes: {
           items: {
             fields: { id: { type: 'string' } },
+            uniqueKeys: ['id'],
             request: {
               method: 'GET',
               path: '/items',
@@ -1057,6 +1098,7 @@ describe('ConnectorDefinitionService', () => {
       nodes: {
         items: {
           fields: { id: { type: 'string' } },
+          uniqueKeys: ['id'],
           request: { method: 'GET', path: '/items' },
           recordSelector: { recordPath: [] },
         },
@@ -1128,6 +1170,7 @@ describe('ConnectorDefinitionService', () => {
       nodes: {
         items: {
           fields: { id: { type: 'string' } },
+          uniqueKeys: ['id'],
           request: { method: 'GET', path: '/items', queryParameters },
           recordSelector: { recordPath: [] },
         },
