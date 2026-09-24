@@ -21,7 +21,7 @@ import {
   SOCKET_STYLE,
 } from '../../shared/canvas/constants';
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
-import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
+import { type CanvasViewMode, cardBadges, nodeLayoutOptions, nodeWidth } from '../model/erd-node';
 import {
   isTitleOnly,
   NOTHING_HIDDEN,
@@ -128,15 +128,16 @@ export default function ModelCanvasFlowNode({
   // Object labels: the accent stripe mirrors the Data Quality status shown in
   // the footer, so the two hide together — only in "title only" mode.
   const labels = data.objectLabels ?? NOTHING_HIDDEN;
-  const definitionInfo = data.definitionType
-    ? DataMartDefinitionTypeModel.getInfo(data.definitionType)
-    : null;
-  // The pill waits for the type: nothing while enrichment is pending or failed.
-  const withDefinition = !labels.source && definitionInfo?.type != null ? definitionInfo : null;
-  const withFieldCount = !labels.fields;
+  // A count of zero shows no badge; the layout estimate reads the same rules.
+  const badges = cardBadges(data, nodeLayoutOptions(labels));
+  const definitionInfo =
+    badges.definition && data.definitionType
+      ? DataMartDefinitionTypeModel.getInfo(data.definitionType)
+      : null;
   // Published is the norm, so only a draft earns a pill — next to the title.
   const withDraft = !labels.status && data.isDraft;
-  const withBadgesRow = !labels.source || !labels.fields;
+  const withBadgesRow = badges.definition || badges.fieldCount;
+  const withCountsRow = badges.triggers || badges.relationships;
   // "Uncheck all — title only" strips the card down to its name: counts,
   // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
@@ -240,10 +241,10 @@ export default function ModelCanvasFlowNode({
       {/* Badges row: input source + field count */}
       {withBadgesRow && (
         <div className={`flex items-center gap-1 overflow-hidden pt-2 pr-3 ${contentPaddingLeft}`}>
-          {withDefinition && (
-            <CardPill icon={withDefinition.icon}>{withDefinition.displayName}</CardPill>
+          {definitionInfo && (
+            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
           )}
-          {withFieldCount && (
+          {badges.fieldCount && (
             <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
           )}
         </div>
@@ -252,16 +253,22 @@ export default function ModelCanvasFlowNode({
       {!titleOnly && (
         <>
           {/* Counts row: triggers + relationships */}
-          <div
-            className={`flex items-center gap-1 overflow-hidden pt-1 pr-3 ${contentPaddingLeft}`}
-          >
-            {data.triggersCount !== undefined && (
-              <CardPill icon={CalendarClock}>{pluralize(data.triggersCount, 'trigger')}</CardPill>
-            )}
-            <CardPill icon={Waypoints}>
-              {pluralize(data.relationshipCount, 'relationship')}
-            </CardPill>
-          </div>
+          {withCountsRow && (
+            <div
+              className={`flex items-center gap-1 overflow-hidden pr-3 ${withBadgesRow ? 'pt-1' : 'pt-2'} ${contentPaddingLeft}`}
+            >
+              {badges.triggers && (
+                <CardPill icon={CalendarClock}>
+                  {pluralize(data.triggersCount ?? 0, 'trigger')}
+                </CardPill>
+              )}
+              {badges.relationships && (
+                <CardPill icon={Waypoints}>
+                  {pluralize(data.relationshipCount, 'relationship')}
+                </CardPill>
+              )}
+            </div>
+          )}
 
           {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
           <div

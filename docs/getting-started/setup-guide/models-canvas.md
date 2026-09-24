@@ -16,7 +16,7 @@ Click a card to highlight every relationship it takes part in. Click it again, o
 - The [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) indicators. The colored bar on the left edge repeats the Data Quality status.
 - Sharing icons, when the Data Mart is shared for reporting or for maintenance. Hover an icon to see which one it is.
 
-The trigger count and the sharing icons appear once the canvas has loaded the Data Mart details.
+A count of zero shows no badge. A Data Mart without triggers has no triggers badge, and one with no relationships has no relationships badge. The trigger count and the sharing icons appear once the canvas has loaded the Data Mart details.
 
 ## Toolbar
 

@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CARD_COUNTS_ROW_HEIGHT,
+  CARD_COUNTS_ROW_LONE_PADDING,
+  CARD_FOOTER_HEIGHT,
   CARD_META_ROW_HEIGHT,
-  CARD_STATUS_ROW_HEIGHT,
   CARD_TITLE_ONLY_PADDING,
+  CARD_TITLE_ROW_HEIGHT,
   COMPACT_NODE_HEIGHT,
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
-  ERD_HEADER_HEIGHT,
   ERD_ROW_EXTRA_LINE_HEIGHT,
   ERD_ROW_HEIGHT,
+  cardBadges,
   collapsedRowCount,
   computeNodeHeight,
   nodeLayoutOptions,
   orderFields,
+  type CardBadgeInput,
 } from './erd-node';
+import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import { ALL_HIDDEN, NOTHING_HIDDEN } from '../../shared/canvas/object-labels';
 import type { CanvasNodeField } from './types';
 
@@ -47,78 +52,111 @@ describe('collapsedRowCount', () => {
   });
 });
 
+/** A card with every badge: known source, fields, triggers and relationships. */
+const FULL: CardBadgeInput = {
+  definitionType: DataMartDefinitionType.VIEW,
+  fieldCount: 3,
+  triggersCount: 2,
+  relationshipCount: 1,
+};
+const EMPTY: CardBadgeInput = { definitionType: null, fieldCount: 0 };
+
+describe('cardBadges', () => {
+  it('shows every badge with a non-zero count', () => {
+    expect(cardBadges(FULL)).toEqual({
+      definition: true,
+      fieldCount: true,
+      triggers: true,
+      relationships: true,
+    });
+  });
+
+  it('hides zero counts, an unknown source and not-yet-enriched triggers', () => {
+    expect(
+      cardBadges({ ...FULL, fieldCount: 0, triggersCount: 0, relationshipCount: 0 })
+    ).toMatchObject({ fieldCount: false, triggers: false, relationships: false });
+    expect(cardBadges({ ...FULL, definitionType: null, triggersCount: undefined })).toMatchObject({
+      definition: false,
+      triggers: false,
+    });
+  });
+
+  it('follows the object labels', () => {
+    expect(cardBadges(FULL, nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true }))).toMatchObject({
+      definition: false,
+      fieldCount: true,
+    });
+    expect(cardBadges(FULL, nodeLayoutOptions(ALL_HIDDEN))).toEqual({
+      definition: false,
+      fieldCount: false,
+      triggers: false,
+      relationships: false,
+    });
+  });
+});
+
 describe('computeNodeHeight', () => {
-  it('sizes the card as title + badges + counts + footer rows', () => {
+  it('sizes a full card as title + badges + counts + footer rows', () => {
     expect(COMPACT_NODE_HEIGHT).toBe(134);
-    expect(ERD_HEADER_HEIGHT).toBe(COMPACT_NODE_HEIGHT);
+    expect(computeNodeHeight(FULL, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });
 
-  it('returns the compact height outside ERD mode', () => {
-    expect(computeNodeHeight({ fields: [field('a')] }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
+  it('drops the rows whose badges are all hidden or zero', () => {
+    const noCounts = { ...FULL, triggersCount: 0, relationshipCount: 0 };
+    expect(computeNodeHeight(noCounts, 'compact')).toBe(
+      COMPACT_NODE_HEIGHT - CARD_COUNTS_ROW_HEIGHT
+    );
+    // The counts row alone takes a little more top padding.
+    expect(computeNodeHeight({ ...FULL, definitionType: null, fieldCount: 0 }, 'compact')).toBe(
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT + CARD_COUNTS_ROW_LONE_PADDING
+    );
+    expect(computeNodeHeight(EMPTY, 'compact')).toBe(CARD_TITLE_ROW_HEIGHT + CARD_FOOTER_HEIGHT);
+    expect(computeNodeHeight(FULL, 'compact', { sourceHidden: true, fieldCountHidden: true })).toBe(
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT + CARD_COUNTS_ROW_LONE_PADDING
+    );
   });
 
-  it('returns the compact height for ERD nodes without enriched fields', () => {
-    expect(computeNodeHeight({ fields: undefined }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
-    expect(computeNodeHeight({ fields: [] }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
-  });
-
-  it('shrinks by the meta row height when object labels hide the whole meta row', () => {
-    expect(computeNodeHeight({ fields: [] }, 'compact', { metaRowHidden: true })).toBe(
-      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT
+  it('keeps only the padded title row in title-only mode', () => {
+    const titleOnly = nodeLayoutOptions(ALL_HIDDEN);
+    expect(computeNodeHeight(FULL, 'compact', titleOnly)).toBe(
+      CARD_TITLE_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING
     );
     const fields = [field('a')];
-    expect(computeNodeHeight({ fields }, 'erd', { metaRowHidden: true })).toBe(
-      ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT + ERD_ROW_HEIGHT
+    expect(computeNodeHeight({ ...FULL, fields }, 'erd', titleOnly)).toBe(
+      CARD_TITLE_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING + ERD_ROW_HEIGHT
     );
   });
 
-  it('also shrinks by the status icons row in title-only mode', () => {
-    const titleOnly = { metaRowHidden: true, statusRowHidden: true };
-    expect(computeNodeHeight({ fields: [] }, 'compact', titleOnly)).toBe(
-      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING
-    );
-    const fields = [field('a')];
-    expect(computeNodeHeight({ fields }, 'erd', titleOnly)).toBe(
-      ERD_HEADER_HEIGHT -
-        CARD_META_ROW_HEIGHT -
-        CARD_STATUS_ROW_HEIGHT +
-        CARD_TITLE_ONLY_PADDING +
-        ERD_ROW_HEIGHT
-    );
+  it('returns the header height for ERD nodes without enriched fields', () => {
+    expect(computeNodeHeight({ ...FULL, fields: undefined }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
+    expect(computeNodeHeight({ ...FULL, fields: [] }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
   });
 
   it('adds a line per shown description and drops it when the label is off', () => {
     const fields = [field('a'), { ...field('b'), alias: 'B alias', description: 'B described' }];
     // The alias swaps the row text, so only the description adds height.
-    expect(computeNodeHeight({ fields }, 'erd')).toBe(
-      ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT
+    expect(computeNodeHeight({ ...FULL, fields }, 'erd')).toBe(
+      COMPACT_NODE_HEIGHT + 2 * ERD_ROW_HEIGHT + ERD_ROW_EXTRA_LINE_HEIGHT
     );
     expect(
-      computeNodeHeight({ fields }, 'erd', { fieldLabels: { alias: false, description: false } })
-    ).toBe(ERD_HEADER_HEIGHT + 2 * ERD_ROW_HEIGHT);
+      computeNodeHeight({ ...FULL, fields }, 'erd', {
+        fieldLabels: { alias: false, description: false },
+      })
+    ).toBe(COMPACT_NODE_HEIGHT + 2 * ERD_ROW_HEIGHT);
     // Compact cards have no field rows, so the labels never change their height.
-    expect(computeNodeHeight({ fields }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
+    expect(computeNodeHeight({ ...FULL, fields }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });
 
   it('derives the layout options from the object-labels preference', () => {
     expect(nodeLayoutOptions(NOTHING_HIDDEN)).toEqual({
-      metaRowHidden: false,
-      statusRowHidden: false,
-      fieldLabels: { alias: true, description: true },
-    });
-    // The Draft pill lives in the title row, so the status label no longer shapes the badges row.
-    expect(nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true, status: true })).toEqual({
-      metaRowHidden: false,
-      statusRowHidden: false,
-      fieldLabels: { alias: true, description: true },
-    });
-    expect(nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true, fields: true })).toEqual({
-      metaRowHidden: true,
+      sourceHidden: false,
+      fieldCountHidden: false,
       statusRowHidden: false,
       fieldLabels: { alias: true, description: true },
     });
     expect(nodeLayoutOptions(ALL_HIDDEN)).toEqual({
-      metaRowHidden: true,
+      sourceHidden: true,
+      fieldCountHidden: true,
       statusRowHidden: true,
       fieldLabels: { alias: false, description: false },
     });
@@ -126,13 +164,13 @@ describe('computeNodeHeight', () => {
 
   it('sums header and visible rows, adding the expand row only when collapsed rows remain', () => {
     const fits = Array.from({ length: ERD_COLLAPSED_ROWS }, (_, i) => field(`f${String(i)}`));
-    expect(computeNodeHeight({ fields: fits }, 'erd')).toBe(
-      ERD_HEADER_HEIGHT + ERD_COLLAPSED_ROWS * ERD_ROW_HEIGHT
+    expect(computeNodeHeight({ ...FULL, fields: fits }, 'erd')).toBe(
+      COMPACT_NODE_HEIGHT + ERD_COLLAPSED_ROWS * ERD_ROW_HEIGHT
     );
 
     const overflowing = [...fits, field('extra')];
-    expect(computeNodeHeight({ fields: overflowing }, 'erd')).toBe(
-      ERD_HEADER_HEIGHT + ERD_COLLAPSED_ROWS * ERD_ROW_HEIGHT + ERD_EXPAND_ROW_HEIGHT
+    expect(computeNodeHeight({ ...FULL, fields: overflowing }, 'erd')).toBe(
+      COMPACT_NODE_HEIGHT + ERD_COLLAPSED_ROWS * ERD_ROW_HEIGHT + ERD_EXPAND_ROW_HEIGHT
     );
   });
 });

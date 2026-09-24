@@ -10,6 +10,7 @@ Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX web
 
 - Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
 - The relationships count covers the whole storage, whatever the canvas filters hide.
+- A count of zero shows no badge, so a Data Mart without triggers or relationships keeps a shorter card.
 - **Object labels** in the canvas settings still hide the badges. **Uncheck all** still leaves only the titles.
 
 See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md).

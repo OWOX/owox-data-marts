@@ -290,6 +290,20 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByRole('img', { name: 'Shared for maintenance' })).not.toBeInTheDocument();
   });
 
+  it('hides the badges whose count is zero and drops the emptied row', () => {
+    renderNode(vi.fn(), [], undefined, undefined, undefined, undefined, {
+      triggersCount: 0,
+      relationshipCount: 0,
+    });
+
+    expect(screen.queryByText(/field/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/relationship/)).not.toBeInTheDocument();
+    // The source badge still shows, and the footer keeps the indicators.
+    expect(screen.getByText('View')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+  });
+
   it('waits for enrichment before showing the triggers count', () => {
     renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
       triggersCount: undefined,
