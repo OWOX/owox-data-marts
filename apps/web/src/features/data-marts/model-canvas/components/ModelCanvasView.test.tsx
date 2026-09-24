@@ -399,6 +399,34 @@ describe('ModelCanvasView', () => {
     expect(exportMocks.trackEvent).toHaveBeenCalledTimes(1);
   });
 
+  it('tracks a failed export chunk import so stale tabs show up in analytics', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+    const message =
+      'Failed to fetch dynamically imported module: https://app.example/assets/index-abc123.js';
+    viewState.exportHandle = { exportCanvas: vi.fn().mockRejectedValue(new Error(message)) };
+
+    render(<ModelCanvasView />);
+
+    fireEvent.pointerDown(await screen.findByTestId('export-canvas'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('export-canvas-json'));
+
+    await waitFor(() => {
+      expect(exportMocks.toast.error).toHaveBeenCalledWith(
+        "Couldn't export the model — please try again."
+      );
+    });
+    expect(exportMocks.trackEvent).toHaveBeenCalledTimes(1);
+    expect(exportMocks.trackEvent).toHaveBeenCalledWith({
+      event: 'chunk_load_error',
+      category: 'App',
+      action: 'CanvasExport',
+      label: message,
+    });
+  });
+
   it('reports a loading canvas instead of a silent no-op when export is not ready', async () => {
     // The mocked ModelCanvas never registers the export handle — the same
     // state as the real lazy chunk still loading behind Suspense.

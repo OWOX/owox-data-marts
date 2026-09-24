@@ -3,33 +3,14 @@ import { useRouteError, isRouteErrorResponse, Link } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { logRouteError } from './logRouteError';
-import { trackEvent } from '../../utils/data-layer';
-
-/**
- * A lazy chunk failed to load, typically a tab opened before a deploy asking
- * for a file the new build no longer ships. Message per browser: Chrome
- * "Failed to fetch dynamically imported module", Firefox "error loading
- * dynamically imported module", Safari "Importing a module script failed".
- */
-const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed/i;
-
-function isChunkLoadError(error: unknown): error is Error {
-  return error instanceof Error && CHUNK_LOAD_ERROR.test(error.message);
-}
+import { trackChunkLoadError } from '../../utils/chunk-load-error';
 
 export function LayoutErrorBoundary() {
   const error = useRouteError();
 
   useEffect(() => {
     logRouteError(error);
-    if (isChunkLoadError(error)) {
-      trackEvent({
-        event: 'chunk_load_error',
-        category: 'App',
-        action: 'LayoutErrorBoundary',
-        label: error.message,
-      });
-    }
+    trackChunkLoadError(error, 'LayoutErrorBoundary');
   }, [error]);
 
   if (isRouteErrorResponse(error) && error.status === 404) {
