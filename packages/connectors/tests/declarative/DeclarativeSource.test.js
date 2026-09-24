@@ -188,6 +188,44 @@ describe('DeclarativeSource (integration)', () => {
     assert.strictEqual(out[0].label, 'item-7');
   });
 
+  it('renders {{ node.selectedFields }} as the fields the Data Mart selected, comma-separated', async () => {
+    const selectedManifest = JSON.stringify({
+      version: '1.0',
+      name: 'SelectedDemo',
+      baseUrl: 'https://api.example.com',
+      authentication: { type: 'apiKey', inject: { into: 'query', name: 'key', format: 'test' } },
+      parameters: {},
+      nodes: {
+        rates: {
+          destinationName: 'demo_rates',
+          isTimeSeries: false,
+          uniqueKeys: ['date'],
+          fields: {
+            date: { dataPath: 'date', type: 'string' },
+            currency: { dataPath: 'currency', type: 'string' },
+            rate: { dataPath: 'rate', type: 'number' },
+          },
+          request: {
+            method: 'GET',
+            path: '/rates',
+            queryParameters: { fields: '{{ node.selectedFields }}' },
+          },
+          recordSelector: { recordPath: ['rows'] },
+        },
+      },
+    });
+    const model = new ManifestParser().parse(selectedManifest);
+    const source = new DeclarativeSource(makeContext(), model);
+    await source.fetchData({
+      nodeName: 'rates',
+      fields: ['date', 'rate'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    assert.strictEqual(new URL(requestedUrls[0]).searchParams.get('fields'), 'date,rate');
+  });
+
   it('reformats the injected cursor date per incremental.request.format', async () => {
     const fmtManifest = JSON.stringify({
       version: '1.0',

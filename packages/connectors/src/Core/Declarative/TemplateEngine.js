@@ -17,7 +17,6 @@ const ALLOWED_SCOPES = new Set([
   'auth',
   'node',
   'dateWindow',
-  'response',
   'job',
   'record',
   'stream_slice',

@@ -27,6 +27,13 @@ describe('TemplateEngine', () => {
     assert.throws(() => engine.render('{{ process.env }}', {}), /scope "process" is not allowed/);
   });
 
+  it('does not allow a response scope, which no request fills', () => {
+    assert.throws(
+      () => engine.render('{{ response.id }}', { response: { id: '1' } }),
+      /scope "response" is not allowed/
+    );
+  });
+
   it('throws on a missing value in an allowed scope', () => {
     assert.throws(
       () => engine.render('{{ parameters.missing }}', { parameters: {} }),
