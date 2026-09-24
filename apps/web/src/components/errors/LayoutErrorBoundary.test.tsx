@@ -4,23 +4,19 @@ import { RouterProvider } from 'react-router/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayoutErrorBoundary } from './LayoutErrorBoundary';
 import { logRouteError } from './logRouteError';
-
-const state = vi.hoisted(() => ({ stale: false }));
-
-vi.mock('../../app/stale-chunk', () => ({
-  hasStaleChunk: () => state.stale,
-}));
+import { trackEvent } from '../../utils/data-layer';
 
 vi.mock('./logRouteError', () => ({ logRouteError: vi.fn() }));
+vi.mock('../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
-function renderFailingRoute() {
+function renderFailingRoute(message: string) {
   const router = createMemoryRouter([
     {
       path: '/',
       element: <div>never rendered</div>,
       errorElement: <LayoutErrorBoundary />,
       loader: () => {
-        throw new Error('Failed to fetch dynamically imported module');
+        throw new Error(message);
       },
     },
   ]);
@@ -29,32 +25,34 @@ function renderFailingRoute() {
 
 describe('LayoutErrorBoundary', () => {
   beforeEach(() => {
-    state.stale = false;
     vi.mocked(logRouteError).mockClear();
+    vi.mocked(trackEvent).mockClear();
     // React Router reports loader errors on the console in tests; keep the output quiet.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('shows the error screen and logs the error for an ordinary route error', async () => {
-    renderFailingRoute();
+  it('shows the error screen and logs an ordinary route error without tracking it', async () => {
+    renderFailingRoute('boom');
 
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
     expect(logRouteError).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(logRouteError).mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(trackEvent).not.toHaveBeenCalled();
   });
 
-  it('explains the new version, offers Reload Page first, and still logs once', async () => {
-    state.stale = true;
+  it('logs a failed chunk import and sends it to analytics', async () => {
+    const message =
+      'Failed to fetch dynamically imported module: https://app.example/assets/ModelCanvas-abc123.js';
 
-    renderFailingRoute();
+    renderFailingRoute(message);
 
-    expect(await screen.findByText('A new version is available')).toBeInTheDocument();
-    const reloadButton = screen.getByRole('button', { name: 'Reload Page' });
-    const homeLink = screen.getByRole('link', { name: 'Guide Me Home' });
-    expect(
-      reloadButton.compareDocumentPosition(homeLink) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
     expect(logRouteError).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledWith({
+      event: 'chunk_load_error',
+      category: 'App',
+      action: 'LayoutErrorBoundary',
+      label: message,
+    });
   });
 });
