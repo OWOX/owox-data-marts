@@ -60,15 +60,14 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
           {ICON_SECTIONS.map(({ group, options }) => (
             <section key={group}>
               <h4 className='text-muted-foreground mb-1 text-xs font-medium'>{group}</h4>
-              <div className='grid grid-cols-8 gap-1' role='listbox' aria-label={group}>
+              <div className='grid grid-cols-8 gap-1' role='group' aria-label={group}>
                 {options.map(({ key, label, icon: Icon }) => {
                   const selected = key === icon;
                   return (
                     <button
                       key={key}
                       type='button'
-                      role='option'
-                      aria-selected={selected}
+                      aria-pressed={selected}
                       aria-label={label}
                       title={label}
                       onClick={() => void pick(key)}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartIconPicker } from './DataMartIconPicker';
 import {
@@ -37,11 +37,11 @@ describe('DataMartIconPicker', () => {
     render(<DataMartIconPicker icon='sessions' onChange={onChange} />);
 
     open();
-    expect(screen.getByRole('option', { name: 'Sessions' })).toHaveAttribute(
-      'aria-selected',
+    expect(screen.getByRole('button', { name: 'Sessions' })).toHaveAttribute(
+      'aria-pressed',
       'true'
     );
-    fireEvent.click(screen.getByRole('option', { name: 'Purchases' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Purchases' }));
 
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith('purchases');
@@ -54,9 +54,12 @@ describe('DataMartIconPicker', () => {
     open();
 
     for (const group of DATA_MART_ICON_GROUPS) {
-      expect(screen.getByRole('listbox', { name: group })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: group })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole('option')).toHaveLength(DATA_MART_ICON_OPTIONS.length);
+    const iconButtons = DATA_MART_ICON_GROUPS.flatMap(group =>
+      within(screen.getByRole('group', { name: group })).getAllByRole('button')
+    );
+    expect(iconButtons).toHaveLength(DATA_MART_ICON_OPTIONS.length);
   });
 
   it('does not save when the current icon is picked again', () => {
@@ -64,7 +67,7 @@ describe('DataMartIconPicker', () => {
     render(<DataMartIconPicker icon='sessions' onChange={onChange} />);
 
     open();
-    fireEvent.click(screen.getByRole('option', { name: 'Sessions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
 
     expect(onChange).not.toHaveBeenCalled();
   });

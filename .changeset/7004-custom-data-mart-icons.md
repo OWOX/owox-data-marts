@@ -12,3 +12,5 @@ Click the icon next to a Data Mart's title to give it one that matches its subje
 - The API returns the icon as `icon` on a Data Mart, in the Data Mart list and in `GET /api/model-canvas/data-marts`. Set it with `PUT /api/data-marts/{id}/icon` or when creating a Data Mart; an unknown icon key is rejected with `400`, and `null` resets it.
 
 See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md#data-mart-icons).
+
+<!-- markdownlint-disable-file MD041 MD036 -->
