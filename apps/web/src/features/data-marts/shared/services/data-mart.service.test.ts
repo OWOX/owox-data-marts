@@ -227,6 +227,21 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('updateDataMartIcon', () => {
+    it.each([['purchases' as const], [null]])('sends %s to the icon endpoint', async icon => {
+      (apiClient.put as any).mockResolvedValueOnce({ data: { ...mockDataMartResponse, icon } });
+
+      const result = await service.updateDataMartIcon(mockDataMartId, icon);
+
+      expect(apiClient.put).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/icon`,
+        { icon },
+        undefined
+      );
+      expect(result).toEqual({ ...mockDataMartResponse, icon });
+    });
+  });
+
   describe('updateDataMartDescription', () => {
     it('should update a data mart description', async () => {
       const description = 'New description';

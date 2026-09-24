@@ -128,6 +128,7 @@ import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
 import { UpdateBlendedFieldsConfigService } from './use-cases/update-blended-fields-config.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
+import { UpdateDataMartIconService } from './use-cases/update-data-mart-icon.service';
 import { UpdateDataMartOwnersService } from './use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
 import { ListDataStoragesService } from './use-cases/list-data-storages.service';
@@ -660,6 +661,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     PublishDataMartService,
     UpdateBlendedFieldsConfigService,
     UpdateDataMartDescriptionService,
+    UpdateDataMartIconService,
     UpdateDataMartOwnersService,
     UpdateDataMartTitleService,
     DataMartMapper,

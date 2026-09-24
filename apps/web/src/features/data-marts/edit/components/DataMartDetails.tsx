@@ -42,6 +42,7 @@ import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
+import { DataMartIconPicker, type DataMartIconKey } from '../../shared/components/DataMartIcon';
 import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
@@ -68,6 +69,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartIcon,
     updateDataMartOwners,
     updateDataMartDefinition,
     actualizeDataMartSchema,
@@ -197,6 +199,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       await updateDataMartTitle(dataMartId, newTitle);
     },
     [dataMartId, dataMart?.storage.type, updateDataMartTitle]
+  );
+
+  const handleIconChange = useCallback(
+    async (icon: DataMartIconKey | null) => {
+      if (!dataMartId) return;
+      await updateDataMartIcon(dataMartId, icon);
+    },
+    [dataMartId, updateDataMartIcon]
   );
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
@@ -360,6 +370,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           >
             <ArrowLeft className='h-4 w-4 lg:h-5 lg:w-5' />
           </Button>
+          <DataMartIconPicker
+            icon={dataMart.icon ?? null}
+            onChange={handleIconChange}
+            className='mt-0.5 ml-1 md:mt-0 md:ml-0'
+          />
           <div data-testid='datamartTitleInput' className='min-w-0 flex-1'>
             <InlineEditTitle
               title={dataMartTitle}

@@ -9,6 +9,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { GetModelCanvasDataMartsService } from './get-model-canvas-data-marts.service';
+import { DataMartIcon } from '../enums/data-mart-icon.enum';
 
 describe('GetModelCanvasDataMartsService', () => {
   const dataMartService = { findByProjectIdAndStorageIdForCanvas: jest.fn() };
@@ -90,7 +91,11 @@ describe('GetModelCanvasDataMartsService', () => {
   it('maps data marts to nodes with fieldCount from schema', async () => {
     dataMartService.findByProjectIdAndStorageIdForCanvas.mockResolvedValue({
       items: [
-        dm('a', { schema: { fields: [{}, {}, {}] } as never, description: 'desc' }),
+        dm('a', {
+          schema: { fields: [{}, {}, {}] } as never,
+          description: 'desc',
+          icon: DataMartIcon.PURCHASES,
+        }),
         dm('b', { status: DataMartStatus.DRAFT }),
       ],
       total: 2,
@@ -112,6 +117,7 @@ describe('GetModelCanvasDataMartsService', () => {
         title: 'DM a',
         status: DataMartStatus.PUBLISHED,
         description: 'desc',
+        icon: DataMartIcon.PURCHASES,
         fieldCount: 3,
         dataLastUpdated: null,
       },
@@ -120,6 +126,7 @@ describe('GetModelCanvasDataMartsService', () => {
         title: 'DM b',
         status: DataMartStatus.DRAFT,
         description: null,
+        icon: null,
         fieldCount: 0,
         dataLastUpdated: null,
       },

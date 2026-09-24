@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Box,
   CalendarClock,
   Columns3,
   ExternalLink,
@@ -39,6 +38,8 @@ import {
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { DataMartIconKey } from '../../shared/components/DataMartIcon/data-mart-icons';
+import { DataMartIconGlyph } from '../../shared/components/DataMartIcon/DataMartIconGlyph';
 
 export interface ModelCanvasFlowNodeData {
   title: string;
@@ -50,6 +51,7 @@ export interface ModelCanvasFlowNodeData {
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   description: string | null;
+  icon: DataMartIconKey | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
@@ -196,7 +198,7 @@ export default function ModelCanvasFlowNode({
           className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
           aria-hidden='true'
         >
-          <Box className='h-4 w-4' />
+          <DataMartIconGlyph icon={data.icon} className='h-4 w-4' />
         </span>
         <span
           className='text-foreground min-w-0 flex-1 truncate text-sm font-semibold'

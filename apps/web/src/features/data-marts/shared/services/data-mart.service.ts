@@ -27,6 +27,7 @@ import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/creat
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
+import type { DataMartIconKey } from '../components/DataMartIcon/data-mart-icons';
 
 /**
  * Data Mart Service
@@ -112,6 +113,16 @@ export class DataMartService extends ApiService {
     description: string | null
   ): Promise<DataMartResponseDto> {
     return this.put<DataMartResponseDto>(`/${id}/description`, { description });
+  }
+
+  /**
+   * Update a data mart icon
+   * @param id Data mart ID
+   * @param icon Icon key, or null to reset to the default icon
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartIcon(id: string, icon: DataMartIconKey | null): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/icon`, { icon });
   }
 
   /**

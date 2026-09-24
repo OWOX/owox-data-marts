@@ -3,6 +3,7 @@ import type { DataMartStatus } from '../../shared/enums';
 import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { DataMartIconKey } from '../../shared/components/DataMartIcon/data-mart-icons';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -21,6 +22,8 @@ export interface ModelCanvasNode {
   title: string;
   status: DataMartStatus;
   description: string | null;
+  /** User-picked icon; null draws the default one. */
+  icon?: DataMartIconKey | null;
   fieldCount: number;
   /**
    * Definition type + fields are enriched client-side from the Data Mart detail

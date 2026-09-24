@@ -38,6 +38,7 @@ export class ModelCanvasMapper {
       title: dataMart.title,
       status: dataMart.status,
       description: dataMart.description ?? null,
+      icon: dataMart.icon ?? null,
       fieldCount: dataMart.schema?.fields?.length ?? 0,
       dataLastUpdated: toSourceDataLastUpdatedSummary(dataMart.dataLastUpdated),
     };

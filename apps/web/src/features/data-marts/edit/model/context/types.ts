@@ -16,6 +16,7 @@ import type { DataMartDefinitionConfig } from '../types';
 import type { ApiError, AxiosRequestConfig } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { DataMartRunItem } from '../types';
+import type { DataMartIconKey } from '../../../shared/components/DataMartIcon/data-mart-icons';
 
 export interface DataMartState {
   dataMart: DataMart | null;
@@ -45,6 +46,9 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_START' }
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS'; payload: string }
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR'; payload: ApiError }
+  | { type: 'UPDATE_DATA_MART_ICON_START' }
+  | { type: 'UPDATE_DATA_MART_ICON_SUCCESS'; payload: DataMartIconKey | null }
+  | { type: 'UPDATE_DATA_MART_ICON_ERROR'; payload: ApiError }
   | { type: 'UPDATE_DATA_MART_STORAGE'; payload: DataMart['storage'] }
   | { type: 'UPDATE_DATA_MART_DEFINITION_START' }
   | {
@@ -89,6 +93,7 @@ export interface DataMartContextType extends DataMartState {
   deleteDataMart: (id: string) => Promise<void>;
   updateDataMartTitle: (id: string, title: string) => Promise<void>;
   updateDataMartDescription: (id: string, description: string) => Promise<void>;
+  updateDataMartIcon: (id: string, icon: DataMartIconKey | null) => Promise<void>;
   updateDataMartStorage: (storage: DataMart['storage']) => void;
   updateDataMartDefinition: (
     id: string,

@@ -10,13 +10,21 @@ Click a card to highlight every relationship it takes part in. Click it again, o
 
 ## What a card shows
 
-- The **title**, with a **Draft** badge when the Data Mart is not published yet.
+- The Data Mart **icon** and **title**, with a **Draft** badge when the Data Mart is not published yet. See [Data Mart icons](#data-mart-icons).
 - The **input source** (Table, View, SQL, Pattern or Connector) and the **field count** of the Output Schema.
 - The number of **triggers** and **relationships**. The relationships count covers the whole storage, whatever the filters hide. It counts the relationships the Data Mart defines and the ones that point to it.
 - The [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) indicators. The colored bar on the left edge repeats the Data Quality status.
 - Sharing icons, when the Data Mart is shared for reporting or for maintenance. Hover an icon to see which one it is.
 
 A count of zero shows no badge. A Data Mart without triggers has no triggers badge, and one with no relationships has no relationships badge. The trigger count and the sharing icons appear once the canvas has loaded the Data Mart details.
+
+## Data Mart icons
+
+Every card leads with an icon, so you can tell purchases from sessions at a glance. A Data Mart shows a plain box until someone picks an icon for it.
+
+To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend, traffic sources and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
+
+The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG [exports](models-canvas-export.md).
 
 ## Toolbar
 

@@ -8,6 +8,7 @@ import { ConnectorState as ConnectorStateData } from '../../connector-types/inte
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { SourceDataLastUpdated } from '../schemas/source-data-last-updated.schema';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 
 export class DataMartDto {
   constructor(
@@ -31,6 +32,7 @@ export class DataMartDto {
     public readonly availableForMaintenance: boolean = true,
     public readonly blendedFieldsConfig?: BlendedFieldsConfig,
     public readonly contexts: ContextSummary[] = [],
-    public readonly dataLastUpdated: SourceDataLastUpdated | null = null
+    public readonly dataLastUpdated: SourceDataLastUpdated | null = null,
+    public readonly icon: DataMartIcon | null = null
   ) {}
 }

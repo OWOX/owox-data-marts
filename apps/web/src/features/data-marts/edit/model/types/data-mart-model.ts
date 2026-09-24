@@ -7,6 +7,7 @@ import type { DataMartSchema } from '../../../shared/types/data-mart-schema.type
 import type { ConnectorStateResponseDto } from '../../../shared/types/api/response/connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
 import type { DataLastUpdatedDto } from '../../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { DataMartIconKey } from '../../../shared/components/DataMartIcon/data-mart-icons';
 
 /**
  * Data mart domain model
@@ -26,6 +27,11 @@ export interface DataMart {
    * Description
    */
   description: string | null;
+
+  /**
+   * User-picked icon; null draws the default one
+   */
+  icon?: DataMartIconKey | null;
 
   /**
    * Status
