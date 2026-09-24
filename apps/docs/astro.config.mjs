@@ -144,7 +144,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Sources',
           items: [
-            { label: 'Connector Manifest Reference', slug: 'docs/connectors/manifest-reference' },
+            {
+              label: 'Declarative Connectors',
+              items: [
+                {
+                  label: 'Declarative Connectors Source',
+                  slug: 'docs/connectors/declarative-connectors',
+                },
+                { label: 'Connector Builder', slug: 'docs/connectors/connector-builder' },
+                {
+                  label: 'Connector Manifest Reference',
+                  slug: 'docs/connectors/manifest-reference',
+                },
+              ],
+            },
             { autogenerate: { directory: 'packages/connectors/src/sources' } },
           ],
         },

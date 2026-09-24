@@ -6,15 +6,15 @@ You are authoring an OWOX no-code **declarative connector manifest** (a single J
 
 Output contract: produce exactly ONE JSON object — the manifest itself. No prose, no Markdown code fences, nothing before or after it, unless the tool or conversation you are operating in explicitly asks for a different envelope (e.g. a `{ "message": ..., "manifest": ... }` wrapper). Never invent secret values (API keys, client secrets, tokens) — leave the corresponding `parameters` entries for a human to fill in.
 
-Lifecycle reminder: you author the manifest; the user imports it into the OWOX connector builder, tests one node there with non-secret configuration only (e.g. date ranges, IDs, filters — never API keys or tokens), brings back anything the test reports for you to fix, and publishes it. Secure credentials are entered by the user in OWOX, never through the assistant. See §20 for the full workflow.
+Lifecycle reminder: you author the manifest; the user imports it into the OWOX connector builder, tests one node there (an API key or token goes only into a parameter marked `SECRET`, which the builder never saves), brings back anything the test reports for you to fix, and publishes it. Secure credentials are entered by the user in OWOX, never through the assistant. See §20 for the full workflow.
 
 ## 2. Top-level manifest keys
 
 Required:
 
 - `version` — always the string `"1.0"`.
-- `name` — a short PascalCase identifier, e.g. `"MolocoCloud"`.
-- `baseUrl` — the API origin, e.g. `"https://api.example.com"` (no trailing path).
+- `name` — the connector's identifier: letters, digits and underscores, starting with a letter; PascalCase by convention, e.g. `"MolocoCloud"`. It cannot be changed after the connector is created.
+- `baseUrl` — the address every request path is appended to, over HTTPS, e.g. `"https://api.example.com"` or `"https://api.example.com/v1"`. Leave off the trailing slash.
 - `parameters` — an object of user-supplied inputs (may be `{}` if the connector needs none). See §4.
 - `nodes` — an object keyed by node name; each value is one data stream. See §6.
 
@@ -29,14 +29,14 @@ Optional:
 
 ## 3. Name-mapping gotchas
 
-These four are the most common rejection causes — the parser is strict and does not accept near-miss names:
+The parser does NOT check for unknown keys: a misspelled key is silently ignored, the manifest still publishes, and the mistake only shows when the node is tested (for example, a `401` because an `auth` block was never read). These four are the most common:
 
 - The auth block is `authentication`, **not** `auth`.
 - A request's query string is `queryParameters`, **not** `queryParams`.
 - A record's row-selector is `recordSelector.recordPath` (an **array** of keys), **not** `fieldPath`.
 - `fields` is an **object keyed by field name**, **not** an array.
 
-A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`) is an **array of key segments** (`["stats", "spending"]`). Mixing the two up is a common, silent bug — the parser refuses a dot-string in any of those array positions, so it fails at publish rather than silently at run time.
+A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`) is an **array of key segments** (`["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
 
 ## 4. `parameters`
 
@@ -211,13 +211,13 @@ Picks one of several authentication branches at runtime based on a parameter's v
 - `destinationName` — optional; the destination table name (defaults to the node name).
 - `isTimeSeries` — boolean; marks the node as date-windowed. You rarely need to set it: declaring an `incremental` block with a strategy other than `none` (§9) already implies it. Set it explicitly only for a node that should take the date-window path without declaring one. It cannot be combined with `isFullRefresh`.
 - `defaultFields` — optional array of field names pre-selected by default (defaults to all declared fields).
-- `request` — `{ method, path, queryParameters?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and **must start with `/`**.
+- `request` — `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and **must start with `/`**. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`.
 - `recordSelector.recordPath` — array of keys locating the row(s) in the JSON response (see §18 for the exact extraction rule). `recordSelector.responseFormat` is optional — `json` (default), `csv`, or `jsonl`.
 - `fields` — object keyed by field name (§7).
 
 A node also optionally carries `pagination` (§8), `incremental` (§9), `partitionRouter` (§10), `transformations` (§13), `recordFilter` (§14), and `errorHandler` (§15) — all covered in their own sections below.
 
-An **async** node (§12) replaces `request` + `recordSelector` with a `retriever: { type: "async", submit, poll, download }` block instead — it must not declare a plain `request`/`recordSelector` at the node level.
+An **async** node (§12) replaces `request` + `recordSelector` with a `retriever: { type: "async", submit, poll, download }` block instead. A node-level `request` on an async node is ignored.
 
 ## 7. `fields`
 
@@ -255,7 +255,7 @@ Optional, node-level. `pagination.type` is one of `none`, `offset`, `page`, `cur
 }
 ```
 
-- `offset` — stops once a page returns fewer than `pageSize` records; each subsequent request adds `pageSize` to the running offset.
+- `offset` — stops once a page returns fewer than `pageSize` records; each subsequent request adds `pageSize` to the running offset. The engine does not send the page size itself: request it in `queryParameters` (e.g. `"limit": "100"`, as the Cốc Cốc Ads example does), or a smaller default page from the API stops pagination after the first page.
 - `page` — stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (default 1).
 - `cursor` — reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path`: array) or a response header (`cursor.from: "header"`, `cursor.header`: name, optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found.
 
@@ -299,7 +299,7 @@ Declaring a strategy other than `none` makes the node a time series on its own �
 }
 ```
 
-- `day-by-day` — the run is split into one request per calendar day; only `startName`/`startPath` is used (the window's start and end are the same day).
+- `day-by-day` — the run is split into one request per calendar day. The window's start and end are the same date, so `startName`/`startPath` alone is usually enough; an `endName`/`endPath`, if set, gets the same date.
 - `range` — one request per configured date range; use `startName`+`endName` (query) or `startPath`+`endPath` (body).
 - `request.into` — `"query"` (adds `startName`/`endName` query parameters) or `"body"` (deep-sets `startPath`/`endPath`, arrays, into the request body).
 - `request.format` — **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are always `00`); `X`/`x` mean unix epoch seconds/milliseconds. Omitted or `YYYY-MM-DD` means "pass the date through unchanged". Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (e.g. don't use `mm` inside a literal word).
@@ -357,7 +357,11 @@ Optional, top-level; runs every node once per account ID instead of once per con
 
 Each resolved id becomes `{{ account.id }}` inside that account's requests, and node fetching runs once per id. If `accounts` is omitted, the node runs exactly once with no `account.id` scope.
 
-Account-level error handling is currently **fail-fast and not manifest-configurable**: if any node fails for any account, the entire run aborts (no later account or node is attempted, and the incremental cursor is not advanced past the partially-failed window). There is no per-account "skip and continue" policy an author can set in the manifest today.
+One account's failure does not stop the others: the engine attempts every account, then decides the run's outcome. The policy is not configurable in the manifest.
+
+- An account the API turns away with `401` or `403` is skipped: the run logs a warning, and the date window still counts as loaded, so that account's data is recovered with a manual backfill.
+- Any other failure is logged as an error, and the window is requested again on the next run; the run then fails, naming the accounts that did not import.
+- If no account imported anything, the run fails.
 
 ## 12. `retriever: async` — submit / poll / download
 
@@ -387,7 +391,7 @@ For APIs that generate a report asynchronously: submit a job, poll until it is r
 
 - `submit` — a request spec plus `jobIdPath` (array), locating the newly created job's id in the submit response.
 - `poll` — a request spec (its `path`/templates may reference `{{ job.id }}`) plus `statusPath` (array), `readyValue`, optional `failedValue`, and `resultUrlPath` (array) locating a download URL once the job succeeds. `poll.backoff` bounds the polling loop: `maxAttempts` (default 180), `initialMs` (default 3000), `maxMs` (default 15000) — delay doubles each attempt up to `maxMs`. A response matching `failedValue` throws immediately; exhausting `maxAttempts` without reaching `readyValue` also throws.
-- `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows (§18).
+- `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows (§18). The download URL comes from the API, so it may be on any public HTTPS host, not only the manifest's own.
 
 Note: this poll `backoff` is a completely separate mechanism from a node's `errorHandler.backoff` (§15) — the former paces the async job-status loop, the latter paces HTTP-error retries. An async node must not carry an `errorHandler` at all: the engine wires that for sync retrievers only, so the parser refuses the pairing at publish.
 
@@ -428,6 +432,8 @@ Optional, node-level; keeps or drops each raw record BEFORE transformations run.
 - `isNull` / `isNotNull` — no `value` needed; true when the path resolves to `null`/`undefined` (or not, respectively).
 - `inList` — true when the value at `path` is one of a resolved list, supplied either as a literal comma-string `value` or a parameter name via `valuesFromParameter` (also comma-split). Exactly one of the two must be present.
 
+A record where `path` is missing never matches `equals`, `contains` or `inList`, and always matches `notEquals` — so `notEquals` keeps records that lack the field.
+
 Only ONE `recordFilter` per node (it is a single object, not an array).
 
 ## 15. `errorHandler` — actions × backoff
@@ -458,8 +464,10 @@ Optional, node-level, and applies to **sync nodes only** — an `errorHandler` o
 Each filter needs at least one of `httpCodes` (number array), `messageContains` (string, matched against the raw error message/body text), or `bodyMatch` (`{ path: [...], equals?: <string>, contains?: <string> }`, matched against the parsed JSON body) — plus a required `action`. `action` is one of `RETRY`, `IGNORE`, `FAIL`:
 
 - `RETRY` — retry the request, delayed by this filter's `backoff` (or the handler's top-level `backoff` if the filter has none).
-- `IGNORE` — treat the failed request as if it returned zero records; the node continues (does not fail the run).
-- `FAIL` — do not retry; the error propagates and fails the run (same outcome as an error matching no filter at all).
+- `IGNORE` — treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are NOT imported. The run does not fail, and its log names the skipped request.
+- `FAIL` — do not retry; the error fails the run.
+
+An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once.
 
 `backoff.type` is one of `constant`, `exponential`, `waitTimeFromHeader`, `waitUntilTimeFromHeader`:
 
@@ -469,6 +477,8 @@ Each filter needs at least one of `httpCodes` (number array), `messageContains` 
 - `waitUntilTimeFromHeader` — requires `header` (an epoch-seconds value); optional `regex` to extract the number out of a larger header string, optional `minMs` floor on the computed delay.
 
 A `backoff` may also be set directly on `errorHandler` (no `responseFilters` match required) as the node's default retry pacing.
+
+A delay read from a response header (`waitTimeFromHeader`, `waitUntilTimeFromHeader`) is capped at 5 minutes, including after the `minMs` floor.
 
 ## 16. `rateLimit`
 
@@ -485,13 +495,19 @@ Optional, top-level; a simple global cap shared by every request the connector m
 Every string field that accepts a template uses `{{ scope.path }}` syntax (double curly braces; no spaces required but conventionally one space on each side). The scopes an author can reference:
 
 - `{{ parameters.X }}` — any declared parameter's resolved value.
-- `{{ account.id }}` — the current account id, when `accounts` (§11) or `partitionRouter` account-style fan-out is in play.
+- `{{ account.id }}` — the current account id, when the connector declares `accounts` (§11). Without `accounts` there is no account id.
 - `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (only meaningful inside that same authenticator's `inject.format`).
 - `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current incremental run's date window (`YYYY-MM-DD` strings).
+- `{{ node.selectedFields }}` — the names of the fields the Data Mart selected for this node, comma-separated (e.g. `date,rate`), for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s.
 - `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request (§10).
 - `{{ job.id }}` — the async job id, inside `retriever.async.poll` (§12).
+- `{{ record.<field> }}` — a field of the current record, only inside `transformations.add.value` (§13).
 
-An unresolved path normally throws (fails the run) — except inside `transformations.add.value` (§13), which resolves leniently and renders an unresolved path as an empty string instead.
+What happens to an unresolved path depends on where it is:
+
+- In the request `path`, the request `body` and the authentication fields, it throws (fails the run).
+- In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
+- Inside `transformations.add.value` (§13), it renders as an empty string.
 
 ## 18. Engine record-mapping rules & limitations
 
@@ -501,7 +517,7 @@ The per-node pipeline, in order: **fetch (+ pagination) → `recordFilter` → `
 - A field's value is read via `dataPath` (preferred) or `apiName` — a dot-string path (`"a.b.c"`) into the (post-filter, post-transformation) record. When the row itself is an array, use the positional index as the path (`"0"`, `"1"`). Missing/empty values become `null` (the engine never emits `NaN`); object/array values are JSON-stringified rather than becoming `"[object Object]"`.
 - `parameters` must always be present at the top level, even if empty (`{}`).
 - A node with `partitionRouter` cannot also have `retriever: { type: "async" }`, and vice versa.
-- An async node (`retriever.type === "async"`) must include `submit`, `poll`, and `download`; it must NOT also declare a node-level `request`/`recordSelector`.
+- An async node (`retriever.type === "async"`) must include `submit`, `poll`, and `download`; leave out a node-level `request`, which an async node ignores.
 - `apiKey`/`bearer`/`basic` inject a credential the user fills in directly; `tokenExchange`/`oauth2` exchange it for a server-issued token first.
 
 ## 19. Worked examples
@@ -819,6 +835,6 @@ Expands the `partitionRouter: substream` shape (§10) into one complete node: fe
 1. Read this whole reference before writing or editing a manifest.
 2. Research the target API (its own docs, pasted after this reference) and author the manifest — pick the auth type (§5), define one node per data stream you need (§6–§7), and add pagination/incremental/filters/transformations/error-handling only where the API actually needs them.
 3. The user saves your output as a `.json` file and imports it in the OWOX connector builder (⋮ menu → Import JSON…), or pastes it into the builder's Code mode.
-4. The user runs Test on one node with non-secret configuration values only (e.g. date ranges, IDs, filters) — this dry-runs that node against the live API. API keys and tokens never go into that configuration.
+4. The user runs Test on one node — this dry-runs that node against the live API. An API key or token goes only into a parameter marked `SECRET`: the builder uses Secret values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, the user brings you the error. Make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API) and return the whole corrected manifest.
 6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user enters them in OWOX (on the Data Mart page, or in the connector's Test), never through the assistant.
