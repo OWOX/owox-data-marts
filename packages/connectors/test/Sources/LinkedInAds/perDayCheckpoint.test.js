@@ -14,7 +14,12 @@ globalThis.FormatUtils = {
 };
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/LinkedInAds/Connector.js'), {
-  AbstractConnector: class {},
+  AbstractConnector: class {
+    // Short link hook lives on the real base class; pass records through here
+    async resolveShortLinks(_nodeName, data) {
+      return data;
+    }
+  },
 });
 
 const connectorProto = globalThis.LinkedInAdsConnector.prototype;

@@ -169,7 +169,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
           let totalRows = 0;
           await this.source.fetchData(nodeName, accountId, fields, null,
             async (pageData) => {
-              await storage.saveData(pageData);
+              await storage.saveData(await this.resolveShortLinks(nodeName, pageData, fields));
               totalRows += pageData.length;
             }
           );
@@ -228,6 +228,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
               // fetching new data from a data source
               let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
+              data = await this.resolveShortLinks(nodeName, data, timeSeriesNodes[ nodeName ]);
 
               if( data.length || this.config.CreateEmptyTables?.value ) {
                 const storage = await this.getStorageByNode(nodeName);

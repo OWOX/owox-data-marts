@@ -39,7 +39,11 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1735735588640770",
     "fields": adsFields,
     "uniqueKeys": ["ad_id"],
-    "defaultFields": ["ad_name", "advertiser_id", "campaign_id", "campaign_name", "adgroup_id", "adgroup_name"],
+    "shortLinks": [
+      { field: "landing_page_url", target: "landing_page_url_parsed" },
+      { field: "landing_page_urls", target: "landing_page_urls_parsed" }
+    ],
+    "defaultFields": ["ad_name", "advertiser_id", "campaign_id", "campaign_name", "adgroup_id", "adgroup_name", "landing_page_url", "landing_page_url_parsed"],
     "destinationName": "tiktok_ads_ads"
   },
   "ad_insights": {

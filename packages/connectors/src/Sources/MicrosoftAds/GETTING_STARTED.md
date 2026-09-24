@@ -35,6 +35,19 @@ Before you begin, please ensure that:
 
 ![Microsoft Publish Data Mart](res/microsoft_publishdatamart.png)
 
+### Resolve Short Links
+
+Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+
+- **Ad Performance Report**: `FinalUrl`, `FinalMobileUrl` and `DestinationUrl` resolve into `FinalUrlParsed`, `FinalMobileUrlParsed` and `DestinationUrlParsed`.
+- **Campaigns**: `FinalUrl` and `MobileFinalUrl` resolve into `FinalUrlParsed` and `MobileFinalUrlParsed`.
+
+Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects `FinalUrl` and `FinalUrlParsed` on the Ad Performance Report by default. A parsed field holds the landing page for short links and the original value for other links.
+
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
+
+OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
+
 ## Run the Data Mart
 
 You now have two options for importing data from Microsoft Ads:  

@@ -66,8 +66,16 @@ var cardAllFields = {
     'description': 'Canonical website URL',
     'type': DATA_TYPES.STRING
   },
+  'website_url_parsed': {
+    'description': 'website_url resolved to its landing page when it is a short link; otherwise the same value. Requires website_url and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'website_dest_url': {
     'description': 'Destination URL used for clicks',
+    'type': DATA_TYPES.STRING
+  },
+  'website_dest_url_parsed': {
+    'description': 'website_dest_url resolved to its landing page when it is a short link; otherwise the same value. Requires website_dest_url and Process Short Links.',
     'type': DATA_TYPES.STRING
   },
   'website_display_url': {

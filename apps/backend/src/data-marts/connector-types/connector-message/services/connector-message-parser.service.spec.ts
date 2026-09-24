@@ -5,6 +5,21 @@ import { ConnectorMessageParserService } from './connector-message-parser.servic
 describe('ConnectorMessageParserService', () => {
   const createService = () => new ConnectorMessageParserService();
 
+  it('parses connector state updates and names the keys they carry', () => {
+    const service = createService();
+
+    const result = service.parse(
+      JSON.stringify({
+        type: ConnectorMessageType.STATE_UPDATE,
+        at: '2026-09-24 10:00:00',
+        state: { shortLinks: { 'https://short.example/abc': ['https://example.com/landing', 1] } },
+      })
+    );
+
+    expect(result.type).toBe(ConnectorMessageType.STATE_UPDATE);
+    expect(result.toFormattedString()).toBe('[STATE_UPDATE] shortLinks');
+  });
+
   it('redacts malformed credential update messages parsed as unknown', () => {
     const service = createService();
 

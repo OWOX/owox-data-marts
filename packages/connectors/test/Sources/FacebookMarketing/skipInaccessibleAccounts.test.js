@@ -9,7 +9,12 @@ globalThis.DateUtils = { formatDate: date => date.toISOString().slice(0, 10) };
 globalThis.RUN_CONFIG_TYPE = { INCREMENTAL: 'INCREMENTAL' };
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/FacebookMarketing/Connector.js'), {
-  AbstractConnector: class {},
+  AbstractConnector: class {
+    // Short link hook lives on the real base class; pass records through here
+    async resolveShortLinks(_nodeName, data) {
+      return data;
+    }
+  },
 });
 
 const connectorProto = globalThis.FacebookMarketingConnector.prototype;
@@ -34,6 +39,8 @@ const buildConnector = ({ fetchData, saveData = async () => undefined } = {}) =>
   self.runConfig = { type: 'INCREMENTAL' };
   self.source = { fetchData };
   self.getStorageByNode = async () => ({ saveData });
+  // AbstractConnector is stubbed above; the short link hook is a pass-through here
+  self.resolveShortLinks = async (_nodeName, data) => data;
   self.config = {
     logMessage: message => logs.push(message),
     logError: () => {},

@@ -107,6 +107,13 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         description: "Maximum number of entity_ids allowed per request for stats endpoint",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
+      ProcessShortLinks: {
+        requiredType: "boolean",
+        default: true,
+        label: "Process Short Links",
+        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example website_url_parsed)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -139,6 +146,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    */
   async fetchData({ nodeName, accountId, fields = [], start_time, end_time, dateChunk, onBatchReady }) {
+    // Connector-only short link columns are filled after the fetch; never request them from the API
+    fields = omitShortLinkTargets(this.fieldsSchema[nodeName], fields);
     await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
 
     switch (nodeName) {

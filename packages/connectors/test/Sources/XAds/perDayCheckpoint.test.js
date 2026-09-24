@@ -26,7 +26,12 @@ const toFieldsString = nodes =>
     .join(', ');
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/XAds/Connector.js'), {
-  AbstractConnector: class {},
+  AbstractConnector: class {
+    // Short link hook lives on the real base class; pass records through here
+    async resolveShortLinks(_nodeName, data) {
+      return data;
+    }
+  },
 });
 
 const connectorProto = globalThis.XAdsConnector.prototype;

@@ -56,6 +56,73 @@ var AbstractConnector = class AbstractConnector {
       // Apply run config to the configuration
       this._processRunConfig();
 
+      this._initShortLinksCache();
+
+    }
+    //----------------------------------------------------------------
+
+  //---- _initShortLinksCache ----------------------------------------
+    /**
+     * Seeds the run's short link cache from resolutions persisted by earlier runs
+     * (`runConfig.state.shortLinks`), so each link is fetched once per data mart, not once per run.
+     * @private
+     */
+    _initShortLinksCache() {
+      this._shortLinksState = loadShortLinksState(this.runConfig?.state?.shortLinks);
+      this._shortLinksCache = new Map(Array.from(this._shortLinksState, ([original, { url }]) => [original, url]));
+    }
+    //----------------------------------------------------------------
+
+  //---- resolveShortLinks -------------------------------------------
+    /**
+     * Resolves short links for the fields a schema node declares under `shortLinks`.
+     * No-op when the node has no spec, the user disabled Process Short Links, or none of the
+     * spec targets is among the selected fields. Call it right before saving a node's records.
+     *
+     * @param {string} nodeName - Schema node name
+     * @param {Array} data - Fetched records
+     * @param {Array<string>} fields - Selected field names for the node
+     * @return {Promise<Array>} Records with resolved links, or the same array
+     */
+    async resolveShortLinks(nodeName, data, fields) {
+      const specs = this.source?.fieldsSchema?.[nodeName]?.shortLinks;
+      if (!Array.isArray(specs) || specs.length === 0 || this.config.ProcessShortLinks?.value === false) return data;
+
+      const selected = new Set(fields || []);
+      // An object spec only needs its field; a sibling `_parsed` target also needs the source field
+      const activeSpecs = specs.filter(spec => selected.has(spec.field) && (spec.urlKey || selected.has(spec.target)));
+      if (activeSpecs.length === 0) return data;
+
+      return resolveShortLinkFields(data, activeSpecs, {
+        nestedPathHosts: getShortLinkDomainsFromEnv(),
+        resolvedLinksCache: this._shortLinksCache
+      });
+    }
+    //----------------------------------------------------------------
+
+  //---- _flushShortLinksState ---------------------------------------
+    /**
+     * Persists newly resolved short links once per run. Failures never abort the run:
+     * the cache only saves requests, it does not affect the imported data.
+     * @private
+     */
+    _flushShortLinksState() {
+      if (!this._shortLinksCache) return;
+      const isNew = ([original, url]) => url !== original && !this._shortLinksState.has(original);
+      if (!Array.from(this._shortLinksCache).some(isNew)) return;
+
+      try {
+        const now = Date.now();
+        const entries = new Map(
+          Array.from(this._shortLinksCache, ([original, url]) => [
+            original,
+            { url, at: this._shortLinksState.get(original)?.at ?? now }
+          ])
+        );
+        this.config.updateState({ shortLinks: buildShortLinksState(entries, now) });
+      } catch (error) {
+        this.config.logMessage(`Failed to persist short link cache: ${error.message}`);
+      }
     }
     //----------------------------------------------------------------
       
@@ -129,6 +196,10 @@ var AbstractConnector = class AbstractConnector {
         });
         this.config.logMessage(`${error.stack}`);
         throw error;
+
+      } finally {
+
+        this._flushShortLinksState();
 
       }
 

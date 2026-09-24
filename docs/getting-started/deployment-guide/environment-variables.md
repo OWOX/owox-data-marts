@@ -220,6 +220,16 @@ owox serve --env-file custom.env --port 3030
 
 See also: mysql2 official SSL documentation — <https://sidorares.github.io/node-mysql2/docs/documentation/ssl>
 
+## Connectors
+
+Ads connectors can resolve short links in landing URL fields to their final destination.
+Single-part short links, such as `https://bit.ly/abc123`, resolve on any domain. Links with
+several path parts resolve only on the domains you list here.
+
+| Variable                       | Purpose                                                                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONNECTOR_SHORT_LINK_DOMAINS` | Comma-separated domains of custom short link services whose links have several path parts, for example `links.example.com`. Subdomains match too. Empty by default. |
+
 ## Plugins
 
 Plugins are third-party web apps embedded in a sandboxed iframe. These variables control

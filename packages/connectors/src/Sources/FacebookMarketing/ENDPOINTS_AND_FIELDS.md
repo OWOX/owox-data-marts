@@ -161,6 +161,7 @@ Official Meta reference: [Ad Account Ad Creatives](https://developers.facebook.c
 | `link_destination_display_url` | `link_destination_display_url` | `STRING` | Overwrites the display URL for link ads when object_url is set to a click tag |
 | `link_og_id` | `link_og_id` | `STRING` | The Open Graph (OG) ID for the link in this creative if the landing page has OG tags |
 | `link_url` | `link_url` | `STRING` | Identify a specific landing tab on your Facebook page by the Page tab's URL. See connection objects for retrieving Page tab URLs. You can add app_data parameters to the URL to pass data to a Page's tab. |
+| `link_url_parsed` | — | `STRING` | `link_url` resolved to its landing page when it is a short link; otherwise the same value. Requires `link_url` and **Process Short Links**. |
 | `messenger_sponsored_message` | `messenger_sponsored_message` | `STRING` | Used for Messenger sponsored message. JSON string with message for this ad creative. See Messenger Platform, Send API Reference. |
 | `name` | `name` | `STRING` | Name of this ad creative as seen in the ad account's library. This field has a limit of 100 characters. |
 | `object_id` | `object_id` | `STRING` | ID for Facebook object being promoted with ads or relevant to the ad or ad type. For example a page ID if you are running ads to generate Page Likes. See promoted_object. |
@@ -169,6 +170,7 @@ Official Meta reference: [Ad Account Ad Creatives](https://developers.facebook.c
 | `object_story_spec` | `object_story_spec` | `STRING` | Use if you want to create a new unpublished page post and turn the post into an ad. The Page ID and the content to create a new unpublished page post. Specify link_data, photo_data, video_data, text_data or template_data with the content. |
 | `object_type` | `object_type` | `STRING` | The type of Facebook object you want to advertise. Allowed values are: |
 | `object_url` | `object_url` | `STRING` | URL that opens if someone clicks your link on a link ad. This URL is not connected to a Facebook page. |
+| `object_url_parsed` | — | `STRING` | `object_url` resolved to its landing page when it is a short link; otherwise the same value. Requires `object_url` and **Process Short Links**. |
 | `page_welcome_message` | `page_welcome_message` | `STRING` | Page welcome message for CTM ads |
 | `photo_album_source_object_story_id` | `photo_album_source_object_story_id` | `STRING` | photo_album_source_object_story_id |
 | `place_page_set_id` | `place_page_set_id` | `STRING` | The ID of the page set for this creative. See theLocal Awareness guide |
@@ -413,4 +415,4 @@ Official Meta reference: [Ad Account Insights](https://developers.facebook.com/d
 | **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | `publisher_platform` | `publisher_platform` | `STRING` | Which platform your ad was shown, for example Facebook, Instagram, or Audience Network. |
 | **Ad Account Insights by Region** (`ad-account/insights-by-region`) | `region` | `region` | `STRING` | The region where your ads were shown. |
 
-When you enable **Process Short Links**, OWOX adds `parsed_url` inside `link_url_asset`. It holds the resolved landing page for short links in `website_url`. See [Resolve Short Links](GETTING_STARTED.md#resolve-short-links).
+When you enable **Process Short Links**, OWOX adds `parsed_url` inside `link_url_asset`. It holds the resolved landing page for short links in `website_url`. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. See [Resolve Short Links](GETTING_STARTED.md#resolve-short-links).

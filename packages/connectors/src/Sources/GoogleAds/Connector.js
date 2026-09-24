@@ -110,7 +110,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
-      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, fields), fields) : data;
       const storage = await this.getStorageByNode(nodeName);
       await storage.saveData(preparedData);
     }
@@ -129,7 +129,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId}` : `ℹ️ No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
-      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, fields), fields) : data;
       const storage = await this.getStorageByNode(nodeName);
       await storage.saveData(preparedData);
     }

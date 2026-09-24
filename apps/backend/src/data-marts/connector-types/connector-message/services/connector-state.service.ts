@@ -50,9 +50,14 @@ export class ConnectorStateService {
     });
 
     const now = new Date().toISOString();
+    // Merge at key level: the incremental cursor (`date`) and connector-owned keys such as
+    // `shortLinks` are written by different messages and must not wipe each other.
+    const previousState =
+      existingState?.state?.states?.find((s: ConnectorStateItem) => s._id === configId)?.state ??
+      {};
     const newStateItem: ConnectorStateItem = {
       _id: configId,
-      state: outputState.state || {},
+      state: { ...previousState, ...(outputState.state || {}) },
       at: outputState.at || now,
     };
 

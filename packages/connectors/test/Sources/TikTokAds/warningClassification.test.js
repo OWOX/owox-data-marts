@@ -8,7 +8,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/TikTokAds/TiktokMarketingApiProvider.js'));
 loadGasClass(path.join(__dirname, '../../../src/Sources/TikTokAds/Connector.js'), {
-  AbstractConnector: class {},
+  AbstractConnector: class {
+    // Short link hook lives on the real base class; pass records through here
+    async resolveShortLinks(_nodeName, data) {
+      return data;
+    }
+  },
 });
 
 // The provider is a plain `class X {}` declaration — a global *lexical* binding,

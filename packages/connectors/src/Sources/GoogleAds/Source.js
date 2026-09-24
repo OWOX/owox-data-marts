@@ -167,6 +167,13 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         label: "Fields",
         description: "List of fields to fetch from Google Ads API"
       },
+      ProcessShortLinks: {
+        requiredType: "boolean",
+        default: true,
+        label: "Process Short Links",
+        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example ad_final_urls_parsed)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -340,7 +347,9 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    */
   async fetchData(nodeName, customerId, options) {
     console.log('Fetching data from Google Ads API for customer:', customerId);
-    const { fields, startDate } = options;
+    // Connector-only short link columns are filled after the fetch; never request them from the API
+    const fields = omitShortLinkTargets(this.fieldsSchema[nodeName], options.fields);
+    const { startDate } = options;
     const query = this._buildQuery({ nodeName, fields, startDate });
     const response = await this.makeRequest({ customerId, query, nodeName, fields });
     return response;

@@ -298,6 +298,16 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
+  //---- updateState -------------------------------------------------
+    /**
+     * Persist connector-owned state keys (merged into the per-configuration state) across runs.
+     * @param {Object} state - Keys to store, e.g. `{ shortLinks }`
+     */
+    updateState(state) {
+      // No-op by default: only runtimes with a structured transport need to emit this.
+    }
+    //----------------------------------------------------------------
+
   //---- trimValue ---------------------------------------------------
     /**
      * Automatically trim whitespace for string values

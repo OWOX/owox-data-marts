@@ -147,6 +147,24 @@ class NodeJsConfig extends AbstractConfig {
     }
 
     /**
+     * Emit connector-owned state through the Node.js structured transport.
+     * The host merges these keys into the per-configuration state and passes
+     * them back on the next run as `runConfig.state`.
+     *
+     * @param {Object} state - Keys to persist, e.g. `{ shortLinks }`
+     */
+    updateState(state) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateState',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          state,
+        })
+      );
+    }
+
+    /**
      * Emit source field updates through the Node.js structured transport.
      *
      * @param {string[]} fields - Field names actually imported by the connector

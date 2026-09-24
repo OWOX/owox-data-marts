@@ -90,8 +90,16 @@ var adsFields = {
     'description': 'Landing Page URL',
     'type': DATA_TYPES.STRING
   },
+  'landing_page_url_parsed': {
+    'description': 'landing_page_url resolved to its landing page when it is a short link; otherwise the same value. Requires landing_page_url and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'landing_page_urls': {
     'description': 'Multiple Landing Page URLs',
+    'type': DATA_TYPES.ARRAY
+  },
+  'landing_page_urls_parsed': {
+    'description': 'landing_page_urls resolved to its landing page when it is a short link; otherwise the same value. Requires landing_page_urls and Process Short Links.',
     'type': DATA_TYPES.ARRAY
   },
   'deeplink': {

@@ -82,6 +82,13 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         description: "Number of days to keep data before cleaning up",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
+      ProcessShortLinks: {
+        requiredType: "boolean",
+        default: true,
+        label: "Process Short Links",
+        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example click_url_parsed)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -105,6 +112,9 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
    */
   async fetchData(nodeName, accountId, fields, startDate = null) {
     console.log(`Fetching data from ${nodeName}/${accountId} for ${startDate}`);
+
+    // Connector-only short link columns are filled after the fetch; never request them from the API
+    fields = omitShortLinkTargets(this.fieldsSchema[nodeName], fields);
 
     // Validate that all required unique keys are present in requested fields
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];

@@ -33,7 +33,11 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives",
         "fields": adAccountCreativesFields,
         'uniqueKeys': ["id"],
-        'defaultFields': ["name", "account_id", "status", "body", "title", "call_to_action_type", "object_type", "effective_object_story_id"],
+        'defaultFields': ["name", "account_id", "status", "body", "title", "call_to_action_type", "object_type", "effective_object_story_id", "object_url", "object_url_parsed"],
+        "shortLinks": [
+          { field: "link_url", target: "link_url_parsed" },
+          { field: "object_url", target: "object_url_parsed" }
+        ],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_adcreatives"
     },
@@ -121,6 +125,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByLinkUrlAsset,
         "breakdowns": ["link_url_asset"],
+        "shortLinks": [{ field: "link_url_asset", urlKey: "website_url", target: "parsed_url" }],
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
         'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "link_url_asset", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
