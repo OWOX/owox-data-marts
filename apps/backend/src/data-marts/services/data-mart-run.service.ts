@@ -24,10 +24,6 @@ import {
   McpQueryRunMetadata,
   McpQueryRunMetadataSchema,
 } from '../dto/schemas/mcp-query-run-metadata.schema';
-import {
-  DataMartPreviewRunMetadata,
-  DataMartPreviewRunMetadataSchema,
-} from '../dto/schemas/data-mart-preview-run-metadata.schema';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { toReportRunType } from '../utils/report-run-type';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
@@ -35,7 +31,6 @@ import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
 import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
 
 export const MCP_QUERY_PARAMS_KEY = 'mcpQuery';
-export const PREVIEW_PARAMS_KEY = 'preview';
 
 /**
  * Context for creating a new report run.
@@ -118,17 +113,6 @@ export interface HttpDataRunRecord {
 
 // Terminal-only MCP_QUERY run: written once at the end (success, failure, or client-abort), no
 // RUNNING phase. CANCELLED is recorded when the request's AbortSignal fires mid-query.
-// Terminal-only PREVIEW run: written once at the end, same shape of lifecycle as MCP_QUERY.
-export interface DataMartPreviewRunRecord {
-  runId: string;
-  dataMart: DataMart;
-  createdById: string;
-  startedAt: Date;
-  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED;
-  metadata: DataMartPreviewRunMetadata;
-  errors?: string[];
-}
-
 export interface McpQueryRunRecord {
   runId: string;
   dataMart: DataMart;
@@ -706,27 +690,6 @@ export class DataMartRunService {
         );
       }
     }
-  }
-
-  // Terminal-only: persisted once at the end; id is caller-provided so billing can reference it.
-  // No onboarding event: a preview is a look at the data, not a run of a report.
-  public async recordPreviewRun(record: DataMartPreviewRunRecord): Promise<void> {
-    const metadata = DataMartPreviewRunMetadataSchema.parse(record.metadata);
-    const run = this.dataMartRunRepository.create({
-      id: record.runId,
-      dataMartId: record.dataMart.id,
-      type: DataMartRunType.PREVIEW,
-      runType: RunType.manual,
-      status: record.status,
-      createdById: record.createdById,
-      definitionRun: record.dataMart.definition,
-      additionalParams: { [PREVIEW_PARAMS_KEY]: metadata },
-      startedAt: record.startedAt,
-      finishedAt: this.systemClock.now(),
-      errors: record.errors?.length ? record.errors : null,
-    });
-
-    await this.dataMartRunRepository.save(run);
   }
 
   /**

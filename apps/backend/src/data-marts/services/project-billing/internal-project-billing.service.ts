@@ -31,7 +31,6 @@ const TOPIC_ENV_BY_RUN_KIND: Record<Exclude<RunKind, RunKind.EMAIL_BASED_REPORT_
   [RunKind.EXCEL_REPORT_RUN]: 'CONSUMPTION_EXCEL_REPORT_RUN_TOPIC',
   [RunKind.HTTP_DATA_RUN]: 'CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC',
   [RunKind.MCP_QUERY_RUN]: 'CONSUMPTION_MCP_QUERY_RUN_TOPIC',
-  [RunKind.DATA_MART_PREVIEW_RUN]: 'CONSUMPTION_DATA_MART_PREVIEW_RUN_TOPIC',
 };
 
 export interface ForwardedLicenseAttribution {
@@ -234,16 +233,6 @@ export class InternalProjectBillingService extends ProjectBillingService {
 
   public async registerMcpQueryRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
     await this.publish(RunKind.MCP_QUERY_RUN, this.mcpQueryConsumptionPayload(dataMart, runId));
-  }
-
-  public async registerDataMartPreviewRunConsumption(
-    dataMart: DataMart,
-    runId: string
-  ): Promise<void> {
-    await this.publish(
-      RunKind.DATA_MART_PREVIEW_RUN,
-      this.dataMartPreviewConsumptionPayload(dataMart, runId)
-    );
   }
 
   /**

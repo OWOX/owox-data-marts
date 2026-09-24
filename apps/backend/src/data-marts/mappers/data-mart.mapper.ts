@@ -88,7 +88,7 @@ import {
 import { BatchDataMartDataLastUpdatedResponseApiDto } from '../dto/presentation/data-mart-data-last-updated-response-api.dto';
 import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
-import { MCP_QUERY_PARAMS_KEY, PREVIEW_PARAMS_KEY } from '../services/data-mart-run.service';
+import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
 import { DataQualityRunDetailsDto } from '../dto/domain/data-quality.dto';
 
 @Injectable()
@@ -237,12 +237,7 @@ export class DataMartMapper {
           item.connector = runDto;
         } else if (runDto.type === DataMartRunType.INSIGHT) {
           item.insight = runDto;
-        } else if (
-          // Data Quality checks and exploratory previews do not deliver data,
-          // so they must not replace the Data Mart's report health.
-          runDto.type !== DataMartRunType.DATA_QUALITY &&
-          runDto.type !== DataMartRunType.PREVIEW
-        ) {
+        } else if (runDto.type !== DataMartRunType.DATA_QUALITY) {
           if (!item.report || runDto.createdAt > item.report.createdAt) {
             item.report = runDto;
           }
@@ -835,13 +830,6 @@ export class DataMartMapper {
         | Record<string, unknown>
         | undefined;
       return mcpQuery ? { [MCP_QUERY_PARAMS_KEY]: mcpQuery } : null;
-    }
-    // PREVIEW runs journal a summary and the request, never result rows — same reasoning as above.
-    if (run.type === DataMartRunType.PREVIEW) {
-      const preview = run.additionalParams?.[PREVIEW_PARAMS_KEY] as
-        | Record<string, unknown>
-        | undefined;
-      return preview ? { [PREVIEW_PARAMS_KEY]: preview } : null;
     }
     return null;
   }

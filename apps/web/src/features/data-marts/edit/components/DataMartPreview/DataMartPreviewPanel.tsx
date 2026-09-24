@@ -83,8 +83,9 @@ function nextRowsSchemaSnapshot(
 
 /**
  * Data Setup preview: reads a sample of the Data Mart's rows from the warehouse. Every run —
- * the first one, Re-run, a new limit or a filter change — is a new warehouse query, recorded in
- * Run History and charged as a report run. Paging through the returned rows is local and free.
+ * the first one, Re-run, a new limit or a filter change — is a new warehouse query. It is not a
+ * Data Mart run: nothing is recorded in Run History and no credits are consumed. Paging through the
+ * returned rows is local.
  */
 export function DataMartPreviewPanel({
   dataMartId,
@@ -147,8 +148,8 @@ export function DataMartPreviewPanel({
           Preview real data from your Input Source.
         </p>
         <p className='text-muted-foreground mx-auto mt-1 max-w-md text-xs'>
-          Running a preview executes the query in your data warehouse and may consume credits.
-          Showing the first {PREVIEW_DEFAULT_LIMIT} rows by default.
+          Running a preview executes a query in your data warehouse. Showing the first{' '}
+          {PREVIEW_DEFAULT_LIMIT} rows by default.
         </p>
         <div className='mt-4 flex items-center justify-center gap-2'>
           <Button

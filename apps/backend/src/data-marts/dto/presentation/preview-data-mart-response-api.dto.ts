@@ -12,9 +12,6 @@ export class DataMartPreviewColumnApiDto {
 }
 
 export class PreviewDataMartResponseApiDto {
-  @ApiProperty({ description: 'Id of the Run History entry this preview created' })
-  runId: string;
-
   @ApiProperty({ type: [DataMartPreviewColumnApiDto] })
   columns: DataMartPreviewColumnApiDto[];
 

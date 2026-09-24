@@ -30,15 +30,12 @@ export function ConfigurationView({
     !Array.isArray(additionalParams.httpData)
       ? (additionalParams.httpData as Record<string, unknown>)
       : null;
-  // MCP queries and Data Setup previews journal the same shape: executed SQL plus the request.
-  const queryParamsKey =
-    additionalParams != null && 'preview' in additionalParams ? 'preview' : 'mcpQuery';
-  const queryParamsValue = additionalParams?.[queryParamsKey];
   const mcpQueryParams =
-    typeof queryParamsValue === 'object' &&
-    queryParamsValue !== null &&
-    !Array.isArray(queryParamsValue)
-      ? (queryParamsValue as Record<string, unknown>)
+    additionalParams != null &&
+    typeof additionalParams.mcpQuery === 'object' &&
+    additionalParams.mcpQuery !== null &&
+    !Array.isArray(additionalParams.mcpQuery)
+      ? (additionalParams.mcpQuery as Record<string, unknown>)
       : null;
   const mcpExecutedSql =
     mcpQueryParams != null && typeof mcpQueryParams.executionSqlQuery === 'string'
@@ -168,9 +165,7 @@ export function ConfigurationView({
         )}
         {mcpQueryParams && (
           <>
-            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
-              {queryParamsKey === 'preview' ? 'Data preview:' : 'MCP query:'}
-            </h4>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>MCP query:</h4>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
               {JSON.stringify(
                 // executionSqlQuery renders in its own "Executed SQL:" block above,

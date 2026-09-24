@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { extractApiError } from '../../../../../app/api';
+import { trackEvent } from '../../../../../utils/data-layer';
 import { dataMartService } from '../../../shared/services/data-mart.service';
 import type { PreviewDataMartResponseDto } from '../../../shared/types/api';
 import type { FilterRule } from '../../../shared/types/output-config';
@@ -36,7 +37,7 @@ function previewErrorMessage(error: unknown): string {
 }
 
 /**
- * Runs the Data Setup preview. Each `run` is a new warehouse query (and a new Run History entry),
+ * Runs the Data Setup preview. Each `run` is a new warehouse query (reported to product analytics),
  * so nothing here re-runs on its own; a new `run` cancels the one still in flight.
  */
 export function useDataMartPreview(dataMartId: string): DataMartPreviewState {
@@ -74,9 +75,27 @@ export function useDataMartPreview(dataMartId: string): DataMartPreviewState {
         if (controllerRef.current !== controller) return;
         setResult(response);
         setAppliedRequest(request);
+        trackEvent({
+          event: 'data_mart_preview',
+          category: 'DataMart',
+          action: 'Preview',
+          label: dataMartId,
+          limit: request.limit,
+          filterCount: request.filters.length,
+          rowCount: response.rowCount,
+          truncated: response.truncated,
+        });
       } catch (e) {
         if (controllerRef.current !== controller || isCancellation(e)) return;
-        setError(previewErrorMessage(e));
+        const message = previewErrorMessage(e);
+        setError(message);
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'PreviewError',
+          label: dataMartId,
+          error: message,
+        });
       } finally {
         if (controllerRef.current === controller) {
           controllerRef.current = null;

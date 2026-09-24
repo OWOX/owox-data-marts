@@ -23,11 +23,8 @@ Active filters appear as chips above the table. Remove one with its **×**, or c
 
 Hidden fields, calculated fields, and fields from joined Data Marts are not part of the preview.
 
-## Run history and credits
+## Warehouse queries and credits
 
-Every preview — the first run, **Re-run**, a new limit, or a filter change — executes a new warehouse query. Each one:
+Every preview — the first run, **Re-run**, a new limit, or a filter change — executes a new query in your data warehouse, which your warehouse may bill as usual. Paging through rows you already fetched does not run a new query.
 
-- appears on the **Run History** tab as a **data preview run**, with the executed SQL, the limit, and the filters;
-- counts as one Report Run, see [consumption units](../billing/consumption-units.md).
-
-Paging through rows you already fetched does not run a new query.
+A preview is not a Data Mart run: it does not appear in **Run History** and does not consume OWOX Data Marts credits.

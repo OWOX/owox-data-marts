@@ -8,6 +8,6 @@ The **Data Setup** tab now has a **Preview data** button under the Output Schema
 
 - Change **Limit** (1–1000) and click **Update** to fetch more rows; page through them without another query.
 - Filter a column from its header: the condition runs in the warehouse as a `WHERE` clause, and active filters show as chips above the table.
-- Every preview, including **Re-run** and each limit or filter change, appears in **Run History** as a data preview run with its executed SQL, and counts as one Report Run.
+- Each preview, including **Re-run** and each limit or filter change, is a new warehouse query. It is not a Data Mart run: it does not appear in Run History and does not consume credits.
 
 See [Data Preview](../../docs/getting-started/setup-guide/data-preview.md).

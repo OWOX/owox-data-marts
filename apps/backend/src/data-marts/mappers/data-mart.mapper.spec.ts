@@ -5,7 +5,6 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { DataMartRun as DataMartRunEntity } from '../entities/data-mart-run.entity';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -243,50 +242,6 @@ describe('DataMartMapper', () => {
       const [item] = mapper.toBatchHealthStatusDomainResponse(
         ['mart-1'],
         latestRuns,
-        userProjections
-      ).items;
-
-      expect(item.report).toBeNull();
-    });
-
-    it('does not let PREVIEW runs replace the report health', () => {
-      const userProjections = new UserProjectionsListDto([]);
-      const reportRun = {
-        id: 'report-run',
-        dataMartId: 'mart-1',
-        type: DataMartRunType.EMAIL,
-        status: DataMartRunStatus.SUCCESS,
-        createdAt: new Date('2026-01-01T10:00:00Z'),
-      } as DataMartRunEntity;
-      const failedPreviewRun = {
-        id: 'preview-run',
-        dataMartId: 'mart-1',
-        type: DataMartRunType.PREVIEW,
-        status: DataMartRunStatus.FAILED,
-        createdAt: new Date('2026-01-02T10:00:00Z'),
-      } as DataMartRunEntity;
-
-      const [item] = mapper.toBatchHealthStatusDomainResponse(
-        ['mart-1'],
-        [failedPreviewRun, reportRun],
-        userProjections
-      ).items;
-
-      expect(item.report?.id).toBe('report-run');
-    });
-
-    it('leaves report health empty when only a PREVIEW run exists', () => {
-      const userProjections = new UserProjectionsListDto([]);
-      const previewRun = {
-        id: 'preview-run',
-        dataMartId: 'mart-1',
-        type: DataMartRunType.PREVIEW,
-        createdAt: new Date(),
-      } as DataMartRunEntity;
-
-      const [item] = mapper.toBatchHealthStatusDomainResponse(
-        ['mart-1'],
-        [previewRun],
         userProjections
       ).items;
 

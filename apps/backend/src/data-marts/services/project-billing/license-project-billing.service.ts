@@ -110,16 +110,6 @@ export class LicenseProjectBillingService extends ProjectBillingService {
     );
   }
 
-  public async registerDataMartPreviewRunConsumption(
-    dataMart: DataMart,
-    runId: string
-  ): Promise<void> {
-    await this.sendConsumption(
-      RunKind.DATA_MART_PREVIEW_RUN,
-      this.dataMartPreviewConsumptionPayload(dataMart, runId)
-    );
-  }
-
   private skipProcessRun(kind: RunKind): void {
     this.logger.debug(`${kind} is not billed through the license gateway, skipping...`);
   }

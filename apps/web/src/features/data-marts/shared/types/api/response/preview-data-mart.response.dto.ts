@@ -8,8 +8,6 @@ export interface DataMartPreviewColumnDto {
 export type DataMartPreviewCell = string | number | boolean | null;
 
 export interface PreviewDataMartResponseDto {
-  /** Run History entry this preview created. */
-  runId: string;
   columns: DataMartPreviewColumnDto[];
   rows: DataMartPreviewCell[][];
   rowCount: number;

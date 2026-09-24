@@ -13,6 +13,11 @@ vi.mock('@owox/ui/components/popover', () => ({
   ),
 }));
 
+const trackEvent = vi.fn();
+vi.mock('../../../../../utils/data-layer', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
+}));
+
 const previewDataMart = vi.fn();
 vi.mock('../../../shared/services/data-mart.service', () => ({
   dataMartService: {
@@ -21,7 +26,6 @@ vi.mock('../../../shared/services/data-mart.service', () => ({
 }));
 
 const response = (rowCount: number): PreviewDataMartResponseDto => ({
-  runId: 'run-1',
   columns: [
     { name: 'id', type: 'INTEGER' },
     { name: 'country', type: 'STRING' },
@@ -49,6 +53,7 @@ const runImmediately = (action: () => void | Promise<void>) => {
 describe('DataMartPreviewPanel', () => {
   beforeEach(() => {
     previewDataMart.mockReset();
+    trackEvent.mockReset();
   });
 
   it('runs the first preview with the default limit and shows the rows', async () => {
@@ -61,6 +66,70 @@ describe('DataMartPreviewPanel', () => {
 
     expect(await screen.findByText('(2 rows)')).toBeInTheDocument();
     expect(previewDataMart).toHaveBeenCalledWith('dm1', { limit: 10 }, expect.any(AbortSignal));
+  });
+
+  it('reports a successful preview to product analytics', async () => {
+    previewDataMart.mockResolvedValue(response(2));
+    render(
+      <DataMartPreviewPanel dataMartId='dm1' savedSchemaVersion={1} runGuarded={runImmediately} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+
+    await screen.findByText('(2 rows)');
+    expect(trackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'data_mart_preview',
+        category: 'DataMart',
+        action: 'Preview',
+        label: 'dm1',
+        limit: 10,
+        filterCount: 0,
+        rowCount: 2,
+        truncated: false,
+      })
+    );
+  });
+
+  it('reports a failed preview to product analytics', async () => {
+    previewDataMart.mockRejectedValue({ response: { data: { message: 'boom' } } });
+    render(
+      <DataMartPreviewPanel dataMartId='dm1' savedSchemaVersion={1} runGuarded={runImmediately} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+
+    await screen.findByRole('alert');
+    expect(trackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'data_mart_error',
+        action: 'PreviewError',
+        label: 'dm1',
+        error: 'boom',
+      })
+    );
+  });
+
+  it('does not report a cancelled preview', async () => {
+    previewDataMart.mockImplementation(
+      (_id: string, _body: unknown, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            reject(Object.assign(new Error('canceled'), { name: 'CanceledError' }));
+          });
+        })
+    );
+    render(
+      <DataMartPreviewPanel dataMartId='dm1' savedSchemaVersion={1} runGuarded={runImmediately} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Preview data' })).toBeEnabled();
+    });
+    expect(trackEvent).not.toHaveBeenCalled();
   });
 
   it('disables the button and explains why when preview cannot run', () => {

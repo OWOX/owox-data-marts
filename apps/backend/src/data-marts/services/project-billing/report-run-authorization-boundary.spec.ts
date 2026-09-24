@@ -35,13 +35,6 @@ const entrypoints: ReportRunEntrypoint[] = [
     firstStorageBoundary: 'this.readerResolver.resolve(',
   },
   {
-    name: 'Data Setup previews',
-    file: join(__dirname, '../../use-cases/preview-data-mart.service.ts'),
-    declaration: 'async run(',
-    runKinds: [RunKind.DATA_MART_PREVIEW_RUN],
-    firstStorageBoundary: 'this.readRows(',
-  },
-  {
     name: 'Looker Studio reports (streaming)',
     file: join(
       __dirname,

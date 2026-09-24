@@ -9,9 +9,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { TypeResolver } from '../../common/resolver/type-resolver';
-import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import type { Role as RoleType } from '@owox/idp-protocol';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -19,16 +17,10 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { FilterConfig, FilterConfigSchema } from '../dto/schemas/filter-config.schema';
 import { DataMart } from '../entities/data-mart.entity';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
-import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
-import {
-  ProjectBillingService,
-  RunKind,
-} from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 
 export const PREVIEW_DEFAULT_LIMIT = 10;
@@ -37,7 +29,7 @@ export const PREVIEW_MAX_LIMIT = 1000;
 // Stays under the 180s operation timeout the preview route runs with (see DataMartsModule), so the
 // caller gets this service's clean timeout message rather than the middleware's generic 408.
 // The deadline itself answers 504, never 408: a browser may silently re-send a POST that got a 408
-// on a reused keep-alive connection, which would re-run (and re-bill) the warehouse query.
+// on a reused keep-alive connection, which would re-run the warehouse query.
 export const DEFAULT_PREVIEW_DEADLINE_MS = 150_000;
 
 export class PreviewDataMartCommand {
@@ -60,7 +52,6 @@ export interface DataMartPreviewColumn {
 export type PreviewCell = string | number | boolean | null;
 
 export interface DataMartPreviewResult {
-  runId: string;
   columns: DataMartPreviewColumn[];
   rows: PreviewCell[][];
   rowCount: number;
@@ -84,8 +75,8 @@ export class PreviewAbortedError extends HttpException {
  * Reads a small sample of a Data Mart's rows for the Data Setup preview.
  *
  * Every native, reporting-visible field is projected; the caller chooses only a row limit and
- * WHERE filters. Each preview is one warehouse query, so each one is journalled in Run History
- * (type PREVIEW) and charged as a report run — including a re-run with the same inputs.
+ * WHERE filters. A preview is a look at the data while setting a Data Mart up: it is not a run, so
+ * it is neither recorded in Run History nor counted as consumption.
  *
  * Unlike `QueryDataMartService` (MCP), a DRAFT Data Mart can be previewed: seeing the data before
  * publishing is the point of the feature.
@@ -100,9 +91,7 @@ export class PreviewDataMartService {
     private readonly composer: ReportSqlComposerService,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
-    private readonly dataMartRunService: DataMartRunService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly projectBillingService: ProjectBillingService,
     @Optional() private readonly deadlineMs: number = DEFAULT_PREVIEW_DEADLINE_MS
   ) {}
 
@@ -152,57 +141,19 @@ export class PreviewDataMartService {
       limitConfig: limit + 1,
     };
 
-    // Composed BEFORE the billing gate: an invalid filter is the caller's mistake, found without
-    // touching the warehouse, so it must neither be charged nor clutter Run History.
     const composed = await this.composer.compose(readPlan, accessor);
-    let executionSqlQuery: string;
-    try {
-      executionSqlQuery = this.composer.inlineStaticSql(
-        dataMart.storage.type,
-        composed.sql,
-        composed.params
-      );
-    } catch {
-      executionSqlQuery = composed.sql;
-    }
 
-    const runId = randomUUID();
-    const startedAt = new Date();
-    const query = { ...(filters ? { filters } : {}), limit };
-    const failedMetadata = {
-      columns: [],
-      rowCount: 0,
-      truncated: false,
-      executionSqlQuery,
-      filterCount: filters?.length ?? 0,
-      query,
-    };
-
-    // Already cancelled: start no warehouse work, record nothing, charge nothing.
-    throwIfAborted(signal);
-
-    try {
-      await this.projectBillingService.verifyCanPerformOperations(
-        dataMart.projectId,
-        RunKind.DATA_MART_PREVIEW_RUN
-      );
-    } catch (error) {
-      await this.recordFailure(runId, dataMart, command.userId, startedAt, failedMetadata, error);
-      throw error;
-    }
-
+    // Already cancelled: start no warehouse work.
     throwIfAborted(signal);
 
     let result: { columns: DataMartPreviewColumn[]; rows: unknown[][] };
     try {
       result = await this.readRows(dataMart, readPlan, composed, limit, signal);
     } catch (error) {
-      // A preview the person cancelled did not produce anything worth a Run History entry.
-      if (error instanceof PreviewAbortedError) throw error;
-      await this.recordFailure(runId, dataMart, command.userId, startedAt, failedMetadata, error);
+      if (error instanceof HttpException) throw error;
       // A warehouse error (bad column, missing table, permissions) is not a server fault: hand the
       // warehouse's own sentence back so the person can fix the schema or the filter.
-      if (error instanceof HttpException) throw error;
+      this.logger.warn(`Preview of Data Mart ${dataMart.id} failed: ${messageOf(error)}`);
       throw new UnprocessableEntityException(
         `The data warehouse could not run the preview query: ${messageOf(error)}`
       );
@@ -213,44 +164,7 @@ export class PreviewDataMartService {
       row.map(toPreviewCell)
     );
 
-    let runRecorded = false;
-    try {
-      await this.dataMartRunService.recordPreviewRun({
-        runId,
-        dataMart,
-        createdById: command.userId,
-        startedAt,
-        status: DataMartRunStatus.SUCCESS,
-        metadata: {
-          columns: result.columns.map(column => column.name),
-          rowCount: rows.length,
-          truncated,
-          executionSqlQuery,
-          filterCount: filters?.length ?? 0,
-          query,
-        },
-      });
-      runRecorded = true;
-    } catch (auditError) {
-      this.logger.warn(`recordPreviewRun (SUCCESS) failed; swallowing: ${messageOf(auditError)}`);
-    }
-
-    // Never bill a run with no Run History record — that charge would resolve to nothing.
-    if (runRecorded) {
-      try {
-        await this.projectBillingService.registerDataMartPreviewRunConsumption(dataMart, runId);
-      } catch (consumptionError) {
-        this.logger.warn(
-          `Failed to register preview run consumption ${runId}: ${messageOf(consumptionError)}`
-        );
-      }
-    } else {
-      this.logger.warn(
-        `Skipping preview run consumption ${runId}: Run History record was not persisted.`
-      );
-    }
-
-    return { runId, columns: result.columns, rows, rowCount: rows.length, limit, truncated };
+    return { columns: result.columns, rows, rowCount: rows.length, limit, truncated };
   }
 
   private parseLimit(limit: number | undefined): number {
@@ -359,32 +273,6 @@ export class PreviewDataMartService {
     } finally {
       if (deadlineTimer) clearTimeout(deadlineTimer);
       if (signal && abortListener) signal.removeEventListener('abort', abortListener);
-    }
-  }
-
-  private async recordFailure(
-    runId: string,
-    dataMart: DataMart,
-    createdById: string,
-    startedAt: Date,
-    metadata: Parameters<DataMartRunService['recordPreviewRun']>[0]['metadata'],
-    error: unknown
-  ): Promise<void> {
-    try {
-      await this.dataMartRunService.recordPreviewRun({
-        runId,
-        dataMart,
-        createdById,
-        startedAt,
-        status:
-          error instanceof ProjectOperationBlockedException
-            ? DataMartRunStatus.RESTRICTED
-            : DataMartRunStatus.FAILED,
-        metadata,
-        errors: [messageOf(error)],
-      });
-    } catch (auditError) {
-      this.logger.warn(`Failed to record failed preview run ${runId}: ${messageOf(auditError)}`);
     }
   }
 }
