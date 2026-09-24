@@ -500,27 +500,16 @@ export class LinkedInAdsSource extends AbstractSource {
   }
 
   mergeAnalyticsResults(existingResults, newElements) {
-    if (existingResults.length === 0) {
-      return [...newElements];
+    // dateRange and pivotValues identify a row; the same row from another field chunk is combined.
+    const keyOf = element => JSON.stringify([element.dateRange, element.pivotValues]);
+    const mergedByKey = new Map(existingResults.map(element => [keyOf(element), element]));
+
+    for (const newElement of newElements) {
+      const key = keyOf(newElement);
+      mergedByKey.set(key, { ...mergedByKey.get(key), ...newElement });
     }
 
-    const mergedResults = [...existingResults];
-
-    newElements.forEach(newElem => {
-      const existingIndex = mergedResults.findIndex(
-        existing =>
-          JSON.stringify(existing.dateRange) === JSON.stringify(newElem.dateRange) &&
-          JSON.stringify(existing.pivotValues) === JSON.stringify(newElem.pivotValues)
-      );
-
-      if (existingIndex >= 0) {
-        mergedResults[existingIndex] = { ...mergedResults[existingIndex], ...newElem };
-      } else {
-        mergedResults.push(newElem);
-      }
-    });
-
-    return mergedResults;
+    return [...mergedByKey.values()];
   }
 
   transformAnalyticsDateRanges(analyticsData) {
