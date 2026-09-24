@@ -286,4 +286,71 @@ describe('ConnectorEditForm — custom connector', () => {
     const payload = onSubmit.mock.calls[0][0] as ConnectorConfig;
     expect(payload.source.version).toBe(1);
   });
+
+  describe('a saved source, opened to edit or add a configuration', () => {
+    const savedSource = (
+      version: number | undefined,
+      configuration: Record<string, unknown>[]
+    ): ConnectorConfig['source'] => ({
+      name: CUSTOM_NAME,
+      node: 'items',
+      fields: ['id', 'title'],
+      configuration,
+      ...(version !== undefined ? { version } : {}),
+    });
+
+    const renderSaved = (
+      onSubmit: (c: ConnectorConfig) => void,
+      source: ConnectorConfig['source']
+    ) =>
+      render(
+        <MemoryRouter>
+          <ConnectorContextProvider>
+            <ConnectorEditForm
+              onSubmit={onSubmit}
+              dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+              configurationOnly
+              existingConnector={{ source, storage: { fullyQualifiedName: 'ds.items' } }}
+            />
+          </ConnectorContextProvider>
+        </MemoryRouter>
+      );
+
+    it('measures the saved pin against the active version when editing a configuration', async () => {
+      renderSaved(vi.fn(), savedSource(1, [{ _id: 'cfg-1', Token: 'secret-token' }]));
+
+      const badge = await screen.findByTestId('connector-version-badge');
+      expect(badge).toHaveTextContent('Pinned · v1');
+      expect(badge).toHaveTextContent('update available');
+    });
+
+    it('saves the version re-picked while editing a configuration', async () => {
+      const onSubmit = vi.fn();
+      renderSaved(onSubmit, savedSource(1, [{ _id: 'cfg-1', Token: 'secret-token' }]));
+
+      fireEvent.click(await screen.findByTestId('connector-version-badge'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Pin to version 2' }));
+      await waitFor(() => {
+        expect(getCustomConnectorSpecification).toHaveBeenCalledWith(CUSTOM_ID, 2);
+      });
+
+      const saveButton = await screen.findByRole('button', { name: /save/i });
+      await waitFor(() => {
+        expect(saveButton).not.toBeDisabled();
+      });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      expect((onSubmit.mock.calls[0][0] as ConnectorConfig).source.version).toBe(2);
+    });
+
+    it('does not offer the version when adding another configuration', async () => {
+      renderSaved(vi.fn(), savedSource(1, []));
+
+      await screen.findByLabelText(/API Token/i);
+      expect(screen.queryByTestId('connector-version-badge')).not.toBeInTheDocument();
+    });
+  });
 });

@@ -261,12 +261,13 @@ export function ConnectorEditForm({
           : allConnectors.find(c => c.name === source.name);
       if (matchedConnectorDef) {
         // For pinned custom connectors, carry the saved version so the spec/fields
-        // for that exact published version are loaded.
+        // for that exact published version are loaded. The selected connector itself
+        // stays the active-version snapshot the version control compares the pin with.
         const existingConnectorDef =
           matchedConnectorDef.isCustom && source.version !== undefined
             ? { ...matchedConnectorDef, version: source.version }
             : matchedConnectorDef;
-        setSelectedConnector(existingConnectorDef);
+        setSelectedConnector(matchedConnectorDef);
         setPinnedVersion(source.version);
 
         void loadSpecificationSafely(existingConnectorDef);
@@ -370,6 +371,7 @@ export function ConnectorEditForm({
   const handleChangeVersion = (version?: number) => {
     if (!selectedConnector) return;
     setPinnedVersion(version);
+    setIsDirty(true);
     // connectorKey only varies by id/name, not version — the key is already
     // marked "loaded" from the initial fetch, so the loadSpecificationSafely/
     // loadFieldsSafely guards (which key off that same loaded-set) would skip
@@ -717,6 +719,9 @@ export function ConnectorEditForm({
       if (isUnpublishedConnector) {
         return renderUnpublishedNotice();
       }
+      // Editing a saved configuration may re-pick the source's version; adding another
+      // configuration to the source may not.
+      const isEditingExisting = Boolean(existingConnector?.source.configuration.length);
       return connectorSpecification && selectedConnector ? (
         <ConfigurationStep
           connector={selectedConnector}
@@ -725,8 +730,10 @@ export function ConnectorEditForm({
           onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
-          isEditingExisting={Boolean(existingConnector?.source.configuration.length)}
+          isEditingExisting={isEditingExisting}
           disabled={isGoogleSheetsConnector && loadingFields}
+          pinnedVersion={pinnedVersion}
+          onChangeVersion={isEditingExisting ? handleChangeVersion : undefined}
         />
       ) : null;
     }
