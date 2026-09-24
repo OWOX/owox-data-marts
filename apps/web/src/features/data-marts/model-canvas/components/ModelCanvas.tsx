@@ -117,15 +117,33 @@ const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
 
 function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
   return JSON.stringify(
-    nodes.map(({ id, title, status, description, fieldCount, definitionType, fields }) => ({
-      id,
-      title,
-      status,
-      description,
-      fieldCount,
-      definitionType,
-      fields,
-    }))
+    nodes.map(
+      ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      }) => ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      })
+    )
   );
 }
 
@@ -178,6 +196,10 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       title: node.title,
       isDraft: node.status === DataMartStatus.DRAFT,
       fieldCount: node.fieldCount,
+      triggersCount: node.triggersCount,
+      relationshipCount: node.relationshipCount ?? 0,
+      availableForReporting: node.availableForReporting,
+      availableForMaintenance: node.availableForMaintenance,
       description: node.description,
       definitionType: node.definitionType ?? null,
       fields: node.fields ?? [],

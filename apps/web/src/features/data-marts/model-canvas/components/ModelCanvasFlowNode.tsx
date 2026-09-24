@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Info } from 'lucide-react';
+import {
+  Box,
+  CalendarClock,
+  Columns3,
+  ExternalLink,
+  Info,
+  PencilLine,
+  Share2,
+  Users,
+  Waypoints,
+  type LucideIcon,
+} from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
@@ -9,7 +20,7 @@ import {
   OWOX_BLUE,
   SOCKET_STYLE,
 } from '../../shared/canvas/constants';
-import { ErdDefinitionBadge, ErdStatusBadge } from '../../shared/canvas/erd-card';
+import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
 import {
   isTitleOnly,
@@ -33,6 +44,11 @@ export interface ModelCanvasFlowNodeData {
   title: string;
   isDraft: boolean;
   fieldCount: number;
+  /** Unknown (undefined) until the detail enrichment resolves — the pill waits for it. */
+  triggersCount?: number;
+  relationshipCount: number;
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
   description: string | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
@@ -49,6 +65,38 @@ export interface ModelCanvasFlowNodeData {
   qualitySummary: DataQualityCompactSummary;
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
+}
+
+function pluralize(count: number, singular: string): string {
+  return `${String(count)} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+/** Soft-filled pill with a leading icon, as on the product website's Data Mart cards. */
+function CardPill({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className='bg-muted text-muted-foreground inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] leading-none whitespace-nowrap'>
+      <span className='inline-flex shrink-0' aria-hidden='true'>
+        <Icon className='h-3 w-3' />
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** A sharing flag in the card footer; renders nothing while the flag is off or unknown. */
+function SharingIcon({ icon: Icon, label, on }: { icon: LucideIcon; label: string; on?: boolean }) {
+  if (!on) return null;
+  return (
+    <span className='inline-flex p-0.5' title={label} role='img' aria-label={label}>
+      <Icon className='h-3.5 w-3.5' aria-hidden='true' />
+    </span>
+  );
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -77,23 +125,23 @@ export default function ModelCanvasFlowNode({
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
 
-  // Object labels: the accent stripe mirrors the Data Quality status shown by
-  // the status icons row below, so the two hide together — only in "title
-  // only" mode, not when the source badge alone is toggled off.
+  // Object labels: the accent stripe mirrors the Data Quality status shown in
+  // the footer, so the two hide together — only in "title only" mode.
   const labels = data.objectLabels ?? NOTHING_HIDDEN;
-  const withSource = !labels.source;
+  const definitionInfo = data.definitionType
+    ? DataMartDefinitionTypeModel.getInfo(data.definitionType)
+    : null;
+  // The pill waits for the type: nothing while enrichment is pending or failed.
+  const withDefinition = !labels.source && definitionInfo?.type != null ? definitionInfo : null;
   const withFieldCount = !labels.fields;
-  const withStatus = !labels.status;
-  const withDefinitionBadge = withSource && !!data.definitionType;
-  // Both pills render flush (no gap, shared edge unrounded) so they read as
-  // one pill split into two labels — only when both are actually on screen.
-  const metaBadgesJoined = withStatus && withDefinitionBadge;
-  // "Uncheck all — title only" strips the card down to its name: the quality
-  // indicators (Data Quality shield + Data Last Updated clock) go too.
+  // Published is the norm, so only a draft earns a pill — next to the title.
+  const withDraft = !labels.status && data.isDraft;
+  const withBadgesRow = !labels.source || !labels.fields;
+  // "Uncheck all — title only" strips the card down to its name: counts,
+  // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
-  // The stripe now runs full-height along the left edge (absolutely
-  // positioned) instead of sitting inline in the header, so every row needs
-  // extra left padding to clear it — but only while the stripe is shown.
+  // The stripe runs full-height along the left edge (absolutely positioned),
+  // so every row needs extra left padding to clear it — only while it shows.
   const contentPaddingLeft = !titleOnly ? 'pl-[16px]' : 'pl-3.5';
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
@@ -139,22 +187,29 @@ export default function ModelCanvasFlowNode({
         />
       )}
 
-      {/* Header: title + status + actions (accent stripe is the full-height bar on the left edge) */}
+      {/* Title row: icon tile + name + draft pill + actions */}
       <div
-        className={`flex items-center gap-2 pt-3 pr-3.5 ${contentPaddingLeft} ${titleOnly ? 'pb-3' : 'pb-1'}`}
+        className={`flex items-center gap-2 pt-3 pr-3 ${contentPaddingLeft} ${titleOnly ? 'pb-3' : ''}`}
       >
         <span
-          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
+          aria-hidden='true'
+        >
+          <Box className='h-4 w-4' />
+        </span>
+        <span
+          className='text-foreground min-w-0 flex-1 truncate text-sm font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
+        {withDraft && <CardPill icon={PencilLine}>Draft</CardPill>}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type='button'
-                className='text-muted-foreground hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
+                className='text-muted-foreground hover:text-foreground nodrag inline-flex shrink-0 cursor-default rounded p-0.5 transition-colors'
                 aria-label={`Description for ${data.title}`}
                 onPointerDown={e => {
                   e.stopPropagation();
@@ -182,39 +237,61 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Meta row: status pill + definition badge on their own line. */}
-      {(withStatus || withSource) && (
-        <div
-          className={`text-muted-foreground flex items-center ${metaBadgesJoined ? 'gap-0' : 'gap-1'} pt-1 pr-3.5 text-[11px] ${contentPaddingLeft}`}
-        >
-          {withStatus && <ErdStatusBadge isDraft={data.isDraft} joined={metaBadgesJoined} />}
-          {withSource && (
-            <ErdDefinitionBadge type={data.definitionType} joined={metaBadgesJoined} />
+      {/* Badges row: input source + field count */}
+      {withBadgesRow && (
+        <div className={`flex items-center gap-1 overflow-hidden pt-2 pr-3 ${contentPaddingLeft}`}>
+          {withDefinition && (
+            <CardPill icon={withDefinition.icon}>{withDefinition.displayName}</CardPill>
+          )}
+          {withFieldCount && (
+            <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
           )}
         </div>
       )}
-      {/* Status icons row: quality shield + data-last-updated clock + field count */}
+
       {!titleOnly && (
-        <div
-          className={`text-muted-foreground flex items-center gap-1 pt-1.5 pr-3.5 pb-3 text-[11px] ${contentPaddingLeft}`}
-        >
-          <DataQualityCanvasStatusIcon
-            dataMartTitle={data.title}
-            summary={data.qualitySummary}
-            onOpenQuality={data.onOpenQuality}
-            onRunQuality={data.onRunQuality}
-          />
-          <DataLastUpdatedCanvasIcon
-            dataMartTitle={data.title}
-            block={data.dataLastUpdated}
-            isChecking={data.isCheckingDataLastUpdated}
-          />
-          {withFieldCount && (
-            <span className='ml-auto shrink-0'>
-              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+        <>
+          {/* Counts row: triggers + relationships */}
+          <div
+            className={`flex items-center gap-1 overflow-hidden pt-1 pr-3 ${contentPaddingLeft}`}
+          >
+            {data.triggersCount !== undefined && (
+              <CardPill icon={CalendarClock}>{pluralize(data.triggersCount, 'trigger')}</CardPill>
+            )}
+            <CardPill icon={Waypoints}>
+              {pluralize(data.relationshipCount, 'relationship')}
+            </CardPill>
+          </div>
+
+          {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
+          <div
+            className={`text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 text-[11px] ${contentPaddingLeft}`}
+          >
+            <DataQualityCanvasStatusIcon
+              dataMartTitle={data.title}
+              summary={data.qualitySummary}
+              onOpenQuality={data.onOpenQuality}
+              onRunQuality={data.onRunQuality}
+            />
+            <DataLastUpdatedCanvasIcon
+              dataMartTitle={data.title}
+              block={data.dataLastUpdated}
+              isChecking={data.isCheckingDataLastUpdated}
+            />
+            <span className='ml-auto flex items-center gap-1'>
+              <SharingIcon
+                icon={Share2}
+                label='Shared for reporting'
+                on={data.availableForReporting}
+              />
+              <SharingIcon
+                icon={Users}
+                label='Shared for maintenance'
+                on={data.availableForMaintenance}
+              />
             </span>
-          )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* ERD body: field rows (only in ERD view) */}

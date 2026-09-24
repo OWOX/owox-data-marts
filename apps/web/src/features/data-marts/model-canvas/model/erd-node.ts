@@ -28,15 +28,25 @@ export {
 // an expanded ERD node may overlap below until the user drags it (nodes are
 // draggable) — same behaviour as owox/models.
 
-export const COMPACT_NODE_WIDTH = 212;
-export const COMPACT_NODE_HEIGHT = 116;
+// Card rows, top to bottom: title (icon tile + name), badges (input source +
+// field count), counts (triggers + relationships), footer (quality indicators
+// + sharing). Each row is a fixed single line so the estimate stays exact.
+/** Title row: top padding + the 28px icon tile. */
+export const CARD_TITLE_ROW_HEIGHT = 40;
+/** Extra bottom padding the title row gets when it is all the card shows. */
+export const CARD_TITLE_ONLY_PADDING = 12;
+/** Badges row (input source + field count), dropped when object labels hide both. */
+export const CARD_META_ROW_HEIGHT = 28;
+/** Counts row (triggers + relationships) + footer (quality + sharing), dropped in title-only mode. */
+export const CARD_STATUS_ROW_HEIGHT = 66;
+
+export const COMPACT_NODE_WIDTH = 240;
+export const COMPACT_NODE_HEIGHT =
+  CARD_TITLE_ROW_HEIGHT + CARD_META_ROW_HEIGHT + CARD_STATUS_ROW_HEIGHT;
 
 export const ERD_NODE_WIDTH = 256;
-export const ERD_HEADER_HEIGHT = 88; // title + meta + Data Quality rows
-/** Height of the meta row (status pill + source badge), subtracted when object labels hide both. */
-export const CARD_META_ROW_HEIGHT = 36;
-/** Height of the status icons row (quality shield + Data Last Updated + field count), dropped in title-only mode. */
-export const CARD_STATUS_ROW_HEIGHT = 30;
+/** The Detailed view shares the Compact header; the field rows start right under it. */
+export const ERD_HEADER_HEIGHT = COMPACT_NODE_HEIGHT;
 
 export function nodeWidth(viewMode: CanvasViewMode): number {
   return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
@@ -44,9 +54,9 @@ export function nodeWidth(viewMode: CanvasViewMode): number {
 
 /** How the object-labels preference changes a card's collapsed height. */
 export interface NodeLayoutOptions {
-  /** Both the status pill and the source badge are hidden, so the meta row is dropped. */
+  /** Both the source badge and the field count are hidden, so the badges row is dropped. */
   metaRowHidden?: boolean;
-  /** Title-only mode: the quality indicators row (shield + clock + field count) is dropped too. */
+  /** Title-only mode: the counts row and the footer are dropped too. */
   statusRowHidden?: boolean;
   /** Which optional lines each ERD field row shows. */
   fieldLabels?: ErdFieldRowLabels;
@@ -54,10 +64,10 @@ export interface NodeLayoutOptions {
 
 /** Derive the layout options once per preference — every node shares them. */
 export function nodeLayoutOptions(objectLabels: ObjectLabelsHidden): Required<NodeLayoutOptions> {
-  // The field count lives in the status icons row, so the meta row only holds
-  // the status pill and the source badge — hiding both drops the whole row.
+  // The Draft pill sits in the title row, so the badges row only holds the
+  // source badge and the field count — hiding both drops the whole row.
   return {
-    metaRowHidden: objectLabels.source && objectLabels.status,
+    metaRowHidden: objectLabels.source && objectLabels.fields,
     statusRowHidden: isTitleOnly(objectLabels),
     fieldLabels: toFieldRowLabels(objectLabels),
   };
@@ -77,7 +87,8 @@ export function computeNodeHeight(
   }: NodeLayoutOptions = {}
 ): number {
   const metaAdjustment =
-    (metaRowHidden ? -CARD_META_ROW_HEIGHT : 0) + (statusRowHidden ? -CARD_STATUS_ROW_HEIGHT : 0);
+    (metaRowHidden ? -CARD_META_ROW_HEIGHT : 0) +
+    (statusRowHidden ? CARD_TITLE_ONLY_PADDING - CARD_STATUS_ROW_HEIGHT : 0);
   if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT + metaAdjustment;
   const fields = node.fields ?? [];
   if (fields.length === 0) return COMPACT_NODE_HEIGHT + metaAdjustment;

@@ -31,6 +31,16 @@ export interface ModelCanvasNode {
   fields?: CanvasNodeField[];
   /** Physical reference (table/view path, pattern) or SQL text — enriched client-side. */
   definition?: string | null;
+  /** Scheduled triggers of the Data Mart — enriched client-side. */
+  triggersCount?: number;
+  /** Sharing flags — enriched client-side; unknown until the detail fetch resolves. */
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
+  /**
+   * Relationships this Data Mart takes part in (either side), counted over the
+   * storage's whole model — not just what the canvas filters leave on screen.
+   */
+  relationshipCount?: number;
   qualitySummary: DataQualityCompactSummary;
   dataLastUpdated: DataLastUpdatedDto | null;
 }

@@ -6,7 +6,12 @@ import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataMartSchema } from '../../shared/types/data-mart-schema.types';
 import { modelCanvasService } from '../api/model-canvas.service';
 import { extractDefinitionText } from './definition-text';
-import type { CanvasNodeField, ModelCanvasTopologyData, ModelCanvasTopologyNode } from './types';
+import type {
+  CanvasNodeField,
+  ModelCanvasEdge,
+  ModelCanvasTopologyData,
+  ModelCanvasTopologyNode,
+} from './types';
 
 const SILENT_REQUEST_OPTIONS = {
   skipLoadingIndicator: true,
@@ -26,6 +31,17 @@ function mapSchemaFields(schema: DataMartSchema | null | undefined): CanvasNodeF
     isPrimaryKey: field.isPrimaryKey,
     isHidden: field.isHiddenForReporting ?? false,
   }));
+}
+
+/** Relationships per Data Mart, either side; a self-relationship counts once. */
+export function countRelationships(edges: readonly ModelCanvasEdge[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  const bump = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const edge of edges) {
+    bump(edge.sourceDataMartId);
+    if (edge.targetDataMartId !== edge.sourceDataMartId) bump(edge.targetDataMartId);
+  }
+  return counts;
 }
 
 /**
@@ -58,6 +74,9 @@ async function enrichNodes(
         definitionType: detail.definitionType,
         definition: extractDefinitionText(detail.definitionType, detail.definition),
         fields: mapSchemaFields(detail.schema),
+        triggersCount: detail.triggersCount,
+        availableForReporting: detail.availableForReporting,
+        availableForMaintenance: detail.availableForMaintenance,
       };
     });
   }
@@ -105,19 +124,24 @@ export function useModelCanvas(storageId: string | null) {
   const data = useMemo((): ModelCanvasTopologyData | undefined => {
     if (!baseQuery.data) return undefined;
     const details = detailsQuery.data;
-    if (!details) return baseQuery.data;
-    const detailById = new Map(details.map(node => [node.id, node]));
+    const detailById = new Map(details?.map(node => [node.id, node]));
+    const relationshipCounts = countRelationships(baseQuery.data.edges);
     return {
       nodes: baseQuery.data.nodes.map(node => {
         const detail = detailById.get(node.id);
+        const relationshipCount = relationshipCounts.get(node.id) ?? 0;
         return detail
           ? {
               ...node,
               definitionType: detail.definitionType,
               definition: detail.definition,
               fields: detail.fields,
+              triggersCount: detail.triggersCount,
+              availableForReporting: detail.availableForReporting,
+              availableForMaintenance: detail.availableForMaintenance,
+              relationshipCount,
             }
-          : node;
+          : { ...node, relationshipCount };
       }),
       edges: baseQuery.data.edges,
     };

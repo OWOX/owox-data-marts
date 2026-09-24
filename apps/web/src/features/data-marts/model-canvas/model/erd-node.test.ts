@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARD_META_ROW_HEIGHT,
   CARD_STATUS_ROW_HEIGHT,
+  CARD_TITLE_ONLY_PADDING,
   COMPACT_NODE_HEIGHT,
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
@@ -47,9 +48,9 @@ describe('collapsedRowCount', () => {
 });
 
 describe('computeNodeHeight', () => {
-  it('reserves space for the third Data Quality header row', () => {
-    expect(COMPACT_NODE_HEIGHT).toBe(116);
-    expect(ERD_HEADER_HEIGHT).toBe(88);
+  it('sizes the card as title + badges + counts + footer rows', () => {
+    expect(COMPACT_NODE_HEIGHT).toBe(134);
+    expect(ERD_HEADER_HEIGHT).toBe(COMPACT_NODE_HEIGHT);
   });
 
   it('returns the compact height outside ERD mode', () => {
@@ -74,11 +75,15 @@ describe('computeNodeHeight', () => {
   it('also shrinks by the status icons row in title-only mode', () => {
     const titleOnly = { metaRowHidden: true, statusRowHidden: true };
     expect(computeNodeHeight({ fields: [] }, 'compact', titleOnly)).toBe(
-      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING
     );
     const fields = [field('a')];
     expect(computeNodeHeight({ fields }, 'erd', titleOnly)).toBe(
-      ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + ERD_ROW_HEIGHT
+      ERD_HEADER_HEIGHT -
+        CARD_META_ROW_HEIGHT -
+        CARD_STATUS_ROW_HEIGHT +
+        CARD_TITLE_ONLY_PADDING +
+        ERD_ROW_HEIGHT
     );
   });
 
@@ -101,7 +106,13 @@ describe('computeNodeHeight', () => {
       statusRowHidden: false,
       fieldLabels: { alias: true, description: true },
     });
+    // The Draft pill lives in the title row, so the status label no longer shapes the badges row.
     expect(nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true, status: true })).toEqual({
+      metaRowHidden: false,
+      statusRowHidden: false,
+      fieldLabels: { alias: true, description: true },
+    });
+    expect(nodeLayoutOptions({ ...NOTHING_HIDDEN, source: true, fields: true })).toEqual({
       metaRowHidden: true,
       statusRowHidden: false,
       fieldLabels: { alias: true, description: true },

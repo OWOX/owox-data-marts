@@ -8,6 +8,16 @@ Open **Data Marts → Models** and pick a storage. The canvas remembers the stor
 
 Click a card to highlight every relationship it takes part in. Click it again, or the empty canvas, to clear the highlight. The arrow icon on a card opens that Data Mart in a new tab.
 
+## What a card shows
+
+- The **title**, with a **Draft** badge when the Data Mart is not published yet.
+- The **input source** (Table, View, SQL, Pattern or Connector) and the **field count** of the Output Schema.
+- The number of **triggers** and **relationships**. The relationships count covers the whole storage, whatever the filters hide. It counts the relationships the Data Mart defines and the ones that point to it.
+- The [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) indicators. The colored bar on the left edge repeats the Data Quality status.
+- Sharing icons, when the Data Mart is shared for reporting or for maintenance. Hover an icon to see which one it is.
+
+The trigger count and the sharing icons appear once the canvas has loaded the Data Mart details.
+
 ## Toolbar
 
 - **Search** highlights the Data Marts whose title matches and zooms to them. It does not remove the other cards.
@@ -23,17 +33,17 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings and stores its own values.
 
-- **View** picks the card density. **Compact** cards show the title, the source badge, the status and the field count. **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
+- **View** picks the card density. **Compact** cards show everything listed in [What a card shows](#what-a-card-shows). **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Layout algorithm** lays the graph out horizontally or vertically. Picking an algorithm re-runs the layout and drops the card positions you dragged.
 - **Show join fields** labels every arrow with its join conditions (`source_field = target_field`).
 - **Object labels** picks what every card shows:
   - **Input source** shows the badge with the definition type (VIEW / TABLE / SQL / PATTERN / CONNECTOR).
   - **Field count** shows the number of fields in the Output Schema.
-  - **Status** shows the published/draft indicator.
+  - **Status** shows the **Draft** badge on unpublished Data Marts.
   - **Field aliases** leads each field row in the Detailed view with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.
   - **Field descriptions** adds the Output Schema description under each field in the Detailed view, when the field has one. The line shows one row of text. Hover it to read the whole description.
 
-  **Check all** turns every label back on. **Uncheck all** leaves only the titles. In the Detailed view it also leaves the technical field names and their types.
+  **Check all** turns every label back on. **Uncheck all** leaves only the titles. It also hides the counts, the indicators and the sharing icons. In the Detailed view it also leaves the technical field names and their types.
 
 ![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 

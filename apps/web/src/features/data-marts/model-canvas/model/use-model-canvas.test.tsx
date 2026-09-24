@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useModelCanvas } from './use-model-canvas';
+import { countRelationships, useModelCanvas } from './use-model-canvas';
 
 const serviceMocks = vi.hoisted(() => ({
   getDataMarts: vi.fn(),
@@ -124,6 +124,7 @@ describe('useModelCanvas', () => {
           // OKF export's Definition section reads it from these nodes.
           definition: 'project.dataset.orders_view',
           fields: [],
+          relationshipCount: 0,
         },
       ],
       edges: [],
@@ -134,6 +135,47 @@ describe('useModelCanvas', () => {
     expect(serviceMocks.getSummaries).not.toHaveBeenCalled();
     // The enrichment flag settles once the detail query lands — the export gate reads it.
     expect(result.current.isEnriching).toBe(false);
+  });
+
+  it('carries triggers and sharing from the detail and counts relationships over all edges', async () => {
+    serviceMocks.getDataMarts.mockResolvedValue([canvasNode()]);
+    serviceMocks.getEdges.mockResolvedValue([
+      { id: 'e1', sourceDataMartId: 'mart-1', targetDataMartId: 'mart-2', joinConditions: [] },
+      { id: 'e2', sourceDataMartId: 'mart-3', targetDataMartId: 'mart-1', joinConditions: [] },
+    ]);
+    serviceMocks.getDataMartById.mockResolvedValue({
+      definitionType: 'VIEW',
+      definition: { fullyQualifiedName: 'project.dataset.orders_view' },
+      schema: { fields: [] },
+      triggersCount: 3,
+      availableForReporting: true,
+      availableForMaintenance: false,
+    });
+
+    const { result } = renderHook(() => useModelCanvas('storage-1'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.nodes[0]?.triggersCount).toBe(3);
+    });
+    expect(result.current.data?.nodes[0]).toMatchObject({
+      availableForReporting: true,
+      availableForMaintenance: false,
+      relationshipCount: 2,
+    });
+  });
+});
+
+describe('countRelationships', () => {
+  it('counts both ends of every relationship and a self-relationship once', () => {
+    const counts = countRelationships([
+      { id: 'e1', sourceDataMartId: 'a', targetDataMartId: 'b', joinConditions: [] },
+      { id: 'e2', sourceDataMartId: 'b', targetDataMartId: 'a', joinConditions: [] },
+      { id: 'e3', sourceDataMartId: 'c', targetDataMartId: 'c', joinConditions: [] },
+    ]);
+
+    expect(Object.fromEntries(counts)).toEqual({ a: 2, b: 2, c: 1 });
   });
 });
 

@@ -40,7 +40,8 @@ function renderNode(
   onOpenQuality = vi.fn(),
   onRunQuality = vi.fn().mockResolvedValue(undefined),
   onParentClick = vi.fn(),
-  objectLabels?: ObjectLabelsHidden
+  objectLabels?: ObjectLabelsHidden,
+  dataOverrides: Partial<ModelCanvasFlowNodeType['data']> = {}
 ) {
   const props = {
     id: 'orders',
@@ -50,6 +51,10 @@ function renderNode(
       isDraft: false,
       dataLastUpdated: null,
       fieldCount: fields.length,
+      triggersCount: 2,
+      relationshipCount: 1,
+      availableForReporting: true,
+      availableForMaintenance: false,
       description: 'Customer order facts',
       definitionType: DataMartDefinitionType.VIEW,
       fields,
@@ -79,6 +84,7 @@ function renderNode(
         dataMartRunId: 'run-1',
         lastRunAt: '2026-07-15T12:00:00.000Z',
       },
+      ...dataOverrides,
     },
     dragging: false,
     zIndex: 0,
@@ -226,7 +232,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText('Field 5')).not.toBeInTheDocument();
   });
 
-  it('hides the badge, field count and status pill when all object labels are hidden', () => {
+  it('hides the badges, counts and sharing when all object labels are hidden', () => {
     const { container } = renderNode(
       vi.fn(),
       DEFAULT_FIELDS,
@@ -238,7 +244,9 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.queryByText('View')).not.toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.queryByText('Published')).not.toBeInTheDocument();
+    expect(screen.queryByText('2 triggers')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 relationship')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Shared for reporting')).not.toBeInTheDocument();
     expect(screen.getByText('Orders')).toBeInTheDocument();
     // Title-only mode also drops the quality indicators row.
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
@@ -258,7 +266,37 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.getByText('View')).toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.getByText('Published')).toBeInTheDocument();
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+  });
+
+  it('shows a Draft pill only for drafts and only while the status label is ticked', () => {
+    const { unmount } = renderNode();
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument();
+    expect(screen.queryByText('Published')).not.toBeInTheDocument();
+    unmount();
+
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      isDraft: true,
+    });
+    expect(screen.getByText('Draft')).toBeInTheDocument();
+  });
+
+  it('shows the triggers and relationships counts and the sharing flags that are on', () => {
+    renderNode();
+
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Shared for maintenance' })).not.toBeInTheDocument();
+  });
+
+  it('waits for enrichment before showing the triggers count', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      triggersCount: undefined,
+    });
+
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
   });
 
   it('orders primary keys first in the field list', () => {
@@ -299,18 +337,16 @@ describe('ModelCanvasFlowNode', () => {
     ).toHaveClass('-ml-0.5');
   });
 
-  it('renders Data Quality indicators and the field count on one row below the badge', () => {
+  it('renders the Data Quality indicators in the footer, below the count badges', () => {
     renderNode();
 
     const qualityRow = screen.getByRole('button', {
       name: /^Open Data Quality for Orders: Issues found/,
     }).parentElement;
-    const metadataRow = screen.getByText('View').parentElement;
 
-    expect(qualityRow).not.toBe(metadataRow);
-    // The field count shares the status row with the quality indicators, so
-    // cards stay one row shorter than with a dedicated field-count line.
-    expect(screen.getByText('3 fields').parentElement).toBe(qualityRow);
+    expect(screen.getByText('View').closest('div')).not.toBe(qualityRow);
+    expect(screen.getByText('3 fields').closest('div')).not.toBe(qualityRow);
+    expect(qualityRow).toContainElement(screen.getByRole('img', { name: 'Shared for reporting' }));
   });
 
   it('provides the non-bubbling run action inside the quality details', async () => {
