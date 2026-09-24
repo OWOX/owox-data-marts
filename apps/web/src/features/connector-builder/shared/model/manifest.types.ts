@@ -305,7 +305,6 @@ export interface BasicAuth {
 }
 export interface BearerAuth {
   type: 'bearer';
-  tokenUrl?: string;
   inject: AuthInject;
 }
 export interface TokenExchangeSpec {

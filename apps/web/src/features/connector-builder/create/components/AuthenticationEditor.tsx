@@ -96,8 +96,8 @@ const AUTH_HELP: Record<AuthChoice, { title: string; body: ReactNode }> = {
       <p>
         The connector sends a token in the <Tok>Authorization</Tok> header as{' '}
         <Tok>Bearer &lt;token&gt;</Tok>. The <strong>Format</strong> holds the value, e.g.{' '}
-        <Tok>{'Bearer {{ parameters.Token }}'}</Tok>. Set a <strong>Token URL</strong> only if the
-        token must be fetched first.
+        <Tok>{'Bearer {{ parameters.Token }}'}</Tok>. A token the API issues from a login or a
+        refresh token needs <strong>Token Exchange</strong> or <strong>OAuth2</strong> instead.
       </p>
     ),
   },
@@ -295,25 +295,6 @@ export function AuthenticationEditor() {
             </div>
 
             <AuthTypeHelp choice={current} />
-
-            {current === 'bearer' && (
-              <label className='flex flex-col'>
-                <InfoLabel hint='Endpoint that issues the bearer token (optional).'>
-                  Token URL (optional)
-                </InfoLabel>
-                <Input
-                  value={(auth as { tokenUrl?: string } | undefined)?.tokenUrl ?? ''}
-                  onChange={e => {
-                    setPath(
-                      ['authentication', 'tokenUrl'],
-                      e.target.value === '' ? undefined : e.target.value
-                    );
-                  }}
-                  placeholder='https://auth.example.com/token'
-                  className='font-mono'
-                />
-              </label>
-            )}
 
             {current === 'tokenExchange' && (
               <ExchangeEditor
