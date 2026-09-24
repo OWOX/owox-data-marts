@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
 import { BuilderProvider } from '../shared/model/context/BuilderProvider';
 import { useBuilder } from '../shared/model/hooks/useBuilder';
 import { BuilderTopBar } from './components/BuilderTopBar';
@@ -11,6 +13,7 @@ import { NodeEditor } from './components/node/NodeEditor';
 import { NodeEditorBoundary } from './components/node/NodeEditorBoundary';
 import { ResultsDock } from './components/ResultsDock';
 import { CodeModeEditor } from './components/CodeModeEditor';
+import { useManifestImport } from './components/useManifestImport';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 
 function BuilderCenter({
@@ -94,6 +97,7 @@ function BuilderShell({
   const [mode, setMode] = useState<'builder' | 'code'>('builder');
   const [confirmDropCode, setConfirmDropCode] = useState(false);
   const announcedCreate = useRef(false);
+  const manifestImport = useManifestImport();
 
   // Leaving Code mode unmounts the editor, and its buffer with it. Anything that parsed is
   // pushed on the way out, so the only thing at stake is text that does not — which is
@@ -152,6 +156,7 @@ function BuilderShell({
         onToggleTest={() => {
           setDockOpen(v => !v);
         }}
+        onImportJson={manifestImport.openFilePicker}
         onBack={onBack}
       />
 
@@ -181,7 +186,22 @@ function BuilderShell({
           ) : (
             <div className='flex min-h-0 flex-1 flex-col'>
               {/* In Code mode the switch heads the editor column so it stays reachable */}
-              <BuilderModeTabs mode={mode} onSetMode={requestMode} />
+              <BuilderModeTabs
+                mode={mode}
+                onSetMode={requestMode}
+                actions={
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-7 gap-1.5'
+                    onClick={manifestImport.openFilePicker}
+                    data-testid='codeImportJson'
+                  >
+                    <Upload className='h-3.5 w-3.5' />
+                    Import JSON
+                  </Button>
+                }
+              />
               <div className='min-h-0 flex-1'>
                 <CodeModeEditor />
               </div>
@@ -197,6 +217,8 @@ function BuilderShell({
           />
         </div>
       </div>
+
+      {manifestImport.elements}
 
       <ConfirmationDialog
         open={confirmDropCode}

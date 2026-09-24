@@ -21,6 +21,12 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
   },
 }));
 vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('@monaco-editor/react', () => ({
+  Editor: ({ value }: { value: string }) => (
+    <textarea data-testid='monaco' value={value} readOnly />
+  ),
+}));
+vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 vi.mock('../../data-marts/model-canvas/export/download', () => ({
   downloadBlob: (...args: unknown[]) => downloadBlob(...args),
 }));
@@ -85,16 +91,42 @@ describe('Builder import and export', () => {
     });
   });
 
-  it('links the guide for AI assistants from the menu', async () => {
+  it('links the connector builder guide from the menu', async () => {
     await renderExisting();
     openMoreActions();
-    const guide = await screen.findByTestId('builderAiGuide');
+    const guide = await screen.findByTestId('builderGuide');
 
+    expect(guide).toHaveTextContent('Guide for Connector Builder');
     expect(guide).toHaveAttribute(
       'href',
-      'https://docs.owox.com/docs/connectors/manifest-reference.llms.txt'
+      'https://docs.owox.com/docs/connectors/connector-builder/'
     );
     expect(guide).toHaveAttribute('target', '_blank');
+  });
+
+  it('offers Import JSON beside the Code tab, and only there', async () => {
+    await renderExisting();
+    expect(screen.queryByTestId('codeImportJson')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mode-code'));
+    const click = vi.spyOn(screen.getByTestId('builderImportInput'), 'click');
+    fireEvent.click(screen.getByTestId('codeImportJson'));
+
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the imported manifest in the Code editor', async () => {
+    await renderExisting();
+    fireEvent.click(screen.getByTestId('mode-code'));
+    importFile(
+      manifestFile(JSON.stringify({ ...MANIFEST, baseUrl: 'https://imported.example.com' }))
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId<HTMLTextAreaElement>('monaco').value).toContain(
+        'https://imported.example.com'
+      );
+    });
   });
 
   it('opens the file picker from the menu', async () => {
