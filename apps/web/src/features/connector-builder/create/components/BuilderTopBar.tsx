@@ -253,7 +253,8 @@ export function BuilderTopBar({
             <span className='font-semibold [overflow-wrap:anywhere]'>
               {firstNonEmpty(manifest.title, manifest.name, 'this connector')}
             </span>
-            "? Data marts already using it keep working, but it can no longer be selected.
+            "? A connector can be deleted only when no Data Mart uses it. This action cannot be
+            undone.
           </p>
         }
         confirmLabel='Delete'
