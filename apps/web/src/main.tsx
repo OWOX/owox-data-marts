@@ -2,9 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/index.css';
 import App from './App.tsx';
-import { reloadOnStaleChunk } from './app/reload-on-stale-chunk';
+import { watchForStaleChunk } from './app/stale-chunk';
 
-reloadOnStaleChunk();
+watchForStaleChunk();
 
 const rootElement = document.getElementById('root');
 
