@@ -96,7 +96,7 @@ export function ConnectorsTable({ data, onOpen, onCreate, onDelete }: Connectors
           if (!open) setPendingDeleteId(null);
         }}
         title='Delete connector'
-        description='Are you sure you want to delete this connector? Data marts that use it will fail to run. This action cannot be undone.'
+        description='Are you sure you want to delete this connector? A connector can be deleted only when no Data Mart uses it. This action cannot be undone.'
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
