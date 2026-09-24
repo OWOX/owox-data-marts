@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartIconPicker } from './DataMartIconPicker';
-import { DATA_MART_ICON_OPTIONS, DEFAULT_DATA_MART_ICON, getDataMartIcon } from './data-mart-icons';
+import {
+  DATA_MART_ICON_GROUPS,
+  DATA_MART_ICON_OPTIONS,
+  DEFAULT_DATA_MART_ICON,
+  getDataMartIcon,
+} from './data-mart-icons';
 
 describe('getDataMartIcon', () => {
   it('maps a known key to its icon and anything else to the default one', () => {
@@ -13,6 +18,12 @@ describe('getDataMartIcon', () => {
   it('keeps every key unique', () => {
     const keys = DATA_MART_ICON_OPTIONS.map(option => option.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('leaves no picker section empty', () => {
+    for (const group of DATA_MART_ICON_GROUPS) {
+      expect(DATA_MART_ICON_OPTIONS.some(option => option.group === group)).toBe(true);
+    }
   });
 });
 
@@ -35,6 +46,17 @@ describe('DataMartIconPicker', () => {
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith('purchases');
     });
+  });
+
+  it('groups the icons into titled sections', () => {
+    render(<DataMartIconPicker icon={null} onChange={vi.fn()} />);
+
+    open();
+
+    for (const group of DATA_MART_ICON_GROUPS) {
+      expect(screen.getByRole('listbox', { name: group })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('option')).toHaveLength(DATA_MART_ICON_OPTIONS.length);
   });
 
   it('does not save when the current icon is picked again', () => {
