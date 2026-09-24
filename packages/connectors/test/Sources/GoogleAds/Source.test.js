@@ -155,3 +155,28 @@ describe('_mapResultToColumns date-only truncation', () => {
     });
   });
 });
+
+describe('global resources', () => {
+  it('fetches a global resource for the first customer only', async () => {
+    const requestedFor = [];
+    const self = Object.assign(Object.create(proto), {
+      fieldsSchema: { geo_target_constants: { isGlobalResource: true, isTimeSeries: false } },
+      _globalResourcesProcessed: new Set(),
+      context: { log: () => {} },
+      _buildQuery: () => 'SELECT geo_target_constant.id FROM geo_target_constant',
+      makeRequest: async ({ customerId }) => {
+        requestedFor.push(customerId);
+        return [{ geo_target_constant_id: 1 }];
+      },
+    });
+    const fetchFor = accountId =>
+      proto.fetchData.call(self, { nodeName: 'geo_target_constants', fields: [], accountId });
+
+    const first = await fetchFor('111');
+    const second = await fetchFor('222');
+
+    expect(requestedFor).toEqual(['111']);
+    expect(first).toEqual([{ geo_target_constant_id: 1 }]);
+    expect(second).toEqual([]);
+  });
+});

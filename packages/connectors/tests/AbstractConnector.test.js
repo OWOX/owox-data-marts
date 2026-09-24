@@ -208,7 +208,7 @@ describe('AbstractConnector', () => {
         const connector = new AbstractConnector(ctx, source, createMockStorageClass());
         await connector.run();
         const warnings = cap.events.filter(e => e.type === 'LOG' && e.level === 'warn');
-        assert.ok(warnings.some(w => w.message.includes('Unknown node')));
+        assert.ok(warnings.some(w => w.message.includes('Unknown node "unknownNode"')));
       } finally {
         cap.restore();
       }
@@ -2728,6 +2728,190 @@ describe('AbstractConnector', () => {
           ['a-1', 'a-2', 'b-1', 'b-2']
         );
         assert.ok(cap.events.some(e => e.type === 'CONTROL' && e.action === 'completed'));
+      } finally {
+        cap.restore();
+      }
+    });
+  });
+
+  // main tested these per connector because each one ran its own day loop; the loop lives here now.
+  describe('day-by-day checkpoints', () => {
+    function incrementalWindow(days) {
+      return createTestContext({
+        LastRequestedDate: { value: utcDay(-(days - 1)) },
+        ReimportLookbackWindow: { value: '0' },
+      });
+    }
+
+    const stateDates = cap =>
+      cap.events.filter(e => e.type === 'STATE').map(e => e.state.lastRequestedDate);
+
+    it('requests each day as a one-day range', async () => {
+      const restore = suppressStdout();
+      try {
+        const ranges = [];
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            ranges.push([req.startDate, req.endDate]);
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(incrementalWindow(2), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(ranges, [
+          [utcDay(-1), utcDay(-1)],
+          [utcDay(0), utcDay(0)],
+        ]);
+      } finally {
+        restore();
+      }
+    });
+
+    it('keeps the days before a failed storage write and checkpoints nothing from it on', async () => {
+      const cap = captureEvents();
+      try {
+        const badDay = utcDay(-1);
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => [{ id: 1, date: req.startDate }],
+        });
+        const StorageClass = class extends createMockStorageClass() {
+          async saveData(data) {
+            if (data[0]?.date === badDay) throw new Error('BigQuery write failed');
+            return super.saveData(data);
+          }
+        };
+        const connector = new AbstractConnector(incrementalWindow(3), source, StorageClass);
+        await assert.rejects(() => connector.run(), /BigQuery write failed/);
+        assert.deepStrictEqual(stateDates(cap), [utcDay(-2)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('runs catalog nodes first, then every account and node of a day before checkpointing it', async () => {
+      const cap = captureEvents();
+      try {
+        const [d0, d1] = [utcDay(-1), utcDay(0)];
+        const fetched = [];
+        const source = createMockSource({
+          fieldsSchema: {
+            ...createMockSource().fieldsSchema,
+            clicks: {
+              fields: [],
+              uniqueKeys: ['id', 'date'],
+              isTimeSeries: true,
+              destinationName: 'clicks',
+            },
+          },
+          parseFields: () => ({ campaigns: ['id'], stats: ['id'], clicks: ['id'] }),
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            // Prefixed with the number of checkpoints emitted before this request.
+            const checkpoints = stateDates(cap).length;
+            fetched.push(`${checkpoints} ${req.nodeName}/${req.accountId}/${req.startDate ?? '-'}`);
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(incrementalWindow(2), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(fetched, [
+          '0 campaigns/a/-',
+          '0 campaigns/b/-',
+          `0 stats/a/${d0}`,
+          `0 clicks/a/${d0}`,
+          `0 stats/b/${d0}`,
+          `0 clicks/b/${d0}`,
+          `1 stats/a/${d1}`,
+          `1 clicks/a/${d1}`,
+          `1 stats/b/${d1}`,
+          `1 clicks/b/${d1}`,
+        ]);
+        assert.deepStrictEqual(stateDates(cap), [d0, d1]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('never checkpoints a run that selected only catalog nodes', async () => {
+      const cap = captureEvents();
+      try {
+        const connector = new AbstractConnector(
+          incrementalWindow(2),
+          createMockSource(),
+          createMockStorageClass()
+        );
+        await connector.run();
+        assert.deepStrictEqual(stateDates(cap), []);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('imports nothing and checkpoints nothing when the window holds no day', async () => {
+      const cap = captureEvents();
+      try {
+        const fetched = [];
+        // A cursor already past today leaves a window that ends before it starts.
+        const ctx = createTestContext({
+          LastRequestedDate: { value: utcDay(1) },
+          ReimportLookbackWindow: { value: '0' },
+        });
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            fetched.push(req.startDate);
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+        assert.deepStrictEqual(fetched, []);
+        assert.deepStrictEqual(stateDates(cap), []);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('checkpoints a day that returned no rows', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async () => [],
+        });
+        await new AbstractConnector(incrementalWindow(2), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(stateDates(cap), [utcDay(-1), utcDay(0)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('keeps the days a manual backfill imported before a later day failed', async () => {
+      const cap = captureEvents();
+      try {
+        const ctx = createTestContext(
+          {},
+          {
+            type: 'MANUAL_BACKFILL',
+            data: [
+              { configField: 'StartDate', value: '2024-01-01' },
+              { configField: 'EndDate', value: '2024-01-03' },
+            ],
+          }
+        );
+        ctx.registerParameters({
+          StartDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+          EndDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+        });
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            if (req.startDate === '2024-01-03') throw new Error('Connector died');
+            return [{ id: 1 }];
+          },
+        });
+        const connector = new AbstractConnector(ctx, source, createMockStorageClass());
+        await assert.rejects(() => connector.run(), /Connector died/);
+        assert.deepStrictEqual(stateDates(cap), ['2024-01-01', '2024-01-02']);
       } finally {
         cap.restore();
       }

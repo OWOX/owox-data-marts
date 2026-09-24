@@ -198,3 +198,23 @@ describe('_downloadEntity streaming', () => {
     }
   });
 });
+
+describe('getAccounts', () => {
+  const accountsFor = value =>
+    proto.getAccounts.call(proto, {
+      getParameter: name => (name === 'AccountIDs' ? { value } : undefined),
+    });
+
+  it('trims whitespace and accepts semicolons in configured account IDs', () => {
+    expect(accountsFor(' acc1 ; acc2 ,acc3')).toEqual([
+      { id: 'acc1' },
+      { id: 'acc2' },
+      { id: 'acc3' },
+    ]);
+  });
+
+  // An empty list is what makes the engine refuse the run instead of importing nothing.
+  it('resolves no account from a value that holds no usable id', () => {
+    expect(accountsFor(', ;')).toEqual([]);
+  });
+});
