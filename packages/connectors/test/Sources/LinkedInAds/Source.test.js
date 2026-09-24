@@ -179,6 +179,20 @@ describe('mergeAnalyticsResults', () => {
     ]);
     expect(existing[1]).not.toHaveProperty('clicks');
   });
+
+  // Each field chunk is merged into up to a full day of rows, so a quadratic merge takes minutes.
+  it('merges a day at the element limit in well under a second', () => {
+    const existing = buildFullDay(1).map(row => ({ ...row, impressions: 1 }));
+    const incoming = buildFullDay(1).map(row => ({ ...row, clicks: 2 }));
+
+    const startedAt = performance.now();
+    const merged = sourceProto.mergeAnalyticsResults.call({}, existing, incoming);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(merged).toHaveLength(15000);
+    expect(merged.every(row => row.impressions === 1 && row.clicks === 2)).toBe(true);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
 });
 
 describe('makeRequest', () => {
