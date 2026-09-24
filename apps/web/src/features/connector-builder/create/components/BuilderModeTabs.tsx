@@ -1,16 +1,19 @@
+import type { ReactNode } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 
 /**
  * Builder / Code switch. It heads the left configuration column in Builder mode
  * (above "Global configuration") and the editor column in Code mode, so it stays
- * reachable in both modes without living in the top bar.
+ * reachable in both modes without living in the top bar. `actions` sit at its right end.
  */
 export function BuilderModeTabs({
   mode,
   onSetMode,
+  actions,
 }: {
   mode: 'builder' | 'code';
   onSetMode: (m: 'builder' | 'code') => void;
+  actions?: ReactNode;
 }) {
   return (
     <div
@@ -37,6 +40,7 @@ export function BuilderModeTabs({
           {m}
         </button>
       ))}
+      {actions && <div className='ml-auto flex items-center'>{actions}</div>}
     </div>
   );
 }

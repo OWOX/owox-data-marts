@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   BookOpen,
   ChevronLeft,
@@ -11,7 +11,6 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -23,27 +22,26 @@ import {
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { draftVersionAtRisk, useBuilder } from '../../shared/model/hooks/useBuilder';
 import { firstNonEmpty } from '../../shared/model/asText';
-import { manifestToJson, parseManifestJson } from '../../shared/model/manifestJson';
-import type { BuilderManifest } from '../../shared/model/manifest.types';
+import { manifestToJson } from '../../shared/model/manifestJson';
 import { downloadBlob } from '../../../data-marts/model-canvas/export/download';
 import { VersionHistoryPopover } from './VersionHistoryPopover';
 
-const AI_GUIDE_URL = 'https://docs.owox.com/docs/connectors/manifest-reference.llms.txt';
+const BUILDER_GUIDE_URL = 'https://docs.owox.com/docs/connectors/connector-builder/';
 
 export function BuilderTopBar({
   onToggleTest,
+  onImportJson,
   onBack,
   onToggleAi,
 }: {
   onToggleTest: () => void;
+  onImportJson: () => void;
   onBack?: () => void;
   onToggleAi?: () => void;
 }) {
-  const { manifest, state, saveDraft, publish, softDelete, reset, setManifest } = useBuilder();
+  const { manifest, state, saveDraft, publish, softDelete, reset } = useBuilder();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
-  const [pendingImport, setPendingImport] = useState<BuilderManifest | null>(null);
 
   const exportManifest = () => {
     downloadBlob(
@@ -52,26 +50,6 @@ export function BuilderTopBar({
     );
   };
 
-  const applyImport = (imported: BuilderManifest) => {
-    // Data marts reference an existing connector by its name, so an import cannot change it.
-    const keepName = state.id !== null && imported.name !== manifest.name;
-    setManifest(keepName ? { ...imported, name: manifest.name } : imported);
-    toast.success(
-      keepName
-        ? `Manifest imported. The connector name stays "${manifest.name}".`
-        : 'Manifest imported'
-    );
-  };
-
-  const importFile = async (file: File) => {
-    const parsed = parseManifestJson(await file.text());
-    if (!parsed.ok) {
-      toast.error(`Could not import ${file.name}: ${parsed.error}`);
-      return;
-    }
-    if (state.dirty) setPendingImport(parsed.manifest);
-    else applyImport(parsed.manifest);
-  };
   // Which write is waiting on the "this replaces a newer draft" confirmation, if any.
   // Publish is guarded too: it saves the draft first, so it destroys the same row.
   const [pendingWrite, setPendingWrite] = useState<'save' | 'publish' | null>(null);
@@ -172,12 +150,7 @@ export function BuilderTopBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuItem
-              data-testid='builderImportJson'
-              onClick={() => {
-                importInputRef.current?.click();
-              }}
-            >
+            <DropdownMenuItem data-testid='builderImportJson' onClick={onImportJson}>
               <Upload className='h-4 w-4' />
               <span>Import JSON…</span>
             </DropdownMenuItem>
@@ -191,14 +164,14 @@ export function BuilderTopBar({
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <a
-                href={AI_GUIDE_URL}
+                href={BUILDER_GUIDE_URL}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='flex items-center gap-2'
-                data-testid='builderAiGuide'
+                data-testid='builderGuide'
               >
                 <BookOpen className='h-4 w-4' />
-                Guide for AI assistants
+                Guide for Connector Builder
               </a>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -225,41 +198,7 @@ export function BuilderTopBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <input
-          ref={importInputRef}
-          type='file'
-          accept='.json,application/json'
-          className='hidden'
-          data-testid='builderImportInput'
-          onChange={e => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) void importFile(file);
-          }}
-        />
       </div>
-
-      <ConfirmationDialog
-        open={pendingImport !== null}
-        onOpenChange={open => {
-          if (!open) setPendingImport(null);
-        }}
-        title='Replace unsaved changes?'
-        description={
-          <p className='mt-2'>
-            The imported manifest replaces your unsaved changes. Nothing is saved until you save the
-            draft or publish.
-          </p>
-        }
-        confirmLabel='Import'
-        cancelLabel='Cancel'
-        variant='destructive'
-        onConfirm={() => {
-          const next = pendingImport;
-          setPendingImport(null);
-          if (next) applyImport(next);
-        }}
-      />
 
       <ConfirmationDialog
         open={pendingWrite !== null}
