@@ -26,6 +26,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_START':
     case 'UPDATE_DATA_MART_TITLE_START':
     case 'UPDATE_DATA_MART_DESCRIPTION_START':
+    case 'UPDATE_DATA_MART_ICON_START':
     case 'UPDATE_DATA_MART_DEFINITION_START':
     case 'DELETE_DATA_MART_START':
     case 'PUBLISH_DATA_MART_START':
@@ -91,6 +92,20 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
             dataMart: updateDataMartWithValidationHelper({
               ...state.dataMart,
               description: action.payload,
+              modifiedAt: new Date(),
+            }),
+          }
+        : state;
+
+    case 'UPDATE_DATA_MART_ICON_SUCCESS':
+      return state.dataMart
+        ? {
+            ...state,
+            isLoading: false,
+            error: null,
+            dataMart: updateDataMartWithValidationHelper({
+              ...state.dataMart,
+              icon: action.payload,
               modifiedAt: new Date(),
             }),
           }
@@ -177,6 +192,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_TITLE_ERROR':
     case 'UPDATE_DATA_MART_DESCRIPTION_ERROR':
+    case 'UPDATE_DATA_MART_ICON_ERROR':
     case 'UPDATE_DATA_MART_DEFINITION_ERROR':
     case 'DELETE_DATA_MART_ERROR':
     case 'PUBLISH_DATA_MART_ERROR':

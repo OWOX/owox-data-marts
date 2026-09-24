@@ -56,6 +56,7 @@ function renderNode(
       availableForReporting: true,
       availableForMaintenance: false,
       description: 'Customer order facts',
+      icon: null,
       definitionType: DataMartDefinitionType.VIEW,
       fields,
       viewMode: 'erd',
@@ -122,6 +123,24 @@ describe('ModelCanvasFlowNode', () => {
     expect(document.querySelector('[data-slot="tooltip-content"]')).toHaveTextContent(
       'Customer order facts'
     );
+  });
+
+  it('draws the default icon until one is picked, then the picked one', () => {
+    const { container, unmount } = renderNode();
+    expect(container.querySelector('.lucide-box')).not.toBeNull();
+    unmount();
+
+    const picked = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      vi.fn(),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      undefined,
+      { icon: 'purchases' }
+    );
+    expect(picked.container.querySelector('.lucide-shopping-cart')).not.toBeNull();
+    expect(picked.container.querySelector('.lucide-box')).toBeNull();
   });
 
   it('includes the data mart title in the external action name', () => {

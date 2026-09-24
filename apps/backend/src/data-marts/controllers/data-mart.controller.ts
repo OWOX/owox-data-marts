@@ -28,6 +28,7 @@ import { RunDataMartResponseApiDto } from '../dto/presentation/run-data-mart-res
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartIconApiDto } from '../dto/presentation/update-data-mart-icon-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import {
   UpdateDataMartSchemaApiDto,
@@ -54,6 +55,7 @@ import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
+import { UpdateDataMartIconService } from '../use-cases/update-data-mart-icon.service';
 import { GetBlendableSchemaService } from '../use-cases/get-blendable-schema.service';
 import { UpdateBlendedFieldsConfigService } from '../use-cases/update-blended-fields-config.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
@@ -92,6 +94,7 @@ import {
   UpdateDataMartContextsSpec,
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
+  UpdateDataMartIconSpec,
   UpdateDataMartSchemaSpec,
   UpdateDataMartOwnersSpec,
   UpdateDataMartTitleSpec,
@@ -111,6 +114,7 @@ export class DataMartController {
     private readonly updateDefinitionService: UpdateDataMartDefinitionService,
     private readonly updateTitleService: UpdateDataMartTitleService,
     private readonly updateDescriptionService: UpdateDataMartDescriptionService,
+    private readonly updateIconService: UpdateDataMartIconService,
     private readonly publishDataMartService: PublishDataMartService,
     private readonly deleteDataMartService: DeleteDataMartService,
     private readonly mapper: DataMartMapper,
@@ -244,6 +248,19 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateDescriptionCommand(id, context, dto);
     const dataMart = await this.updateDescriptionService.run(command);
+    return this.mapper.toResponse(dataMart);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Put(':id/icon')
+  @UpdateDataMartIconSpec()
+  async updateIcon(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateDataMartIconApiDto
+  ): Promise<DataMartResponseApiDto> {
+    const command = this.mapper.toUpdateIconCommand(id, context, dto);
+    const dataMart = await this.updateIconService.run(command);
     return this.mapper.toResponse(dataMart);
   }
 

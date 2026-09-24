@@ -4,6 +4,7 @@ import type { DataMart } from '../entities/data-mart.entity';
 import { DataSource, EntitySchema, type Repository } from 'typeorm';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { RoleScope } from '../enums/role-scope.enum';
+import { DataMartIcon } from '../enums/data-mart-icon.enum';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -327,7 +328,7 @@ describe('DataMartService list filtering', () => {
     // The projection is explicit, so an unlisted column loads as undefined and the whole list
     // column silently renders "Unknown" however many snapshots are persisted.
     expect(queryBuilder.select).toHaveBeenCalledWith(
-      expect.arrayContaining(['dm.dataLastUpdated'])
+      expect.arrayContaining(['dm.dataLastUpdated', 'dm.icon'])
     );
   });
 });
@@ -345,6 +346,7 @@ const canvasDataMartSchema = new EntitySchema<DataMart>({
     dataQualityConfig: { type: 'simple-json', nullable: true },
     status: { type: String },
     description: { type: String, nullable: true },
+    icon: { type: String, nullable: true },
     availableForReporting: { type: Boolean, default: false },
     availableForMaintenance: { type: Boolean, default: false },
     dataLastUpdated: { type: 'simple-json', nullable: true },
@@ -402,6 +404,17 @@ describe('DataMartService canvas visibility queries', () => {
       dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
       coverage: 'complete',
     });
+  });
+
+  it('loads the picked icon so canvas cards do not fall back to the default one', async () => {
+    const result = await service.findByProjectIdAndStorageIdForCanvas('project-1', 'storage-1', {
+      roles: ['admin'],
+    });
+
+    expect(result.items.find(item => item.id === 'shared-context')?.icon).toBe(
+      DataMartIcon.PURCHASES
+    );
+    expect(result.items.find(item => item.id === 'owned')?.icon).toBeNull();
   });
 
   it('gives editors maintenance visibility while admins bypass the ownership/share gate', async () => {
@@ -737,6 +750,7 @@ async function seedCanvasDataMarts(
     canvasRow('owned', 'Alpha'),
     canvasRow('shared-context', 'Beta', {
       availableForReporting: true,
+      icon: DataMartIcon.PURCHASES,
       dataLastUpdated: {
         dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
         computedAt: '2026-07-28T00:00:00.000Z',

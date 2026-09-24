@@ -201,6 +201,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       availableForReporting: node.availableForReporting,
       availableForMaintenance: node.availableForMaintenance,
       description: node.description,
+      icon: node.icon ?? null,
       definitionType: node.definitionType ?? null,
       fields: node.fields ?? [],
       viewMode,

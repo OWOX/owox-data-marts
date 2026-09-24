@@ -14,6 +14,7 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     id: dataMartDto.id,
     title: dataMartDto.title,
     description: dataMartDto.description,
+    icon: dataMartDto.icon ?? null,
     status: DataMartStatusModel.getInfo(dataMartDto.status),
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,

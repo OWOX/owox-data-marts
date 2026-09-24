@@ -80,6 +80,7 @@ export class CreateDataMartService {
 
     const dataMart = this.dataMartService.create({
       title: command.title,
+      icon: command.icon,
       projectId: command.projectId,
       createdById: command.userId,
       storage: dataStorage,

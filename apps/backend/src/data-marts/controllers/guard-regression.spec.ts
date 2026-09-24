@@ -63,6 +63,7 @@ describe('DataMart controller — editor guards unchanged', () => {
     'updateDefinition',
     'updateTitle',
     'updateDescription',
+    'updateIcon',
     'updateOwners',
     'publish',
     'delete',

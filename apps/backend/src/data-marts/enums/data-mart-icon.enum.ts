@@ -1,0 +1,34 @@
+/**
+ * Icon a user picks for a Data Mart so its subject reads at a glance (on the
+ * Models canvas and in the Data Mart header). A closed set: the web app maps
+ * each key to a drawn icon, so an unknown key would have nothing to render.
+ * `null` on the Data Mart means "no choice" and renders the default icon.
+ */
+export enum DataMartIcon {
+  PURCHASES = 'purchases',
+  ORDERS = 'orders',
+  PRODUCTS = 'products',
+  INVENTORY = 'inventory',
+  REVENUE = 'revenue',
+  FINANCE = 'finance',
+  AD_SPEND = 'ad-spend',
+  CAMPAIGNS = 'campaigns',
+  TRAFFIC_SOURCES = 'traffic-sources',
+  SESSIONS = 'sessions',
+  PAGEVIEWS = 'pageviews',
+  EVENTS = 'events',
+  CONVERSIONS = 'conversions',
+  CUSTOMERS = 'customers',
+  USERS = 'users',
+  LEADS = 'leads',
+  COUNTRIES = 'countries',
+  DEVICES = 'devices',
+  EMAIL = 'email',
+  KEYWORDS = 'keywords',
+  SOCIAL = 'social',
+  SUBSCRIPTIONS = 'subscriptions',
+  CALENDAR = 'calendar',
+  SUPPORT = 'support',
+  DATABASE = 'database',
+  TABLE = 'table',
+}
