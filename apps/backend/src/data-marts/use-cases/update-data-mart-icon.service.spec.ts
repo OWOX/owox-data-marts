@@ -68,8 +68,11 @@ describe('Data Mart icon request validation', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('rejects an unknown key on update', async () => {
-    const errors = await validate(plainToInstance(UpdateDataMartIconApiDto, { icon: 'rocket' }));
+  it.each([
+    ['an unknown key', { icon: 'rocket' }],
+    ['a body without icon', {}],
+  ])('rejects %s on update', async (_label, body) => {
+    const errors = await validate(plainToInstance(UpdateDataMartIconApiDto, body));
     expect(errors.map(e => e.property)).toEqual(['icon']);
   });
 

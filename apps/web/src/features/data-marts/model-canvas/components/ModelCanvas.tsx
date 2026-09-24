@@ -544,22 +544,26 @@ function ModelCanvasInner({
     []
   );
 
-  // Data-only updates (quality polling, a finished Data Last Updated sweep) flow into the
+  // Data-only updates (quality polling, a finished Data Last Updated sweep, a newly picked
+  // icon) flow into the
   // existing flow nodes here: the layout effect above deliberately re-runs only when the
   // TOPOLOGY signature changes, so without this sync fresh values would not appear until a
   // reload.
   useEffect(() => {
     const summaries = new Map(nodes.map(node => [node.id, node.qualitySummary]));
     const lastUpdated = new Map(nodes.map(node => [node.id, node.dataLastUpdated]));
+    const icons = new Map(nodes.map(node => [node.id, node.icon ?? null]));
     setFlowNodes(current =>
       current.map(node => {
         const qualitySummary = summaries.get(node.id) ?? node.data.qualitySummary;
         const dataLastUpdated = lastUpdated.has(node.id)
           ? (lastUpdated.get(node.id) ?? null)
           : node.data.dataLastUpdated;
+        const icon = icons.has(node.id) ? (icons.get(node.id) ?? null) : node.data.icon;
         return node.data.qualitySummary !== qualitySummary ||
-          node.data.dataLastUpdated !== dataLastUpdated
-          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated } }
+          node.data.dataLastUpdated !== dataLastUpdated ||
+          node.data.icon !== icon
+          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated, icon } }
           : node;
       })
     );
