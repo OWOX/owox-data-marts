@@ -31,28 +31,35 @@ describe('LayoutErrorBoundary', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('shows the error screen and logs an ordinary route error without tracking it', async () => {
+  it('shows the error screen, logs the error, and counts it as other', async () => {
     renderFailingRoute('boom');
 
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
     expect(logRouteError).toHaveBeenCalledTimes(1);
-    expect(trackEvent).not.toHaveBeenCalled();
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'route_error',
+        action: 'LayoutErrorBoundary',
+        label: 'other',
+      })
+    );
   });
 
-  it('logs a failed chunk import and sends it to analytics', async () => {
-    const message =
-      'Failed to fetch dynamically imported module: https://app.example/assets/ModelCanvas-abc123.js';
-
-    renderFailingRoute(message);
+  it('counts a failed chunk import as dynamic_import without the chunk URL', async () => {
+    renderFailingRoute(
+      'Failed to fetch dynamically imported module: https://app.example/assets/ModelCanvas-abc123.js'
+    );
 
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
     expect(logRouteError).toHaveBeenCalledTimes(1);
     expect(trackEvent).toHaveBeenCalledTimes(1);
     expect(trackEvent).toHaveBeenCalledWith({
-      event: 'chunk_load_error',
+      event: 'route_error',
       category: 'App',
       action: 'LayoutErrorBoundary',
-      label: message,
+      label: 'dynamic_import',
+      context: window.location.pathname,
     });
   });
 });

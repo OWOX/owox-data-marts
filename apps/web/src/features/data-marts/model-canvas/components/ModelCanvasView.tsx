@@ -17,7 +17,6 @@ import { dataMartService } from '../../shared';
 import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
 import type { ModelCanvasExportHandle } from '../export';
 import { trackEvent } from '../../../../utils/data-layer';
-import { trackChunkLoadError } from '../../../../utils/chunk-load-error';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
 import type { ModelCanvasData } from '../model/types';
@@ -206,9 +205,6 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
         });
       } catch (caught) {
         console.error('Canvas export failed:', caught);
-        // The export deps are a third lazy chunk, loaded on first use: a tab
-        // from before a deploy fails here instead of in the route boundary.
-        trackChunkLoadError(caught, 'CanvasExport');
         toast.error("Couldn't export the model — please try again.");
       } finally {
         isExportingRef.current = false;
