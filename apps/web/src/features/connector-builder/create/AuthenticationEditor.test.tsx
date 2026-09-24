@@ -60,6 +60,14 @@ describe('Builder Authentication flow', () => {
     expect(auth.inject.format).toBe('Bearer {{ parameters.Token }}');
   });
 
+  it('offers bearer no token URL, since the engine never fetches a bearer token', () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.click(screen.getByText('Authentication'));
+    fireEvent.click(screen.getByRole('button', { name: 'Bearer' }));
+
+    expect(screen.queryByText(/token url/i)).not.toBeInTheDocument();
+  });
+
   it('None clears the authentication block', async () => {
     render(<ConnectorBuilderPage />);
     fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
