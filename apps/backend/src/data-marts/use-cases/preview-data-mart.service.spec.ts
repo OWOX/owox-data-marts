@@ -24,14 +24,15 @@ describe('PreviewDataMartService', () => {
     storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
   };
 
-  const command = (overrides: { limit?: number; filters?: unknown } = {}) =>
+  const command = (overrides: { limit?: number; filters?: unknown; sort?: unknown } = {}) =>
     new PreviewDataMartCommand(
       'dm1',
       'p1',
       'user-1',
       [],
       'limit' in overrides ? overrides.limit : undefined,
-      overrides.filters
+      overrides.filters,
+      overrides.sort
     );
 
   const createService = (
@@ -161,6 +162,27 @@ describe('PreviewDataMartService', () => {
       expect.objectContaining({ filterConfig: filters }),
       expect.anything()
     );
+  });
+
+  it('passes the sort to the composer as ORDER BY', async () => {
+    const { service, composer } = createService();
+    const sort = [{ column: 'revenue', direction: 'desc' }];
+
+    await service.run(command({ sort }));
+
+    expect(composer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ sortConfig: sort, limitConfig: 11 }),
+      expect.anything()
+    );
+  });
+
+  it('rejects a malformed sort before touching the warehouse', async () => {
+    const { service, readerResolver } = createService();
+
+    await expect(
+      service.run(command({ sort: [{ column: 'revenue', direction: 'down' }] }))
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
   });
 
   it.each([0, 1001, 2.5])('rejects limit %p before touching anything', async limit => {

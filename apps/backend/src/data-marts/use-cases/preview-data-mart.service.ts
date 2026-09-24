@@ -16,6 +16,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { FilterConfig, FilterConfigSchema } from '../dto/schemas/filter-config.schema';
+import { SortConfig, SortConfigSchema } from '../dto/schemas/sort-config.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
@@ -39,7 +40,8 @@ export class PreviewDataMartCommand {
     public readonly userId: string,
     public readonly roles: RoleType[],
     public readonly limit: number | undefined,
-    public readonly filters: unknown
+    public readonly filters: unknown,
+    public readonly sort: unknown = undefined
   ) {}
 }
 
@@ -74,8 +76,9 @@ export class PreviewAbortedError extends HttpException {
 /**
  * Reads a small sample of a Data Mart's rows for the Data Setup preview.
  *
- * Every native, reporting-visible field is projected; the caller chooses only a row limit and
- * WHERE filters. A preview is a look at the data while setting a Data Mart up: it is not a run, so
+ * Every native, reporting-visible field is projected; the caller chooses only a row limit,
+ * WHERE filters and ORDER BY — all applied in the warehouse, so a sorted preview shows the real top
+ * rows, not a sorted sample. A preview is a look at the data while setting a Data Mart up: it is not a run, so
  * it is neither recorded in Run History nor counted as consumption.
  *
  * Unlike `QueryDataMartService` (MCP), a DRAFT Data Mart can be previewed: seeing the data before
@@ -98,6 +101,7 @@ export class PreviewDataMartService {
   async run(command: PreviewDataMartCommand, signal?: AbortSignal): Promise<DataMartPreviewResult> {
     const limit = this.parseLimit(command.limit);
     const filters = this.parseFilters(command.filters);
+    const sort = this.parseSort(command.sort);
 
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
@@ -138,6 +142,7 @@ export class PreviewDataMartService {
       dataMart,
       columnConfig: fields,
       filterConfig: filters,
+      sortConfig: sort,
       limitConfig: limit + 1,
     };
 
@@ -173,6 +178,15 @@ export class PreviewDataMartService {
       throw new BadRequestException(`limit must be an integer between 1 and ${PREVIEW_MAX_LIMIT}`);
     }
     return limit;
+  }
+
+  private parseSort(sort: unknown): SortConfig {
+    if (sort === undefined || sort === null) return null;
+    const parsed = SortConfigSchema.safeParse(sort);
+    if (!parsed.success) {
+      throw new BadRequestException({ message: 'Invalid sort', details: parsed.error.issues });
+    }
+    return parsed.data?.length ? parsed.data : null;
   }
 
   private parseFilters(filters: unknown): FilterConfig {

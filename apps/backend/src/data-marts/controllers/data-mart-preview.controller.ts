@@ -41,7 +41,8 @@ export class DataMartPreviewController {
         context.userId,
         context.roles ?? [],
         dto.limit,
-        dto.filters
+        dto.filters,
+        dto.sort
       ),
       abortController.signal
     );

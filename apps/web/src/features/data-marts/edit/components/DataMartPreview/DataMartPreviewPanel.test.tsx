@@ -365,4 +365,109 @@ describe('DataMartPreviewPanel', () => {
     expect(screen.queryByRole('button', { name: 'Filter id' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filter country' })).toBeInTheDocument();
   });
+
+  it('sorts in the warehouse: asc, then desc, then no sort, keeping filters and limit', async () => {
+    previewDataMart.mockResolvedValue(response(2));
+    render(
+      <DataMartPreviewPanel dataMartId='dm1' savedSchemaVersion={1} runGuarded={runImmediately} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+    await screen.findByText('(2 rows)');
+
+    const sortCountry = () => screen.getByRole('button', { name: 'Sort by country' });
+
+    fireEvent.click(sortCountry());
+    await waitFor(() => {
+      expect(previewDataMart).toHaveBeenLastCalledWith(
+        'dm1',
+        { limit: 10, sort: [{ column: 'country', direction: 'asc' }] },
+        expect.any(AbortSignal)
+      );
+    });
+    await waitFor(() => {
+      expect(sortCountry()).toHaveAttribute('aria-sort', 'ascending');
+    });
+
+    fireEvent.click(sortCountry());
+    await waitFor(() => {
+      expect(previewDataMart).toHaveBeenLastCalledWith(
+        'dm1',
+        { limit: 10, sort: [{ column: 'country', direction: 'desc' }] },
+        expect.any(AbortSignal)
+      );
+    });
+    await waitFor(() => {
+      expect(sortCountry()).toHaveAttribute('aria-sort', 'descending');
+    });
+
+    fireEvent.click(sortCountry());
+    await waitFor(() => {
+      expect(previewDataMart).toHaveBeenLastCalledWith(
+        'dm1',
+        { limit: 10 },
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it('keeps the sort when the limit changes', async () => {
+    previewDataMart.mockResolvedValue(response(2));
+    render(
+      <DataMartPreviewPanel dataMartId='dm1' savedSchemaVersion={1} runGuarded={runImmediately} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+    await screen.findByText('(2 rows)');
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by id' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sort by id' })).toHaveAttribute(
+        'aria-sort',
+        'ascending'
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText('Limit'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+
+    await waitFor(() => {
+      expect(previewDataMart).toHaveBeenLastCalledWith(
+        'dm1',
+        { limit: 30, sort: [{ column: 'id', direction: 'asc' }] },
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it('offers no sort for REPEATED and RECORD fields', async () => {
+    const schema = {
+      type: 'bigquery-data-mart-schema',
+      fields: [
+        { name: 'country', type: 'STRING', mode: 'NULLABLE' },
+        { name: 'tags', type: 'STRING', mode: 'REPEATED' },
+        { name: 'device', type: 'RECORD', mode: 'NULLABLE', fields: [] },
+      ],
+    } as unknown as DataMartSchema;
+    previewDataMart.mockResolvedValue({
+      ...response(1),
+      columns: [
+        { name: 'country', type: 'STRING' },
+        { name: 'tags', type: 'STRING' },
+        { name: 'device', type: 'RECORD' },
+      ],
+      rows: [['UA', '["a"]', '{"isBot":false}']],
+    });
+    render(
+      <DataMartPreviewPanel
+        dataMartId='dm1'
+        savedSchemaVersion={schema}
+        filterTypes={previewFilterTypesFromSchema(schema)}
+        runGuarded={runImmediately}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview data' }));
+    await screen.findByText('(1 row)');
+
+    expect(screen.getByRole('button', { name: 'Sort by country' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sort by tags' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sort by device' })).not.toBeInTheDocument();
+  });
 });

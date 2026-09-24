@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { FilterConfig } from '../schemas/filter-config.schema';
+import { SortConfig } from '../schemas/sort-config.schema';
 import { PREVIEW_MAX_LIMIT } from '../../use-cases/preview-data-mart.service';
 
 export class PreviewDataMartRequestApiDto {
@@ -25,4 +26,14 @@ export class PreviewDataMartRequestApiDto {
   @IsOptional()
   @IsArray()
   filters?: FilterConfig;
+
+  @ApiPropertyOptional({
+    description: 'ORDER BY rules on native fields, in the same format as a report sortConfig.',
+    type: 'array',
+    items: { type: 'object' },
+    example: [{ column: 'revenue', direction: 'desc' }],
+  })
+  @IsOptional()
+  @IsArray()
+  sort?: SortConfig;
 }

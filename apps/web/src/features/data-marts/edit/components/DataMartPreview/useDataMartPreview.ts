@@ -3,7 +3,7 @@ import { extractApiError } from '../../../../../app/api';
 import { trackEvent } from '../../../../../utils/data-layer';
 import { dataMartService } from '../../../shared/services/data-mart.service';
 import type { PreviewDataMartResponseDto } from '../../../shared/types/api';
-import type { FilterRule } from '../../../shared/types/output-config';
+import type { FilterRule, SortRule } from '../../../shared/types/output-config';
 
 export const PREVIEW_DEFAULT_LIMIT = 10;
 export const PREVIEW_MAX_LIMIT = 1000;
@@ -11,6 +11,8 @@ export const PREVIEW_MAX_LIMIT = 1000;
 export interface PreviewRequest {
   limit: number;
   filters: FilterRule[];
+  /** One ORDER BY column at a time, applied in the warehouse. */
+  sort: SortRule | null;
 }
 
 export interface DataMartPreviewState {
@@ -69,6 +71,7 @@ export function useDataMartPreview(dataMartId: string): DataMartPreviewState {
           {
             limit: request.limit,
             ...(request.filters.length ? { filters: request.filters } : {}),
+            ...(request.sort ? { sort: [request.sort] } : {}),
           },
           controller.signal
         );
@@ -82,6 +85,7 @@ export function useDataMartPreview(dataMartId: string): DataMartPreviewState {
           label: dataMartId,
           limit: request.limit,
           filterCount: request.filters.length,
+          sortDirection: request.sort?.direction ?? null,
           rowCount: response.rowCount,
           truncated: response.truncated,
         });

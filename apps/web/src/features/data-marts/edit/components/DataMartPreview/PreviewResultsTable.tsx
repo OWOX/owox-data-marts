@@ -6,7 +6,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Filter } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -18,9 +18,12 @@ import {
 import { TablePagination } from '@owox/ui/components/common/table-pagination';
 import { cn } from '@owox/ui/lib/utils';
 import type { DataMartPreviewCell, DataMartPreviewColumnDto } from '../../../shared/types/api';
-import type { FilterRule } from '../../../shared/types/output-config';
+import type { FilterRule, SortRule } from '../../../shared/types/output-config';
 import { FilterEditorPopover } from '../ReportColumnPicker/FilterEditorPopover';
-import { isFilterableType } from '../ReportColumnPicker/output-controls-operators';
+import {
+  isArrayFieldType,
+  isFilterableType,
+} from '../ReportColumnPicker/output-controls-operators';
 import type { PreviewFilterTypes } from './preview-filter-types';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -34,6 +37,9 @@ interface PreviewResultsTableProps {
   /** Replaces the column's filter (one per column), or removes it when `rule` is null. */
   onFilterChange: (column: string, rule: FilterRule | null) => void;
   filtersDisabled?: boolean;
+  /** The applied ORDER BY column, if any. */
+  sort?: SortRule | null;
+  onSortChange?: (sort: SortRule | null) => void;
 }
 
 interface FilterContextValue {
@@ -41,6 +47,32 @@ interface FilterContextValue {
   filterTypes?: PreviewFilterTypes;
   onFilterChange: PreviewResultsTableProps['onFilterChange'];
   disabled?: boolean;
+  sort?: SortRule | null;
+  onSortChange?: PreviewResultsTableProps['onSortChange'];
+}
+
+// Warehouses cannot ORDER BY these: arrays, nested records and semi-structured values.
+const UNSORTABLE_TYPES = new Set([
+  'RECORD',
+  'STRUCT',
+  'JSON',
+  'GEOGRAPHY',
+  'VARIANT',
+  'OBJECT',
+  'MAP',
+  'SUPER',
+]);
+
+function isSortableType(fieldType: string): boolean {
+  if (!fieldType || isArrayFieldType(fieldType)) return false;
+  const base = /^[A-Za-z]+/.exec(fieldType.trim())?.[0].toUpperCase() ?? '';
+  return !UNSORTABLE_TYPES.has(base);
+}
+
+/** asc → desc → no sort, per column; another column starts again at asc. */
+function nextSort(column: string, current: SortRule | null | undefined): SortRule | null {
+  if (current?.column !== column) return { column, direction: 'asc' };
+  return current.direction === 'asc' ? { column, direction: 'desc' } : null;
 }
 
 // Filters reach the headers through context, not through the column definitions: rebuilding the
@@ -51,13 +83,42 @@ const PreviewFilterContext = createContext<FilterContextValue>({
 });
 
 function PreviewColumnHeader({ column }: { column: DataMartPreviewColumnDto }) {
-  const { filters, filterTypes, onFilterChange, disabled } = useContext(PreviewFilterContext);
+  const { filters, filterTypes, onFilterChange, disabled, sort, onSortChange } =
+    useContext(PreviewFilterContext);
+  const fieldType = filterTypes?.get(column.name) ?? column.type ?? '';
+  const sortable = Boolean(onSortChange) && isSortableType(fieldType);
+  const direction = sort?.column === column.name ? sort.direction : null;
+  const SortIcon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown;
+  const name = (
+    <span className='text-foreground truncate text-xs font-semibold uppercase'>{column.name}</span>
+  );
   return (
     <div className='group/header flex items-start justify-between gap-2'>
       <div className='min-w-0' title={column.alias ?? column.name}>
-        <div className='text-foreground truncate text-xs font-semibold uppercase'>
-          {column.name}
-        </div>
+        {sortable ? (
+          <button
+            type='button'
+            disabled={disabled}
+            onClick={() => onSortChange?.(nextSort(column.name, sort))}
+            aria-label={`Sort by ${column.name}`}
+            aria-sort={
+              direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
+            }
+            className='hover:text-primary flex max-w-full items-center gap-1 text-left disabled:cursor-not-allowed'
+          >
+            {name}
+            <SortIcon
+              className={cn(
+                'size-3 shrink-0 transition-opacity',
+                direction
+                  ? 'text-primary opacity-100'
+                  : 'text-muted-foreground opacity-0 group-hover/header:opacity-100'
+              )}
+            />
+          </button>
+        ) : (
+          <div className='flex'>{name}</div>
+        )}
         {column.type && (
           <div className='text-muted-foreground truncate text-[10px] font-normal uppercase'>
             {column.type}
@@ -66,7 +127,7 @@ function PreviewColumnHeader({ column }: { column: DataMartPreviewColumnDto }) {
       </div>
       <ColumnFilterButton
         column={column}
-        fieldType={filterTypes?.get(column.name) ?? column.type ?? ''}
+        fieldType={fieldType}
         filter={filters.find(rule => rule.column === column.name)}
         onFilterChange={onFilterChange}
         disabled={disabled}
@@ -150,6 +211,8 @@ export function PreviewResultsTable({
   filterTypes,
   onFilterChange,
   filtersDisabled,
+  sort,
+  onSortChange,
 }: PreviewResultsTableProps) {
   const columnDefs = useMemo<ColumnDef<DataMartPreviewCell[]>[]>(
     () =>
@@ -162,8 +225,15 @@ export function PreviewResultsTable({
     [columns]
   );
   const filterContext = useMemo(
-    () => ({ filters, filterTypes, onFilterChange, disabled: filtersDisabled }),
-    [filters, filterTypes, onFilterChange, filtersDisabled]
+    () => ({
+      filters,
+      filterTypes,
+      onFilterChange,
+      disabled: filtersDisabled,
+      sort,
+      onSortChange,
+    }),
+    [filters, filterTypes, onFilterChange, filtersDisabled, sort, onSortChange]
   );
 
   const table = useReactTable({

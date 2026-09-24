@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Loader2, RotateCw, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import type { FilterRule } from '../../../shared/types/output-config';
+import type { FilterRule, SortRule } from '../../../shared/types/output-config';
 import { operatorLabelFor } from '../ReportColumnPicker/output-controls-operators';
 import { summarizeFilterRule } from '../ReportColumnPicker/filter-rule-summary';
 import type { PreviewDataMartResponseDto } from '../../../shared/types/api';
@@ -118,6 +118,7 @@ export function DataMartPreviewPanel({
 
   const appliedLimit = appliedRequest?.limit ?? PREVIEW_DEFAULT_LIMIT;
   const appliedFilters = useMemo(() => appliedRequest?.filters ?? [], [appliedRequest]);
+  const appliedSort = appliedRequest?.sort ?? null;
   const parsedLimit = parseLimit(limitInput);
   // The limit the Update button would apply; null while the field is unchanged or invalid.
   const pendingLimit = parsedLimit !== null && parsedLimit !== appliedLimit ? parsedLimit : null;
@@ -131,12 +132,27 @@ export function DataMartPreviewPanel({
     [runGuarded, run]
   );
 
+  // Re-runs with the applied request, changing only what the caller passes.
+  const restart = useCallback(
+    (change: Partial<PreviewRequest>) => {
+      start({ limit: appliedLimit, filters: appliedFilters, sort: appliedSort, ...change });
+    },
+    [start, appliedLimit, appliedFilters, appliedSort]
+  );
+
   const handleFilterChange = useCallback(
     (column: string, rule: FilterRule | null) => {
       const others = appliedFilters.filter(existing => existing.column !== column);
-      start({ limit: appliedLimit, filters: rule ? [...others, rule] : others });
+      restart({ filters: rule ? [...others, rule] : others });
     },
-    [appliedFilters, appliedLimit, start]
+    [appliedFilters, restart]
+  );
+
+  const handleSortChange = useCallback(
+    (sort: SortRule | null) => {
+      restart({ sort });
+    },
+    [restart]
   );
 
   const isDisabled = Boolean(disabledReason);
@@ -154,7 +170,7 @@ export function DataMartPreviewPanel({
         <div className='mt-4 flex items-center justify-center gap-2'>
           <Button
             onClick={() => {
-              start({ limit: PREVIEW_DEFAULT_LIMIT, filters: [] });
+              start({ limit: PREVIEW_DEFAULT_LIMIT, filters: [], sort: null });
             }}
             disabled={isDisabled || isLoading}
             title={disabledReason ?? undefined}
@@ -194,7 +210,7 @@ export function DataMartPreviewPanel({
               type='button'
               disabled={isLoading}
               onClick={() => {
-                start({ limit: appliedLimit, filters: [] });
+                restart({ filters: [] });
               }}
               className='bg-primary/10 text-primary hover:bg-primary/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50'
               aria-label='Clear all filters'
@@ -216,7 +232,7 @@ export function DataMartPreviewPanel({
             disabled={isDisabled || isLoading}
             title={disabledReason ?? undefined}
             onClick={() => {
-              start({ limit: appliedLimit, filters: appliedFilters });
+              restart({});
             }}
           >
             {isLoading ? (
@@ -285,6 +301,8 @@ export function DataMartPreviewPanel({
             filters={appliedFilters}
             filterTypes={filterTypes}
             onFilterChange={handleFilterChange}
+            sort={appliedSort}
+            onSortChange={handleSortChange}
             filtersDisabled={isLoading || isDisabled}
           />
         </div>
@@ -305,7 +323,7 @@ export function DataMartPreviewPanel({
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' && pendingLimit !== null) {
-              start({ limit: pendingLimit, filters: appliedFilters });
+              restart({ limit: pendingLimit });
             }
           }}
           className='h-8 w-24'
@@ -315,7 +333,7 @@ export function DataMartPreviewPanel({
             size='sm'
             disabled={isLoading || isDisabled}
             onClick={() => {
-              start({ limit: pendingLimit, filters: appliedFilters });
+              restart({ limit: pendingLimit });
             }}
           >
             Update

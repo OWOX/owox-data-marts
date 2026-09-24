@@ -15,6 +15,10 @@ Data Preview works for Draft and Published Data Marts. The Data Mart needs a sav
 
 Enter a new value in **Limit** (from 1 to 1000) and click **Update**. The preview runs again and fetches that many rows from the warehouse. When more rows match than the limit, the panel says so.
 
+## Sort the rows
+
+Click a column name to sort by it: the first click sorts ascending, the second descending, and the third removes the sort. Sorting runs in the warehouse as `ORDER BY` before the limit, so a sorted preview shows the real top rows, not a sorted sample. One column is sorted at a time; the sort stays when you change the limit or filters. Array and nested record columns cannot be sorted.
+
 ## Filter the rows
 
 Hover a column header and click the filter icon. Choose a condition, such as **contains**, enter a value, and click **Apply**. The filter is applied in the warehouse as a `WHERE` condition, so the preview returns only matching rows.
@@ -25,6 +29,6 @@ Hidden fields, calculated fields, and fields from joined Data Marts are not part
 
 ## Warehouse queries and credits
 
-Every preview — the first run, **Re-run**, a new limit, or a filter change — executes a new query in your data warehouse, which your warehouse may bill as usual. Paging through rows you already fetched does not run a new query.
+Every preview — the first run, **Re-run**, a new limit, a sort, or a filter change — executes a new query in your data warehouse, which your warehouse may bill as usual. Paging through rows you already fetched does not run a new query.
 
 A preview is not a Data Mart run: it does not appear in **Run History** and does not consume OWOX Data Marts credits.
