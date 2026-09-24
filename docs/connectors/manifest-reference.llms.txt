@@ -207,7 +207,7 @@ Picks one of several authentication branches at runtime based on a parameter's v
 ```
 
 - `overview` — optional one-line description (shown in the builder UI).
-- `uniqueKeys` — array of field names forming the row's unique key (used for upsert/dedupe).
+- `uniqueKeys` — array of field names forming the row's unique key: later runs update the rows with these values instead of adding duplicates. **Required to publish**, and every name must be one of the node's `fields`; Test works without it.
 - `destinationName` — optional; the destination table name (defaults to the node name).
 - `isTimeSeries` — boolean; marks the node as date-windowed. You rarely need to set it: declaring an `incremental` block with a strategy other than `none` (§9) already implies it. Set it explicitly only for a node that should take the date-window path without declaring one. It cannot be combined with `isFullRefresh`.
 - `defaultFields` — optional array of field names pre-selected by default (defaults to all declared fields).

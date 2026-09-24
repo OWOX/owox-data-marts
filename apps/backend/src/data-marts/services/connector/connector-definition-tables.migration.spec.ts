@@ -26,6 +26,7 @@ const VALID_MANIFEST = {
   nodes: {
     items: {
       fields: { id: { type: 'string' } },
+      uniqueKeys: ['id'],
       request: { method: 'GET', path: '/items' },
       recordSelector: { recordPath: [] },
     },

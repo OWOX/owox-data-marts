@@ -253,7 +253,7 @@ Picks one of several authentication branches at runtime based on a parameter's v
 | Field | Meaning |
 |---|---|
 | `overview` | Optional one-line description, shown in the builder UI. |
-| `uniqueKeys` | Field names forming the row's unique key (used for upsert/dedupe). |
+| `uniqueKeys` | Field names forming the row's unique key: later runs update the rows with these values instead of adding duplicates. Required to publish, and every name must be one of the node's `fields`. |
 | `destinationName` | Optional; the destination table name (defaults to the node name). |
 | `isTimeSeries` | Boolean; enables date-window incremental processing for this node. A node with an `incremental` strategy other than `none` is treated as time-series even without it. |
 | `defaultFields` | Optional field names pre-selected by default (defaults to all declared fields). |
