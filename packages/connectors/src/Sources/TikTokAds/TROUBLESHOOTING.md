@@ -13,7 +13,7 @@ Before you change credentials or app settings, check these items:
 
 - Check **Run history** for the exact error message.
 - Check that the destination dataset exists, and that the connector can write to it.
-- Check **Advertiser IDs**: use numeric IDs, separated by commas.
+- Check **Advertiser IDs**: use numeric IDs, separated by commas or semicolons.
 - Check that the authorized TikTok user can access every listed advertiser.
 - Check that **Data Level** matches the fields you selected.
 - For large backfills, shorten the date range or reduce selected fields.
@@ -25,12 +25,13 @@ If these checks look correct, match the **Run history** error with the cases bel
 | Error or symptom | Likely cause | What to do |
 | --- | --- | --- |
 | `Error schema actualization: Not found: Table <project>:<dataset>.<table>` | The destination table is missing. The run created no table, or someone deleted it. | See [Destination Table Errors](#destination-table-errors). |
-| `TikTok API error: No permission to operate advertiser: <id>` | The token cannot access that advertiser. | The run logs a warning and skips the advertiser. Remove the ID, or reauthorize with access to it. |
+| `TikTok API error: Access token is incorrect or has been revoked.` | The token is wrong, or someone revoked it in TikTok. Every advertiser fails, so the run stops. | For OAuth, reconnect with **Continue with TikTok**. For a manual token, repeat [Credentials](CREDENTIALS.md) Steps 3–4. Then update the token in **Data Setup → Input Source → Edit config**. |
+| `TikTok API error: No permission to operate advertiser: <id>` | The token cannot access that advertiser. | The run logs a warning and skips the advertiser. Remove the ID, or reauthorize with access to it. Then update the token in **Data Setup → Input Source → Edit config**. |
 | `TikTok API error: Internal service connection timeout. Please try again.` | TikTok had a temporary outage. The connector already retried three times. | Rerun the Data Mart. If it repeats for hours, check the [TikTok API status page](https://business-api.tiktok.com/portal/docs). |
 | `TikTok API error: System error.` | TikTok returned an unspecified server error. | Rerun the Data Mart. This error clears on its own. |
 | `TikTok API error: Service maintenance: UV metric temporarily unavailable` | TikTok suspended a specific metric for maintenance. | Remove the UV metrics from your field selection, or wait and rerun. |
 | `fetch failed` | The network call to TikTok did not complete. | Rerun the Data Mart. |
-| `TikTok API error: ... doesn't exist or has been deleted` | A campaign, ad group, or audience no longer exists. | The run logs a warning and continues. Remove stale IDs from **Advertiser IDs**. |
+| `TikTok API error: ... doesn't exist or has been deleted` | A campaign, ad group, or audience no longer exists in TikTok. | The run logs a warning and continues. No action needed. |
 | `All advertisers failed to import data. Errors: ...` | Every advertiser failed. This line summarizes the run. | Read the per-advertiser error listed inside the message, then match it above. |
 | `<N> out of <M> advertisers had errors. Failed advertisers: ...` | Some advertisers failed, others succeeded. | The run keeps every row it fetched. Fix the listed advertisers, then rerun. |
 | `TikTok API error` with code `40100` | TikTok throttled your app. | See [Rate Limits](#rate-limits). |

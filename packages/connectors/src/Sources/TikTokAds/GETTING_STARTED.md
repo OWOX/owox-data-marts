@@ -27,7 +27,7 @@ If you have no storage yet, choose **Create new storage** in the **Storage** dro
 
 ## Set Up the Connector
 
-1. Select **Connector** as the input source type.
+1. In **Input Source**, set **Definition Type** to **Connector**.
 2. Click **Set up connector** and choose **TikTok Ads**.
 3. Choose your authentication method.
 
@@ -46,16 +46,16 @@ For manual authentication, fill in these fields:
 
 Find the App ID and App Secret in **My Apps → App Detail → Basic Information**.
 
-Then fill in **Advertiser IDs**. Use numeric IDs only. To import from several advertisers, separate the IDs with commas. You receive these IDs with the access token. You can also find
+In both methods, fill in **Advertiser IDs**. Use numeric IDs only. To import from several advertisers, separate the IDs with commas or semicolons. You receive these IDs with the access token. You can also find
 them in [TikTok Ads Manager](https://ads.tiktok.com/). The authorized TikTok user must access every listed advertiser.
 
 ![TikTok Ads connector fields for access token, App ID, App Secret, and Advertiser IDs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1e0af015-839d-4600-fceb-c94095e58f00/public)
 
 ### Choose Data Level Before Fields
 
-**Data Level** sets the reporting grain for `ad_insights` and `ad_insights_by_country`. Choose
-it before you select fields. The field selector pins the matching unique-key fields, so rows
-merge correctly.
+**Data Level** sets the reporting grain for `ad_insights` and `ad_insights_by_country`. Pick
+the level you report at; finer levels create more rows. Choose it before you select fields. The
+field selector pins the matching unique-key fields, so rows merge correctly.
 
 | Data Level | Use it for | Pinned fields |
 | --- | --- | --- |
@@ -78,11 +78,11 @@ Add any metrics you need. The field selector locks the pinned fields, so you can
 
 ## Configure Data Import
 
-1. Choose an endpoint.
+1. Choose an endpoint. Each Data Mart imports one endpoint, so create another Data Mart for each additional endpoint.
 2. Select fields, or keep the defaults.
-3. Enter the target dataset, or keep the default.
+3. Enter the target dataset, or keep the default. The connector names each table after its endpoint, for example `tiktok_ads_ad_insights`.
 4. Click **Finish**.
-5. Click **Publish & Run Data Mart**.
+5. Click **Publish & Run Data Mart**. The first run imports from the first day of the previous month and can take several minutes.
 
 The connector writes its tables into your storage. The field label depends on your storage, such
 as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see
@@ -112,13 +112,25 @@ Open **Advanced settings** to reach these options. The defaults suit most import
 > Keep **Create Empty Tables** on. When you turn it off and TikTok returns no rows, the connector
 > creates no table. Later runs then fail with `Not found: Table`. See [Troubleshooting](TROUBLESHOOTING.md#destination-table-errors).
 
+**Reimport Lookback Window** decides how far back each run re-requests data. For conversion
+metrics, set it at least as long as your campaigns' attribution window. Impressions, clicks,
+and spend settle within a day or two.
+
 **Sandbox Mode** restricts what you can import. TikTok supplies mock reporting data for
 2020-12-08 through 2020-12-19 only. It does not support `AUCTION_ADVERTISER`, the `advertiser`
 endpoint, or the `audiences` endpoint. See [Troubleshooting](TROUBLESHOOTING.md#sandbox-mode-limits).
 
 ## Start a Manual Run
 
-**Publish & Run Data Mart** already started the first import. To import again, click **Manual Run** and choose a run type. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+**Publish & Run Data Mart** already started the first import. Without a trigger, the Data Mart does not run again. To import again, click **Manual Run** and choose a run type, or set a trigger. See [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+
+### Schedule Automatic Runs
+
+1. Open the **Triggers** tab of your Data Mart.
+2. Click **+ Add Trigger**.
+3. Set **Trigger Type** to `Connector Run`.
+4. Choose a schedule: **Daily**, **Weekly**, **Monthly**, or **Interval**.
+5. Click **Save**.
 
 ### Incremental Load
 
@@ -149,12 +161,12 @@ Choose **Backfill (custom period)** to import a specific date range.
 The import includes both the start date and the end date. One backfill run covers at most
 31 days, so a full calendar month fits in one run. The form shows how many days your period
 covers and rejects a longer one before the run starts. To reload a longer history, run several
-backfills with consecutive periods, one after another.
+backfills with consecutive periods. Start each run after the previous one finishes.
 
 Both dates are required. The date picker does not offer future dates. The **End Date** must be
 on or after the **Start Date**.
 
-![Manual Run dialog with Backfill selected, a 31-day date range, and the day-count notice](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/21c821ed-c599-47ac-570d-20762d342800/public)
+![Manual Run dialog with Backfill selected, a 31-day date range, and the day-count notice](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d7e4cc52-53a5-4634-45ef-87a94d2b3100/public)
 
 ## Check the Result
 
@@ -163,12 +175,10 @@ Open **Run history**. The run has finished when the status shows **Success**.
 A run can finish with warnings. It skips advertisers it cannot reach and keeps every row it
 fetched. See [Warnings and Errors](TROUBLESHOOTING.md#warnings-and-errors).
 
-![Run history tab showing a successful TikTok Ads import](res/tiktok_ads_successrun.png)
+![Run history tab showing a successful TikTok Ads import](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e5b8f672-074e-49b4-077f-d8665a6eb700/public)
 
 You can query the imported tables in the dataset you selected. You can also send the data to a
 destination. See [Destination Management](https://docs.owox.com/docs/destinations/manage-destinations/) and [Google Sheets](https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/).
-
-![Imported TikTok Ads tables in the destination dataset](res/tiktok_ads_bq.png)
 
 ## Troubleshooting
 

@@ -11,7 +11,7 @@ OAuth gives most users the shortest path. It needs no developer app, so you skip
 app review. Manual setup requires an approved TikTok app, an access token, an App ID, and
 an App Secret. TikTok reviews every app, which can take up to seven business days.
 
-> **Self-hosted deployments:** If the **Continue with TikTok** button is not available, use the **Access Token** method.
+> **Self-hosted deployments:** The **Continue with TikTok** button appears only when your server has TikTok OAuth configured. If it is not available, use the **Access Token** method.
 
 **Before you start:** Use a TikTok for Business account that can access the target
 advertiser account. Without access, TikTok returns a permission error or empty results.
@@ -21,6 +21,8 @@ advertiser account. Without access, TikTok returns a permission error or empty r
 1. Click **Continue with TikTok** in the connector settings.
 2. Log in with a TikTok account that can access the advertiser account.
 3. Approve access for the advertiser accounts you want to import.
+
+![Set Up Connector panel with the Continue with TikTok button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/029b7eea-6eeb-4840-cba2-5198d4c01400/public)
 
 TikTok returns the advertiser accounts your user can reach. OWOX Data Marts stores the token and
 lists those advertiser IDs.
@@ -53,15 +55,17 @@ and generate an access token. If you already used **OAuth**, skip this section.
 1. Open the [TikTok for Business Developers portal](https://business-api.tiktok.com/portal).
 2. Log in with your TikTok for Business account.
 3. Click **Become a Developer**.
-4. Enter your first name, last name, communication email, and company type.
-5. Click **Next**, then follow the prompts to finish your application.
+4. Enter your first name, last name, communication email, and phone number.
+5. Click **Next**, then choose your company type and finish your application.
 
-![TikTok for Business developer portal with the Become a Developer button](res/tiktok_developer.png)
+![TikTok for Business developer portal with the Become a Developer button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0328c249-395b-44c4-c6b4-639ba830fd00/public)
+
+![TikTok developer registration form with the Business Information fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d4199717-04d2-45da-94f0-0862eb68ce00/public)
 
 ## Step 2: Create and Configure the App
 
 1. Open [My Apps](https://business-api.tiktok.com/portal/apps).
-2. Click **Create an App**.
+2. Click **Create App**.
 3. Enter an **App Name**, for example `OWOX Data Marts App`.
 4. Enter an **App Description**. Explain why you need TikTok cost data.
 5. Enter an **Advertiser Redirect URL**. Use `http://localhost:8080` for token generation.
@@ -90,31 +94,31 @@ The connector only reads data. It never creates or changes campaigns, ad groups,
 
 Click **Submit** to send the app for review.
 
-![TikTok Create an App form with app name, description, redirect URL, and permission scopes](res/tiktok_createapp.png)
+![TikTok Create New App form with app name, description, redirect URL, and permission scopes](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e329a447-ee03-4a15-18e9-20dc20272400/public)
 
 TikTok can take up to **seven business days** to review your app. If TikTok rejects the app,
 rewrite the description more clearly and resubmit. TikTok emails you after approval.
 
-![TikTok approval email confirming the developer app passed review](res/tiktok_approved.png)
+![TikTok approval email confirming the developer app passed review](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c8685238-f737-4d23-5c6e-ca474a4c4600/public)
 
 ## Step 3: Authorize an Advertiser and Get the Authorization Code
 
-1. Open your app's detail page.
+1. In [My Apps](https://business-api.tiktok.com/portal/apps), click your app to open its detail page.
 2. Copy the **Advertiser authorization URL**.
 3. Paste the URL into your browser.
 4. Sign in and approve the advertiser accounts you want to import.
 
-![TikTok app detail page showing the Advertiser authorization URL](res/tiktok_url.png)
+![TikTok app detail page showing the Advertiser authorization URL](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c2c64c42-e431-4d00-35cb-f74def227c00/public)
 
-TikTok redirects you to your **Advertiser redirect URL**. That URL carries an `auth_code`
-query parameter. Copy the `auth_code` value from the address bar.
+After confirmation, TikTok redirects you to your **Advertiser redirect URL**. That URL carries an `auth_code`
+query parameter. Copy the `auth_code` value from the address bar. Ignore the duplicate `code` parameter.
 
 > **Note:** You may see `This site can't be reached`.
 > This is expected.
 > The localhost link does not open a real site.
 > Copy the `auth_code` from the address bar.
 
-![Browser address bar showing the auth_code parameter after TikTok redirects](res/tiktok_auth_code.png)
+![Browser address bar showing the auth_code parameter after TikTok redirects](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1dc3d92e-e54d-4010-96e5-a59e767e7f00/public)
 
 > ⚠️ **The `auth_code` expires in one hour, and it works only once.** Exchange it right away.
 > If it expires or fails, repeat this step to get a new code.
@@ -129,8 +133,9 @@ Send a `POST` request to:
 https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/
 ```
 
-Set the header `Content-Type: application/json`. This endpoint accepts JSON only. A
-form-encoded body fails.
+The request must send `Content-Type: application/json`. Postman adds it when you choose a
+raw JSON body. In ReqBin, choose **JSON** as the body type. With `curl`, pass the header
+yourself. This endpoint accepts JSON only. A form-encoded body fails.
 
 Send this JSON body. Replace all three values:
 
@@ -144,14 +149,14 @@ Send this JSON body. Replace all three values:
 
 Find your **App ID** and **App Secret** in **My Apps → App Detail → Basic Information**.
 
-![API client POST request to the TikTok oauth2 access_token endpoint with the JSON body](res/tiktok_get.png)
+![API client POST request to the TikTok oauth2 access_token endpoint with the JSON body](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5b623bac-75e4-469a-7d94-3118f2963e00/public)
 
 Click **Send**. A successful response returns `"code": 0` and includes:
 
 - `access_token`: authorizes every later API call.
 - `advertiser_ids`: the advertiser accounts this token can reach.
 
-![API client response panel showing the access_token and advertiser_ids values](res/tiktok_queryresult.png)
+![API client response panel showing the access_token and advertiser_ids values](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/10e8d460-f7d6-40d9-c579-5af19f4fd800/public)
 
 Copy the **access token** and store it securely. Copy the advertiser IDs you plan to import.
 
@@ -162,11 +167,29 @@ Copy the **access token** and store it securely. Copy the advertiser IDs you pla
 
 You now have the **App ID**, **App Secret**, **Access Token**, and your **Advertiser IDs**.
 Enter them in the Data Mart setup. Follow [Getting Started](GETTING_STARTED.md) to fill in
-the connector fields.
+the connector fields. To update them later, open **Data Setup → Input Source → Edit config**.
 
 ## Troubleshooting Credential Setup
 
-Use this section for authorization code and access token errors.
+Use this section for OAuth, authorization code, and access token errors.
+
+### The Continue with TikTok popup does not open
+
+**Cause:** Your browser blocked the popup window.
+
+**Solution:** Allow popups for your OWOX Data Marts domain, then click **Continue with TikTok** again.
+
+### OAuth signs in as the wrong TikTok account
+
+**Cause:** Your browser was already signed in to a different TikTok account.
+
+**Solution:** Log out of TikTok in that browser, or use a private window. Then click **Continue with TikTok** again.
+
+### OAuth succeeds but lists no advertiser accounts
+
+**Cause:** The signed-in TikTok user cannot access any advertiser account.
+
+**Solution:** Sign in with a user who can open the advertiser in [TikTok Ads Manager](https://ads.tiktok.com/), then reconnect.
 
 ### Error: the response returns a non-zero `code`
 
