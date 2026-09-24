@@ -193,12 +193,6 @@ export function DataMartPreviewPanel({
     <div className='space-y-3'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <div className='flex flex-wrap items-center gap-2'>
-          <span
-            className={
-              error ? 'bg-destructive size-2.5 rounded-full' : 'size-2.5 rounded-full bg-green-600'
-            }
-            aria-hidden
-          />
           <span className='text-sm font-medium'>Preview Results</span>
           {result && (
             <span className='text-muted-foreground text-sm'>
