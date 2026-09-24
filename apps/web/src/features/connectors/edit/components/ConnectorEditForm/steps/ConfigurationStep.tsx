@@ -32,9 +32,9 @@ interface ConfigurationStepProps {
   isEditingExisting?: boolean;
   disabled?: boolean;
   /** The pin submitted for this source's version (undefined = follow active).
-   * Only passed by the first-time "Set Up Connector" wizard — omitted entirely
-   * when adding another configuration to an already-pinned source, where the
-   * version is fixed at the source level (see #1b) and must not be re-picked here. */
+   * Passed by the first-time "Set Up Connector" wizard and when editing a saved
+   * configuration — omitted when adding another configuration to a source, where
+   * the version is fixed at the source level and must not be re-picked. */
   pinnedVersion?: number;
   /** Present only when the version is user-choosable at this call site; its mere
    * presence is what gates rendering ConnectorVersionControl below. */

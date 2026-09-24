@@ -112,6 +112,8 @@ export function ConnectorDefinitionField({
               ...currentDefinition.connector.source,
               configuration: updatedConfigurations,
               fields: updatedFields,
+              // The edit form carries the source's version, re-picked or not; absent = follow active.
+              version: connector.source.version,
             },
           },
         };

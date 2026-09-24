@@ -110,3 +110,26 @@ it('offers an explicit "Pin to active" on a stale pin', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Pin to active version 5' }));
   expect(onChange).toHaveBeenCalledWith(5);
 });
+
+it('opens on the first choice, not on the info tooltip', async () => {
+  render(
+    <ConnectorVersionControl info={custom(5)} version={undefined} onChangeVersion={vi.fn()} />
+  );
+  fireEvent.click(screen.getByTestId('connector-version-badge'));
+
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Follow active' })).toHaveFocus();
+  });
+  expect(screen.queryByRole('tooltip')).toBeNull();
+});
+
+it('explains following and pinning behind the info icon', async () => {
+  render(
+    <ConnectorVersionControl info={custom(5)} version={undefined} onChangeVersion={vi.fn()} />
+  );
+  fireEvent.click(screen.getByTestId('connector-version-badge'));
+  fireEvent.focus(await screen.findByRole('button', { name: 'About connector versions' }));
+
+  const tooltips = await screen.findAllByRole('tooltip');
+  expect(tooltips.some(tip => tip.textContent.includes('A pinned version stays'))).toBe(true);
+});
