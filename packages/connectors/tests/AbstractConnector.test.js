@@ -2917,4 +2917,85 @@ describe('AbstractConnector', () => {
       }
     });
   });
+
+  describe('run failure messages', () => {
+    const runError = connector =>
+      connector.run().then(
+        () => null,
+        error => error
+      );
+    const loggedMessages = cap => cap.events.filter(e => e.type === 'LOG').map(e => e.message);
+
+    it('reports the error itself when a source without accounts imports nothing', async () => {
+      const cap = captureEvents();
+      try {
+        const StorageClass = class {
+          constructor() {
+            throw new Error(
+              'Cannot create instance of AbstractStorage object because uniqueKeyColumns are not defined'
+            );
+          }
+        };
+        const error = await runError(
+          new AbstractConnector(createTestContext(), createMockSource(), StorageClass)
+        );
+        assert.match(error?.message ?? '', /uniqueKeyColumns are not defined/);
+        assert.doesNotMatch(error.message, /skipped|access token/);
+        assert.ok(
+          !loggedMessages(cap).some(m => m.includes('account null')),
+          loggedMessages(cap).join('; ')
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('says the accounts failed, not that they were skipped, when none imports anything', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            throw new Error(`HTTP 500 for ${req.accountId}`);
+          },
+        });
+        const error = await runError(
+          new AbstractConnector(createTestContext(), source, createMockStorageClass())
+        );
+        assert.match(error?.message ?? '', /None of the 2 accounts imported any data/);
+        assert.match(error.message, /a: HTTP 500 for a; b: HTTP 500 for b/);
+        assert.doesNotMatch(error.message, /skipped|access token/);
+        assert.notStrictEqual(error.isWarning, true);
+      } finally {
+        restore();
+      }
+    });
+
+    it('does not speak of accounts when a source without accounts fails on some days', async () => {
+      const cap = captureEvents();
+      try {
+        const badDay = utcDay(-1);
+        const ctx = createTestContext({
+          LastRequestedDate: { value: utcDay(-2) },
+          ReimportLookbackWindow: { value: '0' },
+        });
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            if (req.startDate === badDay) throw new Error('HTTP 500');
+            return [{ id: 1 }];
+          },
+        });
+        const error = await runError(new AbstractConnector(ctx, source, createMockStorageClass()));
+        assert.match(error?.message ?? '', /HTTP 500/);
+        assert.doesNotMatch(error.message, /account|null/);
+        assert.ok(
+          !loggedMessages(cap).some(m => m.includes('account null')),
+          loggedMessages(cap).join('; ')
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+  });
 });
