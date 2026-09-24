@@ -412,3 +412,5 @@ Official Meta reference: [Ad Account Insights](https://developers.facebook.com/d
 | **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | `platform_position` | `platform_position` | `STRING` | The placement position where your ad was shown. |
 | **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | `publisher_platform` | `publisher_platform` | `STRING` | Which platform your ad was shown, for example Facebook, Instagram, or Audience Network. |
 | **Ad Account Insights by Region** (`ad-account/insights-by-region`) | `region` | `region` | `STRING` | The region where your ads were shown. |
+
+When you enable **Process Short Links**, OWOX adds `parsed_url` inside `link_url_asset`. It holds the resolved landing page for short links in `website_url`. See [Resolve Short Links](GETTING_STARTED.md#resolve-short-links).

@@ -4,13 +4,15 @@
 
 ### Minor Changes 0.35.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/904807b00496db5eeca1a76de410fcf5/iframe>
+
 - 6a5d52e: **Deleted reports are retained**
 
   **This update includes a database migration. Older backend versions do not hide deleted reports; reverting the migration makes those reports visible again.**
 
   Report deletion now uses soft delete: reports are removed from lists while their settings and run history remain stored.
 
-- 0d63382: # Handle array fields safely in reports
+- 0d63382: **Handle array fields safely in reports**
 
   Reports can display repeated fields and fields whose existing schema type is `ARRAY` as columns. Filters, slices, sorting, aggregations, and date buckets are unavailable for these fields, including count, any-value, and blank checks. Reports with stored array controls must have those controls removed or be recreated before saving or running.
 
@@ -18,7 +20,7 @@
 
   Whole records selected as columns are exported to Google Sheets as JSON text. Selecting their nested scalar fields continues to work as before.
 
-- 8c5f21b: # Destinations tab now promotes connecting an AI assistant alongside your existing destinations
+- 8c5f21b: **Destinations tab now promotes connecting an AI assistant alongside your existing destinations**
 
   A published Data Mart's Destinations tab now shows a card inviting you to connect
   **Claude** or **ChatGPT** even when you already have other destinations
@@ -30,7 +32,7 @@
   [MCP setup guide](https://docs.owox.com/docs/getting-started/setup-guide/mcp/).
   It can be collapsed, like any other destination card, if you're not interested.
 
-- f44a455: # Resume an interrupted manual backfill from the last fully loaded date
+- f44a455: **Resume an interrupted manual backfill from the last fully loaded date**
 
   When a deploy or a restart interrupts a manual backfill, the automatic retry now continues from the day
   after the last one it fully loaded, instead of starting the whole period again. It keeps the days it
@@ -49,7 +51,7 @@
   across the full range rather than one day at a time across all of them. TikTok Ads reports a failed day
   only after it has walked the whole range, so it cannot yet tell which days it truly loaded.
 
-- 3f00542: # Select conversions and conversion values by default in Facebook Marketing insights
+- 3f00542: **Select conversions and conversion values by default in Facebook Marketing insights**
   - The `conversions` and `conversion_values` fields are now selected by default for the Facebook Marketing insights endpoints, including the breakdowns by age and gender, country, device platform, product ID, publisher platform and position, and region, plus the ad set and campaign endpoints. New Data Marts built on these endpoints include conversion data without manual field selection.
   - **Ad Account Insights by Link URL Asset** keeps its previous defaults. Meta supports only `impressions`, `clicks`, `spend`, `reach`, `actions`, and `action_values` with Dynamic Creative asset breakdowns, so the conversion fields stay available but unselected there.
   - Both fields now carry real descriptions instead of placeholders, so the field picker, the Output Schema, and MCP clients can tell `conversions` apart from `actions`.
@@ -69,7 +71,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-- 34ec11a: # A hidden column no longer reads as a broken schema
+- 34ec11a: **A hidden column no longer reads as a broken schema**
 
   Hiding a field from reporting takes it off the reporting menu — it does not remove it from the Data Mart. A report that already selected that field said otherwise: it listed the column under **Disconnected columns** and refused to build with _"They are missing from the current Data Mart output schema… contact your analyst to restore the schema."_ Nothing was missing, and the analyst being contacted was usually the person who had just hidden it.
 
@@ -81,7 +83,7 @@
 
   This covers every switch that hides a column — a Data Mart's own field, a calculated field, a joined Data Mart's field, and **Hide from reports** on a single joined field in the join's Report Fields tab — and nothing about what hiding does has changed: the column stays out of the picker and the MCP tools, a report that selects one still cannot run until it is unchecked, and a formula that references one keeps computing. A report carrying one column of each kind is told about both, and keeps the advice to restore the schema. See [Report Output Controls](../../docs/getting-started/setup-guide/output-controls.md).
 
-- ba59eee: # Reports no longer deliver duplicate rows when no aggregation was chosen
+- ba59eee: **Reports no longer deliver duplicate rows when no aggregation was chosen**
 
   A report with an explicit column selection and no aggregation, date bucket, or Unique Count set anywhere used to deliver every underlying row — most visibly from a join that fans one source row out across many. OWOX now collapses it on delivery.
 
@@ -103,11 +105,11 @@
 
   Ad-hoc reads are unchanged: **HTTP Data**, the MCP `query_data_mart` tool, `apps/ctl`, the Looker Studio cache-fill query, "copy as Data Mart", and a report's save-time dry run all keep returning exactly what was asked for, duplicates included — including pulling somebody's Google Sheets report over HTTP Data, where the caller is a third party rather than the report's reader. The two pull destinations part ways: a **Microsoft Excel** report collapses like every other report, because the add-in fetches the very rows it writes into the workbook, while a **Looker Studio** report stays uncollapsed, because its connector reads the report the way any other ad-hoc caller does. See [Report Aggregations](../../docs/getting-started/setup-guide/report-aggregations.md) for the full list of cases where a report is deliberately left uncollapsed.
 
-- ccff2c9: # Google Sheets source: pick the sheet tab from a list and a leaner setup form
+- ccff2c9: **Google Sheets source: pick the sheet tab from a list and a leaner setup form**
 
   The Google Sheets source setup now lists the tabs of the selected spreadsheet so the Sheet Name can be picked instead of typed, for both Google OAuth and Service Account authentication. With Google OAuth the spreadsheet is chosen with Google Picker only, so the manual "Spreadsheet ID or URL" input no longer appears in that mode. Header Row and Range moved to Advanced Settings because most sheets keep their headers in the first row and import the whole tab.
 
-- 0e60d60: # Limit manual backfill to 31 days per run
+- 0e60d60: **Limit manual backfill to 31 days per run**
 
   A manual backfill run now covers at most 31 days, so a full calendar month always fits in one run. The
   **Manual Run** form explains this limit, shows how many days the chosen period covers, and rejects longer
@@ -118,11 +120,11 @@
   If a backfill longer than 31 days was running when this version was deployed, the resumed run now
   stops at the limit. Start it again as several shorter backfills.
 
-- bad3158: # Google Sheets: the first sheet of an auto-created document is named after the report
+- bad3158: **Google Sheets: the first sheet of an auto-created document is named after the report**
 
   When a Google Sheet is created for a report — by `add_report` through the assistant without a `spreadsheet_id`, or with the "Create document" button in the report form — its single sheet (tab) is now named after the document title, like the Drive file already was: the report name for `add_report`, and for the "Create document" button the report title or, while the report has no name yet, the data mart title. Previously that sheet kept Google's default "Sheet1", so a document holding several related exports read "Sheet1 / \<second report\>": the first report's tab was the only one not carrying its name. Sheets added to an existing spreadsheet and sheets restored by "Reconnect" were already named after their report; documents created before this change are not renamed. Because sheet names are unique within a spreadsheet, every report added to the same document needs a distinct name, including the first report's.
 
-- ca8ac65: # AI assistants now use the metrics your Data Mart already defines
+- ca8ac65: **AI assistants now use the metrics your Data Mart already defines**
 
   An assistant connected through the MCP server now selects a Calculated Field whose formula aggregates — a ROAS written as `SUM(revenue) / NULLIF(SUM(adCost), 0)`, a CTR, a conversion rate — instead of pulling the columns behind it and doing the division in its reply.
 
@@ -132,7 +134,7 @@
 
   Nothing in your Data Marts changes, and no field needs to be redefined.
 
-- 6b58dc1: # Current vendor API versions for the Criteo, LinkedIn, and Facebook connectors
+- 6b58dc1: **Current vendor API versions for the Criteo, LinkedIn, and Facebook connectors**
 
   The Criteo Ads, LinkedIn Ads, LinkedIn Pages, and Facebook Ads connectors now use current vendor API versions. Criteo moves to `2026-07`, LinkedIn to `202609`, and Facebook Graph to `v26.0`. The previous versions were approaching their vendor end-of-support dates, with Criteo expiring first in February 2027. Existing data marts keep working, and you do not need to change any settings.
 
@@ -157,7 +159,7 @@
   destination type no longer sends that source along with the new destination.
   Previously this failed with an error for types that do not use credentials.
 
-- d53402e: # Snapshot builds are now distributed as container images only
+- d53402e: **Snapshot builds are now distributed as container images only**
 
   `owox@next` is no longer published to npm. To run a pre-release build, pull
   `ghcr.io/owox/owox-data-marts:next`, or an exact `0.x.0-next-<timestamp>` tag to
@@ -642,7 +644,7 @@
 
 ### Patch Changes 0.32.0
 
-- 715c6f7: # Plugin publishing no longer fails during a safe synchronization cooldown
+- 715c6f7: **Plugin publishing no longer fails during a safe synchronization cooldown**
 
   Repeated publishing now reuses the plugin's last validated version while a GitHub synchronization is cooling down. Authenticated GitHub App and server-token reads use a 30-second default cooldown; anonymous reads retain the safer 300-second default. A separate in-progress error is returned while another synchronization is still running.
   - @owox/internal-helpers@0.32.0
@@ -857,7 +859,7 @@
 
 ### Patch Changes 0.30.1
 
-- 86425d3: # More reliable MCP reporting answers
+- 86425d3: **More reliable MCP reporting answers**
 
   MCP reporting tools now expose only published Data Marts and use clearer, business-friendly field labels in query results. Each result identifies its source Data Mart and includes OWOX links for the related Data Marts, reports, destinations, and schedules.
 
@@ -978,7 +980,7 @@
 
 ### Patch Changes 0.30.0
 
-- 52149e4: # Fix nested blended field name collisions in joinable data marts
+- 52149e4: **Fix nested blended field name collisions in joinable data marts**
 
   Nested (struct) fields in joined sources no longer share report column names with flat siblings after dots are replaced with underscores. For example, flat `campaign_id` and nested `campaign.id` under the same join alias now produce distinct unified names (`ads__campaign_id` vs `ads__campaign_id__a8702665`).
   - **Flat blended names** stay byte-for-byte unchanged; existing reports that only use flat joined columns need no config changes.
@@ -1025,7 +1027,7 @@
 
   Added semantic search functionality for finding project Data Marts, Storages, and Destinations from the project search index.
 
-- e8b87e3: # **MCP tools**
+- e8b87e3: **MCP tools**
   - e8b87e3: Added **`summarize_data_catalog`** — high-level summary of the project's published Data Mart catalog: total count, top Data Marts ranked by relationship connectivity, report/trigger usage, and recent updates. Returns only Data Marts visible to the current member; does not query row data.
   - e8b87e3: Added **`get_data_mart_details_by_id`** — a Data Mart's id, name, description, and output schema fields, including `joined_fields` (blended fields with qualified names, source Data Mart, and allowed aggregations).
   - f680592: Added **`query_data_mart`** — query a Data Mart directly: pick fields, filter (pre-join slices and post-join filters), aggregate (`SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, percentiles), bucket dates by day/week/month/quarter/year, and get server-side totals. Runs against the warehouse, recorded in Run History (query definition and SQL only, never row values), and costs credits per call.
@@ -1141,7 +1143,7 @@
 
   Slice (pre-join) filters now reference columns by the same fully qualified identifier as regular output filters (e.g. `category_details__item_event_count`) instead of a raw column name plus a separate `aliasPath`. Existing saved reports are migrated automatically.
 
-- 1d2e04e: # **Bug fixes and improvements**
+- 1d2e04e: **Bug fixes and improvements**
   - 1d2e04e: Fixed OAuth sign-in for ad platform connectors (Microsoft Ads, TikTok, LinkedIn, Google Ads) failing with "Not Found" after the provider authorization step — callback pages were routed to the backend instead of the web app. Affects both self-hosted and cloud deployments.
   - a222917: Fixed rotated Microsoft Ads refresh tokens not being persisted — OAuth responses returned a new token but it was discarded or overwrote the original user-provided token.
   - c110f35: Fixed AI Helper failing with `Unrecognized name: <field>` when the Output Schema contains disconnected fields. Disconnected fields are now excluded from the 30-row sample query; the fetch is skipped entirely when no connected fields remain.
@@ -1161,7 +1163,7 @@
 
 ### Patch Changes 0.27.1
 
-- c782374: # Fix release build broken by duplicate google-auth-library
+- c782374: **Fix release build broken by duplicate google-auth-library**
 
   A transitive dependency drift left two copies of `google-auth-library` (v10) in the
   tree — one hoisted at the root and a second pinned exactly by `googleapis-common` —
@@ -1252,7 +1254,7 @@
 
   Improved runtime stability for SQLite-backed deployments, focusing on scheduled run processing and transaction coordination during concurrent background activity.
 
-- 62af9fb: # **Bug fixes and improvements**
+- 62af9fb: **Bug fixes and improvements**
   - 62af9fb: Fixed connector-based Data Mart definition type and connector settings appearing empty after switching tabs when no Storage was configured. Connector-based Data Marts can now be saved without a configured Storage.
   - c6d9af1: Fixed graph zoom controls for deep relationship graphs where fit-to-view scaled the graph below the previous fixed zoom floor.
 
@@ -1309,7 +1311,7 @@
 
   Docs and in-product field tips now explicitly state that Account ID and Customer ID must be the numeric API identifiers from the `aid` and `cid` URL parameters, not the alphanumeric numbers shown elsewhere in the Microsoft Ads UI.
 
-- dcd4b55: # **Bug fixes and improvements**
+- dcd4b55: **Bug fixes and improvements**
   - dcd4b55: Fixed Business Owner assignment reducing a Technical User's access. A Technical User tagged as Business Owner of a Data Mart that was _Available for maintenance_ lost Edit, Delete, and Manage Triggers — actions they would have had as a non-owner Technical User. Permissions now combine two paths: an ownership floor (always guarantees See + Use for any owner) and the non-owner sharing path (role-based maintenance actions). Context and role scope still apply to maintenance actions: a member with `Selected contexts only` scope needs a context overlap with the Data Mart for maintenance access. Business Users assigned as Business Owner are unchanged — they still receive See + Use only, as the Business User role does not permit Data Mart maintenance.
   - ce7d14d: Fixed empty Data Mart titles when emoji or special characters are entered — users now see a clear message that these characters are not supported for Legacy BigQuery storage.
   - ce7d14d: Fixed unexpected delay when loading Destinations in the Extension; hidden reporting fields no longer appear in the column picker; improved empty state for new users.
@@ -1406,7 +1408,7 @@
 
   Extracted reusable `TableSelectionCheckbox` component used across all tables. Added `id`/`htmlFor` label associations to Switch components. Enabled sorting by Contexts column in Data Mart, Storage, and Destination tables. Fixed dark mode styles for health status ring indicators.
 
-- 262a9c0: # **Bug fixes and improvements**
+- 262a9c0: **Bug fixes and improvements**
   - 262a9c0: Fixed wrong Input Source shown in the Data Marts list — the mismatch appeared when any Data Mart in the list had multiple owners or contexts assigned.
   - 4172cb7: Fixed incorrect column types and aggregations for blended fields from joined Data Marts in Looker Studio. `COUNT`/`COUNT_DISTINCT` now appear as numeric metrics; `STRING_AGG`/`ANY_VALUE` as dimensions; `MIN`/`MAX`/`SUM` use the correct matching aggregation. Fix applies across BigQuery, Snowflake, Redshift, Athena, and Databricks.
 
@@ -1477,7 +1479,7 @@
 
   Invalid project ID values are now caught immediately when saving OAuth-authenticated BigQuery storages, with clear error messages to correct typos or formatting issues before they cause runtime errors.
 
-- 160574a: # **Bug fixes and improvements**
+- 160574a: **Bug fixes and improvements**
   - 160574a: Unconfigured storages now show a grey health indicator with the message "Complete setup to activate Storage" instead of a red one. Red is reserved for storages that have been configured but fail validation.
   - 50366c4: Fixed `campaign_id` and `adgroup_id` fields in `tiktok_ads_ad_insights` — both were always `null` due to missing parent-hierarchy IDs in the API request. Both fields are now correctly populated.
 
@@ -1541,7 +1543,7 @@
 
   Data is now saved to BigQuery page by page. A failure only affects the remaining pages, not the entire dataset.
 
-- 126280a: # **Bug fixes and improvements**
+- 126280a: **Bug fixes and improvements**
   - 126280a: **Fixed empty error** text for invalid storage status — now shows "Access validation failed" instead of a blank space.
   - a848ac4: **Fixed Storage column sorting** on the Data Marts page — storages with custom names now sort correctly by their visible name.
   - 832bb73: **Error boundaries for unexpected application crashes**. Replaced the default React error screen with a user-friendly fallback UI. The sidebar stays visible for in-layout errors so users can navigate away without a full page reload.
@@ -1561,7 +1563,7 @@
 
 ![OWOX Data Marts – v0.22.0](https://github.com/user-attachments/assets/dcd8ad37-7feb-4cc1-b8f8-a3309d9ee1c2)
 
-- 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
+- 4c9b96d: **Business Owner & Technical Owner for Data Marts**
 
   Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
   - **Owners section** on the Data Mart edit page — assign one or more project members per role via an inline selector.
@@ -1571,24 +1573,24 @@
   - **Filter by owner** in the Data Marts list to quickly find data marts by a specific team member.
   - **Auto-assigned Technical Owner** — the creator is automatically set as Technical Owner when a new Data Mart is created.
 
-- b178723: # **Created By** visibility across major entities
+- b178723: **Created By visibility across major entities**
 
   See who created each entity directly in the list views.
   - **Created By column** is now available in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
   - **Filter by creator** is available in Data Destinations and Data Storages lists.
 
-- 85abd92: # **Trigger-based execution** for connector and report runs
+- 85abd92: **Trigger-based execution for connector and report runs**
 
   Connector and report runs are now processed through a task queue instead of running immediately in the background. This improves reliability by ensuring runs are not lost on server restart, adds per-project concurrency limits, and automatically retries runs that cannot start due to concurrency limits. Includes a safety mechanism to detect and fail runs stuck in the queue for too long.
 
-- 2406874: # **Onboarding video** for Email-based Reports
+- 2406874: **Onboarding video for Email-based Reports**
 
   A new onboarding video to improve adoption of Email-based Reports in Data Marts.
   - Shown once to new users on the **Destinations** tab in Data Mart.
   - Available in **Help menu → Video tutorials**.
   - Embedded in **Email Reports documentation**.
 
-- 9395757: # **Sign In page** redesign with product-focused brand panel
+- 9395757: **Sign In page redesign with product-focused brand panel**
 
   Redesigned the auth screen to better communicate product value and reduce sign-in friction.
   - **Brand panel** — replaced placeholder with a carousel of product use cases (Google Sheets, Looker Studio, Email delivery).
@@ -1596,29 +1598,29 @@
   - **Product preview** — visual workflows introduced directly on the auth screen.
   - **Carousel** — auto-rotation with lazy-loaded images.
 
-- 737f292: # **Externalized connector secrets** from Data Mart definitions
+- 737f292: **Externalized connector secrets from Data Mart definitions**
 
   Non-OAuth secrets are moved from inline storage in Data Mart definitions to a separate `connector_source_credentials` table. Centralizes credential storage and reduces secret exposure in definition JSONs.
   - Added `_secrets_id` reference pattern (aligned with existing `_source_credential_id` for OAuth).
   - Secrets are extracted on save and injected during connector execution.
   - Includes data migration for existing Data Marts.
 
-- a258b72: # **Improved UX for setting triggers**
+- a258b72: **Improved UX for setting triggers**
 
   Reduced friction in the trigger setup flow: smart default type based on Data Mart configuration, improved empty state with a CTA button, and one-click schedule presets (Daily 9:00, Every hour, Every 6h, Weekdays 9:00).
 
-- 2399254: # **Searchable Storage Selector** in Data Mart form
+- 2399254: **Searchable Storage Selector in Data Mart form**
 
   The storage picker in the Create Data Mart form is upgraded to a searchable combobox.
   - Storages are listed in **alphabetical order** by title.
   - **Typeahead search** filters the list by typing — useful when many storages exist.
   - **Create new storage** option remains accessible at the bottom of the list.
 
-- 62f435a: # **Auto-subscribe new project members** to notification settings
+- 62f435a: **Auto-subscribe new project members to notification settings**
 
   New team members with Admin or Editor roles are automatically subscribed to existing notification settings when joining a project. Members who leave and rejoin are re-subscribed automatically. Manual unsubscribes are respected and not overridden. Members downgraded to Viewer are automatically removed from the receivers list.
 
-- 6d53e58: # **Bug fixes and improvements**
+- 6d53e58: **Bug fixes and improvements**
   - **Connector definition validation** — fixed validators to allow early validation success; connector definitions no longer require credential validation during publish, resolving failures for Athena, BigQuery, Databricks, Redshift, and Snowflake.
   - **Delete confirmation dialog** — fixed undefined Data Mart title; dialog now correctly displays the actual data mart name.
   - **Edit button in oneOf config** — secret editing state is now tracked per-field, preventing unintended resets of sibling fields and auth type switches.
@@ -1636,7 +1638,7 @@
 
 ### Patch Changes 0.21.1
 
-- b3befb4: # Fixed build failure issue
+- b3befb4: **Fixed build failure issue**
 
   Fixed build error caused by ESLint configuration issue
 
@@ -1646,45 +1648,45 @@
 
 ![OWOX Data Marts – v0.21.0](https://github.com/user-attachments/assets/01f4ddd8-5eb0-4407-8ba2-07dcc5cf9946)
 
-- 7494cd6: # Introducing reusable **Insights with AI assistance**
+- 7494cd6: **Introducing reusable Insights with AI assistance**
 
   Insights is now available in OWOX! Use it to analyze your data mart results directly — create reports, explore your data, and share findings with your team. To get started, check out the [Insights setup guide](../../docs/getting-started/setup-guide/insights.md).
 
-- a7bbb8c: # Add **OAuth for Google Ads** connector
+- a7bbb8c: **Add OAuth for Google Ads connector**
 
   Added OAuth2 authentication flow for Google Ads connector. Users can now authorize access using a "Sign in with Google" button instead of manually entering RefreshToken, ClientId, and ClientSecret. The DeveloperToken is managed via environment variable and stored securely with other OAuth credentials. Also fixed a COOP SecurityError in the OAuth popup polling that affected all OAuth connectors.
 
-- d906258: # Add **"Copy Credentials" button** to Storage and Destination
+- d906258: **Add "Copy Credentials" button to Storage and Destination**
 
   Added a "Copy Credentials" button to Storage and Destination edit forms, allowing users to copy credential configuration from other storages or destinations of the same type. Includes new backend endpoints for listing storages and destinations by type with credential identity information.
 
-- e68ca61: # **Improve Data Mart publish** status message
+- e68ca61: **Improve Data Mart publish status message**
 
   The publish status message for data marts has been improved to provide more clarity and actionable information.
   - **Publish after:** The publish status message now shows what you need to do to publish the data mart. For example, if you need to complete storage configuration or configure an input source.
   - **Ready to publish:** The publish status message now shows that the data mart is ready to publish.
 
-- cb57600: # Add **video tutorials** about completing storage setup and insights
+- cb57600: **Add video tutorials about completing storage setup and insights**
 
   In the Help menu, we added two new video tutorials:
   - how to complete the Google BigQuery (used in OWOX extension) storage setup to publish Data Marts from OWOX Reports (Google Sheets extension)
   - how to get started with Insights
 
-- 27e5af8: # **AWS Athena storage descriptions**
+- 27e5af8: **AWS Athena storage descriptions**
 
   Added support for column descriptions (comments) in AWS Athena storage and Output Schema.
 
-- 90b7ee7: # Implement **destination name validation** for all data storage types
+- 90b7ee7: **Implement destination name validation for all data storage types**
 
   Implements comprehensive destination name validation for `CONNECTOR` and `TABLE` definition types across BigQuery, Snowflake, Athena, Redshift, and Databricks. This update strengthens security by preventing malformed table names and ensuring all storage configurations are properly validated before processing.
 
-- 1a7b5f8: # Improve form UI with **collapsible sections**
+- 1a7b5f8: **Improve form UI with collapsible sections**
 
   This update introduces collapsible sections in forms to make configuration flows easier to complete. Less important or advanced settings can now be hidden by default, allowing users to focus on the most important fields first. For example, this approach can help when configuring storages that are automatically created during [integration](../../docs/getting-started/setup-guide/extension-data-marts.md) with the OWOX Reports extension for Google Sheets.
 
   The interaction follows the same collapsible pattern used in wizard screens, keeping the experience consistent across the product. Existing forms remain unchanged and continue to appear expanded by default.
 
-- 6f1f61a: # Show **storage health status** in the configuration form
+- 6f1f61a: **Show storage health status in the configuration form**
 
   This update improves visibility of the storage connection status when configuring a Data Storage. Users can now see whether the storage access is valid directly in the General section of the configuration form. This provides immediate feedback that the storage is correctly configured and ready to be used by Data Marts. This makes the setup experience clearer and helps users configure their storage with more confidence.
 
@@ -1693,7 +1695,7 @@
   - Quickly detect configuration issues
   - Maintain a consistent status indicator between the Data Storage list and the configuration form
 
-- 7494cd6: # **Bug fixes and improvements**
+- 7494cd6: **Bug fixes and improvements**
   - Fix data storage validation for Google Legacy BigQuery connector
   - Fix missing dependencies for data destination and storage forms to avoid errors
   - Fix duplicate trigger runs caused by MySQL deadlocks not being handled as transient errors
@@ -1715,11 +1717,11 @@
 
 ![OWOX Data Marts – v0.20.0](https://github.com/user-attachments/assets/22f124c9-ab12-4666-ba13-bb9926e145d4)
 
-- cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
+- cc5553d: **New Sign Up options: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com**
 
   Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
 
-- 55ecd48: # **Table Filters** for Data Marts and Data Storages
+- 55ecd48: **Table Filters for Data Marts and Data Storages**
 
   We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
   - Filter with logical conditions (Is / Is not / Contains / Does not contain)
@@ -1727,50 +1729,50 @@
   - Shareable, deep-linked views
   - At-a-glance status
 
-- 800ec3c: # **Data table support** in email-based report templates
+- 800ec3c: **Data table support in email-based report templates**
 
   You can now embed data mart results as a Markdown table in your email-based reports using the `{{table}}` tag with optional parameters.
 
-- b88510a: # Add **Microsoft Ads OAuth** Integration
+- b88510a: **Add Microsoft Ads OAuth Integration**
   - Implemented OAuth2 authentication flow for the Microsoft Ads connector to support secure, long-lived access.
   - Added frontend components (`MicrosoftLoginButton` and callback routing) to handle the user authorization process.
   - Updated the backend source configuration to parse and validate `AuthType` with Client ID, Client Secret, and Refresh Token.
   - Implemented `exchangeOauthCredentials` and automatic token refreshing (`getAccessToken`) using the `offline_access` scope for persistent background data fetching.
   - Created database migrations to support storing the new `AuthType` JSON configuration for Microsoft Ads datamarts.
 
-- 8b935a2: # **Google OAuth authentication** for BigQuery and Google Sheets
+- 8b935a2: **Google OAuth authentication for BigQuery and Google Sheets**
 
   BigQuery storages (including Legacy BigQuery) and Google Sheets destinations now support Google OAuth as an alternative to service account JSON. Users can connect their Google account directly via an OAuth button in the settings form and switch between authentication methods at any time.
 
-- 01e6516: # Upgrade API Version in **Facebook Marketing Connector to v25.0**
+- 01e6516: **Upgrade API Version in Facebook Marketing Connector to v25.0**
 
   Updated all Facebook Graph API / Marketing API endpoints from `v23.0` to `v25.0` across the Facebook Marketing connector.
 
-- 089e45b: # Facebook Marketing **API Page Limit**
+- 089e45b: **Facebook Marketing API Page Limit**
 
   Added a user-configurable `Limit` parameter to the Facebook Marketing source to control API page size, helping resolve 'reduce the amount of data' errors for specific ad accounts.
 
-- cc5553d: # **Adaptive input for SQL Query**
+- cc5553d: **Adaptive input for SQL Query**
 
   The SQL Query block has been made more convenient for use on small screens. The ability to control the size of the block has been added.
 
-- a03a952: # **TikTok Ads Country Dimension**
+- a03a952: **TikTok Ads Country Dimension**
 
   Added `country_code` dimension to TikTok Ads connector with a new `ad_insights_by_country` node to support geographic breakdown in reporting.
 
-- d141171: # Add data mart **link to Google Sheets metadata notes**
+- d141171: **Add data mart link to Google Sheets metadata notes**
 
   Google Sheets exports now include a link to your data mart in the cell note (A1). The link takes you directly to the data mart page for quick access.
 
-- aec648d: # **AWS Redshift Storage UI improvements**
+- aec648d: **AWS Redshift Storage UI improvements**
 
   Moved the "Database Name" field after connection type selection to match the natural AWS Console lookup order.
 
-- 9198b94: # **Sort runs in notification emails** by time (newest first)
+- 9198b94: **Sort runs in notification emails by time (newest first)**
 
   Previously, runs in notification emails appeared in the order they were added to the queue, which could result in non-chronological ordering (e.g., 2:48, 3:02, 3:03). Now runs are sorted by finished time in descending order, so the most recent runs appear first.
 
-- c7cff50: # **Fix string timestamp** handling in Snowflake storage
+- c7cff50: **Fix string timestamp handling in Snowflake storage**
   - Added support for ISO 8601 string values in TIMESTAMP and DATETIME columns
   - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
   - Invalid timestamp strings fall back to the existing special-character obfuscation path
@@ -1790,48 +1792,48 @@
 
 ![OWOX Data Marts – v0.19.0](https://github.com/user-attachments/assets/fb0a4e77-4334-43dd-b5a4-d9582086fc9c)
 
-- 2ab606c: # Add email and webhook notifications for Data Mart runs
+- 2ab606c: **Add email and webhook notifications for Data Mart runs**
 
   Add notification settings per project with support for email and webhook channels. Notifications are grouped by a configurable delay window and sent automatically when Data Mart runs fail or succeed. Settings are created automatically on the first run of a project.
 
-- a23ec87: # Add batch publish action for draft data marts
+- a23ec87: **Add batch publish action for draft data marts**
 
   Add the ability to publish multiple draft data marts at once from the list page.
 
-- 6e25a0a: # Add health status indicator for data storages
+- 6e25a0a: **Add health status indicator for data storages**
 
   Display a live access-validation indicator (colored dot with details on hover) for each configured data storage — both in the storages list and in the storage selector when creating a new data mart.
 
-- 465891c: # Show data mart counts by status on the data storages list
+- 465891c: **Show data mart counts by status on the data storages list**
 
   Show separate counts for published and draft data marts in the data storages list.
 
-- 465891c: # Publish data storage drafts
+- 465891c: **Publish data storage drafts**
 
   Add a publish drafts action for data storages with confirmation and result toasts.
 
-- ee89c84: # Show actual error details when Google Sheets access check fails
+- ee89c84: **Show actual error details when Google Sheets access check fails**
 
   Previously, when Google Sheets API access validation failed, the error message always displayed a generic "Access check failed" text. Now the actual error message from the Google Sheets API is shown, making it easier to understand and fix the issue.
 
-- ee89c84: # Add direct table link for AWS Redshift storages
+- ee89c84: **Add direct table link for AWS Redshift storages**
 
   Add a direct link to the AWS Redshift Query Editor v2 console from the Data Mart's input source. After the clicking to the table name opens the SQL Workbench for the configured AWS region, similar to the existing console links for BigQuery, Athena, and Snowflake.
 
-- 2f61b9b: # Fix Athena MaxResults exceeding API limit of 1000
+- 2f61b9b: **Fix Athena MaxResults exceeding API limit of 1000**
 
   Cap `MaxResults` parameter to 1000 in Athena `getQueryResults` to comply with the AWS Athena API limit. Previously, callers could pass values greater than 1000 (e.g., streaming batch size of 5000), causing `InvalidRequestException` errors.
 
-- ee89c84: # Fix LinkedIn Ads field type definitions
+- ee89c84: **Fix LinkedIn Ads field type definitions**
   - Fix `runSchedule` field in campaign schema: remove duplicate entry and set correct type to `OBJECT` instead of `NUMBER`
   - Fix `id` fields in account, campaign, and campaign group schemas to use `STRING` type matching the LinkedIn API
   - Fix `dateRangeStart` and `dateRangeEnd` fields in analytics schema to use `DATE` type for proper date handling and BigQuery partitioning
 
-- 807c16d: # Fix Looker Studio connector requests with forFilterOnly fields
+- 807c16d: **Fix Looker Studio connector requests with forFilterOnly fields**
 
   Remove incorrect `forFilterOnly` exclusion in `getRequestedFieldNames` to ensure all requested fields are returned in the connector data response.
 
-- ee89c84: # Update Snowflake storage configuration form
+- ee89c84: **Update Snowflake storage configuration form**
   - Rename "Username & Password" authentication method to "Username & PAT" across the Snowflake setup form and all help descriptions
   - Update help text and security tips to reference Programmatic Access Tokens (PAT) instead of password
   - Update warehouse navigation instructions to match the current Snowflake UI
@@ -1852,29 +1854,29 @@
 
 ![OWOX Data Marts – v0.18.0](https://github.com/user-attachments/assets/8053b97b-a659-440a-8b43-ed865fb7f315)
 
-- 68d72af: # Add Databricks storage type with Personal Access Token authentication
+- 68d72af: **Add Databricks storage type with Personal Access Token authentication**
 
   This change adds support for Databricks as a new storage type in OWOX Data Marts platform. Users can now connect to Databricks SQL warehouses using Personal Access Token authentication.
   - **Authentication:** Personal Access Token
   - **Storage Configuration:** Host, HTTP Path
   - **Driver:** @databricks/sql
 
-- ee0459e: # Add OAuth flow for TikTok Ads connector
+- ee0459e: **Add OAuth flow for TikTok Ads connector**
   - Added support for OAuth2 authentication in the TikTok Ads connector
   - Implemented OAuth credential exchange
   - Added TikTok login button UI component for OAuth flow
   - Added OAuth callback page for handling TikTok authorization redirect
   - Manual credential entry option remains available as fallback
 
-- 38d3593: # Improved Looker Studio destination stability
+- 38d3593: **Improved Looker Studio destination stability**
 
   Enhanced Looker Studio destination stability and performance by implementing data streaming. This update ensures a smoother user experience and more reliable delivery of large datasets from Data Marts.
 
-- 38d3593: # Descriptions for fields in AWS Redshift tables
+- 38d3593: **Descriptions for fields in AWS Redshift tables**
 
   After launching the connector, field descriptions will be synchronized with tables in Redshift
 
-- f52376f: # Enrich Facebook Marketing ad-account/ads endpoint
+- f52376f: **Enrich Facebook Marketing ad-account/ads endpoint**
 
   The Facebook Marketing connector's `ad-account/ads` endpoint now returns real ad data instead of null values.
 
@@ -1887,11 +1889,11 @@
 
   **Note:** For performance metrics (impressions, clicks, spend), continue using the `ad-account/insights` endpoint.
 
-- bcf4b10: # Fix Snowflake data mart schema derivation to properly handle queries with LIMIT clauses by wrapping them in subqueries instead of naive concatenation
+- bcf4b10: **Fix Snowflake data mart schema derivation to properly handle queries with LIMIT clauses by wrapping them in subqueries instead of naive concatenation**
 
   Enhanced Snowflake data mart schema derivation to properly handle queries with LIMIT clauses by wrapping them in subqueries instead of naive concatenation. This ensures that the schema is derived correctly even when the query contains a LIMIT clause.
 
-- 997fcba: # Update Snowflake storage UI to use PAT terminology
+- 997fcba: **Update Snowflake storage UI to use PAT terminology**
 
   Updated the Snowflake storage settings interface to refer to "PAT (Programmatic Access Token)" instead of "Password" to align with Snowflake's current terminology.
 
@@ -1912,18 +1914,18 @@
 
 ![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/5c46cc11-5282-41d5-b20f-ddcc74a3d47a)
 
-- bfdbc6b: # **Insights** feature is now available for all projects in the cloud version
+- bfdbc6b: **Insights feature is now available for all projects in the cloud version**
 
   Users can now try out the new Insights functionality and share their feedback.
 
-- 3283bcd: # Insights: Improved permission handling and read-only mode
+- 3283bcd: **Insights: Improved permission handling and read-only mode**
 
   We've enhanced how permissions work within Insights to provide a more seamless and informative experience.
   - **Read-only state**: You can now view Insights in a read-only mode when you don't have edit permissions.
   - **Action enforcement**: Buttons and actions (like editing or deleting) are now properly disabled based on your access level.
   - **Better feedback**: New tooltips and messages explain why certain actions are restricted, helping you understand your permission levels at a glance.
 
-- 51a9bdd: # Added instant **health status indicators** to the Data Marts list
+- 51a9bdd: **Added instant health status indicators to the Data Marts list**
 
   Improved Data Marts list with instant health status indicators and automatic prefetching of recent run data, making it easier to monitor Data Mart health at a glance.
   - **Color-coded health status indicators** for each Data Mart
@@ -1932,13 +1934,13 @@
   - **Automatic prefetching** of run statuses for visible rows — no waiting, no hover-to-load surprises
   - **Helpful hover details** with recent run info and a quick path to full Run History
 
-- d15a3c4: # Fix bugs in Data Mart **"Run History" tab**
+- d15a3c4: **Fix bugs in Data Mart "Run History" tab**
 
   Fixed bugs that users may have encountered in the Data Mart "Run History" tab, namely:
   - Unexpected visual effects when clicking the "Load More" button.
   - Automatic deletion of run items that were loaded via the "Load More" button, and displaying only the last 20 runs.
 
-- c10c3ff: # Refactor: **Standardize Data Types Across Connectors**
+- c10c3ff: **Refactor: Standardize Data Types Across Connectors**
 
   Introduced centralized data type definitions and standardized type handling across all storage connectors and API references.
   - Created `Constants/DataTypes.js` with standardized type definitions (STRING, BOOLEAN, INTEGER, NUMBER, DATE, DATETIME, TIME, TIMESTAMP, ARRAY, OBJECT)
@@ -1947,11 +1949,11 @@
   - Changed `AbstractStorage.getColumnType()` to throw an error if not implemented, enforcing proper implementation in child classes
   - Eliminated storage-specific type constants (e.g., `GoogleBigQueryType`) from API reference files where they were inappropriately used
 
-- 7d7ddd1: # Add new fields to **Facebook Ads source** connector
+- 7d7ddd1: **Add new fields to Facebook Ads source connector**
 
   Added `cost_per_result`, `results` and `result_rate` fields to the Facebook Ad Account Insights report schema, allowing for better cost efficiency analysis.
 
-- dad1fd2: # Feat: Add default fields for Microsoft Ads
+- dad1fd2: **Feat: Add default fields for Microsoft Ads**
 
   We've improved the **Microsoft Ads** connector to help you set up reports faster.
 
@@ -1959,11 +1961,11 @@
   - **Convenient:** Standardization of commonly used metrics.
   - **Flexible:** You can still uncheck these fields if you don't need them.
 
-- 4d4b7e9: # Add new fields to **Shopify** orders
+- 4d4b7e9: **Add new fields to Shopify orders**
   - discountCodes: Array of discount code strings applied to the order
   - discountApplications: Detailed discount applications with code, amount/percentage, target type, and allocation method
 
-- 3f381f7: # Fix: **TikTok Connecto**r Type Handling
+- 3f381f7: **Fix: TikTok Connector Type Handling**
 
   Fixed "Unknown type STRING" errors in the TikTok Ads connector by updating type handling to use standardized DATA_TYPES constants.
 
@@ -1982,7 +1984,7 @@
 
 ![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/7512a17d-74ab-4c61-af83-fb0477f62882)
 
-- 81112e2: # Floating Popovers and Help Menu for Tutorials and Support
+- 81112e2: **Floating Popovers and Help Menu for Tutorials and Support**
   - Added **FloatingPopover** component with context to manage popover state
   - Added **video tutorial popovers** for Google Sheets and Looker integration
   - Implemented **HelpMenu** with dropdown functionality for quick access to help resources
@@ -1990,13 +1992,13 @@
   - Enhanced **Intercom integration** with launcher visibility control and payload adjustments
   - Added **popover tutorial** in EmptyDataMartsState to guide new users
 
-- 18c2a9f: # AI-Powered Insight Creation
+- 18c2a9f: **AI-Powered Insight Creation**
 
   Added the ability to create the first insight using AI, significantly simplifying the user's journey to start using insights functionality.
 
   Users can now generate intelligent, data-driven insight templates with pre-configured AI prompts tailored to their data mart structure, making it easier to discover valuable insights without manual setup.
 
-- 8d8b75b: # AWS Redshift Storage Support
+- 8d8b75b: **AWS Redshift Storage Support**
 
   Introduced AWS Redshift as a new data storage type with comprehensive support for both Serverless and Provisioned clusters.
   - Authentication Methods: Username/Password authentication for secure connections
@@ -2008,31 +2010,31 @@
 
   This update enables users to seamlessly connect OWOX to AWS Redshift data warehouses, expanding the platform's data storage capabilities to one of the most popular cloud data warehouse solutions.
 
-- 7d9eb45: # Streamlined Data Mart Onboarding
+- 7d9eb45: **Streamlined Data Mart Onboarding**
 
   Introduced interactive "next-step" suggestions to help you set up and use your Data Marts faster. Now, after publishing or loading data, you'll get clear guidance on the best next action—like running a connector, scheduling triggers, or creating reports—ensuring a smoother transition from configuration to results.
 
-- 09c6270: # Add direct linking for Data Storages and Destinations
+- 09c6270: **Add direct linking for Data Storages and Destinations**
   - Added support for direct links to specific Data Storages and Destinations via URL parameters, making it easier to share specific entities with others.
   - Automatically synchronizes the URL with the currently opened entity.
 
-- 2f99ff4: # Improve pagination
+- 2f99ff4: **Improve pagination**
   - Improved pagination on lists of Data Marts, Storages and Destinations: added customizeble page-size selector and info about selected items and pages
   - Added persistent page size support for storing and retrieving the user's preferred page size from localStorage
   - Fixed "Select all" checkbox to operate on the current page only
 
-- 2d311f6: # Improve UX in Reports
+- 2d311f6: **Improve UX in Reports**
   - added buttons for running the report and opening the Google Sheets document directly in the table row
   - changed the default action for the new report from "Create" to "Create and Run" action. It's affected Google Sheets and Email destinations
 
-- 6940365: # Add Shopify Connector
+- 6940365: **Add Shopify Connector**
 
   Added new Shopify connector with support for multiple data nodes including orders, products, customers, metafields, and more
 
-- 469e64f: # Improved Facebook Marketing Connector Stability and Data Depth
+- 469e64f: **Improved Facebook Marketing Connector Stability and Data Depth**
   - **More Reliable Imports**: Fixed an issue where missing or invalid dates could interrupt data transfers. Your pipelines will now be more resilient to data inconsistencies.
 
-- c9e7dc5: # Microsoft Ads: AccountID changes to AccountIDs
+- c9e7dc5: **Microsoft Ads: AccountID changes to AccountIDs**
 
   The Microsoft Ads connector configuration field has been renamed from `AccountID` to `AccountIDs` to better reflect its capability. You can now specify multiple Account IDs (comma-separated) in a single field, allowing you to load data for several accounts using one connector instead of creating separate connectors for each account.
 
@@ -2053,7 +2055,7 @@
 
 ![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/9c9fcaa3-9a36-403c-b57d-410aa8819277)
 
-- 8298a39: # Improve Storage Creation UX and Interaction Safety
+- 8298a39: **Improve Storage Creation UX and Interaction Safety**
 
   The Storage creation flow is now smoother and more predictable.
   - Added click-lock protection to prevent accidental double-clicks when selecting a Storage type.
@@ -2071,7 +2073,7 @@
 
   These updates reduce navigation friction and unify the definition and automation steps.
 
-- 81aedad: # Fix Report Reader for View-Defined Data Marts in BigQuery Storage
+- 81aedad: **Fix Report Reader for View-Defined Data Marts in BigQuery Storage**
 
   Fixed report reader functionality for data marts defined by views in BigQuery Storage.
   - Enhanced definition type checking in BigQuery Storage report reader to properly distinguish between definition types.
@@ -2092,15 +2094,15 @@
 
 ![OWOX Data Marts – v0.14.0](https://github.com/user-attachments/assets/f56e992c-d00e-46fe-b988-ad0bc4c8a9cf)
 
-- 30d95a8: # Fix migration error on application start with SQLite database
+- 30d95a8: **Fix migration error on application start with SQLite database**
 
   Fixed an issue where users running OWOX with SQLite database could encounter errors like "SQLITE_ERROR: no such column: runType" during database migrations.
 
-- 1c03024: # Added additional information about users in UI
+- 1c03024: **Added additional information about users in UI**
   - Added display of the Data Mart creator in the Data Marts list.
   - Added display of the run initiator on the Run History tab.
 
-- 2c636b8: # Add Snowflake support for Data Marts and Connectors
+- 2c636b8: **Add Snowflake support for Data Marts and Connectors**
 
   You can now use Snowflake as a data storage destination for both Data Marts and Connectors, giving you more flexibility in how you store and manage your data.
 
@@ -2139,7 +2141,7 @@
 
 ![OWOX Data Marts – v0.13.0](https://github.com/user-attachments/assets/d25bc921-4d17-4373-921f-7045544ad2ec)
 
-- 5adbb9f: # New: Email-based destinations
+- 5adbb9f: **New: Email-based destinations**
 
   New: Email as a data destination
   - You can now add Email as a destination and deliver reports directly to inboxes.
@@ -2158,8 +2160,8 @@
   No breaking changes
   - This release adds new capabilities; existing flows remain unchanged.
 
-- fc1dca7: # The creative field in the Facebook Marketing connector is no longer supported; use creative_id instead
-- dc9b5ab: # Implement OAuth2 flow for Facebook Marketing connector
+- fc1dca7: **The creative field in the Facebook Marketing connector is no longer supported; use creative_id instead**
+- dc9b5ab: **Implement OAuth2 flow for Facebook Marketing connector**
   - Add OAuth2 base oauth flow implementation
   - Add OAuth2 authentication option for Facebook Marketing connector
   - Implement token exchange and refresh logic
@@ -2181,7 +2183,7 @@
 
 ![OWOX Data Marts – v0.12.0](https://github.com/user-attachments/assets/edd235e0-183b-4fde-b7bd-721c11dbe261)
 
-- bd09d56: # Enhanced Run History: Google Sheets Reports and Looker Studio Data Fetching
+- bd09d56: **Enhanced Run History: Google Sheets Reports and Looker Studio Data Fetching**
 
   The **Run History tab now displays all Data Mart runs** in one place:
   - Google Sheets Export report runs and Looker Studio report runs are now tracked in Run History alongside Connector runs
@@ -2190,7 +2192,7 @@
   - Added "Pending" status for queued operations
   - ☝️ All historical Runs before the update are considered manual
 
-- ba8ca14: # Improve ConnectorEditForm with Auto-Save and Smarter DataMartDefinition Handling
+- ba8ca14: **Improve ConnectorEditForm with Auto-Save and Smarter DataMartDefinition Handling**
 
   This update enhances the connector setup experience with automatic saving, improved validation, and better handling of connector configurations.
   - Added **auto-saving** for connector settings in the ConnectorEditForm
@@ -2198,14 +2200,14 @@
   - Enabled **auto-updates** for `DataMartDefinition` upon form submission
   - Refactored related components for **clearer validation** and **smoother configuration flow**
 
-- 5c98ca4: # Safer and Smoother Connector Editing Experience
+- 5c98ca4: **Safer and Smoother Connector Editing Experience**
 
   We’ve made it easier — and safer — to edit your connector settings.
   Now, if you make changes and try to close the form before saving, you’ll see a **confirmation dialog to prevent losing your work**.
 
   We’ve also simplified how configuration details are managed and improved tooltips for better clarity — so you can focus on setting up your data connections with confidence and less friction.
 
-- e2da6ef: # Facebook Connector: Added support for nested creative fields in ad-group endpoint
+- e2da6ef: **Facebook Connector: Added support for nested creative fields in ad-group endpoint**
 
   New flat fields available:
   - `creative_id` - Unique ID for the ad creative
@@ -2214,11 +2216,11 @@
   - `creative_object_story_spec` - Object story spec with page_id and other details
   - `creative_effective_object_story_id` - Page post ID used in the ad
 
-- 66e494d: # **Fixed false error notification** about actualizing schema
+- 66e494d: **Fixed false error notification about actualizing schema**
 
   When configuring the Connector-based Data Mart, attempts to update the table schema would cause users to receive an error message in the UI that was not actually an error. For the Connector-based Data Mart, the table and schema are created on first run, so attempting to update the schema before the first run would result in an error in the UI. Now updating schema trigger checks the Data Mart type and doesn't try for these cases
 
-- 061b00c: # Refactor connector execution architecture by removing the standalone `@owox/connector-runner` package and integrating its functionality directly into `@owox/connectors` package
+- 061b00c: **Refactor connector execution architecture by removing the standalone `@owox/connector-runner` package and integrating its functionality directly into `@owox/connectors` package**
 
   **⚠️ Breaking changes:**
   - Removed `@owox/connector-runner` package entirely
@@ -2231,7 +2233,7 @@
   - Removed redundant GitHub workflows for connector-runner
   - Cleaned up repository structure
 
-- 961140b: # Remove `@kaciras/deasync` and `sync-request` dependencies and migrate to async/await
+- 961140b: **Remove `@kaciras/deasync` and `sync-request` dependencies and migrate to async/await**
 
   This is a minor breaking change that removes the `@kaciras/deasync` and `sync-request` dependencies from connectors package and migrates all synchronous blocking code to modern async/await patterns.
 
@@ -2248,7 +2250,7 @@
   - Removed `ENVIRONMENT` enum and environment detection logic
   - Updated connector documentation
 
-- 87aed3f: # **Show Connector State in Manual Run menu**
+- 87aed3f: **Show Connector State in Manual Run menu**
   - In Manual Run → State Info for incremental runs, you can now view the Connector State.
   - For connectors with multiple configurations, the state is shown for each configuration with a "Created at" tooltip.
   - If no state is available, we show "No state available".
@@ -2256,7 +2258,7 @@
 
   This helps you quickly understand where incremental loading will continue from and simplifies troubleshooting.
 
-- f97c4e7: # Add new Facebook Marketing insights endpoints and improve Facebook field schema filtering
+- f97c4e7: **Add new Facebook Marketing insights endpoints and improve Facebook field schema filtering**
 
   Introduced several new **Facebook Marketing API insights** endpoints with specific breakdowns:
   - `ad-account/insights-by-age-and-gender` — provides age and gender breakdowns
@@ -2287,7 +2289,7 @@
   **Recommendation:**
   ☝️ Recreate your Data Mart using the correct endpoint to ensure compatibility with the latest Facebook Marketing API structure.
 
-- cd3bcd9: # Hidden optional connector config knobs
+- cd3bcd9: **Hidden optional connector config knobs**
 
   Marked shared connector config fields as either **hidden manual backfill dates** or **“Advanced”** tuning options so the UI only surfaces essential settings by default.
 
@@ -2306,7 +2308,7 @@
 
 ![OWOX Data Marts - v0.11.0](https://github.com/user-attachments/assets/2365a8a6-c9a0-4b7a-8b85-30d57aae2434)
 
-- 7617b79: # Enhanced Data Mart run history monitoring with automatic updates
+- 7617b79: **Enhanced Data Mart run history monitoring with automatic updates**
 
   Improved the overall experience when working with Data Mart by introducing automatic data refresh and better run handling:
 
@@ -2323,7 +2325,7 @@
 
   These improvements ensure you always have up-to-date information about your Data Mart executions without needing to manually refresh the page.
 
-- 0a99a0b: # Add ability to copy connector configuration from existing Data Marts
+- 0a99a0b: **Add ability to copy connector configuration from existing Data Marts**
 
   Added a new feature that allows users to copy connector configuration settings from existing Data Marts when creating or editing connector-based Data Marts.
   - **Copy configuration button**: New dropdown menu in the connector configuration step that shows all Data Marts with the same connector type
@@ -2331,7 +2333,7 @@
   - **Configuration preview**: Tooltip on each item shows required fields with masked secrets
   - **Secure secret copying**: Secrets are properly masked and merged from source on backend
 
-- 5cd552c: # Improve Data Mart Creation Flow and Connector Editor Experience
+- 5cd552c: **Improve Data Mart Creation Flow and Connector Editor Experience**
 
   This update brings several enhancements to the Data Mart creation flow and connector-related components, improving UI consistency, usability, and workflow efficiency.
 
@@ -2345,21 +2347,21 @@
   - **UX improvements**: implemented auto-open logic for Connector Setup Sheet when selecting a definition type
   - **UI improvements**: updated theme handling in **DataMartCodeEditor** for consistent styling
 
-- c929eb0: # Fix BigQuery data duplication with NULL in unique keys
+- c929eb0: **Fix BigQuery data duplication with NULL in unique keys**
 
   Fixed MERGE query in BigQueryStorage to correctly handle NULL values in unique key columns using `IS NOT DISTINCT FROM` instead of `=`. This prevents duplicate records when fields like `AssetGroupId` are NULL.
 
-- ccb4fef: # Fix Boolean type in Connector Data Mart configuration
+- ccb4fef: **Fix Boolean type in Connector Data Mart configuration**
 
   Fixed an issue with boolean field types in connector configurations when setting up data marts.
   This fix ensures that boolean fields in connector configurations are properly handled, making them interactive and displaying appropriate UI indicators regardless of their default values.
 
-- 6059657: # Fixed connector configuration fields editing
+- 6059657: **Fixed connector configuration fields editing**
 
   Fixed an issue where connector configuration fields with default values were difficult to edit when setting up a data mart.
   Fields now properly handle user input and allow modification of default values.
 
-- 7617b79: # Improved SQL validation flow in Data Marts to prevent timeout issues
+- 7617b79: **Improved SQL validation flow in Data Marts to prevent timeout issues**
 
   Previously, users were unable to save SQL queries in Data Marts when validation took longer than 30 seconds, causing timeout errors.
 
@@ -2369,12 +2371,12 @@
 
   Users can now save SQL queries regardless of validation time, improving the overall experience when working with complex queries or large datasets.
 
-- 7617b79: # Fix messages for Data Mart publish button
+- 7617b79: **Fix messages for Data Mart publish button**
 
   Improved the clarity of status messages displayed on the Data Mart publish button.
   You'll now see more accurate and informative feedback when publishing your Data Marts.
 
-- f96f9aa: # Add Google Ads connector
+- f96f9aa: **Add Google Ads connector**
 
   Added new Google Ads connector with Service Account authentication
 
@@ -2385,7 +2387,7 @@
   - `keywords_stats` - Keyword performance data
   - `criterion` - Criteria data
 
-- b11b726: # Added support for oneOf fields with recursive secret masking
+- b11b726: **Added support for oneOf fields with recursive secret masking**
 
   This release adds comprehensive support for oneOf configuration fields with nested secret handling. The connector secret service now recursively masks and merges secret fields within oneOf structures, ensuring sensitive data like API keys and tokens in nested authentication configurations are properly protected.
 
@@ -2393,7 +2395,7 @@
 
   Added Advanced Fields section to the connector configuration form, allowing users to configure advanced settings for the connector.
 
-- 1b97886: # Remove MaxFetchingDays parameter and improve incremental fetching logic
+- 1b97886: **Remove MaxFetchingDays parameter and improve incremental fetching logic**
 
   Removed the `MaxFetchingDays` parameter from all data source connectors. The incremental data fetching now works as follows:
   - **First run (no state)**: Data fetching starts from the 1st of the previous month
@@ -2415,7 +2417,7 @@
 
 ![OWOX Data Marts - v0.10.0](https://github.com/user-attachments/assets/09ec0e4e-428a-4ac2-bded-cd056886367d)
 
-- 7b8747c: # Fix incremental state management for multiple connector configurations
+- 7b8747c: **Fix incremental state management for multiple connector configurations**
 
   Fixed an issue where incremental updates only saved state for the last configuration when a Data Mart had 2+ connector configurations. Now each configuration's state is tracked separately using its `_id`. Also enhanced logging with structured metadata (dataMartId, projectId, runId, configId).
 
@@ -2426,17 +2428,17 @@
   - Added database migration to transform existing state data from old to new format
   - Enhanced logging with structured metadata (dataMartId, projectId, runId, configId)
 
-- 526abdc: # Improved Connector Setup and Usability Enhancements
+- 526abdc: **Improved Connector Setup and Usability Enhancements**
   - Simplified the connector setup flow with a cleaner layout and improved step structure
   - Added **keyboard shortcuts** for faster field selection in the Connector Editor (Command + Shift + A on macOS, Control + Shift + A on Windows)
   - Refined default titles and interface texts for better clarity
   - Adjusted side sheet layouts for more consistent visuals
 
-- 2898354: # Improved environment variable logging
+- 2898354: **Improved environment variable logging**
   - Reduced verbose logging from EnvManager that was confusing users with unnecessary technical details about environment variable processing.
   - Environment setup now shows only essential information instead of detailed variable counts and processing steps.
 
-- 3370b36: # Added migration to rename Bing Ads connector to Microsoft Ads
+- 3370b36: **Added migration to rename Bing Ads connector to Microsoft Ads**
   - Fixed an issue where Run History tab was not displaying history if the user previously used the Bing Ads connector.
 
 - Fixed Looker Studio Connector error with deleted Data Marts.
@@ -2456,38 +2458,38 @@
 
 ![OWOX Data Marts - v0.9.0](https://github.com/user-attachments/assets/ef52acdb-33d3-41c8-b0ae-8f7f1f9099c7)
 
-- 701a05f: # Add System Theme Option to User Menu
+- 701a05f: **Add System Theme Option to User Menu**
   - Added **System** option to the theme switcher for automatic theme selection.
   - Enhanced **UserMenu** with theme selection and submenu support for better usability.
 
-- 54df91e: # Convert boolean parameters to proper boolean type
+- 54df91e: **Convert boolean parameters to proper boolean type**
 
   Updated boolean configuration parameters to use proper `boolean` type instead of `string` or `bool` types:
   - **ProcessShortLinks** (FacebookMarketing): `string` → `boolean`
   - **SandboxMode** (TikTokAds): `bool` → `boolean`
   - **IncludeDeleted** (TikTokAds): `bool` → `boolean`
 
-- 8402b05: # Add new CLI commands for database migrations
+- 8402b05: **Add new CLI commands for database migrations**
   - `migrations up` - run all pending migrations
   - `migrations down` - revert last migration
   - `migrations status` - migration's status check
 
-- 8fffa5e: # Mask connector secrets in UI
+- 8fffa5e: **Mask connector secrets in UI**
   - Secret fields in connector configuration are masked on the configuration page and in the Run History tab.
 
-- 0b0a8fb: # Enhanced Connector Setup Flow
+- 0b0a8fb: **Enhanced Connector Setup Flow**
   - Improved structure with **AppWizard** components for a more consistent and flexible setup layout
   - Better usability across all setup steps
   - Refined **accessibility** and **visual design** throughout the connector editing interface
 
-- 32b0314: # Enhanced connectors to support CreateEmptyTables configuration option
+- 32b0314: **Enhanced connectors to support CreateEmptyTables configuration option**
   - Now tables will be created even when no data is fetched, if the CreateEmptyTables parameter is set to "true".
 
-- 8e673e9: # Enhanced Google BigQuery Location Options
+- 8e673e9: **Enhanced Google BigQuery Location Options**
   - Updated location labels to include region codes alongside city names for better clarity (e.g., `us-central1 (Iowa)` instead of just `Iowa`).
   - Improved Combobox component with better search functionality using keywords and increased minimum width for better display of longer location names.
 
-- 43adfcb: # Split Facebook Marketing insights endpoint into three separate endpoints
+- 43adfcb: **Split Facebook Marketing insights endpoint into three separate endpoints**
   - Split `ad-account/insights` into three endpoints: base insights, insights by country, and insights by link URL asset
   - Added `ad-account/insights-by-country` endpoint with country breakdown
   - Added `ad-account/insights-by-link-url-asset` endpoint with link_url_asset breakdown
@@ -2497,17 +2499,17 @@
     - Use `ad-account/insights-by-country` for country breakdown
     - Use `ad-account/insights-by-link-url-asset` for link URL asset breakdown
 
-- 646511d: # Fix data mart run history time logs
+- 646511d: **Fix data mart run history time logs**
   - Fixed bad time in data mart run history logs. Now the time is displayed in the correct timezone.
 
-- 438c48f: # Added magic link confirmation page to `idb-better-auth`
+- 438c48f: **Added magic link confirmation page to `idb-better-auth`**
   - Generated magic links direct users to a confirmation page before the password setup page.
 
-- 9773ba4: # Improvements & Bug Fixes
+- 9773ba4: **Improvements & Bug Fixes**
 
   This update includes general interface improvements, performance enhancements, and minor fixes to ensure a smoother and more reliable user experience.
 
-- 95dcaec: # Intercom chat integration
+- 95dcaec: **Intercom chat integration**
 
   💬 Intercom chat integration is now available in the Web app for faster support and onboarding.
 
@@ -2526,7 +2528,7 @@
 
 ![OWOX Data Marts - v0.8.0](https://github.com/user-attachments/assets/de14394e-b126-429f-89bf-b606f867dae7)
 
-- 2932470: # Better Auth: Primary Admin Setup & Password Reset
+- 2932470: **Better Auth: Primary Admin Setup & Password Reset**
   - **Primary admin auto-creation**: Configure `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to automatically create or manage primary admin on server startup
   - **Password reset UI**: Admins can reset user passwords through Admin Dashboard (`/auth/dashboard`) with automatic magic link generation
   - **Enhanced documentation**: Added comprehensive user management guide at `/docs/getting-started/setup-guide/members-management/better-auth.md`
@@ -2540,20 +2542,20 @@
   **New Environment Variables:**
   - `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` – Email for automatic primary admin creation
 
-- 518cfe1: # refactor: rename Bing Ads to Microsoft Ads and update documentation, images, and references
-- 29f72ea: # Enhance DataMartCreateForm with New Storage Creation
+- 518cfe1: **refactor: rename Bing Ads to Microsoft Ads and update documentation, images, and references**
+- 29f72ea: **Enhance DataMartCreateForm with New Storage Creation**
   - Updated storage selection to allow **creating new storage directly** from the form.
   - Refined **CreateDataMartPage styling** for better visual consistency.
 
-- 099befb: # fix: allow deleting a datamart within a project if it was created by another user
-- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with idp = better-auth
+- 099befb: **fix: allow deleting a datamart within a project if it was created by another user**
+- 25ab28e: **fix: a user with the viewer role is not allowed to modify objects in the application with idp = better-auth**
 - edb4478: ✨ Google Tag Manager integration
   - 🚀 Added Google Tag Manager support across the web app. Enable by setting `GOOGLE_TAG_MANAGER_CONTAINER_ID` in your environment. This allows non‑technical teams to ship marketing/analytics tags without deployments.
 
   Why this matters
   - 📊 Faster iteration on analytics and marketing experiments (no code release required for common changes).
 
-- 19c21a1: # ⚠️ Breaking Change: LinkedIn Authentication Update
+- 19c21a1: **⚠️ Breaking Change: LinkedIn Authentication Update**
 
   **What changed:**
   LinkedIn connectors now require **3 credentials** instead of 1 Access Token: Client ID, Client Secret, and Refresh Token.
@@ -2573,7 +2575,7 @@
      - **Client Secret**
      - **Refresh Token**
 
-- b41b62d: # Logging System Architecture Refactor
+- b41b62d: **Logging System Architecture Refactor**
   - **Refactored logging architecture**: Extracted Pino logger creation from LoggerFactory into a provider-agnostic architecture while maintaining backward compatibility
   - **Simplified configuration**: Removed `environment` presets from LoggerConfig, now only `LogLevel` controls logging behavior
   - **Environment variables update**:
@@ -2589,7 +2591,7 @@
   - Replace `LOG_LEVELS=log,warn,error` with `LOG_LEVEL=info` (threshold-based) or app will use default `info` level
   - Remove `environment` parameter from LoggerFactory calls
 
-- 8a1ef12: # Secure MySQL connections (TLS/SSL)
+- 8a1ef12: **Secure MySQL connections (TLS/SSL)**
   - New, simple way to enable encrypted MySQL connections via environment variables:
     - Backend (NestJS/TypeORM): `DB_SSL`
     - Identity provider (Better Auth): `IDP_BETTER_AUTH_MYSQL_SSL`
@@ -2597,28 +2599,28 @@
   Learn more
   - See “MySQL SSL” section in the deployment guide: <https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#mysql-ssl>
 
-- 32cd6c9: # Revamp NotFound Page and Improve Mobile Layout
+- 32cd6c9: **Revamp NotFound Page and Improve Mobile Layout**
   - **Redesigned 404 page** with a new foreground card and animated background tunnel effect.
   - Updated **styles** for improved responsiveness and visual appeal.
   - Added **icons and navigation button** to guide users.
   - Improved **mobile layout** and updated **SidebarTrigger icon** for consistency.
 
-- e19073a: # Refactor OpenHolidays connector according to common architecture and fix bugs
-- 90a8711: # Simplified MySQL configuration in the `idp-better-auth`
+- e19073a: **Refactor OpenHolidays connector according to common architecture and fix bugs**
+- 90a8711: **Simplified MySQL configuration in the `idp-better-auth`**
   - **idp-better-auth** uses the `DB_*` environment variables unless `IDP_BETTER_AUTH_MYSQL_*` is specified.
 
-- fc17562: # Enhance Error Handling and Notifications
+- fc17562: **Enhance Error Handling and Notifications**
   - Enhanced **API error handling** and notifications across components.
   - Updated **Toaster** component styles for improved clarity and consistency.
   - Other UI improvements
 
-- af2e412: # Updated Google BigQuery & Google Sheets authentication
+- af2e412: **Updated Google BigQuery & Google Sheets authentication**
   - Switched to JWT-based auth client (`google-auth-library`).
   - Removed deprecated credential paths and warnings.
   - Improved reliability of loads/queries.
   - No action required — existing service account JSON keys continue to work.
 
-- 58e2ead: # Updated Looker Studio data destination
+- 58e2ead: **Updated Looker Studio data destination**
   - Clarify `PUBLIC_ORIGIN`: base public URL of the application (scheme + host [+ optional port]).
     - Examples: `http://localhost:3000`, `https://data-marts.example.com`
     - Default: `http://localhost:${PORT}`
@@ -2648,7 +2650,7 @@
 
 ![OWOX Data Marts - v0.7.0](https://github.com/user-attachments/assets/5b5e5b28-60e9-4c4e-9b2c-1b61e8ec4e74)
 
-- 7d83d7c: # Add configurable timeout middleware for long-running operations
+- 7d83d7c: **Add configurable timeout middleware for long-running operations**
   - Increase server timeout from 2 minutes to 3 minutes (180s) to prevent timeout errors
   - Add operation-specific timeout middleware for data mart operations:
     - SQL editing operations: 3 minutes timeout
@@ -2661,7 +2663,7 @@
 
   This change fixes timeout issues for long-running operations like SQL editing, schema refresh, and data mart publishing while maintaining reasonable timeouts for other operations.
 
-- 342e534: # Switch between projects in the Cloud edition on app.owox.com ✨
+- 342e534: **Switch between projects in the Cloud edition on app.owox.com ✨**
 
   You can now quickly switch between your projects right from the sidebar menu. This makes it easier to:
   - Move between workspaces without signing out
@@ -2678,15 +2680,15 @@
   - Fixed unexpected session logout for Cloud edition (idp-owox)
   - Fixed the error of multiple connector launches at the same time
 
-- 78b8972: # Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging
+- 78b8972: **Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging**
   - Updated GETTING_STARTED.md for LinkedIn Pages with clearer import options and detailed instructions for using Organization URN.
   - Added new images to the documentation to improve user guidance and onboarding.
   - Enhanced error handling in the LinkedIn Pages source code for more robust integration.
   - Improved logging of API responses to assist with debugging and troubleshooting.
 
-- e6af151: # Refactor BankOfCanada connector according to common architecture and fix bugs
-- 4b487c8: # Refactor GitHub connector according to common architecture and fix bugs
-- ea803b2: # Refactor: enhance Reddit Ads connector reporting logic with new field definitions
+- e6af151: **Refactor BankOfCanada connector according to common architecture and fix bugs**
+- 4b487c8: **Refactor GitHub connector according to common architecture and fix bugs**
+- ea803b2: **Refactor: enhance Reddit Ads connector reporting logic with new field definitions**
 
 ### Patch Changes 0.7.0
 
@@ -2703,7 +2705,7 @@
 
 ![OWOX Data Marts – v0.6.0](https://github.com/user-attachments/assets/a12287fc-397f-4071-89be-47d6aae7eb6b)
 
-- 2bbf7ba: # Initial release of Better Auth IDP provider with comprehensive authentication features
+- 2bbf7ba: **Initial release of Better Auth IDP provider with comprehensive authentication features**
   - Added web-based admin dashboard for user management
   - Implemented hierarchical role-based access control (admin/editor/viewer) with invitation permissions
   - Created magic link authentication system with encrypted role passing and auto-name generation
@@ -2716,23 +2718,23 @@
   - Update all navigation links to use project-scoped routes
   - Add proper route parameters validation in DataMartDetailsPage
 
-- c5e95be: # Fix undefined values in BigQuery Storage and cleanup Facebook fields
+- c5e95be: **Fix undefined values in BigQuery Storage and cleanup Facebook fields**
   - Fixed undefined values being stored as "undefined" strings instead of NULL in BigQuery Storage
   - Removed non-working fields from Facebook Marketing adAccountInsightsFields schema
 
-- 78ea317: # Fix Facebook referral_id field causing whitelist error
+- 78ea317: **Fix Facebook referral_id field causing whitelist error**
   - Removed referral_id field from Facebook Marketing schema that was causing whitelist validation errors
 
-- 83c178c: # Optimize logging and fix security issues
+- 83c178c: **Optimize logging and fix security issues**
   - Reduced log noise in BigQuery storage
   - Fixed credentials exposure in Sources logs
   - Added progress tracking and explicit time series flags to Facebook connector
 
-- f154ad9: # Split LinkedIn dateRange fields and hardcode field limits
+- f154ad9: **Split LinkedIn dateRange fields and hardcode field limits**
   - Replace single dateRange field with separate dateRangeStart and dateRangeEnd fields for better data granularity
   - Remove MaxFieldsPerRequest param and hardcode the value
 
-- 0f2add4: # Standardize Facebook Marketing table names with facebook*ads* prefix
+- 0f2add4: **Standardize Facebook Marketing table names with facebook*ads* prefix**
   - Update all destinationName values in FacebookMarketingFieldsSchema to include facebook*ads* prefix
 
 ### Patch Changes 0.6.0
@@ -2748,54 +2750,54 @@
 
 ### Minor Changes 0.5.0
 
-- d129eb0: # Triggers and reports columns available in the Data Marts list
+- d129eb0: **Triggers and reports columns available in the Data Marts list**
   - Added columns for the number of triggers and reports to the Data Marts list
 
-- 6335c25: # Fixed BingAds report data export and added proper field mapping
+- 6335c25: **Fixed BingAds report data export and added proper field mapping**
   - Fixed data export issues in BingAds reports by separating into two report types with proper field schemas
   - Fixed issue where values were being saved with quotes in database
 
-- 2f2d4bf: # Add manual backfill functionality for data mart connectors
+- 2f2d4bf: **Add manual backfill functionality for data mart connectors**
   - Added support for manual connector runs with custom payload parameters
 
-- 0f590bb: # Connector Target step: editable dataset/database and table
+- 0f590bb: **Connector Target step: editable dataset/database and table**
   - Added editable dataset/database and table fields with sensible defaults
   - Defaults come from sanitized destination name: dataset/database `${sanitizedDestinationName}_owox`, table `${sanitizedDestinationName}`
   - Inline validation: required, only allowed characters, accessible error state
   - Helper text shows full path: `{dataset}.{table}`
 
-- db3a03a: # Show Individual Destination Cards in Destination Tab
+- db3a03a: **Show Individual Destination Cards in Destination Tab**
 
   The Destination tab now displays a separate card for each specific destination in the project.
   Each card shows only the reports belonging to that destination, making it easier to find and manage reports at a glance.
 
-- 863ad3e: # Enhanced Output Schema Formatting
+- 863ad3e: **Enhanced Output Schema Formatting**
 
   The Output Schema has received a major upgrade to improve control over data readability in Destinations.
   - Added support for column header descriptions as cell notes in the Google Sheets Destination, so you can define metrics everyone is aligned on
   - Implemented automatic formatting for BigQuery and Athena timestamp fields
   - Introduced the ability to control the order of fields delivered from Data Mart to Destination via simple drag & drop in the Output Schema
 
-- aac5411: # Update API version and refactor insights data fetching logic
+- aac5411: **Update API version and refactor insights data fetching logic**
   - Updated the Facebook Graph API base URL to use version 23.0 directly in the code, removing the configurable ApiBaseUrl parameter.
   - Refactored the insights data fetching logic to pass the API base URL explicitly to helper methods.
   - Modified \_fetchInsightsData and_buildInsightsUrl to accept and use the API base URL as a parameter.
   - Removed the unsupported activity_recency field from adAccountInsightsFields.
   - Improved code clarity and maintainability by simplifying how the API URL is constructed and used throughout the Facebook Marketing source integration.
 
-- b6cdb5a: # TypeORM Entity Migration Mechanism
+- b6cdb5a: **TypeORM Entity Migration Mechanism**
   - Introduced an automatic migration system for TypeORM entities.
   - Ensures database schema stays up-to-date with entity definitions.
   - Runs migrations automatically on application startup—no manual steps required.
   - Prevents data loss and supports seamless schema evolution.
 
-- 66a6c38: # Improving credentials management security for Data Storage and Data Destination
+- 66a6c38: **Improving credentials management security for Data Storage and Data Destination**
   - API no longer returns credential secrets to the UI.
   - Credential secrets are no longer displayed in the UI.
   - Credentials are only updated if explicitly changed.
   - Added a link to manage Google Cloud Platform service accounts.
 
-- 6f772ee: # Added Looker Studio Connector support
+- 6f772ee: **Added Looker Studio Connector support**
   - Added Looker Studio as a new data destination type
   - Implemented external API endpoints for Looker Studio integration
   - Added JWT-based authentication for Google service accounts
@@ -2806,7 +2808,7 @@
   - Documentation available at: <https://docs.owox.com/docs/destinations/supported-destinations/looker-studio/>
   - **Note**: OWOX Data Marts installation must be accessible from the internet for the connector to work properly
 
-- e4e59f0: # Remove unsupported fields
+- e4e59f0: **Remove unsupported fields**
   - Removed the following unsupported or deprecated fields from `adAccountInsightsFields` in the Facebook Marketing API reference:
     - `age_targeting`
     - `estimated_ad_recall_rate_lower_bound`
@@ -2819,7 +2821,7 @@
   - Cleaned up the field definitions to avoid including unsupported fields for Facebook API v19.0 and above.
   - Improved maintainability and reduced the risk of API errors related to invalid fields.
 
-- f351f63: # Hover Cards in Triggers List — Now Smarter and More Visual
+- f351f63: **Hover Cards in Triggers List — Now Smarter and More Visual**
 
   The Triggers list just got a big usability boost!
   Hover over any Report Run or Connector Run to instantly see key details — no extra clicks needed.
@@ -2828,14 +2830,14 @@
 
   Check status, spot issues, and jump to your data faster than ever — all right from the Triggers list.
 
-- 6e76c87: # Implement column visibility and sorting persistence
+- 6e76c87: **Implement column visibility and sorting persistence**
 
   Previously, user interface configurations such as selected columns in tables and accordion states were reset upon every page refresh. This change ensures that the system now remembers these chosen states at the browser level for:
   - Data Marts list
   - Storages list
   - Data Marts details (Destinations, Triggers, and Reports lists).
 
-- db0732e: # Connector-Based Data Mart UX improvements
+- db0732e: **Connector-Based Data Mart UX improvements**
   - Used connector-based data mart for data mart setup right destination name in `Target Setup` step.
   - Added in connector-based data mart inline validation for target dataset/database name in `Target Setup` step with accessible error state.
   - Enabled double-click on a connector card to select and advance to the next step.
@@ -2845,7 +2847,7 @@
   - Minor UI polish: sort icon with dropdown next to search input; helpful link to open an issue from fields step.
   - Added helpful link to open an issue from nodes step.
 
-- 229c7a1: # Updated connector configuration step
+- 229c7a1: **Updated connector configuration step**
   - Added type to date fields.
   - Moved field descriptions to tooltips.
   - Used field labels as titles instead of field names.
@@ -2949,7 +2951,7 @@
 
 ### Minor Changes 0.3.0
 
-- 543f30d: # ⏰ Time Triggers: Schedule Your Reports and Connectors
+- 543f30d: **⏰ Time Triggers: Schedule Your Reports and Connectors**
 
   ## What's New
 

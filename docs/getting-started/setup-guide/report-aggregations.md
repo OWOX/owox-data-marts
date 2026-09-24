@@ -107,7 +107,9 @@ A report with an explicit column selection but **no** aggregation, date bucket, 
 
 An auto-applied aggregation relabels its column exactly like a manually chosen one: `sessions` becomes **`sessions | SUM`** in the delivered output, the same `<column> | <TOKEN>` naming [described above](#report-level-aggregate-a-column). If a downstream formula or binding reads the plain `sessions` header, it stops resolving once the report starts auto-aggregating — a Google Sheets formula, a Looker Studio binding, or a formula in the Excel workbook the add-in refreshes. Worth checking after upgrading a report that used to return duplicates.
 
-**The editor fills the rule in rather than only predicting it.** Open a report that sets no aggregation and the function is already there: ticked on the column, counted on the **Aggregations** button, listed in the panel — and changed or removed like any rule you picked yourself. A note above the panel names the columns OWOX chose for while the choice is fresh, and the rule is saved with the report the next time you save it. Remove it and the panel says what delivery will still do, because an unaggregated report on these destinations is collapsed either way.
+**The editor fills the rule in rather than only predicting it.** Open a report that sets no aggregation and the function is already there: ticked on the column, counted on the **Aggregations** button, listed in the panel — and changed or removed like any rule you picked yourself. A note above the panel names the columns OWOX chose for while the choice is fresh, and the rule is saved with the report the next time you save it.
+
+**Removing an aggregation is remembered.** What you keep is what runs: remove two of five automatic aggregations and the report runs with the other three. Remove all of them and the report returns its rows exactly as stored — no aggregation and no `DISTINCT` — on every save, run, and reopen, instead of OWOX choosing again. Adding an aggregation back to a column makes it a rule you chose and clears that column's removal. Taking the column out of the report clears it too. Once no selected column has a removed aggregation, OWOX chooses automatic aggregations again.
 
 The **Aggregations** button also carries a small dot for the columns OWOX chose for; the tooltip and screen-reader text name each one ("Automatic aggregations applied for fields: …"). The dot clears itself the first time you hover it and does not return for that editing session. Run history for the report records which columns were auto-aggregated — including an Excel report refreshed from the add-in — and whichever way the report collapsed, the executed SQL stored with the run shows it.
 
@@ -125,6 +127,7 @@ Where the rewrite puts its `SUM` depends on whether the formula divides **by ano
 
 OWOX leaves the report exactly as you built it — duplicates and all — whenever any of the following is true, so a report never changes behavior it wasn't given a labeled aggregation for:
 
+- **You removed an aggregation from a column the report still selects.** The report returns its rows exactly as stored. Adding an aggregation back makes it a rule you chose rather than an automatic one; taking the column out of the report clears the removal.
 - **An aggregation, date bucket, or Unique Count is already set anywhere in the report.** Automatic aggregation only fills in a report the analyst left fully unaggregated; it never overrides or adds to an explicit choice.
 - **A filter targets an aggregate-level calculated field.** Filtering on one — even without selecting it — already puts the report on the grouped query, exactly as selecting it does, so it is an explicit choice in the sense of the bullet above.
 - **There is no explicit column selection.** A report with no columns picked runs as `SELECT *` and is unaffected, the same as every other output control that requires a selection.
@@ -204,8 +207,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - A Unique Count — the report's own Data Mart's or a **joined** one's — can be selected as a column and used as a sort column, but not in a filter or as the input to another aggregation.
 - Unique Count ignores rows whose primary key is **empty** — an empty key is not an identity, so such rows are neither counted nor merged together. Declare a primary key only on columns that are genuinely unique and always filled.
 - **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: the report looks the same while each row now stands for several records.
-- For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
-- **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
+- On a joined field, what a report's aggregations and Totals read depends on the field's [Dedup](./joinable-data-marts.md#dedup). With `ANY_VALUE` they read the joined Data Mart's own rows; with any other Dedup, `Average` and percentiles read one collapsed value per join key — an average of those values, not of the joined rows.
 
 ## Related Links
 

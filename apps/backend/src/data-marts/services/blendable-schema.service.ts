@@ -4,6 +4,8 @@ import {
   BlendableSchemaDto,
   BlendedFieldDto,
   CalculatedFieldIssueDto,
+  MainGrainCollapse,
+  MainGrainMultiplication,
 } from '../dto/domain/blendable-schema.dto';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
@@ -23,6 +25,7 @@ import {
   classifyJoinedUniqueCountAvailability,
   collectHiddenForReportingPaths,
   collectPrimaryKeyRowIdentity,
+  declaredPrimaryKeyFields,
   getReportFieldType,
   getMainUniqueCountKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
@@ -33,6 +36,7 @@ import {
   isNumericFieldType,
 } from '../data-storage-types/field-type-compatibility';
 import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-fields-config.schema';
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { resolveFieldGovernance } from '../dto/schemas/field-aggregation-governance';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -139,6 +143,94 @@ interface CollectContext {
   depth: number;
   storageType: DataStorageType;
   includeDraftTargets: boolean;
+  /** The PARENT's declared primary key, for deciding whether this hop's key is unique on it. */
+  parentPrimaryKey: readonly string[];
+  /** The verdict accumulated from the main Data Mart down to the parent. */
+  parentGrain: GrainVerdict;
+}
+
+/**
+ * Both sides of every hop from the main Data Mart down to a source. A non-DISTINCT joined `COUNT`
+ * is read off the joined Data Mart collapsed to one row per key and LEFT JOINed to main rows, so it
+ * counts main rows with a match: it equals the joined rows only when every hop is one-to-one.
+ * `multiplication` is the parent side (one joined row on several main rows, the count comes out
+ * higher), `collapse` the target side (several joined rows on one match, it comes out lower).
+ */
+interface GrainVerdict {
+  multiplication: MainGrainMultiplication;
+  keyFields: readonly string[];
+  unprovenAt?: string;
+  multipliedAt?: string;
+  collapse: MainGrainCollapse;
+  collapsedAt?: string;
+}
+
+const CLEAN_GRAIN: GrainVerdict = { multiplication: 'none', keyFields: [], collapse: 'none' };
+
+/**
+ * A chain is only as clean as its worst hop, per side, and the verdict closest to the main Data
+ * Mart wins: 'unknown' must never soften a proven 'multiplies' above it — a mart with no primary key
+ * anywhere would otherwise quietly downgrade every verdict beneath it, which is the one direction
+ * this answer must not fail in.
+ */
+function worseGrain(parent: GrainVerdict, hop: GrainVerdict): GrainVerdict {
+  const parentSide = (): Omit<GrainVerdict, 'collapse' | 'collapsedAt'> => {
+    const pick =
+      parent.multiplication === 'multiplies'
+        ? parent
+        : hop.multiplication === 'multiplies'
+          ? hop
+          : parent.multiplication === 'unknown'
+            ? parent
+            : hop;
+    const { multiplication, keyFields, unprovenAt, multipliedAt } = pick;
+    return { multiplication, keyFields, unprovenAt, multipliedAt };
+  };
+  const collapsing = parent.collapse === 'collapses' ? parent : hop;
+  return {
+    ...parentSide(),
+    collapse: collapsing.collapse,
+    collapsedAt: collapsing.collapsedAt,
+  };
+}
+
+// Covered means EVERY declared primary-key component is in the key: a partial cover still leaves
+// several rows per key value, and so does a nested component, which no join key can name.
+const covers = (key: readonly string[], primaryKey: readonly string[]): boolean =>
+  primaryKey.length > 0 && primaryKey.every(component => key.includes(component));
+
+function hopGrain(
+  parentPrimaryKey: readonly string[],
+  targetPrimaryKey: readonly string[],
+  joinConditions: readonly JoinCondition[],
+  parentPath: string,
+  aliasPath: string
+): GrainVerdict {
+  const parentKey = joinConditions.map(c => c.sourceFieldName);
+  const targetKey = joinConditions.map(c => c.targetFieldName);
+  // No primary key on the target is not "unknown" here: the message that comes of it says rows
+  // CAN share a key, which is true either way, and has no key to name.
+  const collapse: Pick<GrainVerdict, 'collapse' | 'collapsedAt'> = covers(
+    targetKey,
+    targetPrimaryKey
+  )
+    ? { collapse: 'none' }
+    : { collapse: 'collapses', collapsedAt: aliasPath };
+
+  if (parentPrimaryKey.length === 0) {
+    return { multiplication: 'unknown', keyFields: [], unprovenAt: parentPath, ...collapse };
+  }
+  if (covers(parentKey, parentPrimaryKey)) {
+    return { multiplication: 'none', keyFields: [], ...collapse };
+  }
+  // `aliasPath` travels with the key because `worseGrain` hands this whole verdict DOWN the chain
+  // unchanged: without it a descendant carries an ancestor's key and nothing says whose it is.
+  return {
+    multiplication: 'multiplies',
+    keyFields: parentKey,
+    multipliedAt: aliasPath,
+    ...collapse,
+  };
 }
 
 @Injectable()
@@ -153,10 +245,22 @@ export class BlendableSchemaService {
     dataMartId: string,
     projectId: string,
     accessor: BlendableSchemaAccessor,
-    options: { includeDraftTargets?: boolean } = {}
+    options: {
+      includeDraftTargets?: boolean;
+      /**
+       * The main Data Mart's fields as they are ABOUT to be saved, when that differs from the
+       * persisted schema. Only the join-grain verdicts read it: a save that sets the primary key
+       * the previous advice asked for is judged against that key, not against the stored schema
+       * still missing it.
+       */
+      unsavedMainSchemaFields?: DataMartSchema['fields'];
+    } = {}
   ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
     const rawSchemaFields = dataMart.schema?.fields ?? [];
+    const mainPrimaryKey = declaredPrimaryKeyFields(
+      options.unsavedMainSchemaFields ?? rawSchemaFields
+    );
     // A calculated field is handed out with its EFFECTIVE level, not the persisted one: the stored
     // level is a cache the actualization does not maintain, so a field saved as row-level can
     // aggregate by now through its own text or a dependency (`calculatedFieldLevelOf`). The
@@ -205,6 +309,8 @@ export class BlendableSchemaService {
       depth: 1,
       storageType: dataMart.storage.type,
       includeDraftTargets: options.includeDraftTargets === true,
+      parentPrimaryKey: mainPrimaryKey,
+      parentGrain: CLEAN_GRAIN,
     });
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
@@ -228,6 +334,8 @@ export class BlendableSchemaService {
         depth: 1,
         storageType: dataMart.storage.type,
         includeDraftTargets: false,
+        parentPrimaryKey: mainPrimaryKey,
+        parentGrain: CLEAN_GRAIN,
       });
       const publishedPaths = new Set(publishedSources.map(source => source.aliasPath));
       issueSources = availableSources.filter(source => publishedPaths.has(source.aliasPath));
@@ -392,6 +500,25 @@ export class BlendableSchemaService {
       availableSource.uniqueCountKeyFields = collectPrimaryKeyRowIdentity(
         rel.targetDataMart.schema?.fields ?? []
       );
+      const targetPrimaryKey = declaredPrimaryKeyFields(rel.targetDataMart.schema?.fields ?? []);
+      const grain = worseGrain(
+        ctx.parentGrain,
+        hopGrain(
+          ctx.parentPrimaryKey,
+          targetPrimaryKey,
+          rel.joinConditions,
+          ctx.parentPath,
+          currentPath
+        )
+      );
+      availableSource.mainGrainMultiplication = grain.multiplication;
+      availableSource.mainGrainKeyFields = [...grain.keyFields];
+      if (grain.unprovenAt !== undefined) availableSource.mainGrainUnprovenAt = grain.unprovenAt;
+      if (grain.multipliedAt !== undefined) {
+        availableSource.mainGrainMultipliedAt = grain.multipliedAt;
+      }
+      availableSource.mainGrainCollapse = grain.collapse;
+      if (grain.collapsedAt !== undefined) availableSource.mainGrainCollapsedAt = grain.collapsedAt;
       ctx.availableSources.push(availableSource);
 
       for (const field of flatTargetFields) {
@@ -458,6 +585,8 @@ export class BlendableSchemaService {
         ...ctx,
         sourceId: rel.targetDataMart.id,
         parentPath: currentPath,
+        parentPrimaryKey: targetPrimaryKey,
+        parentGrain: grain,
         hiddenFieldNames: ctx.hiddenFieldNames,
         branchDmIds: new Set([...ctx.branchDmIds, rel.targetDataMart.id]),
         depth: ctx.depth + 1,

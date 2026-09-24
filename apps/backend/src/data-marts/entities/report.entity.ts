@@ -33,6 +33,10 @@ import {
   UniqueCountConfig,
   UniqueCountConfigSchema,
 } from '../dto/schemas/unique-count-config.schema';
+import {
+  AutoAggregationOptOut,
+  AutoAggregationOptOutSchema,
+} from '../dto/schemas/auto-aggregation-opt-out.schema';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
@@ -120,6 +124,14 @@ export class Report implements CreatorAwareEntity {
     transformer: createZodTransformer<UniqueCountConfig>(UniqueCountConfigSchema, false),
   })
   uniqueCountConfig?: UniqueCountConfig;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<AutoAggregationOptOut>(AutoAggregationOptOutSchema, false),
+  })
+  autoAggregationOptOut?: AutoAggregationOptOut;
 
   @Column({ nullable: true })
   lastRunAt?: Date;

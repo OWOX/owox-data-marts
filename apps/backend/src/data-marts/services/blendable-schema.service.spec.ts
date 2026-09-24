@@ -1621,6 +1621,343 @@ describe('BlendableSchemaService', () => {
       });
     });
 
+    // Whether a source's rows are multiplied when attached to the MAIN Data Mart, i.e. whether
+    // every hop from the main mart down to it is keyed by its parent's primary key. See
+    // `hopGrain`/`worseGrain` in `blendable-schema.service.ts` for the rule this asserts.
+    describe('mainGrainMultiplication', () => {
+      function pkSchemaFields(
+        pkFields: string[],
+        opts: { hidden?: string[] } = {}
+      ): Array<Record<string, unknown>> {
+        if (pkFields.length === 0) return [{ name: 'unrelated', type: 'STRING' }];
+        return pkFields.map(name => ({
+          name,
+          type: 'STRING',
+          isPrimaryKey: true,
+          ...(opts.hidden?.includes(name) ? { isHiddenForReporting: true } : {}),
+        }));
+      }
+
+      function joinedRelationship(
+        alias: string,
+        joinConditions: Array<{ sourceFieldName: string; targetFieldName: string }>,
+        targetSchemaFields: Array<Record<string, unknown>> = [{ name: 'field', type: 'STRING' }],
+        opts: { sourceDataMartId?: string; targetId?: string } = {}
+      ): DataMartRelationship {
+        return makeRelationship({
+          id: `rel-${alias}`,
+          targetAlias: alias,
+          joinConditions,
+          sourceDataMart: makeDataMart({ id: opts.sourceDataMartId ?? 'dm-1' }),
+          targetDataMart: makeDataMart({
+            id: opts.targetId ?? `dm-${alias}`,
+            title: alias,
+            schema: makeSchema(targetSchemaFields as Parameters<typeof makeSchema>[0]),
+          }),
+        });
+      }
+
+      async function computeAvailableSources(
+        mainPkFields: string[],
+        relationships: DataMartRelationship[],
+        opts: { hidden?: string[] } = {}
+      ) {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: makeSchema(
+              pkSchemaFields(mainPkFields, opts) as Parameters<typeof makeSchema>[0]
+            ),
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue(relationships);
+        return service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+      }
+
+      it('reports no multiplication when the join key covers the main primary key', async () => {
+        const result = await computeAvailableSources(
+          ['customer_id'],
+          [
+            joinedRelationship('orders', [
+              { sourceFieldName: 'customer_id', targetFieldName: 'customer_id' },
+            ]),
+          ]
+        );
+        const orders = result.availableSources.find(s => s.aliasPath === 'orders')!;
+        expect(orders.mainGrainMultiplication).toBe('none');
+        expect(orders.mainGrainKeyFields).toEqual([]);
+      });
+
+      it('reports multiplication when the join key does not cover the main primary key', async () => {
+        const result = await computeAvailableSources(
+          ['order_id'],
+          [
+            joinedRelationship('costs', [
+              { sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' },
+            ]),
+          ]
+        );
+        const costs = result.availableSources.find(s => s.aliasPath === 'costs')!;
+        expect(costs.mainGrainMultiplication).toBe('multiplies');
+        expect(costs.mainGrainKeyFields).toEqual(['traffic_source']);
+        expect(costs.mainGrainMultipliedAt).toBe('costs');
+      });
+
+      it('reports unknown when the main Data Mart declares no primary key', async () => {
+        const result = await computeAvailableSources(
+          [],
+          [
+            joinedRelationship('costs', [
+              { sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' },
+            ]),
+          ]
+        );
+        const costs = result.availableSources.find(s => s.aliasPath === 'costs')!;
+        expect(costs.mainGrainMultiplication).toBe('unknown');
+        expect(costs.mainGrainUnprovenAt).toBe('');
+      });
+
+      // A composite key is covered only when EVERY component is in the join key.
+      it('reports multiplication when the join key covers only part of a composite primary key', async () => {
+        const result = await computeAvailableSources(
+          ['order_id', 'line_no'],
+          [
+            joinedRelationship('items', [
+              { sourceFieldName: 'order_id', targetFieldName: 'order_id' },
+            ]),
+          ]
+        );
+        const items = result.availableSources.find(s => s.aliasPath === 'items')!;
+        expect(items.mainGrainMultiplication).toBe('multiplies');
+      });
+
+      it('inherits a parent hop that multiplies, even when its own hop is clean', async () => {
+        // main --(traffic_source, multiplies)--> costs --(costs PK)--> campaigns
+        const result = await computeAvailableSources(
+          ['order_id'],
+          [
+            joinedRelationship(
+              'costs',
+              [{ sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' }],
+              [{ name: 'campaign_id', type: 'STRING', isPrimaryKey: true }]
+            ),
+            joinedRelationship(
+              'campaigns',
+              [{ sourceFieldName: 'campaign_id', targetFieldName: 'campaign_id' }],
+              [{ name: 'field', type: 'STRING' }],
+              { sourceDataMartId: 'dm-costs' }
+            ),
+          ]
+        );
+        const campaigns = result.availableSources.find(s => s.aliasPath === 'costs.campaigns')!;
+        expect(campaigns.mainGrainMultiplication).toBe('multiplies');
+        // The inherited verdict carries the `costs` hop's key, so it must also carry whose key it
+        // is — otherwise a message reads it as Campaigns' own and names the wrong relationship.
+        expect(campaigns.mainGrainKeyFields).toEqual(['traffic_source']);
+        expect(campaigns.mainGrainMultipliedAt).toBe('costs');
+      });
+
+      // 'unknown' upstream must not soften a proven 'multiplies' downstream, or a mart with no PK
+      // anywhere would quietly downgrade every verdict under it.
+      it('keeps multiplies when a hop below an unknown parent proves it on its own', async () => {
+        const result = await computeAvailableSources(
+          [],
+          [
+            joinedRelationship(
+              'costs',
+              [{ sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' }],
+              [{ name: 'click_id', type: 'STRING', isPrimaryKey: true }]
+            ),
+            joinedRelationship(
+              'clicks',
+              [{ sourceFieldName: 'ad_id', targetFieldName: 'ad_id' }],
+              [{ name: 'field', type: 'STRING' }],
+              { sourceDataMartId: 'dm-costs' }
+            ),
+          ]
+        );
+        const clicks = result.availableSources.find(s => s.aliasPath === 'costs.clicks')!;
+        expect(clicks.mainGrainMultiplication).toBe('multiplies');
+        // Proven on its OWN hop, so this one is not inherited.
+        expect(clicks.mainGrainMultipliedAt).toBe('costs.clicks');
+      });
+
+      // The other half of the same rule: a clean hop below an 'unknown' parent must not clear it,
+      // or a Data Mart with no primary key would read as proven one-to-one past its first join.
+      it('keeps unknown when a hop below an unknown parent is clean on its own', async () => {
+        const result = await computeAvailableSources(
+          [],
+          [
+            joinedRelationship(
+              'costs',
+              [{ sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' }],
+              [{ name: 'campaign_id', type: 'STRING', isPrimaryKey: true }]
+            ),
+            joinedRelationship(
+              'campaigns',
+              [{ sourceFieldName: 'campaign_id', targetFieldName: 'campaign_id' }],
+              [{ name: 'field', type: 'STRING' }],
+              { sourceDataMartId: 'dm-costs' }
+            ),
+          ]
+        );
+        const campaigns = result.availableSources.find(s => s.aliasPath === 'costs.campaigns')!;
+        expect(campaigns.mainGrainMultiplication).toBe('unknown');
+        expect(campaigns.mainGrainUnprovenAt).toBe('');
+      });
+
+      // A nested key is still a declared key: the Data Mart HAS one, so "no Primary Key" would send
+      // the analyst to set what is already set. No join key can name a nested column, so the key
+      // is simply not covered.
+      it('reads a declared nested primary key as a key the join does not cover', async () => {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: makeSchema([
+              {
+                name: 'meta',
+                type: 'RECORD',
+                fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }],
+              },
+              { name: 'traffic_source', type: 'STRING' },
+            ] as unknown as Parameters<typeof makeSchema>[0]),
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([
+          joinedRelationship('costs', [
+            { sourceFieldName: 'traffic_source', targetFieldName: 'traffic_source' },
+          ]),
+        ]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        const costs = result.availableSources.find(s => s.aliasPath === 'costs')!;
+        expect(costs.mainGrainMultiplication).toBe('multiplies');
+      });
+
+      // The save path validates a schema that is not stored yet — typically the one that just set
+      // the primary key the previous advice asked for.
+      it('judges the main Data Mart by the unsaved schema when one is given', async () => {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: makeSchema(pkSchemaFields([]) as Parameters<typeof makeSchema>[0]),
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([
+          joinedRelationship('orders', [
+            { sourceFieldName: 'customer_id', targetFieldName: 'customer_id' },
+          ]),
+        ]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor, {
+          unsavedMainSchemaFields: pkSchemaFields(['customer_id']) as never,
+        });
+        const orders = result.availableSources.find(s => s.aliasPath === 'orders')!;
+        expect(orders.mainGrainMultiplication).toBe('none');
+      });
+
+      // Hidden takes a column off the reporting menu; it does not stop it keying a join. Same rule
+      // `uniqueCountKeyFields` already follows.
+      it('counts a primary-key component hidden from reporting', async () => {
+        const result = await computeAvailableSources(
+          ['customer_id'],
+          [
+            joinedRelationship('orders', [
+              { sourceFieldName: 'customer_id', targetFieldName: 'customer_id' },
+            ]),
+          ],
+          { hidden: ['customer_id'] }
+        );
+        const orders = result.availableSources.find(s => s.aliasPath === 'orders')!;
+        expect(orders.mainGrainMultiplication).toBe('none');
+      });
+    });
+
+    // The target side of each hop: a joined Data Mart is attached collapsed to one row per key, so
+    // a COUNT over it matches the joined rows only when the key is unique on the TARGET too.
+    describe('mainGrainCollapse', () => {
+      const customersToOrders = (targetFields: Array<Record<string, unknown>>) =>
+        makeRelationship({
+          id: 'rel-orders',
+          targetAlias: 'orders',
+          joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+          sourceDataMart: makeDataMart({ id: 'dm-1' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-orders',
+            title: 'Orders',
+            schema: makeSchema(targetFields as Parameters<typeof makeSchema>[0]),
+          }),
+        });
+
+      async function ordersSource(targetFields: Array<Record<string, unknown>>) {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: makeSchema([
+              { name: 'customer_id', type: 'STRING', isPrimaryKey: true },
+            ] as Parameters<typeof makeSchema>[0]),
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([customersToOrders(targetFields)]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return result.availableSources.find(s => s.aliasPath === 'orders')!;
+      }
+
+      it('reports a collapse when several target rows can share the key', async () => {
+        const orders = await ordersSource([
+          { name: 'order_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'customer_id', type: 'STRING' },
+        ]);
+        expect(orders.mainGrainMultiplication).toBe('none');
+        expect(orders.mainGrainCollapse).toBe('collapses');
+        expect(orders.mainGrainCollapsedAt).toBe('orders');
+      });
+
+      it('reports a collapse when the target declares no primary key', async () => {
+        const orders = await ordersSource([{ name: 'customer_id', type: 'STRING' }]);
+        expect(orders.mainGrainCollapse).toBe('collapses');
+      });
+
+      it('reports none when the key covers the target primary key', async () => {
+        const orders = await ordersSource([
+          { name: 'customer_id', type: 'STRING', isPrimaryKey: true },
+        ]);
+        expect(orders.mainGrainCollapse).toBe('none');
+        expect(orders.mainGrainCollapsedAt).toBeUndefined();
+      });
+
+      it('inherits the collapse of the hop closest to the main Data Mart', async () => {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: makeSchema([
+              { name: 'customer_id', type: 'STRING', isPrimaryKey: true },
+            ] as Parameters<typeof makeSchema>[0]),
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([
+          customersToOrders([
+            { name: 'order_id', type: 'STRING', isPrimaryKey: true },
+            { name: 'customer_id', type: 'STRING' },
+          ]),
+          makeRelationship({
+            id: 'rel-payments',
+            targetAlias: 'payments',
+            joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+            sourceDataMart: makeDataMart({ id: 'dm-orders' }),
+            targetDataMart: makeDataMart({
+              id: 'dm-payments',
+              schema: makeSchema([
+                { name: 'order_id', type: 'STRING', isPrimaryKey: true },
+              ] as Parameters<typeof makeSchema>[0]),
+            }),
+          }),
+        ]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        const payments = result.availableSources.find(s => s.aliasPath === 'orders.payments')!;
+        expect(payments.mainGrainCollapse).toBe('collapses');
+        expect(payments.mainGrainCollapsedAt).toBe('orders');
+      });
+    });
+
     // The MAIN mart's key cannot be read off `nativeFields`, which this service strips of hidden
     // fields — so it is published separately, computed from the raw schema.
     describe('mainUniqueCountKeyFields', () => {

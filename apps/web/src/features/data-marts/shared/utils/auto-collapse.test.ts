@@ -20,6 +20,15 @@ const EMPTY: OutputConfig = {
 };
 
 describe('resolveAutoCollapse', () => {
+  it('leaves the report alone while it projects an opted-out column', () => {
+    const plan = resolveAutoCollapse(
+      [field('landing_page', 'STRING'), field('sessions', 'INTEGER')],
+      ['landing_page', 'sessions'],
+      { ...EMPTY, autoAggregationOptOut: ['sessions'] }
+    );
+    expect(plan).toEqual({ kind: 'none', reason: 'analyst-opted-out' });
+  });
+
   it('collapses to DISTINCT when the projection carries no metric', () => {
     const plan = resolveAutoCollapse(
       [field('landing_page', 'STRING'), field('medium', 'STRING')],

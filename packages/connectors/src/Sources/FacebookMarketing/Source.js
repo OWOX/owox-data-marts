@@ -115,6 +115,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
+      ShortLinkDomains: {
+        requiredType: "string",
+        label: "Short Link Domains",
+        description: "Comma-separated domains of custom short link services, for example links.example.com. You can also paste a full short link. Requires Process Short Links enabled",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -504,11 +510,29 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
       return processShortLinks(allData, {
         shortLinkField: 'link_url_asset',
-        urlFieldName: 'website_url'
+        urlFieldName: 'website_url',
+        nestedPathHosts: this._getShortLinkDomains()
       });
     }
 
     return allData;
+  }
+
+  /**
+   * Parses the configured short link domains whose links contain nested paths.
+   * Accepts bare domains as well as full URLs; scheme, port, path and trailing dot are stripped.
+   * Entries without a dot (bare TLDs, localhost) are ignored.
+   *
+   * @return {Array<string>} Lower-cased domains, empty when not configured
+   * @private
+   */
+  _getShortLinkDomains() {
+    const value = this.config.ShortLinkDomains?.value;
+    if (!value) return [];
+    return String(value)
+      .split(/[,;\s]+/)
+      .map(entry => entry.replace(/^[a-z]+:\/\//i, '').split('/')[0].split(':')[0].replace(/\.$/, '').trim().toLowerCase())
+      .filter(host => host.includes('.'));
   }
 
   _getAccessToken() {

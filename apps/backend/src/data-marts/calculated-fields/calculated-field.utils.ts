@@ -541,3 +541,37 @@ export function joinedCalculatedFieldRefusals(
   }
   return refusals;
 }
+
+/**
+ * `field name → the calculated fields its formula reads`, for the schema's OWN calculated fields.
+ *
+ * One graph over the whole schema rather than a check inside the per-field loop: `a → b → a` is
+ * invisible from either field alone, and both consumers need the whole shape.
+ *
+ * A joined reference never enters it — calling it a cycle would name the wrong problem — nor does a
+ * commented-out one. An unparseable formula contributes no edges rather than throwing, so one bad
+ * formula does not lose every other field's verdict.
+ */
+export function formulaDependencyGraph(
+  fields: readonly CalculatedSchemaField[],
+  byName: ReadonlyMap<string, DataMartSchemaField>
+): ReadonlyMap<string, readonly string[]> {
+  const dependenciesOf = (field: CalculatedSchemaField): string[] => {
+    let references: FormulaReference[];
+    try {
+      references = liveFormulaReferences(field.calculated.formula);
+    } catch {
+      return [];
+    }
+    const named = references
+      .filter(ref => !ref.path)
+      .map(ref => ref.field)
+      .filter(name => {
+        const found = byName.get(name);
+        return found !== undefined && isCalculatedField(found);
+      });
+    return [...new Set(named)];
+  };
+
+  return new Map(fields.map(field => [field.name, dependenciesOf(field)]));
+}

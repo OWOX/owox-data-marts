@@ -9,6 +9,10 @@ import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
 import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
+import {
+  AUTO_AGGREGATION_OPT_OUT_OPENAPI,
+  AutoAggregationOptOut,
+} from '../schemas/auto-aggregation-opt-out.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
@@ -87,6 +91,9 @@ export class ReportResponseApiDto {
     oneOf: [{ type: 'boolean' }, { type: 'array', items: { type: 'string' } }],
   })
   uniqueCountConfig?: UniqueCountConfig;
+
+  @ApiProperty({ ...AUTO_AGGREGATION_OPT_OUT_OPENAPI, required: false })
+  autoAggregationOptOut?: AutoAggregationOptOut;
 
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;

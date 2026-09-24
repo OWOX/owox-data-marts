@@ -7,6 +7,7 @@ import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
 import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
+import { AutoAggregationOptOut } from '../schemas/auto-aggregation-opt-out.schema';
 import { normalizeUniqueCountSources } from '../schemas/unique-count-sources';
 import { usesSuffixedJoinedFieldNames as usesSuffixedJoinedFieldNamesFor } from '../../data-destination-types/enums/data-destination-type.enum';
 import { calculatedFieldsOf } from '../../calculated-fields/calculated-field.utils';
@@ -31,6 +32,7 @@ export interface ReportLikeReadPlan {
   groupRestriction?: RoutedGroupRestriction;
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
+  autoAggregationOptOut?: AutoAggregationOptOut;
   /**
    * Collapse duplicate rows with `SELECT DISTINCT`. Set ONLY by `applyAutoCollapse` on a
    * projection that carries no metric — never stored on a `Report`.

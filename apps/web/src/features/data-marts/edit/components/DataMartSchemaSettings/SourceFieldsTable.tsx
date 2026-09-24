@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EyeOff, Info, MoreHorizontal, Eye, Search, Sigma } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,9 @@ import { useDebounce } from '../../../../../hooks/useDebounce';
 import { isArrayFieldType } from '../ReportColumnPicker/output-controls-operators';
 
 type FilterMode = 'all' | 'visible' | 'hidden';
+
+const DEDUP_DOCS_URL =
+  'https://docs.owox.com/docs/getting-started/setup-guide/joinable-data-marts/#dedup';
 
 interface SourceFieldsTableProps {
   fields: BlendedField[];
@@ -229,8 +233,16 @@ export function SourceFieldsTable({
                 <Tooltip>
                   <TooltipTrigger className='cursor-default'>Dedup</TooltipTrigger>
                   <TooltipContent>
-                    Deduplication rollup — collapses a joined field to one row per join key so the
-                    join never multiplies rows.
+                    <p>
+                      Deduplication rollup — collapses a joined field to one row per join key so the
+                      join never multiplies rows.{' '}
+                      <ExternalAnchor
+                        href={DEDUP_DOCS_URL}
+                        className='hover:text-foreground underline'
+                      >
+                        Learn more
+                      </ExternalAnchor>
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TableHead>

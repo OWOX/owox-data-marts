@@ -126,6 +126,7 @@ export interface DataMartReport {
   aggregationConfig: AggregationRule[] | null;
   dateTruncConfig: DateTruncRule[] | null;
   uniqueCountConfig: string[];
+  autoAggregationOptOut: string[];
   lastRunDate: Date | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;

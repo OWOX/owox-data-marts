@@ -740,4 +740,52 @@ describe('analyzeFormula', () => {
     expect(a.errors).toEqual([]);
     expect(elapsedMs).toBeLessThan(1000);
   });
+
+  it('marks a call whose arguments open with DISTINCT', () => {
+    const a = analyze('COUNT(DISTINCT {{ref path="orders" field="customer_id"}})');
+    expect(a.errors).toEqual([]);
+    expect(a.aggregateCalls.map(c => [c.name, c.distinct])).toEqual([['COUNT', true]]);
+  });
+
+  it('does not mark a plain call as distinct', () => {
+    const a = analyze('COUNT({{ref path="orders" field="customer_id"}})');
+    expect(a.aggregateCalls.map(c => c.distinct)).toEqual([false]);
+  });
+
+  it('reads DISTINCT case-insensitively and through whitespace', () => {
+    const a = analyze('COUNT(  distinct {{ref path="orders" field="customer_id"}})');
+    expect(a.aggregateCalls.map(c => c.distinct)).toEqual([true]);
+  });
+
+  // The sleeve planner reads the quantifier past a comment too, and the two must agree on which
+  // joined COUNT stays in the outer SELECT.
+  it('reads DISTINCT past a comment written before it', () => {
+    const a = analyze('COUNT(/* each customer once */ DISTINCT {{ref path="orders" field="id"}})');
+    expect(a.aggregateCalls.map(c => c.distinct)).toEqual([true]);
+  });
+
+  it('does not read ALL as DISTINCT', () => {
+    const a = analyze('COUNT(ALL {{ref path="orders" field="id"}})');
+    expect(a.aggregateCalls.map(c => c.distinct)).toEqual([false]);
+  });
+
+  // A word that merely STARTS with the keyword is an identifier, not the keyword. The bare word
+  // has to lead the argument list for the comparison to be exercised at all — inside a `{{ref}}`
+  // tag the first word token is `ref` — and a live reference has to follow it, or the call is
+  // rejected as FORMULA_AGGREGATE_WITHOUT_FIELD and never reaches `aggregateCalls`.
+  it('does not mark a call whose first argument only starts with those letters', () => {
+    const a = analyze('COUNT(distinctness * {{ref field="clicks"}})');
+    expect(a.errors).toEqual([]);
+    expect(a.aggregateCalls.map(c => c.distinct)).toEqual([false]);
+  });
+
+  it('marks DISTINCT per call, not for the whole formula', () => {
+    const a = analyze(
+      'COUNT(DISTINCT {{ref path="orders" field="customer_id"}}) + SUM({{ref field="clicks"}})'
+    );
+    expect(a.aggregateCalls.map(c => [c.name, c.distinct])).toEqual([
+      ['COUNT', true],
+      ['SUM', false],
+    ]);
+  });
 });

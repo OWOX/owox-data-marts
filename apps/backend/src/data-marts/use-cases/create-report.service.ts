@@ -23,6 +23,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
+import { selectedAutoAggregationOptOut } from '../dto/schemas/auto-aggregation-opt-out.schema';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { LookerStudioReportService } from '../services/looker-studio-report.service';
@@ -132,6 +133,10 @@ export class CreateReportService {
       aggregationConfig: command.aggregationConfig ?? null,
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: foldEmptyUniqueCountConfig(command.uniqueCountConfig),
+      autoAggregationOptOut: selectedAutoAggregationOptOut(
+        command.autoAggregationOptOut,
+        command.columnConfig
+      ),
     });
     const restoredReport = await this.lookerStudioReportService.restoreIfDeleted(report);
     const newReport = restoredReport ?? (await this.reportRepository.save(report));

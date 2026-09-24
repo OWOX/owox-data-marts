@@ -11,6 +11,12 @@ import {
   ReportAggregateFunction,
 } from '../schemas/aggregate-function.schema';
 
+export const MAIN_GRAIN_MULTIPLICATION_VALUES = ['none', 'multiplies', 'unknown'] as const;
+export type MainGrainMultiplication = (typeof MAIN_GRAIN_MULTIPLICATION_VALUES)[number];
+
+export const MAIN_GRAIN_COLLAPSE_VALUES = ['none', 'collapses'] as const;
+export type MainGrainCollapse = (typeof MAIN_GRAIN_COLLAPSE_VALUES)[number];
+
 export class BlendedFieldDto {
   @ApiProperty({
     description:
@@ -179,6 +185,68 @@ export class AvailableSourceDto {
       "The primary-key columns this source's Unique Count counts by — every component of the key, in schema order, so a client can name them in an explanation of the metric. Exactly the columns the query counts by, including one hidden from reporting (hidden means off the reporting menu, not absent from the source). Empty whenever `uniqueCountAvailability` is not `available`: there is then no key the metric could use.",
   })
   uniqueCountKeyFields: string[];
+
+  @ApiProperty({
+    enum: MAIN_GRAIN_MULTIPLICATION_VALUES,
+    description:
+      "Whether this source's rows are multiplied when attached to the main Data Mart — the join " +
+      'key is not proven unique on its parent, so one joined value can land on several main rows. ' +
+      'A fact about ROWS: what each aggregate makes of it differs per aggregate. `none` — every hop ' +
+      "from the main Data Mart down to this source is keyed by its parent's primary key, so nothing " +
+      'is multiplied. `multiplies` — at least one hop is keyed by something that does not cover its ' +
+      "parent's primary key. `unknown` — some parent on the chain declares no primary key, so " +
+      'uniqueness is undecidable in either direction. A client that does not know this property ' +
+      'must read its absence as `unknown`, never as `none`: the fallback has to be the one that ' +
+      'still warns.',
+  })
+  mainGrainMultiplication: MainGrainMultiplication;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      "The join-key columns of the hop that multiplies, named on that hop's parent, so a message " +
+      'can tell an analyst which key is at fault. Empty whenever mainGrainMultiplication is not ' +
+      '`multiplies`.',
+  })
+  mainGrainKeyFields: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'The aliasPath of the Data Mart that declares no primary key, so a message can name the one ' +
+      'that needs it. An empty string means the main Data Mart itself. Present only when ' +
+      'mainGrainMultiplication is `unknown`.',
+  })
+  mainGrainUnprovenAt?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The aliasPath of the hop that multiplies, which is NOT always this source: a verdict is ' +
+      "inherited down the chain together with the failing hop's key, so mainGrainKeyFields can " +
+      'belong to an ancestor. A message that names this source as the one joined on that key ' +
+      'sends an analyst to edit the wrong relationship. Present only when ' +
+      'mainGrainMultiplication is `multiplies`.',
+  })
+  mainGrainMultipliedAt?: string;
+
+  @ApiProperty({
+    enum: MAIN_GRAIN_COLLAPSE_VALUES,
+    description:
+      'The other side of the same joins: whether several rows of a joined Data Mart can share one ' +
+      'join-key value and so collapse into a single match. A joined Data Mart is attached to the ' +
+      'main one collapsed to one row per key, so an aggregate read off that collapsed row — a ' +
+      'non-DISTINCT `COUNT` — counts main rows, and comes out lower than the joined rows. `none` — ' +
+      "every hop from the main Data Mart down to this source is keyed by its target's primary key. " +
+      '`collapses` — at least one is not, or its target declares no primary key. A client that does ' +
+      'not know this property must read its absence as `collapses`.',
+  })
+  mainGrainCollapse: MainGrainCollapse;
+
+  @ApiPropertyOptional({
+    description:
+      'The aliasPath of the hop whose target rows collapse — the one closest to the main Data ' +
+      'Mart, which is not always this source. Present only when mainGrainCollapse is `collapses`.',
+  })
+  mainGrainCollapsedAt?: string;
 }
 
 export class CalculatedFieldIssueDto {

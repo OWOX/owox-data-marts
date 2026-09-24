@@ -6,6 +6,7 @@ import { flattenNativeFields } from './flatten-native-fields';
 
 export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
+  | 'analyst-opted-out'
   | 'no-explicit-projection'
   | 'non-groupable-column'
   | 'unresolvable-column'
@@ -65,6 +66,11 @@ export function resolveAutoCollapse(
     })
   ) {
     return { kind: 'none', reason: 'analyst-aggregated' };
+  }
+
+  const optedOut = new Set(outputConfig?.autoAggregationOptOut ?? []);
+  if (columnConfig.some(name => optedOut.has(name))) {
+    return { kind: 'none', reason: 'analyst-opted-out' };
   }
 
   // A sort on an unprojected column is valid while ungrouped and invalid once collapsed, so the

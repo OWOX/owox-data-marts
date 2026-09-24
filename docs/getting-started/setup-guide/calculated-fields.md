@@ -9,7 +9,7 @@ A **calculated field** is a formula you add to a Data Mart's output schema — p
 - Define a field as a formula over the Data Mart's own fields, written in the storage's own SQL dialect.
 - Write it as a **metric** (`SUM(clicks) * 1.0 / NULLIF(SUM(impressions), 0)`) or as a **dimension** (`CONCAT(session_id, user_id)`) — the formula decides which, and there is nothing to pick.
 - Reference **another calculated field of the same Data Mart** — `roas = revenue / NULLIF(cost, 0)`, where `revenue` and `cost` are calculated fields of their own. The reference is resolved when the query is built, so editing `cost` changes every formula that reads it.
-- Reference a **joined Data Mart's field** in the same formula (`orders.amount`), computed at the report's grain so a one-to-many join does not inflate the number. Only a metric formula may do this.
+- Reference a **joined Data Mart's field** in the same formula (`orders.amount`), computed at the report's grain so a one-to-many join does not inflate the number — except a plain `COUNT`, which counts this Data Mart's matched rows (see [Calculated Fields Across a Join](./joinable-data-marts.md#calculated-fields-across-a-join)). Only a metric formula may do this.
 - Use your dialect's aggregate functions together with scalar functions, `CASE` expressions and arithmetic.
 - Get **autocomplete** for the Data Mart's fields (its own, its calculated ones, and joined), the dialect's aggregate functions, a curated list of its scalar functions, and a ready-made guarded-division snippet.
 - See problems **while you type**, underlined on the token at fault and spelled out beneath the editor.

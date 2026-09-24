@@ -9,7 +9,7 @@ Combine fields from multiple Data Marts in a single report — without writing a
 - **Build cross-source reports without SQL.** Once a relationship is set up, a campaign report can pull spend from your Ads Data Mart and matching orders from your CRM Data Mart — you pick the joined columns from the same picker as native ones.
 - **Reuse a relationship across many reports.** Define the join once on the Data Mart; the same joined fields become available in the column picker of every report built on it.
 - **Chain Data Marts transitively.** If `A` joins `B` and `B` joins `C`, fields from `C` become available for selection in any report on `A` — nothing is added until you pick them.
-- **Stay in control of aggregation.** Choose how a joined field collapses for each row of the main Data Mart — `STRING_AGG`, `SUM`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `ANY_VALUE`.
+- **Stay in control of aggregation.** Choose how a joined field collapses to one value per join key — its [Dedup](#dedup): `ANY_VALUE`, `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`.
 - **Promote a joined report to a Data Mart.** One click turns the generated SQL into a new SQL-based Data Mart you can schedule, share, and build on top of.
 - **Visualize the relationship graph.** A diagram view shows every Data Mart you've joined and how the keys connect.
 
@@ -18,7 +18,7 @@ Combine fields from multiple Data Marts in a single report — without writing a
 Joinable Data Marts work on three levels:
 
 1. **Relationship level.** A relationship links a **source** Data Mart to a **target** Data Mart on the same storage and defines the join conditions (one or more pairs of fields).
-2. **Data Mart level.** All target fields are exposed by default. For each relationship, you can override their **output alias**, **visibility**, and **aggregate function** — or hide the ones you don't need.
+2. **Data Mart level.** All target fields are exposed by default. For each relationship, you can override their **output alias**, **visibility**, and **[Dedup](#dedup)** — or hide the ones you don't need.
 3. **Report level.** The Report Columns picker lists native fields plus connected joined fields that are available for reporting. Existing reports do not change until you actively pick a joined field. As soon as you pick at least one, the report runs on a generated `JOIN` query; otherwise the native fast path runs unchanged.
 
 > 💡 Internally, OWOX Data Marts builds the SQL bottom-up: the deepest joined Data Marts are pre-aggregated by their join key first, then merged into their parent, and finally `LEFT JOIN`-ed into the source Data Mart. This guarantees the result row count never exceeds the source Data Mart's row count.
@@ -37,7 +37,7 @@ Supported storages: **Google BigQuery, Snowflake, AWS Redshift, AWS Athena, Data
 
 Open the source Data Mart and go to the **Data Setup** tab. Scroll to the **Joinable Data Marts** block.
 
-![Empty Joinable Data Marts block on the Data Setup tab with the Join Data Mart call to action](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f3d7964f-b171-44f5-2a45-6d6dede1cf00/public)
+![Empty Joinable Data Marts block on the Data Setup tab with the Join Data Mart call to action](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e3ad80fc-88a2-42e2-3f56-a114dab49800/public)
 
 Click **Join Data Mart** and pick the target Data Mart from the dropdown. Only Data Marts on the same storage are listed.
 
@@ -47,7 +47,7 @@ The new relationship appears as an accordion row.
 
 Expand the relationship row and open the **Join Settings** tab.
 
-![Join Settings tab with the joined Data Mart card, SQL Alias, and Join Fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/91af9809-942f-451a-f28c-1fb482ce0100/public)
+![Join Settings tab with the joined Data Mart card, SQL Alias, and Join Fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f11ee057-8957-4568-cbd3-a9fd5ccda100/public)
 
 ### SQL Alias
 
@@ -76,11 +76,11 @@ For a transitive join (see [Transitive Joins](#transitive-joins)) the tab shows 
 
 Open the **Report Fields** tab on the same relationship.
 
-![Report Fields tab listing target fields with Output Alias and Aggregation](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c6f5118f-f08d-447d-48a2-8e7b91665f00/public)
+![Report Fields tab with the Output Alias and each field's Alias, Dedup and Σ available](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/54eb37d2-0962-4383-579e-11d79b728900/public)
 
 By default, reports built on the source Data Mart include connected target fields that are not hidden for reporting. Use this tab to fine-tune the joined Data Mart and each of its fields.
 
-Once join conditions are configured, this tab uses the target Data Mart's saved Output Schema even while the target is a draft. It also keeps native fields with `DISCONNECTED` status available so you can review or change their aliases, visibility, and aggregation settings. Draft targets and disconnected native fields remain unavailable in reports, and those disconnected fields are not visually distinguished in this configuration table.
+Once join conditions are configured, this tab uses the target Data Mart's saved Output Schema even while the target is a draft. It also keeps native fields with `DISCONNECTED` status available so you can review or change their aliases, visibility, and Dedup settings. Draft targets and disconnected native fields remain unavailable in reports, and those disconnected fields are not visually distinguished in this configuration table.
 
 ### Output Alias (Data Mart level)
 
@@ -99,40 +99,75 @@ Rename it to anything that reads well in reports — by default it inherits the 
 
 Each row in the fields table lets you override:
 
-| Setting                | What it does                                                                                                                                                                                                                                                     |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Alias**              | Per-field rename — replaces the original field name in the report output. The Data Mart-level Output Alias still applies. With Output Alias `orders` and field alias `total`, the column becomes `total (orders)` in Google Sheets and `orders total` elsewhere. |
-| **Aggregate Function** | How the field is collapsed when the relationship is 1-to-many. See the table below.                                                                                                                                                                              |
+| Setting         | What it does                                                                                                                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Alias**       | Per-field rename — replaces the original field name in the report output. The Data Mart-level Output Alias still applies. With Output Alias `orders` and field alias `total`, the column becomes `total (orders)` in Google Sheets and `orders total` elsewhere. |
+| **Dedup**       | How the field collapses to one value per join key before the join. See [Dedup](#dedup) below.                                                                                                                                                                    |
+| **Σ available** | The aggregations a report may apply to the field after the join. The list follows the type the Dedup produces.                                                                                                                                                   |
 
 To hide a field from reports, open its **⋯** action menu and click **Hide from reports**. Hidden fields stay configurable in this tab but no longer appear in the Report Columns picker on any report. Use it for fields business users don't need.
 
-![Hide from reports action in the field row menu](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a6426663-3010-47a4-44b5-c99b56960a00/public)
+![Hide from reports action in the field row menu](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3b030d5c-2b7c-461a-b931-725e3eab6e00/public)
 
 To hide every field of a joined Data Mart in one go, toggle off **Allow for reporting** on the relationship row in the Joinable Data Marts block. The relationship stays in place — only the joined fields disappear from the column picker until you turn the switch back on.
 
-### Aggregate Function Reference
+### Dedup
 
-| Function         | Use when                                                                               | Returns       |
-| ---------------- | -------------------------------------------------------------------------------------- | ------------- |
-| `STRING_AGG`     | You want to keep all values as a comma-separated list (default for text fields).       | `STRING`      |
-| `ANY_VALUE`      | You want a single representative value for a 1-to-1 lookup (faster than `STRING_AGG`). | Original type |
-| `SUM`            | You want to total a numeric field (e.g., orders, spend).                               | `NUMERIC`     |
-| `MIN` / `MAX`    | You want the earliest/latest date or smallest/largest number.                          | Original type |
-| `COUNT`          | You want the number of rows on the target side.                                        | `INTEGER`     |
-| `COUNT_DISTINCT` | You want the number of unique values.                                                  | `INTEGER`     |
+A joined Data Mart can hold several rows for one value of the join key — several orders per customer, several hits per session. Before the join, each of its fields is collapsed to **one value per join key** with the function in the field's **Dedup** column. That is what keeps the join from multiplying the rows of the Data Mart you report on.
+
+Hover over the **Dedup** column header for a short reminder with a link back to this section.
+
+![Dedup column header tooltip with a Learn more link, above fields set to COUNT_DISTINCT, ANY_VALUE and SUM](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/85d688cd-47b1-4471-a8a8-b775425ddc00/public)
+
+The Dedup function decides three things:
+
+- **The value in a report column.** A joined field selected as a plain column shows its collapsed value — one per row of the source Data Mart.
+- **The field's type, and with it Σ available.** `COUNT` and `COUNT_DISTINCT` turn any field into an integer, `STRING_AGG` into text and `AVG` into a float; the other functions keep the field's type. The **Type** column in this tab keeps showing the source type — the type a report sees follows the Dedup. Change the Dedup across types and **Σ available** switches to that type's defaults — set a text `hit_id` to `COUNT_DISTINCT` and a report can `Sum` it.
+- **What a report's aggregations read.** With `ANY_VALUE`, a report's `Sum`, `Average`, `Min`, `Max`, `Combined` and percentiles are computed over the joined Data Mart's own rows. With any other Dedup they are computed over the collapsed values, one per join key. Either way each joined row or key counts once, however many source rows it matches. A report's `Count Unique` counts the joined Data Mart's own values rather than the collapsed ones; its `Count` counts the source rows that got a joined value.
+
+A new field starts with `SUM` for numbers, `MAX` for dates, times and timestamps and `STRING_AGG` for everything else. Array fields always collapse into a JSON array — see [Joined array columns](#joined-array-columns).
+
+| Dedup            | Collapses the rows of one join key into                                                                                                                                         | Type          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `ANY_VALUE`      | One of their values. Use it for a join with one row per key, or when reports should aggregate the joined rows themselves; as a plain column it then shows only one row's value. | Original type |
+| `SUM`            | Their total. Numbers only.                                                                                                                                                      | Original type |
+| `AVG`            | Their average. Numbers only.                                                                                                                                                    | Float         |
+| `MIN` / `MAX`    | The smallest / largest value — the earliest / latest date.                                                                                                                      | Original type |
+| `COUNT`          | The number of rows with a value.                                                                                                                                                | Integer       |
+| `COUNT_DISTINCT` | The number of distinct values.                                                                                                                                                  | Integer       |
+| `STRING_AGG`     | All values, sorted, as one comma-separated text, e.g. `paid, paid, shipped`.                                                                                                    | Text          |
+
+The editor offers every function for any field, so it does not stop you from picking `SUM` or `AVG` for text or dates; a report that reads such a field fails when it runs.
+
+#### Choosing a Dedup
+
+| You join                                                                  | Dedup                         | What you get                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A lookup with one row per key — sessions to users for `country` or `plan` | `ANY_VALUE`                   | The value as it is. Report aggregations read the joined rows directly.                                                                                                                                                                                                                            |
+| Orders to customers, and each customer row should carry its revenue       | `SUM` on `amount`             | A per-customer total in the column; a report's `Sum` adds the customers up.                                                                                                                                                                                                                       |
+| Orders to customers, and reports need per-order figures                   | `ANY_VALUE` on `amount`       | A report's `Average` is the average **order**, and its `Max` the largest order — not the average or largest customer total. The column itself shows a single order's amount per customer.                                                                                                         |
+| Hits to sessions, to show how many each session had                       | `COUNT_DISTINCT` on `hit_id`  | An integer per session, which a report can `Sum` or `Average`. For the total number of hits alone, keep `hit_id` text (the default `STRING_AGG` works) and use a report's `Count Unique`, or the hits Data Mart's own [Unique Count](./report-aggregations.md#unique-count-per-joined-data-mart). |
+| Orders to customers for the first or last purchase                        | `MIN` / `MAX` on `order_date` | The earliest or latest date per customer.                                                                                                                                                                                                                                                         |
+| A text attribute that varies per key — order statuses per customer        | `STRING_AGG`                  | Every value, repeats included, e.g. `paid, paid, shipped`. Values grow long on keys with many rows; use `ANY_VALUE` if all rows share one value.                                                                                                                                                  |
+
+> ⚠️ Pick the Dedup for the question the column answers. `SUM` and `ANY_VALUE` on the same `amount` both give the right grand total, but `Average` and `Max` read different things: customer totals with `SUM`, individual orders with `ANY_VALUE`.
+
+A `COUNT_DISTINCT` Dedup counts distinct values **per join key**. Adding those counts up across keys counts a value twice when it appears under two keys — fine for hits, which belong to one session each, but not for products bought by several customers. For a distinct count across the whole report, use a report's `Count Unique` instead — it is not available for number fields.
+
+On a [transitive join](#transitive-joins) the column value of a deeper Data Mart's field is collapsed again at each Data Mart on the way up, over the rows of the Data Mart in between. `MIN` and `MAX` stay exact. `SUM` and `COUNT` stay exact only while the Data Mart in between has one row per deeper key; when several of its rows share one — many orders of one customer — the deeper value is added once per row. `COUNT_DISTINCT` is added up the same way, on top of the double counting above. `AVG` becomes an average of averages, `ANY_VALUE` the largest value, and `STRING_AGG` repeats the deeper list once per row. A report's `Sum`, `Average`, `Min`, `Max`, `Combined` and percentiles are not affected: they read the deeper Data Mart directly, as described above.
 
 ## Step 5: Use Joined Fields in a Report
 
 On any report (Google Sheets, Data Studio, Email) attached to the source Data Mart, open the report editor and locate the **Report Columns** section.
 
-![Report Columns picker with native and joined field groups](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4e181ea4-04d3-4eb3-934e-c89a49229700/public)
+![Report Columns picker with native and joined field groups](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/24e4a48b-b723-4997-998b-9b8ffbfa5900/public)
 
 You'll see:
 
 - **Native fields** — flat list at the top (the source Data Mart's own columns).
 - **Joined fields** — collapsible groups, one per relationship. Each field appears under its **Output Alias** (configured in Step 4).
 
-The badge in the section header (e.g., `9/29`) shows how many of the available fields are currently selected.
+The badge in the section header (e.g., `5/14`) shows how many of the available fields are currently selected.
 
 Pick any combination of native and joined fields.
 
@@ -142,14 +177,14 @@ As soon as the report includes at least one joined field, OWOX Data Marts runs i
 
 There are two ways to inspect the SQL OWOX Data Marts builds for a joined report:
 
-- **From the reports list.** Hover over a report row in the source Data Mart's reports table and click the SQL icon — a read-only modal opens with the exact query that will run on the next execution.
+- **From the reports list.** On the source Data Mart's **Destinations** tab, hover over a report row and click the **Preview SQL** icon — the read-only **Report SQL** modal opens with the exact query that will run on the next execution.
 - **From Run History.** Open the Data Mart's **Run History** tab and click any report run to see the SQL that was sent to your storage for that run.
 
-![Action icons on a report row, including the SQL viewer button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/db914a0e-2842-460b-2191-b0146158d300/public)
+![Preview SQL icon on a report row in the Destinations tab](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0b6b7825-8512-42bf-4a14-46c8351f8c00/public)
 
 The SQL contains the pre-aggregation CTEs, `LEFT JOIN`s, and output column aliases. Use it to validate the logic, share it with a teammate, or paste it into your warehouse console for manual debugging.
 
-![Joined Data Marts SQL modal with Copy to Clipboard and Copy as Data Mart actions](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d761657f-a27b-421a-afd3-cd3e95812f00/public)
+![Report SQL modal with the Dedup CTEs and the Copy to Clipboard and Copy as Data Mart actions](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/52ef6d8f-17e7-4fdd-38df-a91bc9a30e00/public)
 
 ## Copy as Data Mart
 
@@ -169,7 +204,7 @@ You can chain relationships across more than two Data Marts.
 
 The Joinable Data Marts block has a **Graph** view that visualizes every relationship reachable from the source Data Mart, including transitive paths.
 
-![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/52bc4830-7dcd-4968-344d-fdf84dee3f00/public)
+![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e570279e-6b2d-4fe2-1b05-5d7dbdfce300/public)
 
 If **Campaigns** joins **Orders**, and **Orders** joins **Products**, the column picker on any **Campaigns** report exposes fields from **Products** as available options — qualified with the Output Alias of the Data Mart the field actually comes from (**Products**), not the whole chain. Existing reports keep their current columns until you pick the new ones.
 
@@ -191,12 +226,37 @@ An empty source array contributes `[]` (one such row produces `[[]]`); a source 
 
 These columns cannot use output controls. Opaque JSON, Snowflake VARIANT, and Redshift SUPER values keep their existing behavior.
 
+## Calculated Fields Across a Join
+
+> 💡 A calculated field can combine its own Data Mart's fields with a joined Data Mart's fields — see [Referencing a Joined Data Mart's Field](calculated-fields.md#referencing-a-joined-data-marts-field). Two things about such a field are worth knowing before you read its number, and OWOX Data Marts points both out while you write the formula and when you save it. Neither of them blocks the save, and an AI assistant reading the field through the MCP server is told the same.
+
+### `SUM` and `AVG` over a joined Data Mart are already set-based
+
+A joined Data Mart's rows are pre-aggregated to the join key before they're attached to the source Data Mart (see [How It Works](#how-it-works)), and that pre-aggregated value then lands on every source row sharing the key. A formula that sums or averages it does **not** add it up once per matching row: each such aggregation is computed over the distinct combinations of report dimensions and the joined row's own identity, so a value that reaches several report rows still contributes once. The same holds at any depth of a transitive join (`orders.items`), and for `MIN`, `MAX`, `ANY_VALUE`, `COUNT(DISTINCT …)` and your dialect's approximate distinct counters.
+
+### A joined `COUNT` counts this Data Mart's rows, not the joined one's
+
+`COUNT` written **without** `DISTINCT` over a joined Data Mart's column is the one exception. It is computed where the equivalent report metric is — after the join, over the joined Data Mart collapsed to one row per key — so it counts the rows of **the Data Mart the formula belongs to** that found a match, not the joined Data Mart's own rows. The two agree only when each row here matches exactly one row there. Otherwise the count is off in either direction:
+
+- **Higher**, when one joined row matches several rows here — the join key doesn't cover this Data Mart's primary key. One order reached from two sessions counts twice.
+- **Lower**, when several joined rows share one key — the join key doesn't cover the joined Data Mart's primary key. A customer with three orders counts as one.
+
+> ⚠️ OWOX warns about a joined `COUNT` unless every join on the way is keyed by a primary key on both sides, and says which way it can be off. Where this Data Mart — or a joined one it is judged against — declares no primary key, it warns that it cannot tell either way; that is the most common way you'll meet it, and declaring a primary key is what turns "cannot tell" into a definite answer. To count the joined Data Mart's own rows instead, use `COUNT(DISTINCT …)` over a column of **that** Data Mart which identifies its rows — not over the join key, which is a column of the Data Mart the formula belongs to. When the joined Data Mart declares a usable primary key it also publishes a **Unique Count** measure, which you can select as a report column (a formula cannot reference it), and the warning says so.
+
+### A joined measure leaves out the joined Data Mart's unmatched rows
+
+Independently of any key and of the aggregate, every join runs outwards from the Data Mart the formula belongs to and keeps **all** of its rows. A row of this Data Mart with no counterpart survives with nothing to add from the joined side; a row of the **joined** Data Mart that matched nothing here is left out entirely. So `SUM(costs.spend)` on an Orders Data Mart is the spend of campaigns that have orders, not all spend, and a ROAS built from `revenue` and `costs.spend` will not reconcile with the Costs Data Mart's own totals. OWOX points this out on every formula that reads a joined Data Mart, when you write it and when you save it — not again on every later save that leaves the formula alone. No key configuration recovers rows that never matched.
+
+### When you need a ratio of two facts, conform the grain first
+
+A join can't express what a cross-fact ratio needs: one row per grain shared by both facts, with neither side's rows dropped. Aggregate the two measures to the grain they share — day and traffic source, say — in a **separate Data Mart** built with `UNION ALL`, and calculate the ratio there instead of across the join.
+
 ## Limitations and Considerations
 
 - **Same storage.** All Data Marts in a chain must live on the same storage type and connection. Cross-storage joins are not supported.
 - **No self-reference.** A Data Mart cannot be joined to itself.
 - **Type-compatible join keys.** Mismatched types on a join condition are rejected at save.
-- **Aggregate function trade-offs.** `STRING_AGG` is the safest default for text but produces long values on high-fanout joins. Switch to `ANY_VALUE` when you know the relationship is effectively 1-to-1.
+- **Dedup trade-offs.** `STRING_AGG` keeps every text value but produces long values on high-fanout joins. Switch to `ANY_VALUE` when the relationship is effectively 1-to-1, or when reports should aggregate the joined rows themselves — see [Choosing a Dedup](#choosing-a-dedup).
 - **Athena array serialization.** Joined array rollup requires every element and nested field to support casting to JSON. Athena/Trino does not currently support date, time, timestamp, or binary values in this cast path.
 
 ## Troubleshooting

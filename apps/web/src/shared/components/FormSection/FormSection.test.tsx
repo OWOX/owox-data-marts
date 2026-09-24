@@ -137,6 +137,10 @@ describe('FormSection validation awareness', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Title is required');
+    // The message renders before the section's error effect runs. Wait for the
+    // indicator that effect sets, or the pending auto-open lands after the
+    // collapse click below and reopens the section.
+    await screen.findByTestId('form-section-error-indicator');
 
     // User collapses the auto-opened section — it must stay collapsed
     fireEvent.click(screen.getByRole('button', { name: /general/i }));

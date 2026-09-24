@@ -178,6 +178,8 @@ export interface OutputConfig {
   dateTruncConfig: DateTruncRule[];
   /** Source keys wanting a Unique Count metric: a joined source's `aliasPath`, or '' for the main mart. */
   uniqueCountConfig: string[];
+  /** Columns the analyst removed an aggregation from; see `withAutoAggregationOptOut`. */
+  autoAggregationOptOut?: string[];
 }
 
 export type OutputConfigKey = keyof OutputConfig;
@@ -194,6 +196,7 @@ const OUTPUT_CONFIG_KEY_SET = {
   aggregationConfig: true,
   dateTruncConfig: true,
   uniqueCountConfig: true,
+  autoAggregationOptOut: true,
 } satisfies Record<OutputConfigKey, true>;
 
 export const OUTPUT_CONFIG_KEYS: readonly OutputConfigKey[] = Object.keys(
@@ -228,6 +231,7 @@ export const EMPTY_OUTPUT_CONFIG: OutputConfig = {
   aggregationConfig: [],
   dateTruncConfig: [],
   uniqueCountConfig: [],
+  autoAggregationOptOut: [],
 };
 
 export function hasAnyOutputControls(config: OutputConfig): boolean {

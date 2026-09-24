@@ -10,7 +10,7 @@ export default function ExcelDescription() {
           Install the{' '}
           <ExternalAnchor
             className='underline'
-            href='https://marketplace.microsoft.com/en-us/product/WA200011946?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-excel'
+            href='https://marketplace.microsoft.com/en-us/product/WA200011946?src=owox_data_marts&mktcmpid=tooltip-excel&ocid=tooltip-excel&utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-excel'
           >
             OWOX Data Marts add-in
           </ExternalAnchor>{' '}

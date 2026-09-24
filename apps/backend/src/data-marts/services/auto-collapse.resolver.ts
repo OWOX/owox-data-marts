@@ -32,6 +32,7 @@ import type { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-r
 
 export type AutoCollapseSkipReason =
   | 'analyst-aggregated'
+  | 'analyst-opted-out'
   | 'no-explicit-projection'
   | 'non-groupable-column'
   | 'unresolvable-column'
@@ -80,6 +81,13 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     return { kind: 'none', reason: 'analyst-aggregated' };
   }
 
+  // The analyst removed an aggregation from a projected column, so the rows are wanted as stored.
+  // Grouping by that column instead would still drop its duplicate rows, as DISTINCT does.
+  const optedOut = new Set(report.autoAggregationOptOut ?? []);
+  if (columns.some(name => optedOut.has(name))) {
+    return { kind: 'none', reason: 'analyst-opted-out' };
+  }
+
   // A sort on an unprojected column is valid while ungrouped and invalid once collapsed — every
   // dialect rejects it under both DISTINCT and GROUP BY.
   const projectedColumns = new Set(columns);
@@ -97,8 +105,9 @@ export function resolveAutoCollapse(report: ReportLike): AutoCollapsePlan {
     // A joined column, a hidden one, or a name the schema has since lost: we cannot read its type,
     // so we cannot tell a dimension from a metric. Treating it as a dimension would make it a
     // grouping key — and grouping by a metric drops its duplicate rows, which changes that
-    // column's total exactly as DISTINCT would. Joined fields are #6926's subject; until then a
-    // report that projects one is left alone.
+    // column's total exactly as DISTINCT would. #6926 only warns about joined measures in formulas
+    // and leaves collapsing a report that projects a joined field to a follow-up; until one lands,
+    // such a report is left alone.
     if (!descriptor) return { kind: 'none', reason: 'unresolvable-column' };
 
     if (categorizeFieldType(descriptor.type) === 'other') {

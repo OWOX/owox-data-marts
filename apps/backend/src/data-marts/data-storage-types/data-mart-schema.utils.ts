@@ -204,6 +204,25 @@ export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaFiel
   return complete ? columns : [];
 }
 
+// The primary key AS DECLARED — every component, nested ones by their dotted path, disconnected
+// and hidden ones included — for asking whether a join key covers it. Not a row identity: unlike
+// `collectPrimaryKeyRowIdentity` it never turns a declared key into "no key" because the key cannot
+// de-duplicate, which would tell an analyst to set a key they already have.
+export function declaredPrimaryKeyFields(fields: readonly DataMartSchemaField[]): string[] {
+  const columns: string[] = [];
+  const walk = (nodes: readonly DataMartSchemaField[], prefix: string) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      if (field.isPrimaryKey) columns.push(fullName);
+      if ('fields' in field && field.fields?.length) {
+        walk(field.fields as DataMartSchemaField[], fullName);
+      }
+    }
+  };
+  walk(fields, '');
+  return columns;
+}
+
 // Verdicts for a JOINED source only, i.e. the `collectPrimaryKeyRowIdentity` rule. The MAIN Data
 // Mart is governed by `getMainUniqueCountKeyFields` instead and can never be told
 // `nested-primary-key`, so it has its own vocabulary (web: MAIN_UNIQUE_COUNT_AVAILABILITY_VALUES)
