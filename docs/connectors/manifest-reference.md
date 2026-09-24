@@ -2,7 +2,7 @@
 
 A **declarative connector manifest** is a single JSON document that tells OWOX Data Marts how to pull data from a third-party HTTP API — no code required. You describe the API's shape (base URL, authentication, endpoints, pagination, how a raw record maps to output fields) and the engine (`ManifestParser` + `DeclarativeSource`) does the rest: making requests, paging through results, applying your date window, filtering and transforming records, and casting fields to their declared types.
 
-This page is the complete grammar the engine accepts, written for a person authoring or reviewing a manifest by hand — every key, every enum value, and the mistakes that most often make the parser reject a manifest.
+This page is the complete grammar the engine accepts, written for a person authoring or reviewing a manifest by hand — every key, every enum value, and the mistakes that most often make the parser reject a manifest. To build a connector step by step in the UI instead, see [Connector Builder](connector-builder.md).
 
 > **Building a connector with an AI assistant?** Give your assistant the
 > [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt)
@@ -57,8 +57,8 @@ Once records are selected, `recordFilter` (optional, keep-or-drop) runs first, t
 | Key | Required | Description |
 |---|---|---|
 | `version` | Yes | Always the string `"1.0"`. |
-| `name` | Yes | A short PascalCase identifier, e.g. `MolocoCloud`. |
-| `baseUrl` | Yes | The API origin, e.g. `https://api.example.com` (no trailing path). |
+| `name` | Yes | The connector's identifier: letters, digits and underscores, starting with a letter — PascalCase by convention, e.g. `MolocoCloud`. It cannot be changed after the connector is created. |
+| `baseUrl` | Yes | The address every request path is appended to, over HTTPS, e.g. `https://api.example.com` or `https://api.example.com/v1`. Leave off the trailing slash. |
 | `parameters` | Yes | An object of user-supplied inputs — may be `{}` if the connector needs none. See [Parameters](#parameters). |
 | `nodes` | Yes | An object keyed by node name; each value is one data stream. See [Nodes](#nodes). |
 | `title` | No | A human-friendly display name, e.g. `"Frankfurter FX (Declarative)"`. |
@@ -70,13 +70,13 @@ Once records are selected, `recordFilter` (optional, keep-or-drop) runs first, t
 
 ## Common naming mistakes
 
-The parser is strict and rejects near-miss names outright. These five are the most common causes of a rejected manifest:
+The parser does not check for unknown keys. A misspelled key is silently ignored: the manifest publishes, and the mistake only shows when you test the node — for example, a `401` because an `auth` block was never read. These five are the most common:
 
 - The auth block is **`authentication`**, not `auth`.
 - A request's query string is **`queryParameters`**, not `queryParams`.
 - A record's row-selector is **`recordSelector.recordPath`** — an array of keys — not `fieldPath`.
 - **`fields`** is an object keyed by field name, not an array.
-- A **field's** `dataPath`/`apiName` is a single dot-string (e.g. `"stats.spending"`), but almost every other "path" in the grammar — `recordSelector.recordPath`, `recordFilter.path`, `errorHandler`'s `bodyMatch.path`, pagination's `cursor.path`/`stopCondition.path`, an async node's `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, and `partitionRouter.parent.recordPath` — is an **array** of key segments (e.g. `["stats", "spending"]`). Mixing the two conventions up is a common, silent bug — the parser refuses a dot-string in any of those array positions, so it fails at publish rather than silently at run time.
+- A **field's** `dataPath`/`apiName` is a single dot-string (e.g. `"stats.spending"`), but almost every other "path" in the grammar — `recordSelector.recordPath`, `recordFilter.path`, `errorHandler`'s `bodyMatch.path`, pagination's `cursor.path`/`stopCondition.path`, an async node's `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, and `partitionRouter.parent.recordPath` — is an **array** of key segments (e.g. `["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
 
 ## Parameters
 
@@ -255,15 +255,15 @@ Picks one of several authentication branches at runtime based on a parameter's v
 | `overview` | Optional one-line description, shown in the builder UI. |
 | `uniqueKeys` | Field names forming the row's unique key (used for upsert/dedupe). |
 | `destinationName` | Optional; the destination table name (defaults to the node name). |
-| `isTimeSeries` | Boolean; enables date-window incremental processing for this node. |
+| `isTimeSeries` | Boolean; enables date-window incremental processing for this node. A node with an `incremental` strategy other than `none` is treated as time-series even without it. |
 | `defaultFields` | Optional field names pre-selected by default (defaults to all declared fields). |
-| `request` | `{ method, path, queryParameters?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and must start with `/`. |
+| `request` | `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and must start with `/`. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`. |
 | `recordSelector.recordPath` | Array of keys locating the row(s) — see [How the engine turns responses into rows](#how-the-engine-turns-responses-into-rows). `recordSelector.responseFormat` is optional: `json` (default), `csv`, or `jsonl`. |
 | `fields` | Object keyed by field name. See [Fields](#fields). |
 
 A node can also optionally carry `pagination`, `incremental`, `partitionRouter`, `transformations`, `recordFilter`, and `errorHandler` — each covered in its own section below.
 
-An **async** node (see [Asynchronous retriever](#asynchronous-retriever)) replaces `request` + `recordSelector` with a `retriever: { type: "async", submit, poll, download }` block instead — it must not also declare a plain `request`/`recordSelector` at the node level.
+An **async** node (see [Asynchronous retriever](#asynchronous-retriever)) replaces `request` + `recordSelector` with a `retriever: { type: "async", submit, poll, download }` block instead. A node-level `request` on an async node is ignored.
 
 ## Fields
 
@@ -302,7 +302,7 @@ Optional, node-level, and only for sync nodes. `pagination.type` is one of `none
 { "type": "offset", "offsetParam": "offset", "pageSize": 100 }
 ```
 
-Stops once a page returns fewer records than `pageSize`; each subsequent request adds `pageSize` to the running offset.
+Stops once a page returns fewer records than `pageSize`; each subsequent request adds `pageSize` to the running offset. The engine does not send the page size itself: request it in `queryParameters` (e.g. `"limit": "100"`, as the Cốc Cốc Ads example below does). If the API returns its default, smaller page instead, pagination stops after the first page.
 
 ### Page pagination
 
@@ -362,7 +362,7 @@ Optional, node-level; drives date-windowed (time-series) extraction. `incrementa
 }
 ```
 
-The run is split into one request per calendar day; only `startName`/`startPath` is used, since the window's start and end are the same day.
+The run is split into one request per calendar day. The window's start and end are the same date, so `startName`/`startPath` alone is usually enough; an `endName`/`endPath`, if set, gets the same date.
 
 ### Range
 
@@ -438,7 +438,11 @@ Optional, top-level (`accounts`); runs every node once per account ID instead of
 
 Each resolved id becomes `{{ account.id }}` inside that account's requests, and node fetching runs once per id. If `accounts` is omitted, the node runs exactly once with no `account.id` scope.
 
-Account-level error handling is currently **fail-fast and not manifest-configurable**: if any node fails for any account, the entire run aborts — no later account or node is attempted, and the incremental cursor is not advanced past the partially-failed window. There is no per-account "skip and continue" policy an author can set today.
+One account's failure does not stop the others: the engine attempts every account, then decides the run's outcome. The policy is not configurable in the manifest.
+
+- An account the API turns away with `401` or `403` is skipped. The run logs a warning, and the date window still counts as loaded, so recover that account's data with a manual backfill.
+- Any other failure is logged as an error, and the window is requested again on the next run. The run then fails, naming the accounts that did not import.
+- If no account imported anything, the run fails.
 
 ## Asynchronous retriever
 
@@ -468,7 +472,7 @@ For APIs that generate a report asynchronously: submit a job, poll until it's re
 
 - `submit` — a request spec plus `jobIdPath` (array), locating the newly created job's id in the submit response.
 - `poll` — a request spec (its `path`/templates may reference `{{ job.id }}`) plus `statusPath` (array), `readyValue`, optional `failedValue`, and `resultUrlPath` (array) locating a download URL once the job succeeds. `poll.backoff` bounds the polling loop: `maxAttempts` (default 180), `initialMs` (default 3000), `maxMs` (default 15000) — the delay doubles each attempt up to `maxMs`. A response matching `failedValue` throws immediately; exhausting `maxAttempts` without reaching `readyValue` also throws.
-- `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows.
+- `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows. The download URL comes from the API, so it may be on any public HTTPS host, not only the manifest's own.
 
 This `poll.backoff` is a completely separate mechanism from a node's [`errorHandler.backoff`](#error-handling) — the former paces the async job-status loop, the latter paces HTTP-error retries. An async node must not carry an `errorHandler` at all: the engine wires that for sync retrievers only, so the parser refuses the pairing at publish.
 
@@ -513,6 +517,8 @@ Optional, node-level; keeps or drops each raw record **before** transformations 
 | `isNull` / `isNotNull` | No `value` needed; true when the path resolves to `null`/`undefined` (or not, respectively). |
 | `inList` | True when the value at `path` is one of a resolved list, supplied either as a literal comma-string `value` or a parameter name via `valuesFromParameter` (also comma-split). Exactly one of the two must be present. |
 
+A record where `path` is missing never matches `equals`, `contains` or `inList`, and always matches `notEquals` — so `notEquals` keeps records that lack the field.
+
 ## Error handling
 
 Optional, node-level, and applies to **sync nodes only** — an `errorHandler` on an async node is refused at publish, because an async node paces itself through `poll.backoff` instead. `errorHandler` matches an HTTP error response against an ordered list of filters; the first matching filter decides what happens:
@@ -540,8 +546,10 @@ Each filter needs at least one of `httpCodes` (number array), `messageContains` 
 | Action | Effect |
 |---|---|
 | `RETRY` | Retry the request, delayed by this filter's `backoff` (or the handler's top-level `backoff` if the filter has none). |
-| `IGNORE` | Treat the failed request as if it returned zero records; the node continues without failing the run. |
-| `FAIL` | Do not retry; the error propagates and fails the run (same outcome as an error matching no filter at all). |
+| `IGNORE` | Treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are not imported. The run does not fail, and its log names the skipped request. |
+| `FAIL` | Do not retry; the error fails the run. |
+
+An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once.
 
 `backoff.type` is one of:
 
@@ -553,6 +561,8 @@ Each filter needs at least one of `httpCodes` (number array), `messageContains` 
 | `waitUntilTimeFromHeader` | Requires `header` (an epoch-seconds value); optional `regex` to extract the number out of a larger header string, optional `minMs` floor on the computed delay. |
 
 A `backoff` may also be set directly on `errorHandler` (no `responseFilters` match required) as the node's default retry pacing.
+
+A delay read from a response header (`waitTimeFromHeader`, `waitUntilTimeFromHeader`) is capped at 5 minutes, including after the `minMs` floor.
 
 ## Rate limiting
 
@@ -571,20 +581,26 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 | Scope | Available |
 |---|---|
 | `{{ parameters.X }}` | Any declared parameter's resolved value. |
-| `{{ account.id }}` | The current account id, when `accounts` or a partition router's account-style fan-out is in play. |
+| `{{ account.id }}` | The current account id, when the connector declares `accounts`. Without `accounts` there is no account id. |
 | `{{ auth.token }}` | The token issued by `tokenExchange`/`oauth2` — only meaningful inside that same authenticator's `inject.format`. |
 | `{{ dateWindow.start }}` / `{{ dateWindow.end }}` | The current incremental run's date window (`YYYY-MM-DD` strings). |
+| `{{ node.selectedFields }}` | The names of the fields the Data Mart selected for this node, comma-separated, e.g. `date,rate` — for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s. |
 | `{{ stream_slice.<partitionField> }}` | The current partition value inside a partition-router child request. |
 | `{{ job.id }}` | The async job id, inside `retriever.async.poll`. |
+| `{{ record.<field> }}` | A field of the current record, only inside `transformations.add.value`. |
 
-An unresolved path normally throws and fails the run — except inside `transformations.add.value`, which resolves leniently and renders an unresolved path as an empty string instead.
+What happens to an unresolved path depends on where it is:
+
+- In the request `path`, the request `body` and the authentication fields, it throws and fails the run.
+- In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
+- Inside `transformations.add.value`, it renders as an empty string.
 
 ## Authoring workflow
 
 1. Read this reference before writing or editing a manifest. An AI assistant gets the same grammar from the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt).
 2. Research the target API and author the manifest: pick the authentication type, define one node per data stream you need, and add pagination, incremental extraction, filters, transformations, or error handling only where the API actually needs them.
-3. Open the connector builder and bring the manifest in: **⋮** → **Import JSON…** for a `.json` file, or paste it into Code mode.
-4. Run **Test** on one node with **non-secret configuration values only** — date ranges, IDs, filters, and similar. Never put API keys, tokens, or any credential in that configuration.
+3. Open the [connector builder](connector-builder.md) and bring the manifest in: **⋮** → **Import JSON…** for a `.json` file, or paste it into Code mode.
+4. Run **Test** on one node. Enter an API key or a token only into a parameter marked `SECRET`: the builder uses Secret values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then test again.
 6. Once it passes, **Publish** the connector.
 
