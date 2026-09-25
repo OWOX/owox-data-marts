@@ -211,6 +211,13 @@ describe('parseLogEntry — category', () => {
     expect(entry.message).toBe('careful');
   });
 
+  // HTTP data and Excel runs record their errors as plain text, with no message type.
+  it('categorizes a plain-text entry from the errors array as an error', () => {
+    const entry = parseLogEntry('Request failed with status code 500', 0, true);
+    expect(entry.category).toBe(LogCategory.ERROR);
+    expect(entry.severity).toBe(LogSeverity.ERROR);
+  });
+
   it('categorizes an error entry from the errors array', () => {
     const entry = parseLogEntry(JSON.stringify({ type: 'error', at, error: 'boom' }), 0, true);
     expect(entry.category).toBe(LogCategory.ERROR);
