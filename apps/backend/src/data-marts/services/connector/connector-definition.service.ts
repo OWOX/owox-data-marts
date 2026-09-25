@@ -25,6 +25,10 @@ import {
 } from '../../entities/connector-definition-version.entity';
 import { AccessDecisionService, Action, EntityType } from '../access-decision';
 import { DataMartService } from '../data-mart.service';
+import {
+  fieldsSchemaFromManifest,
+  specificationFromManifest,
+} from './declarative-manifest-schemas';
 
 const NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
@@ -545,6 +549,11 @@ export class ConnectorDefinitionService {
       throw new BadRequestException(`Invalid connector manifest: ${(e as Error).message}`);
     }
     this.assertNodesHavePrimaryKeys(draft.manifest);
+    // Every Data Mart that opens or saves this connector builds these from the manifest, by
+    // rules stricter than the parser's. Built here as well, so a manifest they refuse is
+    // refused now instead of failing each of those Data Marts once it is active.
+    specificationFromManifest(draft.manifest);
+    fieldsSchemaFromManifest(draft.manifest);
 
     const warnings = this.reportSecretCoverage(def.name, draft.version, model);
 

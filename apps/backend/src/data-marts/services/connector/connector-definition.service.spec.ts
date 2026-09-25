@@ -693,6 +693,41 @@ describe('ConnectorDefinitionService', () => {
     );
   });
 
+  /**
+   * A Data Mart reads a published connector through its specification and field list, which
+   * are built from the manifest by stricter rules than the parser applies.
+   */
+  describe('publish() refuses a manifest a Data Mart could not read', () => {
+    const publishing = async (manifest: Record<string, unknown>) => {
+      const { service, store } = make();
+      const def = await service.create('proj-1', 'u', { name: 'MyCustom', title: 'A', manifest });
+      const error = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
+      return { error, store };
+    };
+
+    it('when its configuration form cannot be built', async () => {
+      const { error, store } = await publishing({
+        ...validManifest,
+        parameters: { Token: { requiredType: 'integer', isRequired: true, label: 'Token' } },
+      });
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toContain('parameter "Token" requiredType');
+      expect(store.versions[0].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    });
+
+    it('when its field list cannot be built', async () => {
+      const { error, store } = await publishing({
+        ...validManifest,
+        nodes: { items: { ...validManifest.nodes.items, overview: 42 } },
+      });
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toContain('node "items" overview');
+      expect(store.versions[0].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+    });
+  });
+
   it('publish() throws when there is no open draft', async () => {
     const { service } = make();
     const def = await service.create('proj-1', 'u', {
