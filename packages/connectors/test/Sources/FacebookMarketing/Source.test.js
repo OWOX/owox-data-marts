@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
 import { FacebookMarketingSource } from '../../../src/Sources/FacebookMarketing/Source.js';
 
@@ -82,5 +82,34 @@ describe('_isAuthError', () => {
 
   it('does not flag a plain server error', () => {
     expect(proto._isAuthError.call(stub, { statusCode: 500 })).toBe(false);
+  });
+});
+
+describe('_fetchPaginatedData with onBatch', () => {
+  // main saved a catalog page by page (#1130), so a failure on page N keeps pages 1..N-1.
+  it('hands each page to onBatch and keeps none', async () => {
+    const pages = [
+      { data: [{ id: '1' }], paging: { next: 'https://graph.facebook.com/page-2' } },
+      { data: [{ id: '2' }] },
+    ];
+    const source = Object.assign(Object.create(proto), {
+      context: { log: () => {} },
+      _mapResultToColumns: record => record,
+      castRecordFields: (_nodeName, record) => record,
+      urlFetchWithRetry: vi.fn(async () => ({ json: async () => pages.shift() })),
+    });
+    const batches = [];
+
+    const result = await source._fetchPaginatedData(
+      'https://graph.facebook.com/page-1',
+      'ad-account/ads',
+      ['id'],
+      async batch => {
+        batches.push(batch.map(record => record.id));
+      }
+    );
+
+    expect(result).toEqual([]);
+    expect(batches).toEqual([['1'], ['2']]);
   });
 });
