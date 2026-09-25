@@ -26,6 +26,9 @@ export class ModelCanvasNodeApiDto {
   @ApiProperty({ example: 12, description: 'Number of fields in the output schema' })
   fieldCount: number;
 
+  @ApiProperty({ example: 2, description: 'Number of scheduled triggers of the Data Mart' })
+  triggersCount: number;
+
   @ApiProperty({
     type: DataMartDataLastUpdatedSummaryApiDto,
     nullable: true,

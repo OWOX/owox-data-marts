@@ -137,8 +137,8 @@ describe('useModelCanvas', () => {
     expect(result.current.isEnriching).toBe(false);
   });
 
-  it('carries triggers and sharing from the detail and counts relationships over all edges', async () => {
-    serviceMocks.getDataMarts.mockResolvedValue([canvasNode()]);
+  it('keeps triggers from the canvas list, sharing from the detail, and counts relationships', async () => {
+    serviceMocks.getDataMarts.mockResolvedValue([{ ...canvasNode(), triggersCount: 3 }]);
     serviceMocks.getEdges.mockResolvedValue([
       { id: 'e1', sourceDataMartId: 'mart-1', targetDataMartId: 'mart-2', joinConditions: [] },
       { id: 'e2', sourceDataMartId: 'mart-3', targetDataMartId: 'mart-1', joinConditions: [] },
@@ -147,7 +147,8 @@ describe('useModelCanvas', () => {
       definitionType: 'VIEW',
       definition: { fullyQualifiedName: 'project.dataset.orders_view' },
       schema: { fields: [] },
-      triggersCount: 3,
+      // The detail endpoint does not count triggers — its 0 must not win.
+      triggersCount: 0,
       availableForReporting: true,
       availableForMaintenance: false,
     });
@@ -157,9 +158,10 @@ describe('useModelCanvas', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.data?.nodes[0]?.triggersCount).toBe(3);
+      expect(result.current.data?.nodes[0]?.availableForReporting).toBe(true);
     });
     expect(result.current.data?.nodes[0]).toMatchObject({
+      triggersCount: 3,
       availableForReporting: true,
       availableForMaintenance: false,
       relationshipCount: 2,

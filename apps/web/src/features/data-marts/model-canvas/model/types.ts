@@ -3,7 +3,7 @@ import type { DataMartStatus } from '../../shared/enums';
 import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-import type { DataMartIconKey } from '../../shared/components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -34,7 +34,10 @@ export interface ModelCanvasNode {
   fields?: CanvasNodeField[];
   /** Physical reference (table/view path, pattern) or SQL text — enriched client-side. */
   definition?: string | null;
-  /** Scheduled triggers of the Data Mart — enriched client-side. */
+  /**
+   * Scheduled triggers of the Data Mart, from the canvas list. Optional only so
+   * fixtures and older responses stay valid; unknown shows no badge.
+   */
   triggersCount?: number;
   /** Sharing flags — enriched client-side; unknown until the detail fetch resolves. */
   availableForReporting?: boolean;

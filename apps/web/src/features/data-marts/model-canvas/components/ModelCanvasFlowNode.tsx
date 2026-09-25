@@ -38,7 +38,7 @@ import {
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-import type { DataMartIconKey } from '../../shared/components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
 import { DataMartIconGlyph } from '../../shared/components/DataMartIcon/DataMartIconGlyph';
 
 export interface ModelCanvasFlowNodeData {

@@ -74,7 +74,6 @@ async function enrichNodes(
         definitionType: detail.definitionType,
         definition: extractDefinitionText(detail.definitionType, detail.definition),
         fields: mapSchemaFields(detail.schema),
-        triggersCount: detail.triggersCount,
         availableForReporting: detail.availableForReporting,
         availableForMaintenance: detail.availableForMaintenance,
       };
@@ -136,7 +135,6 @@ export function useModelCanvas(storageId: string | null) {
               definitionType: detail.definitionType,
               definition: detail.definition,
               fields: detail.fields,
-              triggersCount: detail.triggersCount,
               availableForReporting: detail.availableForReporting,
               availableForMaintenance: detail.availableForMaintenance,
               relationshipCount,

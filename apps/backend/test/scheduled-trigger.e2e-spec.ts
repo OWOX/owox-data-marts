@@ -14,6 +14,7 @@ describe('Scheduled Trigger API (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let dataMartId: string;
+  let storageId: string;
   let createdId: string;
 
   beforeAll(async () => {
@@ -24,6 +25,7 @@ describe('Scheduled Trigger API (e2e)', () => {
     // CONNECTOR-type DataMart required for CONNECTOR_RUN triggers
     const setup = await setupConnectorDataMart(agent, app);
     dataMartId = setup.dataMartId;
+    storageId = setup.storageId;
   });
 
   afterAll(async () => {
@@ -75,6 +77,18 @@ describe('Scheduled Trigger API (e2e)', () => {
 
     const found = res.body.find((item: Record<string, unknown>) => item.id === createdId);
     expect(found).toBeDefined();
+  });
+
+  // TRIG-03b: the Models canvas counts the trigger on the Data Mart's card
+  it('GET /api/model-canvas/data-marts - counts the created trigger', async () => {
+    const res = await agent
+      .get('/api/model-canvas/data-marts')
+      .query({ storageId })
+      .set(AUTH_HEADER);
+
+    expect(res.status).toBe(200);
+    const node = res.body.items.find((item: { id: string }) => item.id === dataMartId);
+    expect(node).toMatchObject({ triggersCount: 1 });
   });
 
   // TRIG-04: Update trigger

@@ -32,7 +32,7 @@ export class ModelCanvasMapper {
     );
   }
 
-  toNodeDto(dataMart: DataMart): ModelCanvasNodeDto {
+  toNodeDto(dataMart: DataMart, triggersCount = 0): ModelCanvasNodeDto {
     return {
       id: dataMart.id,
       title: dataMart.title,
@@ -40,13 +40,21 @@ export class ModelCanvasMapper {
       description: dataMart.description ?? null,
       icon: dataMart.icon ?? null,
       fieldCount: dataMart.schema?.fields?.length ?? 0,
+      triggersCount,
       dataLastUpdated: toSourceDataLastUpdatedSummary(dataMart.dataLastUpdated),
     };
   }
 
-  toDataMartsDto(dataMarts: DataMart[], total: number, offset: number): ModelCanvasDataMartsDto {
+  toDataMartsDto(
+    dataMarts: DataMart[],
+    total: number,
+    offset: number,
+    triggerCounts: ReadonlyMap<string, number> = new Map()
+  ): ModelCanvasDataMartsDto {
     return {
-      items: dataMarts.map(dataMart => this.toNodeDto(dataMart)),
+      items: dataMarts.map(dataMart =>
+        this.toNodeDto(dataMart, triggerCounts.get(dataMart.id) ?? 0)
+      ),
       total,
       offset,
     };

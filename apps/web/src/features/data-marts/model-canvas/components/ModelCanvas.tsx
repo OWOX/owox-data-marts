@@ -399,6 +399,9 @@ function ModelCanvasInner({
     const liveDataLastUpdated = new Map(
       nodesRef.current.map(node => [node.id, node.dataLastUpdated])
     );
+    // The icon stays out of the topology signature (picking one must not re-run
+    // the layout), so the snapshot may hold a stale one — read it live too.
+    const liveIcons = new Map(nodesRef.current.map(node => [node.id, node.icon]));
 
     setFlowNodes(
       topologyNodes.map(topologyNode =>
@@ -409,6 +412,9 @@ function ModelCanvasInner({
               liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
             dataLastUpdated:
               liveDataLastUpdated.get(topologyNode.id) ?? topologyNode.dataLastUpdated,
+            icon: liveIcons.has(topologyNode.id)
+              ? liveIcons.get(topologyNode.id)
+              : topologyNode.icon,
           },
           // A user-dragged position wins over the computed layout.
           position: savedPositions[topologyNode.id] ??

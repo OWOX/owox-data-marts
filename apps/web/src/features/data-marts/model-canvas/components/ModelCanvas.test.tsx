@@ -485,6 +485,14 @@ describe('ModelCanvas', () => {
       expect(reactFlow.latestProps?.nodes?.[0].data?.icon).toBe('orders');
     });
     expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+
+    // A later layout run (here: the direction) must not bring the old icon back.
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    expect(reactFlow.latestProps?.nodes?.[0].data?.icon).toBe('orders');
   });
 
   it('flips the checking flag on every node while the Data Last Updated sweep runs', async () => {
