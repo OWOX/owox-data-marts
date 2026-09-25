@@ -557,3 +557,38 @@ describe('ConnectorBuilderPage — nothing to publish', () => {
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled();
   });
 });
+
+describe('ConnectorBuilderPage — a connector that could not be opened', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The builder stayed open and empty, and a Save from it created a second connector.
+  it('says so, offers to try again, and leaves nothing to save', async () => {
+    getById.mockRejectedValueOnce(new Error('Network Error'));
+    getById.mockResolvedValueOnce({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+    getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: EXISTING_MANIFEST });
+    render(<ConnectorBuilderPage id='def-1' />);
+
+    expect(await screen.findByTestId('builder-load-failed')).toHaveTextContent('Network Error');
+    expect(screen.queryByRole('button', { name: /save draft/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('https://api.example.com')).toHaveValue(
+        'https://api.example.com'
+      );
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+});

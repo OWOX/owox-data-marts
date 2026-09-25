@@ -147,6 +147,40 @@ function BuilderShell({
   };
   const selectedNode = selection.kind === 'node' ? selection.name : undefined;
 
+  // Opening an existing connector failed. The builder would be empty, and a Save from it
+  // creates a second connector, so there is nothing to edit until it opens.
+  if (id && !state.id && state.error) {
+    return (
+      <div
+        className='flex h-full items-center justify-center p-8'
+        data-testid='builder-load-failed'
+      >
+        <div className='bg-card flex max-w-[460px] flex-col items-start gap-3 rounded-[10px] border p-[18px]'>
+          <h3 className='text-foreground text-base font-medium'>
+            This connector could not be opened
+          </h3>
+          <p className='text-muted-foreground text-[13px] leading-relaxed'>{state.error}</p>
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              className='h-[34px]'
+              onClick={() => {
+                void loadConnector(id);
+              }}
+            >
+              Try again
+            </Button>
+            {onBack && (
+              <Button variant='ghost' className='h-[34px]' onClick={onBack}>
+                Back
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     // Pin the shell to the (relative) sidebar inset so it fills exactly the
     // available area and never grows the document — the inner panes scroll on
