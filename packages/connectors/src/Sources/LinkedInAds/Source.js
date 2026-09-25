@@ -197,6 +197,10 @@ export class LinkedInAdsSource extends AbstractSource {
     // adAnalytics has no pagination and caps every response at this many elements, so a
     // response that reaches it was silently cut short rather than being all there is.
     this.MAX_RESPONSE_ELEMENTS = 15000;
+    this.MAX_TRUNCATED_DAYS_IN_WARNING = 10;
+    // Account id -> the days whose adAnalytics response reached MAX_RESPONSE_ELEMENTS, reported
+    // once when the account completes: every WARN line becomes one of the run's warnings.
+    this.truncatedAnalyticsDays = new Map();
     this.BASE_URL = 'https://api.linkedin.com/rest/';
   }
 
@@ -427,14 +431,30 @@ export class LinkedInAdsSource extends AbstractSource {
     // than counting. The rows already fetched are still returned: they are real, there
     // are simply more of them than LinkedIn would hand over.
     if (isTruncated) {
-      this.context.log(
-        LOG_LEVEL.WARN,
-        `adAnalytics response for account ${urn} reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element ` +
-          `limit on ${start.toISOString().slice(0, 10)}; data for that day may be incomplete`
-      );
+      const days = this.truncatedAnalyticsDays.get(urn) ?? [];
+      days.push(start.toISOString().slice(0, 10));
+      this.truncatedAnalyticsDays.set(urn, days);
     }
 
     return this.transformAnalyticsDateRanges(allResults);
+  }
+
+  /**
+   * One warning per account for the days its adAnalytics responses were cut short, as main
+   * reported them, instead of one per day.
+   */
+  onAccountComplete(account) {
+    const days = this.truncatedAnalyticsDays.get(account?.id);
+    if (!days) return;
+    this.truncatedAnalyticsDays.delete(account.id);
+    const listed = days.slice(0, this.MAX_TRUNCATED_DAYS_IN_WARNING).join(', ');
+    const hidden = days.length - this.MAX_TRUNCATED_DAYS_IN_WARNING;
+    this.context.log(
+      LOG_LEVEL.WARN,
+      `adAnalytics responses for account ${account.id} reached LinkedIn's ` +
+        `${this.MAX_RESPONSE_ELEMENTS}-element limit on ${days.length} day(s): ${listed}` +
+        `${hidden > 0 ? ` and ${hidden} more` : ''}; data for those days may be incomplete`
+    );
   }
 
   convertFieldsForApi(fields) {
