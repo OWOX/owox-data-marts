@@ -275,8 +275,11 @@ export function useBuilder() {
     dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
     try {
       const typed = flushCodeEdits();
+      // An older version open over a newer draft is saved over that draft first, edited or
+      // not: that is what the "Replace & publish" confirmation said, and without the save the
+      // publish releases the draft instead of the version on screen.
       const id =
-        !state.id || state.dirty || typed !== null
+        !state.id || state.dirty || typed !== null || draftVersionAtRisk(state) !== null
           ? await persistDraft(typed ?? state.manifest)
           : state.id;
       if (!id) return false;
@@ -302,7 +305,7 @@ export function useBuilder() {
     } finally {
       dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: false });
     }
-  }, [dispatch, state.id, state.dirty, state.manifest, persistDraft, flushCodeEdits]);
+  }, [dispatch, state, persistDraft, flushCodeEdits]);
 
   const softDelete = useCallback(async (): Promise<boolean> => {
     if (!state.id) return false;

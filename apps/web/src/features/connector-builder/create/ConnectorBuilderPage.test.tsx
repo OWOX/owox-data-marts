@@ -497,3 +497,60 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     });
   });
 });
+
+describe('ConnectorBuilderPage — publishing with an older version open', () => {
+  const detail = {
+    id: 'def-1',
+    name: 'MyApi',
+    title: 'My API',
+    description: null,
+    logo: null,
+    docUrl: null,
+    activeVersionId: 'version-1',
+    activeVersion: 1,
+    versions: [
+      { version: 1, status: 'published', publishedAt: '2026-06-01T00:00:00Z' },
+      { version: 2, status: 'draft', publishedAt: null },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getById.mockResolvedValue(detail);
+    updateMetadata.mockResolvedValue(detail);
+    getVersion.mockImplementation((_id: string, version: number) =>
+      Promise.resolve({
+        version,
+        status: version === 1 ? 'published' : 'draft',
+        manifest: { ...EXISTING_MANIFEST, baseUrl: `https://v${String(version)}.example.com` },
+      })
+    );
+    saveDraft.mockResolvedValue({ version: 2, status: 'draft', publishedAt: null });
+    publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: null });
+  });
+
+  it('publishes the open version, as "Replace & publish" says, with nothing edited', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    await waitFor(() => {
+      expect(baseUrl).toHaveValue('https://v2.example.com');
+    });
+    fireEvent.click(screen.getByTestId('version-badge'));
+    fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
+    await waitFor(() => {
+      expect(baseUrl).toHaveValue('https://v1.example.com');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace & publish' }));
+
+    await waitFor(() => {
+      expect(publish).toHaveBeenCalledWith('def-1');
+    });
+    expect(saveDraft).toHaveBeenCalledWith(
+      'def-1',
+      expect.objectContaining({ baseUrl: 'https://v1.example.com' })
+    );
+    expect(saveDraft.mock.invocationCallOrder[0]).toBeLessThan(publish.mock.invocationCallOrder[0]);
+  });
+});
