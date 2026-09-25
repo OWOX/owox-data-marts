@@ -8,7 +8,7 @@ You can:
 - Report at the grain you need: ad, ad set, or campaign.
 - Split performance by age, gender, country, device, placement, URL asset, product, or region.
 - Pull ad account, ad, and creative metadata alongside the numbers.
-- Backfill any date range, then schedule the connector once and let it run.
+- Backfill history in runs of up to 31 days, then schedule the connector once and let it run.
 - Run it on your own infrastructure — open source under the MIT license.
 
 ## Prerequisites

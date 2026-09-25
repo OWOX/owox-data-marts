@@ -27,7 +27,7 @@ If you have no storage yet, choose **Create new storage** in the **Storage** dro
 
 ## Set Up the Connector
 
-1. Select **Connector** as the input source type.
+1. In **Input Source**, set **Definition Type** to **Connector**.
 2. Choose **Facebook Ads**.
 3. Choose your authentication method.
 
@@ -49,11 +49,11 @@ Then fill in **Account IDs**. Use numeric ad account IDs only, without the `act_
 
 ## Configure Data Import
 
-1. Choose an endpoint.
+1. Choose an endpoint. Each Data Mart imports one endpoint, so create another Data Mart for each additional endpoint.
 2. Select fields, or keep the defaults.
-3. Enter the target dataset, or keep the default.
+3. Enter the target dataset, or keep the default. The connector names each table after its endpoint, for example `facebook_ads_ad_account_insights`.
 4. Click **Finish**.
-5. Click **Publish & Run Data Mart**.
+5. Click **Publish & Run Data Mart**. The first run imports from the first day of the previous month and can take several minutes.
 
 The connector writes its tables into your storage. The field label depends on your storage, such as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see [Supported Storages](https://docs.owox.com/docs/storages/supported-storages/).
 
@@ -79,7 +79,15 @@ OWOX skips links with query parameters, such as `?utm_source=facebook`, because 
 
 ## Start a Manual Run
 
-**Publish & Run Data Mart** already started the first import. To import again, click **Manual Run** and choose a run type. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+**Publish & Run Data Mart** already started the first import. Without a trigger, the Data Mart does not run again. To import again, click **Manual Run** and choose a run type, or set a trigger. See [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+
+### Schedule Automatic Runs
+
+1. Open the **Triggers** tab of your Data Mart.
+2. Click **+ Add Trigger**.
+3. Set **Trigger Type** to `Connector Run`.
+4. Choose a schedule: **Daily**, **Weekly**, **Monthly**, or **Interval**.
+5. Click **Save**.
 
 ### Incremental Load
 
@@ -101,7 +109,7 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-The import includes both the start date and the end date. One backfill run covers at most 31 days, so a full calendar month fits in one run. The form shows how many days your period covers and rejects a longer one before the run starts. To reload a longer history, run several backfills with consecutive periods, one after another.
+The import includes both the start date and the end date. One backfill run covers at most 31 days, so a full calendar month fits in one run. The form shows how many days your period covers and rejects a longer one before the run starts. To reload a longer history, run several backfills with consecutive periods. Start each run after the previous one finishes.
 
 Both dates are required. The date picker does not offer future dates. The **End Date** must be on or after the **Start Date**.
 

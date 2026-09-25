@@ -15,6 +15,8 @@ an App Secret. TikTok reviews every app, which can take up to seven business day
 
 **Before you start:** Use a TikTok for Business account that can access the target
 advertiser account. Without access, TikTok returns a permission error or empty results.
+In Business Center, ad account roles are Admin, Operator, and Analyst. The approving user
+must be assigned to the ad account.
 
 ## OAuth
 
@@ -106,7 +108,14 @@ rewrite the description more clearly and resubmit. TikTok emails you after appro
 1. In [My Apps](https://business-api.tiktok.com/portal/apps), click your app to open its detail page.
 2. Copy the **Advertiser authorization URL**.
 3. Paste the URL into your browser.
-4. Sign in and approve the advertiser accounts you want to import.
+4. Sign in, review the permissions, and accept the Platform Service Agreement. Click **Confirm**.
+5. Click **Send Code**. TikTok emails a verification code to the address linked to the ad account.
+6. Enter the code, then click **Confirm**.
+
+> **Note:** You need access to that email inbox. After you verify, repeat authorizations
+> from the same app skip the code for 48 hours.
+
+If TikTok shows an error page instead, see [Troubleshooting Credential Setup](#troubleshooting-credential-setup).
 
 ![TikTok app detail page showing the Advertiser authorization URL](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c2c64c42-e431-4d00-35cb-f74def227c00/public)
 
@@ -190,6 +199,12 @@ Use this section for OAuth, authorization code, and access token errors.
 **Cause:** The signed-in TikTok user cannot access any advertiser account.
 
 **Solution:** Sign in with a user who can open the advertiser in [TikTok Ads Manager](https://ads.tiktok.com/), then reconnect.
+
+### Error: `There was a problem with the status of {0}. Please check with your service provider.`
+
+**Cause:** TikTok shows this page when the authorization URL fails its checks. Most often, the URL's `redirect_uri` does not match the **Advertiser redirect URL** on your app.
+
+**Solution:** Copy the **Advertiser authorization URL** again from your app's detail page. Do not edit it by hand. Confirm the **Advertiser redirect URL** on the app matches exactly, including any trailing slash.
 
 ### Error: the response returns a non-zero `code`
 

@@ -153,7 +153,7 @@ Copy the **Access Token** and store it securely. The connector needs the **Acces
 
 ## Step 4: Use the Credentials
 
-You now have the **App ID**, **App Secret**, and **Access Token**. The connector needs all three credentials. Use them in the Data Mart setup, and follow [Getting Started](GETTING_STARTED.md) to fill in the connector fields.
+You now have the **App ID**, **App Secret**, and **Access Token**. The connector needs all three credentials. Use them in the Data Mart setup, and follow [Getting Started](GETTING_STARTED.md) to fill in the connector fields. To update them later, open **Data Setup → Input Source → Edit config**.
 
 ## Troubleshooting Credential Setup
 
