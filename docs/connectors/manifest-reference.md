@@ -111,6 +111,8 @@ Each entry in `parameters` describes one user-supplied input, referenced elsewhe
 
 Marking a parameter `SECRET` only changes how the *manifest* declares it — the user still enters the actual value themselves, through the connector's configuration form in the browser. A manifest should never contain a real credential value.
 
+A parameter cannot share its name with a setting of the Data Mart's storage, such as `ProjectID` or `ServiceAccountJson` in BigQuery: a run on that storage fails until the parameter is renamed.
+
 ## Authentication
 
 If the API needs no authentication, omit `authentication` entirely. Otherwise, `authentication.type` must be one of `apiKey`, `bearer`, `basic`, `tokenExchange`, `oauth2`, `selective`.
