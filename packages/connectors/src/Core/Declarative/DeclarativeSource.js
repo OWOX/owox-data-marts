@@ -384,7 +384,9 @@ export class DeclarativeSource extends AbstractSource {
     for (const [name] of Object.entries(this.parameters)) {
       // The source's own settings only: getParameter falls back to the storage's.
       const p = this.context.sourceConfig[name];
-      if (p) parameters[name] = p.value;
+      // The context turns a `date` parameter into a Date at UTC midnight, which a template
+      // would render as "Mon Jan 15 2024 00:00:00 GMT…"; the request gets the date entered.
+      if (p) parameters[name] = p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value;
     }
     return { parameters };
   }

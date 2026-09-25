@@ -2195,3 +2195,51 @@ describe('DeclarativeSource returns the fields a Data Mart selected', () => {
     assert.strictEqual('rate' in out[0], false);
   });
 });
+
+// The context turns a `date` parameter into a Date, and a template rendered that as
+// "Mon Jan 15 2024 00:00:00 GMT+0000 (Coordinated Universal Time)".
+describe('DeclarativeSource renders a date parameter as the date entered', () => {
+  it('writes YYYY-MM-DD into the request', async () => {
+    const manifest = JSON.stringify({
+      version: '1.0',
+      name: 'Since',
+      baseUrl: 'https://api.example.com',
+      parameters: { Since: { requiredType: 'date', isRequired: true } },
+      nodes: {
+        items: {
+          uniqueKeys: ['id'],
+          fields: { id: { type: 'string' } },
+          request: {
+            method: 'GET',
+            path: '/items',
+            queryParameters: { since: '{{ parameters.Since }}' },
+          },
+          recordSelector: { recordPath: [] },
+        },
+      },
+    });
+    const context = new AbstractContext({
+      source: { name: 'Since', config: { Since: { value: '2024-01-15' } } },
+      storage: { name: 'MockStorage', config: {} },
+      runConfig: { type: 'INCREMENTAL', data: [], state: {} },
+      env: { datamartId: 'dm', runId: 'run' },
+    });
+    const source = new DeclarativeSource(context, new ManifestParser().parse(manifest));
+    context.validate();
+    let requested;
+    source.urlFetchWithRetry = async url => {
+      requested = new URL(url);
+      return { json: async () => [] };
+    };
+
+    await source.fetchData({
+      nodeName: 'items',
+      fields: ['id'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+
+    assert.strictEqual(requested.searchParams.get('since'), '2024-01-15');
+  });
+});
