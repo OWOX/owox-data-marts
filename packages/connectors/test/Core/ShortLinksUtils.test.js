@@ -439,23 +439,23 @@ describe('short links state', () => {
     expect(state['https://short.example/old']).toEqual(['https://example.com/old', NOW - 2 * DAY]);
   });
 
-  it('caps the entry count at 500 and the serialized size at 64 KiB', () => {
+  it('caps the entry count at 200 and the serialized size at 24 KiB', () => {
     const many = new Map(
-      Array.from({ length: 600 }, (_, i) => [
-        `https://short.example/${i}`,
-        { url: `https://example.com/landing-${i}`, at: NOW - i },
+      Array.from({ length: 300 }, (_, i) => [
+        `https://s.example/${i}`,
+        { url: `https://e.example/${i}`, at: NOW - i },
       ])
     );
-    expect(Object.keys(globalThis.buildShortLinksState(many, NOW))).toHaveLength(500);
+    expect(Object.keys(globalThis.buildShortLinksState(many, NOW))).toHaveLength(200);
 
     const huge = new Map(
-      Array.from({ length: 400 }, (_, i) => [
+      Array.from({ length: 150 }, (_, i) => [
         `https://short.example/${i}`,
         { url: `https://example.com/${'x'.repeat(300)}-${i}`, at: NOW - i },
       ])
     );
     const state = globalThis.buildShortLinksState(huge, NOW);
-    expect(JSON.stringify(state).length).toBeLessThanOrEqual(64 * 1024);
+    expect(JSON.stringify(state).length).toBeLessThanOrEqual(24 * 1024);
     expect(Object.keys(state).length).toBeGreaterThan(0);
   });
 });

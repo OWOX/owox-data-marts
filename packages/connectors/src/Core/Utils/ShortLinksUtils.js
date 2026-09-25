@@ -198,8 +198,11 @@ function parseShortLinkDomains(value) {
 
 //---- short links state (persisted per data mart across runs) ------------
 const SHORT_LINKS_STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const SHORT_LINKS_STATE_MAX_ENTRIES = 500;
-const SHORT_LINKS_STATE_MAX_BYTES = 64 * 1024;
+const SHORT_LINKS_STATE_MAX_ENTRIES = 200;
+// The state travels back to the connector inside the OW_RUN_CONFIG environment variable. Windows caps
+// one variable at 32,767 characters, so the serialized cache stays well under that with room for the
+// rest of the run config.
+const SHORT_LINKS_STATE_MAX_BYTES = 24 * 1024;
 
 /**
  * Loads persisted resolutions, dropping malformed and expired entries

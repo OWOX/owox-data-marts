@@ -851,7 +851,7 @@ export class DataMartMapper {
 }
 
 /**
- * Keys a connector writes for its own use, such as the short link cache (up to 500 URL pairs).
+ * Keys a connector writes for its own use, such as the short link cache (up to 200 URL pairs, 24 KiB).
  * They mean nothing to API clients and would bloat every Data Mart response and the Run sheet's
  * State Info block, so they stay out of the wire format.
  */
