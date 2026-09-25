@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 import { describe, it, before } from 'node:test';
-import { execSync } from 'node:child_process';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { runFixture, checkExpectations } from '../fixture-runner.js';
+import { withBuildLock, buildBundle } from '../buildBundleOnce.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(__dirname, '..', '..');
@@ -12,9 +12,13 @@ const requireCjs = createRequire(import.meta.url);
 
 describe('Declarative connector through the built bundle', () => {
   let owox;
+  // Under the build lock, as every other test that rebuilds dist/ is: a sibling file
+  // rebuilding at the same time otherwise hands this one a half-written bundle.
   before(() => {
-    execSync('npm run build', { cwd: pkgRoot, stdio: 'ignore' });
-    owox = requireCjs(path.join(pkgRoot, 'dist', 'index.cjs'));
+    withBuildLock(() => {
+      buildBundle(pkgRoot);
+      owox = requireCjs(path.join(pkgRoot, 'dist', 'index.cjs'));
+    });
   });
 
   it('exposes DeclarativeSource and ManifestParser in Core', () => {
@@ -65,24 +69,32 @@ describe('Declarative connector through the built bundle', () => {
     );
   });
 
-  it('replays the declarative connector end-to-end (live public API)', async () => {
-    const fixture = {
-      name: 'RatesDeclarative-live',
-      definitionRun: {
-        connector: {
-          source: { name: 'RatesDeclarative', node: 'latest', fields: ['date', 'base'] },
-          storage: { fullyQualifiedName: 'test.fixture.rates' },
+  // Opt-in: it calls a public API over the network, which a test gating a pull request must
+  // not depend on. The backend e2e runs a custom connector through the runner without one.
+  it(
+    'replays the declarative connector end-to-end (live public API)',
+    {
+      skip: process.env.OW_LIVE_API_TESTS !== '1' && 'calls a live API; set OW_LIVE_API_TESTS=1',
+    },
+    async () => {
+      const fixture = {
+        name: 'RatesDeclarative-live',
+        definitionRun: {
+          connector: {
+            source: { name: 'RatesDeclarative', node: 'latest', fields: ['date', 'base'] },
+            storage: { fullyQualifiedName: 'test.fixture.rates' },
+          },
         },
-      },
-      sourceCredentials: { Base: 'EUR' },
-      storageType: 'MockStorage',
-      storageCredentials: {},
-      runState: {},
-      expected: { controlAction: 'completed', minRecords: 1, maxDurationMs: 30000, minNodes: 1 },
-    };
-    const result = await runFixture(fixture);
-    const failures = checkExpectations(fixture, result);
-    assert.deepStrictEqual(failures, [], `fixture expectations failed: ${failures.join('; ')}`);
-    assert.ok(result.totalRecords >= 1, 'expected at least one rate record');
-  });
+        sourceCredentials: { Base: 'EUR' },
+        storageType: 'MockStorage',
+        storageCredentials: {},
+        runState: {},
+        expected: { controlAction: 'completed', minRecords: 1, maxDurationMs: 30000, minNodes: 1 },
+      };
+      const result = await runFixture(fixture);
+      const failures = checkExpectations(fixture, result);
+      assert.deepStrictEqual(failures, [], `fixture expectations failed: ${failures.join('; ')}`);
+      assert.ok(result.totalRecords >= 1, 'expected at least one rate record');
+    }
+  );
 });
