@@ -148,7 +148,7 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     expect(joined).toMatch(/raw response sample WAS received/i);
   });
 
-  it('surfaces an error-level engine log (e.g. auth 401) as the test error when the run exits 0 with no rows', async () => {
+  it('surfaces an error-level engine log as the test error when the run exits 0 with no rows', async () => {
     const svc = makeService();
     const res = await svc.runTest({
       projectId: 'p',
@@ -159,10 +159,54 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       _testEnv: { FAKE_ERROR_LOG: '1' },
     });
     expect(res.rows.length).toBe(0);
-    // the auth failure is now the test error, not a misleading null/"0 rows OK"
-    expect(res.error).toMatch(/HTTP 401|api key/i);
+    expect(res.error).toMatch(/HTTP 500/);
     // the 0-records diagnostic must NOT also fire once a real error is surfaced
     expect(res.logs.join('\n')).not.toContain('Test produced 0 records');
+  });
+
+  // A wrong API key is the most common authoring mistake, and the engine reports it as a
+  // skipped account: a WARN log and a stderr WARNING envelope, no ERROR anywhere.
+  it('fails the test when the only account was skipped for a 401', async () => {
+    const svc = makeService();
+    const res = await svc.runTest({
+      projectId: 'p',
+      manifest,
+      node: 'items',
+      configuration: {},
+      maxRows: 3,
+      _testEnv: { FAKE_SKIPPED: '1' },
+    });
+    expect(res.rows.length).toBe(0);
+    expect(res.error).toMatch(/skipped.*HTTP 401/);
+    expect(res.logs.join('\n')).not.toContain('Test produced 0 records');
+  });
+
+  it('fails the test with the reason when the run fails before any account', async () => {
+    const svc = makeService();
+    const res = await svc.runTest({
+      projectId: 'p',
+      manifest,
+      node: 'items',
+      configuration: {},
+      maxRows: 3,
+      _testEnv: { FAKE_RUN_FAILED: '1' },
+    });
+    expect(res.error).toBe(
+      "Unable to load the configuration. The parameter 'ApiKey' is required but was provided with an empty value"
+    );
+  });
+
+  it('fails the test with the message, not the stack, when the runner fails before the run starts', async () => {
+    const svc = makeService();
+    const res = await svc.runTest({
+      projectId: 'p',
+      manifest,
+      node: 'items',
+      configuration: {},
+      maxRows: 3,
+      _testEnv: { FAKE_CRASH: '1' },
+    });
+    expect(res.error).toBe('Source class "XSource" not found and no declarative manifest for "X"');
   });
 
   it('does NOT add the 0-records diagnostic when rows were returned', async () => {

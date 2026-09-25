@@ -90,6 +90,27 @@ export interface ConnectorTestRequest {
   _testEnv?: Record<string, string>;
 }
 
+/**
+ * Reads the failure envelope the runner writes to stderr (`RunFailureReport`): a warning
+ * carries the message itself, an error carries the stack, whose first line holds the
+ * message. Returns null for any other stderr line.
+ */
+function readRunFailureEnvelope(line: string): string | null {
+  let envelope: { type?: unknown; warning?: unknown; error?: unknown };
+  try {
+    envelope = JSON.parse(line) as typeof envelope;
+  } catch {
+    return null;
+  }
+  if (envelope?.type === 'addWarningToCurrentStatus' && typeof envelope.warning === 'string') {
+    return envelope.warning;
+  }
+  if (envelope?.type === 'error' && typeof envelope.error === 'string') {
+    return envelope.error.split('\n')[0].replace(/^\w*Error: /, '');
+  }
+  return null;
+}
+
 @Injectable()
 export class ConnectorTestService {
   /** Live tests currently holding a slot, keyed by project. Entries are deleted at zero. */
@@ -430,6 +451,10 @@ export class ConnectorTestService {
     const rows: Record<string, unknown>[] = [];
     const logs: string[] = [];
     const errorLogs: string[] = [];
+    // The engine's own verdict on a failed run. The runner exits 0 either way, so this is
+    // the only signal of a run that failed before an account was attempted, or whose
+    // accounts were all skipped for a 401/403, which is logged at WARN only.
+    let runFailure: string | null = null;
     let sample: Record<string, unknown>[] = [];
 
     return new Promise<ConnectorTestResult>(resolve => {
@@ -448,12 +473,11 @@ export class ConnectorTestService {
         // flushing the stdout buffer could.
         stderrBuffer.flush();
         const captured = rows.slice(0, maxRows);
-        // The engine can log an error (e.g. a per-account auth 401) yet still
-        // exit 0 and "complete" the run. With no rows to show, that would read
-        // as a misleading "success, 0 rows". If something was logged at error
-        // level and we got no data, the test failed — surface the cause.
-        if (error === null && captured.length === 0 && errorLogs.length > 0) {
-          error = errorLogs[0];
+        // The runner exits 0 even when the run failed. With no rows to show, that would
+        // read as a misleading "success, 0 rows", so the run's verdict — or failing that,
+        // the first error it logged — becomes the test error.
+        if (error === null && captured.length === 0) {
+          error = runFailure ?? errorLogs[0] ?? null;
         }
         // A run that "succeeds" but yields 0 rows is the most common silent
         // connector bug (usually a wrong recordPath/path/filter). The request
@@ -513,6 +537,8 @@ export class ConnectorTestService {
             type?: string;
             level?: string;
             message?: string;
+            action?: string;
+            error?: unknown;
             records?: Record<string, unknown>[];
           };
           if (evt && evt.type === 'SAMPLE') {
@@ -520,8 +546,8 @@ export class ConnectorTestService {
             sample = Array.isArray(evt.records) ? evt.records : [];
             return;
           }
-          // Track engine-level errors (e.g. a per-account auth 401): the run may
-          // still exit 0, so we need this to mark the test failed below.
+          // Track engine-level errors: the run may still exit 0, so we need this to mark
+          // the test failed below.
           if (
             evt &&
             evt.type === 'LOG' &&
@@ -529,6 +555,14 @@ export class ConnectorTestService {
             typeof evt.message === 'string'
           ) {
             errorLogs.push(evt.message);
+          }
+          if (
+            evt &&
+            evt.type === 'CONTROL' &&
+            evt.action === 'failed' &&
+            typeof evt.error === 'string'
+          ) {
+            runFailure ??= evt.error;
           }
         } catch {
           /* not JSON — fall through to logs */
@@ -544,7 +578,10 @@ export class ConnectorTestService {
       const stdoutBuffer = createCapturedLineBuffer(onLine);
       const stderrBuffer = createCapturedLineBuffer(line => {
         // Blank lines carry nothing; `onLine` drops them on the stdout side too.
-        if (line) logs.push(line);
+        if (!line) return;
+        logs.push(line);
+        const reported = readRunFailureEnvelope(line);
+        if (reported !== null) runFailure ??= reported;
       });
       // Decode on the STREAM, not per chunk. A pipe hands over bytes, so a multi-byte UTF-8
       // character is routinely split across two chunks -- at every 64 KiB boundary of a
