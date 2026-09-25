@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { Button } from '@owox/ui/components/button';
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { DATA_MART_ICON_OPTIONS, type DataMartIconKey } from './data-mart-icons';
 import { DataMartIconGlyph } from './DataMartIconGlyph';
 
@@ -46,7 +46,6 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
         </button>
       </PopoverTrigger>
       <PopoverContent align='start' className='w-auto p-3'>
-        <PopoverTitle className='mb-2 text-sm font-medium'>Data Mart icon</PopoverTitle>
         <div
           className='-mr-1 grid max-h-[min(26rem,60vh)] grid-cols-8 gap-1 overflow-y-auto pr-1'
           role='group'
