@@ -2035,7 +2035,8 @@ describe('AbstractConnector', () => {
           },
         });
         const connector = new AbstractConnector(ctx, source, createMockStorageClass());
-        await connector.run();
+        // ...and, as there, the run stops at that date.
+        await assert.rejects(() => connector.run(), /All 2 accounts were skipped/);
 
         const cursors = cap.events
           .filter(e => e.type === 'STATE')
@@ -2474,10 +2475,9 @@ describe('AbstractConnector', () => {
 
     it('does not checkpoint the window when a day-by-day sibling was skipped for every account', async () => {
       // The reported reproduction: node `r` imports fine, the token has no
-      // permission for node `d`, so `d` is skipped for every account on every
-      // day. state.succeeded is non-empty (r filled it), so the run COMPLETES
-      // with a warning -- and if the window were checkpointed, `d`'s missing
-      // days would never be requested again.
+      // permission for node `d`, so `d` is skipped for every account on its
+      // first day. The run stops there, as main did -- and if the window were
+      // checkpointed, `d`'s missing days would never be requested again.
       const cap = captureEvents();
       try {
         const ctx = incrementalWindow(3);
@@ -2492,7 +2492,7 @@ describe('AbstractConnector', () => {
           },
         });
         const connector = new AbstractConnector(ctx, source, createMockStorageClass());
-        await connector.run();
+        await assert.rejects(() => connector.run(), /accounts were skipped on/);
 
         const cursors = cap.events
           .filter(e => e.type === 'STATE')
@@ -2847,6 +2847,79 @@ describe('AbstractConnector', () => {
 
     const stateDates = cap =>
       cap.events.filter(e => e.type === 'STATE').map(e => e.state.lastRequestedDate);
+
+    // A day on which every account was turned away points to a global cause, such as a token
+    // that expired mid-run. main stopped the run at that date instead of reporting success.
+    it('stops at a day on which every account was turned away, keeping the days before it', async () => {
+      const cap = captureEvents();
+      try {
+        const fetched = [];
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            fetched.push(req.startDate);
+            if (req.startDate === utcDay(-1)) {
+              throw Object.assign(new Error(`HTTP 401 for ${req.accountId}`), { isWarning: true });
+            }
+            return [{ id: 1 }];
+          },
+        });
+        const error = await new AbstractConnector(
+          incrementalWindow(3),
+          source,
+          createMockStorageClass()
+        )
+          .run()
+          .then(
+            () => null,
+            e => e
+          );
+        assert.match(
+          error?.message ?? '',
+          new RegExp(`All 2 accounts were skipped on ${utcDay(-1)}`)
+        );
+        assert.match(error.message, /a: HTTP 401 for a; b: HTTP 401 for b/);
+        assert.strictEqual(error.isWarning, true);
+        assert.deepStrictEqual(stateDates(cap), [utcDay(-2)]);
+        assert.ok(!fetched.includes(utcDay(0)), fetched.join(', '));
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('says access was refused on that day when a source without accounts is turned away mid-run', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            if (req.startDate === utcDay(-1)) {
+              throw Object.assign(new Error('HTTP 403: Forbidden'), { isWarning: true });
+            }
+            return [{ id: 1 }];
+          },
+        });
+        const error = await new AbstractConnector(
+          incrementalWindow(3),
+          source,
+          createMockStorageClass()
+        )
+          .run()
+          .then(
+            () => null,
+            e => e
+          );
+        assert.strictEqual(
+          error?.message,
+          `Access was refused on ${utcDay(-1)}, so the import stopped there: HTTP 403: Forbidden`
+        );
+        assert.strictEqual(error.isWarning, true);
+        assert.deepStrictEqual(stateDates(cap), [utcDay(-2)]);
+      } finally {
+        cap.restore();
+      }
+    });
 
     it('requests each day as a one-day range', async () => {
       const restore = suppressStdout();

@@ -581,6 +581,51 @@ export class AbstractConnector {
   }
 
   /**
+   * Lists each account's latest error; for a source without accounts, just the error.
+   *
+   * @param {object} state run state from _createRunState
+   * @param {Array} entries [accountKey, {errors}] pairs from state.issues
+   * @returns {string}
+   * @private
+   */
+  _describeAccountErrors(state, entries) {
+    return entries
+      .map(([accountId, entry]) => {
+        const last = entry.errors[entry.errors.length - 1];
+        const message = last ? last.message : 'unknown error';
+        return state.accountless ? message : `${accountId}: ${message}`;
+      })
+      .join('; ');
+  }
+
+  /**
+   * Ends the run at a day on which every account was turned away for permissions.
+   *
+   * That points to a global cause, such as a token that expired mid-run, so main stopped
+   * the run at that date rather than reporting success; the days before it stay
+   * checkpointed. With nothing imported yet, the run fails the way it would at the end.
+   *
+   * @param {object} state run state from _createRunState
+   * @param {string} date the day every account was skipped on
+   * @throws {Error} always, flagged as a warning
+   * @private
+   */
+  _stopAtSkippedDay(state, date) {
+    if (state.succeeded.size === 0) this._reportAccountOutcomes(state);
+
+    const errors = this._describeAccountErrors(state, [...state.issues.entries()]);
+    const error = new Error(
+      state.accountless
+        ? `Access was refused on ${date}, so the import stopped there: ${errors}`
+        : `All ${state.attemptedCount} accounts were skipped on ${date}, so the import stopped ` +
+            `there. This points to a global failure, such as an expired access token, rather ` +
+            `than individual accounts being inaccessible. Errors: ${errors}`
+    );
+    error.isWarning = true;
+    throw error;
+  }
+
+  /**
    * Reports how the accounts fared, once every account has been attempted.
    *
    * Two outcomes, checked in this order (the port of main's
@@ -610,14 +655,7 @@ export class AbstractConnector {
   _reportAccountOutcomes(state) {
     if (state.issues.size === 0) return;
 
-    const describe = entries =>
-      entries
-        .map(([accountId, entry]) => {
-          const last = entry.errors[entry.errors.length - 1];
-          const message = last ? last.message : 'unknown error';
-          return state.accountless ? message : `${accountId}: ${message}`;
-        })
-        .join('; ');
+    const describe = entries => this._describeAccountErrors(state, entries);
 
     // Every account failure lands here now instead of aborting the run at the first hard
     // one, so this is where the run's verdict is decided -- and the two kinds are kept
@@ -957,6 +995,9 @@ export class AbstractConnector {
         if (done) completedBy += 1;
       }
 
+      if (completedBy === 0 && state.passHardFailures === 0 && accounts.length > 0) {
+        this._stopAtSkippedDay(state, formattedDate);
+      }
       this._advanceCursor(state, completedBy, formattedDate);
     }
   }
