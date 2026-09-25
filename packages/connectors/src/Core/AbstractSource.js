@@ -343,13 +343,11 @@ export class AbstractSource {
             const delay = this.calculateBackoff(attempt, initialDelay);
             // INFO, not WARN, and main logged it through config.logMessage() too.
             // A retry notice describes a transient condition the engine is about
-            // to recover from -- it is not a run outcome. The backend translates
-            // LOG(warn) into ConnectorMessageType.WARNING, pushes it into
-            // configErrors and then demotes the config with
-            // `if (success && configErrors.length > 0) success = false`, so at
-            // WARN a single 503 that the very next attempt fixed would fail a
-            // complete, correct import. Retries that ultimately EXHAUST still
-            // fail the run -- the error is thrown below.
+            // to recover from -- it is not a run outcome. At WARN the backend lists
+            // it among the run's warnings, so a single 503 that the very next
+            // attempt fixed would mark a complete, correct import as one with
+            // problems. Retries that ultimately EXHAUST still fail the run -- the
+            // error is thrown below.
             this.context.log(
               LOG_LEVEL.INFO,
               `Request failed (${response.status} ${response.statusText})${snippet}, retrying in ${delay}ms (attempt ${attempt + 1}/${totalAttempts})`

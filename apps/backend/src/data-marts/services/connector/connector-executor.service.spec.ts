@@ -437,14 +437,28 @@ describe('ConnectorExecutorService', () => {
     );
   });
 
-  it('marks a run FAILED when a terminal IMPORT_DONE is emitted alongside a hard error', async () => {
-    // A per-account 429 (after retries) logs an ERROR, but the connector still
-    // emits IMPORT_DONE. The import is incomplete → the run must NOT be SUCCESS.
-    const { service, dataMartRunRepository, processSpawner, emitSuccessMessage, emitErrorMessage } =
-      createService();
+  it('keeps a run SUCCESS when an ERROR line arrives alongside IMPORT_DONE', async () => {
+    // The engine withholds IMPORT_DONE whenever an account or a node really failed, so an
+    // ERROR next to it is something the run survived: a raw stderr line such as a short
+    // link that did not resolve, or a source logging an error it then skipped. main
+    // decided the status the same way.
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      projectBilling,
+      emitSuccessMessage,
+      emitMessage,
+    } = createService();
     (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
-      emitErrorMessage();
-      emitSuccessMessage(); // IMPORT_DONE arrives even though an account failed
+      emitMessage({
+        type: ConnectorMessageType.ERROR,
+        at: new Date().toISOString(),
+        error: 'Failed to resolve short link https://bit.ly/x: fetch failed',
+        toFormattedString: () =>
+          '[ERROR] Failed to resolve short link https://bit.ly/x: fetch failed',
+      });
+      emitSuccessMessage();
     });
 
     await service.executeInBackground(createDataMart(), createRun(), null);
@@ -453,8 +467,9 @@ describe('ConnectorExecutorService', () => {
     // criteria object rather than a bare id.
     expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
       { id: 'run-1', status: expect.anything() },
-      expect.objectContaining({ status: DataMartRunStatus.FAILED })
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
+    expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
   });
 
   it('keeps a run SUCCESS when a recovered-from warning is logged alongside IMPORT_DONE', async () => {
