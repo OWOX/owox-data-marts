@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../support/loadGasClass.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,8 +10,9 @@ loadGasClass(path.join(__dirname, '../../src/Core/Utils/ShortLinksUtils.js'));
 const CONFIG = { shortLinkField: 'link_url_asset', urlFieldName: 'website_url' };
 const LANDING = 'https://example.com/landing-page';
 
-const redirectTo = location => ({ getResponseCode: () => 302, getHeaders: () => ({ location }) });
-const finalPage = () => ({ getResponseCode: () => 200, getHeaders: () => ({}) });
+// Native fetch responses: under `redirect: 'manual'` Node hands back the 3xx itself.
+const redirectTo = location => new Response(null, { status: 302, headers: { location } });
+const finalPage = () => new Response(null, { status: 200 });
 
 function buildData(websiteUrl) {
   return [{ link_url_asset: { id: '100000000000001', website_url: websiteUrl } }];
@@ -19,15 +20,22 @@ function buildData(websiteUrl) {
 
 /** Mocks a server that redirects the first request to LANDING and then answers 200. */
 function mockSingleRedirect() {
-  globalThis.HttpUtils = {
-    fetch: vi.fn(async url => (url === LANDING ? finalPage() : redirectTo(LANDING))),
-  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async url => (url === LANDING ? finalPage() : redirectTo(LANDING)))
+  );
 }
 
 describe('processShortLinks', () => {
   beforeEach(() => {
     mockSingleRedirect();
     vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  // Tests below reassign globalThis.fetch outright; this still restores the real one.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('resolves nested-path short links on a configured host', async () => {
@@ -38,7 +46,7 @@ describe('processShortLinks', () => {
       nestedPathHosts: ['short.example'],
     });
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://short.example/abc/xyz',
       expect.objectContaining({ method: 'GET', redirect: 'manual' })
     );
@@ -54,7 +62,7 @@ describe('processShortLinks', () => {
 
     await globalThis.processShortLinks(data, { ...CONFIG, nestedPathHosts: ['short.example'] });
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('does not treat nested paths on unconfigured hosts as short links', async () => {
@@ -65,7 +73,7 @@ describe('processShortLinks', () => {
       nestedPathHosts: ['short.example'],
     });
 
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
@@ -74,7 +82,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, CONFIG);
 
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
@@ -91,7 +99,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, CONFIG);
 
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
@@ -100,7 +108,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, CONFIG);
 
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
@@ -122,7 +130,7 @@ describe('processShortLinks', () => {
       const result = await globalThis.processShortLinks(buildData(url), options);
       expect(result[0].link_url_asset.parsed_url).toBeUndefined();
     }
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('keeps rejecting query-bearing short links', async () => {
@@ -133,7 +141,7 @@ describe('processShortLinks', () => {
       nestedPathHosts: ['short.example'],
     });
 
-    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
@@ -146,15 +154,13 @@ describe('processShortLinks', () => {
     const result = await globalThis.processShortLinks(data, CONFIG);
 
     expect(
-      globalThis.HttpUtils.fetch.mock.calls.filter(
-        ([url]) => url === 'https://short.example/abc123'
-      )
+      globalThis.fetch.mock.calls.filter(([url]) => url === 'https://short.example/abc123')
     ).toHaveLength(1);
     expect(result.map(record => record.link_url_asset.parsed_url)).toEqual([LANDING, LANDING]);
   });
 
   it('follows a chain of redirects and resolves relative Location headers', async () => {
-    globalThis.HttpUtils.fetch = vi.fn(async url => {
+    globalThis.fetch = vi.fn(async url => {
       if (url === 'https://short.example/abc123') return redirectTo('/step-two');
       if (url === 'https://short.example/step-two') return redirectTo(LANDING);
       return finalPage();
@@ -177,42 +183,40 @@ describe('processShortLinks', () => {
     ['IPv6 loopback', 'http://[::1]/'],
     ['non-http scheme', 'file:///etc/passwd'],
   ])('does not follow a redirect to a %s address', async (_label, target) => {
-    globalThis.HttpUtils.fetch = vi.fn(async () => redirectTo(target));
+    globalThis.fetch = vi.fn(async () => redirectTo(target));
 
     const result = await globalThis.processShortLinks(
       buildData('https://short.example/abc123'),
       CONFIG
     );
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
   });
 
   it('stops after the redirect limit and leaves the record unchanged', async () => {
     let hop = 0;
-    globalThis.HttpUtils.fetch = vi.fn(async () =>
-      redirectTo(`https://short.example/hop-${++hop}`)
-    );
+    globalThis.fetch = vi.fn(async () => redirectTo(`https://short.example/hop-${++hop}`));
 
     const result = await globalThis.processShortLinks(
       buildData('https://short.example/abc123'),
       CONFIG
     );
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(21);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(21);
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
   });
 
   it('passes a timeout signal to every request', async () => {
     await globalThis.processShortLinks(buildData('https://short.example/abc123'), CONFIG);
 
-    for (const [, options] of globalThis.HttpUtils.fetch.mock.calls) {
+    for (const [, options] of globalThis.fetch.mock.calls) {
       expect(options.signal).toBeInstanceOf(AbortSignal);
     }
   });
 
   it('leaves the record unchanged when resolution fails', async () => {
-    globalThis.HttpUtils.fetch = vi.fn(async () => {
+    globalThis.fetch = vi.fn(async () => {
       throw new Error('network down');
     });
 
@@ -223,5 +227,25 @@ describe('processShortLinks', () => {
 
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
     expect(result[0].link_url_asset.website_url).toBe('https://short.example/abc123');
+  });
+
+  // The host reads any raw stderr line as a run failure, so a dead short link in an
+  // otherwise complete import must be reported on stdout.
+  it('reports a link it could not resolve on stdout, not stderr', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const stdout = vi.mocked(console.log);
+    const stderr = [
+      vi.spyOn(console, 'warn').mockImplementation(() => {}),
+      vi.spyOn(console, 'error').mockImplementation(() => {}),
+    ];
+
+    await globalThis.processShortLinks(buildData('https://short.example/abc123'), CONFIG);
+
+    expect(stdout).toHaveBeenCalledWith(
+      'Failed to resolve short link https://short.example/abc123: network down'
+    );
+    for (const spy of stderr) expect(spy).not.toHaveBeenCalled();
   });
 });

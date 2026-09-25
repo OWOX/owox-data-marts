@@ -1,0 +1,36 @@
+{
+  "name": "example-BankOfCanada-public-api",
+  "description": "Public BoC API - no credentials. Real fixture template.",
+  "definitionRun": {
+    "connector": {
+      "source": {
+        "name": "BankOfCanada",
+        "configuration": [{ "_id": "redacted" }],
+        "node": "observations/group",
+        "fields": ["date", "label", "rate"]
+      },
+      "storage": {
+        "fullyQualifiedName": "test.fixture.example"
+      }
+    }
+  },
+  "sourceCredentials": {
+    "ReimportLookbackWindow": 2
+  },
+  "storageType": "GoogleBigQuery",
+  "storageCredentials": {
+    "DestinationProjectID": "test",
+    "DestinationDatasetID": "test.test",
+    "DestinationDatasetName": "test",
+    "DestinationTableName": "test_fixture",
+    "ProjectID": "test"
+  },
+  "runState": {},
+  "expected": {
+    "controlAction": "completed",
+    "minRecords": 1,
+    "maxDurationMs": 30000,
+    "minNodes": 1
+  },
+  "skip": false
+}

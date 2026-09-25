@@ -123,6 +123,7 @@ export class DataMartMapper {
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
+      entity.projectId,
       entity.title,
       entity.status,
       this.dataStorageMapper.toDomainDto(entity.storage),
@@ -160,7 +161,10 @@ export class DataMartMapper {
   async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
     const maskedDefinition =
       dto.definitionType === DataMartDefinitionType.CONNECTOR
-        ? await this.connectorSecretService.mask(dto.definition as ConnectorDefinition)
+        ? await this.connectorSecretService.mask(
+            dto.projectId,
+            dto.definition as ConnectorDefinition
+          )
         : dto.definition;
     return {
       id: dto.id,
@@ -253,14 +257,15 @@ export class DataMartMapper {
   }
 
   async toBatchHealthStatusResponse(
-    dto: BatchDataMartHealthStatusResponseDto
+    dto: BatchDataMartHealthStatusResponseDto,
+    projectId: string
   ): Promise<BatchDataMartHealthStatusResponseApiDto> {
     const itemsPromises = dto.items.map(async item => {
       const mappedItem: BatchDataMartHealthStatusItemApiDto = {
         dataMartId: item.dataMartId,
-        connector: item.connector ? await this.toRunResponse(item.connector) : null,
-        report: item.report ? await this.toRunResponse(item.report) : null,
-        insight: item.insight ? await this.toRunResponse(item.insight) : null,
+        connector: item.connector ? await this.toRunResponse(item.connector, projectId) : null,
+        report: item.report ? await this.toRunResponse(item.report, projectId) : null,
+        insight: item.insight ? await this.toRunResponse(item.insight, projectId) : null,
       };
       return mappedItem;
     });
@@ -655,10 +660,13 @@ export class DataMartMapper {
     });
   }
 
-  async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
+  async toRunsResponse(
+    runs: DataMartRunDto[],
+    projectId?: string
+  ): Promise<DataMartRunsResponseApiDto> {
     const maskedRuns = await Promise.all(
       runs.map(async run => {
-        const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun);
+        const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun, projectId);
         return {
           id: run.id,
           status: run.status,
@@ -689,11 +697,12 @@ export class DataMartMapper {
   }
 
   async toProjectRunsResponse(
-    runs: ProjectDataMartRunDto[]
+    runs: ProjectDataMartRunDto[],
+    projectId?: string
   ): Promise<ProjectDataMartRunsResponseApiDto> {
     const maskedRuns = await Promise.all(
       runs.map(async item => {
-        const maskedDefinitionRun = await this.maskDefinitionRun(item.run.definitionRun);
+        const maskedDefinitionRun = await this.maskDefinitionRun(item.run.definitionRun, projectId);
         return {
           id: item.run.id,
           status: item.run.status,
@@ -745,8 +754,8 @@ export class DataMartMapper {
     );
   }
 
-  async toRunResponse(run: DataMartRunDto): Promise<DataMartRunResponseApiDto> {
-    const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun);
+  async toRunResponse(run: DataMartRunDto, projectId?: string): Promise<DataMartRunResponseApiDto> {
+    const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun, projectId);
     return {
       id: run.id,
       status: run.status,
@@ -773,9 +782,12 @@ export class DataMartMapper {
     };
   }
 
-  async toRunDetailResponse(run: DataMartRunDto): Promise<DataMartRunDetailResponseApiDto> {
+  async toRunDetailResponse(
+    run: DataMartRunDto,
+    projectId?: string
+  ): Promise<DataMartRunDetailResponseApiDto> {
     return {
-      ...(await this.toRunResponse(run)),
+      ...(await this.toRunResponse(run, projectId)),
       dataQuality: run.dataQuality,
     };
   }
@@ -795,11 +807,25 @@ export class DataMartMapper {
     );
   }
 
+  /**
+   * Masks the connector definition snapshot a run was executed with.
+   *
+   * `projectId` is what makes a CUSTOM connector resolvable: its specification lives in
+   * the project, not in the bundle. Without it the lookup takes the bundled-only path,
+   * 404s, and {@link ConnectorSecretService.mask} correctly fails closed by masking EVERY
+   * configuration value — so run history showed `**********` for dates, account ids and
+   * node params, and logged a warning per run per page load, while GET /data-marts/:id
+   * rendered the same definition properly. Every caller serving a request passes its
+   * project id. Without one, masking falls back to masking every value, and it skips the
+   * underscore-prefixed bookkeeping keys, which a custom connector could once use as the
+   * name of a secret.
+   */
   private async maskDefinitionRun(
-    definitionRun?: DataMartDefinition | null
+    definitionRun?: DataMartDefinition | null,
+    projectId?: string
   ): Promise<DataMartDefinition | undefined> {
     if (definitionRun && isConnectorDefinition(definitionRun)) {
-      return this.connectorSecretService.mask(definitionRun);
+      return this.connectorSecretService.mask(projectId, definitionRun);
     }
 
     return undefined;

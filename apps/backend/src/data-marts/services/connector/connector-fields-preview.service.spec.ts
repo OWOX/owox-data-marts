@@ -2,28 +2,33 @@ const validateMock = jest.fn();
 const fetchFieldsSchemaMock = jest.fn();
 
 jest.mock('@owox/connectors', () => {
-  class AbstractConfig {
-    constructor(configData: Record<string, unknown>) {
-      Object.assign(this, configData);
-    }
+  // Sources take a context, not a config: parameters are registered on it by the source
+  // constructor and validated there.
+  class AbstractContext {
+    constructor(
+      public readonly data: {
+        source: { name: string; config: Record<string, unknown> };
+      }
+    ) {}
 
     validate() {
       return validateMock();
     }
   }
 
-  class SourceConfigDto {
-    config: Record<string, unknown>;
+  class ConnectorConfigurationException extends Error {}
 
-    constructor(data: { config: Record<string, unknown> }) {
-      this.config = data.config;
+  // Passes the configuration through: the conversion it stands in for is covered against
+  // the real package in connector-preview-support.spec.ts.
+  class SourceConfigDto {
+    readonly config: Record<string, unknown>;
+    constructor({ config }: { config: Record<string, unknown> }) {
+      this.config = config;
     }
   }
 
-  class ConnectorConfigurationException extends Error {}
-
   class GoogleSheetsSource {
-    constructor(public readonly config: AbstractConfig) {}
+    constructor(public readonly context: AbstractContext) {}
 
     fetchFieldsSchema(signal?: AbortSignal) {
       return fetchFieldsSchemaMock(signal);
@@ -34,7 +39,7 @@ jest.mock('@owox/connectors', () => {
     Connectors: {
       GoogleSheets: { GoogleSheetsSource },
     },
-    Core: { AbstractConfig, SourceConfigDto, ConnectorConfigurationException },
+    Core: { AbstractContext, ConnectorConfigurationException, SourceConfigDto },
   };
 });
 

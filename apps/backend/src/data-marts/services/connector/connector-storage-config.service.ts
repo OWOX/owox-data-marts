@@ -1,7 +1,7 @@
 // connector-storage-config.service.ts
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 const { StorageConfigDto } = Core;
@@ -36,7 +36,8 @@ export class ConnectorStorageConfigService {
 
   constructor(
     private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
-    private readonly googleOAuthConfigService: GoogleOAuthConfigService
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   async buildStorageConfig(dataMart: DataMart): Promise<StorageConfigDto> {

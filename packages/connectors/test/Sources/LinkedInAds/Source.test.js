@@ -1,30 +1,35 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { describe, expect, it, vi } from 'vitest';
-import { loadGasClass } from '../../support/loadGasClass.js';
+import { LinkedInAdsSource } from '../../../src/Sources/LinkedInAds/Source.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-globalThis.CONFIG_ATTRIBUTES = new Proxy({}, { get: () => 'attr' });
-globalThis.OAUTH_CONSTANTS = new Proxy({}, { get: () => 'oauth' });
-globalThis.HttpUtils = { fetch: vi.fn() };
+// The Source is an ES module on this branch, so it is imported rather than vm-evaluated.
+// What it still resolves as bare runtime globals has to be supplied the same way the
+// bundle supplies it in production.
 globalThis.HTTP_STATUS = { TOO_MANY_REQUESTS: 429, SERVER_ERROR_MIN: 500 };
-globalThis.LinkedInAdsFieldsSchema = {};
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+globalThis.DATE_STRATEGY = { DAY_BY_DAY: 'day-by-day', RANGE: 'range', NONE: 'none' };
 
-loadGasClass(path.join(__dirname, '../../../src/Sources/LinkedInAds/Source.js'), {
-  AbstractSource: class {},
-});
-
-const sourceProto = globalThis.LinkedInAdsSource.prototype;
+const sourceProto = LinkedInAdsSource.prototype;
 const URN = '123456';
 
-const buildSource = ({ makeRequest } = {}) => {
-  const warnings = [];
-  const self = new globalThis.LinkedInAdsSource({ mergeParameters: params => params });
-  self.config = { addWarningToCurrentStatus: message => warnings.push(message) };
-  self.makeRequest = makeRequest;
+/**
+ * A Source on the real prototype without running the constructor, which would want a
+ * context to register parameters against. Every method under test reads only what is set
+ * here.
+ */
+const buildSource = ({ makeRequest, parameters = {} } = {}) => {
+  const logs = [];
+  const self = Object.assign(Object.create(sourceProto), {
+    MAX_FIELDS_PER_REQUEST: 20,
+    MAX_RESPONSE_ELEMENTS: 15000,
+    BASE_URL: 'https://api.linkedin.com/rest/',
+    context: {
+      getParameter: name => parameters[name],
+      log: (level, message) => logs.push({ level, message }),
+    },
+    makeRequest,
+  });
 
-  return { self, warnings };
+  return { self, logs, warnings: () => logs.filter(l => l.level === 'warn').map(l => l.message) };
 };
 
 // Run dates are UTC midnight (see AbstractConnector), so tests use the same shape.
@@ -41,14 +46,26 @@ const buildRow = (day, pivotValues, metrics = {}) => ({
 const buildFullDay = day => Array.from({ length: 15000 }, (_, i) => buildRow(day, [String(i)]));
 
 const fetchDay = (self, day, fields = ['impressions']) =>
-  sourceProto.fetchAdAnalytics.call(self, URN, {
+  sourceProto.fetchAdAnalytics.call(self, {
+    urn: URN,
+    fields,
     startDate: utcDay(day),
     endDate: utcDay(day),
-    fields,
   });
 
+describe('getDateStrategy', () => {
+  /**
+   * The whole point of #1569: adAnalytics does not paginate and truncates at 15 000
+   * elements, so a whole window in one request silently loses rows. RANGE here is a data
+   * bug, not a pacing preference.
+   */
+  it('fetches analytics day by day so no response can span days', () => {
+    expect(sourceProto.getDateStrategy.call({}, 'adAnalytics')).toBe('day-by-day');
+  });
+});
+
 describe('fetchAdAnalytics', () => {
-  it('requests exactly the given day and records nothing under the element limit', async () => {
+  it('requests exactly the given day and says nothing under the element limit', async () => {
     const requestedUrls = [];
     const { self, warnings } = buildSource({
       makeRequest: vi.fn(async url => {
@@ -63,8 +80,7 @@ describe('fetchAdAnalytics', () => {
     expect(requestedUrls[0]).toContain(
       'dateRange=(start:(year:2026,month:8,day:1),end:(year:2026,month:8,day:1))'
     );
-    expect(warnings).toHaveLength(0);
-    expect(self.truncatedAnalyticsDays).toEqual({});
+    expect(warnings()).toHaveLength(0);
   });
 
   it('merges field chunks into single rows', async () => {
@@ -92,48 +108,45 @@ describe('fetchAdAnalytics', () => {
     });
   });
 
-  it('records a day whose response reaches the element limit instead of warning per call', async () => {
+  /**
+   * Reaching the cap on a SINGLE day means the day really is bigger than LinkedIn will
+   * hand over, which is rare enough to be worth naming outright — main batched this per
+   * account because its connector owned the day loop; here the engine does, so the Source
+   * reports each occurrence as it sees it.
+   */
+  it('warns, naming the account and the day, when a response reaches the element limit', async () => {
     const { self, warnings } = buildSource({
       makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
     });
 
     await fetchDay(self, 1);
 
-    expect(warnings).toHaveLength(0);
-    expect(self.truncatedAnalyticsDays).toEqual({ [URN]: ['2026-08-01'] });
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toContain(URN);
+    expect(warnings()[0]).toContain('15000');
+    expect(warnings()[0]).toContain('2026-08-01');
   });
 
-  it('accumulates truncated days per account across calls', async () => {
+  it('still returns the rows it did get when a day was truncated', async () => {
     const { self } = buildSource({
+      makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
+    });
+
+    const data = await fetchDay(self, 1);
+
+    expect(data).toHaveLength(15000);
+  });
+
+  it('warns once per truncated day across calls', async () => {
+    const { self, warnings } = buildSource({
       makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
     });
 
     await fetchDay(self, 1);
     await fetchDay(self, 2);
 
-    expect(self.truncatedAnalyticsDays).toEqual({ [URN]: ['2026-08-01', '2026-08-02'] });
-  });
-});
-
-describe('buildTruncationWarning', () => {
-  it('names the account, the limit and the day', () => {
-    const warning = sourceProto.buildTruncationWarning.call(buildSource().self, URN, [
-      '2026-08-01',
-    ]);
-
-    expect(warning).toContain('15000');
-    expect(warning).toContain(URN);
-    expect(warning).toContain('1 day(s): 2026-08-01;');
-  });
-
-  it('lists at most 10 days and counts the rest', () => {
-    const days = Array.from({ length: 12 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
-
-    const warning = sourceProto.buildTruncationWarning.call(buildSource().self, URN, days);
-
-    expect(warning).toContain('12 day(s): 2026-08-01, 2026-08-02');
-    expect(warning).toContain('2026-08-10 and 2 more;');
-    expect(warning).not.toContain('2026-08-11');
+    expect(warnings()).toHaveLength(2);
+    expect(warnings()[1]).toContain('2026-08-02');
   });
 });
 
@@ -166,32 +179,43 @@ describe('mergeAnalyticsResults', () => {
     ]);
     expect(existing[1]).not.toHaveProperty('clicks');
   });
+
+  // Each field chunk is merged into up to a full day of rows, so a quadratic merge takes minutes.
+  it('merges a day at the element limit in well under a second', () => {
+    const existing = buildFullDay(1).map(row => ({ ...row, impressions: 1 }));
+    const incoming = buildFullDay(1).map(row => ({ ...row, clicks: 2 }));
+
+    const startedAt = performance.now();
+    const merged = sourceProto.mergeAnalyticsResults.call({}, existing, incoming);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(merged).toHaveLength(15000);
+    expect(merged.every(row => row.impressions === 1 && row.clicks === 2)).toBe(true);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
 });
 
 describe('makeRequest', () => {
-  const buildAuthorizedSource = () => {
-    const self = new globalThis.LinkedInAdsSource({ mergeParameters: params => params });
-    self.config = {
-      AuthType: {
-        value: 'oauth2',
-        items: {
-          ClientId: { value: 'client-id' },
-          ClientSecret: { value: 'client-secret' },
-          RefreshToken: { value: 'refresh-token' },
-        },
-      },
-    };
-    self.urlFetchWithRetry = vi.fn(async () => ({ getContentText: async () => '{"elements":[]}' }));
-    globalThis.OAuthUtils = {
-      getAccessToken: vi.fn(async ({ config }) => {
-        config.AccessToken = { value: 'access-token' };
-        return 'access-token';
-      }),
-    };
+  const buildAuthorizedSource = (
+    items = {
+      ClientId: { value: 'client-id' },
+      ClientSecret: { value: 'client-secret' },
+      RefreshToken: { value: 'refresh-token' },
+    }
+  ) => {
+    const { self } = buildSource({
+      parameters: { AuthType: { value: 'oauth2', items } },
+    });
+    self.urlFetchWithRetry = vi.fn(async () => ({ text: async () => '{"elements":[]}' }));
+    globalThis.OAuthUtils = { getAccessToken: vi.fn(async () => 'access-token') };
 
     return self;
   };
 
+  /**
+   * Day-by-day analytics multiply the request count, so a token exchange per request would
+   * mean one per day per account. The cache is what keeps that at one per run.
+   */
   it('exchanges the refresh token once per run and reuses the access token', async () => {
     const self = buildAuthorizedSource();
 
@@ -208,8 +232,7 @@ describe('makeRequest', () => {
   });
 
   it('throws when OAuth credentials are missing', async () => {
-    const self = buildAuthorizedSource();
-    self.config = { AuthType: { value: 'oauth2', items: {} } };
+    const self = buildAuthorizedSource({});
 
     await expect(
       sourceProto.makeRequest.call(self, 'https://api.linkedin.com/rest/adAccounts/1')
@@ -218,6 +241,10 @@ describe('makeRequest', () => {
 });
 
 describe('isValidToRetry', () => {
+  /**
+   * Without this the AbstractSource default refuses every retry, so one 429 in the middle
+   * of a long backfill failed the whole run.
+   */
   it.each([
     [{ statusCode: 429 }, true],
     [{ statusCode: 503 }, true],

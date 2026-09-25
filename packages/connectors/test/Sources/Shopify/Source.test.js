@@ -2,18 +2,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { ShopifySource } from '../../../src/Sources/Shopify/Source.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = (...p) => path.join(__dirname, '../../../src', ...p);
 
-// GAS-style files (`var X = ...`, no imports). Load order matters: DATA_TYPES is read
-// at top level by ordersFields.js, and Source.js extends AbstractSource.
+// GAS-style files (`var X = ...`, no imports). Load order matters: DATA_TYPES is read at
+// top level by ordersFields.js. AbstractSource and the Source itself are ES modules on this
+// branch, so they are imported above instead of being vm-evaluated here.
 loadGasClass(src('Constants/DataTypes.js'));
 loadGasClass(src('Sources/Shopify/ShopifyAPIReference/ordersFields.js'));
-loadGasClass(src('Core/AbstractSource.js'));
-loadGasClass(src('Sources/Shopify/Source.js'));
 
-const proto = globalThis.ShopifySource.prototype;
+const proto = ShopifySource.prototype;
 const schema = { fields: globalThis.ordersFields };
 
 describe('orders checkoutToken and cartToken', () => {

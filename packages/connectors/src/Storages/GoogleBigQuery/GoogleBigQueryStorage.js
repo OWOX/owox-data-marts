@@ -77,94 +77,103 @@ function normalizeBigQueryType(type) {
 }
 
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
+  static parameters = {
+    DestinationLocation: {
+      isRequired: 'US',
+      requiredType: 'string',
+    },
+    DestinationDatasetID: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DestinationTableName: {
+      isRequired: true,
+      default: 'Data',
+    },
+    DestinationProjectID: {
+      isRequired: true,
+    },
+    DestinationDatasetName: {
+      isRequired: true,
+    },
+    ProjectID: {
+      isRequired: true,
+    },
+    MaxBufferSize: {
+      isRequired: true,
+      default: 250,
+    },
+    ServiceAccountJson: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    OAuthAccessToken: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    OAuthRefreshToken: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    OAuthAccessTokenExpiry: {
+      isRequired: false,
+      requiredType: 'number',
+      default: null,
+    },
+    OAuthClientId: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    OAuthClientSecret: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+  };
+
   //---- constructor -------------------------------------------------
-    /**
-     * Abstract class for Google BigQuery storage operations
-     *
-     * @param config (object) instance of AbstractConfig
-     * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
-     * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
-     * @param description (string) string with storage description }
-     */
-    constructor(config, uniqueKeyColumns, schema = null, description = null) {
-    
-      super(
-        config.mergeParameters({
-          DestinationLocation: {
-            isRequired: "US",
-            requiredType: "string"
-          },
-          DestinationDatasetID: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DestinationTableName: {
-            isRequired: true,
-            default: "Data"
-          },
-          DestinationProjectID: {
-            isRequired: true,
-            default: config.DestinationDatasetID.value.split(".")[0]
-          },
-          DestinationDatasetName: {
-            isRequired: true,
-            default: config.DestinationDatasetID.value.split(".")[1]
-          },
-          ProjectID: {
-            isRequired: true,
-            default: config.DestinationDatasetID.value.split(".")[0]
-          },
-          MaxBufferSize: {
-            isRequired: true,
-            default: 250
-          },
-          ServiceAccountJson: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          OAuthAccessToken: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          OAuthRefreshToken: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          OAuthClientId: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          OAuthClientSecret: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          OAuthAccessTokenExpiry: {
-            isRequired: false,
-            requiredType: "number",
-            default: null
-          }
-        }),
-        uniqueKeyColumns,
-        schema,
-        description
-      );
+  /**
+   * Storage class for Google BigQuery
+   *
+   * @param context (object) instance of AbstractContext
+   * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
+   * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
+   * @param description (string) string with storage description }
+   */
+  constructor(context, uniqueKeyColumns, schema = null, description = null) {
+    super(context, uniqueKeyColumns, schema, description);
 
-      this.updatedRecordsBuffer = {};
+    // Built lazily by getBigQueryClient() and reused for the whole run.
+    this._bigqueryClient = null;
 
-      // Initialize counter for tracking total records processed
-      this.totalRecordsProcessed = 0;
-
-      // Cached across executeQuery() calls so a token refresh (triggered by
-      // google-auth-library once the access token actually expires) persists
-      // for the rest of the run instead of being rebuilt from the stale
-      // original token on every single query.
-      this._bigqueryClient = null;
+    // Derive defaults from DestinationDatasetID when project/dataset names are not
+    // explicitly provided. The legacy implementation computed these in
+    // mergeParameters using `config.DestinationDatasetID.value.split(".")`; we
+    // replicate that here, post-registration.
+    const datasetIdParam = this.context.getParameter('DestinationDatasetID');
+    const datasetId = datasetIdParam?.value;
+    if (typeof datasetId === 'string' && datasetId.includes('.')) {
+      const [projectPart, datasetPart] = datasetId.split('.');
+      if (this.context.storageConfig.DestinationProjectID?.value === undefined) {
+        this.context.storageConfig.DestinationProjectID = { value: projectPart };
+      }
+      if (this.context.storageConfig.DestinationDatasetName?.value === undefined) {
+        this.context.storageConfig.DestinationDatasetName = { value: datasetPart };
+      }
+      if (this.context.storageConfig.ProjectID?.value === undefined) {
+        this.context.storageConfig.ProjectID = { value: projectPart };
+      }
     }
+
+    this.updatedRecordsBuffer = {};
+
+    // Initialize counter for tracking total records processed
+    this.totalRecordsProcessed = 0;
+  }
 
   //---- init --------------------------------------------------------
     /**
@@ -213,19 +222,19 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         query += `DECLARE dataset_exists BOOL;
         SET dataset_exists = EXISTS (
           SELECT 1
-          FROM \`${this.config.DestinationProjectID.value}.INFORMATION_SCHEMA.SCHEMATA\`
-          WHERE schema_name = '${this.config.DestinationDatasetName.value}'
+          FROM \`${this.context.getParameter('DestinationProjectID')?.value}.INFORMATION_SCHEMA.SCHEMATA\`
+          WHERE schema_name = '${this.context.getParameter('DestinationDatasetName')?.value}'
         );
         IF dataset_exists THEN 
           SELECT column_name, data_type, is_partitioning_column
-          FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
-          WHERE table_name = '${this.config.DestinationTableName.value}'
+          FROM \`${this.context.getParameter('DestinationDatasetID')?.value}.INFORMATION_SCHEMA.COLUMNS\`
+          WHERE table_name = '${this.context.getParameter('DestinationTableName')?.value}'
           ORDER BY ordinal_position;
         END IF`;
 
         /*let query = `SELECT column_name, data_type
-        FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
-        WHERE table_name = '${this.config.DestinationTableName.value}'`;*/
+        FROM \`${this.context.getParameter('DestinationDatasetID')?.value}.INFORMATION_SCHEMA.COLUMNS\`
+        WHERE table_name = '${this.context.getParameter('DestinationTableName')?.value}'`;*/
 
         let queryResults = await this.executeQuery(query);
 
@@ -250,9 +259,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     async createDatasetIfItDoesntExist() {
 
       let query = `---- Create Dataset if it not exists -----\n`;
-      query += `CREATE SCHEMA IF NOT EXISTS \`${this.config.DestinationProjectID.value}.${this.config.DestinationDatasetName.value}\`
+      query += `CREATE SCHEMA IF NOT EXISTS \`${this.context.getParameter('DestinationProjectID')?.value}.${this.context.getParameter('DestinationDatasetName')?.value}\`
       OPTIONS (
-        location = '${this.config.DestinationLocation.value}'
+        location = '${this.context.getParameter('DestinationLocation')?.value}'
       )`;
 
       await this.executeQuery(query);
@@ -305,7 +314,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       columns = columns.join(",\n");
 
       let query = `---- Creating table if it not exists -----\n`;
-      query += `CREATE TABLE IF NOT EXISTS \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
+      query += `CREATE TABLE IF NOT EXISTS \`${this.context.getParameter('DestinationDatasetID')?.value}.${this.context.getParameter('DestinationTableName')?.value}\` (\n${columns})`
 
       if( columnPartitioned ) {
         const sqlName = quoteColumnNames ? quoteBigQueryIdentifier(columnPartitioned) : columnPartitioned;
@@ -317,16 +326,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         } else {
           // A silent skip here would ship a dead flag: the table is created
           // unpartitioned and every MERGE full-scans with no symptom but cost
-          this.config.logMessage(`Column '${columnPartitioned}' has type '${this.getColumnType(columnPartitioned)}' which cannot be a partition column; creating the table without partitioning`);
+          this.context.log(LOG_LEVEL.WARN, `Column '${columnPartitioned}' has type '${this.getColumnType(columnPartitioned)}' which cannot be a partition column; creating the table without partitioning`);
         }
       }
 
       if( this.description ) {
-        query += `\nOPTIONS(description="${this.description}")`;
+        query += `\nOPTIONS(description="${this.obfuscateSpecialCharacters(this.description)}")`;
       }
 
       await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
+      this.context.log(LOG_LEVEL.INFO, `Table ${this.context.getParameter('DestinationDatasetID')?.value}.${this.context.getParameter('DestinationTableName')?.value} was created`);
 
       return existingColumns;
 
@@ -337,7 +346,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       this.checkIfGoogleBigQueryIsConnected();
       await this.createDatasetIfItDoesntExist();
-      const liveTableName = this.config.DestinationTableName.value;
+      // Hoisted because the staging swap below WRITES it back: the snapshot import
+      // retargets the destination at the staging table and restores it afterwards.
+      const destinationTableParam = this.context.getParameter('DestinationTableName');
+      const liveTableName = destinationTableParam.value;
       const stagingTableName = this.createSnapshotTableName("staging");
       const originalExistingColumns = this.existingColumns;
       const originalTotalRecordsProcessed = this.totalRecordsProcessed;
@@ -347,7 +359,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       let published = false;
 
       try {
-        this.config.DestinationTableName.value = stagingTableName;
+        // The whole write path reads the destination from the configured parameter, so
+        // staging is entered by repointing it rather than threading a table name through
+        // every method. _snapshotLiveTableName is what keeps analytics attributed to the
+        // table the user configured while that swap is in flight -- AbstractStorage reads
+        // it when it reports rows_written, which would otherwise name the staging table.
+        this._snapshotLiveTableName = liveTableName;
+        destinationTableParam.value = stagingTableName;
         this.existingColumns = {};
         this.updatedRecordsBuffer = {};
         this.totalRecordsProcessed = 0;
@@ -361,7 +379,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }
 
         await this.validateSnapshotTable(stagingTableName, data);
-        this.config.DestinationTableName.value = liveTableName;
+        destinationTableParam.value = liveTableName;
         await this.publishSnapshotTable(
           stagingTableName,
           liveTableName,
@@ -372,11 +390,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         this.updatedRecordsBuffer = {};
         published = true;
 
-        this.config.logMessage(
-          `Snapshot import completed for ${this.config.DestinationDatasetID.value}.${liveTableName}: ${data.length} rows`
+        this.context.log(
+          LOG_LEVEL.INFO,
+          `Snapshot import completed for ${this.context.getParameter('DestinationDatasetID')?.value}.${liveTableName}: ${data.length} rows`
         );
       } finally {
-        this.config.DestinationTableName.value = liveTableName;
+        destinationTableParam.value = liveTableName;
+        this._snapshotLiveTableName = null;
         this.updatedRecordsBuffer = {};
         this.totalRecordsProcessed = originalTotalRecordsProcessed;
         this.quoteFieldIdentifiers = originalQuoteFieldIdentifiers;
@@ -388,7 +408,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           try {
             await this.dropSnapshotTable(stagingTableName);
           } catch (error) {
-            this.config.logMessage(`Could not clean up BigQuery snapshot staging table ${stagingTableName}: ${error.message}`);
+            this.context.log(LOG_LEVEL.WARN, `Could not clean up BigQuery snapshot staging table ${stagingTableName}: ${error.message}`);
           }
         }
       }
@@ -399,14 +419,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
       const suffix = `__owox_${kind}_${runId}`;
-      return `${this.config.DestinationTableName.value.slice(0, 1024 - suffix.length)}${suffix}`;
+      return `${this.context.getParameter('DestinationTableName')?.value.slice(0, 1024 - suffix.length)}${suffix}`;
 
     }
 
     async validateSnapshotTable(tableName, data) {
 
       const expectedRowCount = new Set(data.map(row => String(this.getUniqueKeyByRecordFields(row)))).size;
-      const query = `SELECT COUNT(*) AS row_count FROM \`${this.config.DestinationDatasetID.value}.${tableName}\``;
+      const query = `SELECT COUNT(*) AS row_count FROM \`${this.context.getParameter('DestinationDatasetID')?.value}.${tableName}\``;
       const results = await this.executeQuery(query);
       const rows = Array.isArray(results) ? results : (results && results.rows) || [];
       const actualRowCount = rows.length ? Number(rows[0].row_count ?? rows[0].f?.[0]?.v) : NaN;
@@ -422,10 +442,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     publishSnapshotTable(stagingTableName, liveTableName, stagedColumns = {}, preserveTable = false) {
 
       const liveTable = quoteBigQueryIdentifier(
-        `${this.config.DestinationDatasetID.value}.${liveTableName}`
+        `${this.context.getParameter('DestinationDatasetID')?.value}.${liveTableName}`
       );
       const stagingTable = quoteBigQueryIdentifier(
-        `${this.config.DestinationDatasetID.value}.${stagingTableName}`
+        `${this.context.getParameter('DestinationDatasetID')?.value}.${stagingTableName}`
       );
       const query = preserveTable
         ? (() => {
@@ -439,7 +459,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     dropSnapshotTable(tableName) {
 
-      return this.executeQuery(`DROP TABLE IF EXISTS \`${this.config.DestinationDatasetID.value}.${tableName}\``);
+      return this.executeQuery(`DROP TABLE IF EXISTS \`${this.context.getParameter('DestinationDatasetID')?.value}.${tableName}\``);
 
     }
 
@@ -492,10 +512,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // there are columns to add to table
       if( columns != [] ) {
         query += `---- Adding new columns ----- \n`;
-        query += `ALTER TABLE \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\`\n\n`;
+        query += `ALTER TABLE \`${this.context.getParameter('DestinationDatasetID')?.value}.${this.context.getParameter('DestinationTableName')?.value}\`\n\n`;
         query += columns.join(",\n");
         await this.executeQuery(query);
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.DestinationDatasetID.value} dataset`);
+        this.context.log(LOG_LEVEL.INFO, `Columns '${newColumns.join(",")}' were added to ${this.context.getParameter('DestinationDatasetID')?.value} dataset`);
       }
 
 
@@ -522,7 +542,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }
       
         this.addRecordToBuffer(row);
-        await this.saveRecordsAddedToBuffer(this.config.MaxBufferSize.value);
+        await this.saveRecordsAddedToBuffer(this.context.getParameter('MaxBufferSize')?.value);
 
       }
 
@@ -736,7 +756,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     suppressPartitionPredicate(reason) {
       if( !this._partitionPredicateSuppressionLogged ) {
         this._partitionPredicateSuppressionLogged = true;
-        this.config.logMessage(`Partition pruning is disabled for this run (${reason}); MERGE scans the whole table`);
+        this.context.log(LOG_LEVEL.INFO, `Partition pruning is disabled for this run (${reason}); MERGE scans the whole table`);
       }
       return null;
     }
@@ -880,7 +900,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // pruning; without it every MERGE scans the whole destination table
       const partitionPredicate = this.buildPartitionPredicate(recordKeys);
 
-      let query = `MERGE INTO \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` AS target
+      let query = `MERGE INTO \`${this.context.getParameter('DestinationDatasetID')?.value}.${this.context.getParameter('DestinationTableName')?.value}\` AS target
       USING (
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
@@ -929,36 +949,36 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         return this._bigqueryClient;
       }
 
-      if (this.config.OAuthAccessToken && this.config.OAuthAccessToken.value) {
+      if (this.context.getParameter('OAuthAccessToken')?.value) {
         const { OAuth2Client } = require('google-auth-library');
         const oauth2Client = new OAuth2Client(
-          this.config.OAuthClientId.value,
-          this.config.OAuthClientSecret.value
+          this.context.getParameter('OAuthClientId')?.value,
+          this.context.getParameter('OAuthClientSecret')?.value
         );
         oauth2Client.setCredentials({
-          access_token: this.config.OAuthAccessToken.value,
-          refresh_token: this.config.OAuthRefreshToken?.value || undefined,
+          access_token: this.context.getParameter('OAuthAccessToken')?.value,
+          refresh_token: this.context.getParameter('OAuthRefreshToken')?.value || undefined,
           // `??`, not `||`: 0 is a valid number and must not be silently
           // dropped on our side. Note google-auth-library's own
           // isTokenExpiring() also treats 0 as "no known expiry" (falsy
           // check), so an exact epoch-0 expiry never triggers a refresh
           // either way — acceptable, since a real expiry is never 0.
-          expiry_date: this.config.OAuthAccessTokenExpiry?.value ?? undefined,
+          expiry_date: this.context.getParameter('OAuthAccessTokenExpiry')?.value ?? undefined,
         });
         this._bigqueryClient = new BigQuery({
-          projectId: this.config.ProjectID.value,
+          projectId: this.context.getParameter('ProjectID')?.value,
           authClient: oauth2Client,
         });
-      } else if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+      } else if (this.context.getParameter('ServiceAccountJson')?.value) {
         const { JWT } = require('google-auth-library');
-        const credentials = JSON.parse(this.config.ServiceAccountJson.value);
+        const credentials = JSON.parse(this.context.getParameter('ServiceAccountJson')?.value);
         const authClient = new JWT({
           email: credentials.client_email,
           key: credentials.private_key,
           scopes: ['https://www.googleapis.com/auth/bigquery'],
         });
         this._bigqueryClient = new BigQuery({
-          projectId: this.config.ProjectID.value || credentials.project_id,
+          projectId: this.context.getParameter('ProjectID')?.value || credentials.project_id,
           authClient
         });
       } else {
@@ -987,12 +1007,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       // Both are guaranteed finite here, so the exit condition below always becomes true.
       const maxAttempts = retrySettingOrDefault(
-        this.config.MaxFetchRetries?.value,
+        this.context.getParameter('MaxFetchRetries')?.value,
         DEFAULT_MAX_QUERY_ATTEMPTS,
         1
       );
       const initialRetryDelay = retrySettingOrDefault(
-        this.config.InitialRetryDelay?.value,
+        this.context.getParameter('InitialRetryDelay')?.value,
         DEFAULT_INITIAL_RETRY_DELAY_MS,
         0
       );
@@ -1036,7 +1056,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           );
           const reason = reasons[0] || error.code || 'unknown error';
 
-          this.config.logMessage(
+          this.context.log(
+            LOG_LEVEL.WARN,
             `BigQuery query failed (${reason}), retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 1} of ${maxAttempts})`
           );
 

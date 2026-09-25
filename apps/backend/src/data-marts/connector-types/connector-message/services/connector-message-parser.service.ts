@@ -1,31 +1,81 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConnectorMessage, ConnectorMessageSchema } from '../schemas/connector-message.schema';
 import { ConnectorMessageType } from '../../enums/connector-message-type-enum';
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
+import { isNewEvent, translateNewEventToLegacy } from './connector-event.translator';
 
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
+
+/** Keeps the shape summary readable, and bounded for a wide record. */
+const MAX_DESCRIBED_KEYS = 20;
+
+/**
+ * A one-line description of a value's structure that contains none of its data.
+ *
+ * Field NAMES are schema rather than content, and they are what makes a schema failure
+ * diagnosable — "which keys did this thing have" is the question a rejected message
+ * raises. Values answer nothing that the validator's own error list does not.
+ */
+function describeShape(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return `array(${value.length})`;
+  if (typeof value !== 'object') return typeof value;
+
+  const keys = Object.keys(value as Record<string, unknown>);
+  const shown = keys.slice(0, MAX_DESCRIBED_KEYS);
+  const omitted = keys.length - shown.length;
+  return `object{${shown.join(', ')}${omitted > 0 ? `, +${omitted} more` : ''}}`;
+}
 
 @Injectable()
 export class ConnectorMessageParserService {
   private logger = new Logger(ConnectorMessageParserService.name);
 
-  parse(message: string): ConnectorMessage {
+  /**
+   * Parse a single line emitted by a connector subprocess.
+   *
+   * Supports two protocols:
+   *  - New uppercase Event protocol (LOG, DATA, TRACE, ANALYTICS, STATE, CONTROL)
+   *    emitted by current connectors. Translated into the legacy shape before
+   *    schema validation so existing consumers continue to work.
+   *  - Legacy lowercase types (log, updateCurrentStatus, updateLastRequstedDate,
+   *    addWarningToCurrentStatus, error, ...) for backward compatibility with
+   *    older connectors still emitting the previous format.
+   *
+   * Returns `null` when the event should be dropped from the message stream
+   * (e.g. DATA events whose payload is consumed by the storage path).
+   */
+  parse(message: string): ConnectorMessage | null {
+    let asJson: unknown;
     try {
-      const asJson = JSON.parse(message);
-      const parsedMessage = ConnectorMessageSchema.safeParse(asJson);
-      if (!parsedMessage.success) {
-        this.logger.warn(`Schema validation failed for message:`, {
-          message: this.redactCredentialUpdateMessage(message),
-          parsedJson: this.redactCredentialUpdateJson(asJson),
-          errors: parsedMessage.error.errors,
-        });
-        return this.parseAsUnknown(message);
-      }
-      return parsedMessage.data;
+      asJson = JSON.parse(message);
     } catch {
       return this.parseAsUnknown(message);
     }
+
+    const candidate = isNewEvent(asJson) ? translateNewEventToLegacy(asJson) : asJson;
+    if (candidate === null) {
+      // DATA events and similar non-message events are intentionally dropped.
+      return null;
+    }
+
+    const parsedMessage = ConnectorMessageSchema.safeParse(candidate);
+    if (!parsedMessage.success) {
+      // Shape and size only, never values. A connector line is whatever an upstream API
+      // we do not control echoed back, and this metadata is spread into structured logs
+      // (CustomLoggerService.destructureParams) with no `redact` configuration anywhere
+      // to catch what lands there. Logging the raw line and the parsed object made the
+      // exposure unbounded and stopped only at credential-shaped payloads; a schema
+      // failure is diagnosed from the field names and the validator's own complaint, so
+      // there is nothing the values were buying.
+      this.logger.warn(`Schema validation failed for message:`, {
+        messageLength: message.length,
+        shape: describeShape(asJson),
+        errors: parsedMessage.error.errors,
+      });
+      return this.parseAsUnknown(message);
+    }
+    return parsedMessage.data;
   }
 
   private parseAsUnknown(message: string): ConnectorMessage {
@@ -48,37 +98,5 @@ export class ConnectorMessageParserService {
     }
 
     return '[REDACTED updateCredentials message]';
-  }
-
-  private redactCredentialUpdateJson(value: unknown): unknown {
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-
-    if (!this.hasCredentialUpdateContent(value)) {
-      return value;
-    }
-
-    return '[REDACTED updateCredentials message]';
-  }
-
-  private hasCredentialUpdateContent(value: unknown): boolean {
-    if (!value || typeof value !== 'object') {
-      return false;
-    }
-
-    if (Array.isArray(value)) {
-      return value.some(item => this.hasCredentialUpdateContent(item));
-    }
-
-    const objectValue = value as Record<string, unknown>;
-    if (
-      objectValue.type === ConnectorMessageType.CREDENTIALS_UPDATE ||
-      Object.prototype.hasOwnProperty.call(objectValue, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD)
-    ) {
-      return true;
-    }
-
-    return Object.values(objectValue).some(item => this.hasCredentialUpdateContent(item));
   }
 }

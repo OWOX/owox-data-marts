@@ -390,7 +390,7 @@ export class DataMartController {
   ): Promise<DataMartRunsResponseApiDto> {
     const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
     const runs = await this.getDataMartRunsService.run(command);
-    return this.mapper.toRunsResponse(runs);
+    return this.mapper.toRunsResponse(runs, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -403,7 +403,7 @@ export class DataMartController {
   ): Promise<DataMartRunDetailResponseApiDto> {
     const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
     const runDto = await this.getDataMartRunService.run(command);
-    return this.mapper.toRunDetailResponse(runDto);
+    return this.mapper.toRunDetailResponse(runDto, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -430,7 +430,7 @@ export class DataMartController {
   ): Promise<BatchDataMartHealthStatusResponseApiDto> {
     const command = this.mapper.toBatchHealthStatusCommand(context, dto);
     const domainDto = await this.batchDataMartHealthStatusService.run(command);
-    return this.mapper.toBatchHealthStatusResponse(domainDto);
+    return this.mapper.toBatchHealthStatusResponse(domainDto, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

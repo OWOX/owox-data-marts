@@ -45,6 +45,8 @@ matter.stringify = function stringifyFrontmatter(content, data) {
 const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DEST_PATH = path.join(APP_LOCATION, 'src/assets');
 const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
+// Served verbatim, so an AI assistant can be handed the URL of a plain-text guide.
+const PUBLIC_DOCS_DEST_PATH = path.join(APP_LOCATION, 'public/docs');
 const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
 const CHANGELOG_PATH = path.join(MONOREPO_ROOT, 'apps/owox/CHANGELOG.md');
 
@@ -63,6 +65,9 @@ async function syncDocs() {
   // 4. Process manifests for Connectors
   await processManifests();
 
+  // 5. Publish the plain-text guides for AI assistants
+  await publishLlmsGuides();
+
   console.log(`Documentation sync completed successfully!`);
 }
 
@@ -72,8 +77,23 @@ async function syncDocs() {
 function prepareFileSystem() {
   fs.rmSync(CONTENT_DEST_PATH, { recursive: true, force: true });
   fs.rmSync(ASSETS_DEST_PATH, { recursive: true, force: true });
+  fs.rmSync(PUBLIC_DOCS_DEST_PATH, { recursive: true, force: true });
   fs.mkdirSync(CONTENT_DEST_PATH, { recursive: true });
   fs.mkdirSync(ASSETS_DEST_PATH, { recursive: true });
+}
+
+/**
+ * Copies every `docs/**\/*.llms.txt` to the same path under `public/`, so the site serves it
+ * as-is (e.g. /docs/connectors/manifest-reference.llms.txt) and no sidebar entry is created.
+ */
+async function publishLlmsGuides() {
+  const guides = await glob('docs/**/*.llms.txt', { cwd: MONOREPO_ROOT });
+  for (const relativePath of guides) {
+    const destinationPath = path.join(APP_LOCATION, 'public', relativePath);
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.copyFileSync(path.join(MONOREPO_ROOT, relativePath), destinationPath);
+  }
+  console.log(`Published ${guides.length} AI assistant guide(s).`);
 }
 
 /**
@@ -174,6 +194,11 @@ async function findMarkdownFiles() {
     '**/CHANGELOG.md',
     'apps/docs/src/**',
     'apps/web/src/**',
+    // Internal specs/plans (gitignored) and dev-tooling READMEs are NOT product
+    // docs; excluding them keeps their repo-relative file links (e.g. to sibling
+    // .sql/.json) from being rewritten into broken site links by the link check.
+    'docs/superpowers/**',
+    '**/scripts/**',
   ];
 
   const sourceFiles = await glob(searchPatterns, {

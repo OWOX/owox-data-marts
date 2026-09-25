@@ -7,7 +7,6 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Connectors, Core } from '@owox/connectors';
 
 /**
@@ -30,43 +29,38 @@ export interface ConnectorPreviewErrorMessages {
 }
 
 /**
- * The slice of a connector source a configuration-time preview relies on. The
- * connectors package ships no type declarations, so this is the explicit
- * contract instead of an `any` leaking out of this module.
+ * The slice of a connector source a configuration-time preview relies on. The package's
+ * shipped declarations type `Core` as an index signature, so naming the shape here is what
+ * keeps an `any` from leaking out of this module.
  */
 export interface ConnectorPreviewSource {
-  config: { validate(): void };
+  context: { validate(): void };
   fetchFieldsSchema(signal: AbortSignal): Promise<unknown>;
   fetchFieldOptions(fieldName: string, signal: AbortSignal): Promise<unknown>;
 }
 
 /**
- * Connector config that never touches persistence or run state: previews run
+ * Builds a connector context that never touches persistence or run state: previews run
  * in-process and must leave no trace in the data mart.
+ *
+ * `emit` is replaced because the base context speaks the connector event protocol by writing
+ * JSON to process.stdout — which is how a SPAWNED connector talks to its runner. A preview
+ * runs inside the backend itself, where that stdout belongs to the server and nothing is
+ * listening for connector events, so they go to the logger instead.
+ *
+ * Replaced on the INSTANCE rather than by subclassing: several specs stub @owox/connectors
+ * with a minimal Core, and a module-scope `class X extends Core.AbstractContext` is evaluated
+ * at import time, so those suites fail to load outright with "Class extends value undefined".
  */
-class ConnectorPreviewConfig extends Core.AbstractConfig {
-  private readonly logger: Logger;
-
-  constructor(configData: Record<string, unknown>, logger: Logger) {
-    super(configData);
-    this.logger = logger;
-  }
-
-  handleStatusUpdate(): void {}
-
-  updateLastImportDate(): void {}
-
-  updateLastRequstedDate(): void {}
-
-  isInProgress(): boolean {
-    return false;
-  }
-
-  addWarningToCurrentStatus(): void {}
-
-  logMessage(message: string): void {
-    this.logger.debug(message);
-  }
+function createConnectorPreviewContext(
+  init: Record<string, unknown>,
+  logger: Logger
+): { emit: (event: { toJSON(): unknown }) => void } {
+  const context = new Core.AbstractContext(init);
+  context.emit = (event: { toJSON(): unknown }): void => {
+    logger?.debug(JSON.stringify(event.toJSON()));
+  };
+  return context;
 }
 
 function getConnectorSourceClass(connectorName: string): unknown {
@@ -86,14 +80,24 @@ export function createConnectorPreviewSource(
   logger: Logger
 ): ConnectorPreviewSource {
   const SourceClass = Connectors[connectorName][`${connectorName}Source`];
-  const sourceConfig = new Core.SourceConfigDto({
-    name: connectorName,
-    config: configuration,
-  });
 
-  return new SourceClass(
-    new ConnectorPreviewConfig(sourceConfig.config, logger)
-  ) as ConnectorPreviewSource;
+  // The web sends the configuration as the form holds it, so it is converted to the
+  // { value, items } shape a run gets from ConnectorSourceConfigService; without that,
+  // AuthType of a Google Sheets preview read as missing.
+  const { config } = new Core.SourceConfigDto({ name: connectorName, config: configuration });
+  // Storage and run config are required by the context but inert here: a preview only ever
+  // reads the source's own schema, so there is no destination to write and no run to record.
+  const context = createConnectorPreviewContext(
+    {
+      source: { name: connectorName, config },
+      storage: { name: 'unused', config: {} },
+      runConfig: {},
+      env: { datamartId: null, runId: null },
+    },
+    logger
+  );
+
+  return new SourceClass(context) as ConnectorPreviewSource;
 }
 
 export async function withConnectorPreviewTimeout<T>(

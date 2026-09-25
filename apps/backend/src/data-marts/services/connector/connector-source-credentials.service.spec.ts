@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
@@ -323,8 +324,23 @@ describe('ConnectorSourceCredentialsService', () => {
       );
     });
 
-    it('returns existing credentials without failing when guarded update is stale', async () => {
+    /**
+     * A stale guarded update is not an error — another writer legitimately won the race —
+     * but it does mean the token THIS run generated was thrown away, and the identity
+     * provider has already invalidated whatever it was refreshed from. Nothing recorded
+     * that: no log, no error, and a return value the one caller ignores. The next run
+     * then fails to authenticate with no trace of why.
+     *
+     * `affected === 0` is unambiguous here: the row exists and belongs to the project
+     * (both already checked), and the entity's `@UpdateDateColumn` is always in the SET
+     * clause, so a matched row is always a changed row. There is no no-op write to
+     * confuse with a failed compare-and-set.
+     */
+    it('reports and logs a stale guarded update instead of swallowing it', async () => {
       const { service, repository, queryBuilder } = createService();
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined) as jest.SpyInstance;
       const existing = {
         id: 'cred-1',
         projectId: 'proj-1',
@@ -333,15 +349,51 @@ describe('ConnectorSourceCredentialsService', () => {
       (queryBuilder.execute as jest.Mock).mockResolvedValueOnce({ affected: 0 });
       (repository.findOne as jest.Mock).mockResolvedValueOnce(existing);
 
+      try {
+        const result = await service.updateCredentialFields(
+          'cred-1',
+          'proj-1',
+          { generated_refresh_token: 'older-token' },
+          { generated_refresh_token: 'old-token' }
+        );
+
+        // Still not an exception, and still no wasted re-read.
+        expect(result.credentials).toBe(existing);
+        expect(result.updated).toBe(false);
+        expect(repository.findOne).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('was not persisted'),
+          expect.objectContaining({ credentialId: 'cred-1', projectId: 'proj-1' })
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('reports a successful guarded update as updated', async () => {
+      const { service, repository } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: { generated_refresh_token: 'old-token' },
+      } as unknown as ConnectorSourceCredentials;
+      const stored = {
+        ...existing,
+        credentials: { generated_refresh_token: 'new-token' },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock)
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(stored);
+
       const result = await service.updateCredentialFields(
         'cred-1',
         'proj-1',
-        { generated_refresh_token: 'older-token' },
+        { generated_refresh_token: 'new-token' },
         { generated_refresh_token: 'old-token' }
       );
 
-      expect(result).toBe(existing);
-      expect(repository.findOne).toHaveBeenCalledTimes(1);
+      expect(result.updated).toBe(true);
+      expect(result.credentials).toBe(stored);
     });
 
     it('guards generated refresh token updates against an absent current value', async () => {
@@ -470,6 +522,22 @@ describe('ConnectorSourceCredentialsService', () => {
       const result = await service.isExpired('non-existent');
 
       expect(result).toBe(true);
+    });
+  });
+
+  describe('isCredentialExpired', () => {
+    it('answers from the row in hand without a repository round-trip', () => {
+      const { service, repository } = createService();
+
+      expect(service.isCredentialExpired({ expiresAt: null })).toBe(false);
+      expect(service.isCredentialExpired({ expiresAt: undefined })).toBe(false);
+      expect(service.isCredentialExpired({ expiresAt: new Date(Date.now() + 3600_000) })).toBe(
+        false
+      );
+      expect(service.isCredentialExpired({ expiresAt: new Date(Date.now() - 3600_000) })).toBe(
+        true
+      );
+      expect(repository.findOne).not.toHaveBeenCalled();
     });
   });
 });

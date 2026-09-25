@@ -12,6 +12,7 @@ import { SourceDataLastUpdated } from '../schemas/source-data-last-updated.schem
 export class DataMartDto {
   constructor(
     public readonly id: string,
+    public readonly projectId: string,
     public readonly title: string,
     public readonly status: DataMartStatus,
     public readonly storage: DataStorageDto,
