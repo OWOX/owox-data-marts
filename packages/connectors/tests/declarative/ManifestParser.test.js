@@ -295,6 +295,28 @@ describe('ManifestParser', () => {
     );
   });
 
+  // A value that is not a positive number made every wait NaN, which setTimeout reads as no
+  // wait at all: the job was polled as fast as the API answered, up to 180 times.
+  it('refuses a poll.backoff that is not a positive number', () => {
+    for (const backoff of [
+      { initialMs: 'soon' },
+      { maxMs: -1 },
+      { maxAttempts: 2.5 },
+      { maxAttempts: 0 },
+    ]) {
+      const m = asyncNodeWith({});
+      m.nodes.rates.retriever.poll.backoff = backoff;
+      assert.throws(
+        () => new ManifestParser().parse(JSON.stringify(m)),
+        /poll\.backoff\./,
+        JSON.stringify(backoff)
+      );
+    }
+    const fine = asyncNodeWith({});
+    fine.nodes.rates.retriever.poll.backoff = { maxAttempts: 10, initialMs: 1000, maxMs: 5000 };
+    assert.doesNotThrow(() => new ManifestParser().parse(JSON.stringify(fine)));
+  });
+
   it('requires the status value that means the async job is done', () => {
     for (const readyValue of ['', undefined, null]) {
       const m = asyncNodeWith({});

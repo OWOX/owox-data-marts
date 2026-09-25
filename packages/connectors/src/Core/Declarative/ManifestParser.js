@@ -813,6 +813,21 @@ export class ManifestParser {
             `ManifestParser: node "${nodeName}" async retriever requires "poll.readyValue": the status that means the job is done`
           );
         }
+        // A value that is not a positive number made every wait NaN, which setTimeout reads
+        // as no wait: the job was polled as fast as the API answered.
+        for (const key of ['maxAttempts', 'initialMs', 'maxMs']) {
+          const value = r.poll.backoff?.[key];
+          if (value === undefined) continue;
+          const valid =
+            typeof value === 'number' &&
+            value > 0 &&
+            (key === 'maxAttempts' ? Number.isInteger(value) : Number.isFinite(value));
+          if (!valid) {
+            throw new Error(
+              `ManifestParser: node "${nodeName}" poll.backoff.${key} must be a positive ${key === 'maxAttempts' ? 'whole number' : 'number of milliseconds'}`
+            );
+          }
+        }
       } else {
         throw new Error(
           `ManifestParser: node "${nodeName}" retriever.type "${rType}" not supported`
