@@ -112,4 +112,24 @@ describe('builderReducer', () => {
     expect(next.sample).toEqual({ node: 'items', records: [{ id: 1 }] });
     expect(next.dirty).toBe(false);
   });
+
+  it('MARK_SAVED clears dirty only while the state still holds the saved manifest', () => {
+    const edited = builderReducer(initialBuilderState, {
+      type: BuilderActionType.SET_PATH,
+      payload: { path: ['name'], value: 'Saved' },
+    });
+    const saved = edited.manifest;
+
+    expect(
+      builderReducer(edited, { type: BuilderActionType.MARK_SAVED, payload: saved }).dirty
+    ).toBe(false);
+
+    const editedDuringSave = builderReducer(edited, {
+      type: BuilderActionType.SET_PATH,
+      payload: { path: ['baseUrl'], value: 'https://api.example.org' },
+    });
+    expect(
+      builderReducer(editedDuringSave, { type: BuilderActionType.MARK_SAVED, payload: saved }).dirty
+    ).toBe(true);
+  });
 });

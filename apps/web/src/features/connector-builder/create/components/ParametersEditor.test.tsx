@@ -61,7 +61,7 @@ function Harness({ parameters }: { parameters: Record<string, ManifestParameter>
   });
   latest.state = state;
   return (
-    <BuilderContext.Provider value={{ state, dispatch }}>
+    <BuilderContext.Provider value={{ state, dispatch, codeEdits: { current: null } }}>
       <ParametersEditor />
     </BuilderContext.Provider>
   );

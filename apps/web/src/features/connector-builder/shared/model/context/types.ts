@@ -8,6 +8,7 @@ export enum BuilderActionType {
   REMOVE_NODE = 'REMOVE_NODE',
   SET_META = 'SET_META',
   SET_DIRTY = 'SET_DIRTY',
+  MARK_SAVED = 'MARK_SAVED',
   SET_SAVING = 'SET_SAVING',
   SET_PUBLISHING = 'SET_PUBLISHING',
   SET_ERROR = 'SET_ERROR',
@@ -31,6 +32,7 @@ export type BuilderAction =
       };
     }
   | { type: BuilderActionType.SET_DIRTY; payload: boolean }
+  | { type: BuilderActionType.MARK_SAVED; payload: BuilderManifest }
   | { type: BuilderActionType.SET_SAVING; payload: boolean }
   | { type: BuilderActionType.SET_PUBLISHING; payload: boolean }
   | { type: BuilderActionType.SET_ERROR; payload: string | null }
@@ -66,4 +68,9 @@ export interface BuilderState {
 export interface BuilderContextValue {
   state: BuilderState;
   dispatch: React.Dispatch<BuilderAction>;
+  /**
+   * Pushes the text Code mode is still holding back on its debounce and returns the manifest
+   * it pushed, or null when there was nothing to push. Set while Code mode is mounted.
+   */
+  codeEdits: React.RefObject<(() => BuilderManifest | null) | null>;
 }

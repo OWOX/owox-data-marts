@@ -30,7 +30,18 @@ export function draftVersionAtRisk(
 }
 
 export function useBuilder() {
-  const { state, dispatch } = useBuilderContext();
+  const { state, dispatch, codeEdits } = useBuilderContext();
+
+  /**
+   * Code mode pushes typing into the builder a quarter second after the last keystroke, so an
+   * action taken sooner reads the manifest from before it. Every action that sends or replaces
+   * the manifest calls this first and uses what it returns: the push is a dispatch, and the
+   * state this render closed over does not have it yet. Null when nothing was held back.
+   */
+  const flushCodeEdits = useCallback(
+    (): BuilderManifest | null => codeEdits.current?.() ?? null,
+    [codeEdits]
+  );
 
   const setPath = useCallback(
     (path: (string | number)[], value: unknown) => {
@@ -160,90 +171,98 @@ export function useBuilder() {
     [dispatch]
   );
 
-  const saveDraft = useCallback(async (): Promise<string | null> => {
-    const api = new ConnectorBuilderApiService();
-    dispatch({ type: BuilderActionType.SET_SAVING, payload: true });
-    dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
-    try {
-      const manifest: BuilderManifest = state.manifest;
-      if (!state.id) {
-        const created = await api.create({
-          name: manifest.name,
+  const persistDraft = useCallback(
+    async (manifest: BuilderManifest): Promise<string | null> => {
+      const api = new ConnectorBuilderApiService();
+      dispatch({ type: BuilderActionType.SET_SAVING, payload: true });
+      dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
+      try {
+        if (!state.id) {
+          const created = await api.create({
+            name: manifest.name,
+            title: firstNonEmpty(manifest.title, manifest.name),
+            description: manifest.description,
+            docUrl: manifest.docUrl,
+            manifest,
+          });
+          // Commit the id before the read below, which only enriches it with version
+          // metadata. create() has already taken the name, so a retry that re-POSTs it
+          // 400s on the name check — dropping the id with a transient read failure leaves
+          // the session holding edits it can never save anywhere.
+          dispatch({
+            type: BuilderActionType.SET_META,
+            payload: {
+              id: created.id,
+              versions: [],
+              activeVersionId: null,
+              activeVersion: null,
+              loadedVersion: null,
+            },
+          });
+          // In the same update as the id: the id is what swaps the route from /new to /:id,
+          // and create() has stored this manifest, so unless it was edited since there is
+          // nothing unsaved to ask about.
+          dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
+          const detail = await api.getById(created.id);
+          dispatch({
+            type: BuilderActionType.SET_META,
+            payload: {
+              id: created.id,
+              versions: detail.versions,
+              activeVersionId: detail.activeVersionId,
+              activeVersion: detail.activeVersion ?? null,
+              loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
+            },
+          });
+          dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
+          toast.success('Connector created');
+          return created.id;
+        }
+        await api.saveDraft(state.id, manifest);
+        // The manifest's display fields are also columns on the connector row, and the row is
+        // what every list, picker and data-mart page reads — this screen is the only one that
+        // reads the manifest. Saving the draft alone left a retitled connector titled the old
+        // way everywhere else, with no error to explain it.
+        //
+        // This replaces the read that used to follow saveDraft rather than adding a request:
+        // the update returns the same detail payload getById does. Sent on every save rather
+        // than only on a change, because the builder holds no copy of what the row currently
+        // says and "changed" could only be guessed. `name` is absent — it is what data marts
+        // resolve the connector by, which is why the field goes read-only once it exists.
+        const detail = await api.updateMetadata(state.id, {
           title: firstNonEmpty(manifest.title, manifest.name),
-          description: manifest.description,
-          docUrl: manifest.docUrl,
-          manifest,
+          description: blankToNull(manifest.description),
+          docUrl: blankToNull(manifest.docUrl),
         });
-        // Commit the id before the read below, which only enriches it with version
-        // metadata. create() has already taken the name, so a retry that re-POSTs it
-        // 400s on the name check — dropping the id with a transient read failure leaves
-        // the session holding edits it can never save anywhere.
         dispatch({
           type: BuilderActionType.SET_META,
           payload: {
-            id: created.id,
-            versions: [],
-            activeVersionId: null,
-            activeVersion: null,
-            loadedVersion: null,
-          },
-        });
-        // In the same update as the id: the id is what swaps the route from /new to /:id,
-        // and create() has stored this manifest, so there is nothing unsaved to ask about.
-        dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
-        const detail = await api.getById(created.id);
-        dispatch({
-          type: BuilderActionType.SET_META,
-          payload: {
-            id: created.id,
+            id: state.id,
             versions: detail.versions,
             activeVersionId: detail.activeVersionId,
             activeVersion: detail.activeVersion ?? null,
             loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
           },
         });
-        dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
-        toast.success('Connector created');
-        return created.id;
+        dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
+        toast.success('Draft saved');
+        return state.id;
+      } catch (e) {
+        const msg = apiErrorMessage(e, 'Failed to save');
+        dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
+        toast.error(msg);
+        return null;
+      } finally {
+        dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
       }
-      await api.saveDraft(state.id, manifest);
-      // The manifest's display fields are also columns on the connector row, and the row is
-      // what every list, picker and data-mart page reads — this screen is the only one that
-      // reads the manifest. Saving the draft alone left a retitled connector titled the old
-      // way everywhere else, with no error to explain it.
-      //
-      // This replaces the read that used to follow saveDraft rather than adding a request:
-      // the update returns the same detail payload getById does. Sent on every save rather
-      // than only on a change, because the builder holds no copy of what the row currently
-      // says and "changed" could only be guessed. `name` is absent — it is what data marts
-      // resolve the connector by, which is why the field goes read-only once it exists.
-      const detail = await api.updateMetadata(state.id, {
-        title: firstNonEmpty(manifest.title, manifest.name),
-        description: blankToNull(manifest.description),
-        docUrl: blankToNull(manifest.docUrl),
-      });
-      dispatch({
-        type: BuilderActionType.SET_META,
-        payload: {
-          id: state.id,
-          versions: detail.versions,
-          activeVersionId: detail.activeVersionId,
-          activeVersion: detail.activeVersion ?? null,
-          loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
-        },
-      });
-      dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
-      toast.success('Draft saved');
-      return state.id;
-    } catch (e) {
-      const msg = apiErrorMessage(e, 'Failed to save');
-      dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
-      toast.error(msg);
-      return null;
-    } finally {
-      dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
-    }
-  }, [dispatch, state.id, state.manifest]);
+    },
+    [dispatch, state.id]
+  );
+
+  const saveDraft = useCallback(
+    (): Promise<string | null> => persistDraft(flushCodeEdits() ?? state.manifest),
+    [persistDraft, flushCodeEdits, state.manifest]
+  );
 
   const publish = useCallback(async (): Promise<boolean> => {
     const api = new ConnectorBuilderApiService();
@@ -255,7 +274,11 @@ export function useBuilder() {
     dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: true });
     dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
     try {
-      const id = !state.id || state.dirty ? await saveDraft() : state.id;
+      const typed = flushCodeEdits();
+      const id =
+        !state.id || state.dirty || typed !== null
+          ? await persistDraft(typed ?? state.manifest)
+          : state.id;
       if (!id) return false;
       await api.publish(id);
       const detail = await api.getById(id);
@@ -279,7 +302,7 @@ export function useBuilder() {
     } finally {
       dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: false });
     }
-  }, [dispatch, state.id, state.dirty, saveDraft]);
+  }, [dispatch, state.id, state.dirty, state.manifest, persistDraft, flushCodeEdits]);
 
   const softDelete = useCallback(async (): Promise<boolean> => {
     if (!state.id) return false;
@@ -353,6 +376,7 @@ export function useBuilder() {
     renameNode,
     initNew,
     loadConnector,
+    flushCodeEdits,
     loadVersion,
     activateVersion,
     saveDraft,

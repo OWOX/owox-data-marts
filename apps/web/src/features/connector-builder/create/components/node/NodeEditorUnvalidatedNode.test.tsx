@@ -24,7 +24,7 @@ function seed(json: string): BuilderState {
 function Harness({ json }: { json: string }) {
   const [state, dispatch] = useReducer(builderReducer, json, seed);
   return (
-    <BuilderContext.Provider value={{ state, dispatch }}>
+    <BuilderContext.Provider value={{ state, dispatch, codeEdits: { current: null } }}>
       <NodeEditor
         nodeName='items'
         onRemoved={() => {

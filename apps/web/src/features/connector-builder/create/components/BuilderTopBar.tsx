@@ -39,14 +39,15 @@ export function BuilderTopBar({
   onBack?: () => void;
   onToggleAi?: () => void;
 }) {
-  const { manifest, state, saveDraft, publish, softDelete, reset } = useBuilder();
+  const { manifest, state, saveDraft, publish, softDelete, reset, flushCodeEdits } = useBuilder();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
   const exportManifest = () => {
+    const exported = flushCodeEdits() ?? manifest;
     downloadBlob(
-      new Blob([manifestToJson(manifest)], { type: 'application/json' }),
-      `${manifest.name || 'connector'}.json`
+      new Blob([manifestToJson(exported)], { type: 'application/json' }),
+      `${exported.name || 'connector'}.json`
     );
   };
 

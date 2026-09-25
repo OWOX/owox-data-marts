@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 import { addParameter, editCell } from './parameters-test-helpers';
 
@@ -10,6 +10,7 @@ const saveDraft = vi.fn();
 const publish = vi.fn();
 const softDelete = vi.fn();
 const updateMetadata = vi.fn();
+const runTest = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
@@ -20,6 +21,7 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
     getVersion = getVersion;
     softDelete = softDelete;
     updateMetadata = updateMetadata;
+    test = runTest;
   },
 }));
 
@@ -342,5 +344,156 @@ describe('ConnectorBuilderPage (new)', () => {
     expect(param.label).toBe('API Token');
     expect(param.default).toBe('abc');
     expect(param.description).toBe('Bearer token');
+  });
+});
+
+/**
+ * Code mode pushes the text into the builder a quarter second after the last keystroke, so
+ * an action taken sooner than that must take the text itself.
+ */
+describe('ConnectorBuilderPage — Code mode text typed right before an action', () => {
+  const draftDetail = (versions: { version: number; status: string }[]) => ({
+    id: 'def-1',
+    name: 'MyApi',
+    title: 'My API',
+    description: null,
+    logo: null,
+    docUrl: null,
+    activeVersionId: null,
+    versions: versions.map(v => ({ ...v, publishedAt: null })),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    getById.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
+    updateMetadata.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
+    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    publish.mockResolvedValue({ version: 1, status: 'published', publishedAt: null });
+    runTest.mockResolvedValue({ rows: [], logs: [] });
+  });
+
+  /** Rewrites the manifest in Code mode, as typing there does. No time passes after it. */
+  const typeInCode = (change: (manifest: Record<string, any>) => void) => {
+    const editor = screen.getByTestId<HTMLTextAreaElement>('monaco');
+    const manifest = JSON.parse(editor.value) as Record<string, any>;
+    change(manifest);
+    fireEvent.change(editor, { target: { value: JSON.stringify(manifest, null, 2) } });
+  };
+
+  /** A connector saved once, so nothing is left unsaved, open in Code mode. */
+  const savedConnectorInCode = async () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(getById).toHaveBeenCalledWith('def-1');
+    });
+    fireEvent.click(screen.getByTestId('mode-code'));
+  };
+
+  it('Save draft saves it', async () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    fireEvent.click(screen.getByTestId('mode-code'));
+
+    typeInCode(m => {
+      m.title = 'Typed just now';
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(create).toHaveBeenCalledTimes(1);
+    });
+    expect(create.mock.calls[0][0].manifest.title).toBe('Typed just now');
+  });
+
+  it('Publish saves it before publishing', async () => {
+    await savedConnectorInCode();
+
+    typeInCode(m => {
+      m.title = 'Typed just now';
+    });
+    fireEvent.click(screen.getByRole('button', { name: /publish/i }));
+
+    await waitFor(() => {
+      expect(publish).toHaveBeenCalledWith('def-1');
+    });
+    expect(saveDraft).toHaveBeenCalledWith(
+      'def-1',
+      expect.objectContaining({ title: 'Typed just now' })
+    );
+  });
+
+  it('Run test tests it', async () => {
+    await savedConnectorInCode();
+    typeInCode(m => {
+      m.nodes = {
+        items: { request: { method: 'GET', path: '/v1' }, recordSelector: { recordPath: [] } },
+      };
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('run-test')).toBeEnabled();
+    });
+
+    typeInCode(m => {
+      m.nodes.items.request.path = '/v2';
+    });
+    fireEvent.click(screen.getByTestId('run-test'));
+
+    await waitFor(() => {
+      expect(runTest).toHaveBeenCalledTimes(1);
+    });
+    expect(runTest.mock.calls[0][0].manifest.nodes.items.request.path).toBe('/v2');
+  });
+
+  it('opening another version asks before discarding it', async () => {
+    getById.mockResolvedValue(
+      draftDetail([
+        { version: 1, status: 'published' },
+        { version: 2, status: 'draft' },
+      ])
+    );
+    await savedConnectorInCode();
+
+    typeInCode(m => {
+      m.title = 'Typed just now';
+    });
+    fireEvent.click(screen.getByTestId('version-badge'));
+    fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
+
+    expect(await screen.findByText('Discard changes & open version')).toBeInTheDocument();
+    expect(getVersion).not.toHaveBeenCalled();
+  });
+
+  it('an edit made while the save is in flight stays unsaved', async () => {
+    await savedConnectorInCode();
+    fireEvent.click(screen.getByTestId('mode-builder'));
+    let releaseSave!: () => void;
+    saveDraft.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          releaseSave = () => {
+            resolve({ version: 1, status: 'draft', publishedAt: null });
+          };
+        })
+    );
+    fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'First' } });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(saveDraft).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('https://api.example.com'), {
+      target: { value: 'https://api.example.org' },
+    });
+    releaseSave();
+
+    await waitFor(() => {
+      expect(updateMetadata).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    });
   });
 });

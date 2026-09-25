@@ -1,7 +1,9 @@
 import { Editor } from '@monaco-editor/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
+import { useBuilderContext } from '../../shared/model/context/useBuilderContext';
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
+import type { BuilderManifest } from '../../shared/model/manifest.types';
 import { manifestToJson, parseManifestJson } from '../../shared/model/manifestJson';
 
 /**
@@ -17,6 +19,7 @@ const APPLY_DEBOUNCE_MS = 250;
 
 export function CodeModeEditor() {
   const { manifest, setManifest, setCodeInvalid } = useBuilder();
+  const { codeEdits } = useBuilderContext();
   const { resolvedTheme } = useTheme();
   const [text, setText] = useState<string>(() => manifestToJson(manifest));
   const [error, setError] = useState<string | null>(null);
@@ -35,22 +38,37 @@ export function CodeModeEditor() {
     timerRef.current = null;
   }, []);
 
-  const flush = useCallback(() => {
+  const flush = useCallback((): BuilderManifest | null => {
     cancelPending();
     const pending = pendingRef.current;
     pendingRef.current = null;
-    if (pending === null) return;
+    if (pending === null) return null;
     const res = parseManifestJson(pending);
-    if (!res.ok) return;
+    if (!res.ok) return null;
     pushedRef.current = res.manifest;
     setManifest(res.manifest);
+    return res.manifest;
   }, [cancelPending, setManifest]);
 
   // Unmounting is the switch to Builder mode, and it takes the buffer with it. Push
   // whatever the debounce still owes before that happens, or the last quarter second of
   // typing would be lost on every switch. Only a clean parse is pushed; an unparseable
   // buffer is what the switch guard has already put to the author.
-  useEffect(() => flush, [flush]);
+  useEffect(
+    () => () => {
+      flush();
+    },
+    [flush]
+  );
+
+  // Save, Publish, Run test and opening a version can come inside the debounce too. They
+  // push what is owed through this (see useBuilder's flushCodeEdits).
+  useEffect(() => {
+    codeEdits.current = flush;
+    return () => {
+      if (codeEdits.current === flush) codeEdits.current = null;
+    };
+  }, [codeEdits, flush]);
 
   // Follow a manifest replaced from outside — opening a version from history, Discard
   // changes, an AI-authored manifest. Without this the buffer keeps the text it was

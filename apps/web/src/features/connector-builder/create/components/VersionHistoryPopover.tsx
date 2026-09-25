@@ -6,7 +6,7 @@ import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDi
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
 
 export function VersionHistoryPopover() {
-  const { state, loadVersion, activateVersion } = useBuilder();
+  const { state, loadVersion, activateVersion, flushCodeEdits } = useBuilder();
   const { versions, activeVersion, loadedVersion } = state;
   const [open, setOpen] = useState(false);
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
@@ -23,7 +23,8 @@ export function VersionHistoryPopover() {
       setOpen(false);
       return;
     }
-    if (state.dirty) {
+    const typedInCode = flushCodeEdits() !== null;
+    if (state.dirty || typedInCode) {
       setPendingVersion(version);
     } else {
       setOpen(false);

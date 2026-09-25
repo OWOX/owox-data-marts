@@ -75,7 +75,7 @@ export function ResultsDock({
   onToggleOpen: () => void;
   onFixWithAi?: (ctx: { logs: string[]; error: string }) => void;
 }) {
-  const { manifest, setSample, state } = useBuilder();
+  const { manifest, setSample, state, flushCodeEdits } = useBuilder();
   const nodeNames = Object.keys(manifest.nodes);
   const paramEntries = Object.entries(manifest.parameters);
 
@@ -214,7 +214,7 @@ export function ResultsDock({
     setResult(null);
     try {
       const res = await new ConnectorBuilderApiService().test({
-        manifest,
+        manifest: flushCodeEdits() ?? manifest,
         node,
         configuration: values,
         maxRows,

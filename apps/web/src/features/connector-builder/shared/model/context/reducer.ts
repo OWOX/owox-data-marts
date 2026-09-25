@@ -54,6 +54,10 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       };
     case BuilderActionType.SET_DIRTY:
       return { ...state, dirty: action.payload };
+    // Clean only while the builder still holds what was saved: an edit made while the save
+    // was in flight is in the state but not on the server.
+    case BuilderActionType.MARK_SAVED:
+      return state.dirty && state.manifest === action.payload ? { ...state, dirty: false } : state;
     case BuilderActionType.SET_SAVING:
       return { ...state, saving: action.payload };
     case BuilderActionType.SET_PUBLISHING:

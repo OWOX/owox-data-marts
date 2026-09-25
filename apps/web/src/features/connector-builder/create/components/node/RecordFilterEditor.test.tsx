@@ -37,7 +37,7 @@ function Harness({ json }: { json: string }) {
   const [state, dispatch] = useReducer(builderReducer, json, seed);
   latest.state = state;
   return (
-    <BuilderContext.Provider value={{ state, dispatch }}>
+    <BuilderContext.Provider value={{ state, dispatch, codeEdits: { current: null } }}>
       <RecordFilterEditor nodeName='items' />
     </BuilderContext.Provider>
   );
