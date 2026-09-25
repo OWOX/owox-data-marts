@@ -2,8 +2,6 @@
 'owox': minor
 ---
 
-<!-- markdownlint-disable-file MD041 MD036 -->
-
 **Upload a Google Sheet to your storage from the OWOX Extension**
 
 A Data Mart on the **Google Sheets** connector imports one tab of a spreadsheet into your storage. Previously, refreshing that table after editing the sheet meant opening OWOX Data Marts and starting a manual run, or waiting for the next scheduled one. Now the person working in the sheet can do it right there: open the [OWOX Extension for Google Sheets](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409?utm_source=changelog) on that tab and click **Upload**.
@@ -17,3 +15,5 @@ A Data Mart on the **Google Sheets** connector imports one tab of a spreadsheet 
 On other tabs and in other spreadsheets, the extension works as before, and the Upload card also offers **Create a report on this sheet instead**. The Excel add-in is not affected.
 
 See [Upload from the OWOX Extension](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md#upload-from-the-owox-extension).
+
+<!-- markdownlint-disable-file MD041 MD036 -->
