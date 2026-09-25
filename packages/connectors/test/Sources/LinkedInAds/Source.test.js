@@ -21,6 +21,8 @@ const buildSource = ({ makeRequest, parameters = {} } = {}) => {
   const self = Object.assign(Object.create(sourceProto), {
     MAX_FIELDS_PER_REQUEST: 20,
     MAX_RESPONSE_ELEMENTS: 15000,
+    MAX_TRUNCATED_DAYS_IN_WARNING: 10,
+    truncatedAnalyticsDays: new Map(),
     BASE_URL: 'https://api.linkedin.com/rest/',
     context: {
       getParameter: name => parameters[name],
@@ -110,9 +112,9 @@ describe('fetchAdAnalytics', () => {
 
   /**
    * Reaching the cap on a SINGLE day means the day really is bigger than LinkedIn will
-   * hand over, which is rare enough to be worth naming outright — main batched this per
-   * account because its connector owned the day loop; here the engine does, so the Source
-   * reports each occurrence as it sees it.
+   * hand over, which is worth naming outright. It is named once the account completes, as
+   * main did: every WARN line becomes one of the run's warnings, so one per day buried a
+   * long backfill of a saturated account.
    */
   it('warns, naming the account and the day, when a response reaches the element limit', async () => {
     const { self, warnings } = buildSource({
@@ -120,6 +122,8 @@ describe('fetchAdAnalytics', () => {
     });
 
     await fetchDay(self, 1);
+    expect(warnings()).toHaveLength(0);
+    sourceProto.onAccountComplete.call(self, { id: URN });
 
     expect(warnings()).toHaveLength(1);
     expect(warnings()[0]).toContain(URN);
@@ -137,16 +141,17 @@ describe('fetchAdAnalytics', () => {
     expect(data).toHaveLength(15000);
   });
 
-  it('warns once per truncated day across calls', async () => {
+  it('warns once per account, naming every truncated day', async () => {
     const { self, warnings } = buildSource({
       makeRequest: vi.fn(async () => ({ elements: buildFullDay(1) })),
     });
 
     await fetchDay(self, 1);
     await fetchDay(self, 2);
+    sourceProto.onAccountComplete.call(self, { id: URN });
 
-    expect(warnings()).toHaveLength(2);
-    expect(warnings()[1]).toContain('2026-08-02');
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toContain('2026-08-01, 2026-08-02');
   });
 });
 
