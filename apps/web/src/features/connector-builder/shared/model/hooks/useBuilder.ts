@@ -351,10 +351,11 @@ export function useBuilder() {
   // re-fetch from the server for an existing connector, or reset to an empty manifest
   // for an unsaved one. Both paths clear the dirty flag (via SET_MANIFEST).
   const reset = useCallback(async (): Promise<void> => {
-    if (state.id) await loadConnector(state.id);
+    // The version that is open, not the newest: the author discards edits, not their place.
+    if (state.id) await loadConnector(state.id, state.loadedVersion ?? undefined);
     else initNew();
     toast.success('Changes discarded');
-  }, [state.id, loadConnector, initNew]);
+  }, [state.id, state.loadedVersion, loadConnector, initNew]);
 
   return {
     state,
