@@ -206,6 +206,8 @@ describe('SsrfGuard', () => {
 
   // --- DNS resolution failures must not fail open ---
 
+  const noWait = async () => {};
+
   function throwingLookup(code) {
     return async () => {
       const e = new Error(`stub: ${code}`);
@@ -215,7 +217,10 @@ describe('SsrfGuard', () => {
   }
 
   it('assertAllowed fails CLOSED when the resolver returns a temporary failure', async () => {
-    const g = new SsrfGuard(['api.example.com'], { lookup: throwingLookup('EAI_AGAIN') });
+    const g = new SsrfGuard(['api.example.com'], {
+      lookup: throwingLookup('EAI_AGAIN'),
+      sleep: noWait,
+    });
     await assert.rejects(
       () => g.assertAllowed('https://api.example.com/x'),
       /could not be resolved/
@@ -223,12 +228,18 @@ describe('SsrfGuard', () => {
   });
 
   it('assertAllowed fails CLOSED on a resolver SERVFAIL or timeout', async () => {
-    const servfail = new SsrfGuard(['api.example.com'], { lookup: throwingLookup('ESERVFAIL') });
+    const servfail = new SsrfGuard(['api.example.com'], {
+      lookup: throwingLookup('ESERVFAIL'),
+      sleep: noWait,
+    });
     await assert.rejects(
       () => servfail.assertAllowed('https://api.example.com/x'),
       /could not be resolved/
     );
-    const timeout = new SsrfGuard(['api.example.com'], { lookup: throwingLookup('ETIMEOUT') });
+    const timeout = new SsrfGuard(['api.example.com'], {
+      lookup: throwingLookup('ETIMEOUT'),
+      sleep: noWait,
+    });
     await assert.rejects(
       () => timeout.assertAllowed('https://api.example.com/x'),
       /could not be resolved/
@@ -236,11 +247,26 @@ describe('SsrfGuard', () => {
   });
 
   it('assertPublicHttps also fails CLOSED on a temporary resolver failure', async () => {
-    const g = new SsrfGuard([], { lookup: throwingLookup('EAI_AGAIN') });
+    const g = new SsrfGuard([], { lookup: throwingLookup('EAI_AGAIN'), sleep: noWait });
     await assert.rejects(
       () => g.assertPublicHttps('https://cdn.example/r.json'),
       /could not be resolved/
     );
+  });
+
+  // The guard runs before the request, outside its retries, so one resolver hiccup failed
+  // the account although the fetch itself would have asked again.
+  it('asks a resolver that did not answer again before failing closed', async () => {
+    let calls = 0;
+    const flaky = async () => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error('temporary'), { code: 'EAI_AGAIN' });
+      return [{ address: '93.184.216.34', family: 4 }];
+    };
+    const g = new SsrfGuard(['api.example.com'], { lookup: flaky, sleep: noWait });
+
+    await assert.doesNotReject(() => g.assertAllowed('https://api.example.com/x'));
+    assert.strictEqual(calls, 3);
   });
 
   it('a genuinely non-existent name stays tolerated (fetch reports the DNS error)', async () => {

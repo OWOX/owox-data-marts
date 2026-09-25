@@ -103,6 +103,11 @@ const BLOCKED_IPV6 = [
 // _assertResolvesToPublic.
 const CONCLUSIVE_DNS_FAILURES = new Set(['ENOTFOUND', 'ENODATA']);
 
+// How many times a resolver that did not answer is asked before the check fails closed. The
+// guard runs before a request and outside its retries, so without this one resolver hiccup
+// failed the account although the fetch would have asked again.
+const INCONCLUSIVE_LOOKUP_ATTEMPTS = 3;
+
 export class SsrfGuard {
   /**
    * True if `ip` is a private/loopback/link-local address. Accepts both the
@@ -125,13 +130,14 @@ export class SsrfGuard {
 
   /**
    * @param {string[]} allowedHosts - hostnames declared in the manifest
-   * @param {{ lookup?: (host: string) => Promise<Array<{address:string,family:number}>> }} [deps]
-   *   `lookup` is injectable for tests; defaults to a promisified
-   *   `dns.lookup(host, { all: true })`.
+   * @param {{ lookup?: (host: string) => Promise<Array<{address:string,family:number}>>, sleep?: (ms: number) => Promise<void> }} [deps]
+   *   `lookup` and `sleep` are injectable for tests; `lookup` defaults to a
+   *   promisified `dns.lookup(host, { all: true })`.
    */
-  constructor(allowedHosts = [], { lookup } = {}) {
+  constructor(allowedHosts = [], { lookup, sleep } = {}) {
     this.allowedHosts = new Set(allowedHosts.map(h => h.toLowerCase().replace(/\.$/, '')));
     this.lookup = lookup || defaultLookup;
+    this.sleep = sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   /**
@@ -275,16 +281,22 @@ export class SsrfGuard {
     if (isLiteralIp) return;
 
     let addrs;
-    try {
-      addrs = await this.lookup(host);
-    } catch (err) {
-      if (CONCLUSIVE_DNS_FAILURES.has(err?.code)) {
-        // No such name: nothing to block; let fetch surface the DNS error.
-        return;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        addrs = await this.lookup(host);
+        break;
+      } catch (err) {
+        if (CONCLUSIVE_DNS_FAILURES.has(err?.code)) {
+          // No such name: nothing to block; let fetch surface the DNS error.
+          return;
+        }
+        if (attempt >= INCONCLUSIVE_LOOKUP_ATTEMPTS) {
+          throw new Error(
+            `SsrfGuard: host "${host}" could not be resolved for validation (${err?.code || err?.message || 'unknown error'})`
+          );
+        }
+        await this.sleep(attempt * 500);
       }
-      throw new Error(
-        `SsrfGuard: host "${host}" could not be resolved for validation (${err?.code || err?.message || 'unknown error'})`
-      );
     }
     const list = Array.isArray(addrs) ? addrs : [addrs];
     for (const a of list) {
