@@ -115,6 +115,36 @@ describe('Authenticator', () => {
     assert.strictEqual(calls, 1);
   });
 
+  // Without ttlSeconds the token was stored already expired, so every request of the run
+  // exchanged for a new one.
+  it('tokenExchange.prepare keeps a token for a while when the manifest sets no ttlSeconds', async () => {
+    let calls = 0;
+    const httpClient = {
+      async urlFetchWithRetry() {
+        calls++;
+        return {
+          async json() {
+            return { token: 'TKN' };
+          },
+        };
+      },
+    };
+    const auth = new Authenticator(
+      {
+        type: 'tokenExchange',
+        exchange: { url: 'https://api.moloco.cloud/cm/v1/auth/tokens', tokenPath: ['token'] },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      engine
+    );
+    const scope = { parameters: {} };
+
+    await auth.prepare(scope, httpClient);
+    await auth.prepare(scope, httpClient);
+
+    assert.strictEqual(calls, 1);
+  });
+
   it('prepare is a no-op for apiKey', async () => {
     const auth = new Authenticator(
       { type: 'apiKey', inject: { into: 'query', name: 'k', format: '{{ parameters.AppId }}' } },

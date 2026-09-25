@@ -173,7 +173,7 @@ Exchanges a credential for a server-issued token via one POST, then injects that
 }
 ```
 
-`exchange.tokenPath` is an array locating the token in the JSON response. The token is cached for `exchange.ttlSeconds` and re-issued once it expires. `inject` templates read the cached token via `{{ auth.token }}`.
+`exchange.tokenPath` is an array locating the token in the JSON response. The token is cached for `exchange.ttlSeconds` (300 if unset) and re-issued once it expires. `inject` templates read the cached token via `{{ auth.token }}`.
 
 ### OAuth2
 

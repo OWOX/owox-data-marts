@@ -32,11 +32,11 @@ import {
  */
 
 const TOKEN_EXPIRY_SKEW_SECONDS = 60;
-// Cache TTL used when the token response has no usable expires_in and the
-// manifest author did not set config.ttlSeconds. Conservative on purpose: an
-// oversized default would repeat the "never re-request" bug for providers
-// with genuinely short-lived tokens.
-const OAUTH2_DEFAULT_TTL_SECONDS = 300;
+// Cache TTL used when nothing says how long a token lives: an oauth2 response
+// without a usable expires_in, or a tokenExchange, and the manifest author did
+// not set ttlSeconds. Conservative on purpose: an oversized default would repeat
+// the "never re-request" bug for providers with genuinely short-lived tokens.
+const DEFAULT_TOKEN_TTL_SECONDS = 300;
 
 function encodeForm(fields) {
   return Object.entries(fields)
@@ -208,7 +208,10 @@ export class Authenticator {
     if (token === undefined || token === null) {
       throw new Error(`Authenticator: token not found at exchange.tokenPath`);
     }
-    this._storeToken(key, token, now() + (Number(ex.ttlSeconds) || 0) * 1000);
+    // Without ttlSeconds the token used to be stored already expired, so every request of
+    // the run exchanged for a new one.
+    const ttlSeconds = Number(ex.ttlSeconds) > 0 ? Number(ex.ttlSeconds) : DEFAULT_TOKEN_TTL_SECONDS;
+    this._storeToken(key, token, now() + ttlSeconds * 1000);
     this._writeToken(scope);
   }
 
@@ -279,7 +282,7 @@ export class Authenticator {
             ? Math.max(0, expiresIn - TOKEN_EXPIRY_SKEW_SECONDS)
             : Number.isFinite(Number(this.config.ttlSeconds)) && Number(this.config.ttlSeconds) > 0
               ? Number(this.config.ttlSeconds)
-              : OAUTH2_DEFAULT_TTL_SECONDS;
+              : DEFAULT_TOKEN_TTL_SECONDS;
         const expiresAt = now() + ttlSeconds * 1000;
         this._storeToken(keyFor(refreshToken), json.access_token, expiresAt);
 
