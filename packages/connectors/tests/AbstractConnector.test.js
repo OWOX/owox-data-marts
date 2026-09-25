@@ -695,6 +695,42 @@ describe('AbstractConnector', () => {
     });
   });
 
+  // An account failing outright has halted the cursor for the whole run, so nothing it reads
+  // on a later day can be checkpointed. A deleted account answered every day of a 30-day
+  // window, each time with the source's full retry budget.
+  describe('an account that keeps failing on a day-by-day window', () => {
+    it('sits out the rest of the window after the same failure three times', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = createTestContext({
+          LastRequestedDate: { value: utcDay(-4) },
+          ReimportLookbackWindow: { value: '0' },
+        });
+        const requests = [];
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'deleted' }, { id: 'working' }],
+          fetchData: async req => {
+            requests.push(`${req.accountId} ${req.startDate}`);
+            if (req.accountId === 'deleted') throw new Error('HTTP 404: account not found');
+            return [{ id: 1 }];
+          },
+        });
+        const connector = new AbstractConnector(ctx, source, createMockStorageClass());
+
+        await assert.rejects(() => connector.run(), /1 out of 2 accounts did not import/);
+
+        assert.deepStrictEqual(
+          requests.filter(request => request.startsWith('deleted')),
+          [`deleted ${utcDay(-4)}`, `deleted ${utcDay(-3)}`, `deleted ${utcDay(-2)}`]
+        );
+        assert.strictEqual(requests.filter(request => request.startsWith('working')).length, 5);
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('time-series strategies', () => {
     it('range strategy makes single fetch with full date range', async () => {
       const cap = captureEvents();

@@ -20,6 +20,10 @@ import {
 // one account.
 const STORAGE_FAILURE = Symbol('storageFailure');
 
+// How many times an account fails outright with the same error before it sits out the rest
+// of a day-by-day window.
+const FAILURES_TO_SIT_OUT = 3;
+
 function asStorageFailure(error) {
   const failure = error instanceof Error ? error : new Error(String(error));
   failure[STORAGE_FAILURE] = true;
@@ -200,12 +204,13 @@ export class AbstractConnector {
    * first day silently dropped the rest of its window: the run had already moved
    * the cursor past days that were never requested for it.
    *
-   * Error isolation is deliberately narrow, as main's was: an account-scoped
-   * permission failure (`isWarning`) is recorded and skipped for that pass and
-   * the remaining accounts still import; ANY other error ends the run where it
-   * happened, so later accounts are never attempted. See _recordAccountFailure.
-   * The run also fails at the end when every account was skipped (see
-   * _reportAccountOutcomes) -- a total skip means nothing was imported at all.
+   * Every account is attempted. An account-scoped permission failure (`isWarning`)
+   * is skipped, and the cursor still advances; any other failure holds the cursor
+   * back and fails the run once everything else has loaded, and on a day-by-day
+   * window an account that keeps failing the same way sits out the days after. See
+   * _recordAccountFailure and
+   * _reportAccountOutcomes, which also fails a run where every account was skipped --
+   * a total skip means nothing was imported at all.
    *
    * Hooks invoked: parseFields, getAccounts, getDateStrategy, getDestinationName,
    * fetchData, onAccountComplete, onAccountError, onImportComplete.
@@ -320,9 +325,9 @@ export class AbstractConnector {
    *
    * `issues` is main's skippedAccounts Map: it keys the errors by account so a
    * partial failure is reported per account instead of collapsing into whichever
-   * error happened to come last. Only SKIPPED accounts (an account-scoped
-   * 401/403 -- permanent, reported as a warning) are ever recorded; any other
-   * failure is rethrown by _recordAccountFailure and never reaches the Map.
+   * error happened to come last. It holds both kinds of failure, skips (an
+   * account-scoped 401/403) and outright ones, and _reportAccountOutcomes tells
+   * them apart.
    * `succeeded` and `cursorHalted` are what keep the incremental checkpoint
    * honest; see _advanceCursor.
    *
@@ -522,6 +527,24 @@ export class AbstractConnector {
           : 'Import failed'
         : `${isSkip ? 'Skipped account' : 'Error processing account'} ${accountId}`;
     this.context.log(level, `${what}: ${error.message}`);
+  }
+
+  /**
+   * Whether the account has failed outright (not merely been skipped) with the same error
+   * FAILURES_TO_SIT_OUT times in this run.
+   *
+   * @param {object} state run state from _createRunState
+   * @param {object|null} account
+   * @returns {boolean}
+   * @private
+   */
+  _keepsFailing(state, account) {
+    const hard = (state.issues.get(this._accountKey(account))?.errors ?? []).filter(
+      error => error?.isWarning !== true
+    );
+    const last = hard[hard.length - 1];
+    if (!last) return false;
+    return hard.filter(error => error.message === last.message).length >= FAILURES_TO_SIT_OUT;
   }
 
   /**
@@ -978,11 +1001,19 @@ export class AbstractConnector {
       this._beginPass(state);
 
       for (const account of accounts) {
+        // An account failing outright has halted the cursor for the whole run, so nothing it
+        // reads from here on can be checkpointed. One failure may be passing, and the days
+        // after still load; the same one again and again is not, and asking every day spent
+        // the full retry budget each time. Such an account sits out, counted as failing this
+        // day too, and the run fails over it at the end and asks for the window again.
+        if (this._keepsFailing(state, account)) {
+          state.passHardFailures += 1;
+          continue;
+        }
         // One try/catch around the whole node loop, as main had it: a failing account
-        // loses node 3 for this day only -- the other accounts, and this account's
-        // other days, are unaffected. Whether this date is then checkpointed is
-        // _advanceCursor's call, and it turns on the KIND of failure, not on there
-        // having been one.
+        // loses node 3 for this day only -- the other accounts are unaffected. Whether this
+        // date is then checkpointed is _advanceCursor's call, and it turns on the KIND of
+        // failure, not on there having been one.
         const done = await this._runForAccount(state, account, async () => {
           for (const node of nodes) {
             const writer = this._nodeWriter(writers, node);
