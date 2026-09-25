@@ -293,13 +293,15 @@ describe('AbstractContext', () => {
   });
 
   describe('runConfig validation', () => {
-    it('MANUAL_BACKFILL throws on empty data', () => {
+    // main accepted it: a connector without backfill fields sends no items, and runs as an
+    // ordinary import.
+    it('MANUAL_BACKFILL accepts an empty data list', () => {
       const ctx = new AbstractContext({
         source: { name: 'S', config: {} },
         storage: { name: 'S', config: {} },
         runConfig: { type: 'MANUAL_BACKFILL', data: [] },
       });
-      assert.throws(() => ctx.validate(), /Manual backfill requires data items/);
+      assert.doesNotThrow(() => ctx.validate());
     });
 
     it('MANUAL_BACKFILL throws when item missing configField', () => {
