@@ -9,7 +9,7 @@ import type { DataMartRunItem } from '../../model';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import type { LogEntry, SortDir } from './types';
 import { LogLevel } from './types';
-import { categorize, severityOf, relabelStatusMessage } from './log-category';
+import { LogCategory, categorize, severityOf, relabelStatusMessage } from './log-category';
 
 const toSortTime = (iso: string | null | undefined): number => {
   if (!iso) return 0;
@@ -42,7 +42,11 @@ export const sortLogEntries = (entries: LogEntry[], sortDir: SortDir): LogEntry[
 const withCategory = (entry: Omit<LogEntry, 'category' | 'severity'>): LogEntry => {
   const type = (entry.metadata?.type as string | null | undefined) ?? null;
   const eventType = (entry.metadata?.eventType as string | null | undefined) ?? null;
-  const category = categorize(type, eventType, entry.message);
+  // A plain-text entry of the run's errors has no message type to categorize it by (HTTP data
+  // and Excel runs record errors that way); it is still an error.
+  const typed = categorize(type, eventType, entry.message);
+  const category =
+    typed === LogCategory.UNKNOWN && entry.level === LogLevel.ERROR ? LogCategory.ERROR : typed;
   const message = relabelStatusMessage(type, entry.message);
   return { ...entry, message, category, severity: severityOf(category) };
 };
