@@ -9,12 +9,14 @@ import {
   Optional,
 } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import type { Role as RoleType } from '@owox/idp-protocol';
 import {
   DATA_STORAGE_ERROR_MAPPER_RESOLVER,
   DATA_STORAGE_REPORT_READER_RESOLVER,
 } from '../data-storage-types/data-storage-providers';
+import { isConnected } from '../data-storage-types/data-mart-schema.utils';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
@@ -143,8 +145,10 @@ export class PreviewDataMartService {
     );
     // Top-level fields only: a RECORD is shown as one JSON column, not as the record plus every
     // nested path. Calculated fields are left out — they are composed only when asked for by name.
+    // A DISCONNECTED field is gone from the source; selecting it would fail the whole preview.
     const calculatedNames = new Set(calculatedFieldsOf(schema.nativeFields).map(f => f.name));
     const fields = schema.nativeFields
+      .filter(isConnected)
       .map(field => field.name)
       .filter(name => !calculatedNames.has(name));
     if (fields.length === 0) {
@@ -178,8 +182,11 @@ export class PreviewDataMartService {
     try {
       result = await this.readRows(dataMart, readPlan, accessor, schema, limit, signal);
     } catch (error) {
-      // Validation, the deadline and a cancel are already HTTP errors.
-      if (error instanceof HttpException) throw error;
+      // Validation, the deadline and a cancel are already HTTP errors. A composer rule violation
+      // (e.g. a sort on a removed column) is raised before any query runs; its filter answers 400.
+      if (error instanceof HttpException || error instanceof BusinessViolationException) {
+        throw error;
+      }
       // A warehouse error (bad column, missing table, permissions — including the technical view
       // a SQL Data Mart is read through) is not a server fault: hand the provider's own sentence
       // back, the same way HTTP Data does, so the person can fix the schema or the filter.

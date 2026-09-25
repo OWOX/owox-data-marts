@@ -9,7 +9,9 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { RunKind } from '../services/project-billing/project-billing.service';
@@ -43,7 +45,7 @@ describe('PreviewDataMartService', () => {
     overrides: {
       batches?: ReportDataBatch[];
       accessAllowed?: boolean;
-      nativeFields?: { name: string; type: string; fields?: unknown[] }[];
+      nativeFields?: { name: string; type: string; fields?: unknown[]; status?: string }[];
       readerError?: Error;
       composeError?: Error;
       blocked?: boolean;
@@ -284,6 +286,40 @@ describe('PreviewDataMartService', () => {
     );
   });
 
+  it('leaves out a field that is disconnected from the source', async () => {
+    const { service, composer } = createService({
+      nativeFields: [
+        { name: 'id', type: 'INTEGER', status: DataMartSchemaFieldStatus.CONNECTED },
+        { name: 'old_column', type: 'STRING', status: DataMartSchemaFieldStatus.DISCONNECTED },
+        {
+          name: 'revenue',
+          type: 'FLOAT',
+          status: DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH,
+        },
+      ],
+    });
+
+    await service.run(command());
+
+    expect(composer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: ['id', 'revenue'] }),
+      expect.anything(),
+      undefined,
+      expect.anything()
+    );
+  });
+
+  it('asks to refresh the schema when every field is disconnected', async () => {
+    const { service, composer } = createService({
+      nativeFields: [
+        { name: 'old_column', type: 'STRING', status: DataMartSchemaFieldStatus.DISCONNECTED },
+      ],
+    });
+
+    await expect(service.run(command())).rejects.toBeInstanceOf(BadRequestException);
+    expect(composer.compose).not.toHaveBeenCalled();
+  });
+
   it('returns a warehouse read error through the storage error mapper', async () => {
     const { service, errorMapper } = createService({
       readerError: new Error('Unrecognized name: device'),
@@ -315,6 +351,17 @@ describe('PreviewDataMartService', () => {
 
     await expect(service.run(command())).rejects.toBeInstanceOf(BadRequestException);
     expect(errorMapper.toStorageReadError).not.toHaveBeenCalled();
+  });
+
+  it('keeps a composer rule violation for its own 400 filter, not the warehouse mapper', async () => {
+    const violation = new BusinessViolationException('Sort field is not in the schema', {
+      field: 'removed_column',
+    });
+    const { service, errorMapper, readerResolver } = createService({ composeError: violation });
+
+    await expect(service.run(command())).rejects.toBe(violation);
+    expect(errorMapper.toStorageReadError).not.toHaveBeenCalled();
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
   });
 
   it('reuses the computed schema when composing', async () => {
