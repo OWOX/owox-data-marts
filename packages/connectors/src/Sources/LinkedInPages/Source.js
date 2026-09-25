@@ -190,7 +190,7 @@ export class LinkedInPagesSource extends AbstractSource {
       },
     };
 
-    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    this._registerParameters();
 
     this.fieldsSchema = LinkedInPagesFieldsSchema;
     this.BASE_URL = 'https://api.linkedin.com/rest/';

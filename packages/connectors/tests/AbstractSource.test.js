@@ -212,6 +212,34 @@ describe('AbstractSource', () => {
       assert.ok(b >= 1000 && b <= 3000, `attempt 1: ${b}`);
       assert.ok(c >= 2000 && c <= 6000, `attempt 2: ${c}`);
     });
+
+    it('starts from the Initial Retry Delay setting when no delay is passed', () => {
+      const source = new AbstractSource(createContext({ InitialRetryDelay: { value: 200 } }));
+      const delay = source.calculateBackoff(0);
+      assert.ok(delay >= 100 && delay <= 300, `attempt 0: ${delay}`);
+    });
+
+    // A longer timer fires at once, which would turn the retries into a burst.
+    it("never exceeds setTimeout's maximum delay", () => {
+      const source = new AbstractSource(createContext());
+      assert.ok(source.calculateBackoff(60, 1000) <= 2147483647);
+    });
+  });
+
+  describe('_registerParameters', () => {
+    it('declares the retry settings after the source parameters', () => {
+      const context = createContext();
+      const source = new AbstractSource(context);
+      source.parameters = { ApiKey: { requiredType: 'string' } };
+      source._registerParameters();
+      assert.deepEqual(Object.keys(source.parameters), [
+        'ApiKey',
+        'MaxFetchRetries',
+        'InitialRetryDelay',
+      ]);
+      assert.equal(context.getParameter('MaxFetchRetries').value, 3);
+      assert.equal(context.getParameter('InitialRetryDelay').value, 5000);
+    });
   });
 
   describe('isValidToRetry', () => {

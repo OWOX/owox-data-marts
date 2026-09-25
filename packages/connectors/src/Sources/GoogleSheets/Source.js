@@ -222,7 +222,7 @@ export class GoogleSheetsSource extends AbstractSource {
       },
     };
 
-    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    this._registerParameters();
 
     this.fieldsSchema = this._buildPlaceholderFieldsSchema();
     this.accessToken = null;
@@ -546,10 +546,9 @@ export class GoogleSheetsSource extends AbstractSource {
   }
 
   async _fetchSheetResponse(url, accessToken, signal) {
-    // Read through the base helper, not getParameter() directly: MaxFetchRetries is
-    // not one of this source's declared parameters, so an unset one would come back
-    // undefined and `attempt <= undefined` would skip the loop entirely — zero
-    // requests, and a bare "retry loop ended unexpectedly" instead of the real error.
+    // Read through the base helper, not getParameter() directly: a blank or non-numeric
+    // value would make `attempt <= NaN` skip the loop entirely — zero requests, and a
+    // bare "retry loop ended unexpectedly" instead of the real error.
     const maxAttempts = this._getRetryParam('MaxFetchRetries', 3);
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       let response;
@@ -586,7 +585,7 @@ export class GoogleSheetsSource extends AbstractSource {
         }
 
         const retryAfterMs = this._getRetryAfterMs(response);
-        const delay = retryAfterMs ?? this.calculateBackoff(attempt);
+        const delay = retryAfterMs ?? this.calculateBackoff(attempt - 1);
         this.context.log(
           LOG_LEVEL.INFO,
           `Retrying Google Sheets request after ${Math.round(delay / 1000)}s`
