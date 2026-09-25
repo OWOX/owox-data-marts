@@ -2,7 +2,7 @@
 
 ## 0.36.0
 
-### Minor Changes
+### Minor Changes 0.36.0
 
 - 42c797b: **Preview Data Mart rows from Data Setup**
 
@@ -127,7 +127,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-- bc93495: # Resolve nested short links in Facebook Ads insights
+- bc93495: **Resolve nested short links in Facebook Ads insights**
 
   The Facebook Ads connector can now expand short links whose path has several parts, such as `https://links.example.com/abc/xyz`. Previously **Process Short Links** resolved only single-part links like `https://bit.ly/abc123`, so nested links from custom short link services stayed unresolved in `link_url_asset.parsed_url`.
 
@@ -176,7 +176,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.36.0
 
 - @owox/internal-helpers@0.36.0
 - @owox/idp-protocol@0.36.0
