@@ -61,6 +61,43 @@ describe('decoders', () => {
     await assert.rejects(() => decodeResponse(response, 'json'), /response too large/i);
   });
 
+  it('decodeResponse cancels a streamed body once it passes the cap', async () => {
+    let cancelled = false;
+    const endless = new ReadableStream({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(10));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const response = { headers: { get: () => null }, body: endless };
+
+    await assert.rejects(
+      () => decodeResponse(response, 'json', { maxBytes: 25 }),
+      /response too large/i
+    );
+    assert.strictEqual(cancelled, true, 'the rest of the body was left on the connection');
+  });
+
+  it('decodeResponse cancels a body whose content-length alone is over the cap', async () => {
+    let cancelled = false;
+    const response = {
+      headers: { get: name => (name === 'content-length' ? '100' : null) },
+      body: new ReadableStream({
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    };
+
+    await assert.rejects(
+      () => decodeResponse(response, 'json', { maxBytes: 25 }),
+      /response too large/i
+    );
+    assert.strictEqual(cancelled, true);
+  });
+
   it('decodeResponse decodes a small chunked (no content-length) json body under the cap via streaming', async () => {
     const text = JSON.stringify({ a: 1 });
     const response = {

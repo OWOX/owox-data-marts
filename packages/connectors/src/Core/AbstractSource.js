@@ -326,6 +326,8 @@ export class AbstractSource {
 
           const location = response.headers.get('location');
           if (!location) break; // 3xx without a Location: treat as a terminal response
+          // Nothing reads a redirect's body, and an unread body holds its connection until GC.
+          await response.body?.cancel?.().catch(() => {});
 
           if (hops >= AbstractSource.MAX_REDIRECT_HOPS) {
             throw Object.assign(

@@ -38,7 +38,7 @@ export async function decodeResponse(response, format, { maxBytes = MAX_RESPONSE
   // A 204, or a JSON body with nothing in it, is how some APIs answer "no records"; parsing
   // it threw, and the day the request belonged to was never checkpointed. null selects none.
   if (response?.status === 204) return null;
-  assertContentLengthWithinCap(response, maxBytes);
+  await assertContentLengthWithinCap(response, maxBytes);
   const text = await readCappedText(response, format, maxBytes);
   if (text !== undefined) {
     if (format === 'jsonl') return parseJsonl(text);
@@ -53,11 +53,13 @@ export async function decodeResponse(response, format, { maxBytes = MAX_RESPONSE
   throw new Error(`decodeResponse: unsupported responseFormat "${format}"`);
 }
 
-function assertContentLengthWithinCap(response, maxBytes) {
+async function assertContentLengthWithinCap(response, maxBytes) {
   const raw = response?.headers?.get?.('content-length');
   if (raw == null) return;
   const declared = Number(raw);
   if (Number.isFinite(declared) && declared > maxBytes) {
+    // An unread body holds its connection until GC; this one is never going to be read.
+    await response.body?.cancel?.().catch(() => {});
     throw new Error(
       `decodeResponse: response too large (content-length ${declared} exceeds ${maxBytes} bytes)`
     );
@@ -84,6 +86,8 @@ async function readCappedText(response, format, maxBytes) {
       if (value) {
         total += value.byteLength ?? value.length ?? 0;
         if (total > maxBytes) {
+          // Releasing the lock alone leaves the rest of the body streaming into the connection.
+          await reader.cancel?.().catch(() => {});
           throw new Error(`decodeResponse: response too large (exceeds ${maxBytes} bytes)`);
         }
         // Buffer.concat accepts Uint8Array (Buffer is one) directly, so a chunk

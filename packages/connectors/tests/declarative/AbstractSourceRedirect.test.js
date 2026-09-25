@@ -62,6 +62,24 @@ function res(status, { location, ok = status >= 200 && status < 300, body = null
   };
 }
 
+// A body that never ends by itself and records whether anyone cancelled it.
+function trackedBody() {
+  const tracked = { cancelled: false };
+  tracked.stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('<html>moved</html>'));
+    },
+    cancel() {
+      tracked.cancelled = true;
+    },
+  });
+  return tracked;
+}
+
+function withBody(response, tracked) {
+  return Object.assign(response, { body: tracked.stream });
+}
+
 describe('AbstractSource.urlFetchWithRetry — manual redirect + per-hop re-validation', () => {
   let originalFetch;
   beforeEach(() => {
@@ -219,6 +237,62 @@ describe('AbstractSource.urlFetchWithRetry — manual redirect + per-hop re-vali
     assert.strictEqual(seen.length, 2);
     assert.strictEqual(seen[1].options.method, 'GET', '303 must become a GET');
     assert.strictEqual(seen[1].options.body, undefined, '303 must not carry the body');
+  });
+
+  it('releases the body of a redirect it follows, and not the final one', async () => {
+    const src = makeTestSource();
+    const hopBody = trackedBody();
+    const finalBody = trackedBody();
+    globalThis.fetch = async url =>
+      url.endsWith('/start')
+        ? withBody(res(302, { location: 'https://api.ok/next' }), hopBody)
+        : withBody(res(200), finalBody);
+
+    const out = await src.urlFetchWithRetry(
+      'https://api.ok/start',
+      { method: 'GET' },
+      async () => {}
+    );
+
+    assert.strictEqual(out.body, finalBody.stream);
+    assert.strictEqual(hopBody.cancelled, true, 'the 302 body was left holding its connection');
+    assert.strictEqual(finalBody.cancelled, false);
+  });
+
+  it('releases the body of a redirect it refuses to follow', async () => {
+    const src = makeTestSource();
+    const hopBody = trackedBody();
+    globalThis.fetch = async () =>
+      withBody(res(302, { location: 'http://169.254.169.254/' }), hopBody);
+    const validate = async () => {
+      throw new Error('blocked hop');
+    };
+
+    await assert.rejects(
+      () => src.urlFetchWithRetry('https://api.ok/data', { method: 'GET' }, validate),
+      /blocked hop/
+    );
+    assert.strictEqual(hopBody.cancelled, true);
+  });
+
+  it('releases every redirect body when it gives up on too many redirects', async () => {
+    const src = makeTestSource();
+    const bodies = [];
+    globalThis.fetch = async () => {
+      const body = trackedBody();
+      bodies.push(body);
+      return withBody(res(302, { location: `https://api.ok/h${bodies.length}` }), body);
+    };
+
+    await assert.rejects(
+      () => src.urlFetchWithRetry('https://api.ok/start', { method: 'GET' }, async () => {}),
+      /too many redirects/i
+    );
+    assert.strictEqual(bodies.length, AbstractSource.MAX_REDIRECT_HOPS + 1);
+    assert.deepStrictEqual(
+      bodies.map(body => body.cancelled),
+      bodies.map(() => true)
+    );
   });
 
   it('a retry restarts from the ORIGINAL url, not from the last hop of the failed attempt', async () => {
