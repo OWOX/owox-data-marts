@@ -42,8 +42,7 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
     JSON.stringify({
       type: 'addWarningToCurrentStatus',
       at: new Date().toISOString(),
-      warning:
-        'All 1 accounts were skipped, so nothing was imported. Errors: HTTP 401: Unauthorized',
+      warning: 'Nothing was imported because access was refused: HTTP 401: Unauthorized',
     }) + '\n'
   );
   process.exit(0);
