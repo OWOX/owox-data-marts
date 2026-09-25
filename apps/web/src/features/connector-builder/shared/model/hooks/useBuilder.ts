@@ -283,7 +283,7 @@ export function useBuilder() {
           ? await persistDraft(typed ?? state.manifest)
           : state.id;
       if (!id) return false;
-      await api.publish(id);
+      const { warnings } = await api.publish(id);
       const detail = await api.getById(id);
       dispatch({
         type: BuilderActionType.SET_META,
@@ -296,6 +296,9 @@ export function useBuilder() {
         },
       });
       toast.success('Published');
+      // Publishing does not refuse a manifest over these, chiefly a credential it could not
+      // mark SECRET, so this is the only place the author learns of them.
+      for (const warning of warnings) toast(warning, { id: warning, icon: '⚠️', duration: 20000 });
       return true;
     } catch (e) {
       const msg = apiErrorMessage(e, 'Failed to publish');

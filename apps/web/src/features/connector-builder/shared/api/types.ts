@@ -17,6 +17,11 @@ export interface CustomConnectorVersionSummaryDto {
   publishedAt: string | null;
 }
 
+export interface PublishCustomConnectorResultDto extends CustomConnectorVersionSummaryDto {
+  /** What publishing found wrong with the manifest without refusing it; empty when nothing. */
+  warnings: string[];
+}
+
 export interface CustomConnectorDetailDto extends CustomConnectorListItemDto {
   versions: CustomConnectorVersionSummaryDto[];
 }

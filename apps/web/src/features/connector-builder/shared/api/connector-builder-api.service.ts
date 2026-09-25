@@ -8,6 +8,7 @@ import type {
   CustomConnectorListItemDto,
   CustomConnectorVersionDto,
   CustomConnectorVersionSummaryDto,
+  PublishCustomConnectorResultDto,
   TestConnectorPayload,
   UpdateCustomConnectorMetadataPayload,
 } from './types';
@@ -55,8 +56,8 @@ export class ConnectorBuilderApiService extends ApiService {
     return this.patch<CustomConnectorDetailDto>(`/${id}`, metadata);
   }
 
-  async publish(id: string): Promise<CustomConnectorVersionSummaryDto> {
-    return this.post<CustomConnectorVersionSummaryDto>(`/${id}/publish`);
+  async publish(id: string): Promise<PublishCustomConnectorResultDto> {
+    return this.post<PublishCustomConnectorResultDto>(`/${id}/publish`);
   }
 
   async test(payload: TestConnectorPayload): Promise<ConnectorTestResultDto> {

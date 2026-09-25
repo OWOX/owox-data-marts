@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { toast } from 'react-hot-toast';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 import { addParameter, editCell } from './parameters-test-helpers';
 
@@ -25,7 +26,9 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
   },
 }));
 
-vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('react-hot-toast', () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}));
 
 /** What the builder reads into itself when it opens an existing connector. */
 const EXISTING_MANIFEST = {
@@ -67,6 +70,7 @@ describe('ConnectorBuilderPage (new)', () => {
       version: 1,
       status: 'published',
       publishedAt: '2026-06-11T00:00:00Z',
+      warnings: [],
     });
     updateMetadata.mockResolvedValue({
       id: 'def-1',
@@ -113,6 +117,25 @@ describe('ConnectorBuilderPage (new)', () => {
     fireEvent.click(screen.getByRole('button', { name: /publish/i }));
     await waitFor(() => {
       expect(publish).toHaveBeenCalledWith('def-1');
+    });
+  });
+
+  it('shows what publishing warned about', async () => {
+    const warning =
+      'Connector \'MyApi\' v1: "authentication" references undeclared parameter(s) Token.';
+    publish.mockResolvedValue({
+      version: 1,
+      status: 'published',
+      publishedAt: '2026-06-11T00:00:00Z',
+      warnings: [warning],
+    });
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /publish/i }));
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(warning, expect.objectContaining({ icon: '⚠️' }));
     });
   });
 
@@ -262,7 +285,12 @@ describe('ConnectorBuilderPage (new)', () => {
       () =>
         new Promise(resolve => {
           releasePublish = () => {
-            resolve({ version: 1, status: 'published', publishedAt: '2026-06-11T00:00:00Z' });
+            resolve({
+              version: 1,
+              status: 'published',
+              publishedAt: '2026-06-11T00:00:00Z',
+              warnings: [],
+            });
           };
         })
     );
@@ -369,7 +397,7 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     getById.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
     updateMetadata.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
     saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
-    publish.mockResolvedValue({ version: 1, status: 'published', publishedAt: null });
+    publish.mockResolvedValue({ version: 1, status: 'published', publishedAt: null, warnings: [] });
     runTest.mockResolvedValue({ rows: [], logs: [] });
   });
 
@@ -526,7 +554,7 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
       })
     );
     saveDraft.mockResolvedValue({ version: 2, status: 'draft', publishedAt: null });
-    publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: null });
+    publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: null, warnings: [] });
   });
 
   it('publishes the open version, as "Replace & publish" says, with nothing edited', async () => {
