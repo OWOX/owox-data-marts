@@ -521,6 +521,13 @@ export class ConnectorDefinitionService {
   /**
    * Marking the draft published and pointing the definition at it are one change: a version
    * flagged published that nothing activates is a release users cannot see or roll back.
+   *
+   * Both are targeted UPDATEs rather than save()s, which write back every column of the entity
+   * they are given: a draft saved while this validated the one it read had its manifest
+   * replaced by the older one after being acknowledged, and a title patched meanwhile was
+   * reverted. On MySQL the draft is also read under a row lock, so such a save waits for the
+   * publish and then opens the next draft instead of changing the manifest being published.
+   * SQLite has no row locks.
    */
   @Transactional()
   async publish(
@@ -533,6 +540,7 @@ export class ConnectorDefinitionService {
     const draft = await this.versionRepo.findOne({
       where: { connectorDefinitionId: id, status: ConnectorDefinitionVersionStatus.DRAFT },
       order: { version: 'DESC' },
+      ...(this.canLockRows() ? { lock: { mode: 'pessimistic_write' as const } } : {}),
     });
     if (!draft) {
       throw new BadRequestException(`Connector '${id}' has no draft to publish`);
@@ -556,15 +564,30 @@ export class ConnectorDefinitionService {
 
     const warnings = this.reportSecretCoverage(def.name, draft.version, model);
 
-    draft.status = ConnectorDefinitionVersionStatus.PUBLISHED;
-    draft.publishedAt = new Date();
-    const published = await this.versionRepo.save(draft);
+    const publishedAt = new Date();
+    const flipped = await this.versionRepo.update(
+      { id: draft.id, status: ConnectorDefinitionVersionStatus.DRAFT },
+      { status: ConnectorDefinitionVersionStatus.PUBLISHED, publishedAt }
+    );
+    if (!flipped.affected) {
+      throw new ConflictException(
+        `Connector '${id}' was published by another request. Reload it to see the result.`
+      );
+    }
+    await this.definitionRepo.update(
+      { id, projectId },
+      { ...displayFields, activeVersionId: draft.id }
+    );
 
-    Object.assign(def, displayFields);
-    def.activeVersionId = published.id;
-    await this.definitionRepo.save(def);
-
+    const published = { ...draft, status: ConnectorDefinitionVersionStatus.PUBLISHED, publishedAt };
     return { version: published, warnings };
+  }
+
+  /** Row locks exist on MySQL; SQLite has none, and TypeORM refuses to ask it for one. */
+  private canLockRows(): boolean {
+    return ['mysql', 'mariadb'].includes(
+      String(this.versionRepo.manager?.connection?.options?.type)
+    );
   }
 
   /**
@@ -606,9 +629,13 @@ export class ConnectorDefinitionService {
         `Connector '${id}' has no published version ${version} to activate`
       );
     }
-    Object.assign(def, this.displayFieldsOf(row.manifest));
-    def.activeVersionId = row.id;
-    return this.definitionRepo.save(def);
+    // A targeted UPDATE, as in publish(): saving the entity read above wrote back every column,
+    // reverting a title patched meanwhile or, racing softDelete(), the tombstoned name.
+    await this.definitionRepo.update(
+      { id, projectId },
+      { ...this.displayFieldsOf(row.manifest), activeVersionId: row.id }
+    );
+    return this.getById(projectId, id);
   }
 
   /**

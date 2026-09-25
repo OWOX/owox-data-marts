@@ -834,7 +834,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       title: 'My Custom',
       manifest: VALID_MANIFEST,
     });
-    jest.spyOn(definitionRepo, 'save').mockRejectedValueOnce(new Error('connection reset'));
+    jest.spyOn(definitionRepo, 'update').mockRejectedValueOnce(new Error('connection reset'));
 
     await expect(service.publish('project-1', definition.id, EDITOR)).rejects.toThrow(
       'connection reset'

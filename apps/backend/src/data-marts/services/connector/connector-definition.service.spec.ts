@@ -701,6 +701,69 @@ describe('ConnectorDefinitionService', () => {
    * Lists, pickers and Data Mart pages read the row, and a draft is not theirs to show until
    * it is published, so the row takes its display fields from the version that becomes active.
    */
+  /**
+   * A save() writes back every column of the entity it was given, so one read before a
+   * concurrent request undid that request: a draft saved while publish() validated the one it
+   * read, a title changed while the active version was switched.
+   */
+  describe('publish() and setActiveVersion() write only what they change', () => {
+    it('publish() leaves in place a draft saved while it ran', async () => {
+      const { service, store, versionRepo } = make();
+      const def = await service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'A',
+        manifest: validManifest,
+      });
+      const saved = { ...validManifest, baseUrl: 'https://api.saved-meanwhile.example.com' };
+      versionRepo.findOne.mockImplementationOnce(async () => {
+        const read = { ...store.versions[0] };
+        store.versions[0].manifest = saved;
+        return read;
+      });
+
+      await service.publish('proj-1', def.id, EDITOR);
+
+      expect(store.versions[0].manifest).toEqual(saved);
+    });
+
+    it('setActiveVersion() leaves in place a title changed while it ran', async () => {
+      const { service, store, defRepo } = make();
+      const def = await service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'A',
+        manifest: validManifest,
+      });
+      const { version: v1 } = await service.publish('proj-1', def.id, EDITOR);
+      defRepo.findOne.mockImplementationOnce(async () => {
+        const read = { ...store.defs[0] };
+        store.defs[0].title = 'Changed meanwhile';
+        return read;
+      });
+
+      await service.setActiveVersion('proj-1', def.id, v1.version, EDITOR);
+
+      expect(store.defs[0].title).toBe('Changed meanwhile');
+    });
+
+    it('publish() leaves in place a title changed while it ran', async () => {
+      const { service, store, defRepo } = make();
+      const def = await service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'A',
+        manifest: validManifest,
+      });
+      defRepo.findOne.mockImplementationOnce(async () => {
+        const read = { ...store.defs[0] };
+        store.defs[0].title = 'Changed meanwhile';
+        return read;
+      });
+
+      await service.publish('proj-1', def.id, EDITOR);
+
+      expect(store.defs[0].title).toBe('Changed meanwhile');
+    });
+  });
+
   describe('the row shows the display fields of the active version', () => {
     const created = async () => {
       const made = make();
