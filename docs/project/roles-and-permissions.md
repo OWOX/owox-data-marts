@@ -40,6 +40,7 @@ Assigned to members who build and maintain the data infrastructure — creating 
 - What they can do with a specific resource depends on their ownership status and the resource's sharing settings (see [Ownership and Sharing](ownership-and-sharing.md))
 - Manage scheduled triggers for Data Marts they have maintenance access to
 - Edit, delete, run, and manage owners of Reports they have access to — either through maintenance access to the parent Data Mart, or as the Report owner
+- Build custom connectors in the [Connector Builder](../connectors/connector-builder.md). Publishing a connector version, or making one active, needs maintenance access to every Data Mart that follows the connector's active version
 
 **Notifications:**
 

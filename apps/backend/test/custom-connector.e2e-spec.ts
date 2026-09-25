@@ -343,6 +343,55 @@ describe('Custom Connector (e2e)', () => {
     expect(definitionRes.status).toBe(404);
   });
 
+  /**
+   * A Data Mart that pins no version runs the active one with its own credentials, so
+   * publishing or activating decides where they go: an editor needs edit access to every
+   * such Data Mart, and an admin has it.
+   */
+  it('lets an editor publish or activate only with edit access to the Data Marts that follow the active version', async () => {
+    const connectorName = `FollowedApi${Date.now()}`;
+    const manifest = { ...MANIFEST, name: connectorName };
+    const created = await agent
+      .post('/api/connectors/custom')
+      .set(AUTH_HEADER)
+      .send({ name: connectorName, title: 'Followed API', manifest });
+    expect(created.status).toBe(201);
+    const base = `/api/connectors/custom/${created.body.id}`;
+    expect((await agent.post(`${base}/publish`).set(AUTH_HEADER)).status).toBe(201);
+
+    const dataMartId = await createDataMartForBinding('Followed');
+    const bound = await agent
+      .put(`/api/data-marts/${dataMartId}/definition`)
+      .set(AUTH_HEADER)
+      .send(connectorDefinitionBody(connectorName));
+    expect(bound.status).toBe(200);
+
+    const saveDraft = (baseUrl: string) =>
+      agent
+        .put(`${base}/draft`)
+        .set(EDITOR_AUTH_HEADER)
+        .send({ manifest: { ...manifest, baseUrl } });
+
+    // A new Data Mart is shared for maintenance, which is edit access for the editor.
+    expect((await saveDraft('https://api.example.org')).status).toBe(200);
+    expect((await agent.post(`${base}/publish`).set(EDITOR_AUTH_HEADER)).status).toBe(201);
+
+    const unshared = await agent
+      .put(`/api/data-marts/${dataMartId}/availability`)
+      .set(AUTH_HEADER)
+      .send({ availableForReporting: true, availableForMaintenance: false });
+    expect(unshared.status).toBe(204);
+
+    expect((await saveDraft('https://api.example.net')).status).toBe(200);
+    const publishRes = await agent.post(`${base}/publish`).set(EDITOR_AUTH_HEADER);
+    expect(publishRes.status).toBe(403);
+    expect(publishRes.body.message).toContain('Data Marts you cannot edit');
+    const activateRes = await agent.post(`${base}/versions/1/activate`).set(EDITOR_AUTH_HEADER);
+    expect(activateRes.status).toBe(403);
+
+    expect((await agent.post(`${base}/publish`).set(AUTH_HEADER)).status).toBe(201);
+  });
+
   it('rejects a name that collides with a bundled connector', async () => {
     const res = await agent
       .post('/api/connectors/custom')

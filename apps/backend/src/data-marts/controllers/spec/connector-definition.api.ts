@@ -162,7 +162,8 @@ export function PublishCustomConnectorSpec() {
         'Marks the latest draft published and activates it in the same change. The response ' +
         'carries `warnings`: credential-handling problems the publish did not refuse the ' +
         'manifest for, and the only notice the author gets of them. Editor access is ' +
-        'required.',
+        'required, and an editor also needs edit access to every Data Mart that follows the ' +
+        'active version: those run the published version next, with their credentials.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiCreatedResponse({
@@ -172,6 +173,10 @@ export function PublishCustomConnectorSpec() {
     ApiResponse({
       status: 400,
       description: 'Connector has no draft to publish, or the draft manifest is invalid',
+    }),
+    ApiResponse({
+      status: 403,
+      description: 'An editor cannot edit a Data Mart that follows the active version',
     }),
     ApiResponse({ status: 404, description: 'Custom connector not found' })
   );
@@ -183,7 +188,9 @@ export function ActivateCustomConnectorVersionSpec() {
       summary: 'Activate a published version of a custom connector',
       description:
         'Points the connector at an already published version, which is how a release is rolled ' +
-        'back. Editor access is required.',
+        'back. Editor access is required, and an editor also needs edit access to every Data ' +
+        'Mart that follows the active version: those run the activated version next, with their ' +
+        'credentials.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiParam({ name: 'version', description: 'Version number to activate', type: Number }),
@@ -192,6 +199,10 @@ export function ActivateCustomConnectorVersionSpec() {
       type: ActivateCustomConnectorVersionResponseApiDto,
     }),
     ApiResponse({ status: 400, description: 'No published version with that number' }),
+    ApiResponse({
+      status: 403,
+      description: 'An editor cannot edit a Data Mart that follows the active version',
+    }),
     ApiResponse({ status: 404, description: 'Custom connector not found' })
   );
 }

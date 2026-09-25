@@ -113,13 +113,13 @@ describe('ConnectorDefinitionController OpenAPI', () => {
         path: `${BASE}/{id}/publish`,
         method: 'post',
         handler: 'publish',
-        statuses: ['201', '400', '404'],
+        statuses: ['201', '400', '403', '404'],
       },
       {
         path: `${BASE}/{id}/versions/{version}/activate`,
         method: 'post',
         handler: 'activate',
-        statuses: ['201', '400', '404'],
+        statuses: ['201', '400', '403', '404'],
       },
       {
         path: `${BASE}/{id}`,

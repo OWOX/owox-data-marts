@@ -439,6 +439,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
   let definitionRepo: Repository<ConnectorDefinition>;
   let versionRepo: Repository<ConnectorDefinitionVersion>;
   let service: ConnectorDefinitionService;
+  const EDITOR = { userId: 'user-1', roles: ['editor'] };
 
   beforeAll(() => {
     initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
@@ -457,9 +458,12 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
     addTransactionalDataSource(dataSource);
     definitionRepo = dataSource.getRepository(ConnectorDefinition);
     versionRepo = dataSource.getRepository(ConnectorDefinitionVersion);
-    service = new ConnectorDefinitionService(definitionRepo, versionRepo, {
-      findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]),
-    } as never);
+    service = new ConnectorDefinitionService(
+      definitionRepo,
+      versionRepo,
+      { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
+      { canAccessMany: jest.fn().mockResolvedValue(new Map()) } as never
+    );
   });
 
   afterEach(async () => {
@@ -638,7 +642,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
         const latest = await readLatest(options);
         // The concurrent publish commits HERE: after saveDraft has read the draft, before it
         // writes. Only the one-shot mock is intercepted, so publish() reads for real.
-        await service.publish('project-1', definition.id);
+        await service.publish('project-1', definition.id, EDITOR);
         return latest;
       });
 
@@ -681,7 +685,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       manifest: VALID_MANIFEST,
     });
     // v1 published, so this save has to INSERT v2 rather than update an open draft.
-    await service.publish('project-1', definition.id);
+    await service.publish('project-1', definition.id, EDITOR);
 
     const readLatest = versionRepo.findOne.bind(versionRepo);
     jest
@@ -724,7 +728,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       title: 'My Custom',
       manifest: VALID_MANIFEST,
     });
-    await service.publish('project-1', definition.id);
+    await service.publish('project-1', definition.id, EDITOR);
     await versionRepo.save(
       versionRepo.create({
         connectorDefinitionId: definition.id,
@@ -809,7 +813,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       title: 'My Custom',
       manifest: VALID_MANIFEST,
     });
-    await service.publish('project-1', definition.id);
+    await service.publish('project-1', definition.id, EDITOR);
     await service.saveDraft('project-1', definition.id, VALID_MANIFEST);
 
     const versions = await service.listVersions('project-1', definition.id);
@@ -832,7 +836,9 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
     });
     jest.spyOn(definitionRepo, 'save').mockRejectedValueOnce(new Error('connection reset'));
 
-    await expect(service.publish('project-1', definition.id)).rejects.toThrow('connection reset');
+    await expect(service.publish('project-1', definition.id, EDITOR)).rejects.toThrow(
+      'connection reset'
+    );
 
     const version = await versionRepo.findOneOrFail({
       where: { connectorDefinitionId: definition.id },

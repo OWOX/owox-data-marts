@@ -6,7 +6,8 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import { Action, EntityType } from '../access-decision';
 import { ConnectorDefinitionService } from './connector-definition.service';
 import { ConnectorDefinitionVersionStatus } from '../../entities/connector-definition-version.entity';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
@@ -113,13 +114,24 @@ describe('ConnectorDefinitionService', () => {
       findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]),
     };
 
+    // Grants everything unless a case says otherwise.
+    const accessDecisionService = {
+      canAccessMany: jest.fn(
+        async (_userId: string, _roles: string[], _type: string, ids: readonly string[]) =>
+          new Map(ids.map(id => [id, true]))
+      ),
+    };
+
     const service = new ConnectorDefinitionService(
       defRepo as never,
       versionRepo as never,
-      dataMartService as never
+      dataMartService as never,
+      accessDecisionService as never
     );
-    return { service, store, defRepo, versionRepo, dataMartService };
+    return { service, store, defRepo, versionRepo, dataMartService, accessDecisionService };
   };
+
+  const EDITOR = { userId: 'user-1', roles: ['editor'] };
 
   const validManifest = {
     version: '1.0',
@@ -468,7 +480,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     const m = await service.resolveManifest('proj-1', 'A', 1);
     expect(m).toEqual(validManifest);
   });
@@ -487,7 +499,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     // v2: saved but never published.
     await service.saveDraft('proj-1', def.id, {
       ...validManifest,
@@ -512,7 +524,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     store.versions.push({
       id: 'ver-2',
       connectorDefinitionId: def.id,
@@ -610,7 +622,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     await service.saveDraft('proj-1', def.id, { ...validManifest, baseUrl: 'https://api.v2.com' });
     expect(store.versions).toHaveLength(2);
     expect(store.versions[1].version).toBe(2);
@@ -624,7 +636,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const { version: published } = await service.publish('proj-1', def.id);
+    const { version: published } = await service.publish('proj-1', def.id, EDITOR);
     expect(published.status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);
     expect(published.publishedAt).toBeInstanceOf(Date);
     const reloaded = store.defs.find(d => d.id === def.id);
@@ -639,7 +651,7 @@ describe('ConnectorDefinitionService', () => {
       manifest: validManifest,
     });
     await service.saveDraft('proj-1', def.id, { not: 'a valid manifest' } as never);
-    await expect(service.publish('proj-1', def.id)).rejects.toThrow(BadRequestException);
+    await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(BadRequestException);
   });
 
   // Storage merges rows on the primary key and cannot be created without one, so such a
@@ -655,7 +667,7 @@ describe('ConnectorDefinitionService', () => {
       },
     });
 
-    const publishing = service.publish('proj-1', def.id);
+    const publishing = service.publish('proj-1', def.id, EDITOR);
 
     await expect(publishing).rejects.toBeInstanceOf(BadRequestException);
     await expect(publishing).rejects.toThrow(
@@ -676,7 +688,7 @@ describe('ConnectorDefinitionService', () => {
       },
     });
 
-    await expect(service.publish('proj-1', def.id)).rejects.toThrow(
+    await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(
       'node "items" uniqueKeys names "missing", which is not one of its fields'
     );
   });
@@ -688,8 +700,8 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
-    await expect(service.publish('proj-1', def.id)).rejects.toThrow(BadRequestException);
+    await service.publish('proj-1', def.id, EDITOR);
+    await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(BadRequestException);
   });
 
   /**
@@ -703,7 +715,7 @@ describe('ConnectorDefinitionService', () => {
     const publishManifest = async (manifest: Record<string, unknown>) => {
       const { service } = make();
       const def = await service.create('proj-1', 'u', { name: 'A', title: 'A', manifest });
-      return service.publish('proj-1', def.id);
+      return service.publish('proj-1', def.id, EDITOR);
     };
 
     it('is quiet for a manifest with nothing to report', async () => {
@@ -887,7 +899,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     store.defs[0].name = 'GitHub';
 
     await expect(service.tryResolveManifest('proj-1', 'GitHub')).resolves.toBeNull();
@@ -900,7 +912,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     const result = await service.tryResolveManifest('proj-1', 'A');
     expect(result).toEqual(validManifest);
   });
@@ -922,7 +934,7 @@ describe('ConnectorDefinitionService', () => {
     // draft only → run resolution must NOT return it
     await expect(service.tryResolveManifest('proj-1', 'A')).rejects.toThrow();
     // after publish → returns the published manifest
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     const m = await service.tryResolveManifest('proj-1', 'A');
     expect(m).toEqual(validManifest);
   });
@@ -934,7 +946,7 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     // open a new draft (v2) but do not publish
     await service.saveDraft('proj-1', def.id, { ...validManifest, baseUrl: 'https://api.v2.com' });
     await expect(service.tryResolveManifest('proj-1', 'A', 2)).rejects.toThrow();
@@ -952,11 +964,11 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const { version: published } = await service.publish('proj-1', def.id);
+    const { version: published } = await service.publish('proj-1', def.id, EDITOR);
     // Reset activeVersionId to simulate it not being set (test the method independently)
     const storedDef = store.defs.find(d => d.id === def.id);
     storedDef.activeVersionId = null;
-    const result = await service.setActiveVersion('proj-1', def.id, published.version);
+    const result = await service.setActiveVersion('proj-1', def.id, published.version, EDITOR);
     expect(result.activeVersionId).toBe(published.id);
     expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(published.id);
   });
@@ -969,7 +981,7 @@ describe('ConnectorDefinitionService', () => {
       manifest: validManifest,
     });
     // version 1 is DRAFT at this point
-    await expect(service.setActiveVersion('proj-1', def.id, 1)).rejects.toThrow(
+    await expect(service.setActiveVersion('proj-1', def.id, 1, EDITOR)).rejects.toThrow(
       BadRequestException
     );
   });
@@ -981,8 +993,8 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    await service.publish('proj-1', def.id);
-    await expect(service.setActiveVersion('proj-1', def.id, 99)).rejects.toThrow(
+    await service.publish('proj-1', def.id, EDITOR);
+    await expect(service.setActiveVersion('proj-1', def.id, 99, EDITOR)).rejects.toThrow(
       BadRequestException
     );
   });
@@ -994,14 +1006,113 @@ describe('ConnectorDefinitionService', () => {
       title: 'A',
       manifest: validManifest,
     });
-    const { version: v1 } = await service.publish('proj-1', def.id);
+    const { version: v1 } = await service.publish('proj-1', def.id, EDITOR);
     // publish v2
     await service.saveDraft('proj-1', def.id, { ...validManifest, baseUrl: 'https://api.v2.com' });
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     // v2 is now active; roll back to v1
-    const result = await service.setActiveVersion('proj-1', def.id, v1.version);
+    const result = await service.setActiveVersion('proj-1', def.id, v1.version, EDITOR);
     expect(result.activeVersionId).toBe(v1.id);
     expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(v1.id);
+  });
+
+  /**
+   * A Data Mart that pins no version runs the active one, with its own credentials, so
+   * publishing or activating picks the code those credentials are handed to.
+   */
+  describe('publish() and setActiveVersion() need edit access to the Data Marts that follow the active version', () => {
+    const connectorMarts = [
+      { id: 'dm-sales', title: 'Sales', name: 'mycustom' },
+      { id: 'dm-hidden', title: 'Board pack', name: 'MyCustom' },
+      { id: 'dm-pinned', title: 'Pinned', name: 'MyCustom', version: 1 },
+      { id: 'dm-other', title: 'Other', name: 'OtherConnector' },
+    ].map(({ id, title, name, version }) => ({
+      id,
+      title,
+      definition: { connector: { source: { name, version, configuration: [] } } },
+    }));
+
+    /** v1 published and active, v2 in draft, and the Data Marts above in the project. */
+    const withFollowers = async () => {
+      const made = make();
+      const def = await made.service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'My Custom',
+        manifest: validManifest,
+      });
+      const { version: v1 } = await made.service.publish('proj-1', def.id, EDITOR);
+      await made.service.saveDraft('proj-1', def.id, {
+        ...validManifest,
+        baseUrl: 'https://api.v2.example.com',
+      });
+      made.dataMartService.findByProjectIdAndDefinitionType.mockResolvedValue(connectorMarts);
+      return { ...made, def, v1 };
+    };
+
+    /** Refuses EDIT on `denied`; of those, SEE only on `visible`. */
+    const deny = (
+      accessDecisionService: ReturnType<typeof make>['accessDecisionService'],
+      denied: string[],
+      visible: string[]
+    ) =>
+      accessDecisionService.canAccessMany.mockImplementation(
+        async (_userId, _roles, _type, ids, action?: Action) =>
+          new Map(
+            ids.map(id => [
+              id,
+              action === Action.EDIT ? !denied.includes(id) : visible.includes(id),
+            ])
+          )
+      );
+
+    it('asks only about the Data Marts that follow the active version', async () => {
+      const { service, def, accessDecisionService } = await withFollowers();
+
+      await service.publish('proj-1', def.id, EDITOR);
+
+      expect(accessDecisionService.canAccessMany).toHaveBeenLastCalledWith(
+        'user-1',
+        ['editor'],
+        EntityType.DATA_MART,
+        ['dm-sales', 'dm-hidden'],
+        Action.EDIT,
+        'proj-1'
+      );
+    });
+
+    it('publish() refuses an editor who cannot edit one of them and leaves the draft a draft', async () => {
+      const { service, store, def, v1, accessDecisionService } = await withFollowers();
+      deny(accessDecisionService, ['dm-hidden'], []);
+
+      await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(ForbiddenException);
+
+      expect(store.versions.find(v => v.version === 2)!.status).toBe(
+        ConnectorDefinitionVersionStatus.DRAFT
+      );
+      expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(v1.id);
+    });
+
+    it('names the Data Marts the editor can see and only counts the others', async () => {
+      const { service, def, accessDecisionService } = await withFollowers();
+      deny(accessDecisionService, ['dm-sales', 'dm-hidden'], ['dm-sales']);
+
+      const refusal = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
+
+      expect(refusal).toBeInstanceOf(ForbiddenException);
+      expect((refusal as Error).message).toContain('("Sales", 1 you cannot see)');
+      expect((refusal as Error).message).not.toContain('Board pack');
+    });
+
+    it('setActiveVersion() refuses the same editor and keeps the active version', async () => {
+      const { service, store, def, v1, accessDecisionService } = await withFollowers();
+      const { version: v2 } = await service.publish('proj-1', def.id, EDITOR);
+      deny(accessDecisionService, ['dm-sales'], ['dm-sales']);
+
+      await expect(service.setActiveVersion('proj-1', def.id, v1.version, EDITOR)).rejects.toThrow(
+        ForbiddenException
+      );
+      expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(v2.id);
+    });
   });
 
   it('getActiveVersionNumberForDef() returns the active version number (or null when none)', async () => {
@@ -1014,7 +1125,7 @@ describe('ConnectorDefinitionService', () => {
     // no active version yet
     expect(await service.getActiveVersionNumberForDef(def)).toBeNull();
     // after publishing, activeVersionId is set
-    await service.publish('proj-1', def.id);
+    await service.publish('proj-1', def.id, EDITOR);
     const reloaded = await service.getById('proj-1', def.id);
     expect(await service.getActiveVersionNumberForDef(reloaded)).toBe(1);
   });
@@ -1151,7 +1262,7 @@ describe('ConnectorDefinitionService', () => {
         title: 'My Custom',
         manifest,
       });
-      const { version: published } = await service.publish('proj-1', def.id);
+      const { version: published } = await service.publish('proj-1', def.id, EDITOR);
       const messages = {
         warn: warn.mock.calls.map(c => String(c[0])),
         log: log.mock.calls.map(c => String(c[0])),

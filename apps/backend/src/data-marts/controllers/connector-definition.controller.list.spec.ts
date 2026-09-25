@@ -99,7 +99,8 @@ describe('ConnectorDefinitionController list() cost', () => {
     const service = new ConnectorDefinitionService(
       definitionRepo as never,
       versionRepo as never,
-      { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never
+      { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
+      {} as never
     );
 
     // The real mapper, not a double: it is pure, and a double would stop these cases

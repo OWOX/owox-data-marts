@@ -228,7 +228,10 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string
   ): Promise<PublishCustomConnectorResponseApiDto> {
-    const { version: row, warnings } = await this.definitionService.publish(ctx.projectId, id);
+    const { version: row, warnings } = await this.definitionService.publish(ctx.projectId, id, {
+      userId: ctx.userId,
+      roles: ctx.roles ?? [],
+    });
     return this.mapper.toPublishResponse(row, warnings);
   }
 
@@ -240,7 +243,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Param('version', ParseIntPipe) version: number
   ): Promise<ActivateCustomConnectorVersionResponseApiDto> {
-    const def = await this.definitionService.setActiveVersion(ctx.projectId, id, version);
+    const def = await this.definitionService.setActiveVersion(ctx.projectId, id, version, {
+      userId: ctx.userId,
+      roles: ctx.roles ?? [],
+    });
     return this.mapper.toActivateResponse(def, version);
   }
 

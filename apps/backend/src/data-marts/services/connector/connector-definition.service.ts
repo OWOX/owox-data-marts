@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +23,7 @@ import {
   ConnectorDefinitionVersion,
   ConnectorDefinitionVersionStatus,
 } from '../../entities/connector-definition-version.entity';
+import { AccessDecisionService, Action, EntityType } from '../access-decision';
 import { DataMartService } from '../data-mart.service';
 
 const NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -144,6 +146,12 @@ export interface PublishedConnectorVersion {
   warnings: string[];
 }
 
+/** Who publishes a version or makes one active, for the access check both of those make. */
+export interface ConnectorVersionActor {
+  userId: string;
+  roles: string[];
+}
+
 export interface CreateConnectorDefinitionInput {
   name: string;
   title: string;
@@ -176,7 +184,8 @@ export class ConnectorDefinitionService {
     private readonly definitionRepo: Repository<ConnectorDefinition>,
     @InjectRepository(ConnectorDefinitionVersion)
     private readonly versionRepo: Repository<ConnectorDefinitionVersion>,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   /**
@@ -512,8 +521,13 @@ export class ConnectorDefinitionService {
    * flagged published that nothing activates is a release users cannot see or roll back.
    */
   @Transactional()
-  async publish(projectId: string, id: string): Promise<PublishedConnectorVersion> {
+  async publish(
+    projectId: string,
+    id: string,
+    actor: ConnectorVersionActor
+  ): Promise<PublishedConnectorVersion> {
     const def = await this.getById(projectId, id);
+    await this.assertMayChangeActiveVersion(def, actor, 'Publishing', 'publish');
     const draft = await this.versionRepo.findOne({
       where: { connectorDefinitionId: id, status: ConnectorDefinitionVersionStatus.DRAFT },
       order: { version: 'DESC' },
@@ -566,9 +580,11 @@ export class ConnectorDefinitionService {
   async setActiveVersion(
     projectId: string,
     id: string,
-    version: number
+    version: number,
+    actor: ConnectorVersionActor
   ): Promise<ConnectorDefinition> {
     const def = await this.getById(projectId, id);
+    await this.assertMayChangeActiveVersion(def, actor, 'Activating this version', 'activate it');
     const row = await this.versionRepo.findOne({
       where: {
         connectorDefinitionId: id,
@@ -583,6 +599,61 @@ export class ConnectorDefinitionService {
     }
     def.activeVersionId = row.id;
     return this.definitionRepo.save(def);
+  }
+
+  /**
+   * A Data Mart that pins no version runs the active one with its own credentials, and a
+   * custom connector sends a parameter wherever its manifest says. So publishing or activating
+   * a version decides where those credentials go, and needs the access editing each such Data
+   * Mart would; admins have it for every Data Mart. A pinned Data Mart keeps its version and is
+   * not asked about. Names are compared without case, as MySQL resolves a connector's name.
+   *
+   * The refusal names only the Data Marts the actor can see, and counts the rest.
+   */
+  private async assertMayChangeActiveVersion(
+    def: ConnectorDefinition,
+    actor: ConnectorVersionActor,
+    change: string,
+    adminAction: string
+  ): Promise<void> {
+    const name = def.name.toLowerCase();
+    const connectorMarts = await this.dataMartService.findByProjectIdAndDefinitionType(
+      def.projectId,
+      DataMartDefinitionType.CONNECTOR
+    );
+    const followers = connectorMarts.filter(mart => {
+      const source = (mart.definition as ConnectorSourceDefinition | undefined)?.connector?.source;
+      return source?.name?.toLowerCase() === name && typeof source.version !== 'number';
+    });
+    if (followers.length === 0) return;
+
+    const ask = (ids: string[], action: Action) =>
+      this.accessDecisionService.canAccessMany(
+        actor.userId,
+        actor.roles,
+        EntityType.DATA_MART,
+        ids,
+        action,
+        def.projectId
+      );
+    const canEdit = await ask(
+      followers.map(mart => mart.id),
+      Action.EDIT
+    );
+    const denied = followers.filter(mart => !canEdit.get(mart.id));
+    if (denied.length === 0) return;
+
+    const canSee = await ask(
+      denied.map(mart => mart.id),
+      Action.SEE
+    );
+    const named = denied.filter(mart => canSee.get(mart.id)).map(mart => `"${mart.title}"`);
+    const unseen = denied.length - named.length;
+    const listed = unseen > 0 ? [...named, `${unseen} you cannot see`] : named;
+    throw new ForbiddenException(
+      `${change} would change what runs in Data Marts you cannot edit (${listed.join(', ')}). ` +
+        `Ask a project admin to ${adminAction}, or ask for edit access to those Data Marts.`
+    );
   }
 
   /**
