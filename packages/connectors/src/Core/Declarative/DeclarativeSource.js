@@ -80,6 +80,18 @@ export class DeclarativeSource extends AbstractSource {
     this.rateLimiter = createRateLimiter(model.rateLimit);
 
     this.parameters = model.parameters || {};
+    // The storage's settings share this context, and the manifest is written by whoever
+    // authors the connector: a parameter with a storage setting's name would read that
+    // setting, credentials included, and the value a Data Mart gives it would redirect
+    // where the storage writes.
+    for (const name of Object.keys(this.parameters)) {
+      if (context.storageConfig?.[name] !== undefined) {
+        throw new Error(
+          `Parameter "${name}" has the same name as a setting of the destination storage. ` +
+            `Rename it in the connector.`
+        );
+      }
+    }
     context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = this._compileNodes(model.nodes);
@@ -348,7 +360,8 @@ export class DeclarativeSource extends AbstractSource {
   _baseScope() {
     const parameters = {};
     for (const [name] of Object.entries(this.parameters)) {
-      const p = this.context.getParameter(name);
+      // The source's own settings only: getParameter falls back to the storage's.
+      const p = this.context.sourceConfig[name];
       if (p) parameters[name] = p.value;
     }
     return { parameters };

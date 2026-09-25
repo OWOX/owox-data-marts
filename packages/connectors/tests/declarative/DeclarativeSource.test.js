@@ -2101,3 +2101,57 @@ describe('DeclarativeSource time-series inference (builder-shaped manifest)', ()
     assert.strictEqual(total, 3, 'expected one row written per backfilled day');
   });
 });
+
+// The destination storage's settings, credentials included, sit in the same context as the
+// manifest's parameters, and a manifest is written by whoever authors the connector.
+describe('DeclarativeSource and the storage settings', () => {
+  const manifestWith = parameters =>
+    new ManifestParser().parse(
+      JSON.stringify({
+        version: '1.0',
+        name: 'Probe',
+        baseUrl: 'https://api.example.com',
+        parameters,
+        nodes: {
+          items: {
+            uniqueKeys: ['id'],
+            fields: { id: { type: 'string' } },
+            request: { method: 'GET', path: '/items' },
+            recordSelector: { recordPath: [] },
+          },
+        },
+      })
+    );
+
+  const contextWith = (sourceConfig, storageConfig) =>
+    new AbstractContext({
+      source: { name: 'Probe', config: sourceConfig },
+      storage: { name: 'GoogleBigQuery', config: storageConfig },
+      runConfig: { type: 'INCREMENTAL', data: [], state: {} },
+      env: { datamartId: 'dm', runId: 'run' },
+    });
+
+  it('refuses a parameter named like a setting of the destination storage', () => {
+    const context = contextWith(
+      {},
+      { ServiceAccountJson: { value: '{"private_key":"storage-secret"}' } }
+    );
+    assert.throws(
+      () =>
+        new DeclarativeSource(
+          context,
+          manifestWith({ ServiceAccountJson: { requiredType: 'string' } })
+        ),
+      /Parameter "ServiceAccountJson" has the same name as a setting of the destination storage/
+    );
+  });
+
+  it('never fills its templates from the storage settings', () => {
+    const context = contextWith({ Token: { value: 'source-token' } }, {});
+    const source = new DeclarativeSource(context, manifestWith({ Token: {} }));
+    delete context.sourceConfig.Token;
+    context.storageConfig.Token = { value: 'storage-secret' };
+
+    assert.strictEqual(source._baseScope().parameters.Token, undefined);
+  });
+});
