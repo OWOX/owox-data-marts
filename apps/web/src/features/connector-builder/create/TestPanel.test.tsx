@@ -258,6 +258,32 @@ describe('test settings persistence', () => {
     expect(persisted).toContain('eu');
   });
 
+  // Choosing Bearer points the Authorization header at a Token parameter that is not marked
+  // SECRET; the parser marks it only when the manifest is saved.
+  it('never writes a value the authentication uses to this device, SECRET or not', async () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    fireEvent.click(screen.getByText('Parameters'));
+    addParameter('Token');
+    addParameter('Region');
+    fireEvent.click(screen.getByText('Authentication'));
+    fireEvent.click(screen.getByRole('button', { name: 'Bearer' }));
+    fireEvent.change(screen.getByPlaceholderText('Node name'), { target: { value: 'items' } });
+    fireEvent.click(screen.getByRole('button', { name: /add node/i }));
+    await saveDraft();
+
+    fireEvent.click(screen.getByTestId('test-settings-gear'));
+    fireEvent.change(await screen.findByTestId('test-param-Token'), {
+      target: { value: 'live-token' },
+    });
+    fireEvent.change(screen.getByTestId('test-param-Region'), { target: { value: 'eu' } });
+
+    const persisted = localStorage.getItem('connector-builder:test-settings:def-1');
+    expect(persisted).not.toContain('live-token');
+    expect(persisted).toContain('eu');
+    expect(screen.getByTestId('test-param-Token')).toHaveAttribute('type', 'password');
+  });
+
   it('drops a SECRET value that an earlier build already stored', async () => {
     localStorage.setItem(
       'connector-builder:test-settings:def-1',

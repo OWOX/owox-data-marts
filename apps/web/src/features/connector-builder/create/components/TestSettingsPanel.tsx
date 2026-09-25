@@ -38,6 +38,7 @@ export function TestSettingsPanel({
   node,
   onNodeChange,
   paramEntries,
+  secretNames,
   values,
   onChangeValue,
   maxRows,
@@ -51,6 +52,8 @@ export function TestSettingsPanel({
   node: string;
   onNodeChange: (node: string) => void;
   paramEntries: [string, ManifestParameter][];
+  /** Parameters that hold a credential, masked here and never written to disk. */
+  secretNames: Set<string>;
   values: Record<string, string>;
   onChangeValue: (name: string, value: string) => void;
   maxRows: number;
@@ -98,7 +101,7 @@ export function TestSettingsPanel({
                   Parameters
                 </h3>
                 {paramEntries.map(([name, param]) => {
-                  const isSecret = (param.attributes ?? []).includes('SECRET');
+                  const isSecret = secretNames.has(name);
                   const label = firstNonEmpty(param.label, name);
                   const value = values[name] ?? '';
                   const missing = param.isRequired && !value && !hasUsableDefault(param);

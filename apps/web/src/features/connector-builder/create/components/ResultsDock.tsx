@@ -15,6 +15,7 @@ import { asText } from '../../shared/model/asText';
 import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-api.service';
 import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
+import { credentialParameterNames } from '../../shared/model/credentialParameters';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 
 /** Which representation of the test run the dock body shows. */
@@ -87,17 +88,17 @@ export function ResultsDock({
   const [view, setView] = useState<ResultView>('table');
   const [dockHeight, setDockHeight] = useState(300);
 
-  // Which parameters the manifest declares SECRET. Their test values are credentials the
-  // author typed to reach a live API, so they are kept in memory for the session and never
-  // written to disk — the same distinction the Data Mart configuration form makes.
+  // Which parameters hold a credential: those marked SECRET and those the authentication
+  // uses. Their test values are what the author typed to reach a live API, so they are kept
+  // in memory for the session and never written to disk — the same distinction the Data
+  // Mart configuration form makes.
   const secretNames = useMemo(
     () =>
-      new Set(
-        Object.entries(manifest.parameters)
-          .filter(([, param]) => (param.attributes ?? []).includes('SECRET'))
-          .map(([name]) => name)
-      ),
-    [manifest.parameters]
+      credentialParameterNames({
+        parameters: manifest.parameters,
+        authentication: manifest.authentication,
+      }),
+    [manifest.parameters, manifest.authentication]
   );
 
   // Test inputs persist per connector on this device, so they survive runs and reloads.
@@ -393,6 +394,7 @@ export function ResultsDock({
         node={node}
         onNodeChange={setNode}
         paramEntries={paramEntries}
+        secretNames={secretNames}
         values={values}
         onChangeValue={updateValue}
         maxRows={maxRows}

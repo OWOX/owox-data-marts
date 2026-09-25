@@ -19,6 +19,7 @@ function setup(overrides: Partial<Parameters<typeof TestSettingsPanel>[0]> = {})
       node='items'
       onNodeChange={vi.fn()}
       paramEntries={params}
+      secretNames={new Set(['Token'])}
       values={{}}
       onChangeValue={onChangeValue}
       maxRows={25}
