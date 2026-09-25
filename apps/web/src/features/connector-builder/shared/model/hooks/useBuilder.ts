@@ -188,6 +188,9 @@ export function useBuilder() {
             loadedVersion: null,
           },
         });
+        // In the same update as the id: the id is what swaps the route from /new to /:id,
+        // and create() has stored this manifest, so there is nothing unsaved to ask about.
+        dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
         const detail = await api.getById(created.id);
         dispatch({
           type: BuilderActionType.SET_META,

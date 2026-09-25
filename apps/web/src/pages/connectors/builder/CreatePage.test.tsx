@@ -82,6 +82,36 @@ describe('ConnectorBuilderCreatePage', () => {
     expect(screen.queryByText('Unsaved Changes')).toBeNull();
   });
 
+  // The save commits the new id before it reads the connector back, and the id is what swaps
+  // the route. A slower read left the save still marking the builder as unsaved at that point.
+  it('asks nothing about unsaved changes when reading the new connector back is slow', async () => {
+    let finishRead: (detail: unknown) => void = () => undefined;
+    getById.mockReturnValue(
+      new Promise(resolve => {
+        finishRead = resolve;
+      })
+    );
+    const router = renderRoute();
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/connectors/builder/def-1');
+    });
+    expect(screen.queryByText('Unsaved Changes')).toBeNull();
+    finishRead({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+  });
+
   it('does not open the builder for a viewer', () => {
     authUser.value = user(['viewer']);
     renderRoute();

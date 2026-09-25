@@ -242,6 +242,8 @@ describe('ConnectorBuilderPage (new)', () => {
       expect(getById).toHaveBeenCalledTimes(1);
     });
 
+    // create() stored the manifest, so the next save needs an edit to have something to save.
+    fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'My API' } });
     fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {
       expect(saveDraft).toHaveBeenCalledWith('def-1', expect.anything());
