@@ -157,3 +157,20 @@ describe('decoders', () => {
     assert.deepStrictEqual(parseCsv(''), []);
   });
 });
+
+// A 204, or a 200 with nothing in it, is how some APIs say "no records". JSON.parse('') threw,
+// and the day the request belonged to was never checkpointed.
+describe('decodeResponse on a response with no body', () => {
+  it('reads a 204 as no records', async () => {
+    assert.strictEqual(await decodeResponse(new Response(null, { status: 204 }), 'json'), null);
+  });
+
+  it('reads an empty 200 as no records', async () => {
+    assert.strictEqual(await decodeResponse(new Response('', { status: 200 }), 'json'), null);
+    assert.strictEqual(await decodeResponse(new Response(' \n', { status: 200 }), undefined), null);
+  });
+
+  it('still refuses a body that is not JSON', async () => {
+    await assert.rejects(decodeResponse(new Response('<html>', { status: 200 }), 'json'));
+  });
+});

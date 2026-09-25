@@ -218,7 +218,7 @@ Each node describes one data stream:
 - `isTimeSeries` — boolean; marks the node as date-windowed. You rarely need to set it: declaring an `incremental` block with a strategy other than `none` (§9) already implies it. Set it explicitly only for a node that should take the date-window path without declaring one. It cannot be combined with `isFullRefresh`.
 - `defaultFields` — optional array of field names pre-selected by default (defaults to all declared fields).
 - `request` — `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and **must start with `/`**. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`.
-- `recordSelector.recordPath` — array of keys locating the row(s) in the JSON response (see §18 for the exact extraction rule). `recordSelector.responseFormat` is optional — `json` (default), `csv`, or `jsonl`.
+- `recordSelector.recordPath` — array of keys locating the row(s) in the JSON response (see §18 for the exact extraction rule). `recordSelector.responseFormat` is optional — `json` (default), `csv`, or `jsonl`. A `204` response or an empty JSON body counts as no records.
 - `fields` — object keyed by field name (§7).
 
 A node also optionally carries `pagination` (§8), `incremental` (§9), `partitionRouter` (§10), `transformations` (§13), `recordFilter` (§14), and `errorHandler` (§15) — all covered in their own sections below.

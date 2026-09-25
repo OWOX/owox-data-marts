@@ -35,12 +35,15 @@ export const MAX_RESPONSE_BYTES = 64 * 1024 * 1024; // 64 MiB
  * unaffected when under the cap.
  */
 export async function decodeResponse(response, format, { maxBytes = MAX_RESPONSE_BYTES } = {}) {
+  // A 204, or a JSON body with nothing in it, is how some APIs answer "no records"; parsing
+  // it threw, and the day the request belonged to was never checkpointed. null selects none.
+  if (response?.status === 204) return null;
   assertContentLengthWithinCap(response, maxBytes);
   const text = await readCappedText(response, format, maxBytes);
   if (text !== undefined) {
     if (format === 'jsonl') return parseJsonl(text);
     if (format === 'csv') return parseCsv(text);
-    if (!format || format === 'json') return JSON.parse(text);
+    if (!format || format === 'json') return text.trim() === '' ? null : JSON.parse(text);
     throw new Error(`decodeResponse: unsupported responseFormat "${format}"`);
   }
 

@@ -264,7 +264,7 @@ Each node describes one data stream:
 | `isTimeSeries` | Boolean; enables date-window incremental processing for this node. A node with an `incremental` strategy other than `none` is treated as time-series even without it. |
 | `defaultFields` | Optional field names pre-selected by default (defaults to all declared fields). |
 | `request` | `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and must start with `/`. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`. |
-| `recordSelector.recordPath` | Array of keys locating the row(s) — see [How the engine turns responses into rows](#how-the-engine-turns-responses-into-rows). `recordSelector.responseFormat` is optional: `json` (default), `csv`, or `jsonl`. |
+| `recordSelector.recordPath` | Array of keys locating the row(s) — see [How the engine turns responses into rows](#how-the-engine-turns-responses-into-rows). `recordSelector.responseFormat` is optional: `json` (default), `csv`, or `jsonl`. A `204` response or an empty JSON body counts as no records. |
 | `fields` | Object keyed by field name. See [Fields](#fields). |
 
 A node can also optionally carry `pagination`, `incremental`, `partitionRouter`, `transformations`, `recordFilter`, and `errorHandler` — each covered in its own section below.
