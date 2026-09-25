@@ -16,6 +16,10 @@ import {
   PARAMETER_OWNER,
 } from '../Constants/CommonConstants.js';
 
+// A secret shorter than this is left alone: redacting it would mangle ordinary words in every
+// log line, and real keys and tokens are longer.
+const MIN_REDACTED_SECRET_LENGTH = 6;
+
 export class AbstractContext {
   constructor({ source, storage, runConfig, env }) {
     if (!source?.name) throw new Error('source.name is required');
@@ -300,7 +304,64 @@ export class AbstractContext {
    * Emit an event to stdout (newline-delimited JSON).
    */
   emit(event) {
-    process.stdout.write(JSON.stringify(event.toJSON()) + '\n');
+    const line = JSON.stringify(event.toJSON());
+    // A CREDENTIALS event carries rotated secrets for the host to store, on purpose.
+    process.stdout.write(`${event instanceof CredentialsEvent ? line : this.redactSecrets(line)}\n`);
+  }
+
+  /**
+   * Replaces the values of secret parameters in text bound for the host.
+   *
+   * Run logs and errors are persisted and readable by viewers, and a secret can sit where no
+   * key name marks it, such as a request path an API wants the key in. Each value is also
+   * matched URL-encoded and JSON-escaped, the forms it takes in a URL and in a serialized
+   * event.
+   *
+   * @param {string} text
+   * @returns {string}
+   */
+  redactSecrets(text) {
+    let redacted = String(text);
+    for (const secret of this._secretValues()) {
+      const forms = new Set([
+        secret,
+        encodeURIComponent(secret),
+        JSON.stringify(secret).slice(1, -1),
+      ]);
+      for (const form of forms) redacted = redacted.split(form).join('***');
+    }
+    return redacted;
+  }
+
+  /**
+   * The current string values of every parameter declared SECRET, the items of an option
+   * included (an OAuth client secret, say), longest first so that a secret containing another
+   * is replaced whole.
+   *
+   * @returns {string[]}
+   * @private
+   */
+  _secretValues() {
+    const values = new Set();
+    const isSecret = definition =>
+      Array.isArray(definition?.attributes) &&
+      definition.attributes.includes(CONFIG_ATTRIBUTES.SECRET);
+
+    for (const [name, definition] of Object.entries(this._parameterDefinitions)) {
+      const parameter = this.getParameter(name);
+      if (isSecret(definition) && typeof parameter?.value === 'string') {
+        values.add(parameter.value);
+      }
+      for (const option of Array.isArray(definition?.oneOf) ? definition.oneOf : []) {
+        for (const [itemName, itemDefinition] of Object.entries(option?.items ?? {})) {
+          const item = parameter?.items?.[itemName];
+          if (isSecret(itemDefinition) && typeof item?.value === 'string') values.add(item.value);
+        }
+      }
+    }
+    return [...values]
+      .filter(value => value.length >= MIN_REDACTED_SECRET_LENGTH)
+      .sort((a, b) => b.length - a.length);
   }
 
   /**

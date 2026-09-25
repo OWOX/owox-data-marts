@@ -244,6 +244,65 @@ describe('AbstractContext', () => {
     });
   });
 
+  // Run logs are persisted and readable by viewers, and a secret can sit where no key name
+  // marks it: some APIs want the key in the request path.
+  describe('secret values in what is emitted', () => {
+    const capture = run => {
+      const written = [];
+      const originalWrite = process.stdout.write;
+      process.stdout.write = data => {
+        written.push(data);
+        return true;
+      };
+      try {
+        run();
+      } finally {
+        process.stdout.write = originalWrite;
+      }
+      return written.join('');
+    };
+
+    const contextWithSecret = value => {
+      const ctx = createMinimalContext({
+        source: { name: 'S', config: { ApiKey: { value }, Region: { value: 'eu-west' } } },
+      });
+      ctx.registerParameters({
+        ApiKey: { requiredType: 'string', attributes: ['SECRET'] },
+        Region: { requiredType: 'string' },
+      });
+      return ctx;
+    };
+
+    it('replaces a SECRET parameter value, raw, URL-encoded or JSON-escaped', () => {
+      const secret = 'sk_live/"4f2b 9"';
+      const ctx = contextWithSecret(secret);
+      const out = capture(() => {
+        ctx.log('info', `GET https://api.example.com/v6/${encodeURIComponent(secret)}/rates`);
+        ctx.log('error', `rejected key ${secret}`);
+      });
+      assert.doesNotMatch(out, /4f2b/);
+      assert.match(out, /\/v6\/\*\*\*\/rates/);
+      assert.match(out, /rejected key \*\*\*/);
+    });
+
+    it('leaves values of parameters that are not secret alone', () => {
+      const out = capture(() => contextWithSecret('sk_live_4f2b9a').log('info', 'region eu-west'));
+      assert.match(out, /region eu-west/);
+    });
+
+    it('does not touch a secret short enough to be an ordinary word', () => {
+      const out = capture(() => contextWithSecret('eu').log('info', 'region eu-west'));
+      assert.match(out, /region eu-west/);
+    });
+
+    // The host stores what a CREDENTIALS event carries, so it must arrive intact.
+    it('keeps the values of a CREDENTIALS event', () => {
+      const ctx = contextWithSecret('sk_live_4f2b9a');
+      const out = capture(() => ctx.updateCredentials({ AccessToken: 'sk_live_4f2b9a' }));
+      assert.match(out, /sk_live_4f2b9a/);
+    });
+  });
+
   describe('updateCredentials', () => {
     it('emits a CREDENTIALS event to stdout (the host persists the fields)', () => {
       const ctx = createMinimalContext();

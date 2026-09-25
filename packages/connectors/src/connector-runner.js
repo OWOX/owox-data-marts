@@ -99,6 +99,9 @@ Object.keys(Connectors).forEach(key => {
   });
 });
 
+// The run's context once main() has built it, so a failure can be redacted like its events.
+let runContext = null;
+
 // Main execution function
 async function main() {
   // Validate required environment variables
@@ -145,7 +148,7 @@ async function main() {
   }
 
   // Build context (replaces NodeJsConfig + AbstractRunConfig)
-  const context = new Core.AbstractContext({
+  const context = (runContext = new Core.AbstractContext({
     source: { name: envConfig.source.name, config: envConfig.source.config || {} },
     storage: { name: envConfig.storage.name, config: envConfig.storage.config || {} },
     runConfig: runConfigData,
@@ -153,7 +156,7 @@ async function main() {
       datamartId: process.env.OW_DATAMART_ID,
       runId: process.env.OW_RUN_ID,
     },
-  });
+  }));
 
   // Resolve Source class from globals
   const sourceName = context.sourceName;
@@ -206,7 +209,9 @@ async function main() {
   await connector.run();
 }
 
-// Execute main and handle errors
+// Execute main and handle errors. The failure becomes the run's error, which viewers can read,
+// so it gets the same redaction as everything the context emits.
 main().catch(error => {
-  console.error(JSON.stringify(Core.RunFailureReport.toEnvelope(error)));
+  const envelope = JSON.stringify(Core.RunFailureReport.toEnvelope(error));
+  console.error(runContext ? runContext.redactSecrets(envelope) : envelope);
 });
