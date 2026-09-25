@@ -5,6 +5,7 @@ import {
   CreateCustomConnectorRequestApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
+  UpdateCustomConnectorRequestApiDto,
 } from './custom-connector.dto';
 
 async function validateDto(payload: Record<string, unknown>) {
@@ -314,5 +315,28 @@ describe('CreateCustomConnectorRequestApiDto field ceilings', () => {
     });
 
     await expect(validate(dto)).resolves.toEqual([]);
+  });
+});
+
+/**
+ * Absent leaves a field alone and null clears it, but only the three nullable columns can be
+ * cleared: `title` is NOT NULL, so a null has to be refused here rather than reach the write.
+ */
+describe('UpdateCustomConnectorRequestApiDto', () => {
+  const errorsFor = (payload: Record<string, unknown>) =>
+    validate(plainToInstance(UpdateCustomConnectorRequestApiDto, payload));
+
+  it('refuses a null title', async () => {
+    const errors = await errorsFor({ title: null });
+
+    expect(errors.map(error => error.property)).toEqual(['title']);
+  });
+
+  it('accepts an omitted title', async () => {
+    await expect(errorsFor({ description: 'Loads orders' })).resolves.toEqual([]);
+  });
+
+  it.each(['description', 'logo', 'docUrl'])('accepts a null %s, which clears it', async field => {
+    await expect(errorsFor({ [field]: null })).resolves.toEqual([]);
   });
 });

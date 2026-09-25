@@ -343,6 +343,26 @@ describe('Custom Connector (e2e)', () => {
     expect(definitionRes.status).toBe(404);
   });
 
+  it('refuses to clear the title of a connector, which the title column cannot hold', async () => {
+    const connectorName = `TitledApi${Date.now()}`;
+    const created = await agent
+      .post('/api/connectors/custom')
+      .set(AUTH_HEADER)
+      .send({
+        name: connectorName,
+        title: 'Titled API',
+        manifest: { ...MANIFEST, name: connectorName },
+      });
+    expect(created.status).toBe(201);
+
+    const res = await agent
+      .patch(`/api/connectors/custom/${created.body.id}`)
+      .set(AUTH_HEADER)
+      .send({ title: null });
+
+    expect(res.status).toBe(400);
+  });
+
   /**
    * A Data Mart that pins no version runs the active one with its own credentials, so
    * publishing or activating decides where they go: an editor needs edit access to every

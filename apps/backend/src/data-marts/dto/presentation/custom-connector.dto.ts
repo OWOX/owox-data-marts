@@ -7,6 +7,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { MaxByteLength } from '../../../common/validators/max-byte-length.validator';
@@ -106,26 +107,28 @@ export class CreateCustomConnectorRequestApiDto {
  * absent means "leave alone", which is what makes this a PATCH rather than a PUT.
  */
 export class UpdateCustomConnectorRequestApiDto {
+  // Not @IsOptional, which lets null through as well: the title column is NOT NULL, so only an
+  // absent title may skip validation.
   @ApiProperty({ required: false, example: 'My Custom API', maxLength: MAX_VARCHAR_LENGTH })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @IsNotEmpty()
   @MaxLength(MAX_VARCHAR_LENGTH)
   title?: string;
 
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({ type: String, required: false, nullable: true })
   @IsOptional()
   @IsString()
   @MaxByteLength(MAX_TEXT_COLUMN_BYTES)
   description?: string | null;
 
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({ type: String, required: false, nullable: true })
   @IsOptional()
   @IsString()
   @MaxByteLength(MAX_TEXT_COLUMN_BYTES)
   logo?: string | null;
 
-  @ApiProperty({ required: false, nullable: true, maxLength: MAX_VARCHAR_LENGTH })
+  @ApiProperty({ type: String, required: false, nullable: true, maxLength: MAX_VARCHAR_LENGTH })
   @IsOptional()
   @IsString()
   @MaxLength(MAX_VARCHAR_LENGTH)

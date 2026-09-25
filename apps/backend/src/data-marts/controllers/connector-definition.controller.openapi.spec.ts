@@ -91,12 +91,18 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     return operation?.responses?.[status]?.content?.['application/json']?.schema;
   }
 
-  it('publishes all eleven custom-connector endpoints with their documented status codes', () => {
+  it('publishes all twelve custom-connector endpoints with their documented status codes', () => {
     const expected = [
       { path: BASE, method: 'get', handler: 'list', statuses: ['200'] },
       { path: BASE, method: 'post', handler: 'create', statuses: ['201', '400', '413'] },
       { path: `${BASE}/test`, method: 'post', handler: 'test', statuses: ['201', '400', '413'] },
       { path: `${BASE}/{id}`, method: 'get', handler: 'get', statuses: ['200', '404'] },
+      {
+        path: `${BASE}/{id}`,
+        method: 'patch',
+        handler: 'update',
+        statuses: ['200', '400', '404', '413'],
+      },
       {
         path: `${BASE}/{id}/versions/{version}`,
         method: 'get',
@@ -145,6 +151,18 @@ describe('ConnectorDefinitionController OpenAPI', () => {
       expect(operation.summary.length).toBeGreaterThan(0);
       expect(Object.keys(operation.responses).sort()).toEqual(statuses);
     }
+  });
+
+  it('publishes the PATCH body with string types for the fields it can clear', () => {
+    const bodySchema = resolveRef('#/components/schemas/UpdateCustomConnectorRequestApiDto');
+
+    expect(bodySchema.required ?? []).toEqual([]);
+    expect(bodySchema.properties).toMatchObject({
+      title: { type: 'string' },
+      description: { type: 'string', nullable: true },
+      logo: { type: 'string', nullable: true },
+      docUrl: { type: 'string', nullable: true },
+    });
   });
 
   it('publishes the list payload the builder catalogue reads', () => {

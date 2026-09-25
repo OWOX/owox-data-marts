@@ -132,6 +132,7 @@ export function UpdateCustomConnectorSpec() {
       description: 'The connector after the update.',
       type: CustomConnectorDetailResponseApiDto,
     }),
+    ApiResponse({ status: 400, description: 'The body is invalid, e.g. an empty or null title' }),
     ApiResponse({ status: 404, description: 'Custom connector not found' })
   );
 }
