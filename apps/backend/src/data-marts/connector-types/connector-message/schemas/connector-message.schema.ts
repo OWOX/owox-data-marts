@@ -5,6 +5,7 @@ import { MessageStateSchema } from './types/message-state.schema';
 import { MessageCredentialsUpdateSchema } from './types/message-credentials-update.schema';
 import { MessageFieldsUpdateSchema } from './types/message-fields-update.schema';
 import { MessageRequestedDateSchema } from './types/message-requested-date.schema';
+import { MessageStateUpdateSchema } from './types/message-state-update.schema';
 import { MessageWarningSchema } from './types/message-warning.schema';
 import { MessageUnknownSchema } from './types/message-unknown.schema';
 import { ConnectorMessageType } from '../../enums/connector-message-type-enum';
@@ -19,6 +20,7 @@ export const ConnectorMessageSchema = z
     MessageCredentialsUpdateSchema,
     MessageFieldsUpdateSchema,
     MessageRequestedDateSchema,
+    MessageStateUpdateSchema,
     MessageWarningSchema,
     MessageUnknownSchema,
     MessageErrorSchema,
@@ -49,6 +51,9 @@ export const ConnectorMessageSchema = z
           const requestedDate = new Date(data.date).toLocaleString();
           return `[REQUESTED_DATE] ${requestedDate}`;
         }
+
+        case ConnectorMessageType.STATE_UPDATE:
+          return `[STATE_UPDATE] ${Object.keys(data.state).join(', ')}`;
 
         case ConnectorMessageType.WARNING:
           return `[WARNING] ${data.warning}`;

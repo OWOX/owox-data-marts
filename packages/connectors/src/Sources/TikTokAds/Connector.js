@@ -127,7 +127,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         let saved = true;
         if (data.length || this.config.CreateEmptyTables?.value) {
           try {
-            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+            const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, fields), fields) : data;
             const storage = await this.getStorageByNode(nodeName);
             await storage.saveData(preparedData);
           } catch (storageError) {
@@ -183,7 +183,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             let saved = true;
             if (data.length || this.config.CreateEmptyTables?.value) {
               try {
-                const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
+                const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, timeSeriesNodes[nodeName]), timeSeriesNodes[nodeName]) : data;
                 const storage = await this.getStorageByNode(nodeName);
                 await storage.saveData(preparedData);
               } catch (storageError) {

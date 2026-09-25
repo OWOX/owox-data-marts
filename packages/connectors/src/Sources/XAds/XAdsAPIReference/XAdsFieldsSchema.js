@@ -107,7 +107,11 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/cards",
     fields: cardAllFields,
     uniqueKeys: ["id"],
-    defaultFields: ["name", "card_type", "card_uri", "title", "website_url", "app_cta", "country_code", "created_at", "updated_at"],
+    shortLinks: [
+      { field: "website_url", target: "website_url_parsed" },
+      { field: "website_dest_url", target: "website_dest_url_parsed" }
+    ],
+    defaultFields: ["name", "card_type", "card_uri", "title", "website_url", "website_url_parsed", "app_cta", "country_code", "created_at", "updated_at"],
     destinationName: "x_ads_cards_all"
   }
 };

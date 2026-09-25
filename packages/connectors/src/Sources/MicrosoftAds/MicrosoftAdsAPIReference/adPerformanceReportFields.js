@@ -107,6 +107,10 @@ var adPerformanceReportFields = {
     'description': 'The destination URL attribute of the ad.',
     'type': DATA_TYPES.STRING
   },
+  'DestinationUrlParsed': {
+    'description': 'DestinationUrl resolved to its landing page when it is a short link; otherwise the same value. Requires DestinationUrl and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'DeviceType': {
     'description': 'The type of device which showed ads.',
     'type': DATA_TYPES.STRING
@@ -179,8 +183,16 @@ var adPerformanceReportFields = {
     'description': 'The Final URL of the ad.',
     'type': DATA_TYPES.STRING
   },
+  'FinalUrlParsed': {
+    'description': 'FinalUrl resolved to its landing page when it is a short link; otherwise the same value. Requires FinalUrl and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'FinalMobileUrl': {
     'description': 'The Final Mobile URL of the ad.',
+    'type': DATA_TYPES.STRING
+  },
+  'FinalMobileUrlParsed': {
+    'description': 'FinalMobileUrl resolved to its landing page when it is a short link; otherwise the same value. Requires FinalMobileUrl and Process Short Links.',
     'type': DATA_TYPES.STRING
   },
   'FinalAppUrl': {

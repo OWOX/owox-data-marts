@@ -30,6 +30,10 @@ var adsFields = {
     'description': 'The website URL to direct users who click on the ad.',
     'type': DATA_TYPES.STRING
   },
+  'click_url_parsed': {
+    'description': 'click_url resolved to its landing page when it is a short link; otherwise the same value. Requires click_url and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'configured_status': {
     'description': 'The status that you have configured for this ad.',
     'type': DATA_TYPES.STRING

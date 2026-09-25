@@ -141,6 +141,43 @@ describe('DataMartMapper', () => {
     expect(response).not.toHaveProperty('qualitySummary');
   });
 
+  it('keeps the connector short link cache out of the Data Mart response', async () => {
+    const response = await mapper.toResponse({
+      id: 'data-mart-1',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      storage: {},
+      createdAt: new Date('2026-07-23T12:00:00.000Z'),
+      modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+      triggersCount: 0,
+      reportsCount: 0,
+      createdByUser: null,
+      businessOwnerUsers: [],
+      technicalOwnerUsers: [],
+      availableForReporting: true,
+      availableForMaintenance: true,
+      contexts: [],
+      connectorState: {
+        at: '2026-09-24T10:00:00.000Z',
+        states: [
+          {
+            _id: 'cfg-1',
+            at: '2026-09-24T10:00:00.000Z',
+            state: {
+              date: '2026-09-23',
+              shortLinks: { 'https://s.example/a': ['https://e.example', 1] },
+            },
+          },
+        ],
+      },
+    } as never);
+
+    expect(response.connectorState).toEqual({
+      at: '2026-09-24T10:00:00.000Z',
+      states: [{ _id: 'cfg-1', at: '2026-09-24T10:00:00.000Z', state: { date: '2026-09-23' } }],
+    });
+  });
+
   describe('toUpdateSchemaResponse', () => {
     it('carries calculated-field warnings through to the HTTP response body', async () => {
       const warnings = [

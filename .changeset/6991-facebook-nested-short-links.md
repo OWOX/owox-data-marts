@@ -2,12 +2,16 @@
 'owox': minor
 ---
 
-# Resolve nested short links in Facebook Ads insights
+**Resolve short links in every ads connector, with nested paths and a per-Data-Mart cache**
 
-The Facebook Ads connector can now expand short links whose path has several parts, such as `https://links.example.com/abc/xyz`. Previously **Process Short Links** resolved only single-part links like `https://bit.ly/abc123`, so nested links from custom short link services stayed unresolved in `link_url_asset.parsed_url`.
+Previously only Facebook Ads resolved short links, and only single-part links such as `https://bit.ly/abc123`. Now every ads connector with landing URL fields resolves them and writes the landing page next to the original in a parsed field: `link_url_asset.parsed_url` on Facebook Ads insights, and `<field>_parsed` fields such as `object_url_parsed` (Facebook Ads creatives), `ad_final_urls_parsed` (Google Ads), `FinalUrlParsed` (Microsoft Ads), `landing_page_url_parsed` (TikTok Ads), `website_url_parsed` (X Ads) and `click_url_parsed` (Reddit Ads). A parsed field holds the landing page for short links and the original value for other links. New Data Marts select the main pair by default; existing Data Marts need the parsed field selected and a backfill to fill old rows. To turn resolution off for a Data Mart, uncheck **Process Short Links** under Advanced settings.
 
-Enter the domains of your short link services in the new advanced setting **Short Link Domains**, separated by commas. Links on those domains and their subdomains are then resolved on the **Ad Account Insights by Link URL Asset** endpoint. Single-part short links keep resolving on any domain without extra setup, and links with query parameters are still left unchanged. New data marts on this endpoint now select `link_url_asset` by default, so short link resolution works without extra field selection.
+Links with several path parts, such as `https://links.example.com/abc/xyz`, resolve on the domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable, set once for the whole deployment. In OWOX Cloud, contact support to add your short link domain.
 
-![Advanced Settings in the connector setup with the Short Link Domains field highlighted and Process Short Links enabled](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4b55851f-fd42-4dd6-7b58-0fce065ace00/public)
+Each short link is resolved once per Data Mart and the result is remembered for 30 days, so scheduled runs and backfills no longer request the same link again.
 
-See [Resolve Short Links](../../packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md#resolve-short-links).
+Unchecking **Create Empty Tables** now takes effect. Previously a saved unchecked value was treated as checked, so empty tables were always created.
+
+See [Resolve Short Links](../../packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md#resolve-short-links) and [Environment Variables](../../docs/getting-started/deployment-guide/environment-variables.md#connectors).
+
+<!-- markdownlint-disable-file MD041 MD036 -->

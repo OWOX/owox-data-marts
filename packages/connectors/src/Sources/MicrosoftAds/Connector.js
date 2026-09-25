@@ -129,7 +129,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
-      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, fields), fields) : data;
       const storage = await this.getStorageByNode(nodeName);
       await storage.saveData(preparedData);
       data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
@@ -151,7 +151,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       fields,
       onBatchReady: async (batchData) => {
         this.config.logMessage(`Saving batch of ${batchData.length} records to storage`);
-        const preparedData = this.addMissingFieldsToData(batchData, fields);
+        const preparedData = this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, batchData, fields), fields);
         const storage = await this.getStorageByNode(nodeName);
         await storage.saveData(preparedData);
       }
@@ -160,7 +160,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
-      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const preparedData = data.length ? this.addMissingFieldsToData(await this.resolveShortLinks(nodeName, data, fields), fields) : data;
       const storage = await this.getStorageByNode(nodeName);
       await storage.saveData(preparedData);
     }

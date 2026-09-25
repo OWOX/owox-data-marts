@@ -148,6 +148,13 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         description: "Use sandbox environment for testing",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
+      ProcessShortLinks: {
+        requiredType: "boolean",
+        default: true,
+        label: "Process Short Links",
+        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example landing_page_url_parsed)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -441,6 +448,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     if (!this.fieldsSchema[nodeName]) {
       throw new Error(`Unknown node type: ${nodeName}`);
     }
+
+    // Connector-only short link columns are filled after the fetch; never request them from the API
+    fields = omitShortLinkTargets(this.fieldsSchema[nodeName], fields);
 
     // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {

@@ -151,6 +151,10 @@ var adAccountCreativesFields = {
   'description': 'Identify a specific landing tab on your Facebook page by the Page tab\'s URL. See connection objects for retrieving Page tab URLs. You can add app_data parameters to the URL to pass data to a Page\'s tab.',
   'type': DATA_TYPES.STRING
 },
+'link_url_parsed': {
+  'description': 'link_url resolved to its landing page when it is a short link; otherwise the same value. Requires link_url and Process Short Links.',
+  'type': DATA_TYPES.STRING
+},
 'messenger_sponsored_message': {
   'description': 'Used for Messenger sponsored message. JSON string with message for this ad creative. See Messenger Platform, Send API Reference.',
   'type': DATA_TYPES.STRING
@@ -181,6 +185,10 @@ var adAccountCreativesFields = {
 },
 'object_url': {
   'description': 'URL that opens if someone clicks your link on a link ad. This URL is not connected to a Facebook page.',
+  'type': DATA_TYPES.STRING
+},
+'object_url_parsed': {
+  'description': 'object_url resolved to its landing page when it is a short link; otherwise the same value. Requires object_url and Process Short Links.',
   'type': DATA_TYPES.STRING
 },
 'page_welcome_message': {

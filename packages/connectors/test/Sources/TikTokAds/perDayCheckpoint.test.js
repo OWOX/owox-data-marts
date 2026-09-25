@@ -9,7 +9,12 @@ globalThis.DateUtils = { formatDate: date => date.toISOString().slice(0, 10) };
 globalThis.RUN_CONFIG_TYPE = { INCREMENTAL: 'INCREMENTAL', MANUAL_BACKFILL: 'MANUAL_BACKFILL' };
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/TikTokAds/Connector.js'), {
-  AbstractConnector: class {},
+  AbstractConnector: class {
+    // Short link hook lives on the real base class; pass records through here
+    async resolveShortLinks(_nodeName, data) {
+      return data;
+    }
+  },
 });
 
 const connectorProto = globalThis.TikTokAdsConnector.prototype;

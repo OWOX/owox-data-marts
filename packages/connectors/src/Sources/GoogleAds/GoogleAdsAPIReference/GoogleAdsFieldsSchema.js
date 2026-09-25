@@ -52,7 +52,8 @@ const GoogleAdsFieldsSchema = {
     documentation: "https://developers.google.com/google-ads/api/fields/v25/ad_group_ad",
     fields: adGroupAdStatsFields,
     uniqueKeys: ['ad_id', 'date'],
-    defaultFields: ['ad_id', 'ad_name', 'ad_type', 'ad_status', 'ad_group_id', 'ad_group_name', 'campaign_id', 'campaign_name', 'date', 'impressions', 'clicks', 'cost_micros', 'conversions', 'conversions_value', 'ctr', 'average_cpc', 'cost_per_conversion'],
+    shortLinks: [{ field: 'ad_final_urls', target: 'ad_final_urls_parsed' }],
+    defaultFields: ['ad_id', 'ad_name', 'ad_type', 'ad_status', 'ad_group_id', 'ad_group_name', 'campaign_id', 'campaign_name', 'date', 'ad_final_urls', 'ad_final_urls_parsed', 'impressions', 'clicks', 'cost_micros', 'conversions', 'conversions_value', 'ctr', 'average_cpc', 'cost_per_conversion'],
     destinationName: 'google_ads_ad_group_ads_stats',
     isTimeSeries: true
   },
@@ -72,6 +73,7 @@ const GoogleAdsFieldsSchema = {
     documentation: "https://developers.google.com/google-ads/api/fields/v25/ad_group_criterion",
     fields: criterionFields,
     uniqueKeys: ['criterion_id', 'ad_group_id', 'campaign_id'],
+    shortLinks: [{ field: 'final_urls', target: 'final_urls_parsed' }],
     defaultFields: ['criterion_id', 'criterion_type', 'criterion_status', 'keyword_text', 'keyword_match_type', 'ad_group_id', 'ad_group_name', 'campaign_id', 'campaign_name', 'negative', 'quality_score'],
     destinationName: 'google_ads_criterion',
     isTimeSeries: false

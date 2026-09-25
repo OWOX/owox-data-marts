@@ -46,7 +46,8 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ads",
     "fields": adsFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["ad_account_id", "campaign_id", "name"],
+    "shortLinks": [{ field: "click_url", target: "click_url_parsed" }],
+    "defaultFields": ["ad_account_id", "campaign_id", "name", "click_url", "click_url_parsed"],
     "destinationName": "reddit_ads_ads"
   },
   "campaigns": {

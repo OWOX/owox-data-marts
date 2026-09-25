@@ -170,8 +170,16 @@ var campaignFields = {
     'description': 'The actual landing page URL',
     'type': DATA_TYPES.STRING
   },
+  'FinalUrlParsed': {
+    'description': 'FinalUrl resolved to its landing page when it is a short link; otherwise the same value. Requires FinalUrl and Process Short Links.',
+    'type': DATA_TYPES.STRING
+  },
   'MobileFinalUrl': {
     'description': 'Mobile-specific landing page URL',
+    'type': DATA_TYPES.STRING
+  },
+  'MobileFinalUrlParsed': {
+    'description': 'MobileFinalUrl resolved to its landing page when it is a short link; otherwise the same value. Requires MobileFinalUrl and Process Short Links.',
     'type': DATA_TYPES.STRING
   },
   'DisplayUrl': {

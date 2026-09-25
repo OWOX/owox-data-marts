@@ -14,6 +14,7 @@ const sourcePath = path.join(__dirname, '../../../src/Sources/TikTokAds/Source.j
 // constructor-only globals (CONFIG_ATTRIBUTES, etc.) never need to be real. Loaded at
 // module scope (not in beforeAll) so describe-body code below can use `proto` too —
 // describe callbacks run during collection, before any beforeAll hook fires.
+loadGasClass(path.join(__dirname, '../../../src/Core/Utils/ShortLinksUtils.js'));
 loadGasClass(coreSourcePath);
 loadGasClass(sourcePath);
 const proto = globalThis.TikTokAdsSource.prototype;

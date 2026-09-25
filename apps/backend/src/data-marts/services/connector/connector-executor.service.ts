@@ -368,6 +368,26 @@ export class ConnectorExecutorService {
       // Serialises this configuration's checkpoint writes and is awaited before its result is
       // recorded, so the run's terminal status is never written before its last checkpoint.
       let progressWrite: Promise<void> = Promise.resolve();
+      // Serialises this configuration's connector-state writes (incremental cursor and
+      // connector-owned keys such as the short link cache), so the end-of-run state message
+      // can never overtake the last cursor write and both land before the result is recorded.
+      let stateWrite: Promise<void> = Promise.resolve();
+      const persistState = (state: Record<string, unknown>, at: string) => {
+        stateWrite = stateWrite.then(() =>
+          this.connectorStateService
+            .updateState(dataMart.id, configId, { state, at })
+            .catch(error => {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              this.logger.error(`Failed to save state: ${errorMessage}`, (error as Error)?.stack, {
+                dataMartId: dataMart.id,
+                projectId: dataMart.projectId,
+                runId,
+                configId,
+                error: errorMessage,
+              });
+            })
+        );
+      };
       const resume = resumeManualBackfillPayload(runBody, backfillProgress[configId]);
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
@@ -399,27 +419,14 @@ export class ConnectorExecutorService {
                 configId,
               });
               break;
+            case ConnectorMessageType.STATE_UPDATE:
+              // Connector-owned keys (e.g. the short link cache) are valid for backfills too:
+              // they describe resolved links, not import progress.
+              persistState(message.state, message.at);
+              break;
             case ConnectorMessageType.REQUESTED_DATE: {
               if (!isBackfill) {
-                this.connectorStateService
-                  .updateState(dataMart.id, configId, {
-                    state: { date: message.date },
-                    at: message.at,
-                  })
-                  .catch(error => {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    this.logger.error(
-                      `Failed to save state: ${errorMessage}`,
-                      (error as Error)?.stack,
-                      {
-                        dataMartId: dataMart.id,
-                        projectId: dataMart.projectId,
-                        runId,
-                        configId,
-                        error: errorMessage,
-                      }
-                    );
-                  });
+                persistState({ date: message.date }, message.at);
                 break;
               }
 
@@ -673,6 +680,7 @@ export class ConnectorExecutorService {
         // shutdown that makes resuming worthwhile — is never written ahead of the checkpoint
         // the retry has to start from.
         await progressWrite;
+        await stateWrite;
 
         if (credentialUpdates) {
           try {

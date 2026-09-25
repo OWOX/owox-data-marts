@@ -21,6 +21,10 @@ var adGroupAdStatsFields = {
     'apiName': 'ad_group_ad.ad.final_urls',
     'type': DATA_TYPES.ARRAY
   },
+  'ad_final_urls_parsed': {
+    'description': 'ad_final_urls resolved to its landing page when it is a short link; otherwise the same value. Requires ad_final_urls and Process Short Links.',
+    'type': DATA_TYPES.ARRAY
+  },
   'ad_group_id': {
     'description': 'Ad Group ID',
     'apiName': 'ad_group.id',

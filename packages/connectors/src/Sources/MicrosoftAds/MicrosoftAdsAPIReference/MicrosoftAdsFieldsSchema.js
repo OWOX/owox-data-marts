@@ -29,7 +29,12 @@ var MicrosoftAdsFieldsSchema = {
       "Language",
       "CampaignType"
     ],
-    defaultFields: ["TimePeriod", "AccountId", "AccountName", "CampaignId", "CampaignName", "CampaignType", "AdGroupId", "AdGroupName", "AdId", "AdType", "AdStatus", "AdDistribution", "DeviceType", "Network", "Impressions", "Clicks", "Spend", "Conversions", "Ctr", "AverageCpc", "CostPerConversion"],
+    shortLinks: [
+      { field: "DestinationUrl", target: "DestinationUrlParsed" },
+      { field: "FinalUrl", target: "FinalUrlParsed" },
+      { field: "FinalMobileUrl", target: "FinalMobileUrlParsed" }
+    ],
+    defaultFields: ["TimePeriod", "AccountId", "AccountName", "CampaignId", "CampaignName", "CampaignType", "AdGroupId", "AdGroupName", "AdId", "AdType", "AdStatus", "AdDistribution", "DeviceType", "Network", "FinalUrl", "FinalUrlParsed", "Impressions", "Clicks", "Spend", "Conversions", "Ctr", "AverageCpc", "CostPerConversion"],
     destinationName: "microsoft_ads_ad_performance_report",
     isTimeSeries: true
   },
@@ -74,6 +79,10 @@ var MicrosoftAdsFieldsSchema = {
     documentation: "https://learn.microsoft.com/en-us/advertising/bulk-service/bulk-service-reference",
     fields: campaignFields,
     uniqueKeys: ["Id"],
+    shortLinks: [
+      { field: "FinalUrl", target: "FinalUrlParsed" },
+      { field: "MobileFinalUrl", target: "MobileFinalUrlParsed" }
+    ],
     defaultFields: [
       "Type",
       "ParentId",

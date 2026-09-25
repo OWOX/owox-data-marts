@@ -67,15 +67,18 @@ For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
 ### Resolve Short Links
 
-Facebook ads often point to short links. **Ad Account Insights by Link URL Asset** returns these short links in `link_url_asset.website_url`. OWOX can follow each short link and store the final landing page in `link_url_asset.parsed_url`.
+Facebook ads often point to short links. OWOX can follow each short link and store the landing page next to it:
 
-To turn this on, keep the `link_url_asset` field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects both by default for this endpoint. OWOX follows HTTP redirects only, so a short link that opens an interstitial page stays unresolved.
+- **Ad Account Insights by Link URL Asset**: `link_url_asset.website_url` resolves into `link_url_asset.parsed_url`.
+- **Ad Creatives**: `object_url` resolves into `object_url_parsed`, and `link_url` into `link_url_parsed`.
 
-OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. OWOX treats links with several path parts, such as `https://links.example.com/abc/xyz`, as landing pages and leaves them unchanged.
+Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects them by default. A parsed field holds the landing page for short links and the original value for other links.
 
-If your short link service uses several path parts, enter its domain in **Short Link Domains**, for example `links.example.com`. You can also paste a full short link, such as `https://links.example.com/abc/xyz`, and OWOX keeps only the domain. Separate several entries with commas. OWOX then resolves links on these domains and their subdomains.
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts, such as `https://links.example.com/abc/xyz`, resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
 
-OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page.
+OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page. OWOX follows HTTP redirects only, so a short link that opens an interstitial page stays unresolved.
+
+OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
 
 ## Start a Manual Run
 

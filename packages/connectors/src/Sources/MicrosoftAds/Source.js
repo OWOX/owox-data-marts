@@ -186,6 +186,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
+      ProcessShortLinks: {
+        requiredType: "boolean",
+        default: true,
+        label: "Process Short Links",
+        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example FinalUrlParsed)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -369,6 +376,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    */
   async fetchData({ nodeName, accountId, fields = [], start_time, end_time, onBatchReady }) {
     const schema = this.fieldsSchema[nodeName];
+    // Connector-only short link columns are filled after the fetch; never request them from the API
+    fields = omitShortLinkTargets(schema, fields);
     if (schema.uniqueKeys) {
       const missingKeys = schema.uniqueKeys.filter(key => !fields.includes(key));
       if (missingKeys.length) {
