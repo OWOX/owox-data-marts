@@ -319,6 +319,15 @@ export class DeclarativeSource extends AbstractSource {
     return super.calculateBackoff(attempt, initialDelay);
   }
 
+  /**
+   * A 401 or 403 skips the account as refused access, but not one a filter mapped to FAIL:
+   * that filter is the author asking for the run to fail on the status.
+   */
+  _isAuthError(error) {
+    if (error._declAction === 'FAIL') return false;
+    return super._isAuthError(error);
+  }
+
   _defaultRetryable(error) {
     if (error.statusCode && error.statusCode >= 500) return true;
     if (error.statusCode === 429) return true;

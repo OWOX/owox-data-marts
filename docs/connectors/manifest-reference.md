@@ -448,7 +448,7 @@ Each resolved id becomes `{{ account.id }}` inside that account's requests, and 
 
 One account's failure does not stop the others: the engine attempts every account, then decides the run's outcome. The policy is not configurable in the manifest.
 
-- An account the API turns away with `401` or `403` is skipped. The run logs a warning, and the date window still counts as loaded, so recover that account's data with a manual backfill.
+- An account the API turns away with `401` or `403` is skipped. The run logs a warning, and the date window still counts as loaded, so recover that account's data with a manual backfill. An `errorHandler` filter with `action: "FAIL"` for that status fails the run instead.
 - Any other failure is logged as an error, and the window is requested again on the next run. The run then fails, naming the accounts that did not import.
 - If no account imported anything, the run fails.
 - If every account is turned away on the same day, the run stops at that day, which usually means the credentials stopped working. The days before it stay loaded.

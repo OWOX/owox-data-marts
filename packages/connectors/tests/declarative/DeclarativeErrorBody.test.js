@@ -165,3 +165,33 @@ describe('errorHandler filters against a real (single-shot) response body', () =
     assert.strictEqual(calls, 3, 'exhausts MaxFetchRetries, matching the body every attempt');
   });
 });
+
+// A 401 or 403 is taken as refused access and skips the account, but a filter that says FAIL
+// is the author asking for the run to fail on that status.
+describe('errorHandler FAIL on an access error', () => {
+  let originalFetch;
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response('{}', { status: 403, statusText: 'Forbidden' });
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('fails the run instead of skipping the account', async () => {
+    const source = makeSource([{ httpCodes: [403], action: 'FAIL' }]);
+
+    const error = await fetchNode(source).catch(e => e);
+
+    assert.match(error.message, /403/);
+    assert.strictEqual(Boolean(error.isWarning), false);
+  });
+
+  it('still skips the account on an access error no filter matched', async () => {
+    const source = makeSource([{ httpCodes: [500], action: 'FAIL' }]);
+
+    const error = await fetchNode(source).catch(e => e);
+
+    assert.strictEqual(error.isWarning, true);
+  });
+});
