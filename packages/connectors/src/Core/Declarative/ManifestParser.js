@@ -861,6 +861,12 @@ export class ManifestParser {
     if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return;
 
     for (const [key, value] of Object.entries(auth)) {
+      // Basic auth without a password is an API key sent as the username (Stripe, Chargebee,
+      // Freshdesk), so there the username is the credential.
+      if (key === 'username' && auth.type === 'basic' && !auth.password) {
+        this._collectParameterRefsDeep(value, into);
+        continue;
+      }
       if (NON_CREDENTIAL_AUTH_KEYS.has(key)) continue;
 
       if (key === 'authenticators') {

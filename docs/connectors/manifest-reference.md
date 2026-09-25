@@ -153,6 +153,8 @@ HTTP Basic auth — no `inject` block; the engine base64-encodes `username:passw
 }
 ```
 
+Some APIs, such as Stripe, take the API key as the username with an empty password. Leave `password` out for them: a username without a password is treated as the credential, and its parameter is marked `SECRET`.
+
 ### Token exchange
 
 Exchanges a credential for a server-issued token via one POST, then injects that token. Use this for APIs with a simple "trade my API key for a session token" step and a **fixed-length** token lifetime:

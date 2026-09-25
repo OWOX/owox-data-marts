@@ -1572,6 +1572,20 @@ describe('ManifestParser authentication secrets', () => {
     assert.deepStrictEqual(attrs(model, 'User'), []);
   });
 
+  // Stripe, Chargebee and Freshdesk take the API key as the Basic username with an empty
+  // password, so there the username is the credential.
+  it('marks a basic username SECRET when there is no password', () => {
+    for (const password of [undefined, '']) {
+      const model = parse(
+        base(
+          { type: 'basic', username: '{{ parameters.ApiKey }}', password },
+          { ApiKey: { requiredType: 'string', isRequired: true } }
+        )
+      );
+      assert.deepStrictEqual(attrs(model, 'ApiKey'), ['SECRET'], `password ${password}`);
+    }
+  });
+
   it('marks every parameter in a tokenExchange request body SECRET, including nested ones', () => {
     const model = parse(
       base(

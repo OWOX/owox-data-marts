@@ -109,6 +109,8 @@ HTTP Basic auth — no `inject` block; the engine base64-encodes `username:passw
 }
 ```
 
+For APIs that take the API key as the username with an empty password (Stripe, Chargebee, Freshdesk), leave `password` out: a username without a password is treated as the credential and its parameter is auto-marked `SECRET`.
+
 ### tokenExchange
 
 Exchanges a credential for a server-issued token via one POST, then injects that token. Use this for APIs with a simple "trade my API key for a session token" step and a **fixed-length** token lifetime:
