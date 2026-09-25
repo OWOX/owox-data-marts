@@ -8,6 +8,25 @@ Open **Data Marts → Models** and pick a storage. The canvas remembers the stor
 
 Click a card to highlight every relationship it takes part in. Click it again, or the empty canvas, to clear the highlight. The arrow icon on a card opens that Data Mart in a new tab.
 
+## What a card shows
+
+- The Data Mart **icon** and **title**, with a **Draft** badge when the Data Mart is not published yet. See [Data Mart icons](#data-mart-icons).
+- The **input source** (Table, View, SQL, Pattern or Connector) and the **field count** of the Output Schema.
+- The number of **triggers** and **reports** built on the Data Mart, on one line.
+- The number of **relationships**. The count covers the whole storage, whatever the filters hide. It counts the relationships the Data Mart defines and the ones that point to it.
+- The [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) indicators. Hover an indicator to see the check results or the data freshness.
+- Sharing icons, when the Data Mart is shared for reporting or for maintenance. Hover an icon to see which one it is.
+
+A count of zero shows no badge, and a line left without badges is dropped. A Data Mart without triggers or reports has no line for them. The sharing icons appear once the canvas has loaded the Data Mart details.
+
+## Data Mart icons
+
+Every card leads with an icon, so you can tell purchases from sessions at a glance. A Data Mart shows a plain box until someone picks an icon for it.
+
+To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. Data-stack icons cover data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
+
+The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG [exports](models-canvas-export.md).
+
 ## Toolbar
 
 - **Search** highlights the Data Marts whose title matches and zooms to them. It does not remove the other cards.
@@ -23,17 +42,17 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings and stores its own values.
 
-- **View** picks the card density. **Compact** cards show the title, the source badge, the status and the field count. **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
+- **View** picks the card density. **Compact** cards show everything listed in [What a card shows](#what-a-card-shows). **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Layout algorithm** lays the graph out horizontally or vertically. Picking an algorithm re-runs the layout and drops the card positions you dragged.
 - **Show join fields** labels every arrow with its join conditions (`source_field = target_field`).
 - **Object labels** picks what every card shows:
   - **Input source** shows the badge with the definition type (VIEW / TABLE / SQL / PATTERN / CONNECTOR).
   - **Field count** shows the number of fields in the Output Schema.
-  - **Status** shows the published/draft indicator.
+  - **Status** shows the **Draft** badge on unpublished Data Marts.
   - **Field aliases** leads each field row in the Detailed view with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.
   - **Field descriptions** adds the Output Schema description under each field in the Detailed view, when the field has one. The line shows one row of text. Hover it to read the whole description.
 
-  **Check all** turns every label back on. **Uncheck all** leaves only the titles. In the Detailed view it also leaves the technical field names and their types.
+  **Check all** turns every label back on. **Uncheck all** leaves only the titles. It also hides the counts, the indicators and the sharing icons. In the Detailed view it also leaves the technical field names and their types.
 
 ![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 

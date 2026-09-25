@@ -8,6 +8,17 @@ import { ModelCanvasDataMartsResponseApiDto } from '../dto/presentation/model-ca
 import { DataMart } from '../entities/data-mart.entity';
 import { toSourceDataLastUpdatedSummary } from '../dto/schemas/source-data-last-updated.schema';
 
+export interface ModelCanvasNodeCounts {
+  triggersCount: number;
+  reportsCount: number;
+}
+
+/** Per-Data-Mart counters for one page; Data Marts missing from a map count 0. */
+export interface ModelCanvasCountMaps {
+  triggerCounts?: ReadonlyMap<string, number>;
+  reportCounts?: ReadonlyMap<string, number>;
+}
+
 @Injectable()
 export class ModelCanvasMapper {
   toDataMartsCommand(
@@ -32,20 +43,33 @@ export class ModelCanvasMapper {
     );
   }
 
-  toNodeDto(dataMart: DataMart): ModelCanvasNodeDto {
+  toNodeDto(dataMart: DataMart, counts: Partial<ModelCanvasNodeCounts> = {}): ModelCanvasNodeDto {
     return {
       id: dataMart.id,
       title: dataMart.title,
       status: dataMart.status,
       description: dataMart.description ?? null,
+      icon: dataMart.icon ?? null,
       fieldCount: dataMart.schema?.fields?.length ?? 0,
+      triggersCount: counts.triggersCount ?? 0,
+      reportsCount: counts.reportsCount ?? 0,
       dataLastUpdated: toSourceDataLastUpdatedSummary(dataMart.dataLastUpdated),
     };
   }
 
-  toDataMartsDto(dataMarts: DataMart[], total: number, offset: number): ModelCanvasDataMartsDto {
+  toDataMartsDto(
+    dataMarts: DataMart[],
+    total: number,
+    offset: number,
+    { triggerCounts = new Map(), reportCounts = new Map() }: ModelCanvasCountMaps = {}
+  ): ModelCanvasDataMartsDto {
     return {
-      items: dataMarts.map(dataMart => this.toNodeDto(dataMart)),
+      items: dataMarts.map(dataMart =>
+        this.toNodeDto(dataMart, {
+          triggersCount: triggerCounts.get(dataMart.id) ?? 0,
+          reportsCount: reportCounts.get(dataMart.id) ?? 0,
+        })
+      ),
       total,
       offset,
     };

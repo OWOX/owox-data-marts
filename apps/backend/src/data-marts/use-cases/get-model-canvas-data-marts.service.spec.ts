@@ -7,8 +7,11 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { ContextAccessService } from '../services/context/context-access.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
+import { ReportService } from '../services/report.service';
+import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { GetModelCanvasDataMartsService } from './get-model-canvas-data-marts.service';
+import { DataMartIcon } from '../enums/data-mart-icon.enum';
 
 describe('GetModelCanvasDataMartsService', () => {
   const dataMartService = { findByProjectIdAndStorageIdForCanvas: jest.fn() };
@@ -18,12 +21,16 @@ describe('GetModelCanvasDataMartsService', () => {
     canAccess: jest.fn(),
     canAccessMany: jest.fn(),
   };
+  const scheduledTriggerService = { countByDataMartIds: jest.fn() };
+  const reportService = { countByDataMartIds: jest.fn() };
   const service = new GetModelCanvasDataMartsService(
     dataMartService as unknown as DataMartService,
     dataStorageService as unknown as DataStorageService,
     contextAccessService as unknown as ContextAccessService,
     new ModelCanvasMapper(),
-    accessDecisionService as unknown as AccessDecisionService
+    accessDecisionService as unknown as AccessDecisionService,
+    scheduledTriggerService as unknown as ScheduledTriggerService,
+    reportService as unknown as ReportService
   );
 
   const command = new GetModelCanvasDataMartsCommand(
@@ -87,10 +94,16 @@ describe('GetModelCanvasDataMartsService', () => {
     expect(dataMartService.findByProjectIdAndStorageIdForCanvas).not.toHaveBeenCalled();
   });
 
-  it('maps data marts to nodes with fieldCount from schema', async () => {
+  it('maps data marts to nodes with fieldCount from schema and triggers and reports counted per Data Mart', async () => {
+    scheduledTriggerService.countByDataMartIds.mockResolvedValue(new Map([['a', 2]]));
+    reportService.countByDataMartIds.mockResolvedValue(new Map([['b', 4]]));
     dataMartService.findByProjectIdAndStorageIdForCanvas.mockResolvedValue({
       items: [
-        dm('a', { schema: { fields: [{}, {}, {}] } as never, description: 'desc' }),
+        dm('a', {
+          schema: { fields: [{}, {}, {}] } as never,
+          description: 'desc',
+          icon: DataMartIcon.PURCHASES,
+        }),
         dm('b', { status: DataMartStatus.DRAFT }),
       ],
       total: 2,
@@ -98,6 +111,8 @@ describe('GetModelCanvasDataMartsService', () => {
 
     const result = await service.run(command);
 
+    expect(scheduledTriggerService.countByDataMartIds).toHaveBeenCalledWith(['a', 'b']);
+    expect(reportService.countByDataMartIds).toHaveBeenCalledWith(['a', 'b']);
     expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
       'user-1',
       ['editor'],
@@ -112,7 +127,10 @@ describe('GetModelCanvasDataMartsService', () => {
         title: 'DM a',
         status: DataMartStatus.PUBLISHED,
         description: 'desc',
+        icon: DataMartIcon.PURCHASES,
         fieldCount: 3,
+        triggersCount: 2,
+        reportsCount: 0,
         dataLastUpdated: null,
       },
       {
@@ -120,7 +138,10 @@ describe('GetModelCanvasDataMartsService', () => {
         title: 'DM b',
         status: DataMartStatus.DRAFT,
         description: null,
+        icon: null,
         fieldCount: 0,
+        triggersCount: 0,
+        reportsCount: 4,
         dataLastUpdated: null,
       },
     ]);
@@ -186,6 +207,8 @@ describe('GetModelCanvasDataMartsService', () => {
     jest.resetAllMocks();
     dataStorageService.getByProjectIdAndId.mockResolvedValue({ id: 'storage-1' });
     accessDecisionService.canAccess.mockResolvedValue(true);
+    scheduledTriggerService.countByDataMartIds.mockResolvedValue(new Map());
+    reportService.countByDataMartIds.mockResolvedValue(new Map());
     dataMartService.findByProjectIdAndStorageIdForCanvas.mockResolvedValue({
       items: [],
       total: 0,

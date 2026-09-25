@@ -117,15 +117,35 @@ const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
 
 function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
   return JSON.stringify(
-    nodes.map(({ id, title, status, description, fieldCount, definitionType, fields }) => ({
-      id,
-      title,
-      status,
-      description,
-      fieldCount,
-      definitionType,
-      fields,
-    }))
+    nodes.map(
+      ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        reportsCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      }) => ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        reportsCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      })
+    )
   );
 }
 
@@ -178,7 +198,13 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       title: node.title,
       isDraft: node.status === DataMartStatus.DRAFT,
       fieldCount: node.fieldCount,
+      triggersCount: node.triggersCount,
+      reportsCount: node.reportsCount,
+      relationshipCount: node.relationshipCount ?? 0,
+      availableForReporting: node.availableForReporting,
+      availableForMaintenance: node.availableForMaintenance,
       description: node.description,
+      icon: node.icon ?? null,
       definitionType: node.definitionType ?? null,
       fields: node.fields ?? [],
       viewMode,
@@ -376,6 +402,9 @@ function ModelCanvasInner({
     const liveDataLastUpdated = new Map(
       nodesRef.current.map(node => [node.id, node.dataLastUpdated])
     );
+    // The icon stays out of the topology signature (picking one must not re-run
+    // the layout), so the snapshot may hold a stale one — read it live too.
+    const liveIcons = new Map(nodesRef.current.map(node => [node.id, node.icon]));
 
     setFlowNodes(
       topologyNodes.map(topologyNode =>
@@ -386,6 +415,9 @@ function ModelCanvasInner({
               liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
             dataLastUpdated:
               liveDataLastUpdated.get(topologyNode.id) ?? topologyNode.dataLastUpdated,
+            icon: liveIcons.has(topologyNode.id)
+              ? liveIcons.get(topologyNode.id)
+              : topologyNode.icon,
           },
           // A user-dragged position wins over the computed layout.
           position: savedPositions[topologyNode.id] ??
@@ -521,22 +553,26 @@ function ModelCanvasInner({
     []
   );
 
-  // Data-only updates (quality polling, a finished Data Last Updated sweep) flow into the
+  // Data-only updates (quality polling, a finished Data Last Updated sweep, a newly picked
+  // icon) flow into the
   // existing flow nodes here: the layout effect above deliberately re-runs only when the
   // TOPOLOGY signature changes, so without this sync fresh values would not appear until a
   // reload.
   useEffect(() => {
     const summaries = new Map(nodes.map(node => [node.id, node.qualitySummary]));
     const lastUpdated = new Map(nodes.map(node => [node.id, node.dataLastUpdated]));
+    const icons = new Map(nodes.map(node => [node.id, node.icon ?? null]));
     setFlowNodes(current =>
       current.map(node => {
         const qualitySummary = summaries.get(node.id) ?? node.data.qualitySummary;
         const dataLastUpdated = lastUpdated.has(node.id)
           ? (lastUpdated.get(node.id) ?? null)
           : node.data.dataLastUpdated;
+        const icon = icons.has(node.id) ? (icons.get(node.id) ?? null) : node.data.icon;
         return node.data.qualitySummary !== qualitySummary ||
-          node.data.dataLastUpdated !== dataLastUpdated
-          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated } }
+          node.data.dataLastUpdated !== dataLastUpdated ||
+          node.data.icon !== icon
+          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated, icon } }
           : node;
       })
     );

@@ -46,6 +46,7 @@ import {
   describeSchemaFieldSummary,
   summarizeSchemaFields,
 } from '../../../shared/utils/schema-field-summary';
+import type { DataMartIconKey } from '../../../shared/enums/data-mart-icon.enum';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -256,6 +257,32 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'UpdateDescriptionError',
+        label: id,
+        error: apiError.message,
+      });
+    }
+  }, []);
+
+  // Update data mart icon
+  const updateDataMartIcon = useCallback(async (id: string, icon: DataMartIconKey | null) => {
+    try {
+      dispatch({ type: 'UPDATE_DATA_MART_ICON_START' });
+      await dataMartService.updateDataMartIcon(id, icon);
+      dispatch({ type: 'UPDATE_DATA_MART_ICON_SUCCESS', payload: icon });
+      trackEvent({
+        event: 'data_mart_updated',
+        category: 'DataMart',
+        action: icon ? 'UpdateIcon' : 'ResetIcon',
+        label: id,
+        ...(icon ? { value: icon } : {}),
+      });
+    } catch (error) {
+      const apiError = extractApiError(error);
+      dispatch({ type: 'UPDATE_DATA_MART_ICON_ERROR', payload: apiError });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateIconError',
         label: id,
         error: apiError.message,
       });
@@ -699,6 +726,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartIcon,
     updateDataMartOwners,
     updateDataMartStorage,
     updateDataMartDefinition,

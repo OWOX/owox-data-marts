@@ -76,6 +76,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/models-canvas',
                 'docs/getting-started/setup-guide/models-canvas-export',
                 'docs/getting-started/setup-guide/data-quality-checks',
+                'docs/getting-started/setup-guide/data-preview',
                 'docs/getting-started/setup-guide/data-last-updated',
                 'docs/getting-started/setup-guide/output-controls',
                 'docs/getting-started/setup-guide/report-aggregations',

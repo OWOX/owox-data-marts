@@ -6,13 +6,11 @@ Use this guide to create a Facebook Ads Data Mart.
 
 Check these items before you create the Data Mart:
 
-- You have set up OWOX Data Marts.
-- You have at least one OWOX storage.
-- You can access the target Facebook ad account.
-- You know the numeric Facebook Account ID.
+- You have set up [OWOX Data Marts](https://docs.owox.com/docs/getting-started/quick-start/).
+- You have an [OWOX storage](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage), or you create one during setup.
+- You can access the target ad account in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).
+- You know the numeric [Facebook Account ID](#set-up-the-connector).
 - You chose an authentication method in [Credentials](CREDENTIALS.md).
-
-For storage setup, see [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
 For a general connector walkthrough, see [Connector-based Data Mart](https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/).
 
@@ -23,13 +21,13 @@ For a general connector walkthrough, see [Connector-based Data Mart](https://doc
 3. Select a storage.
 4. Click **Create Data Mart**.
 
-If you have no storage yet, click **New Storage**. You can create the storage now and configure it later.
+If you have no storage yet, choose **Create new storage** in the **Storage** dropdown, then pick a storage type. You can add its settings later. The Data Mart cannot publish until the storage settings are valid.
 
 ![OWOX Data Mart creation screen with title and storage fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2e1163df-bd1c-4825-4ce9-c6f66f11b500/public)
 
 ## Set Up the Connector
 
-1. Select **Connector** as the input source type.
+1. In **Input Source**, set **Definition Type** to **Connector**.
 2. Choose **Facebook Ads**.
 3. Choose your authentication method.
 
@@ -51,19 +49,19 @@ Then fill in **Account IDs**. Use numeric ad account IDs only, without the `act_
 
 ## Configure Data Import
 
-1. Choose an endpoint.
+1. Choose an endpoint. Each Data Mart imports one endpoint, so create another Data Mart for each additional endpoint.
 2. Select fields, or keep the defaults.
-3. Enter the target dataset.
+3. Enter the target dataset, or keep the default. The connector names each table after its endpoint, for example `facebook_ads_ad_account_insights`.
 4. Click **Finish**.
-5. Click **Publish & Run Data Mart**.
+5. Click **Publish & Run Data Mart**. The first run imports from the first day of the previous month and can take several minutes.
 
-OWOX writes the connector tables into this destination. Your storage sets the field label, such as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see [Supported Storages](https://docs.owox.com/docs/storages/supported-storages/).
+The connector writes its tables into your storage. The field label depends on your storage, such as **Dataset** for BigQuery or **Database** for Amazon Redshift. For your storage, see [Supported Storages](https://docs.owox.com/docs/storages/supported-storages/).
 
 For spend, clicks, impressions, conversions, and ROAS, choose **Ad Account Insights**.
 
 For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
-If OWOX disables **Publish & Run Data Mart**, check the storage. OWOX cannot publish a Data Mart until the selected storage has valid settings. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
+**Publish & Run Data Mart** stays inactive until your storage has valid settings. Open the storage, check its settings, then come back to this step. See [Storage Management](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage).
 
 ![Configure Data Import screen with Facebook Ads endpoint, fields, and dataset settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5975a655-aeea-4ec6-d5f6-f74cb5db4500/public)
 
@@ -82,15 +80,23 @@ OWOX skips links with query parameters, such as `?utm_source=facebook`, because 
 
 OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
 
-## Run the Data Mart
+## Start a Manual Run
 
-You can run the Data Mart manually after setup. You can also [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+**Publish & Run Data Mart** already started the first import. Without a trigger, the Data Mart does not run again. To import again, click **Manual Run** and choose a run type, or set a trigger. See [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).
+
+### Schedule Automatic Runs
+
+1. Open the **Triggers** tab of your Data Mart.
+2. Click **+ Add Trigger**.
+3. Set **Trigger Type** to `Connector Run`.
+4. Choose a schedule: **Daily**, **Weekly**, **Monthly**, or **Interval**.
+5. Click **Save**.
 
 ### Incremental Load
 
 Choose **Manual run → Incremental load**.
 
-On the first incremental run, OWOX imports data from the first day of the previous month through today. After a successful incremental run, OWOX stores the last requested date. On later incremental runs, OWOX starts from that date minus **Reimport Lookback Window**. This lookback helps refresh recently changed Facebook Ads metrics.
+The first incremental run imports data from the first day of the previous month through today. Each successful incremental run saves the last requested date. Later runs start from that date minus **Reimport Lookback Window**. This lookback refreshes recently changed Facebook Ads metrics.
 
 ![Manual run menu showing the Incremental load option](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e7e0db3e-5088-4372-515c-ae22e961a200/public)
 
@@ -106,7 +112,9 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-OWOX imports both the start date and the end date. If you leave **End Date** empty, OWOX uses today.
+The import includes both the start date and the end date. One backfill run covers at most 31 days, so a full calendar month fits in one run. The form shows how many days your period covers and rejects a longer one before the run starts. To reload a longer history, run several backfills with consecutive periods. Start each run after the previous one finishes.
+
+Both dates are required. The date picker does not offer future dates. The **End Date** must be on or after the **Start Date**.
 
 ![Backfill dialog with Start Date, End Date, and Run button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b8a71ff2-60a1-4b8e-135b-4bf8b30d4600/public)
 

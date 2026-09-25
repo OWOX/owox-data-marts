@@ -9,6 +9,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
+import { DataMartIcon } from '../enums/data-mart-icon.enum';
 
 const SAFE_DATA_QUALITY_RUN_ERROR = 'Data Quality run failed during execution';
 
@@ -96,6 +97,25 @@ describe('DataMartMapper', () => {
       } as unknown as DataMart;
 
       expect(mapper.toDomainDto(entity).definitionType).toBeUndefined();
+    });
+
+    it('carries the picked icon to the list item and defaults it to null', () => {
+      const entity = {
+        id: 'data-mart-1',
+        title: 'Purchases',
+        status: DataMartStatus.PUBLISHED,
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY, title: 'Warehouse' },
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        contexts: [],
+        icon: DataMartIcon.PURCHASES,
+      } as unknown as DataMart;
+      const toResponse = (e: DataMart) =>
+        mapper.toListItemResponse(mapper.toListItemDto(e, { triggersCount: 0, reportsCount: 0 }));
+
+      expect(toResponse(entity).icon).toBe(DataMartIcon.PURCHASES);
+      expect(mapper.toDomainDto(entity).icon).toBe(DataMartIcon.PURCHASES);
+      expect(toResponse({ ...entity, icon: undefined } as DataMart).icon).toBeNull();
     });
   });
 

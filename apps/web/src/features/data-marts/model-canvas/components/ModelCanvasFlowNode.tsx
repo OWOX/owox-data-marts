@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Info } from 'lucide-react';
+import {
+  CalendarClock,
+  Columns3,
+  ExternalLink,
+  FileText,
+  Info,
+  PencilLine,
+  Share2,
+  Users,
+  Waypoints,
+  type LucideIcon,
+} from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
@@ -9,8 +20,15 @@ import {
   OWOX_BLUE,
   SOCKET_STYLE,
 } from '../../shared/canvas/constants';
-import { ErdDefinitionBadge, ErdStatusBadge } from '../../shared/canvas/erd-card';
-import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
+import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
+import {
+  type CanvasViewMode,
+  type CardBadgeRow,
+  cardBadgeRows,
+  cardBadges,
+  nodeLayoutOptions,
+  nodeWidth,
+} from '../model/erd-node';
 import {
   isTitleOnly,
   NOTHING_HIDDEN,
@@ -21,19 +39,24 @@ import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
-import {
-  DATA_QUALITY_STATUS_STRIPE_CLASSES,
-  getDataQualityStatusVisual,
-} from '../../shared/utils/data-quality-status';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
+import { DataMartIconGlyph } from '../../shared/components/DataMartIcon/DataMartIconGlyph';
 
 export interface ModelCanvasFlowNodeData {
   title: string;
   isDraft: boolean;
   fieldCount: number;
+  /** Unknown (undefined) until the detail enrichment resolves — the pill waits for it. */
+  triggersCount?: number;
+  reportsCount?: number;
+  relationshipCount: number;
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
   description: string | null;
+  icon: DataMartIconKey | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
@@ -49,6 +72,38 @@ export interface ModelCanvasFlowNodeData {
   qualitySummary: DataQualityCompactSummary;
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
+}
+
+function pluralize(count: number, singular: string): string {
+  return `${String(count)} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+/** Soft-filled pill with a leading icon, as on the product website's Data Mart cards. */
+function CardPill({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className='bg-muted text-muted-foreground inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] leading-none whitespace-nowrap'>
+      <span className='inline-flex shrink-0' aria-hidden='true'>
+        <Icon className='h-3 w-3' />
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** A sharing flag in the card footer; renders nothing while the flag is off or unknown. */
+function SharingIcon({ icon: Icon, label, on }: { icon: LucideIcon; label: string; on?: boolean }) {
+  if (!on) return null;
+  return (
+    <span className='inline-flex p-0.5' title={label} role='img' aria-label={label}>
+      <Icon className='h-3.5 w-3.5' aria-hidden='true' />
+    </span>
+  );
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -71,34 +126,59 @@ export default function ModelCanvasFlowNode({
     updateNodeInternals(id);
   }, [expanded, id, updateNodeInternals]);
 
-  const stripeClass =
-    DATA_QUALITY_STATUS_STRIPE_CLASSES[getDataQualityStatusVisual(data.qualitySummary).tone];
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
 
-  // Object labels: the accent stripe mirrors the Data Quality status shown by
-  // the status icons row below, so the two hide together — only in "title
-  // only" mode, not when the source badge alone is toggled off.
   const labels = data.objectLabels ?? NOTHING_HIDDEN;
-  const withSource = !labels.source;
-  const withFieldCount = !labels.fields;
-  const withStatus = !labels.status;
-  const withDefinitionBadge = withSource && !!data.definitionType;
-  // Both pills render flush (no gap, shared edge unrounded) so they read as
-  // one pill split into two labels — only when both are actually on screen.
-  const metaBadgesJoined = withStatus && withDefinitionBadge;
-  // "Uncheck all — title only" strips the card down to its name: the quality
-  // indicators (Data Quality shield + Data Last Updated clock) go too.
+  // A count of zero shows no badge; the layout estimate reads the same rules.
+  const badges = cardBadges(data, nodeLayoutOptions(labels));
+  const definitionInfo =
+    badges.definition && data.definitionType
+      ? DataMartDefinitionTypeModel.getInfo(data.definitionType)
+      : null;
+  // Published is the norm, so only a draft earns a pill — next to the title.
+  const withDraft = !labels.status && data.isDraft;
+  const badgeRows = cardBadgeRows(badges);
+  // "Uncheck all — title only" strips the card down to its name: counts,
+  // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
-  // The stripe now runs full-height along the left edge (absolutely
-  // positioned) instead of sitting inline in the header, so every row needs
-  // extra left padding to clear it — but only while the stripe is shown.
-  const contentPaddingLeft = !titleOnly ? 'pl-[16px]' : 'pl-3.5';
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
   const openExternalLabel = `Open ${data.title} in new tab`;
+
+  function renderBadgeRow(row: CardBadgeRow) {
+    if (row === 'meta') {
+      return (
+        <>
+          {definitionInfo && (
+            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
+          )}
+          {badges.fieldCount && (
+            <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
+          )}
+        </>
+      );
+    }
+    if (row === 'usage') {
+      return (
+        <>
+          {badges.triggers && (
+            <CardPill icon={CalendarClock}>
+              {pluralize(data.triggersCount ?? 0, 'trigger')}
+            </CardPill>
+          )}
+          {badges.reports && (
+            <CardPill icon={FileText}>{pluralize(data.reportsCount ?? 0, 'report')}</CardPill>
+          )}
+        </>
+      );
+    }
+    return (
+      <CardPill icon={Waypoints}>{pluralize(data.relationshipCount, 'relationship')}</CardPill>
+    );
+  }
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -108,7 +188,7 @@ export default function ModelCanvasFlowNode({
 
   return (
     <div
-      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-sm border shadow-sm active:cursor-grabbing'
+      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
         width: nodeWidth(data.viewMode),
         borderColor: data.highlighted ? HIGHLIGHT_COLOR : selected ? OWOX_BLUE : undefined,
@@ -123,13 +203,6 @@ export default function ModelCanvasFlowNode({
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
-      {!titleOnly && (
-        <span
-          className={`absolute inset-y-0 top-0 bottom-0 left-0 w-1 rounded-tr-full rounded-br-full ${stripeClass}`}
-          aria-hidden='true'
-        />
-      )}
-
       {data.hasIncoming && (
         <Handle
           type='target'
@@ -139,22 +212,27 @@ export default function ModelCanvasFlowNode({
         />
       )}
 
-      {/* Header: title + status + actions (accent stripe is the full-height bar on the left edge) */}
-      <div
-        className={`flex items-center gap-2 pt-3 pr-3.5 ${contentPaddingLeft} ${titleOnly ? 'pb-3' : 'pb-1'}`}
-      >
+      {/* Title row: icon tile + name + draft pill + actions */}
+      <div className={`flex items-center gap-2 pt-3 pr-3 pl-3 ${titleOnly ? 'pb-3' : ''}`}>
         <span
-          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
+          aria-hidden='true'
+        >
+          <DataMartIconGlyph icon={data.icon} className='h-4 w-4' />
+        </span>
+        <span
+          className='text-foreground min-w-0 flex-1 truncate text-sm font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
+        {withDraft && <CardPill icon={PencilLine}>Draft</CardPill>}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type='button'
-                className='text-muted-foreground hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
+                className='text-muted-foreground hover:text-foreground nodrag inline-flex shrink-0 cursor-default rounded p-0.5 transition-colors'
                 aria-label={`Description for ${data.title}`}
                 onPointerDown={e => {
                   e.stopPropagation();
@@ -182,39 +260,47 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Meta row: status pill + definition badge on their own line. */}
-      {(withStatus || withSource) && (
+      {/* Badge rows: source + field count, triggers + reports, relationships */}
+      {badgeRows.map((row, index) => (
         <div
-          className={`text-muted-foreground flex items-center ${metaBadgesJoined ? 'gap-0' : 'gap-1'} pt-1 pr-3.5 text-[11px] ${contentPaddingLeft}`}
+          key={row}
+          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 ? 'pt-2' : 'pt-1'}`}
         >
-          {withStatus && <ErdStatusBadge isDraft={data.isDraft} joined={metaBadgesJoined} />}
-          {withSource && (
-            <ErdDefinitionBadge type={data.definitionType} joined={metaBadgesJoined} />
-          )}
+          {renderBadgeRow(row)}
         </div>
-      )}
-      {/* Status icons row: quality shield + data-last-updated clock + field count */}
+      ))}
+
       {!titleOnly && (
-        <div
-          className={`text-muted-foreground flex items-center gap-1 pt-1.5 pr-3.5 pb-3 text-[11px] ${contentPaddingLeft}`}
-        >
-          <DataQualityCanvasStatusIcon
-            dataMartTitle={data.title}
-            summary={data.qualitySummary}
-            onOpenQuality={data.onOpenQuality}
-            onRunQuality={data.onRunQuality}
-          />
-          <DataLastUpdatedCanvasIcon
-            dataMartTitle={data.title}
-            block={data.dataLastUpdated}
-            isChecking={data.isCheckingDataLastUpdated}
-          />
-          {withFieldCount && (
-            <span className='ml-auto shrink-0'>
-              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+        <>
+          {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
+          <div
+            className={`text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 pl-3 text-[11px]`}
+          >
+            <DataQualityCanvasStatusIcon
+              dataMartTitle={data.title}
+              summary={data.qualitySummary}
+              onOpenQuality={data.onOpenQuality}
+              onRunQuality={data.onRunQuality}
+            />
+            <DataLastUpdatedCanvasIcon
+              dataMartTitle={data.title}
+              block={data.dataLastUpdated}
+              isChecking={data.isCheckingDataLastUpdated}
+            />
+            <span className='ml-auto flex items-center gap-1'>
+              <SharingIcon
+                icon={Share2}
+                label='Shared for reporting'
+                on={data.availableForReporting}
+              />
+              <SharingIcon
+                icon={Users}
+                label='Shared for maintenance'
+                on={data.availableForMaintenance}
+              />
             </span>
-          )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* ERD body: field rows (only in ERD view) */}

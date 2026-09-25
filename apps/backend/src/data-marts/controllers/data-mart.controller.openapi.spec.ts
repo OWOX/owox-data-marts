@@ -149,6 +149,7 @@ describe('DataMartController list OpenAPI', () => {
       'status',
       'storage',
       'description',
+      'icon',
       'triggersCount',
       'reportsCount',
       'createdByUser',

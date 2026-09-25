@@ -55,6 +55,8 @@ import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { QueryDataMartService } from './use-cases/query-data-mart.service';
+import { PreviewDataMartService } from './use-cases/preview-data-mart.service';
+import { DataMartPreviewController } from './controllers/data-mart-preview.controller';
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
@@ -128,6 +130,7 @@ import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
 import { UpdateBlendedFieldsConfigService } from './use-cases/update-blended-fields-config.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
+import { UpdateDataMartIconService } from './use-cases/update-data-mart-icon.service';
 import { UpdateDataMartOwnersService } from './use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
 import { ListDataStoragesService } from './use-cases/list-data-storages.service';
@@ -566,6 +569,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    DataMartPreviewController,
     PublishDraftsTriggerController,
     AiHelperTriggerController,
     InsightRunTriggerController,
@@ -632,6 +636,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     GetModelCanvasDataMartsService,
     GetModelCanvasEdgesService,
     QueryDataMartService,
+    PreviewDataMartService,
     SummarizeMcpDataCatalogService,
     {
       provide: MCP_DATA_MARTS_FACADE,
@@ -660,6 +665,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     PublishDataMartService,
     UpdateBlendedFieldsConfigService,
     UpdateDataMartDescriptionService,
+    UpdateDataMartIconService,
     UpdateDataMartOwnersService,
     UpdateDataMartTitleService,
     DataMartMapper,
@@ -999,13 +1005,15 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(180000))
       .forRoutes(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT }
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/preview', method: RequestMethod.POST }
       );
     consumer
       .apply(createOperationTimeoutMiddleware(30000))
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/preview', method: RequestMethod.POST },
         { path: 'external/{*path}', method: RequestMethod.ALL },
         ...MCP_OPERATION_TIMEOUT_EXCLUSIONS
       )

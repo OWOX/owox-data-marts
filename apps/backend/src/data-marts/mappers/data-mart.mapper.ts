@@ -32,6 +32,7 @@ import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-
 import { GetBlendableSchemaCommand } from '../dto/domain/get-blendable-schema.command';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
+import { UpdateDataMartIconCommand } from '../dto/domain/update-data-mart-icon.command';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
 import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
@@ -57,6 +58,7 @@ import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-respons
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartIconApiDto } from '../dto/presentation/update-data-mart-icon-api.dto';
 import {
   ValidateFormulaApiDto,
   ValidateFormulaResponseApiDto,
@@ -107,7 +109,8 @@ export class DataMartMapper {
       context.userId,
       dto.title,
       dto.storageId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.icon ?? null
     );
   }
 
@@ -142,7 +145,8 @@ export class DataMartMapper {
       entity.availableForMaintenance ?? true,
       entity.blendedFieldsConfig,
       extractContextSummaries(entity.contexts),
-      entity.dataLastUpdated ?? null
+      entity.dataLastUpdated ?? null,
+      entity.icon ?? null
     );
   }
 
@@ -170,6 +174,7 @@ export class DataMartMapper {
       definitionType: dto.definitionType,
       definition: maskedDefinition,
       description: dto.description,
+      icon: dto.icon,
       schema: dto.schema,
       connectorState: omitConnectorOwnedState(dto.connectorState),
       triggersCount: dto.triggersCount,
@@ -359,7 +364,8 @@ export class DataMartMapper {
       extractContextSummaries(entity.contexts),
       entity.availableForReporting,
       entity.availableForMaintenance,
-      toSourceDataLastUpdatedSummary(entity.dataLastUpdated)
+      toSourceDataLastUpdatedSummary(entity.dataLastUpdated),
+      entity.icon ?? null
     );
   }
 
@@ -370,6 +376,7 @@ export class DataMartMapper {
       status: dto.status,
       storage: { type: dto.storageType, title: dto.storageTitle },
       description: dto.description,
+      icon: dto.icon,
       definitionType: dto.definitionType,
       connectorSourceName:
         dto.definitionType === DataMartDefinitionType.CONNECTOR && dto.definition
@@ -407,6 +414,20 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.title,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toUpdateIconCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: UpdateDataMartIconApiDto
+  ): UpdateDataMartIconCommand {
+    return new UpdateDataMartIconCommand(
+      id,
+      context.projectId,
+      dto.icon ?? null,
       context.userId,
       context.roles ?? []
     );

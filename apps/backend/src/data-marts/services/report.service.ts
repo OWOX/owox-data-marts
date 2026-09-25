@@ -359,6 +359,20 @@ export class ReportService {
     });
   }
 
+  /** Reports per Data Mart; Data Marts without reports are absent from the map. */
+  async countByDataMartIds(dataMartIds: string[]): Promise<Map<string, number>> {
+    if (dataMartIds.length === 0) return new Map();
+    const rows = await this.repository
+      .createQueryBuilder('r')
+      .leftJoin('r.dataMart', 'dm')
+      .where('dm.id IN (:...ids)', { ids: dataMartIds })
+      .select('dm.id', 'dataMartId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('dm.id')
+      .getRawMany<{ dataMartId: string; count: string | number }>();
+    return new Map(rows.map(row => [row.dataMartId, Number(row.count)]));
+  }
+
   async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {
     const reports = await this.repository.find({
       where: {

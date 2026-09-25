@@ -24,6 +24,7 @@ interface ReactFlowStubProps {
       onRunQuality?: () => Promise<void>;
       qualitySummary?: { state: string };
       dataLastUpdated?: unknown;
+      icon?: string | null;
       isCheckingDataLastUpdated?: boolean;
     };
   }[];
@@ -450,6 +451,48 @@ describe('ModelCanvas', () => {
       expect(reactFlow.latestProps?.nodes?.[0].data?.dataLastUpdated).toEqual(fresh);
     });
     expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a newly picked icon on a cached node without rerunning layout', async () => {
+    // Regression: the canvas mounts with cached nodes and the refetch only changes the icon,
+    // which is not part of the topology signature — it must flow in through the data sync.
+    const node = {
+      id: 'orders',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      icon: null,
+      fieldCount: 3,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    };
+    const commonProps = {
+      edges: [],
+      searchQuery: '',
+      onOpenDataMart: vi.fn(),
+      onOpenQuality: vi.fn(),
+      onRunQuality: vi.fn().mockResolvedValue(undefined),
+    };
+    const { rerender } = render(<ModelCanvas nodes={[node]} {...commonProps} />);
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<ModelCanvas nodes={[{ ...node, icon: 'orders' as const }]} {...commonProps} />);
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.icon).toBe('orders');
+    });
+    expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+
+    // A later layout run (here: the direction) must not bring the old icon back.
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    expect(reactFlow.latestProps?.nodes?.[0].data?.icon).toBe('orders');
   });
 
   it('flips the checking flag on every node while the Data Last Updated sweep runs', async () => {
