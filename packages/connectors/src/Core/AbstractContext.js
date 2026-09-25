@@ -260,8 +260,11 @@ export class AbstractContext {
 
   _validateRunConfig() {
     if (this.runConfig.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
-      if (!this.runConfig.data || this.runConfig.data.length === 0) {
-        throw new Error('Manual backfill requires data items');
+      // An empty list is valid, as on main: a connector without backfill fields sends no
+      // items and runs as an ordinary import. A node that needs dates still refuses the
+      // run, in _getManualBackfillDateRange.
+      if (!Array.isArray(this.runConfig.data)) {
+        throw new Error('Manual backfill data must be an array');
       }
       for (const item of this.runConfig.data) {
         if (!item.configField || item.value === undefined) {

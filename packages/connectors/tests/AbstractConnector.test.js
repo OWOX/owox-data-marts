@@ -2921,6 +2921,22 @@ describe('AbstractConnector', () => {
     });
   });
 
+  describe('manual backfill of a connector without backfill fields', () => {
+    // The web offers Backfill for every connector, and one without date fields sends no
+    // data items. main ran it as an ordinary import, which Google Sheets relies on.
+    it('imports its nodes as an ordinary run would', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = createTestContext({}, { type: 'MANUAL_BACKFILL', data: [] });
+        const StorageClass = createMockStorageClass();
+        await new AbstractConnector(ctx, createMockSource(), StorageClass).run();
+        assert.strictEqual(StorageClass.instances[0].savedData.length, 1);
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('run failure messages', () => {
     const runError = connector =>
       connector.run().then(
