@@ -90,6 +90,28 @@ describe('ConnectorMessageUtils', () => {
       expect(array.length).toBeLessThanOrEqual(2);
     });
 
+    // A full buffer means the run said more than is kept, not that the run went wrong.
+    it('marks a full buffer with a warning, not an error', () => {
+      const array: ConnectorMessage[] = [];
+      const message: ConnectorMessage = {
+        type: ConnectorMessageType.LOG,
+        at: new Date().toISOString(),
+        message: 'test',
+        toFormattedString: () => '[LOG] test',
+      };
+
+      addMessageToArray(array, message, 1);
+      addMessageToArray(array, message, 1);
+
+      expect(array[1]).toMatchObject({
+        type: ConnectorMessageType.WARNING,
+        warning: 'Maximum number of messages (1) reached.',
+      });
+      expect(array[1].toFormattedString()).toBe(
+        '[WARNING] Maximum number of messages (1) reached.'
+      );
+    });
+
     it('truncates long messages before adding', () => {
       const array: ConnectorMessage[] = [];
       const longMsg = 'x'.repeat(6000);

@@ -55,9 +55,9 @@ export function addMessageToArray(
     if (array.length === maxCount) {
       logger.warn(`Maximum number of messages (${maxCount}) reached.`);
       array.push({
-        type: ConnectorMessageType.ERROR,
+        type: ConnectorMessageType.WARNING,
         at: new Date().toISOString(),
-        error: `Maximum number of messages (${maxCount}) reached.`,
+        warning: `Maximum number of messages (${maxCount}) reached.`,
         toFormattedString: () => `[WARNING] Maximum number of messages (${maxCount}) reached.`,
       });
     }
