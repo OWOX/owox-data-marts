@@ -1,5 +1,190 @@
 # owox
 
+## 0.36.0
+
+### Minor Changes 0.36.0
+
+- 42c797b: **Preview Data Mart rows from Data Setup**
+
+  The **Data Setup** tab now has a **Preview data** button under the Output Schema. It runs a query in your data warehouse and shows the first 10 rows of every visible field, so you can check the Input Source and schema before building reports. Draft Data Marts can be previewed too.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d939c6713376c1138155abf9a2ba7689/iframe>
+  - Change **Limit** (1–1000) and click **Update** to fetch more rows; page through them without another query.
+  - Click a column name to sort by it (ascending, descending, off); the sort runs in the warehouse, so you see the real top rows.
+  - Filter a column from its header: the condition runs in the warehouse as a `WHERE` clause, and active filters show as chips above the table.
+  - Each preview, including **Re-run** and each limit, sort or filter change, is a new warehouse query. It is not a Data Mart run: it does not appear in Run History and does not consume credits.
+
+  See [Data Preview](../../docs/getting-started/setup-guide/data-preview.md).
+
+- 9455d36: **Upload a Google Sheet to your storage from the OWOX Extension**
+
+  A Data Mart on the **Google Sheets** connector imports one tab of a spreadsheet into your storage. Previously, refreshing that table after editing the sheet meant opening OWOX Data Marts and starting a manual run, or waiting for the next scheduled one. Now the person working in the sheet can do it right there: open the [OWOX Extension for Google Sheets](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409?utm_source=changelog) on that tab and click **Upload**.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/95d076f202becdecba2b0072d70f435f/iframe>
+  - The extension finds the published Data Mart that imports the open tab and shows its **Upload** card right away, with the date and status of the last import. No report is created, and no Data Mart has to be picked.
+  - **Upload** starts an ordinary manual run: the storage table is fully replaced with the current sheet data, the run appears in the Data Mart's **Run History** and counts toward consumption. The button stays locked until the run finishes. If a run is already in progress, the extension says so instead of starting another one.
+  - Upload needs the project **Editor** role and edit access to the Data Mart, the same as a manual run in the web app.
+
+  On other tabs and in other spreadsheets, the extension works as before, and the Upload card also offers **Create a report on this sheet instead**. The Excel add-in is not affected.
+
+  See [Upload from the OWOX Extension](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md#upload-from-the-owox-extension).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- c5d7108: **Warn when a join changes how a calculated field's number reads**
+
+  A calculated field that reads a joined Data Mart now tells you — while you write the formula and
+  when you save it — how the join shapes its number. Nothing is blocked: every field still saves as
+  written, and an AI assistant reading the field through the MCP server gets the same advice as a
+  caveat to pass on, without naming a Data Mart or field it cannot report on. The walkthrough below
+  opens four such fields and shows that each still saves.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/0675e406f39aaebb4bea6d0b1ed83c0b/iframe>
+  - **A joined `COUNT` without `DISTINCT`** counts the rows of this Data Mart that found a match, not
+    the joined Data Mart's own rows. It comes out higher when one joined row matches several rows
+    here (`FORMULA_JOINED_MEASURE_MULTIPLIED`), and lower when several joined rows share one key — a
+    customer with three orders counts once (`FORMULA_JOINED_MEASURE_COLLAPSED`). The warning names
+    the join at fault and points at `COUNT(DISTINCT …)` over a column of the joined Data Mart, or at
+    its Unique Count as a report column when it offers one. Where no primary key is declared to
+    check against, it says the count cannot be checked either way
+    (`FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN`) — and a save that sets that key is judged against it.
+  - **Any joined measure** leaves out the joined Data Mart's rows that match nothing here, so the
+    result may not reconcile with that Data Mart's own totals (`FORMULA_JOINED_ROWS_EXCLUDED`). You
+    see this when you write or change the formula, not again after every unrelated save.
+
+  ![The formula editor of the orders_counted field, COUNT(orders.amount), with two amber warnings: the join on user_id can match several rows so COUNT counts matches — use COUNT(DISTINCT ...) or pick its Unique Count measure in a report — and the joined Orders rows that match nothing are dropped](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/82f87930-6be3-4673-abef-7cd540449c00/public)
+
+  `SUM`, `AVG`, `MIN`, `MAX` and `COUNT(DISTINCT …)` over a joined Data Mart are already computed
+  set-based and are not flagged. See
+  [Calculated Fields Across a Join](../../docs/getting-started/setup-guide/joinable-data-marts.md#calculated-fields-across-a-join).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 64e2741: **Pick the right Dedup for a joined field, with the guide one click away**
+
+  The joined Data Marts guide now explains what a joined field's **Dedup** does: the value a report
+  column shows, the type it gives the field and with it the aggregations a report can apply, and what
+  a report's `Sum`, `Average`, `Count Unique` and `Count` read after the join. A table of common cases
+  shows which Dedup to pick — a lookup attribute, revenue per customer, individual orders, hits per
+  session, first and last dates, text that varies per key — and where each one stops being exact.
+
+  The tooltip on the **Dedup** column header in a joined Data Mart's **Report Fields** tab now links
+  straight to that section.
+
+  ![The Dedup column header tooltip in the Report Fields tab of a joined Orders Data Mart, with a Learn more link, above order_id set to COUNT_DISTINCT, session_id to ANY_VALUE and amount to SUM](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/85d688cd-47b1-4471-a8a8-b775425ddc00/public)
+
+  See [Choosing a Dedup](../../docs/getting-started/setup-guide/joinable-data-marts.md#choosing-a-dedup).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4936268: **Output Schema rows are separated again in the dark theme**
+
+  In the dark theme the Output Schema table of a Data Mart showed its fields as one solid block: the line between rows was drawn in the same shade as the row background, so it could not be seen. Rows are now separated by a visible line in the dark theme, as they always were in the light theme, for every storage type. The divider between the **Add Field** and **Add Calculated Field** buttons under the table is visible again for the same reason.
+
+  ![The Output Schema of a Data Mart in the dark theme, each field row separated from the next by a thin line, with a visible divider between the Add Field and Add Calculated Field buttons below the table](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/36655f03-0e4e-4dc2-bb27-bc9b6411fc00/public)
+
+  The light theme is unchanged, and no field, alias, or description is affected.
+
+- aae9afa: **Long field descriptions wrap in the Output Schema**
+
+  A field's description in a Data Mart's Output Schema now wraps inside its column instead of running on as one line. Previously a long description, including the ones the AI helper generates for a nested record, stretched the Description column to the length of its longest line, and the whole table had to be scrolled sideways to read it. Line breaks written into a description are kept, so a `STRING: …` / `BOOLEAN: …` breakdown still reads as separate lines.
+
+  ![The Output Schema table with a RECORD field whose long description wraps inside the Description column, its STRING and BOOLEAN sub-field lists kept on separate lines](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1156226a-c366-4296-afec-04254227cc00/public)
+  - A description longer than eight lines ends in an ellipsis; click it to read and edit the full text.
+  - The description editor opens wide enough for a few sentences and still fits a narrow screen.
+  - A schema with no descriptions yet keeps the width it had before.
+
+  Applies to every storage the Output Schema is edited for, nested BigQuery `RECORD` fields included. See [Table-based Data Mart](../../docs/getting-started/setup-guide/table-data-mart.md) and [SQL-based Data Mart](../../docs/getting-started/setup-guide/sql-data-mart.md) for where field descriptions are written.
+
+- 77dd97d: **Find unconnected Data Marts and read field aliases and descriptions on the Models canvas**
+
+  The relationships filter on **Data Marts → Models** has a third option, **Without relationships only**: it leaves only the Data Marts that no other visible Data Mart joins to, so the ones still waiting to be connected — or to be cleaned up — stand out instead of hiding among the joined cards. It respects the status filter, and it is part of the page URL (`rel=unconnected`) like the other filters.
+
+  ![The Models canvas relationships filter open with All Data Marts, With relationships only and Without relationships only, the last one selected and a single unconnected Data Mart left on the canvas](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ff20092f-b242-4ad6-2ce5-c8e196db5100/w=800)
+
+  In the **Detailed** view, each field row now shows the Output Schema **description** under the field, and two new entries in the **Object labels** section of the canvas settings control the rows: **Field descriptions** switches the description line off, and **Field aliases** switches the row text between the Output Schema alias (as before) and the technical field name. Whichever of the two is not shown is available on hover. Both labels are on by default. Long descriptions are cut to one line — hover to read the whole text. The Joinable Data Marts diagram gets the same labels.
+
+  ![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
+
+  See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md).
+
+- d9d236d: **Editing a relationship description no longer collapses the joined Data Mart**
+
+  On **Data Setup → Joinable Data Marts**, the **Description** tab of a joined Data Mart autosaves while you type. Previously every autosave reloaded the whole list of joined Data Marts: the expanded card collapsed, the Description tab closed and the cursor left the field, so a longer sentence could only be entered a few words at a time. Now the saved text is applied to the card in place — the card stays expanded, the tab stays open and the cursor stays where it was, while the description still reaches the AI assistant (MCP) and the report column picker as before. The "Relationship updated" notification no longer pops up after every pause: the description saves silently, like the other fields on the card, and only a failed save is reported.
+
+  Saving **Join Settings** is unchanged and still refreshes the list. See [Describe the Relationship](../../docs/getting-started/setup-guide/joinable-data-marts.md#step-3-describe-the-relationship-optional).
+
+- 89fbd10: **Automatic aggregations you can change**
+
+  When a report with a selected column list has no aggregation, OWOX picks one for each metric so the report does not return duplicate rows. Removing those aggregations did not stick: after **Save** the panel was empty, but the next run or reopen of the report applied them again, so the report could not return its rows as stored. Now OWOX remembers every column you remove an aggregation from:
+  - Remove some of the automatic aggregations and the report runs with the ones you kept.
+  - Remove all of them and the report returns every row as stored, with no aggregation and no `DISTINCT`, on every run and every reopen.
+  - Add an aggregation back to a column and the report runs with the aggregation you chose. Take the column out of the report and OWOX forgets the removal.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/4c9cc84d08e16bc7deb65729ecc21852/iframe>
+
+  This covers every destination that collapses on delivery, including the **Microsoft Excel** add-in's own fetch. See [Automatic Aggregation](../../docs/getting-started/setup-guide/report-aggregations.md#automatic-aggregation-no-aggregation-chosen).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- bc93495: **Resolve nested short links in Facebook Ads insights**
+
+  The Facebook Ads connector can now expand short links whose path has several parts, such as `https://links.example.com/abc/xyz`. Previously **Process Short Links** resolved only single-part links like `https://bit.ly/abc123`, so nested links from custom short link services stayed unresolved in `link_url_asset.parsed_url`.
+
+  Enter the domains of your short link services in the new advanced setting **Short Link Domains**, separated by commas. Links on those domains and their subdomains are then resolved on the **Ad Account Insights by Link URL Asset** endpoint. Single-part short links keep resolving on any domain without extra setup, and links with query parameters are still left unchanged. New data marts on this endpoint now select `link_url_asset` by default, so short link resolution works without extra field selection.
+
+  ![Advanced Settings in the connector setup with the Short Link Domains field highlighted and Process Short Links enabled](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4b55851f-fd42-4dd6-7b58-0fce065ace00/public)
+
+  See [Resolve Short Links](../../packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md#resolve-short-links).
+
+- 0a963d8: **Start a connector run without expanding the Input Source card**
+
+  The **Manual Run** button of a connector Data Mart now sits in the header of the **Input Source** card on the **Data Setup** tab, next to the collapse arrow. Previously it was inside the card body, so a collapsed card hid it and you had to expand the card first, or find the run in the Data Mart's **⋮** menu. Now you can open a Data Mart from a failed-run email and start a new run straight away.
+
+  The video collapses the Input Source card and starts a run from its header:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9adc9651c6f316f975710cee6e75604a/iframe>
+  - The button appears once the connector is configured.
+  - It stays disabled, with the reason in a tooltip, while the Data Mart is a draft or a run is in progress, as before.
+
+  See [Connector-based Data Mart](../../docs/getting-started/setup-guide/connector-data-mart.md) for running a connector manually.
+
+- 9455d36: **Clearer Data Mart cards on the Models canvas**
+
+  Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX website. Each card leads with an icon and the title. Short badges below show the input source, the field count, the number of triggers and the number of relationships. The footer keeps the Data Quality and Data Last Updated indicators. It also shows when the Data Mart is shared for reporting or for maintenance.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/06d9cebecf40ffe5abc3485971798211/iframe>
+  - Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
+  - The relationships count covers the whole storage, whatever the canvas filters hide.
+  - A count of zero shows no badge, so a Data Mart without triggers or relationships keeps a shorter card.
+  - The colored Data Quality bar on the left edge of the card is gone. The Data Quality shield in the footer shows the status, and hovering it explains the result.
+  - **Object labels** in the canvas settings still hide the badges. **Uncheck all** still leaves only the titles.
+
+  See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9455d36: **Pick an icon for each Data Mart**
+
+  Click the icon next to a Data Mart's title to give it one that matches its subject. Everyday icons cover purchases, orders, sessions, customers, countries, ad spend and traffic sources. Data-stack icons cover data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. The icon shows on the Data Mart page, on its card on **Data Marts → Models** and in the canvas PNG and SVG exports. **Reset to default** brings back the plain box that Data Marts show until an icon is picked.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/1447bf033f387f33bc1ee9f6157b24b1/iframe>
+  - Changing the icon needs edit access to the Data Mart.
+  - The API returns the icon as `icon` on a Data Mart, in the Data Mart list and in `GET /api/model-canvas/data-marts`. Set it with `PUT /api/data-marts/{id}/icon` or when creating a Data Mart; an unknown icon key is rejected with `400`, and `null` resets it.
+
+  See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md#data-mart-icons).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes 0.36.0
+
+- @owox/internal-helpers@0.36.0
+- @owox/idp-protocol@0.36.0
+- @owox/idp-better-auth@0.36.0
+- @owox/idp-owox-better-auth@0.36.0
+- @owox/backend@0.36.0
+- @owox/web@0.36.0
+
 ## 0.35.0
 
 ### Minor Changes 0.35.0
