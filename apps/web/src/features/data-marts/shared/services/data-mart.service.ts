@@ -27,7 +27,7 @@ import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/creat
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
-import type { DataMartIconKey } from '../components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../enums/data-mart-icon.enum';
 
 /**
  * Data Mart Service

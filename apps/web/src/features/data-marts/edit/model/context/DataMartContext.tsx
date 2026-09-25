@@ -46,7 +46,7 @@ import {
   describeSchemaFieldSummary,
   summarizeSchemaFields,
 } from '../../../shared/utils/schema-field-summary';
-import type { DataMartIconKey } from '../../../shared/components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../../../shared/enums/data-mart-icon.enum';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {

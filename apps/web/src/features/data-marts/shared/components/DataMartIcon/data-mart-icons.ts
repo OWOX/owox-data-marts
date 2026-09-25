@@ -50,6 +50,9 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
+import type { DataMartIconKey } from '../../enums/data-mart-icon.enum';
+
+export type { DataMartIconKey } from '../../enums/data-mart-icon.enum';
 
 /** Picker sections, in display order. */
 export const DATA_MART_ICON_GROUPS = [
@@ -63,8 +66,8 @@ export const DATA_MART_ICON_GROUPS = [
 export type DataMartIconGroup = (typeof DATA_MART_ICON_GROUPS)[number];
 
 /**
- * Icons a user can pick for a Data Mart. The keys mirror the backend's closed
- * set — the API rejects any other key — so adding one means adding it there too.
+ * Glyph and label for every icon key a user can pick (`DATA_MART_ICON_KEYS`),
+ * in picker order.
  */
 export const DATA_MART_ICON_OPTIONS = [
   { key: 'purchases', label: 'Purchases', icon: ShoppingCart, group: 'E-commerce & finance' },
@@ -121,13 +124,11 @@ export const DATA_MART_ICON_OPTIONS = [
   { key: 'database', label: 'Database', icon: Database, group: 'General' },
   { key: 'table', label: 'Table', icon: Table, group: 'General' },
 ] as const satisfies readonly {
-  key: string;
+  key: DataMartIconKey;
   label: string;
   icon: LucideIcon;
   group: DataMartIconGroup;
 }[];
-
-export type DataMartIconKey = (typeof DATA_MART_ICON_OPTIONS)[number]['key'];
 
 /** Shown when a Data Mart has no icon picked. */
 export const DEFAULT_DATA_MART_ICON: LucideIcon = Box;

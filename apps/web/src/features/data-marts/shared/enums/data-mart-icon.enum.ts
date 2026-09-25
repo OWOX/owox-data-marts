@@ -1,0 +1,58 @@
+/**
+ * Icon keys a Data Mart can carry — the API shape. They mirror the backend's
+ * closed set (the API rejects any other key), so adding one means adding it
+ * there too. The glyph and label for each key live in the icon registry
+ * (`shared/components/DataMartIcon`).
+ */
+export const DATA_MART_ICON_KEYS = [
+  'purchases',
+  'orders',
+  'products',
+  'inventory',
+  'carts',
+  'shipping',
+  'stores',
+  'promotions',
+  'payments',
+  'invoices',
+  'refunds',
+  'subscriptions',
+  'revenue',
+  'finance',
+  'exchange-rates',
+  'ad-spend',
+  'campaigns',
+  'creatives',
+  'video',
+  'traffic-sources',
+  'keywords',
+  'websites',
+  'landing-pages',
+  'content',
+  'email',
+  'social',
+  'customers',
+  'users',
+  'leads',
+  'companies',
+  'deals',
+  'calls',
+  'reviews',
+  'support',
+  'countries',
+  'sessions',
+  'pageviews',
+  'events',
+  'conversions',
+  'devices',
+  'funnels',
+  'segments',
+  'experiments',
+  'kpis',
+  'forecasts',
+  'calendar',
+  'database',
+  'table',
+] as const;
+
+export type DataMartIconKey = (typeof DATA_MART_ICON_KEYS)[number];

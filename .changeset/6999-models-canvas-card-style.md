@@ -2,6 +2,8 @@
 'owox': minor
 ---
 
+<!-- markdownlint-disable-file MD041 MD036 -->
+
 **Clearer Data Mart cards on the Models canvas**
 
 Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX website. Each card leads with an icon and the title. Short badges below show the input source, the field count, the number of triggers and the number of relationships. The footer keeps the Data Quality and Data Last Updated indicators. It also shows when the Data Mart is shared for reporting or for maintenance.

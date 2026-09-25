@@ -7,7 +7,7 @@ import type { DataMartSchema } from '../../data-mart-schema.types';
 import type { ConnectorStateResponseDto } from './connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../relationship.types';
 import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
-import type { DataMartIconKey } from '../../../components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../../../enums/data-mart-icon.enum';
 
 /**
  * Data mart response data transfer object

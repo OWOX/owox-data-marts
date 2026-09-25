@@ -7,6 +7,7 @@ import {
   DEFAULT_DATA_MART_ICON,
   getDataMartIcon,
 } from './data-mart-icons';
+import { DATA_MART_ICON_KEYS } from '../../enums/data-mart-icon.enum';
 
 describe('getDataMartIcon', () => {
   it('maps a known key to its icon and anything else to the default one', () => {
@@ -18,6 +19,12 @@ describe('getDataMartIcon', () => {
   it('keeps every key unique', () => {
     const keys = DATA_MART_ICON_OPTIONS.map(option => option.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('draws every key the API accepts, and nothing else', () => {
+    expect([...DATA_MART_ICON_OPTIONS.map(option => option.key)].sort()).toEqual(
+      [...DATA_MART_ICON_KEYS].sort()
+    );
   });
 
   it('leaves no picker section empty', () => {

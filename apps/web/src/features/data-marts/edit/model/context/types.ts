@@ -16,7 +16,7 @@ import type { DataMartDefinitionConfig } from '../types';
 import type { ApiError, AxiosRequestConfig } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { DataMartRunItem } from '../types';
-import type { DataMartIconKey } from '../../../shared/components/DataMartIcon/data-mart-icons';
+import type { DataMartIconKey } from '../../../shared/enums/data-mart-icon.enum';
 
 export interface DataMartState {
   dataMart: DataMart | null;
