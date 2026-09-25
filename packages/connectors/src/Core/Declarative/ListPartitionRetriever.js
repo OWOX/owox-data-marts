@@ -21,9 +21,10 @@ export class ListPartitionRetriever {
     childRequestSpec,
     childRecordSelector,
     childPagination = null,
-    maxPages = 10000,
+    maxPages,
     maxRows = Infinity,
     maxSlices = Infinity,
+    context = null,
   }) {
     this.requester = requester;
     this.partitionRouter = partitionRouter;
@@ -33,6 +34,7 @@ export class ListPartitionRetriever {
     this.maxPages = maxPages;
     this.maxRows = maxRows;
     this.maxSlices = maxSlices;
+    this.context = context;
   }
 
   async run(scope) {
@@ -55,6 +57,7 @@ export class ListPartitionRetriever {
         childPagination: this.childPagination,
         maxPages: this.maxPages,
         maxRows: this.maxRows,
+        context: this.context,
       },
       scope
     );

@@ -33,6 +33,7 @@ export class RetrieverFactory {
         maxPages: options.maxPages,
         maxRows: options.maxRows,
         maxSlices: options.maxSlices,
+        context: deps.context,
       };
       return node.partitionRouter.type === 'list'
         ? new ListPartitionRetriever(common)

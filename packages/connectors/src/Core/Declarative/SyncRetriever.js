@@ -10,6 +10,9 @@ import { unwrapOpaque } from './opaqueValue.js';
 import { redactUrl } from '../AbstractSource.js';
 import { LOG_LEVEL } from '../../Constants/CommonConstants.js';
 
+/** The page budget of a run that set none: a guard against pagination that never ends. */
+const DEFAULT_MAX_PAGES = 10000;
+
 /**
  * Synchronous retriever: sends requests through the Requester and extracts
  * records via the RecordSelector. With a Paginator it loops over pages,
@@ -23,7 +26,8 @@ export class SyncRetriever {
    * @param {import('./RecordSelector.js').RecordSelector} deps.recordSelector
    * @param {object} deps.requestSpec - the node's request definition
    * @param {import('./Paginator.js').Paginator} [deps.paginator]
-   * @param {number} [deps.maxPages] - hard cap (anti-DoS), default 10000
+   * @param {number} [deps.maxPages] - the run's own page cap (a live test sets 1). Without
+   *   one, pagination still going after DEFAULT_MAX_PAGES pages fails the node.
    * @param {number} [deps.maxRows] - optional row cap for live test runs; default Infinity
    * @param {import('../AbstractContext.js').AbstractContext} [deps.context] - run context; when provided, emits an `http_response` TRACE per page
    */
@@ -32,7 +36,7 @@ export class SyncRetriever {
     recordSelector,
     requestSpec,
     paginator = null,
-    maxPages = 10000,
+    maxPages,
     maxRows = Infinity,
     context = null,
   }) {
@@ -40,7 +44,11 @@ export class SyncRetriever {
     this.recordSelector = recordSelector;
     this.requestSpec = requestSpec;
     this.paginator = paginator;
-    this.maxPages = maxPages;
+    this.maxPages = maxPages ?? DEFAULT_MAX_PAGES;
+    // A cap the run set is where it chose to stop. The default is not: reaching it means the
+    // pagination did not end, and what was read is not the whole node. Returning it anyway let
+    // a full refresh replace the table with the truncated snapshot.
+    this.pageCapIsChosen = maxPages !== undefined;
     this.maxRows = maxRows;
     this.context = context;
   }
@@ -73,6 +81,13 @@ export class SyncRetriever {
     // a truncated node reports success while the cursor advances past unread data.
     while (request && total < this.maxRows) {
       if (pages >= this.maxPages) {
+        if (!this.pageCapIsChosen) {
+          throw new Error(
+            `Pagination did not end after ${this.maxPages} pages of (${redactedTarget(request)}), ` +
+              `so the rest of the node was not imported. Check that the node's pagination stops ` +
+              `on the last page.`
+          );
+        }
         this._reportPageBudgetExhausted(request);
         break;
       }
@@ -110,7 +125,7 @@ export class SyncRetriever {
   }
 
   /**
-   * Reports that the page budget, not the paginator, ended the loop.
+   * Reports that the run's own page cap, not the paginator, ended the loop.
    *
    * Without this the loop just exited and returned what it had: no log, no error,
    * indistinguishable from "the paginator said stop". The node reported success
@@ -130,14 +145,19 @@ export class SyncRetriever {
    */
   _reportPageBudgetExhausted(pendingRequest) {
     if (!this.context?.log) return;
-    // Paginator injects the next page marked opaque, so unwrap before redacting
-    // — otherwise `redactUrl` would be handed an OpaqueValue, not a string.
-    const raw = unwrapOpaque(pendingRequest?.url) || unwrapOpaque(pendingRequest?.path) || '';
-    const target = raw ? redactUrl(raw) : '';
     this.context.log(
       LOG_LEVEL.INFO,
-      `Stopped after the maximum of ${this.maxPages} page(s) for (${target}) while the paginator ` +
+      `Stopped after the maximum of ${this.maxPages} page(s) for (${redactedTarget(pendingRequest)}) while the paginator ` +
         `still had a next page: any remaining records were NOT imported.`
     );
   }
+}
+
+/**
+ * The next page's origin and path, for a message about it. Paginator injects the next page
+ * marked opaque, so it is unwrapped before redacting, or `redactUrl` would get an OpaqueValue.
+ */
+function redactedTarget(pendingRequest) {
+  const raw = unwrapOpaque(pendingRequest?.url) || unwrapOpaque(pendingRequest?.path) || '';
+  return raw ? redactUrl(raw) : '';
 }

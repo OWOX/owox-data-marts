@@ -349,6 +349,8 @@ An optional `stopCondition` halts pagination early, regardless of type, when a r
 "stopCondition": { "path": ["meta", "has_more"], "equals": false }
 ```
 
+A run reads at most 10000 pages of one request. Pagination still going after that fails the node, because the rest of its records would be missing: check that the pagination stops on the last page. A Test run stops at its own, much lower page limit without an error.
+
 ## Incremental (date-windowed) extraction
 
 Optional, node-level; drives date-windowed (time-series) extraction. `incremental.strategy` is one of `none`, `day-by-day`, `range`.

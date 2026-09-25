@@ -155,3 +155,42 @@ describe('runChildSlices accumulates large slices without spreading', () => {
     assert.deepStrictEqual(calls, ['US', 'UK']); // the third slice is never requested
   });
 });
+
+describe('ListPartitionRetriever children and the page budget', () => {
+  const endless = {
+    async send() {
+      return { rows: [{ x: 1 }], cursor: 'always' };
+    },
+  };
+  const router = { type: 'list', values: ['US'], partitionField: 'country' };
+  const childPagination = { type: 'cursor', cursorPath: ['cursor'], cursorParam: 'c' };
+
+  it('fails a child whose pagination never ends when the run set no cap', async () => {
+    const r = new ListPartitionRetriever({
+      requester: endless,
+      partitionRouter: router,
+      childRequestSpec,
+      childRecordSelector,
+      childPagination,
+    });
+
+    await assert.rejects(r.run({ parameters: {} }), /did not end after 10000 pages/);
+  });
+
+  it('reports each child page to the run, as an unpartitioned node does', async () => {
+    const traces = [];
+    const r = new ListPartitionRetriever({
+      requester: endless,
+      partitionRouter: router,
+      childRequestSpec,
+      childRecordSelector,
+      childPagination,
+      maxPages: 2,
+      context: { emit: event => traces.push(event), log() {} },
+    });
+
+    await r.run({ parameters: {} });
+
+    assert.strictEqual(traces.length, 2);
+  });
+});

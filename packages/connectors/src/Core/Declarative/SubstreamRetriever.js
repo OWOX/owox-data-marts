@@ -24,9 +24,10 @@ export class SubstreamRetriever {
     childRequestSpec,
     childRecordSelector,
     childPagination = null,
-    maxPages = 10000,
+    maxPages,
     maxRows = Infinity,
     maxSlices = Infinity,
+    context = null,
   }) {
     this.requester = requester;
     this.partitionRouter = partitionRouter;
@@ -36,6 +37,7 @@ export class SubstreamRetriever {
     this.maxPages = maxPages;
     this.maxRows = maxRows;
     this.maxSlices = maxSlices;
+    this.context = context;
   }
 
   async run(scope) {
@@ -47,6 +49,7 @@ export class SubstreamRetriever {
       paginator: new Paginator(parent.pagination || { type: 'none' }),
       maxPages: this.maxPages,
       maxRows: Infinity,
+      context: this.context,
     });
     const parentRecords = await sliceProducer.run(scope);
 
@@ -71,6 +74,7 @@ export class SubstreamRetriever {
         childPagination: this.childPagination,
         maxPages: this.maxPages,
         maxRows: this.maxRows,
+        context: this.context,
       },
       scope
     );

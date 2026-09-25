@@ -393,3 +393,48 @@ describe('SyncRetriever accumulates large pages without spreading', () => {
     assert.strictEqual(calls, 2);
   });
 });
+
+// Without a cap the run asked for, the page budget is only a guard against pagination that
+// never ends. Reaching it leaves records behind, and returning what was read let a full
+// refresh replace the table with the truncated snapshot and an incremental run advance past it.
+describe('SyncRetriever page budget a run did not ask for', () => {
+  const endlessRequester = () => {
+    let calls = 0;
+    return {
+      get calls() {
+        return calls;
+      },
+      async send() {
+        calls += 1;
+        return { items: [{ x: calls }], cursor: 'always' };
+      },
+    };
+  };
+  const endlessPaginator = () =>
+    new Paginator({ type: 'cursor', cursorPath: ['cursor'], cursorParam: 'c' });
+
+  it('fails the node, naming the budget and the path', async () => {
+    const requester = endlessRequester();
+    const r = new SyncRetriever({
+      requester,
+      recordSelector: new RecordSelector({ recordPath: ['items'] }),
+      requestSpec: { method: 'GET', path: '/endless' },
+      paginator: endlessPaginator(),
+    });
+
+    await assert.rejects(r.run({}), /did not end after 10000 pages.*\/endless/s);
+    assert.strictEqual(requester.calls, 10000);
+  });
+
+  it('still stops quietly at a cap the run set, as a live test does', async () => {
+    const r = new SyncRetriever({
+      requester: endlessRequester(),
+      recordSelector: new RecordSelector({ recordPath: ['items'] }),
+      requestSpec: { method: 'GET', path: '/endless' },
+      paginator: endlessPaginator(),
+      maxPages: 2,
+    });
+
+    assert.strictEqual((await r.run({})).length, 2);
+  });
+});

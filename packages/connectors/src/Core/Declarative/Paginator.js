@@ -25,7 +25,8 @@ import { opaque } from './opaqueValue.js';
  * no independent runaway risk; the caller's driving loop (SyncRetriever's
  * `pages < maxPages`, default 10000) already bounds iterations for `cursor`
  * the same as `page`/`offset` — a cursor that never goes absent still stops
- * at maxPages, so no separate cursor-specific cap is needed here.
+ * at maxPages, failing the node unless the run chose that cap, so no separate
+ * cursor-specific cap is needed here.
  */
 export class Paginator {
   constructor(config = {}) {

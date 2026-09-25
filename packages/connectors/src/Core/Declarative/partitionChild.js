@@ -22,8 +22,9 @@ export async function runChildSlices(
     childRequestSpec,
     childRecordSelector,
     childPagination = null,
-    maxPages = 10000,
+    maxPages,
     maxRows = Infinity,
+    context = null,
   },
   scope
 ) {
@@ -44,6 +45,7 @@ export async function runChildSlices(
       paginator: new Paginator(childPagination || { type: 'none' }),
       maxPages,
       maxRows: maxRows - total,
+      context,
     });
     const records = await child.run(childScope);
     if (records.length > 0) {
