@@ -16,6 +16,12 @@ describe('getDataMartIcon', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it('gives every key its own glyph', () => {
+    expect(new Set(DATA_MART_ICON_OPTIONS.map(option => option.icon)).size).toBe(
+      DATA_MART_ICON_OPTIONS.length
+    );
+  });
+
   it('draws every key the API accepts, and nothing else', () => {
     expect([...DATA_MART_ICON_OPTIONS.map(option => option.key)].sort()).toEqual(
       [...DATA_MART_ICON_KEYS].sort()
