@@ -2361,6 +2361,47 @@ describe('AbstractConnector', () => {
     });
   });
 
+  // The storages keep one row per unique key, and Snowflake and Databricks then check that the
+  // staging table holds as many rows as they were given, so a snapshot repeating a key failed
+  // every run with "row count mismatch".
+  describe('a full-refresh snapshot that repeats a unique key', () => {
+    it('is replaced with one row per key, the last one read', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = createMockSource({
+          fieldsSchema: {
+            people: {
+              fields: { id: { type: 'INTEGER' }, name: { type: 'STRING' } },
+              uniqueKeys: ['id'],
+              isFullRefresh: true,
+              destinationName: 'people',
+            },
+          },
+          parseFields: () => ({ people: ['id', 'name'] }),
+          fetchData: async () => [
+            { id: 1, name: 'first' },
+            { id: 2, name: 'only' },
+            { id: 1, name: 'second' },
+          ],
+        });
+        const StorageClass = createMockStorageClass();
+        await new AbstractConnector(createTestContext(), source, StorageClass).run();
+
+        assert.deepStrictEqual(
+          StorageClass.instances.flatMap(s => s.replaceCalls),
+          [
+            [
+              { id: 1, name: 'second' },
+              { id: 2, name: 'only' },
+            ],
+          ]
+        );
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('E3 regression: processFullRefreshNode truncated the table once per account', () => {
     // replaceData(data || []) ran inside the per-account loop with no
     // accumulation, so an `accounts` block plus isFullRefresh: true meant each

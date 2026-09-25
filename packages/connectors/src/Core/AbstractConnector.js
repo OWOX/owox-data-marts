@@ -1186,12 +1186,40 @@ export class AbstractConnector {
 
     // Built after the field write-back: getStorageForNode() resolves the
     // destination and the storage reads the selected fields from the context.
-    // No node fields are passed on purpose -- the discovered list written above
-    // IS this node's field list, and handing over the configured selection
-    // would make _wireSelectedFields overwrite it with a stale (often empty)
-    // one.
+    // No node fields are passed on purpose -- Fields already holds this node's
+    // list, the discovered one written above or its user's selection, and
+    // handing over the configured selection would make _wireSelectedFields
+    // overwrite a discovered list with a stale (often empty) one.
     const storage = this.getStorageForNode(nodeName, discoveredSchema);
-    await storage.replaceData(rows);
+    const snapshot = this._oneRowPerKey(rows, discoveredSchema.uniqueKeys || []);
+    if (snapshot.length < rows.length) {
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `${rows.length - snapshot.length} rows of node "${nodeName}" repeated the unique key of ` +
+          `another row; the table keeps the last one read for each key.`
+      );
+    }
+    await storage.replaceData(snapshot);
+  }
+
+  /**
+   * One row per unique key, the last one read: what a MERGE keeps. The storages dedupe
+   * their write buffers the same way, and Snowflake and Databricks then compare the staging
+   * table's row count with the rows they were given, so a snapshot repeating a key failed
+   * every run with a row count mismatch.
+   *
+   * @param {object[]} rows the snapshot as read
+   * @param {string[]} uniqueKeys the node's unique key fields
+   * @returns {object[]} the rows, or a new array with the repeated keys merged
+   * @private
+   */
+  _oneRowPerKey(rows, uniqueKeys) {
+    if (!uniqueKeys.length || rows.length < 2) return rows;
+    const byKey = new Map();
+    for (const row of rows) {
+      byKey.set(JSON.stringify(uniqueKeys.map(key => row[key] ?? null)), row);
+    }
+    return byKey.size === rows.length ? rows : [...byKey.values()];
   }
 
   /**
