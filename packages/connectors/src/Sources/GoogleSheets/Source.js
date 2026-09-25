@@ -374,21 +374,24 @@ export class GoogleSheetsSource extends AbstractSource {
 
     const authConfig = this.context.getParameter('AuthType')?.items;
     if (authType === 'oauth2') {
+      // Resolve the items first so a missing one is reported before any request.
+      const formData = {
+        grant_type: 'refresh_token',
+        client_id: this._requireAuthItem(authConfig, 'ClientId'),
+        client_secret: this._requireAuthItem(authConfig, 'ClientSecret'),
+        refresh_token: this._requireAuthItem(authConfig, 'RefreshToken'),
+      };
       this.accessToken = await OAuthUtils.getAccessToken({
         context: this.context,
         tokenUrl: 'https://oauth2.googleapis.com/token',
-        formData: {
-          grant_type: 'refresh_token',
-          client_id: authConfig.ClientId.value,
-          client_secret: authConfig.ClientSecret.value,
-          refresh_token: authConfig.RefreshToken.value,
-        },
+        formData,
       });
     } else if (authType === 'service_account') {
+      const serviceAccountKeyJson = this._requireAuthItem(authConfig, 'ServiceAccountKey');
       this.accessToken = await OAuthUtils.getServiceAccountToken({
         context: this.context,
         tokenUrl: 'https://oauth2.googleapis.com/token',
-        serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
+        serviceAccountKeyJson,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
       });
     } else {
@@ -399,6 +402,22 @@ export class GoogleSheetsSource extends AbstractSource {
     this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000;
 
     return this.accessToken;
+  }
+
+  /**
+   * Reads one item of the selected authentication type.
+   *
+   * A missing item has to surface as a configuration error: as a TypeError it would be
+   * reported as the provider being unavailable.
+   */
+  _requireAuthItem(authConfig, itemName) {
+    const value = authConfig?.[itemName]?.value;
+    if (value === undefined || value === null || value === '') {
+      throw new ConnectorConfigurationException(
+        `Parameter 'AuthType.${itemName}' is required but was not provided`
+      );
+    }
+    return value;
   }
 
   async fetchData() {

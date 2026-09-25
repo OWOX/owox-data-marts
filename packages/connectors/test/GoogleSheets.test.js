@@ -936,3 +936,131 @@ test('connector always publishes empty snapshots and reports only the runtime sc
   // An empty sheet still publishes: that is how rows deleted upstream disappear.
   assert.deepEqual(replacements, [[]]);
 });
+
+// The Sheet Name picker and its setup form, ported from main (#1605).
+
+test('declares Sheet Name as a dynamic-options field and keeps Header Row and Range advanced', () => {
+  let registered;
+  new GoogleSheetsSource({
+    getParameter: () => null,
+    registerParameters(declared) {
+      registered = declared;
+    },
+    log() {},
+  });
+
+  assert.deepEqual(plain(registered.SheetName.attributes), ['DYNAMIC_OPTIONS']);
+  assert.deepEqual(plain(registered.SheetName.optionsDependsOn), ['AuthType', 'SpreadsheetId']);
+  assert.deepEqual(plain(registered.HeaderRow.attributes), ['ADVANCED']);
+  assert.deepEqual(plain(registered.Range.attributes), ['ADVANCED']);
+  assert.equal(registered.HeaderRow.isRequired, true);
+  assert.equal(registered.HeaderRow.default, 1);
+});
+
+test('lists the spreadsheet tabs in sheet order as Sheet Name options', async () => {
+  const source = createSource();
+  const requestedUrls = [];
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async url => {
+    requestedUrls.push(url);
+    return jsonResponse({
+      sheets: [
+        { properties: { sheetId: 7, title: 'Targets', index: 2 } },
+        { properties: { sheetId: 0, title: 'Summary', index: 0 } },
+        { properties: { sheetId: 3, title: 'Data', index: 1 } },
+        { properties: { sheetId: 9, index: 3 } },
+      ],
+    });
+  };
+
+  const options = await source.fetchFieldOptions('SheetName');
+
+  assert.deepEqual(plain(options), [
+    { value: 'Summary', label: 'Summary' },
+    { value: 'Data', label: 'Data' },
+    { value: 'Targets', label: 'Targets' },
+  ]);
+  assert.equal(requestedUrls.length, 1);
+  assert.match(
+    requestedUrls[0],
+    /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/spreadsheet-id\?fields=sheets\.properties/
+  );
+});
+
+test('refreshes a rejected token once while listing spreadsheet tabs', async () => {
+  const source = createSource();
+  const tokenCalls = [];
+  let requestCount = 0;
+  source.getAccessToken = async options => {
+    tokenCalls.push(options.forceRefresh);
+    return 'token';
+  };
+  source._fetchSheetResponse = async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      throw new HttpRequestException({ message: 'Unauthorized', statusCode: 401 });
+    }
+    return jsonResponse({ sheets: [{ properties: { title: 'Data', index: 0 } }] });
+  };
+
+  assert.deepEqual(plain(await source.fetchFieldOptions('SheetName')), [
+    { value: 'Data', label: 'Data' },
+  ]);
+  assert.deepEqual(tokenCalls, [false, true]);
+});
+
+test('requires the spreadsheet before listing its tabs', async () => {
+  const source = createSource();
+  const getParameter = source.context.getParameter;
+  source.context.getParameter = name =>
+    name === 'SpreadsheetId' ? { value: '' } : getParameter(name);
+  source.getAccessToken = async () => assert.fail('token should not be requested');
+
+  await assert.rejects(source.fetchFieldOptions('SheetName'), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /Spreadsheet ID or URL is required/);
+    return true;
+  });
+});
+
+test('rejects dynamic options for fields that do not provide them', async () => {
+  const source = createSource();
+
+  await assert.rejects(source.fetchFieldOptions('Range'), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /'Range' does not provide dynamic options/);
+    return true;
+  });
+});
+
+test('falls back to the default retry budget when MaxFetchRetries was never validated', async () => {
+  const source = createSource();
+  const getParameter = source.context.getParameter;
+  source.context.getParameter = name => (name === 'MaxFetchRetries' ? null : getParameter(name));
+  source._validateResponse = async response => response;
+
+  await withFetch(
+    () => jsonResponse({ ok: true }),
+    async calls => {
+      const response = await source._fetchSheetResponse('https://example.test', 'token');
+      assert.equal(response.status, 200);
+      assert.equal(calls.length, 1);
+    }
+  );
+});
+
+test('reports a missing credential item as a configuration error instead of a provider outage', async () => {
+  const source = createSource();
+  let authType = { value: 'oauth2', items: { ClientId: { value: 'client-id' } } };
+  const getParameter = source.context.getParameter;
+  source.context.getParameter = name => (name === 'AuthType' ? authType : getParameter(name));
+
+  await assert.rejects(source.getAccessToken(), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /'AuthType\.ClientSecret' is required/);
+    return true;
+  });
+
+  authType = { value: 'service_account', items: {} };
+  await assert.rejects(source.getAccessToken(), /'AuthType\.ServiceAccountKey' is required/);
+});
