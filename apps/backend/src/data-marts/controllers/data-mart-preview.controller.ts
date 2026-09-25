@@ -6,6 +6,7 @@ import {
   AuthContext,
   AuthorizationContext,
   RejectApiKeyAuth,
+  RejectPluginAuth,
   Role,
   Strategy,
 } from '../../idp';
@@ -23,10 +24,11 @@ export class DataMartPreviewController {
 
   // POST: not idempotent — every call queries the warehouse, so the token is re-checked with the
   // IdP (INTROSPECT) like other warehouse reads. It is not a run and consumes no credits.
-  // A UI setup aid, not a data API: API keys read data through HTTP Data, which is gated and
-  // recorded in Run History.
+  // A UI setup aid, not a data API: API keys and plugin runtime tokens read data through HTTP
+  // Data, which is recorded in Run History.
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post(':id/preview')
   @HttpCode(200)
   @ApiOperation({ summary: 'Read a sample of Data Mart rows for the Data Setup preview' })
