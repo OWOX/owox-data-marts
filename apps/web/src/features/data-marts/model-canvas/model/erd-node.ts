@@ -29,27 +29,29 @@ export {
 // an expanded ERD node may overlap below until the user drags it (nodes are
 // draggable) — same behaviour as owox/models.
 
-// Card rows, top to bottom: title (icon tile + name), badges (input source +
-// field count), counts (triggers + relationships), footer (quality indicators
-// + sharing). Each row is a fixed single line so the estimate stays exact. A
-// count of zero shows no badge, and a row left without badges is dropped.
+// Card rows, top to bottom: title (icon tile + name), then up to three badge
+// rows — source + field count, triggers + reports, relationships — then the
+// footer (quality indicators + sharing). Each row is a fixed single line so the
+// estimate stays exact. A count of zero shows no badge, and a row left without
+// badges is dropped.
 /** Title row: top padding + the 28px icon tile. */
 export const CARD_TITLE_ROW_HEIGHT = 40;
 /** Extra bottom padding the title row gets when it is all the card shows. */
 export const CARD_TITLE_ONLY_PADDING = 12;
-/** Badges row: input source + field count. */
-export const CARD_META_ROW_HEIGHT = 28;
-/** Counts row: triggers + relationships (right under the badges row). */
-export const CARD_COUNTS_ROW_HEIGHT = 24;
-/** Extra top padding the counts row takes when the badges row is dropped. */
-export const CARD_COUNTS_ROW_LONE_PADDING = 4;
+/** The first badge row, right under the title (it takes the larger top padding). */
+export const CARD_FIRST_BADGE_ROW_HEIGHT = 28;
+/** Every further badge row. */
+export const CARD_BADGE_ROW_HEIGHT = 24;
 /** Footer: quality indicators + sharing, dropped in title-only mode. */
 export const CARD_FOOTER_HEIGHT = 42;
 
 export const COMPACT_NODE_WIDTH = 240;
 /** Tallest Compact card — every row present. */
 export const COMPACT_NODE_HEIGHT =
-  CARD_TITLE_ROW_HEIGHT + CARD_META_ROW_HEIGHT + CARD_COUNTS_ROW_HEIGHT + CARD_FOOTER_HEIGHT;
+  CARD_TITLE_ROW_HEIGHT +
+  CARD_FIRST_BADGE_ROW_HEIGHT +
+  2 * CARD_BADGE_ROW_HEIGHT +
+  CARD_FOOTER_HEIGHT;
 
 export const ERD_NODE_WIDTH = 256;
 
@@ -81,7 +83,7 @@ export function nodeLayoutOptions(objectLabels: ObjectLabelsHidden): Required<No
 
 export type CardBadgeInput = Pick<
   ModelCanvasNode,
-  'definitionType' | 'fieldCount' | 'triggersCount' | 'relationshipCount'
+  'definitionType' | 'fieldCount' | 'triggersCount' | 'reportsCount' | 'relationshipCount'
 >;
 
 /** Which badges a card shows. The card and the layout estimate both read it. */
@@ -89,6 +91,7 @@ export interface CardBadges {
   definition: boolean;
   fieldCount: boolean;
   triggers: boolean;
+  reports: boolean;
   relationships: boolean;
 }
 
@@ -108,30 +111,33 @@ export function cardBadges(
       DataMartDefinitionTypeModel.getInfo(node.definitionType).type !== null,
     fieldCount: !fieldCountHidden && node.fieldCount > 0,
     triggers: !statusRowHidden && (node.triggersCount ?? 0) > 0,
+    reports: !statusRowHidden && (node.reportsCount ?? 0) > 0,
     relationships: !statusRowHidden && (node.relationshipCount ?? 0) > 0,
   };
 }
 
+export type CardBadgeRow = 'meta' | 'usage' | 'relationships';
+
+/**
+ * The badge rows a card shows, in order: source + field count, triggers +
+ * reports, relationships. Two usage counts share a row; three counts would not
+ * fit one line of the card.
+ */
+export function cardBadgeRows(badges: CardBadges): CardBadgeRow[] {
+  const rows: CardBadgeRow[] = [];
+  if (badges.definition || badges.fieldCount) rows.push('meta');
+  if (badges.triggers || badges.reports) rows.push('usage');
+  if (badges.relationships) rows.push('relationships');
+  return rows;
+}
+
 /** Height of the card header (everything above the ERD field rows). */
 function cardHeaderHeight(node: CardBadgeInput, options: NodeLayoutOptions): number {
-  const badges = cardBadges(node, options);
-  if (options.statusRowHidden) {
-    return (
-      CARD_TITLE_ROW_HEIGHT +
-      CARD_TITLE_ONLY_PADDING +
-      (badges.definition || badges.fieldCount ? CARD_META_ROW_HEIGHT : 0)
-    );
-  }
-  const withBadgesRow = badges.definition || badges.fieldCount;
-  const withCountsRow = badges.triggers || badges.relationships;
-  return (
-    CARD_TITLE_ROW_HEIGHT +
-    (withBadgesRow ? CARD_META_ROW_HEIGHT : 0) +
-    (withCountsRow
-      ? CARD_COUNTS_ROW_HEIGHT + (withBadgesRow ? 0 : CARD_COUNTS_ROW_LONE_PADDING)
-      : 0) +
-    CARD_FOOTER_HEIGHT
-  );
+  const rowCount = cardBadgeRows(cardBadges(node, options)).length;
+  const rowsHeight =
+    rowCount === 0 ? 0 : CARD_FIRST_BADGE_ROW_HEIGHT + (rowCount - 1) * CARD_BADGE_ROW_HEIGHT;
+  const tail = options.statusRowHidden ? CARD_TITLE_ONLY_PADDING : CARD_FOOTER_HEIGHT;
+  return CARD_TITLE_ROW_HEIGHT + rowsHeight + tail;
 }
 
 /**

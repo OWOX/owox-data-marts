@@ -52,6 +52,7 @@ function renderNode(
       dataLastUpdated: null,
       fieldCount: fields.length,
       triggersCount: 2,
+      reportsCount: 3,
       relationshipCount: 1,
       availableForReporting: true,
       availableForMaintenance: false,
@@ -312,15 +313,25 @@ describe('ModelCanvasFlowNode', () => {
   it('hides the badges whose count is zero and drops the emptied row', () => {
     renderNode(vi.fn(), [], undefined, undefined, undefined, undefined, {
       triggersCount: 0,
+      reportsCount: 0,
       relationshipCount: 0,
     });
 
     expect(screen.queryByText(/field/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/report/)).not.toBeInTheDocument();
     expect(screen.queryByText(/relationship/)).not.toBeInTheDocument();
     // The source badge still shows, and the footer keeps the indicators.
     expect(screen.getByText('View')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+  });
+
+  it('puts triggers and reports on one row and relationships on the next', () => {
+    renderNode();
+
+    const triggers = screen.getByText('2 triggers').parentElement;
+    expect(screen.getByText('3 reports').parentElement).toBe(triggers);
+    expect(screen.getByText('1 relationship').parentElement).not.toBe(triggers);
   });
 
   it('waits for enrichment before showing the triggers count', () => {

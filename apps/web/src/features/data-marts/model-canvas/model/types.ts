@@ -39,6 +39,8 @@ export interface ModelCanvasNode {
    * fixtures and older responses stay valid; unknown shows no badge.
    */
   triggersCount?: number;
+  /** Reports built on the Data Mart, from the canvas list; unknown shows no badge. */
+  reportsCount?: number;
   /** Sharing flags — enriched client-side; unknown until the detail fetch resolves. */
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;

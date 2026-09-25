@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CARD_COUNTS_ROW_HEIGHT,
-  CARD_COUNTS_ROW_LONE_PADDING,
+  CARD_BADGE_ROW_HEIGHT,
+  CARD_FIRST_BADGE_ROW_HEIGHT,
   CARD_FOOTER_HEIGHT,
-  CARD_META_ROW_HEIGHT,
   CARD_TITLE_ONLY_PADDING,
   CARD_TITLE_ROW_HEIGHT,
   COMPACT_NODE_HEIGHT,
@@ -11,6 +10,7 @@ import {
   ERD_EXPAND_ROW_HEIGHT,
   ERD_ROW_EXTRA_LINE_HEIGHT,
   ERD_ROW_HEIGHT,
+  cardBadgeRows,
   cardBadges,
   collapsedRowCount,
   computeNodeHeight,
@@ -52,11 +52,12 @@ describe('collapsedRowCount', () => {
   });
 });
 
-/** A card with every badge: known source, fields, triggers and relationships. */
+/** A card with every badge: known source, fields, triggers, reports and relationships. */
 const FULL: CardBadgeInput = {
   definitionType: DataMartDefinitionType.VIEW,
   fieldCount: 3,
   triggersCount: 2,
+  reportsCount: 4,
   relationshipCount: 1,
 };
 const EMPTY: CardBadgeInput = { definitionType: null, fieldCount: 0 };
@@ -67,14 +68,21 @@ describe('cardBadges', () => {
       definition: true,
       fieldCount: true,
       triggers: true,
+      reports: true,
       relationships: true,
     });
   });
 
   it('hides zero counts, an unknown source and not-yet-enriched triggers', () => {
     expect(
-      cardBadges({ ...FULL, fieldCount: 0, triggersCount: 0, relationshipCount: 0 })
-    ).toMatchObject({ fieldCount: false, triggers: false, relationships: false });
+      cardBadges({
+        ...FULL,
+        fieldCount: 0,
+        triggersCount: 0,
+        reportsCount: 0,
+        relationshipCount: 0,
+      })
+    ).toMatchObject({ fieldCount: false, triggers: false, reports: false, relationships: false });
     expect(cardBadges({ ...FULL, definitionType: null, triggersCount: undefined })).toMatchObject({
       definition: false,
       triggers: false,
@@ -90,30 +98,53 @@ describe('cardBadges', () => {
       definition: false,
       fieldCount: false,
       triggers: false,
+      reports: false,
       relationships: false,
     });
   });
 });
 
+describe('cardBadgeRows', () => {
+  it('orders the rows as source + fields, triggers + reports, relationships', () => {
+    expect(cardBadgeRows(cardBadges(FULL))).toEqual(['meta', 'usage', 'relationships']);
+  });
+
+  it('keeps the usage row for either count and drops the rows left empty', () => {
+    expect(cardBadgeRows(cardBadges({ ...FULL, triggersCount: 0 }))).toEqual([
+      'meta',
+      'usage',
+      'relationships',
+    ]);
+    expect(
+      cardBadgeRows(
+        cardBadges({ ...FULL, triggersCount: 0, reportsCount: 0, relationshipCount: 0 })
+      )
+    ).toEqual(['meta']);
+    expect(cardBadgeRows(cardBadges(EMPTY))).toEqual([]);
+  });
+});
+
 describe('computeNodeHeight', () => {
-  it('sizes a full card as title + badges + counts + footer rows', () => {
-    expect(COMPACT_NODE_HEIGHT).toBe(134);
+  it('sizes a full card as title + three badge rows + footer', () => {
+    expect(COMPACT_NODE_HEIGHT).toBe(158);
     expect(computeNodeHeight(FULL, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });
 
   it('drops the rows whose badges are all hidden or zero', () => {
-    const noCounts = { ...FULL, triggersCount: 0, relationshipCount: 0 };
-    expect(computeNodeHeight(noCounts, 'compact')).toBe(
-      COMPACT_NODE_HEIGHT - CARD_COUNTS_ROW_HEIGHT
+    expect(computeNodeHeight({ ...FULL, triggersCount: 0, reportsCount: 0 }, 'compact')).toBe(
+      COMPACT_NODE_HEIGHT - CARD_BADGE_ROW_HEIGHT
     );
-    // The counts row alone takes a little more top padding.
+    expect(computeNodeHeight({ ...FULL, relationshipCount: 0 }, 'compact')).toBe(
+      COMPACT_NODE_HEIGHT - CARD_BADGE_ROW_HEIGHT
+    );
+    // Whichever row comes first takes the larger top padding.
     expect(computeNodeHeight({ ...FULL, definitionType: null, fieldCount: 0 }, 'compact')).toBe(
-      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT + CARD_COUNTS_ROW_LONE_PADDING
+      CARD_TITLE_ROW_HEIGHT +
+        CARD_FIRST_BADGE_ROW_HEIGHT +
+        CARD_BADGE_ROW_HEIGHT +
+        CARD_FOOTER_HEIGHT
     );
     expect(computeNodeHeight(EMPTY, 'compact')).toBe(CARD_TITLE_ROW_HEIGHT + CARD_FOOTER_HEIGHT);
-    expect(computeNodeHeight(FULL, 'compact', { sourceHidden: true, fieldCountHidden: true })).toBe(
-      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT + CARD_COUNTS_ROW_LONE_PADDING
-    );
   });
 
   it('keeps only the padded title row in title-only mode', () => {

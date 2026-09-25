@@ -3,6 +3,7 @@ import {
   CalendarClock,
   Columns3,
   ExternalLink,
+  FileText,
   Info,
   PencilLine,
   Share2,
@@ -20,7 +21,14 @@ import {
   SOCKET_STYLE,
 } from '../../shared/canvas/constants';
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
-import { type CanvasViewMode, cardBadges, nodeLayoutOptions, nodeWidth } from '../model/erd-node';
+import {
+  type CanvasViewMode,
+  type CardBadgeRow,
+  cardBadgeRows,
+  cardBadges,
+  nodeLayoutOptions,
+  nodeWidth,
+} from '../model/erd-node';
 import {
   isTitleOnly,
   NOTHING_HIDDEN,
@@ -43,6 +51,7 @@ export interface ModelCanvasFlowNodeData {
   fieldCount: number;
   /** Unknown (undefined) until the detail enrichment resolves — the pill waits for it. */
   triggersCount?: number;
+  reportsCount?: number;
   relationshipCount: number;
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
@@ -130,8 +139,7 @@ export default function ModelCanvasFlowNode({
       : null;
   // Published is the norm, so only a draft earns a pill — next to the title.
   const withDraft = !labels.status && data.isDraft;
-  const withBadgesRow = badges.definition || badges.fieldCount;
-  const withCountsRow = badges.triggers || badges.relationships;
+  const badgeRows = cardBadgeRows(badges);
   // "Uncheck all — title only" strips the card down to its name: counts,
   // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
@@ -139,6 +147,38 @@ export default function ModelCanvasFlowNode({
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
   const openExternalLabel = `Open ${data.title} in new tab`;
+
+  function renderBadgeRow(row: CardBadgeRow) {
+    if (row === 'meta') {
+      return (
+        <>
+          {definitionInfo && (
+            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
+          )}
+          {badges.fieldCount && (
+            <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
+          )}
+        </>
+      );
+    }
+    if (row === 'usage') {
+      return (
+        <>
+          {badges.triggers && (
+            <CardPill icon={CalendarClock}>
+              {pluralize(data.triggersCount ?? 0, 'trigger')}
+            </CardPill>
+          )}
+          {badges.reports && (
+            <CardPill icon={FileText}>{pluralize(data.reportsCount ?? 0, 'report')}</CardPill>
+          )}
+        </>
+      );
+    }
+    return (
+      <CardPill icon={Waypoints}>{pluralize(data.relationshipCount, 'relationship')}</CardPill>
+    );
+  }
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -220,38 +260,18 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Badges row: input source + field count */}
-      {withBadgesRow && (
-        <div className={`flex items-center gap-1 overflow-hidden pt-2 pr-3 pl-3`}>
-          {definitionInfo && (
-            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
-          )}
-          {badges.fieldCount && (
-            <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
-          )}
+      {/* Badge rows: source + field count, triggers + reports, relationships */}
+      {badgeRows.map((row, index) => (
+        <div
+          key={row}
+          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 ? 'pt-2' : 'pt-1'}`}
+        >
+          {renderBadgeRow(row)}
         </div>
-      )}
+      ))}
 
       {!titleOnly && (
         <>
-          {/* Counts row: triggers + relationships */}
-          {withCountsRow && (
-            <div
-              className={`flex items-center gap-1 overflow-hidden pr-3 ${withBadgesRow ? 'pt-1' : 'pt-2'} pl-3`}
-            >
-              {badges.triggers && (
-                <CardPill icon={CalendarClock}>
-                  {pluralize(data.triggersCount ?? 0, 'trigger')}
-                </CardPill>
-              )}
-              {badges.relationships && (
-                <CardPill icon={Waypoints}>
-                  {pluralize(data.relationshipCount, 'relationship')}
-                </CardPill>
-              )}
-            </div>
-          )}
-
           {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
           <div
             className={`text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 pl-3 text-[11px]`}

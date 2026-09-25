@@ -7,6 +7,7 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { ContextAccessService } from '../services/context/context-access.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
+import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 
 const CANVAS_DATA_MARTS_PAGE_SIZE = 1000;
@@ -19,7 +20,8 @@ export class GetModelCanvasDataMartsService {
     private readonly contextAccessService: ContextAccessService,
     private readonly mapper: ModelCanvasMapper,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly scheduledTriggerService: ScheduledTriggerService
+    private readonly scheduledTriggerService: ScheduledTriggerService,
+    private readonly reportService: ReportService
   ) {}
 
   async run(command: GetModelCanvasDataMartsCommand): Promise<ModelCanvasDataMartsDto> {
@@ -59,10 +61,12 @@ export class GetModelCanvasDataMartsService {
       }
     );
 
-    const triggerCounts = await this.scheduledTriggerService.countByDataMartIds(
-      items.map(dataMart => dataMart.id)
-    );
+    const ids = items.map(dataMart => dataMart.id);
+    const [triggerCounts, reportCounts] = await Promise.all([
+      this.scheduledTriggerService.countByDataMartIds(ids),
+      this.reportService.countByDataMartIds(ids),
+    ]);
 
-    return this.mapper.toDataMartsDto(items, total, offset, triggerCounts);
+    return this.mapper.toDataMartsDto(items, total, offset, { triggerCounts, reportCounts });
   }
 }

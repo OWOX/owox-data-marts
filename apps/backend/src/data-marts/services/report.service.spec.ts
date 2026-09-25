@@ -101,4 +101,37 @@ describe('ReportService', () => {
       NotFoundException
     );
   });
+
+  describe('countByDataMartIds', () => {
+    it('groups the reports by Data Mart and returns numeric counts', async () => {
+      const qb = {
+        leftJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { dataMartId: 'dm-1', count: '3' },
+          { dataMartId: 'dm-2', count: 1 },
+        ]),
+      };
+      const repository = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
+      const service = new ReportService(repository as never, {} as never, {} as never, {} as never);
+
+      const counts = await service.countByDataMartIds(['dm-1', 'dm-2', 'dm-3']);
+
+      expect(Object.fromEntries(counts)).toEqual({ 'dm-1': 3, 'dm-2': 1 });
+      expect(qb.where).toHaveBeenCalledWith('dm.id IN (:...ids)', {
+        ids: ['dm-1', 'dm-2', 'dm-3'],
+      });
+    });
+
+    it('skips the query when there are no Data Marts', async () => {
+      const repository = { createQueryBuilder: jest.fn() };
+      const service = new ReportService(repository as never, {} as never, {} as never, {} as never);
+
+      expect((await service.countByDataMartIds([])).size).toBe(0);
+      expect(repository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
 });

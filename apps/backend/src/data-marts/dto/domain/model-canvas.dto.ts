@@ -12,6 +12,8 @@ export interface ModelCanvasNodeDto {
   fieldCount: number;
   /** Scheduled triggers of the Data Mart. */
   triggersCount: number;
+  /** Reports built on the Data Mart. */
+  reportsCount: number;
   /** Last-known snapshot; the canvas refresh button re-computes it per visible node. */
   dataLastUpdated: SourceDataLastUpdatedSummary | null;
 }

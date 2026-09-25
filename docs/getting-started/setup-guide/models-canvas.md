@@ -12,11 +12,12 @@ Click a card to highlight every relationship it takes part in. Click it again, o
 
 - The Data Mart **icon** and **title**, with a **Draft** badge when the Data Mart is not published yet. See [Data Mart icons](#data-mart-icons).
 - The **input source** (Table, View, SQL, Pattern or Connector) and the **field count** of the Output Schema.
-- The number of **triggers** and **relationships**. The relationships count covers the whole storage, whatever the filters hide. It counts the relationships the Data Mart defines and the ones that point to it.
+- The number of **triggers** and **reports** built on the Data Mart, on one line.
+- The number of **relationships**. The count covers the whole storage, whatever the filters hide. It counts the relationships the Data Mart defines and the ones that point to it.
 - The [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) indicators. Hover an indicator to see the check results or the data freshness.
 - Sharing icons, when the Data Mart is shared for reporting or for maintenance. Hover an icon to see which one it is.
 
-A count of zero shows no badge. A Data Mart without triggers has no triggers badge, and one with no relationships has no relationships badge. The trigger count and the sharing icons appear once the canvas has loaded the Data Mart details.
+A count of zero shows no badge, and a line left without badges is dropped. A Data Mart without triggers or reports has no line for them. The sharing icons appear once the canvas has loaded the Data Mart details.
 
 ## Data Mart icons
 
