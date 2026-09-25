@@ -7,19 +7,27 @@ import {
   Injectable,
   Logger,
   Optional,
-  UnprocessableEntityException,
 } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import type { Role as RoleType } from '@owox/idp-protocol';
-import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
+import {
+  DATA_STORAGE_ERROR_MAPPER_RESOLVER,
+  DATA_STORAGE_REPORT_READER_RESOLVER,
+} from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { FilterConfig, FilterConfigSchema } from '../dto/schemas/filter-config.schema';
 import { SortConfig, SortConfigSchema } from '../dto/schemas/sort-config.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
-import { BlendableSchemaService } from '../services/blendable-schema.service';
+import {
+  BlendableSchemaAccessor,
+  BlendableSchemaService,
+} from '../services/blendable-schema.service';
 import { DataMartService } from '../services/data-mart.service';
 import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
@@ -78,8 +86,8 @@ export class PreviewAbortedError extends HttpException {
  *
  * Every native, reporting-visible field is projected; the caller chooses only a row limit,
  * WHERE filters and ORDER BY — all applied in the warehouse, so a sorted preview shows the real top
- * rows, not a sorted sample. A preview is a look at the data while setting a Data Mart up: it is not a run, so
- * it is neither recorded in Run History nor counted as consumption.
+ * rows, not a sorted sample. A preview is a look at the data while setting a Data Mart up: it is
+ * not a run, so it is neither recorded in Run History nor counted as consumption.
  *
  * Unlike `QueryDataMartService` (MCP), a DRAFT Data Mart can be previewed: seeing the data before
  * publishing is the point of the feature.
@@ -95,6 +103,8 @@ export class PreviewDataMartService {
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     private readonly accessDecisionService: AccessDecisionService,
+    @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
+    private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
     @Optional() private readonly deadlineMs: number = DEFAULT_PREVIEW_DEADLINE_MS
   ) {}
 
@@ -119,7 +129,7 @@ export class PreviewDataMartService {
       throw new ForbiddenException('You do not have access to this Data Mart');
     }
 
-    const accessor = { userId: command.userId, roles: command.roles };
+    const accessor: BlendableSchemaAccessor = { userId: command.userId, roles: command.roles };
     const schema = await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
       dataMart.projectId,
@@ -146,22 +156,21 @@ export class PreviewDataMartService {
       limitConfig: limit + 1,
     };
 
-    const composed = await this.composer.compose(readPlan, accessor);
-
     // Already cancelled: start no warehouse work.
     throwIfAborted(signal);
 
     let result: { columns: DataMartPreviewColumn[]; rows: unknown[][] };
     try {
-      result = await this.readRows(dataMart, readPlan, composed, limit, signal);
+      result = await this.readRows(dataMart, readPlan, accessor, schema, limit, signal);
     } catch (error) {
+      // Validation, the deadline and a cancel are already HTTP errors.
       if (error instanceof HttpException) throw error;
-      // A warehouse error (bad column, missing table, permissions) is not a server fault: hand the
-      // warehouse's own sentence back so the person can fix the schema or the filter.
-      this.logger.warn(`Preview of Data Mart ${dataMart.id} failed: ${messageOf(error)}`);
-      throw new UnprocessableEntityException(
-        `The data warehouse could not run the preview query: ${messageOf(error)}`
-      );
+      // A warehouse error (bad column, missing table, permissions — including the technical view
+      // a SQL Data Mart is read through) is not a server fault: hand the provider's own sentence
+      // back, the same way HTTP Data does, so the person can fix the schema or the filter.
+      this.logger.warn(`Preview of Data Mart ${dataMart.id} failed: ${castError(error).message}`);
+      const mapper = await this.errorMapperResolver.resolve(dataMart.storage.type);
+      throw mapper.toStorageReadError(error, { force: true });
     }
 
     const truncated = result.rows.length > limit;
@@ -201,10 +210,16 @@ export class PreviewDataMartService {
     return parsed.data?.length ? parsed.data : null;
   }
 
+  /**
+   * Composes and reads the preview inside one deadline/cancel race. Composing is not a pure read:
+   * for a SQL Data Mart it refreshes the technical view in the warehouse, so it belongs to the
+   * same bounded, cancellable and error-mapped section as the query itself.
+   */
   private async readRows(
     dataMart: DataMart,
     readPlan: ReportLikeReadPlan,
-    composed: Awaited<ReturnType<ReportSqlComposerService['compose']>>,
+    accessor: BlendableSchemaAccessor,
+    schema: BlendableSchemaDto,
     limit: number,
     signal: AbortSignal | undefined
   ): Promise<{ columns: DataMartPreviewColumn[]; rows: unknown[][] }> {
@@ -243,7 +258,16 @@ export class PreviewDataMartService {
       let reader: DataStorageReportReader | undefined;
       try {
         if (workController.signal.aborted) throw new PreviewAbortedError();
+        // The schema computed for the field list is reused, so validation does not compute it again.
+        const composed = await this.composer.compose(readPlan, accessor, undefined, schema);
+        if (workController.signal.aborted) throw new PreviewAbortedError();
         reader = await this.readerResolver.resolve(dataMart.storage.type);
+        // Make the gap observable: this storage cannot stop the query at the deadline or on cancel.
+        if (!reader.honorsQueryTimeout) {
+          this.logger.warn(
+            `Storage ${dataMart.storage.type} does not honor queryTimeoutMs; a preview it runs is not capped warehouse-side.`
+          );
+        }
         const description = await reader.prepareReportData(readPlan, {
           sqlOverride: composed.sql,
           sqlOverrideParams: composed.params,
@@ -277,7 +301,9 @@ export class PreviewDataMartService {
         try {
           await reader?.finalize();
         } catch (finalizeError) {
-          this.logger.warn(`reader.finalize() failed; ignoring: ${messageOf(finalizeError)}`);
+          this.logger.warn(
+            `reader.finalize() failed; ignoring: ${castError(finalizeError).message}`
+          );
         }
       }
     })();
@@ -293,10 +319,6 @@ export class PreviewDataMartService {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new PreviewAbortedError();
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

@@ -2,7 +2,8 @@ import {
   BadRequestException,
   ForbiddenException,
   GatewayTimeoutException,
-  UnprocessableEntityException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -41,6 +42,7 @@ describe('PreviewDataMartService', () => {
       accessAllowed?: boolean;
       nativeFields?: { name: string; type: string; fields?: unknown[] }[];
       readerError?: Error;
+      composeError?: Error;
       deadlineMs?: number;
       readerNeverResolves?: boolean;
     } = {}
@@ -67,7 +69,9 @@ describe('PreviewDataMartService', () => {
       }),
     };
     const composer = {
-      compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+      compose: overrides.composeError
+        ? jest.fn().mockRejectedValue(overrides.composeError)
+        : jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
     };
     const reader = {
       prepareReportData: jest
@@ -95,6 +99,17 @@ describe('PreviewDataMartService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(overrides.accessAllowed ?? true),
     };
+    // Stands in for the storage error mapper: a provider error becomes a 424 carrying its message.
+    const errorMapper = {
+      toStorageReadError: jest.fn(
+        (error: unknown) =>
+          new HttpException(
+            { message: `Storage failed: ${(error as Error).message}` },
+            HttpStatus.FAILED_DEPENDENCY
+          )
+      ),
+    };
+    const errorMapperResolver = { resolve: jest.fn().mockResolvedValue(errorMapper) };
 
     const service = new PreviewDataMartService(
       dataMartService as never,
@@ -102,9 +117,10 @@ describe('PreviewDataMartService', () => {
       composer as never,
       readerResolver as never,
       accessDecisionService as never,
+      errorMapperResolver as never,
       overrides.deadlineMs ?? 3_600_000
     );
-    return { service, composer, reader, readerResolver };
+    return { service, composer, reader, readerResolver, errorMapper };
   };
 
   it('reads the default 10 rows (+1 to detect more) from a DRAFT Data Mart', async () => {
@@ -114,6 +130,8 @@ describe('PreviewDataMartService', () => {
 
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: ['channel', 'revenue'], limitConfig: 11 }),
+      expect.anything(),
+      undefined,
       expect.anything()
     );
     expect(result).toEqual({
@@ -137,6 +155,8 @@ describe('PreviewDataMartService', () => {
     await expect(service.run(command({ limit: 1000 }))).resolves.toMatchObject({ limit: 1000 });
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ limitConfig: 1001 }),
+      expect.anything(),
+      undefined,
       expect.anything()
     );
   });
@@ -160,6 +180,8 @@ describe('PreviewDataMartService', () => {
 
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ filterConfig: filters }),
+      expect.anything(),
+      undefined,
       expect.anything()
     );
   });
@@ -172,6 +194,8 @@ describe('PreviewDataMartService', () => {
 
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ sortConfig: sort, limitConfig: 11 }),
+      expect.anything(),
+      undefined,
       expect.anything()
     );
   });
@@ -220,17 +244,56 @@ describe('PreviewDataMartService', () => {
 
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: ['id', 'device'] }),
+      expect.anything(),
+      undefined,
       expect.anything()
     );
   });
 
-  it('returns the warehouse error as a 422 with the warehouse message', async () => {
-    const { service } = createService({ readerError: new Error('Unrecognized name: device') });
+  it('returns a warehouse read error through the storage error mapper', async () => {
+    const { service, errorMapper } = createService({
+      readerError: new Error('Unrecognized name: device'),
+    });
 
     const failure = service.run(command());
 
-    await expect(failure).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(failure).rejects.toMatchObject({ status: HttpStatus.FAILED_DEPENDENCY });
     await expect(failure).rejects.toThrow(/Unrecognized name: device/);
+    expect(errorMapper.toStorageReadError).toHaveBeenCalledWith(expect.any(Error), { force: true });
+  });
+
+  it('maps a failing compose (e.g. the SQL view DDL) like a read error, not a bare 500', async () => {
+    const { service, readerResolver } = createService({
+      composeError: new Error('Not found: Table project:dataset.source'),
+    });
+
+    const failure = service.run(command());
+
+    await expect(failure).rejects.toMatchObject({ status: HttpStatus.FAILED_DEPENDENCY });
+    await expect(failure).rejects.toThrow(/Not found: Table/);
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
+  });
+
+  it('keeps a compose validation error as it is', async () => {
+    const { service, errorMapper } = createService({
+      composeError: new BadRequestException('Output controls validation failed'),
+    });
+
+    await expect(service.run(command())).rejects.toBeInstanceOf(BadRequestException);
+    expect(errorMapper.toStorageReadError).not.toHaveBeenCalled();
+  });
+
+  it('reuses the computed schema when composing', async () => {
+    const { service, composer } = createService();
+
+    await service.run(command());
+
+    expect(composer.compose).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      expect.objectContaining({ nativeFields: expect.any(Array) })
+    );
   });
 
   it('asks to refresh the schema when there is nothing to project', async () => {

@@ -161,8 +161,8 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Read a sample of rows for the Data Setup preview. Every call queries the warehouse and is
-   * recorded in Run History; aborting `signal` cancels the warehouse query.
+   * Read a sample of rows for the Data Setup preview. Every call queries the warehouse; it is not a
+   * run, so nothing is recorded in Run History. Aborting `signal` cancels the warehouse query.
    */
   async previewDataMart(
     id: string,
@@ -170,6 +170,8 @@ export class DataMartService extends ApiService {
     signal?: AbortSignal
   ): Promise<PreviewDataMartResponseDto> {
     return this.post<PreviewDataMartResponseDto>(`/${id}/preview`, body, {
+      // Stays above the backend's 150 s preview deadline, so its 504 reaches the panel.
+      timeout: 180000,
       signal,
       skipLoadingIndicator: true,
       skipErrorToast: true,

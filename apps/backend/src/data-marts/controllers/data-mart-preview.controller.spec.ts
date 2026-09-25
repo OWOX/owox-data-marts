@@ -3,6 +3,7 @@ jest.mock('../../idp', () => {
   return {
     Auth: noop,
     AuthContext: noop,
+    RejectApiKeyAuth: noop,
     Role: { editor: () => 'editor', viewer: () => 'viewer' },
     Strategy: { INTROSPECT: 'INTROSPECT', PARSE: 'PARSE' },
   };
@@ -26,7 +27,7 @@ describe('DataMartPreviewController', () => {
     const service = {
       run: jest.fn((_command: unknown, received: AbortSignal) => {
         signal = received;
-        return Promise.resolve({ runId: 'run-1' });
+        return Promise.resolve({ columns: [], rows: [], rowCount: 0, limit: 10, truncated: false });
       }),
     };
     const response = Object.assign(new EventEmitter(), { writableFinished: false });

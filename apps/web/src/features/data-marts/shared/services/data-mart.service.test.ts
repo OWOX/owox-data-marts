@@ -215,6 +215,25 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('previewDataMart', () => {
+    it('waits past the backend preview deadline and forwards the cancel signal', async () => {
+      (apiClient.post as any).mockResolvedValueOnce({ data: { rowCount: 0 } });
+      const controller = new AbortController();
+
+      await service.previewDataMart(mockDataMartId, { limit: 10 }, controller.signal);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/preview`,
+        { limit: 10 },
+        expect.objectContaining({
+          timeout: 180000,
+          signal: controller.signal,
+          skipErrorToast: true,
+        })
+      );
+    });
+  });
+
   describe('cancelDataMartRun', () => {
     it('should suppress the global error toast so the run history button can show the specific message', async () => {
       await service.cancelDataMartRun(mockDataMartId, 'run-1');

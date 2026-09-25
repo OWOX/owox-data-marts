@@ -209,6 +209,12 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
   } = useOutletContext<DataMartContextType>();
 
   const { id: dataMartId = '', schema: initialSchema } = dataMart ?? {};
+  // By content, not identity: every Data Mart refetch (Publish, owners, a finished connector run)
+  // maps a new schema object, and the preview must not call that a schema change.
+  const savedSchemaVersion = useMemo(
+    () => JSON.stringify(initialSchema?.fields ?? []),
+    [initialSchema]
+  );
   const previewDisabledReason = !dataMart?.definition
     ? 'Set up the Input Source to preview data.'
     : !initialSchema?.fields.length
@@ -695,7 +701,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         <DataMartPreviewPanel
           key={dataMartId}
           dataMartId={dataMartId}
-          savedSchemaVersion={initialSchema}
+          savedSchemaVersion={savedSchemaVersion}
           filterTypes={previewFilterTypes}
           disabledReason={previewDisabledReason}
           runGuarded={runPreviewGuarded}
