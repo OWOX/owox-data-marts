@@ -646,6 +646,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         await this.executeQuery(query);
         this.totalRecordsProcessed += currentBatch.length;
         console.log(`BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
+        this._reportRowsWritten(currentBatch.length);
         
         // Process remaining records if any
         if (remainingRecords.length > 0) {

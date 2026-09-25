@@ -47,6 +47,7 @@ Object.defineProperty(proto, 'context', {
     return {
       getParameter: name => params[name],
       log: (_level, message) => params.logMessage?.(message),
+      emitAnalytics() {},
     };
   },
 });
@@ -1076,5 +1077,32 @@ describe('MERGE batch chain with a transient failure', () => {
 
     await expect(proto.executeQueryWithSizeLimit.call(storage)).rejects.toThrow('Access Denied');
     expect(storage.updatedRecordsBuffer).toEqual({ a: {}, b: {} });
+  });
+});
+
+// The run's Load Status adds up rows_written; without it every BigQuery run read "Loaded 0 rows".
+describe('executeMergeQueryRecursively', () => {
+  it('reports each merged batch as rows written to the destination table', async () => {
+    const metrics = [];
+    const storage = Object.assign(Object.create(proto), {
+      totalRecordsProcessed: 0,
+      buildMergeQuery: keys => `MERGE ${keys.join(',')}`,
+      executeQuery: async () => {},
+    });
+    Object.defineProperty(storage, 'context', {
+      value: {
+        getParameter: name => ({ DestinationTableName: configValue('orders') })[name],
+        emitAnalytics: (metric, value, meta) => metrics.push([metric, value, meta.node]),
+        log() {},
+      },
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await storage.executeMergeQueryRecursively(['a', 'b', 'c'], 2);
+
+    expect(metrics).toEqual([
+      ['rows_written', 2, 'orders'],
+      ['rows_written', 1, 'orders'],
+    ]);
   });
 });
