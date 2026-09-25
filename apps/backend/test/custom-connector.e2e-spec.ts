@@ -441,12 +441,24 @@ describe('Custom Connector (e2e)', () => {
     expect(JSON.stringify(res.body)).toContain('manifest');
   });
 
-  it('POST /connectors/custom/test rejects an invalid manifest', async () => {
+  it('POST /connectors/custom/test rejects a node the manifest does not have', async () => {
     const res = await agent
       .post('/api/connectors/custom/test')
       .set(AUTH_HEADER)
       .send({ manifest: { name: 'X' }, node: 'missing', configuration: {} });
     expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Unknown node');
+  });
+
+  it('POST /connectors/custom/test rejects a node the parser refuses', async () => {
+    const items = { ...MANIFEST.nodes.items, recordSelector: { recordPath: 'data.items' } };
+    const res = await agent
+      .post('/api/connectors/custom/test')
+      .set(AUTH_HEADER)
+      .send({ manifest: { ...MANIFEST, nodes: { items } }, node: 'items', configuration: {} });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Invalid manifest');
+    expect(JSON.stringify(res.body)).toContain('recordPath');
   });
 
   it('rejects publishing an invalid manifest', async () => {
