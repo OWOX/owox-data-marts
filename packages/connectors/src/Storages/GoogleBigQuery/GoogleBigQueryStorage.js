@@ -331,7 +331,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       }
 
       if( this.description ) {
-        query += `\nOPTIONS(description="${this.description}")`;
+        query += `\nOPTIONS(description="${this.obfuscateSpecialCharacters(this.description)}")`;
       }
 
       await this.executeQuery(query);
