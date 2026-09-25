@@ -2,14 +2,19 @@ import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/map
 import type { DataMartResponseDto } from '../../../shared';
 import { DataMartStatusModel } from '../../../shared';
 import type { DataMart } from '../types';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 import { mapDefinitionFromDto } from './definition-mappers';
 import { canActualizeSchema } from '../helpers';
 
 /**
  * Maps a data mart response DTO to a domain model
+ * @param knownConnector - connector info the caller already holds (see mapDefinitionFromDto)
  */
-export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Promise<DataMart> {
+export async function mapDataMartFromDto(
+  dataMartDto: DataMartResponseDto,
+  knownConnector: ConnectorListItem | null = null
+): Promise<DataMart> {
   const dataMart: DataMart = {
     id: dataMartDto.id,
     title: dataMartDto.title,
@@ -18,7 +23,11 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     status: DataMartStatusModel.getInfo(dataMartDto.status),
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
-    definition: await mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
+    definition: await mapDefinitionFromDto(
+      dataMartDto.definitionType,
+      dataMartDto.definition,
+      knownConnector
+    ),
     schema: dataMartDto.schema,
     connectorState: dataMartDto.connectorState ?? null,
     blendedFieldsConfig: dataMartDto.blendedFieldsConfig ?? null,

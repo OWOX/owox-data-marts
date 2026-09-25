@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useReducer } from 'react';
+import { type ReactNode, type RefObject, useCallback, useReducer, useRef } from 'react';
 import { DataMartContext } from './context.ts';
 import { initialState, reducer } from './reducer.ts';
 import {
@@ -26,12 +26,14 @@ import type {
 } from '../../../shared/types/api';
 import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import type {
   ConnectorDefinitionConfig,
   DataMartDefinitionConfig,
   SqlDefinitionConfig,
   TableDefinitionConfig,
   TablePatternDefinitionConfig,
+  DataMart,
   ViewDefinitionConfig,
 } from '../types';
 import { extractApiError, type ApiError, type AxiosRequestConfig } from '../../../../../app/api';
@@ -56,6 +58,25 @@ function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?:
   invalidateDataStorageHealthStatus(storageId);
 }
 
+function connectorInfoOf(dataMart: DataMart): ConnectorListItem | null {
+  if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) return null;
+  return (dataMart.definition as ConnectorDefinitionConfig | null)?.connector.info ?? null;
+}
+
+/**
+ * mapDataMartFromDto for a page that already looked its connector up. Saving or refreshing a
+ * Data Mart does not change the connector it runs, and looking a custom one up fetches every
+ * custom connector with its logo, so only loading a Data Mart looks it up again.
+ */
+async function mapKeepingConnector(
+  response: DataMartResponseDto,
+  connectorInfo: RefObject<ConnectorListItem | null>
+): Promise<DataMart> {
+  const dataMart = await mapDataMartFromDto(response, connectorInfo.current);
+  connectorInfo.current = connectorInfoOf(dataMart);
+  return dataMart;
+}
+
 // Props interface
 interface DataMartProviderProps {
   children: ReactNode;
@@ -65,13 +86,15 @@ interface DataMartProviderProps {
 export function DataMartProvider({ children }: DataMartProviderProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const refreshSetupProgress = useRefreshSetupProgress();
+  const connectorInfo = useRef<ConnectorListItem | null>(null);
 
   // Get a data mart by ID
   const getDataMart = useCallback(async (id: string) => {
     try {
       dispatch({ type: 'FETCH_DATA_MART_START' });
       const response = await dataMartService.getDataMartById(id);
-      const dataMart = await mapDataMartFromDto(response);
+      connectorInfo.current = null;
+      const dataMart = await mapKeepingConnector(response, connectorInfo);
       dispatch({ type: 'FETCH_DATA_MART_SUCCESS', payload: dataMart });
       pushToDataLayer({
         context: dataMart.id,
@@ -89,7 +112,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   const syncDataMartFromResponse = useCallback(async (response: DataMartResponseDto) => {
-    const dataMart = await mapDataMartFromDto(response);
+    const dataMart = await mapKeepingConnector(response, connectorInfo);
     dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
   }, []);
 
@@ -149,7 +172,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_START' });
       const response = await dataMartService.updateDataMart(id, data);
-      const dataMart = await mapDataMartFromDto(response);
+      const dataMart = await mapKeepingConnector(response, connectorInfo);
       dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
       trackEvent({
         event: 'data_mart_updated',
@@ -298,7 +321,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           businessOwnerIds,
           technicalOwnerIds,
         });
-        const dataMart = await mapDataMartFromDto(response);
+        const dataMart = await mapKeepingConnector(response, connectorInfo);
         dispatch({ type: 'UPDATE_DATA_MART_OWNERS_SUCCESS', payload: dataMart });
         toast.success('Owners updated');
       } catch (error) {
@@ -392,7 +415,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         }
 
         const response = await dataMartService.updateDataMartDefinition(id, requestData);
-        const dataMart = await mapDataMartFromDto(response);
+        const dataMart = await mapKeepingConnector(response, connectorInfo);
         dispatch({
           type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
           payload: { definitionType, definition },
@@ -435,7 +458,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       try {
         dispatch({ type: 'PUBLISH_DATA_MART_START' });
         const response = await dataMartService.publishDataMart(id);
-        const dataMart = await mapDataMartFromDto(response);
+        const dataMart = await mapKeepingConnector(response, connectorInfo);
         dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
         toast.success('Data Mart published');
         refreshSetupProgress();
@@ -628,7 +651,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_START' });
       const response = await dataMartService.actualizeDataMartSchema(id);
-      const dataMart = await mapDataMartFromDto(response);
+      const dataMart = await mapKeepingConnector(response, connectorInfo);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       // Report what the refreshed schema looks like, not just that it ran. After an input source
       // change this is how the user learns which fields the new source no longer provides.
@@ -660,7 +683,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       try {
         dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
         const response = await dataMartService.updateDataMartSchema(id, { schema }, config);
-        const dataMart = await mapDataMartFromDto(response);
+        const dataMart = await mapKeepingConnector(response, connectorInfo);
         dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
         toast.success('Output schema updated');
         trackEvent({

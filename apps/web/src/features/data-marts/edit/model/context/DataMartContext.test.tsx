@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartProvider } from './DataMartContext';
 import { DataMartContext } from './context';
 import { dataMartService } from '../../../shared';
+import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
+import { getConnectorInfoByName } from '../../../../connectors/shared/utils';
+import type { ConnectorDefinitionConfig } from '../types';
 
 vi.mock('../../../../../hooks/useAutoRefresh', () => ({
   useAutoRefresh: vi.fn(),
@@ -37,9 +40,18 @@ vi.mock('../../../shared', async () => {
       cancelDataMartRun: vi.fn(),
       getDataMartRuns: vi.fn(),
       runDataMart: vi.fn(),
+      getDataMartById: vi.fn(),
+      updateDataMart: vi.fn(),
     },
   };
 });
+
+vi.mock('../../../../connectors/shared/utils', async () => ({
+  ...(await vi.importActual<typeof import('../../../../connectors/shared/utils')>(
+    '../../../../connectors/shared/utils'
+  )),
+  getConnectorInfoByName: vi.fn(),
+}));
 
 describe('DataMartProvider cancelDataMartRun', () => {
   beforeEach(() => {
@@ -170,5 +182,126 @@ describe('DataMartProvider runDataMart', () => {
     expect(dataMartService.runDataMart).toHaveBeenCalledWith('dm-1', { mode: 'incremental' });
     expect(screen.getByTestId('manual-run-triggered')).toHaveTextContent('true');
     expect(screen.getByTestId('manual-run-id')).toHaveTextContent('manual-run-1');
+  });
+});
+
+describe('DataMartProvider connector info', () => {
+  const connectorDataMart = {
+    id: 'dm-1',
+    title: 'Items',
+    description: null,
+    status: 'DRAFT',
+    storage: {
+      id: 'st-1',
+      title: 'BigQuery',
+      type: 'GOOGLE_BIGQUERY',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      modifiedAt: '2026-01-01T00:00:00.000Z',
+      config: null,
+      credentials: null,
+      availableForUse: true,
+      availableForMaintenance: true,
+    },
+    definitionType: 'CONNECTOR',
+    definition: {
+      connector: {
+        source: { name: 'MyCustomApi', configuration: [], node: 'items', fields: ['id'] },
+        storage: { fullyQualifiedName: 'ds.items' },
+      },
+    },
+    schema: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    modifiedAt: '2026-01-01T00:00:00.000Z',
+    availableForReporting: true,
+    availableForMaintenance: true,
+  } as unknown as DataMartResponseDto;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue(connectorDataMart);
+    vi.mocked(dataMartService.updateDataMart).mockResolvedValue(connectorDataMart);
+    vi.mocked(getConnectorInfoByName).mockResolvedValue({
+      name: 'MyCustomApi',
+      displayName: 'My Custom API',
+      description: '',
+      logoBase64: null,
+      docUrl: null,
+      isCustom: true,
+      id: 'cdef-1',
+      version: 2,
+    });
+  });
+
+  function renderPage() {
+    let pending: Promise<unknown> | undefined;
+
+    function Consumer() {
+      const context = useContext(DataMartContext)!;
+      const definition = context.dataMart?.definition as ConnectorDefinitionConfig | undefined;
+      return (
+        <>
+          <button
+            type='button'
+            onClick={() => {
+              pending = context.getDataMart('dm-1');
+            }}
+          >
+            Load
+          </button>
+          <button
+            type='button'
+            onClick={() => {
+              pending = context.refreshDataMart('dm-1');
+            }}
+          >
+            Refresh
+          </button>
+          <button
+            type='button'
+            onClick={() => {
+              pending = context.updateDataMart('dm-1', { title: 'Renamed' });
+            }}
+          >
+            Save
+          </button>
+          <output data-testid='connector'>
+            {definition?.connector.info?.displayName ?? 'none'}
+          </output>
+        </>
+      );
+    }
+
+    render(
+      <DataMartProvider>
+        <Consumer />
+      </DataMartProvider>
+    );
+
+    return async (button: string) => {
+      fireEvent.click(screen.getByRole('button', { name: button }));
+      await act(async () => {
+        await pending;
+      });
+    };
+  }
+
+  it('looks the connector up once for the page, not again on every save or refresh', async () => {
+    const click = renderPage();
+
+    await click('Load');
+    await click('Refresh');
+    await click('Save');
+
+    expect(getConnectorInfoByName).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('connector')).toHaveTextContent('My Custom API');
+  });
+
+  it('looks the connector up again when the page loads a Data Mart', async () => {
+    const click = renderPage();
+
+    await click('Load');
+    await click('Load');
+
+    expect(getConnectorInfoByName).toHaveBeenCalledTimes(2);
   });
 });
