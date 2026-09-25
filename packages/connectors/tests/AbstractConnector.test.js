@@ -198,19 +198,31 @@ describe('AbstractConnector', () => {
       }
     });
 
-    it('skips unknown nodes with warning', async () => {
-      const cap = captureEvents();
+    // A node renamed or removed in a newer connector version leaves Data Marts selecting it.
+    // Skipping it made such a run succeed with nothing imported; main failed it.
+    it('fails the run before importing anything when a selected node is unknown', async () => {
+      const restore = suppressStdout();
       try {
-        const ctx = createTestContext();
+        const fetched = [];
         const source = createMockSource({
-          parseFields: () => ({ unknownNode: ['x'] }),
+          parseFields: () => ({ campaigns: ['id'], unknownNode: ['x'] }),
+          fetchData: async req => {
+            fetched.push(req.nodeName);
+            return [{ id: 1 }];
+          },
         });
-        const connector = new AbstractConnector(ctx, source, createMockStorageClass());
-        await connector.run();
-        const warnings = cap.events.filter(e => e.type === 'LOG' && e.level === 'warn');
-        assert.ok(warnings.some(w => w.message.includes('Unknown node "unknownNode"')));
+        const connector = new AbstractConnector(
+          createTestContext(),
+          source,
+          createMockStorageClass()
+        );
+        await assert.rejects(
+          () => connector.run(),
+          /Unknown node 'unknownNode'\. Please update the Fields configuration/
+        );
+        assert.deepStrictEqual(fetched, []);
       } finally {
-        cap.restore();
+        restore();
       }
     });
 
