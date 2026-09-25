@@ -396,8 +396,9 @@ export class FacebookMarketingSource extends AbstractSource {
    * AbstractConnector calls us with { nodeName, fields, accountId, startDate, endDate }
    * once per (account × node × day) for time-series, or once per (account × node) for catalog.
    * Under 'day-by-day' strategy, startDate === endDate (YYYY-MM-DD) for time-series nodes.
+   * A catalog node hands each page to `onBatch`, which the engine writes at once (#1130).
    */
-  async fetchData({ nodeName, accountId, fields = [], startDate, endDate }) {
+  async fetchData({ nodeName, accountId, fields = [], startDate, endDate, onBatch }) {
     let url = `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}/`;
     let timeRange = null;
 
@@ -449,7 +450,7 @@ export class FacebookMarketingSource extends AbstractSource {
 
     url += `&access_token=${this._getAccessToken()}`;
 
-    return await this._fetchPaginatedData(url, nodeName, fields);
+    return await this._fetchPaginatedData(url, nodeName, fields, onBatch);
   }
 
   /**
@@ -689,10 +690,11 @@ export class FacebookMarketingSource extends AbstractSource {
   }
 
   /**
-   * Fetch paginated data from Facebook API. Returns full collected dataset.
+   * Fetch paginated data from Facebook API. With `onBatch` each page is handed over as it
+   * arrives and nothing is kept; without it every page is collected and returned.
    * @private
    */
-  async _fetchPaginatedData(initialUrl, nodeName, fields) {
+  async _fetchPaginatedData(initialUrl, nodeName, fields, onBatch = null) {
     let allData = [];
     let nextPageURL = initialUrl;
 
@@ -709,14 +711,16 @@ export class FacebookMarketingSource extends AbstractSource {
           jsonData.data[index] = mappedRecord;
         });
 
-        allData = allData.concat(jsonData.data);
+        if (onBatch) await onBatch(jsonData.data);
+        else allData = allData.concat(jsonData.data);
       } else {
         // Non-paginated single-object result.
         nextPageURL = null;
         for (const key in jsonData) {
           jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
         }
-        allData = allData.concat(jsonData);
+        if (onBatch) await onBatch([jsonData]);
+        else allData = allData.concat(jsonData);
       }
     }
 

@@ -486,16 +486,12 @@ export class MicrosoftAdsSource extends AbstractSource {
 
   /**
    * Single fetch entry point. AbstractConnector calls us with
-   * { nodeName, fields, accountId, startDate, endDate }.
+   * { nodeName, fields, accountId, startDate, endDate, onBatch }.
    *
-   * For 'campaigns' (catalog node), the legacy implementation streamed batches
-   * via an `onBatchReady` callback to keep memory bounded. The new architecture
-   * doesn't subscribe to per-fetch DataEvents at the connector layer yet, so we
-   * collect batches into a single array and return them all at once.
-   * TODO: when AbstractConnector supports streaming, switch to emitting
-   * DataEvent per batch via this.context.emit(new DataEvent(nodeName, batch)).
+   * 'campaigns' hands each batch to `onBatch`, which the engine writes to storage at once,
+   * and returns nothing: a large account's Keywords do not fit in memory (#1545).
    */
-  async fetchData({ nodeName, accountId, fields = [], startDate, endDate }) {
+  async fetchData({ nodeName, accountId, fields = [], startDate, endDate, onBatch }) {
     const schema = this.fieldsSchema[nodeName];
     if (!schema) {
       throw new Error(`Unknown node: ${nodeName}`);
@@ -513,7 +509,7 @@ export class MicrosoftAdsSource extends AbstractSource {
 
     switch (nodeName) {
       case 'campaigns':
-        return await this._fetchCampaignData({ accountId, fields });
+        return await this._fetchCampaignData({ accountId, fields, onBatch });
       case 'ad_performance_report':
       case 'user_location_performance_report':
         return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
@@ -524,14 +520,20 @@ export class MicrosoftAdsSource extends AbstractSource {
 
   /**
    * Fetch campaign data (Campaigns + AssetGroups + AdGroups + Keywords) using
-   * the Bulk API. Batches are accumulated and returned to the caller.
+   * the Bulk API. With `onBatch` each batch is handed over as it arrives and nothing is
+   * kept; without it the batches are collected and returned.
    * @private
    */
-  async _fetchCampaignData({ accountId, fields }) {
+  async _fetchCampaignData({ accountId, fields, onBatch }) {
     await this.getAccessToken();
 
     const developerToken = this._getDeveloperToken();
     const accumulated = [];
+    const emit =
+      onBatch ??
+      (async batch => {
+        accumulated.push(...batch);
+      });
 
     this.context.log(
       LOG_LEVEL.INFO,
@@ -587,7 +589,7 @@ export class MicrosoftAdsSource extends AbstractSource {
 
     const filteredMainData = MicrosoftAdsHelper.filterByFields(allRecords, fields);
     if (filteredMainData.length > 0) {
-      accumulated.push(...filteredMainData);
+      await emit(filteredMainData);
     }
 
     this.context.log(
@@ -608,8 +610,7 @@ export class MicrosoftAdsSource extends AbstractSource {
       campaignIds,
       onBatchReady: async batchRecords => {
         totalFetched += batchRecords.length;
-        const filteredBatch = MicrosoftAdsHelper.filterByFields(batchRecords, fields);
-        accumulated.push(...filteredBatch);
+        await emit(MicrosoftAdsHelper.filterByFields(batchRecords, fields));
       },
     });
     this.context.log(

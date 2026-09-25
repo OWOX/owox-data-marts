@@ -199,6 +199,42 @@ describe('_downloadEntity streaming', () => {
   });
 });
 
+describe('fetchData campaigns streaming', () => {
+  // A large account's Keywords do not fit in memory (#1545), so each batch goes to storage
+  // as it arrives and none is kept.
+  it('hands each batch to onBatch as it arrives and keeps none', async () => {
+    const batches = [];
+    const source = Object.assign(Object.create(proto), {
+      fieldsSchema: { campaigns: { uniqueKeys: ['Id'] } },
+      context: { log() {}, getParameter: () => null },
+      getAccessToken: async () => {},
+      _getDeveloperToken: () => 'developer-token',
+      _getAccessTokenValue: () => 'access-token',
+      _getCustomerId: () => 'customer-id',
+      _downloadEntity: async ({ submitOpts }) =>
+        JSON.parse(submitOpts.body).DownloadEntities[0] === 'Campaigns'
+          ? [{ Type: 'Campaign', Id: '1' }]
+          : [],
+      _fetchEntityByCampaigns: async ({ onBatchReady }) => {
+        await onBatchReady([{ Type: 'Keyword', Id: '10' }]);
+        await onBatchReady([{ Type: 'Keyword', Id: '11' }]);
+      },
+    });
+
+    const result = await source.fetchData({
+      nodeName: 'campaigns',
+      accountId: '42',
+      fields: ['Type', 'Id'],
+      onBatch: async batch => {
+        batches.push(batch.map(record => record.Id));
+      },
+    });
+
+    expect(result).toEqual([]);
+    expect(batches).toEqual([['1'], ['10'], ['11']]);
+  });
+});
+
 describe('getAccounts', () => {
   const accountsFor = value =>
     proto.getAccounts.call(proto, {

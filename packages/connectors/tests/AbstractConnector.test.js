@@ -3093,6 +3093,57 @@ describe('AbstractConnector', () => {
     });
   });
 
+  describe('catalog nodes a source fetches in batches', () => {
+    // A catalog can be too large to hold, and a page that fails must not cost the pages
+    // before it: main's Microsoft Ads and Facebook wrote each batch as it arrived.
+    it('writes each batch as the source hands it over', async () => {
+      const restore = suppressStdout();
+      try {
+        const StorageClass = createMockStorageClass();
+        const writtenWhenSecondBatchArrived = [];
+        const source = createMockSource({
+          fetchData: async req => {
+            await req.onBatch([{ id: 1 }, { id: 2 }]);
+            writtenWhenSecondBatchArrived.push(StorageClass.instances[0].savedData.length);
+            await req.onBatch([{ id: 3 }]);
+            return [];
+          },
+        });
+        await new AbstractConnector(createTestContext(), source, StorageClass).run();
+        assert.deepStrictEqual(writtenWhenSecondBatchArrived, [2]);
+        assert.deepStrictEqual(
+          StorageClass.instances[0].savedData.map(row => row.id),
+          [1, 2, 3]
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it('keeps the batches written before the source failed', async () => {
+      const restore = suppressStdout();
+      try {
+        const StorageClass = createMockStorageClass();
+        const source = createMockSource({
+          fetchData: async req => {
+            await req.onBatch([{ id: 1 }]);
+            throw new Error('HTTP 500 on page 2');
+          },
+        });
+        await assert.rejects(
+          () => new AbstractConnector(createTestContext(), source, StorageClass).run(),
+          /HTTP 500 on page 2/
+        );
+        assert.deepStrictEqual(
+          StorageClass.instances[0].savedData.map(row => row.id),
+          [1]
+        );
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('storage failures', () => {
     const runError = connector =>
       connector.run().then(

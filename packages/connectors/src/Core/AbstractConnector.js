@@ -813,6 +813,10 @@ export class AbstractConnector {
           accountId: account?.id ?? null,
           startDate: null,
           endDate: null,
+          // A source that fetches a catalog in batches writes each one as it arrives, as
+          // main's Microsoft Ads and Facebook did: a large catalog does not fit in memory,
+          // and a page that fails must not cost the pages before it.
+          onBatch: batch => this._writeBatch(writer, batch, fields),
         });
         await this._writeBatch(writer, data, fields);
       });

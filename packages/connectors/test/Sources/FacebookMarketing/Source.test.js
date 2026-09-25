@@ -161,3 +161,32 @@ describe('_fetchInsightsData short link workflow', () => {
     expect(result).toBe(rows);
   });
 });
+
+describe('_fetchPaginatedData with onBatch', () => {
+  // main saved a catalog page by page (#1130), so a failure on page N keeps pages 1..N-1.
+  it('hands each page to onBatch and keeps none', async () => {
+    const pages = [
+      { data: [{ id: '1' }], paging: { next: 'https://graph.facebook.com/page-2' } },
+      { data: [{ id: '2' }] },
+    ];
+    const source = Object.assign(Object.create(proto), {
+      context: { log: () => {} },
+      _mapResultToColumns: record => record,
+      castRecordFields: (_nodeName, record) => record,
+      urlFetchWithRetry: vi.fn(async () => ({ json: async () => pages.shift() })),
+    });
+    const batches = [];
+
+    const result = await source._fetchPaginatedData(
+      'https://graph.facebook.com/page-1',
+      'ad-account/ads',
+      ['id'],
+      async batch => {
+        batches.push(batch.map(record => record.id));
+      }
+    );
+
+    expect(result).toEqual([]);
+    expect(batches).toEqual([['1'], ['2']]);
+  });
+});
