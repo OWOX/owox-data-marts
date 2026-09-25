@@ -209,7 +209,7 @@ describe('ConnectorCredentialInjectorService', () => {
       const { service } = createService();
       const config = { field1: 'value1', field2: 'value2' };
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result).toEqual(config);
     });
@@ -223,13 +223,14 @@ describe('ConnectorCredentialInjectorService', () => {
       (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
         id: 'secret-1',
         projectId: 'proj-1',
+        connectorName: 'FacebookMarketing',
         credentials: secrets,
       });
       (connectorSecretService.injectSecretsAtPaths as jest.Mock).mockImplementation(
         () => undefined
       );
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result).not.toHaveProperty('_secrets_id');
       expect(connectorSecretService.injectSecretsAtPaths).toHaveBeenCalledWith(
@@ -250,13 +251,14 @@ describe('ConnectorCredentialInjectorService', () => {
       (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
         id: 'secret-1',
         projectId: 'proj-1',
+        connectorName: 'FacebookMarketing',
         credentials: secrets,
       });
       (connectorSecretService.injectSecretsAtPaths as jest.Mock).mockImplementation(
         () => undefined
       );
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result.GeneratedRefreshToken).toEqual({ value: 'generated-refresh-token' });
       expect(result).not.toHaveProperty('generated_refresh_token');
@@ -272,7 +274,7 @@ describe('ConnectorCredentialInjectorService', () => {
 
       (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue(null);
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result).toHaveProperty('_secrets_id');
       expect(result).toEqual(config);
@@ -288,10 +290,29 @@ describe('ConnectorCredentialInjectorService', () => {
         credentials: { key: 'value' },
       });
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result).toHaveProperty('_secrets_id');
       expect(result).toEqual(config);
+    });
+
+    // A secrets record keeps the name of the connector its values were entered for.
+    it('does not inject secrets saved for another connector', async () => {
+      const { service, connectorSourceCredentialsService, connectorSecretService } =
+        createService();
+      const config = { _secrets_id: 'secret-1', AccessToken: undefined, field1: 'value1' };
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secret-1',
+        projectId: 'proj-1',
+        connectorName: 'Shopify',
+        credentials: { AccessToken: 'shpat_live' },
+      });
+
+      const result = await service.injectSecrets(config, 'proj-1', 'MyCustomConnector');
+
+      expect(connectorSecretService.injectSecretsAtPaths).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain('shpat_live');
     });
 
     it('returns config on error', async () => {
@@ -302,7 +323,7 @@ describe('ConnectorCredentialInjectorService', () => {
         new Error('database error')
       );
 
-      const result = await service.injectSecrets(config, 'proj-1');
+      const result = await service.injectSecrets(config, 'proj-1', 'FacebookMarketing');
 
       expect(result).toHaveProperty('_secrets_id');
       expect(result).toEqual(config);

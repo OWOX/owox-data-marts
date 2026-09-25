@@ -255,6 +255,28 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]._id).toBe('y');
     });
 
+    // Only a hand-made request keeps a configuration's _id while switching its connector. The
+    // new connector would receive the old one's secrets in any parameter with the same name,
+    // and a custom connector sends them wherever its manifest says.
+    it('does not carry secrets over to another connector', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      const previous = makeDefinition(
+        [{ _id: 'a', _secrets_id: 'shop-secrets', AccessToken: SECRET_MASK, ShopDomain: 'x' }],
+        'Shopify'
+      );
+      const incoming = makeDefinition(
+        [{ _id: 'a', _secrets_id: 'shop-secrets', AccessToken: SECRET_MASK }],
+        'MyCustomConnector'
+      );
+
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
+      expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
+    });
+
     it('drops stale _secrets_id when an item switches to OAuth credentials', async () => {
       const { service, credentialsService } = createService(['RefreshToken']);
       const previous = makeDefinition([

@@ -769,14 +769,24 @@ export class ConnectorSecretService {
       incoming.connector.source.name,
       incoming.connector.source.version
     );
-    const previousConfiguration = previous?.connector?.source?.configuration || [];
+    // Secrets stay with the connector they were entered for. Only a hand-made request keeps a
+    // configuration's _id while switching its connector, and the new connector would receive
+    // the old one's secrets in any parameter with the same name — a custom one sends them
+    // wherever its manifest says. Compared without case, as MySQL resolves a connector's name.
+    const previousName = previous?.connector?.source?.name;
+    const switchedConnector =
+      typeof previousName === 'string' &&
+      previousName.toLowerCase() !== incoming.connector.source.name.toLowerCase();
+    const previousConfiguration = switchedConnector
+      ? []
+      : previous?.connector?.source?.configuration || [];
 
     const mergedConfiguration = await Promise.all(
       incoming.connector.source.configuration.map(async item => {
         const incomingItem = (item || {}) as Record<string, unknown>;
         const usesSourceCredentials = this.hasSourceCredentialIdRecursively(incomingItem);
 
-        if (usesSourceCredentials) {
+        if (usesSourceCredentials || switchedConnector) {
           delete incomingItem._secrets_id;
         }
 

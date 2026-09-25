@@ -139,7 +139,8 @@ describe('ConnectorPreviewCredentialsService', () => {
     await service.inject('GoogleSheets', config, context);
     expect(credentialInjector.injectSecrets).toHaveBeenCalledWith(
       expect.not.objectContaining({ _secrets_id: expect.anything() }),
-      'proj-1'
+      'proj-1',
+      'GoogleSheets'
     );
     expect(credentials.getCredentialsById).not.toHaveBeenCalled();
     expect(access.canAccess).not.toHaveBeenCalled();

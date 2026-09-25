@@ -224,7 +224,8 @@ export class ConnectorCredentialInjectorService {
    */
   async injectSecrets(
     config: Record<string, unknown>,
-    projectId: string
+    projectId: string,
+    connectorName: string
   ): Promise<Record<string, unknown>> {
     const secretsId = config._secrets_id as string | undefined;
 
@@ -246,6 +247,16 @@ export class ConnectorCredentialInjectorService {
       if (secretsEntity.projectId !== projectId) {
         this.logger.warn(
           `Secrets ${secretsId} belong to project ${secretsEntity.projectId}, not ${projectId}. Skipping injection.`
+        );
+        return config;
+      }
+
+      // A secrets record keeps the name of the connector its values were entered for. Handing
+      // them to another connector would give them to whatever that connector does with a
+      // parameter of the same name, as the OAuth and copy paths already refuse to.
+      if (secretsEntity.connectorName?.toLowerCase() !== connectorName.toLowerCase()) {
+        this.logger.warn(
+          `Secrets ${secretsId} were saved for connector ${secretsEntity.connectorName}, not ${connectorName}. Skipping injection.`
         );
         return config;
       }
