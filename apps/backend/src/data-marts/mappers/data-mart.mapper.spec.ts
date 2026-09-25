@@ -654,45 +654,12 @@ describe('DataMartMapper', () => {
     // to the bundled-only path, throws NotFound, and ConnectorSecretService fails closed by
     // masking EVERY configuration value — which in run history means dates, account ids and
     // node params all come back as `**********`, plus a logger warning per run per page.
-    const SECRET_MASK = '**********';
-    const maskEveryValue = (definition: Record<string, never>) => {
-      const source = (definition as never as ConnectorDefinitionShape).connector.source;
-      return {
-        connector: {
-          ...(definition as never as ConnectorDefinitionShape).connector,
-          source: {
-            ...source,
-            configuration: source.configuration.map(item =>
-              Object.fromEntries(
-                Object.entries(item).map(([key, value]) => [
-                  key,
-                  key.startsWith('_') ? value : SECRET_MASK,
-                ])
-              )
-            ),
-          },
-        },
-      };
-    };
-
-    interface ConnectorDefinitionShape {
-      connector: {
-        source: {
-          name: string;
-          version?: number;
-          node: string;
-          fields: string[];
-          configuration: Array<Record<string, unknown>>;
-        };
-        storage: { fullyQualifiedName: string };
-      };
-    }
+    // What masking keeps is ConnectorSecretService's own spec; here, that the mapper asks it
+    // with the project and hands out its answer, never the stored definition.
+    const MASKED = { connector: { source: { name: 'MyCustomConnector', masked: true } } };
 
     const createMapper = async () => {
-      const mask = jest.fn(
-        async (projectId: string | undefined, definition: Record<string, never>) =>
-          projectId === undefined ? maskEveryValue(definition) : definition
-      );
+      const mask = jest.fn().mockResolvedValue(MASKED);
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           DataMartMapper,
@@ -734,9 +701,6 @@ describe('DataMartMapper', () => {
         createdAt: new Date('2026-08-01T00:00:00Z'),
       }) as unknown as DataMartRunEntity;
 
-    const configurationOf = (definition: unknown) =>
-      (definition as ConnectorDefinitionShape).connector.source.configuration[0];
-
     it('resolves the run definition specification within the requesting project', async () => {
       const { mapper: scopedMapper, mask } = await createMapper();
 
@@ -751,15 +715,8 @@ describe('DataMartMapper', () => {
 
       expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
       expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything(), expect.anything());
-      // Non-secret configuration survives, exactly as it does on GET /data-marts/:id.
-      expect(configurationOf(list.runs[0].definitionRun)).toMatchObject({
-        AccountId: '12345',
-        StartDate: '2026-01-01',
-      });
-      expect(configurationOf(detail.definitionRun)).toMatchObject({
-        AccountId: '12345',
-        StartDate: '2026-01-01',
-      });
+      expect(list.runs[0].definitionRun).toEqual(MASKED);
+      expect(detail.definitionRun).toEqual(MASKED);
     });
 
     it('shares one specification cache across the runs of a list', async () => {
@@ -812,10 +769,7 @@ describe('DataMartMapper', () => {
       );
 
       expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
-      expect(configurationOf(response.runs[0].definitionRun)).toMatchObject({
-        AccountId: '12345',
-        StartDate: '2026-01-01',
-      });
+      expect(response.runs[0].definitionRun).toEqual(MASKED);
     });
   });
 });
