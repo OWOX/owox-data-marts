@@ -792,6 +792,27 @@ export class ManifestParser {
             );
           }
         }
+        // An empty or missing path makes getPath return the WHOLE response. A status that is
+        // the whole body never equals readyValue, so the poll loop burns every attempt (~44
+        // minutes at the defaults) before failing; a job id or a result URL that is the whole
+        // body fails later, and names the upstream API rather than the manifest.
+        for (const [where, path] of [
+          ['submit.jobIdPath', r.submit.jobIdPath],
+          ['poll.statusPath', r.poll.statusPath],
+          ['poll.resultUrlPath', r.poll.resultUrlPath],
+        ]) {
+          if (!Array.isArray(path) || path.length === 0) {
+            throw new Error(
+              `ManifestParser: node "${nodeName}" async retriever requires a non-empty "${where}": the keys that lead to that value in the response`
+            );
+          }
+        }
+        const readyValue = r.poll.readyValue;
+        if (!['string', 'number', 'boolean'].includes(typeof readyValue) || readyValue === '') {
+          throw new Error(
+            `ManifestParser: node "${nodeName}" async retriever requires "poll.readyValue": the status that means the job is done`
+          );
+        }
       } else {
         throw new Error(
           `ManifestParser: node "${nodeName}" retriever.type "${rType}" not supported`

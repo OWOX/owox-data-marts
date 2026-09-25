@@ -272,6 +272,44 @@ describe('ManifestParser', () => {
     );
   });
 
+  // An empty or missing path makes getPath return the WHOLE response: a status that is the
+  // whole body never equals readyValue, so the poll loop burns all its attempts. The builder
+  // starts every one of these empty.
+  it('requires every async job path to name at least one key', () => {
+    for (const [where, overrides] of [
+      ['submit.jobIdPath', { jobIdPath: [] }],
+      ['poll.statusPath', { statusPath: [] }],
+      ['poll.resultUrlPath', { resultUrlPath: [] }],
+    ]) {
+      assert.throws(
+        () => new ManifestParser().parse(JSON.stringify(asyncNodeWith(overrides))),
+        new RegExp(`async retriever requires a non-empty "${where.replace('.', '\\.')}"`),
+        where
+      );
+    }
+    const missing = asyncNodeWith({});
+    delete missing.nodes.rates.retriever.poll.statusPath;
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(missing)),
+      /async retriever requires a non-empty "poll\.statusPath"/
+    );
+  });
+
+  it('requires the status value that means the async job is done', () => {
+    for (const readyValue of ['', undefined, null]) {
+      const m = asyncNodeWith({});
+      m.nodes.rates.retriever.poll.readyValue = readyValue;
+      assert.throws(
+        () => new ManifestParser().parse(JSON.stringify(m)),
+        /async retriever requires "poll\.readyValue"/,
+        String(readyValue)
+      );
+    }
+    const numeric = asyncNodeWith({});
+    numeric.nodes.rates.retriever.poll.readyValue = 2;
+    assert.doesNotThrow(() => new ManifestParser().parse(JSON.stringify(numeric)));
+  });
+
   // errorHandler is wired for SYNC retrievers only (DeclarativeSource.fetchData
   // gates it on `retriever.type !== "async"`), so on an async node the author's
   // RETRY/IGNORE rules and waitTimeFromHeader backoff never run. Same policy the
