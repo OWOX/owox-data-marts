@@ -76,7 +76,7 @@ Facebook ads often point to short links. OWOX can follow each short link and sto
 
 Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects them by default. A parsed field holds the landing page for short links and the original value for other links.
 
-OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts, such as `https://links.example.com/abc/xyz`, resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts, such as `https://links.example.com/abc/xyz`, resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
 
 OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page. OWOX follows HTTP redirects only, so a short link that opens an interstitial page stays unresolved.
 

@@ -224,7 +224,8 @@ See also: mysql2 official SSL documentation — <https://sidorares.github.io/nod
 
 Ads connectors can resolve short links in landing URL fields to their final destination.
 Single-part short links, such as `https://bit.ly/abc123`, resolve on any domain. Links with
-several path parts resolve only on the domains you list here.
+several path parts resolve only on the domains you list here. In OWOX Cloud, OWOX manages this
+value; contact support to add a domain.
 
 | Variable                       | Purpose                                                                                                                                                                     |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -94,7 +94,12 @@ var AbstractConnector = class AbstractConnector {
       if (activeSpecs.length === 0) return data;
 
       return resolveShortLinkFields(data, activeSpecs, {
-        nestedPathHosts: getShortLinkDomainsFromEnv(),
+        nestedPathHosts: [
+          ...getShortLinkDomainsFromEnv(),
+          // Domains saved by the former Facebook "Short Link Domains" setting keep working, whatever
+          // the rollout order of CONNECTOR_SHORT_LINK_DOMAINS. Drop once every environment sets it.
+          ...parseShortLinkDomains(this.config.ShortLinkDomains?.value)
+        ],
         resolvedLinksCache: this._shortLinksCache
       });
     }

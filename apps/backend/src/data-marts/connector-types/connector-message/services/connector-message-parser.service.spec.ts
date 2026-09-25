@@ -20,6 +20,25 @@ describe('ConnectorMessageParserService', () => {
     expect(result.toFormattedString()).toBe('[STATE_UPDATE] shortLinks');
   });
 
+  it('rejects a connector state update that tries to move the incremental cursor', () => {
+    const service = createService();
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    try {
+      const result = service.parse(
+        JSON.stringify({
+          type: ConnectorMessageType.STATE_UPDATE,
+          at: '2026-09-24 10:00:00',
+          state: { date: '2026-01-01', shortLinks: {} },
+        })
+      );
+
+      expect(result.type).toBe(ConnectorMessageType.UNKNOWN);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('redacts malformed credential update messages parsed as unknown', () => {
     const service = createService();
 

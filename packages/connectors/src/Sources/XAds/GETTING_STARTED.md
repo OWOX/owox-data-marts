@@ -47,7 +47,7 @@ Ads often point to short links. OWOX can follow each short link and store the la
 
 Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects `website_url` and `website_url_parsed` by default. A parsed field holds the landing page for short links and the original value for other links.
 
-OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
 
 OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
 

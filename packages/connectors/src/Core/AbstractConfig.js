@@ -149,12 +149,12 @@ class AbstractConfig {
           let parameter = this[ name ];
 
           // there is default value, but there is no original value
-          if( "default" in parameter && (!parameter.value && parameter.value !== 0) ) {
+          if( "default" in parameter && this._isAbsent(parameter.value) ) {
             parameter.value = parameter.default;
           }
           
           // if parameter's value is required but value is absent
-          if( (!parameter.value && parameter.value !== 0) && parameter.isRequired == true) {
+          if( this._isAbsent(parameter.value) && parameter.isRequired == true) {
             throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter '${name}' is required but was provided with an empty value`)
           }
 
@@ -305,6 +305,18 @@ class AbstractConfig {
      */
     updateState(state) {
       // No-op by default: only runtimes with a structured transport need to emit this.
+    }
+    //----------------------------------------------------------------
+
+  //---- _isAbsent ---------------------------------------------------
+    /**
+     * Whether a parameter carries no value at all. A saved `false` or `0` is a value:
+     * treating it as absent would silently replace an unchecked boolean with its default.
+     * @param {*} value - Parameter value
+     * @returns {boolean} True for undefined, null or an empty string
+     */
+    _isAbsent(value) {
+      return value === undefined || value === null || value === '';
     }
     //----------------------------------------------------------------
 

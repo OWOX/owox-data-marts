@@ -171,7 +171,7 @@ export class DataMartMapper {
       definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
-      connectorState: dto.connectorState,
+      connectorState: omitConnectorOwnedState(dto.connectorState),
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       blendedFieldsConfig: dto.blendedFieldsConfig,
@@ -848,4 +848,30 @@ export class DataMartMapper {
       : run.additionalParams?.totals;
     return (totals as Record<string, number | string | boolean | null> | undefined) ?? null;
   }
+}
+
+/**
+ * Keys a connector writes for its own use, such as the short link cache (up to 500 URL pairs).
+ * They mean nothing to API clients and would bloat every Data Mart response and the Run sheet's
+ * State Info block, so they stay out of the wire format.
+ */
+const CONNECTOR_OWNED_STATE_KEYS: readonly string[] = ['shortLinks'];
+
+function omitConnectorOwnedState(
+  connectorState?: ConnectorStateData
+): ConnectorStateData | undefined {
+  if (!connectorState) {
+    return connectorState;
+  }
+  const strip = (state: Record<string, unknown>): Record<string, unknown> =>
+    Object.fromEntries(
+      Object.entries(state).filter(([key]) => !CONNECTOR_OWNED_STATE_KEYS.includes(key))
+    );
+  return {
+    ...connectorState,
+    ...(connectorState.state ? { state: strip(connectorState.state) } : {}),
+    ...(connectorState.states
+      ? { states: connectorState.states.map(item => ({ ...item, state: strip(item.state) })) }
+      : {}),
+  };
 }

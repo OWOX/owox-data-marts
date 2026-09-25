@@ -41,3 +41,34 @@ describe('addWarningToCurrentStatus', () => {
     expect(emitted.warning.length).toBeGreaterThan(0);
   });
 });
+
+// The edit form saves an unchecked box as boolean false. validate() used to treat any falsy
+// value as "absent" and put the default back, so a saved false silently became true.
+describe('validate() defaults', () => {
+  const buildConfig = values =>
+    new NodeJsConfig({
+      source: { name: 'Src', config: values },
+      storage: { name: 'Storage', config: {} },
+    }).mergeParameters({
+      ProcessShortLinks: { requiredType: 'boolean', default: true },
+      Limit: { requiredType: 'number', default: 100 },
+    });
+
+  it('keeps a saved false instead of replacing it with the default', () => {
+    const config = buildConfig({ ProcessShortLinks: { value: false } }).validate();
+
+    expect(config.ProcessShortLinks.value).toBe(false);
+  });
+
+  it('still applies the default when the value is missing, null or empty', () => {
+    expect(buildConfig({}).validate().ProcessShortLinks.value).toBe(true);
+    expect(
+      buildConfig({ ProcessShortLinks: { value: null } }).validate().ProcessShortLinks.value
+    ).toBe(true);
+    expect(buildConfig({ Limit: { value: '' } }).validate().Limit.value).toBe(100);
+  });
+
+  it('keeps a saved zero for a numeric parameter', () => {
+    expect(buildConfig({ Limit: { value: 0 } }).validate().Limit.value).toBe(0);
+  });
+});

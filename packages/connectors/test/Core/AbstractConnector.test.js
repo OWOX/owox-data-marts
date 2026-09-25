@@ -73,6 +73,27 @@ describe('short link resolution hook', () => {
     expect(result[0].click_url_parsed).toBe('https://example.com/seeded');
   });
 
+  it('still honors domains saved by the former Short Link Domains setting', async () => {
+    const landing = 'https://example.com/landing';
+    globalThis.HttpUtils = {
+      fetch: vi.fn(async url =>
+        url === landing
+          ? { getResponseCode: () => 200, getHeaders: () => ({}) }
+          : { getResponseCode: () => 302, getHeaders: () => ({ location: landing }) }
+      ),
+    };
+    const connector = buildConnector();
+    connector.config.ShortLinkDomains = { value: 'short.example' };
+
+    const result = await connector.resolveShortLinks(
+      'ads',
+      [{ click_url: 'https://short.example/a/b' }],
+      ['click_url', 'click_url_parsed']
+    );
+
+    expect(result[0].click_url_parsed).toBe(landing);
+  });
+
   it('does nothing without a spec, with the toggle off, or when field or target is not selected', async () => {
     const data = [{ click_url: 'https://short.example/abc123' }];
     const both = ['click_url', 'click_url_parsed'];
