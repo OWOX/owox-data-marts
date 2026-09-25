@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from '../../../../app/api';
 import { ApiService } from '../../../../services/api-service';
 import type { BuilderManifest } from '../model/manifest.types';
 import type {
@@ -12,6 +13,12 @@ import type {
   TestConnectorPayload,
   UpdateCustomConnectorMetadataPayload,
 } from './types';
+
+/**
+ * For the writes the builder reports itself, in a toast and in its error state. Without it
+ * the API client toasted the same failure too, so each one showed twice.
+ */
+const REPORTED_BY_BUILDER: AxiosRequestConfig = { skipErrorToast: true };
 
 export class ConnectorBuilderApiService extends ApiService {
   constructor() {
@@ -33,14 +40,22 @@ export class ConnectorBuilderApiService extends ApiService {
   async create(
     payload: CreateCustomConnectorPayload
   ): Promise<{ id: string; name: string; title: string }> {
-    return this.post<{ id: string; name: string; title: string }>('/', payload);
+    return this.post<{ id: string; name: string; title: string }>(
+      '/',
+      payload,
+      REPORTED_BY_BUILDER
+    );
   }
 
   async saveDraft(
     id: string,
     manifest: BuilderManifest
   ): Promise<CustomConnectorVersionSummaryDto> {
-    return this.put<CustomConnectorVersionSummaryDto>(`/${id}/draft`, { manifest });
+    return this.put<CustomConnectorVersionSummaryDto>(
+      `/${id}/draft`,
+      { manifest },
+      REPORTED_BY_BUILDER
+    );
   }
 
   /**
@@ -53,11 +68,15 @@ export class ConnectorBuilderApiService extends ApiService {
     id: string,
     metadata: UpdateCustomConnectorMetadataPayload
   ): Promise<CustomConnectorDetailDto> {
-    return this.patch<CustomConnectorDetailDto>(`/${id}`, metadata);
+    return this.patch<CustomConnectorDetailDto>(`/${id}`, metadata, REPORTED_BY_BUILDER);
   }
 
   async publish(id: string): Promise<PublishCustomConnectorResultDto> {
-    return this.post<PublishCustomConnectorResultDto>(`/${id}/publish`);
+    return this.post<PublishCustomConnectorResultDto>(
+      `/${id}/publish`,
+      undefined,
+      REPORTED_BY_BUILDER
+    );
   }
 
   async test(payload: TestConnectorPayload): Promise<ConnectorTestResultDto> {
@@ -65,10 +84,14 @@ export class ConnectorBuilderApiService extends ApiService {
   }
 
   async activateVersion(id: string, version: number): Promise<ActivateVersionResultDto> {
-    return this.post<ActivateVersionResultDto>(`/${id}/versions/${version}/activate`);
+    return this.post<ActivateVersionResultDto>(
+      `/${id}/versions/${version}/activate`,
+      undefined,
+      REPORTED_BY_BUILDER
+    );
   }
 
   async softDelete(id: string): Promise<void> {
-    await this.delete(`/${id}`);
+    await this.delete(`/${id}`, REPORTED_BY_BUILDER);
   }
 }

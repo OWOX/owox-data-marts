@@ -55,6 +55,10 @@ export function BuilderTopBar({
   // Publish is guarded too: it saves the draft first, so it destroys the same row.
   const [pendingWrite, setPendingWrite] = useState<'save' | 'publish' | null>(null);
   const atRisk = draftVersionAtRisk(state);
+  // The newest version is already published and nothing changed since: a publish would only be
+  // refused for having no draft.
+  const nothingToPublish =
+    state.id !== null && !state.dirty && state.versions.at(-1)?.status === 'published';
   const write = (kind: 'save' | 'publish') => {
     if (atRisk !== null) setPendingWrite(kind);
     else if (kind === 'save') void saveDraft();
@@ -132,7 +136,7 @@ export function BuilderTopBar({
           // everything typed since, and says "Published". No explanation is needed on the
           // buttons: an unparseable buffer only exists in Code mode, where the parse error
           // is on screen above the editor.
-          disabled={state.saving || state.publishing || state.codeInvalid}
+          disabled={state.saving || state.publishing || state.codeInvalid || nothingToPublish}
           className='h-8 rounded-full'
         >
           {state.publishing ? 'Publishing…' : 'Publish'}

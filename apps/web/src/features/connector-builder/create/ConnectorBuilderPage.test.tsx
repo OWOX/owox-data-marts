@@ -582,3 +582,34 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
     expect(saveDraft.mock.invocationCallOrder[0]).toBeLessThan(publish.mock.invocationCallOrder[0]);
   });
 });
+
+describe('ConnectorBuilderPage — nothing to publish', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getById.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: 'version-1',
+      activeVersion: 1,
+      versions: [{ version: 1, status: 'published', publishedAt: '2026-06-01T00:00:00Z' }],
+    });
+    getVersion.mockResolvedValue({ version: 1, status: 'published', manifest: EXISTING_MANIFEST });
+  });
+
+  it('offers Publish only once something changed since the newest version was published', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    await waitFor(() => {
+      expect(baseUrl).toHaveValue('https://api.example.com');
+    });
+
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeDisabled();
+
+    fireEvent.change(baseUrl, { target: { value: 'https://api.example.org' } });
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled();
+  });
+});
