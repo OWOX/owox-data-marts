@@ -437,6 +437,40 @@ describe('ConnectorExecutorService', () => {
     );
   });
 
+  // One trace per request filled the run's log buffer on a long run, and the buffer keeps
+  // what came first, so the analytics the load status adds up were dropped.
+  it('keeps the analytics that arrive after thousands of request traces', async () => {
+    const { service, dataMartRunRepository, processSpawner, emitSuccessMessage, emitMessage } =
+      createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      for (let i = 0; i < MAX_MERGED_RUN_OUTPUT_ENTRIES + 10; i++) {
+        emitMessage({
+          type: ConnectorMessageType.LOG,
+          at: new Date().toISOString(),
+          message: '[TRACE] http_response {"records":1}',
+          eventType: 'TRACE',
+          toFormattedString: () => '[TRACE] http_response',
+        } as never);
+      }
+      emitMessage({
+        type: ConnectorMessageType.LOG,
+        at: new Date().toISOString(),
+        message: '[ANALYTICS] rows_written=250',
+        eventType: 'ANALYTICS',
+        toFormattedString: () => '[ANALYTICS] rows_written=250',
+      } as never);
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    )?.[1];
+    expect(finalUpdate.logs.join('\n')).toContain('rows_written=250');
+    expect(finalUpdate.logs.length).toBeLessThan(MAX_MERGED_RUN_OUTPUT_ENTRIES);
+  });
+
   it('keeps a run SUCCESS when an ERROR line arrives alongside IMPORT_DONE', async () => {
     // The engine withholds IMPORT_DONE whenever an account or a node really failed, so an
     // ERROR next to it is something the run survived: a raw stderr line such as a short

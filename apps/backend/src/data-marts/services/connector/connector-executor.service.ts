@@ -42,6 +42,13 @@ const MAX_MERGED_RUN_OUTPUT_BYTES = 6 * 1024 * 1024;
  */
 const MAX_RUN_BUFFER_ENTRIES = MAX_MERGED_RUN_OUTPUT_ENTRIES - 1;
 
+/**
+ * How many request traces one configuration's run keeps. A connector traces every request, so
+ * a long run filled the shared buffer with them, and the buffer keeps what came first: the
+ * logs and analytics after them, which the load status adds up, were dropped.
+ */
+const MAX_TRACE_ENTRIES = 1000;
+
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
@@ -484,6 +491,7 @@ export class ConnectorExecutorService {
 
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
+      let tracesKept = 0;
       // Serialises this configuration's checkpoint writes and is awaited before its result is
       // recorded, so the run's terminal status is never written before its last checkpoint.
       let progressWrite: Promise<void> = Promise.resolve();
@@ -627,6 +635,24 @@ export class ConnectorExecutorService {
               }
               break;
             default:
+              if (
+                message.type === ConnectorMessageType.LOG &&
+                message.eventType === 'TRACE' &&
+                ++tracesKept > MAX_TRACE_ENTRIES
+              ) {
+                if (tracesKept === MAX_TRACE_ENTRIES + 1) {
+                  const notice: ConnectorMessage = {
+                    type: ConnectorMessageType.LOG,
+                    at: message.at,
+                    message: `Only the first ${MAX_TRACE_ENTRIES} request traces of this run are kept.`,
+                    toFormattedString: () =>
+                      `[LOG] Only the first ${MAX_TRACE_ENTRIES} request traces of this run are kept.`,
+                  };
+                  addBoundedMessage(configLogs, notice);
+                  addBoundedMessage(liveLogs, notice);
+                }
+                break;
+              }
               addBoundedMessage(configLogs, message);
               addBoundedMessage(liveLogs, message);
               this.logger.log(`${message.toFormattedString()}`, {
