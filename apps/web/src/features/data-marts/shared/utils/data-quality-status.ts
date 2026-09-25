@@ -60,6 +60,16 @@ export const DATA_QUALITY_STATUS_TEXT_CLASSES: Record<DataQualityStatusTone, str
   notice: 'text-notice',
 };
 
+/** Canvas card accent-stripe background per Data Quality status tone. */
+export const DATA_QUALITY_STATUS_STRIPE_CLASSES: Record<DataQualityStatusTone, string> = {
+  neutral: 'bg-muted-foreground/50',
+  progress: 'bg-primary',
+  success: 'bg-success-accent',
+  warning: 'bg-warning',
+  error: 'bg-destructive',
+  notice: 'bg-notice',
+};
+
 function hasNoApplicableChecks(summary: DataQualityVisualSummary): boolean {
   return (summary.totalChecks ?? 0) > 0 && summary.notApplicableChecks === summary.totalChecks;
 }
