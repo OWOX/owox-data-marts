@@ -81,11 +81,15 @@ export function createConnectorPreviewSource(
 ): ConnectorPreviewSource {
   const SourceClass = Connectors[connectorName][`${connectorName}Source`];
 
+  // The web sends the configuration as the form holds it, so it is converted to the
+  // { value, items } shape a run gets from ConnectorSourceConfigService; without that,
+  // AuthType of a Google Sheets preview read as missing.
+  const { config } = new Core.SourceConfigDto({ name: connectorName, config: configuration });
   // Storage and run config are required by the context but inert here: a preview only ever
   // reads the source's own schema, so there is no destination to write and no run to record.
   const context = createConnectorPreviewContext(
     {
-      source: { name: connectorName, config: configuration },
+      source: { name: connectorName, config },
       storage: { name: 'unused', config: {} },
       runConfig: {},
       env: { datamartId: null, runId: null },

@@ -18,6 +18,15 @@ jest.mock('@owox/connectors', () => {
 
   class ConnectorConfigurationException extends Error {}
 
+  // Passes the configuration through: the conversion it stands in for is covered against
+  // the real package in connector-preview-support.spec.ts.
+  class SourceConfigDto {
+    readonly config: Record<string, unknown>;
+    constructor({ config }: { config: Record<string, unknown> }) {
+      this.config = config;
+    }
+  }
+
   class GoogleSheetsSource {
     constructor(public readonly context: AbstractContext) {}
 
@@ -30,7 +39,7 @@ jest.mock('@owox/connectors', () => {
     Connectors: {
       GoogleSheets: { GoogleSheetsSource },
     },
-    Core: { AbstractContext, ConnectorConfigurationException },
+    Core: { AbstractContext, ConnectorConfigurationException, SourceConfigDto },
   };
 });
 
