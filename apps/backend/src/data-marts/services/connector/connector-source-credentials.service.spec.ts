@@ -524,20 +524,4 @@ describe('ConnectorSourceCredentialsService', () => {
       expect(result).toBe(true);
     });
   });
-
-  describe('isCredentialExpired', () => {
-    it('answers from the row in hand without a repository round-trip', () => {
-      const { service, repository } = createService();
-
-      expect(service.isCredentialExpired({ expiresAt: null })).toBe(false);
-      expect(service.isCredentialExpired({ expiresAt: undefined })).toBe(false);
-      expect(service.isCredentialExpired({ expiresAt: new Date(Date.now() + 3600_000) })).toBe(
-        false
-      );
-      expect(service.isCredentialExpired({ expiresAt: new Date(Date.now() - 3600_000) })).toBe(
-        true
-      );
-      expect(repository.findOne).not.toHaveBeenCalled();
-    });
-  });
 });

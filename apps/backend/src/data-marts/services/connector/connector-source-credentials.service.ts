@@ -143,20 +143,6 @@ export class ConnectorSourceCredentialsService {
       return true;
     }
 
-    return this.isCredentialExpired(credentials);
-  }
-
-  /**
-   * Check whether a credentials row already in hand is expired
-   *
-   * The in-memory twin of isExpired(id), for callers that just loaded the row
-   * and would otherwise re-fetch it once per row. Same semantics: a null
-   * expiresAt means "never expires".
-   *
-   * @param credentials - A credentials row (only expiresAt is read)
-   * @returns true if expired, false otherwise
-   */
-  isCredentialExpired(credentials: Pick<ConnectorSourceCredentials, 'expiresAt'>): boolean {
     if (!credentials.expiresAt) {
       return false;
     }

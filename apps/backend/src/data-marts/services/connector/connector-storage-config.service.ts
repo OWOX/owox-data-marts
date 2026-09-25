@@ -1,6 +1,5 @@
 // connector-storage-config.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 
 import { Core } from '@owox/connectors';
 
@@ -36,8 +35,7 @@ export class ConnectorStorageConfigService {
 
   constructor(
     private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
-    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
-    private readonly configService: ConfigService
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService
   ) {}
 
   async buildStorageConfig(dataMart: DataMart): Promise<StorageConfigDto> {
