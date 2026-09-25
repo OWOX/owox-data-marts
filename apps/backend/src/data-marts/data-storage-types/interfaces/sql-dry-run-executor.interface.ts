@@ -8,7 +8,6 @@ export interface SqlDryRunExecutor extends TypedComponent<DataStorageType> {
   execute(
     dataStorageCredentials: DataStorageCredentials,
     dataStorageConfig: DataStorageConfig,
-    sql: string,
-    storageId?: string
+    sql: string
   ): Promise<SqlDryRunResult>;
 }

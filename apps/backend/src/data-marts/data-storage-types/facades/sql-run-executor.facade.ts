@@ -21,11 +21,10 @@ export class SqlRunExecutorFacade {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: SqlRunExecuteOptions,
-    storageId?: string
+    options?: SqlRunExecuteOptions
   ): AsyncGenerator<SqlRunBatch<Row>> {
     const executor = await this.resolver.resolve(type);
     // proxy generator from executor
-    yield* executor.execute<Row>(credentials, config, definition, sql, options, storageId);
+    yield* executor.execute<Row>(credentials, config, definition, sql, options);
   }
 }
