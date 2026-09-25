@@ -10,6 +10,7 @@ import { UnsavedChangesConfirmationDialog } from '../../../shared/components/Uns
 interface ConnectorBuilderRouteProps {
   id?: string;
   onBack?: () => void;
+  onDeleted?: () => void;
   onCreated?: (id: string) => void;
 }
 
@@ -49,7 +50,7 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
 }
 
 /** The builder plus the guard that holds back navigation while it has unsaved edits. */
-function GuardedBuilder({ id, onBack, onCreated }: ConnectorBuilderRouteProps) {
+function GuardedBuilder({ id, onBack, onDeleted, onCreated }: ConnectorBuilderRouteProps) {
   // A ref rather than state: nothing here re-renders on dirtiness, and the guard has to
   // read the flag at the instant a navigation is requested (see useUnsavedChangesGuard).
   const dirtyRef = useRef(false);
@@ -64,6 +65,7 @@ function GuardedBuilder({ id, onBack, onCreated }: ConnectorBuilderRouteProps) {
       <ConnectorBuilderPage
         id={id}
         onBack={onBack}
+        onDeleted={onDeleted}
         onCreated={onCreated}
         onDirtyChange={handleDirtyChange}
       />
@@ -97,5 +99,7 @@ export function ConnectorBuilderRoute(props: ConnectorBuilderRouteProps) {
   const backToConnectors = () => void navigate('../..', { relative: 'path' });
 
   if (!canEdit) return <BuilderNotAuthorised onBack={backToConnectors} />;
-  return <GuardedBuilder {...props} />;
+  // A deleted connector has no page to go back to, and going back in history left the app
+  // when the builder was opened from a link.
+  return <GuardedBuilder onDeleted={backToConnectors} {...props} />;
 }

@@ -187,4 +187,21 @@ describe('ConnectorBuilderEditPage', () => {
       expect(screen.queryByText('Unsaved Changes')).toBeNull();
     });
   });
+
+  // Deleting went back one step in history, which leaves the app when the builder was opened
+  // from a link, and otherwise lands wherever the author had been.
+  it('goes to the connectors list after deleting the connector', async () => {
+    const router = renderRoute();
+    await waitFor(() => {
+      expect(getVersion).toHaveBeenCalled();
+    });
+
+    fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByTestId('builder-delete'));
+    fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/connectors');
+    });
+  });
 });

@@ -32,11 +32,14 @@ export function BuilderTopBar({
   onToggleTest,
   onImportJson,
   onBack,
+  onDeleted,
   onToggleAi,
 }: {
   onToggleTest: () => void;
   onImportJson: () => void;
   onBack?: () => void;
+  /** Where to go once the connector is deleted. Without it the builder goes back. */
+  onDeleted?: () => void;
   onToggleAi?: () => void;
 }) {
   const { manifest, state, saveDraft, publish, softDelete, reset, flushCodeEdits } = useBuilder();
@@ -269,7 +272,7 @@ export function BuilderTopBar({
           void (async () => {
             const ok = await softDelete();
             setDeleteOpen(false);
-            if (ok) onBack?.();
+            if (ok) (onDeleted ?? onBack)?.();
           })();
         }}
       />

@@ -79,11 +79,13 @@ function BuilderCenter({
 function BuilderShell({
   id,
   onBack,
+  onDeleted,
   onCreated,
   onDirtyChange,
 }: {
   id?: string;
   onBack?: () => void;
+  onDeleted?: () => void;
   onCreated?: (id: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -192,6 +194,7 @@ function BuilderShell({
         }}
         onImportJson={manifestImport.openFilePicker}
         onBack={onBack}
+        onDeleted={onDeleted}
       />
 
       {/* Body: left config column + work area (form region above results dock) */}
@@ -282,17 +285,25 @@ function BuilderShell({
 export function ConnectorBuilderPage({
   id,
   onBack,
+  onDeleted,
   onCreated,
   onDirtyChange,
 }: {
   id?: string;
   onBack?: () => void;
+  onDeleted?: () => void;
   onCreated?: (id: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   return (
     <BuilderProvider>
-      <BuilderShell id={id} onBack={onBack} onCreated={onCreated} onDirtyChange={onDirtyChange} />
+      <BuilderShell
+        id={id}
+        onBack={onBack}
+        onDeleted={onDeleted}
+        onCreated={onCreated}
+        onDirtyChange={onDirtyChange}
+      />
     </BuilderProvider>
   );
 }
