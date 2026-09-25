@@ -46,6 +46,23 @@ describe('manifestJson', () => {
     expect(parseManifestJson('{"parameters":"x"}').ok).toBe(false);
   });
 
+  // The form reads these as objects; one that is not took the whole builder down, and Code
+  // mode or Import is where such a manifest comes from.
+  it('refuses a parameter or a node that is not an object', () => {
+    const withParameter = parseManifestJson(JSON.stringify({ parameters: { Token: null } }));
+    expect(withParameter).toEqual({ ok: false, error: 'parameter "Token" must be an object' });
+    const withNode = parseManifestJson(JSON.stringify({ nodes: { items: 'x' } }));
+    expect(withNode).toEqual({ ok: false, error: 'node "items" must be an object' });
+  });
+
+  it('refuses an authentication the builder does not know', () => {
+    const unknown = parseManifestJson(JSON.stringify({ authentication: { type: 'hmac' } }));
+    expect(unknown.ok).toBe(false);
+    expect(!unknown.ok && unknown.error).toContain('"hmac"');
+    const notAnObject = parseManifestJson(JSON.stringify({ authentication: 'bearer' }));
+    expect(notAnObject.ok).toBe(false);
+  });
+
   it('preserves authentication and optional string fields through the round-trip', () => {
     const m = createEmptyManifest();
     m.title = 'My API';
