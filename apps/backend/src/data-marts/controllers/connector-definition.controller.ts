@@ -14,8 +14,8 @@ import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthorizationContext, AuthContext } from '../../idp';
 import { RejectPluginAuth } from '../../idp/decorators';
 import { Role } from '../../idp/types/role-config.types';
-import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
-import { ConnectorSpecification } from '../connector-types/connector-specification';
+import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
+import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
 import { ConnectorDefinitionService } from '../services/connector/connector-definition.service';
 import { ConnectorService } from '../services/connector/connector.service';
 import { ConnectorTestService } from '../services/connector/connector-test.service';
@@ -37,6 +37,7 @@ import {
   PublishCustomConnectorResponseApiDto,
 } from '../dto/presentation/custom-connector-response.dto';
 import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
+import { ConnectorMapper } from '../mappers/connector.mapper';
 import {
   ActivateCustomConnectorVersionSpec,
   CreateCustomConnectorSpec,
@@ -73,7 +74,8 @@ export class ConnectorDefinitionController {
     private readonly definitionService: ConnectorDefinitionService,
     private readonly connectorService: ConnectorService,
     private readonly testService: ConnectorTestService,
-    private readonly mapper: ConnectorDefinitionMapper
+    private readonly mapper: ConnectorDefinitionMapper,
+    private readonly connectorMapper: ConnectorMapper
   ) {}
 
   /**
@@ -268,10 +270,14 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string,
     @Query('version', new ParseIntPipe({ optional: true })) version?: number
-  ): Promise<ConnectorSpecification> {
+  ): Promise<ConnectorSpecificationResponseApiDto[]> {
     const def = await this.definitionService.getById(ctx.projectId, id);
     const manifest = await this.definitionService.resolveManifest(ctx.projectId, def.name, version);
-    return this.connectorService.getSpecificationFromManifest(manifest);
+    // The bundled connector endpoint's mapper, so both come out in one shape: it leaves out
+    // what the form has no use for, a manifest author's oneOf[].oauthParams among it.
+    return this.connectorMapper.toSpecificationResponse(
+      this.connectorService.getSpecificationFromManifest(manifest)
+    );
   }
 
   @Auth(Role.viewer())
@@ -281,9 +287,11 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string,
     @Query('version', new ParseIntPipe({ optional: true })) version?: number
-  ): Promise<ConnectorFieldsSchema> {
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
     const def = await this.definitionService.getById(ctx.projectId, id);
     const manifest = await this.definitionService.resolveManifest(ctx.projectId, def.name, version);
-    return this.connectorService.getFieldsSchemaFromManifest(manifest);
+    return this.connectorMapper.toFieldsResponse(
+      this.connectorService.getFieldsSchemaFromManifest(manifest)
+    );
   }
 }
