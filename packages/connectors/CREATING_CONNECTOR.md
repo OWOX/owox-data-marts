@@ -29,7 +29,11 @@ The rest of this guide covers the JavaScript kind. For the declarative kind, see
 
 ## 3. Create Required Files (JavaScript connector)
 
-A JavaScript connector must have these three files:
+A JavaScript connector is a `manifest.json` and a `Source.js`, usually with its fields schema in
+files of its own. There is no connector class to write: one engine, `AbstractConnector`
+(`src/Core/AbstractConnector.js`), runs every source. It validates the configuration, works out
+the dates to import, calls `fetchData` for every node, account and date, writes what comes back
+to the storage and records how far the import got.
 
 ### `manifest.json`
 
@@ -42,10 +46,11 @@ A JavaScript connector must have these three files:
 Optional fields:
 
 - `logo` — path to logo file (SVG/PNG), will be auto-converted to base64
+- `docUrl` — link to the connector's documentation
 
 ### `Source.js`
 
-The Source class handles data fetching from the API:
+The Source class declares the connector's parameters and fetches its data:
 
 ```javascript
 /**
@@ -55,112 +60,113 @@ The Source class handles data fetching from the API:
  * file that was distributed with this source code.
  */
 
-var YourDataSourceSource = class YourDataSourceSource extends AbstractSource {
+import { AbstractSource } from '../../Core/AbstractSource.js';
 
-  constructor(config) {
-    super(config.mergeParameters({
+export class YourDataSourceSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       AccessToken: {
         isRequired: true,
-        requiredType: "string",
-        label: "Access Token",
-        description: "API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        requiredType: 'string',
+        label: 'Access Token',
+        description: 'API Access Token for authentication',
+        attributes: [CONFIG_ATTRIBUTES.SECRET],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
-      }
-    }));
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+      },
+      Fields: {
+        isRequired: true,
+        requiredType: 'string',
+        label: 'Fields',
+        description: 'Fields to import',
+      },
+    };
+
+    this._registerParameters();
+
+    this.fieldsSchema = YourDataSourceFieldsSchema;
   }
 
   /**
-   * Fetch data from the data source
-   * @param {Date} startDate - Start date for data range
-   * @param {Date} endDate - End date for data range
-   * @return {Array} Array of data objects
+   * Returns the rows of one node for one account and one date window.
+   * @param {Object} request
+   * @param {string} request.nodeName - A key of this.fieldsSchema
+   * @param {Array<string>} request.fields - The fields selected for that node
+   * @param {string|null} request.accountId - null unless getAccounts() returns accounts
+   * @param {string|null} request.startDate - YYYY-MM-DD; null for a node that is not a time series
+   * @param {string|null} request.endDate - YYYY-MM-DD; the same day as startDate unless
+   *   getDateStrategy() returns DATE_STRATEGY.RANGE
+   * @return {Promise<Array<Object>>} The rows
    */
-  fetchData(startDate, endDate) {
-    let data = [];
-
-    // Format dates for API
-    const formattedStartDate = DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd");
-    const formattedEndDate = DateUtils.formatDate(endDate, "UTC", "yyyy-MM-dd");
-
-    // Build API URL
-    const url = `https://api.example.com/data?start=${formattedStartDate}&end=${formattedEndDate}`;
-
-    // Fetch data with automatic retry on transient errors
-    const response = this.urlFetchWithRetry(url, {
-      headers: {
-        'Authorization': `Bearer ${this.config.AccessToken.value}`
-      }
+  async fetchData({ nodeName, fields, startDate, endDate }) {
+    const url = `https://api.example.com/${nodeName}?start=${startDate}&end=${endDate}`;
+    const response = await this.urlFetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${this.context.getParameter('AccessToken')?.value}` },
     });
+    const body = await response.json();
 
-    // Parse response
-    const jsonData = JSON.parse(response.getContentText());
-    data = jsonData.data || [];
-
-    console.log(`Fetched ${data.length} records`);
-    return data;
+    this.context.log(LOG_LEVEL.INFO, `Fetched ${body.data.length} rows of ${nodeName}`);
+    return body.data;
   }
 
   /**
-   * Determines if an error should trigger a retry
-   * @param {HttpRequestException} error - The error to check
+   * Determines if a failed request should be sent again. The default retries nothing.
+   * @param {Error} error - The error, with statusCode when the server answered
    * @return {boolean} True if should retry
    */
   isValidToRetry(error) {
-    // Retry on server errors (5xx)
-    if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
-      return true;
-    }
-
-    // Add data source-specific retry logic here
-    // For example, check for rate limiting errors
-
-    return false;
+    return (
+      !error.statusCode ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN ||
+      error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS
+    );
   }
 }
 ```
 
-### `Connector.js`
+The core classes and constants (`CONFIG_ATTRIBUTES`, `LOG_LEVEL`, `HTTP_STATUS`, `DATE_STRATEGY`,
+`DATA_TYPES`, the utility classes) and every `.js` file in the connector's own directory are in
+scope in the bundle, so only `AbstractSource` is imported.
 
-The Connector class orchestrates the data transfer:
+### What the engine asks of a source
 
-```javascript
-/**
- * Copyright (c) OWOX, Inc.
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
+Besides `fetchData`, a source can override:
 
-var YourDataSourceConnector = class YourDataSourceConnector extends AbstractConnector {
+- `getAccounts(context)` — the accounts to import, as objects with an `id`. The default is a
+  single run with `accountId: null`.
+- `getDateStrategy(nodeName)` — how a time-series node's dates are requested:
+  `DATE_STRATEGY.DAY_BY_DAY` (the default, one call per day), `DATE_STRATEGY.RANGE` (one call for
+  the whole window) or `DATE_STRATEGY.NONE`.
+- `onAccountComplete(account)`, `onAccountError(account, error)` and `onImportComplete(context)` —
+  called after an account's nodes are done, when an account fails, and at the end of the run.
 
-  // Add connector-specific methods here if needed
-  // Most functionality is inherited from AbstractConnector
-
-}
-```
+The engine imports catalog nodes first, then time-series nodes one date at a time for every
+account and node, and records each finished date, so an interrupted run resumes where it
+stopped. Every account is attempted: one the API refuses with a 401 or 403 is skipped with a
+warning, and any other failure fails the run once the remaining accounts have had their turn.
 
 ## 4. Configuration Parameters
 
-Configuration parameters are defined in the Source constructor using `config.mergeParameters()`. Common parameters:
+Configuration parameters are declared in the Source constructor as `this.parameters` and registered with `this._registerParameters()`. Every source also gets `MaxFetchRetries` and `InitialRetryDelay` under Advanced Settings. Common parameters:
 
 **Required Config Attributes:**
 
@@ -191,36 +197,20 @@ Configuration parameters are defined in the Source constructor using `config.mer
 
 ## 5. Utility Classes
 
-The framework provides several utility classes for common operations:
+The framework provides several utility classes for common operations. HTTP requests go through
+the source's own `urlFetchWithRetry(url, options)`, which returns a native `Response`.
 
 ### DateUtils
 
-For date formatting operations:
-
 ```javascript
-// Format date to ISO format (YYYY-MM-DD)
-const formatted = DateUtils.formatDate(new Date(), "UTC", "yyyy-MM-dd");
-```
+// YYYY-MM-DD, in UTC
+const formatted = DateUtils.formatDate(new Date());
 
-### HttpUtils
-
-For HTTP requests (typically used within AbstractSource methods):
-
-```javascript
-
-// Make HTTP request
-const response = await HttpUtils.fetch(url, {
-  method: "GET",
-  headers: { "Authorization": "Bearer token" }
-});
-
-// Parse JSON response
-const data = await response.getAsJson();
+// A Date from an ISO string or a Unix timestamp, or null
+const date = DateUtils.parseDate('2026-01-15');
 ```
 
 ### AsyncUtils
-
-For asynchronous delays:
 
 ```javascript
 // Wait 1 second
@@ -229,31 +219,26 @@ await AsyncUtils.delay(1000);
 
 ### CryptoUtils
 
-For cryptographic operations:
-
 ```javascript
-
 // Generate UUID
 const id = CryptoUtils.getUuid();
 
 // Base64 encode
-const encoded = CryptoUtils.base64Encode("data");
+const encoded = CryptoUtils.base64Encode('data');
 
 // Compute HMAC signature
 const signature = CryptoUtils.computeHmacSignature(
   CryptoUtils.MacAlgorithm.HMAC_SHA_256,
-  "data",
-  "secret"
+  'data',
+  'secret'
 );
 ```
 
 ### FileUtils
 
-For file operations:
-
 ```javascript
 // Parse CSV
-const data = FileUtils.parseCsv("col1,col2\nval1,val2");
+const data = FileUtils.parseCsv('col1,col2\nval1,val2');
 
 // Unzip data
 const files = FileUtils.unzip(zipBuffer);
@@ -263,22 +248,22 @@ const files = FileUtils.unzip(zipBuffer);
 
 ### Paginated Data Fetching
 
-For APIs with pagination:
+For APIs with pagination, collect every page inside `fetchData`:
 
 ```javascript
-fetchData(startDate, endDate) {
-  let allData = [];
-  let nextPageUrl = this._buildInitialUrl(startDate, endDate);
+async fetchData({ nodeName, startDate, endDate }) {
+  let rows = [];
+  let nextPageUrl = this._buildInitialUrl(nodeName, startDate, endDate);
 
   while (nextPageUrl) {
-    const response = this.urlFetchWithRetry(nextPageUrl);
-    const jsonData = JSON.parse(response.getContentText());
+    const response = await this.urlFetchWithRetry(nextPageUrl);
+    const body = await response.json();
 
-    allData = allData.concat(jsonData.data);
-    nextPageUrl = jsonData.next_page_url || null;
+    rows = rows.concat(body.data);
+    nextPageUrl = body.next_page_url || null;
   }
 
-  return allData;
+  return rows;
 }
 ```
 
@@ -314,32 +299,30 @@ The retry mechanism uses exponential backoff with jitter, configured via:
 
 ### Fields Schema
 
-For connectors with multiple endpoints or field selections:
+`fieldsSchema` lists the connector's nodes. Each node names its fields, the fields that identify
+a row and the table it is written to:
 
 ```javascript
-constructor(config) {
-  super(config.mergeParameters({ /* ... */ }));
-
-  this.fieldsSchema = {
-    'endpoint-name': {
-      name: 'Endpoint Name',
-      description: 'Description of this endpoint',
-      fields: {
-        field1: {
-          name: 'Field 1',
-          description: 'Field description',
-          type: 'string'
-        },
-        field2: {
-          name: 'Field 2',
-          type: 'numeric string'
-        }
-      },
-      limit: 100 // optional: pagination limit
-    }
-  };
-}
+var YourDataSourceFieldsSchema = {
+  campaigns: {
+    overview: 'Campaigns',
+    description: 'Campaign statistics by day.',
+    documentation: 'https://api.example.com/docs/campaigns',
+    fields: {
+      date: { description: 'The day of the statistics.', type: DATA_TYPES.DATE },
+      campaign_id: { description: 'The campaign.', type: DATA_TYPES.STRING },
+      clicks: { description: 'Clicks on the day.', type: DATA_TYPES.INTEGER },
+    },
+    uniqueKeys: ['date', 'campaign_id'],
+    defaultFields: ['date', 'campaign_id', 'clicks'],
+    destinationName: 'your_data_source_campaigns',
+    isTimeSeries: true,
+  },
+};
 ```
+
+A node with `isTimeSeries: true` is fetched per date; any other node is a catalog, fetched once
+per account.
 
 ### Partitioning in Google BigQuery
 

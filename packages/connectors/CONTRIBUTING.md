@@ -43,83 +43,61 @@ For detailed step-by-step instructions on creating a new source, see [Creating a
 
 ## Architecture Concepts
 
-![Architecture Concepts](./res/architecture-uml.svg)
+Every connector runs through one engine. For each run the backend starts the connector
+runner, which builds a context from the run's configuration and hands it, with the
+connector's source and the destination storage, to `AbstractConnector`. A connector
+contributes only its `Source`: there is no per-connector connector or config class.
 
-### Connector
+### Engine
 
-The `Connector` class orchestrates the data transfer process. It requires three components:
+`AbstractConnector` (in `src/Core/AbstractConnector.js`) drives the whole import:
 
-1. **Config** — configuration parameters and validation
-2. **Source** — data fetching logic
-3. **Storage** — data persistence (optional, can be null)
+- Validates the configuration against the parameters the source declares
+- Works out the dates for an incremental run or a manual backfill
+- Imports catalog nodes first, then time series nodes one date at a time, each date for
+  every account and every node
+- Writes each node's rows to the storage and records every date once it is complete, so an
+  interrupted run, a manual backfill included, resumes from the day after the last one
+- Attempts every account: one the API refuses with a 401 or 403 is skipped with a warning,
+  and any other failure fails the run once the remaining accounts have had their turn
 
-Key responsibilities:
+The per-date record is the engine's job. A source does not save progress itself.
 
-- Validate configuration parameters
-- Calculate date ranges for incremental/backfill imports
-- Coordinate between Source and Storage
-- Handle status updates and logging
-- Implement retry logic for the entire import process
+### Context
 
-All connectors must extend `AbstractConnector` (in `src/Core/AbstractConnector.js`).
-
-#### Saving incremental progress
-
-For time series nodes, loop dates on the outside and accounts and nodes on the inside. Call
-`updateLastRequstedDate(date)` once a date is stored for every account and node, never
-once at the end of the run. A run that saves its progress only at the end loses all of
-it when the process is interrupted, and the retry sweep then restarts the whole range.
-
-That call is also the manual backfill resume checkpoint: the backend records it against the
-run, and the automatic retry of an interrupted backfill restarts from the day after it. Call
-it unconditionally only when both of these hold:
-
-- the date loop encloses every node and every account, so a completed date really is
-  complete for all of them;
-- nothing between the fetch and the call swallows an error, so a date that imported
-  nothing stops the run instead of reaching the checkpoint.
-
-When either fails, keep the call behind `if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL)`
-so a backfill records nothing and its retry reloads the whole period. `Sources/Shopify` breaks the
-first rule, because its date loop sits inside the node loop; `Sources/TikTokAds` breaks the second,
-because it collects per-day failures and reports them only after the whole range. Both keep the
-guard, and both pin it with a `perDayCheckpoint` test.
+`AbstractContext` (in `src/Core/AbstractContext.js`) carries one run: its parameters
+(`getParameter(name)`), the run type, and the channel to the backend (`log(level, message)`
+and `emit(event)`). A source reaches it as `this.context`.
 
 ### Source
 
-The `Source` class is responsible for fetching data from the external API. It must implement:
+The `Source` class is responsible for fetching data from the external API. It declares its
+parameters in the constructor and implements:
 
-- `fetchData(startDate, endDate)` — fetch data for a date range
-- `isValidToRetry(error)` — determine if an error is transient (optional)
+- `fetchData({ nodeName, fields, accountId, startDate, endDate })` — the rows of one node for
+  one account and one date window
+- `isValidToRetry(error)` — determine if an error is transient (optional; the default
+  retries nothing)
+- `getAccounts(context)` and `getDateStrategy(nodeName)` — the accounts to import and how a
+  time series node's dates are requested (optional)
 
 Helper methods available:
 
-- `urlFetchWithRetry(url, options)` — HTTP fetch with automatic retry
+- `urlFetchWithRetry(url, options)` — HTTP fetch with automatic retry, returning a native `Response`
 - `calculateBackoff(attemptNumber)` — exponential backoff calculation
-- `getFieldsSchema()` — return available fields for the data source
 
-All sources must extend `AbstractSource` (in `src/Core/AbstractSource.js`).
+All sources must extend `AbstractSource` (in `src/Core/AbstractSource.js`). See
+[Creating a New Source](./CREATING_CONNECTOR.md) for the full contract.
 
 ### Storage
 
 The `Storage` class handles data persistence. It must implement:
 
-- `saveData(data)` — persist data to storage
-- `areHeadersNeeded()` — check if headers need to be created
-- `addHeader(columns)` — create table/sheet headers
+- `init()` — create the destination table, or add the columns it lacks
+- `saveData(data)` — merge rows into the table by the node's unique keys
+- `replaceData(data)` — replace the table's contents, for full-refresh nodes (optional)
 
 All storages must extend `AbstractStorage` (in `src/Core/AbstractStorage.js`).
-
-### Config
-
-Configuration objects handle:
-
-- Parameter definition and validation
-- Status tracking (in_progress, done, error)
-- Logging and error handling
-- State persistence (LastRequestedDate, LastImportDate)
-
-Configuration classes extend `AbstractConfig` (in `src/Core/AbstractConfig.js`).
 
 ## Legal
 
