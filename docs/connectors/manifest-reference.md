@@ -288,7 +288,7 @@ An **async** node (see [Asynchronous retriever](#asynchronous-retriever)) replac
 - `dataPath` (preferred) or `apiName` (legacy alias, same meaning) — a **dot-string** path into the raw record, e.g. `"total_market_cap.usd"` reaches a nested object. When the row itself is an array (for example `[[timestamp, price], ...]` selected via `recordPath`), use the positional index as the path: `"0"`, `"1"`. If both are omitted, the field name itself is used as the key — the API's field is assumed to already be named exactly that.
 - `description` — optional help text.
 
-Casting only special-cases `number`/`integer`/`boolean`/`date`. `datetime`, `object`, `array`, and `string` all fall through to the same default branch, which `JSON.stringify`s object/array values instead of keeping them structured — so an `array`/`object`-typed field is written out as a JSON string, not a nested value.
+Casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean` reads `true`, `1`, `yes`, `y`, `t` and `on` as true, their opposites as false, and any other text as empty. A `date` or `datetime` becomes a date, and one written without a time zone is read as UTC. `object`, `array`, and `string` all fall through to the same default branch, which `JSON.stringify`s object/array values instead of keeping them structured — so an `array`/`object`-typed field is written out as a JSON string, not a nested value.
 
 Remember the dot-string-vs-array distinction from [Common naming mistakes](#common-naming-mistakes): `dataPath` is `"a.b.c"`, never `["a", "b", "c"]`.
 

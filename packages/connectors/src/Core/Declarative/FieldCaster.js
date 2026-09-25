@@ -19,6 +19,23 @@ function getNested(obj, segments) {
   return value;
 }
 
+// How APIs spell a boolean in text. Anything else is not read as either.
+const TRUE_TEXT = new Set(['true', '1', 'yes', 'y', 't', 'on']);
+const FALSE_TEXT = new Set(['false', '0', 'no', 'n', 'f', 'off']);
+
+// A date and time with no zone. JavaScript reads one as local time; the run's zone is not the
+// API's, so it is read as UTC, which is what a storage writes a Date as.
+const ZONELESS_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+function toDate(value) {
+  const d = new Date(
+    typeof value === 'string' && ZONELESS_DATETIME.test(value)
+      ? `${value.replace(' ', 'T')}Z`
+      : value
+  );
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function castValue(value, type) {
   if (value === undefined || value === null || value === '') return null;
   switch (type) {
@@ -30,12 +47,15 @@ function castValue(value, type) {
       const n = parseInt(value, 10);
       return Number.isFinite(n) ? n : null;
     }
-    case 'boolean':
-      return typeof value === 'string' ? value.toLowerCase() === 'true' : Boolean(value);
-    case 'date': {
-      const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? null : d;
+    case 'boolean': {
+      if (typeof value !== 'string') return Boolean(value);
+      const text = value.trim().toLowerCase();
+      if (TRUE_TEXT.has(text)) return true;
+      return FALSE_TEXT.has(text) ? false : null;
     }
+    case 'date':
+    case 'datetime':
+      return toDate(value);
     case 'object':
     case 'string':
     default:

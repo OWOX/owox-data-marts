@@ -63,3 +63,37 @@ describe('FieldCaster', () => {
     assert.strictEqual(out[0].tags, '["a","b"]');
   });
 });
+
+describe('FieldCaster booleans and datetimes', () => {
+  const castOne = (type, value) => new FieldCaster({ v: { type } }).cast([{ v: value }])[0].v;
+
+  // APIs spell booleans many ways; anything but "true" used to read as false.
+  it('reads the usual spellings of true and false, and nothing else as either', () => {
+    for (const value of ['true', 'TRUE', '1', 'yes', 'Y', 't', 'on']) {
+      assert.strictEqual(castOne('boolean', value), true, value);
+    }
+    for (const value of ['false', '0', 'no', 'N', 'f', 'off']) {
+      assert.strictEqual(castOne('boolean', value), false, value);
+    }
+    assert.strictEqual(castOne('boolean', 'maybe'), null);
+    assert.strictEqual(castOne('boolean', 1), true);
+  });
+
+  // A datetime stayed text, and BigQuery refuses a DATETIME literal such as
+  // "2024-01-15 10:00:00Z", which is what an ISO string with a zone became.
+  it('casts a datetime to a Date, reading a zone-less one as UTC', () => {
+    assert.strictEqual(
+      castOne('datetime', '2024-01-15T10:00:00Z').toISOString(),
+      '2024-01-15T10:00:00.000Z'
+    );
+    assert.strictEqual(
+      castOne('datetime', '2024-01-15T12:00:00+02:00').toISOString(),
+      '2024-01-15T10:00:00.000Z'
+    );
+    assert.strictEqual(
+      castOne('datetime', '2024-01-15 10:00:00').toISOString(),
+      '2024-01-15T10:00:00.000Z'
+    );
+    assert.strictEqual(castOne('datetime', 'not a date'), null);
+  });
+});
