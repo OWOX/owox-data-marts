@@ -401,10 +401,11 @@ describe('DataMartMapper', () => {
       } as never;
 
       const [dataMartList, projectList] = await Promise.all([
-        mapper.toRunsResponse([run]),
-        mapper.toProjectRunsResponse([
-          { run, dataMart: { id: 'dm-1', title: 'Data Mart' } } as never,
-        ]),
+        mapper.toRunsResponse([run], 'proj-1'),
+        mapper.toProjectRunsResponse(
+          [{ run, dataMart: { id: 'dm-1', title: 'Data Mart' } } as never],
+          'proj-1'
+        ),
       ]);
 
       expect(dataMartList.runs[0]).toMatchObject({
@@ -748,8 +749,8 @@ describe('DataMartMapper', () => {
         'proj-1'
       );
 
-      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
-      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything());
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
+      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything(), expect.anything());
       // Non-secret configuration survives, exactly as it does on GET /data-marts/:id.
       expect(configurationOf(list.runs[0].definitionRun)).toMatchObject({
         AccountId: '12345',
@@ -759,6 +760,19 @@ describe('DataMartMapper', () => {
         AccountId: '12345',
         StartDate: '2026-01-01',
       });
+    });
+
+    it('shares one specification cache across the runs of a list', async () => {
+      const { mapper: scopedMapper, mask } = await createMapper();
+
+      await scopedMapper.toRunsResponse(
+        [scopedMapper.toDataMartRunDto(runEntity()), scopedMapper.toDataMartRunDto(runEntity())],
+        'proj-1'
+      );
+
+      expect(mask).toHaveBeenCalledTimes(2);
+      expect(mask.mock.calls[0][2]).toBeInstanceOf(Map);
+      expect(mask.mock.calls[1][2]).toBe(mask.mock.calls[0][2]);
     });
 
     // The Data Marts list asks for every mart's last runs; without the project a custom
@@ -780,8 +794,8 @@ describe('DataMartMapper', () => {
         'proj-1'
       );
 
-      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
-      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything());
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
+      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything(), expect.anything());
     });
 
     it('resolves the specification for the project-wide run list too', async () => {
@@ -797,7 +811,7 @@ describe('DataMartMapper', () => {
         'proj-1'
       );
 
-      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
       expect(configurationOf(response.runs[0].definitionRun)).toMatchObject({
         AccountId: '12345',
         StartDate: '2026-01-01',

@@ -78,7 +78,10 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { DataMartRunType, usesHttpDataRunShape } from '../enums/data-mart-run-type.enum';
-import { ConnectorSecretService } from '../services/connector/connector-secret.service';
+import {
+  ConnectorSecretService,
+  type SecretFieldsCache,
+} from '../services/connector/connector-secret.service';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
@@ -265,12 +268,15 @@ export class DataMartMapper {
     dto: BatchDataMartHealthStatusResponseDto,
     projectId: string
   ): Promise<BatchDataMartHealthStatusResponseApiDto> {
+    const cache: SecretFieldsCache = new Map();
     const itemsPromises = dto.items.map(async item => {
       const mappedItem: BatchDataMartHealthStatusItemApiDto = {
         dataMartId: item.dataMartId,
-        connector: item.connector ? await this.toRunResponse(item.connector, projectId) : null,
-        report: item.report ? await this.toRunResponse(item.report, projectId) : null,
-        insight: item.insight ? await this.toRunResponse(item.insight, projectId) : null,
+        connector: item.connector
+          ? await this.toRunResponse(item.connector, projectId, cache)
+          : null,
+        report: item.report ? await this.toRunResponse(item.report, projectId, cache) : null,
+        insight: item.insight ? await this.toRunResponse(item.insight, projectId, cache) : null,
       };
       return mappedItem;
     });
@@ -683,11 +689,16 @@ export class DataMartMapper {
 
   async toRunsResponse(
     runs: DataMartRunDto[],
-    projectId?: string
+    projectId: string
   ): Promise<DataMartRunsResponseApiDto> {
+    const secretFieldsCache: SecretFieldsCache = new Map();
     const maskedRuns = await Promise.all(
       runs.map(async run => {
-        const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun, projectId);
+        const maskedDefinitionRun = await this.maskDefinitionRun(
+          run.definitionRun,
+          projectId,
+          secretFieldsCache
+        );
         return {
           id: run.id,
           status: run.status,
@@ -719,11 +730,16 @@ export class DataMartMapper {
 
   async toProjectRunsResponse(
     runs: ProjectDataMartRunDto[],
-    projectId?: string
+    projectId: string
   ): Promise<ProjectDataMartRunsResponseApiDto> {
+    const secretFieldsCache: SecretFieldsCache = new Map();
     const maskedRuns = await Promise.all(
       runs.map(async item => {
-        const maskedDefinitionRun = await this.maskDefinitionRun(item.run.definitionRun, projectId);
+        const maskedDefinitionRun = await this.maskDefinitionRun(
+          item.run.definitionRun,
+          projectId,
+          secretFieldsCache
+        );
         return {
           id: item.run.id,
           status: item.run.status,
@@ -775,8 +791,16 @@ export class DataMartMapper {
     );
   }
 
-  async toRunResponse(run: DataMartRunDto, projectId?: string): Promise<DataMartRunResponseApiDto> {
-    const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun, projectId);
+  async toRunResponse(
+    run: DataMartRunDto,
+    projectId: string,
+    secretFieldsCache: SecretFieldsCache = new Map()
+  ): Promise<DataMartRunResponseApiDto> {
+    const maskedDefinitionRun = await this.maskDefinitionRun(
+      run.definitionRun,
+      projectId,
+      secretFieldsCache
+    );
     return {
       id: run.id,
       status: run.status,
@@ -805,7 +829,7 @@ export class DataMartMapper {
 
   async toRunDetailResponse(
     run: DataMartRunDto,
-    projectId?: string
+    projectId: string
   ): Promise<DataMartRunDetailResponseApiDto> {
     return {
       ...(await this.toRunResponse(run, projectId)),
@@ -836,17 +860,16 @@ export class DataMartMapper {
    * 404s, and {@link ConnectorSecretService.mask} correctly fails closed by masking EVERY
    * configuration value — so run history showed `**********` for dates, account ids and
    * node params, and logged a warning per run per page load, while GET /data-marts/:id
-   * rendered the same definition properly. Every caller serving a request passes its
-   * project id. Without one, masking falls back to masking every value, and it skips the
-   * underscore-prefixed bookkeeping keys, which a custom connector could once use as the
-   * name of a secret.
+   * rendered the same definition properly. It is required here, so a caller without one does
+   * not compile.
    */
   private async maskDefinitionRun(
-    definitionRun?: DataMartDefinition | null,
-    projectId?: string
+    definitionRun: DataMartDefinition | null | undefined,
+    projectId: string,
+    secretFieldsCache: SecretFieldsCache
   ): Promise<DataMartDefinition | undefined> {
     if (definitionRun && isConnectorDefinition(definitionRun)) {
-      return this.connectorSecretService.mask(projectId, definitionRun);
+      return this.connectorSecretService.mask(projectId, definitionRun, secretFieldsCache);
     }
 
     return undefined;

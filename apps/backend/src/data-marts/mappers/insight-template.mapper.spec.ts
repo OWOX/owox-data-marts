@@ -81,8 +81,8 @@ describe('InsightTemplateMapper', () => {
         'proj-1'
       );
 
-      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
-      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything());
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun, expect.any(Map));
+      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything(), expect.anything());
       // Non-secret configuration survives, exactly as it does on GET /data-marts/:id.
       expect(response.lastManualDataMartRun?.definitionRun).toBe(definitionRun);
     });

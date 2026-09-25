@@ -9,6 +9,13 @@ import { castError } from '@owox/internal-helpers';
 export const SECRET_MASK = '**********' as const;
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 
+/**
+ * The secret field names of each connector version, shared by the mask() calls of one response:
+ * a run list masks every run it returns, most share a connector version, and resolving the
+ * specification reads and parses the manifest each time.
+ */
+export type SecretFieldsCache = Map<string, Promise<Set<string>>>;
+
 @Injectable()
 /**
  * Service for masking and merging secret fields in connector definitions.
@@ -642,17 +649,21 @@ export class ConnectorSecretService {
    */
   async mask(
     projectId: string | undefined,
-    definition: ConnectorDefinition | undefined
+    definition: ConnectorDefinition | undefined,
+    secretFieldsCache?: SecretFieldsCache
   ): Promise<ConnectorDefinition | undefined> {
     if (!definition) return definition;
 
     let secretFieldNames: Set<string>;
     try {
-      secretFieldNames = await this.getAllSecretFieldNames(
-        projectId,
-        definition.connector.source.name,
-        definition.connector.source.version
-      );
+      const { name, version } = definition.connector.source;
+      const key = `${name}@${version ?? 'active'}`;
+      let secretFields = secretFieldsCache?.get(key);
+      if (!secretFields) {
+        secretFields = this.getAllSecretFieldNames(projectId, name, version);
+        secretFieldsCache?.set(key, secretFields);
+      }
+      secretFieldNames = await secretFields;
     } catch (error) {
       this.logger.warn(
         `Failed to resolve specification for connector "${definition.connector.source.name}" while masking; masking every configuration value`,

@@ -137,6 +137,39 @@ describe('ConnectorSecretService', () => {
       );
     });
 
+    // A run list masks every run it returns and is polled every few seconds, and most of its
+    // runs share one connector and version: each used to resolve the specification again,
+    // reading the manifest and parsing it once per run.
+    it('resolves the specification once per connector version when given a cache to share', async () => {
+      const { service, specService } = createService(['ApiKey']);
+      const def = (version: number) =>
+        ({
+          connector: {
+            source: {
+              name: 'SampleApisSwitch',
+              version,
+              configuration: [{ _id: 'c1', ApiKey: 'super-secret' }],
+              node: 'node',
+              fields: ['id'],
+            },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        }) as unknown as ConnectorDefinition;
+      const cache = new Map();
+
+      const masked = await Promise.all([
+        service.mask('p1', def(2), cache),
+        service.mask('p1', def(2), cache),
+        service.mask('p1', def(3), cache),
+      ]);
+
+      expect(specService.resolveConnectorSpecification).toHaveBeenCalledTimes(2);
+      for (const result of masked) {
+        const cfg = result!.connector.source.configuration as Array<Record<string, unknown>>;
+        expect(cfg[0].ApiKey).toBe(SECRET_MASK);
+      }
+    });
+
     // Fails closed. Without the specification there is nothing to say WHICH fields are
     // secret, so the only sound assumption is that any configuration value could be one.
     // Returning the definition untouched handed a viewer every secret still stored inline —
