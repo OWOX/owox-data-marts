@@ -1147,9 +1147,15 @@ export class AbstractConnector {
     const rows = batches.length === 1 ? batches[0] : batches.flat();
 
     // Re-read the schema: fetchData() is what discovers the real columns, so
-    // the entry handed to us above can still be the placeholder.
+    // the entry handed to us above can still be the placeholder. A source that did
+    // replace it (Google Sheets reads its columns from the header row), or a run given
+    // no field list, takes every column it has; a node whose fields are declared keeps
+    // the selection its user made.
     const discoveredSchema = this.source.fieldsSchema[nodeName] || schema;
-    const fields = Object.keys(discoveredSchema.fields || {});
+    const fields =
+      discoveredSchema !== schema || !nodeFields?.length
+        ? Object.keys(discoveredSchema.fields || {})
+        : [];
 
     if (fields.length) {
       const fieldsParam = this.context.getParameter('Fields');

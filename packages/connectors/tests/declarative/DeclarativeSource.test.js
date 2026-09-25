@@ -2155,3 +2155,43 @@ describe('DeclarativeSource and the storage settings', () => {
     assert.strictEqual(source._baseScope().parameters.Token, undefined);
   });
 });
+
+// A bundled source reads only the fields a Data Mart selected; a declarative one cast every
+// field its node declares, so BigQuery and Snowflake created and filled deselected columns.
+describe('DeclarativeSource returns the fields a Data Mart selected', () => {
+  it('drops the fields that were not selected, and keeps the unique keys', async () => {
+    const model = new ManifestParser().parse(MANIFEST);
+    const source = new DeclarativeSource(makeContext(), model);
+    source.urlFetchWithRetry = async () => ({
+      json: async () => ({ rows: [{ date: '2026-01-02', currency: 'EUR', rate: 1.1 }] }),
+    });
+
+    const out = await source.fetchData({
+      nodeName: 'rates',
+      fields: ['date', 'rate'],
+      accountId: null,
+      startDate: '2026-01-02',
+      endDate: '2026-01-02',
+    });
+
+    assert.deepStrictEqual(Object.keys(out[0]).sort(), ['currency', 'date', 'rate']);
+  });
+
+  it('drops a declared field the Data Mart left out', async () => {
+    const model = new ManifestParser().parse(MANIFEST);
+    const source = new DeclarativeSource(makeContext(), model);
+    source.urlFetchWithRetry = async () => ({
+      json: async () => ({ rows: [{ date: '2026-01-02', currency: 'EUR', rate: 1.1 }] }),
+    });
+
+    const out = await source.fetchData({
+      nodeName: 'rates',
+      fields: ['date', 'currency'],
+      accountId: null,
+      startDate: '2026-01-02',
+      endDate: '2026-01-02',
+    });
+
+    assert.strictEqual('rate' in out[0], false);
+  });
+});

@@ -266,7 +266,20 @@ export class DeclarativeSource extends AbstractSource {
       this._sampleEmitted = true;
       this.context.emit(new SampleEvent(records.slice(0, this.sampleSize)));
     }
-    return new FieldCaster(node.fields || {}).cast(records);
+    return this._selectFields(new FieldCaster(node.fields || {}).cast(records), node, fields);
+  }
+
+  /**
+   * Keeps the fields the Data Mart selected, and the node's unique keys, which the storage
+   * merges on. A bundled source reads only the selected fields; casting every declared one
+   * made BigQuery and Snowflake create and fill the columns a user had deselected.
+   */
+  _selectFields(records, node, fields) {
+    if (!Array.isArray(fields) || fields.length === 0) return records;
+    const keep = new Set([...fields, ...(node.uniqueKeys || [])]);
+    return records.map(record =>
+      Object.fromEntries(Object.entries(record).filter(([name]) => keep.has(name)))
+    );
   }
 
   /**

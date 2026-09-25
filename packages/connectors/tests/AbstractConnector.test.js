@@ -2298,6 +2298,69 @@ describe('AbstractConnector', () => {
     });
   });
 
+  // A full-refresh node rewrote the Data Mart's field selection with every field of the node,
+  // which only a source that learns its columns while reading needs (Google Sheets reads them
+  // from the header row). A declared node kept undoing the fields its user had deselected.
+  describe('the field selection after a full refresh', () => {
+    const schema = () => ({
+      fields: { id: { type: 'INTEGER' }, email: { type: 'STRING' } },
+      uniqueKeys: ['id'],
+      isFullRefresh: true,
+      destinationName: 'people',
+    });
+    const fieldsEvents = events => events.filter(event => event.type === 'FIELDS');
+
+    it('keeps the selection of a node whose fields are declared', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fieldsSchema: { people: schema() },
+          parseFields: () => ({ people: ['id'] }),
+          fetchData: async () => [{ id: 1 }],
+        });
+        const connector = new AbstractConnector(
+          createTestContext({ Fields: { value: 'people id' } }),
+          source,
+          createMockStorageClass()
+        );
+        await connector.run();
+
+        assert.deepStrictEqual(fieldsEvents(cap.events), []);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('takes the columns a source found while reading', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fieldsSchema: { people: schema() },
+          parseFields: () => ({ people: ['id'] }),
+          fetchData: async () => {
+            source.fieldsSchema = {
+              people: {
+                ...schema(),
+                fields: { id: { type: 'INTEGER' }, name: { type: 'STRING' } },
+              },
+            };
+            return [{ id: 1, name: 'a' }];
+          },
+        });
+        const connector = new AbstractConnector(
+          createTestContext(),
+          source,
+          createMockStorageClass()
+        );
+        await connector.run();
+
+        assert.strictEqual(fieldsEvents(cap.events).length, 1);
+      } finally {
+        cap.restore();
+      }
+    });
+  });
+
   describe('E3 regression: processFullRefreshNode truncated the table once per account', () => {
     // replaceData(data || []) ran inside the per-account loop with no
     // accumulation, so an `accounts` block plus isFullRefresh: true meant each
