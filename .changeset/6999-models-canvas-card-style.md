@@ -8,7 +8,7 @@
 
 Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX website. Each card leads with an icon and the title. Short badges below show the input source, the field count, the number of triggers and the number of relationships. The footer keeps the Data Quality and Data Last Updated indicators. It also shows when the Data Mart is shared for reporting or for maintenance.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d8b42ed206123bc93f69df099857722d/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/06d9cebecf40ffe5abc3485971798211/iframe>
 
 - Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
 - The relationships count covers the whole storage, whatever the canvas filters hide.
