@@ -374,11 +374,8 @@ export class GoogleAdsSource extends AbstractSource {
 
     // Global resources return identical data for any customer ID — fetch once.
     const schema = this.fieldsSchema[nodeName];
-    if (schema?.isGlobalResource) {
-      if (this._globalResourcesProcessed.has(nodeName)) {
-        return [];
-      }
-      this._globalResourcesProcessed.add(nodeName);
+    if (schema?.isGlobalResource && this._globalResourcesProcessed.has(nodeName)) {
+      return [];
     }
 
     this.context.log(
@@ -387,6 +384,8 @@ export class GoogleAdsSource extends AbstractSource {
     );
     const query = this._buildQuery({ nodeName, fields, startDate });
     const response = await this.makeRequest({ customerId, query, nodeName, fields });
+    // Only once it has arrived: a customer that could not read it leaves it to the next one.
+    if (schema?.isGlobalResource) this._globalResourcesProcessed.add(nodeName);
     return response;
   }
 
