@@ -31,10 +31,6 @@ import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
-import {
-  DATA_QUALITY_STATUS_STRIPE_CLASSES,
-  getDataQualityStatusVisual,
-} from '../../shared/utils/data-quality-status';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
@@ -121,14 +117,10 @@ export default function ModelCanvasFlowNode({
     updateNodeInternals(id);
   }, [expanded, id, updateNodeInternals]);
 
-  const stripeClass =
-    DATA_QUALITY_STATUS_STRIPE_CLASSES[getDataQualityStatusVisual(data.qualitySummary).tone];
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
 
-  // Object labels: the accent stripe mirrors the Data Quality status shown in
-  // the footer, so the two hide together — only in "title only" mode.
   const labels = data.objectLabels ?? NOTHING_HIDDEN;
   // A count of zero shows no badge; the layout estimate reads the same rules.
   const badges = cardBadges(data, nodeLayoutOptions(labels));
@@ -143,9 +135,6 @@ export default function ModelCanvasFlowNode({
   // "Uncheck all — title only" strips the card down to its name: counts,
   // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
-  // The stripe runs full-height along the left edge (absolutely positioned),
-  // so every row needs extra left padding to clear it — only while it shows.
-  const contentPaddingLeft = !titleOnly ? 'pl-[16px]' : 'pl-3.5';
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
@@ -159,7 +148,7 @@ export default function ModelCanvasFlowNode({
 
   return (
     <div
-      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-sm border shadow-sm active:cursor-grabbing'
+      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
         width: nodeWidth(data.viewMode),
         borderColor: data.highlighted ? HIGHLIGHT_COLOR : selected ? OWOX_BLUE : undefined,
@@ -174,13 +163,6 @@ export default function ModelCanvasFlowNode({
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
-      {!titleOnly && (
-        <span
-          className={`absolute inset-y-0 top-0 bottom-0 left-0 w-1 rounded-tr-full rounded-br-full ${stripeClass}`}
-          aria-hidden='true'
-        />
-      )}
-
       {data.hasIncoming && (
         <Handle
           type='target'
@@ -191,9 +173,7 @@ export default function ModelCanvasFlowNode({
       )}
 
       {/* Title row: icon tile + name + draft pill + actions */}
-      <div
-        className={`flex items-center gap-2 pt-3 pr-3 ${contentPaddingLeft} ${titleOnly ? 'pb-3' : ''}`}
-      >
+      <div className={`flex items-center gap-2 pt-3 pr-3 pl-3 ${titleOnly ? 'pb-3' : ''}`}>
         <span
           className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
           aria-hidden='true'
@@ -242,7 +222,7 @@ export default function ModelCanvasFlowNode({
 
       {/* Badges row: input source + field count */}
       {withBadgesRow && (
-        <div className={`flex items-center gap-1 overflow-hidden pt-2 pr-3 ${contentPaddingLeft}`}>
+        <div className={`flex items-center gap-1 overflow-hidden pt-2 pr-3 pl-3`}>
           {definitionInfo && (
             <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
           )}
@@ -257,7 +237,7 @@ export default function ModelCanvasFlowNode({
           {/* Counts row: triggers + relationships */}
           {withCountsRow && (
             <div
-              className={`flex items-center gap-1 overflow-hidden pr-3 ${withBadgesRow ? 'pt-1' : 'pt-2'} ${contentPaddingLeft}`}
+              className={`flex items-center gap-1 overflow-hidden pr-3 ${withBadgesRow ? 'pt-1' : 'pt-2'} pl-3`}
             >
               {badges.triggers && (
                 <CardPill icon={CalendarClock}>
@@ -274,7 +254,7 @@ export default function ModelCanvasFlowNode({
 
           {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
           <div
-            className={`text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 text-[11px] ${contentPaddingLeft}`}
+            className={`text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 pl-3 text-[11px]`}
           >
             <DataQualityCanvasStatusIcon
               dataMartTitle={data.title}
