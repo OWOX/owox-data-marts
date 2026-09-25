@@ -66,6 +66,7 @@ Each entry describes one user-supplied input, referenced elsewhere via `{{ param
 - `label` — optional display label shown in the configuration form.
 - `description` — optional help text shown next to the field.
 - `attributes` — an optional array of flags. The one every author should know is `SECRET` (masks the value and stores it encrypted — always set this for API keys, client secrets, tokens, passwords). A few advanced/internal flags also exist (`HIDE_IN_CONFIG_FORM`, `ADVANCED`, `OAUTH_FLOW`, `DEPRECATED`, `PINNED`, `MANUAL_BACKFILL`) but are rarely needed when hand-authoring a manifest.
+- A parameter name starts with a letter and contains only letters, digits and underscores; the parser refuses any other name.
 - A parameter name must not match a setting of the Data Mart's storage (for example `ProjectID`, `DestinationDatasetID`, `ServiceAccountJson`); a run on that storage fails until the parameter is renamed.
 
 ## 5. `authentication` — all 6 types

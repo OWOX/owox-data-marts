@@ -430,7 +430,7 @@ export class DataMartController {
   ): Promise<BatchDataMartHealthStatusResponseApiDto> {
     const command = this.mapper.toBatchHealthStatusCommand(context, dto);
     const domainDto = await this.batchDataMartHealthStatusService.run(command);
-    return this.mapper.toBatchHealthStatusResponse(domainDto);
+    return this.mapper.toBatchHealthStatusResponse(domainDto, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

@@ -257,14 +257,15 @@ export class DataMartMapper {
   }
 
   async toBatchHealthStatusResponse(
-    dto: BatchDataMartHealthStatusResponseDto
+    dto: BatchDataMartHealthStatusResponseDto,
+    projectId: string
   ): Promise<BatchDataMartHealthStatusResponseApiDto> {
     const itemsPromises = dto.items.map(async item => {
       const mappedItem: BatchDataMartHealthStatusItemApiDto = {
         dataMartId: item.dataMartId,
-        connector: item.connector ? await this.toRunResponse(item.connector) : null,
-        report: item.report ? await this.toRunResponse(item.report) : null,
-        insight: item.insight ? await this.toRunResponse(item.insight) : null,
+        connector: item.connector ? await this.toRunResponse(item.connector, projectId) : null,
+        report: item.report ? await this.toRunResponse(item.report, projectId) : null,
+        insight: item.insight ? await this.toRunResponse(item.insight, projectId) : null,
       };
       return mappedItem;
     });
@@ -814,10 +815,10 @@ export class DataMartMapper {
    * 404s, and {@link ConnectorSecretService.mask} correctly fails closed by masking EVERY
    * configuration value — so run history showed `**********` for dates, account ids and
    * node params, and logged a warning per run per page load, while GET /data-marts/:id
-   * rendered the same definition properly. Callers that have the request's project id
-   * must pass it; the parameter stays optional only because
-   * {@link DataMartMapper.toBatchHealthStatusResponse} still reaches this without one, and
-   * over-masking there is the safe direction.
+   * rendered the same definition properly. Every caller serving a request passes its
+   * project id. Without one, masking falls back to masking every value, and it skips the
+   * underscore-prefixed bookkeeping keys, which a custom connector could once use as the
+   * name of a secret.
    */
   private async maskDefinitionRun(
     definitionRun?: DataMartDefinition | null,

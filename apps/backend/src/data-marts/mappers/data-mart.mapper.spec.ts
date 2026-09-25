@@ -704,6 +704,29 @@ describe('DataMartMapper', () => {
       });
     });
 
+    // The Data Marts list asks for every mart's last runs; without the project a custom
+    // connector's specification could not be found and masking fell back to guessing.
+    it('resolves the specification for the Data Marts list health status too', async () => {
+      const { mapper: scopedMapper, mask } = await createMapper();
+
+      await scopedMapper.toBatchHealthStatusResponse(
+        {
+          items: [
+            {
+              dataMartId: 'dm-1',
+              connector: scopedMapper.toDataMartRunDto(runEntity()),
+              report: null,
+              insight: null,
+            },
+          ],
+        },
+        'proj-1'
+      );
+
+      expect(mask).toHaveBeenCalledWith('proj-1', definitionRun);
+      expect(mask).not.toHaveBeenCalledWith(undefined, expect.anything());
+    });
+
     it('resolves the specification for the project-wide run list too', async () => {
       const { mapper: scopedMapper, mask } = await createMapper();
 

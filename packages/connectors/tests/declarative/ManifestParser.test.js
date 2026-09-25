@@ -81,6 +81,27 @@ describe('ManifestParser', () => {
     );
   });
 
+  // The host keeps its own bookkeeping keys in a configuration under a leading underscore
+  // (_id, _secrets_id) and passes any such key through untouched, so a secret named that way
+  // was stored in plain text and shown to viewers.
+  it('refuses a parameter name that starts with an underscore', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.parameters._ApiKey = { requiredType: 'string', attributes: ['SECRET'] };
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /parameter "_ApiKey" must start with a letter/
+    );
+  });
+
+  it('refuses a parameter name a template cannot refer to', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.parameters['Api Key'] = { requiredType: 'string' };
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /parameter "Api Key" must start with a letter and contain only letters, digits and underscores/
+    );
+  });
+
   it('throws when a node is missing recordSelector', () => {
     const bad = JSON.parse(JSON.stringify(valid));
     delete bad.nodes.rates.recordSelector;
