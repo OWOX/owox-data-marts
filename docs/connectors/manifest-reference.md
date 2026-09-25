@@ -443,6 +443,7 @@ One account's failure does not stop the others: the engine attempts every accoun
 - An account the API turns away with `401` or `403` is skipped. The run logs a warning, and the date window still counts as loaded, so recover that account's data with a manual backfill.
 - Any other failure is logged as an error, and the window is requested again on the next run. The run then fails, naming the accounts that did not import.
 - If no account imported anything, the run fails.
+- If every account is turned away on the same day, the run stops at that day, which usually means the credentials stopped working. The days before it stay loaded.
 
 ## Asynchronous retriever
 
