@@ -4,7 +4,7 @@ import { useBuilderContext } from '../context/useBuilderContext';
 import { BuilderActionType, type BuilderState } from '../context/types';
 import { ConnectorBuilderApiService } from '../../api/connector-builder-api.service';
 import { createEmptyManifest, createEmptyNode, type BuilderManifest } from '../manifest.types';
-import { blankToNull, firstNonEmpty } from '../asText';
+import { firstNonEmpty } from '../asText';
 import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
 
 /**
@@ -219,21 +219,9 @@ export function useBuilder() {
           return created.id;
         }
         await api.saveDraft(state.id, manifest);
-        // The manifest's display fields are also columns on the connector row, and the row is
-        // what every list, picker and data-mart page reads — this screen is the only one that
-        // reads the manifest. Saving the draft alone left a retitled connector titled the old
-        // way everywhere else, with no error to explain it.
-        //
-        // This replaces the read that used to follow saveDraft rather than adding a request:
-        // the update returns the same detail payload getById does. Sent on every save rather
-        // than only on a change, because the builder holds no copy of what the row currently
-        // says and "changed" could only be guessed. `name` is absent — it is what data marts
-        // resolve the connector by, which is why the field goes read-only once it exists.
-        const detail = await api.updateMetadata(state.id, {
-          title: firstNonEmpty(manifest.title, manifest.name),
-          description: blankToNull(manifest.description),
-          docUrl: blankToNull(manifest.docUrl),
-        });
+        // The title, description and docs link reach the connector row, which every list and
+        // picker reads, when a version is published: a draft is not theirs to show yet.
+        const detail = await api.getById(state.id);
         dispatch({
           type: BuilderActionType.SET_META,
           payload: {

@@ -34,10 +34,6 @@ describe('ConnectorBuilderApiService writes', () => {
       'saveDraft',
       (api: ConnectorBuilderApiService) => api.saveDraft('def-1', createEmptyManifest()),
     ],
-    [
-      'updateMetadata',
-      (api: ConnectorBuilderApiService) => api.updateMetadata('def-1', { title: 'A' }),
-    ],
     ['publish', (api: ConnectorBuilderApiService) => api.publish('def-1')],
     ['activateVersion', (api: ConnectorBuilderApiService) => api.activateVersion('def-1', 1)],
     ['softDelete', (api: ConnectorBuilderApiService) => api.softDelete('def-1')],

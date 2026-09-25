@@ -87,7 +87,7 @@ Then check each field:
 
 **Save draft** keeps your work without making it available. Data Marts never run a draft, and a connector that has never been published appears in the connector list with a **Publish to use** badge.
 
-**Publish** checks the manifest, saves it as a new version and makes that version active. The version badge in the top bar shows the result, e.g. `v1 · published`.
+**Publish** checks the manifest, saves it as a new version and makes that version active. The version badge in the top bar shows the result, e.g. `v1 · published`. The title, description and docs URL shown in the connector list change when you publish, not when you save a draft.
 
 ## Versions
 

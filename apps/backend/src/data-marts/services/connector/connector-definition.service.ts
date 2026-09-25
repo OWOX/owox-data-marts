@@ -15,7 +15,11 @@ import { AvailableConnectors, Core } from '@owox/connectors';
 
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { isUniqueConstraintViolation } from '../../../common/typeorm/query-error.utils';
-import { MAX_MANIFEST_SIZE_BYTES } from '../../dto/presentation/custom-connector.dto';
+import {
+  MAX_MANIFEST_SIZE_BYTES,
+  MAX_TEXT_COLUMN_BYTES,
+  MAX_VARCHAR_LENGTH,
+} from '../../dto/presentation/custom-connector.dto';
 import { ConnectorDefinition as ConnectorSourceDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { ConnectorDefinition } from '../../entities/connector-definition.entity';
@@ -264,25 +268,19 @@ export class ConnectorDefinitionService {
   }
 
   /**
-   * Updates the connector's display metadata.
+   * Updates the connector's display metadata directly.
    *
-   * These columns are a project-local projection of the same fields in the manifest. The
-   * manifest is what travels, while these are what
-   * every connector list, picker and data-mart page reads. create() seeds them from the
-   * manifest and, before this, nothing kept them in step: a title edited in the builder saved
-   * without complaint into the draft and changed nothing anyone could see, because the builder
-   * was the one surface reading the manifest rather than the row.
-   *
-   * Deliberately separate from saveDraft() rather than folded into it. A draft is unpublished
-   * by definition, and syncing the row on every draft save would put a half-typed title in
-   * front of every member of the project before its author had finished the thought.
+   * These columns are a project-local projection of the same fields in the manifest: the
+   * manifest is what travels, the row is what every connector list, picker and Data Mart page
+   * reads. publish() and setActiveVersion() keep them in step with the active version (see
+   * displayFieldsOf); this is for a client that sets them on their own, the logo among them,
+   * which no manifest carries.
    *
    * A targeted UPDATE of the named columns, for the same reason saveDraft() is one: `save()`
    * writes the whole loaded entity back, and TypeORM ships every column that differs from the
    * snapshot it was read at. `activeVersionId` is on this row and belongs to publish() and
    * activateVersion(); a publish landing between the read and the write would be silently
-   * undone -- and the builder's save runs this immediately after saveDraft(), right where a
-   * publish is most likely to be racing it.
+   * undone.
    */
   async updateMetadata(
     projectId: string,
@@ -554,6 +552,7 @@ export class ConnectorDefinitionService {
     // refused now instead of failing each of those Data Marts once it is active.
     specificationFromManifest(draft.manifest);
     fieldsSchemaFromManifest(draft.manifest);
+    const displayFields = this.displayFieldsOf(draft.manifest);
 
     const warnings = this.reportSecretCoverage(def.name, draft.version, model);
 
@@ -561,6 +560,7 @@ export class ConnectorDefinitionService {
     draft.publishedAt = new Date();
     const published = await this.versionRepo.save(draft);
 
+    Object.assign(def, displayFields);
     def.activeVersionId = published.id;
     await this.definitionRepo.save(def);
 
@@ -606,8 +606,48 @@ export class ConnectorDefinitionService {
         `Connector '${id}' has no published version ${version} to activate`
       );
     }
+    Object.assign(def, this.displayFieldsOf(row.manifest));
     def.activeVersionId = row.id;
     return this.definitionRepo.save(def);
+  }
+
+  /**
+   * The row's display fields as the manifest of the version becoming active states them.
+   *
+   * Lists, pickers and Data Mart pages read the row, not the manifest, and a draft is not
+   * theirs to show: synced on every draft save, a half-typed title reached every member of the
+   * project, and abandoning the draft did not take it back. Only what the manifest states is
+   * written, so a title given only on the row survives a manifest without one, while a
+   * description or docs link stated empty clears the column. A value the column cannot hold is
+   * refused here, before anything is written.
+   */
+  private displayFieldsOf(
+    manifest: Record<string, unknown>
+  ): QueryDeepPartialEntity<ConnectorDefinition> {
+    const fields: QueryDeepPartialEntity<ConnectorDefinition> = {};
+    if (typeof manifest.title === 'string' && manifest.title.trim() !== '') {
+      fields.title = manifest.title;
+    }
+    for (const key of ['description', 'docUrl'] as const) {
+      if (key in manifest) {
+        const value = manifest[key];
+        fields[key] = typeof value === 'string' && value.trim() !== '' ? value : null;
+      }
+    }
+    const tooLong = [
+      typeof fields.title === 'string' && fields.title.length > MAX_VARCHAR_LENGTH && 'title',
+      typeof fields.docUrl === 'string' && fields.docUrl.length > MAX_VARCHAR_LENGTH && 'docUrl',
+      typeof fields.description === 'string' &&
+        Buffer.byteLength(fields.description) > MAX_TEXT_COLUMN_BYTES &&
+        'description',
+    ].filter(Boolean);
+    if (tooLong.length > 0) {
+      throw new BadRequestException(
+        `The manifest's ${tooLong.join(', ')} is too long: a title or docs link holds ` +
+          `${MAX_VARCHAR_LENGTH} characters, a description ${MAX_TEXT_COLUMN_BYTES} bytes.`
+      );
+    }
+    return fields;
   }
 
   /**

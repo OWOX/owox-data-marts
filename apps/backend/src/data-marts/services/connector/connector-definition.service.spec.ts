@@ -697,6 +697,63 @@ describe('ConnectorDefinitionService', () => {
    * A Data Mart reads a published connector through its specification and field list, which
    * are built from the manifest by stricter rules than the parser applies.
    */
+  /**
+   * Lists, pickers and Data Mart pages read the row, and a draft is not theirs to show until
+   * it is published, so the row takes its display fields from the version that becomes active.
+   */
+  describe('the row shows the display fields of the active version', () => {
+    const created = async () => {
+      const made = make();
+      const def = await made.service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'Created title',
+        description: 'Created description',
+        docUrl: 'https://docs.example.com/created',
+        manifest: validManifest,
+      });
+      return { ...made, def, row: () => made.store.defs.find(d => d.id === def.id) };
+    };
+
+    it('publish() writes the title, description and docs link the manifest states', async () => {
+      const { service, def, row } = await created();
+      await service.saveDraft('proj-1', def.id, {
+        ...validManifest,
+        title: 'Published title',
+        description: '',
+      });
+
+      await service.publish('proj-1', def.id, EDITOR);
+
+      expect(row()).toMatchObject({
+        title: 'Published title',
+        description: null,
+        docUrl: 'https://docs.example.com/created',
+      });
+    });
+
+    it('setActiveVersion() brings back the display fields of the version it activates', async () => {
+      const { service, def, row } = await created();
+      await service.saveDraft('proj-1', def.id, { ...validManifest, title: 'First' });
+      const { version: v1 } = await service.publish('proj-1', def.id, EDITOR);
+      await service.saveDraft('proj-1', def.id, { ...validManifest, title: 'Second' });
+      await service.publish('proj-1', def.id, EDITOR);
+
+      await service.setActiveVersion('proj-1', def.id, v1.version, EDITOR);
+
+      expect(row()!.title).toBe('First');
+    });
+
+    it('publish() refuses a title longer than the row holds, and leaves the draft a draft', async () => {
+      const { service, store, def, row } = await created();
+      await service.saveDraft('proj-1', def.id, { ...validManifest, title: 't'.repeat(256) });
+
+      await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(/title/);
+
+      expect(store.versions[0].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+      expect(row()!.title).toBe('Created title');
+    });
+  });
+
   describe('publish() refuses a manifest a Data Mart could not read', () => {
     const publishing = async (manifest: Record<string, unknown>) => {
       const { service, store } = make();

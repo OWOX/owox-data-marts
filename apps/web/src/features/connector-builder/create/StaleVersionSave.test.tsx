@@ -6,7 +6,6 @@ const getById = vi.fn();
 const getVersion = vi.fn();
 const saveDraft = vi.fn();
 const publish = vi.fn();
-const updateMetadata = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
@@ -14,7 +13,6 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
     getVersion = getVersion;
     saveDraft = saveDraft;
     publish = publish;
-    updateMetadata = updateMetadata;
     create = vi.fn();
     activateVersion = vi.fn();
     softDelete = vi.fn();
@@ -84,15 +82,6 @@ describe('saving from an older version', () => {
     );
     saveDraft.mockResolvedValue({ version: 3, status: 'draft', publishedAt: null });
     publish.mockResolvedValue({ version: 3, status: 'published', publishedAt: 'x' });
-    // Saving a draft syncs the connector's display metadata onto its row, and that response
-    // is what refreshes version state afterwards — it returns the same payload getById does.
-    updateMetadata.mockResolvedValue(
-      detail([
-        { version: 1, status: 'published' },
-        { version: 2, status: 'published' },
-        { version: 3, status: 'draft' },
-      ])
-    );
   });
 
   it('confirms before a save that would replace a newer draft', async () => {

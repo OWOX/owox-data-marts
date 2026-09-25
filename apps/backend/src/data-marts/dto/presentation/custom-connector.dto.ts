@@ -55,8 +55,8 @@ export const MAX_MANIFEST_SIZE_BYTES = 120 * 1024;
  * every definition in the project, so an unbounded one is amplified across the whole list rather
  * than costing only its own record.
  */
-const MAX_VARCHAR_LENGTH = 255;
-const MAX_TEXT_COLUMN_BYTES = 65535;
+export const MAX_VARCHAR_LENGTH = 255;
+export const MAX_TEXT_COLUMN_BYTES = 65535;
 
 export class CreateCustomConnectorRequestApiDto {
   @ApiProperty({ example: 'MyCustomApi', maxLength: MAX_VARCHAR_LENGTH })

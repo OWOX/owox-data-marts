@@ -10,7 +10,6 @@ const getVersion = vi.fn();
 const saveDraft = vi.fn();
 const publish = vi.fn();
 const softDelete = vi.fn();
-const updateMetadata = vi.fn();
 const runTest = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
@@ -21,7 +20,6 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
     publish = publish;
     getVersion = getVersion;
     softDelete = softDelete;
-    updateMetadata = updateMetadata;
     test = runTest;
   },
 }));
@@ -71,16 +69,6 @@ describe('ConnectorBuilderPage (new)', () => {
       status: 'published',
       publishedAt: '2026-06-11T00:00:00Z',
       warnings: [],
-    });
-    updateMetadata.mockResolvedValue({
-      id: 'def-1',
-      name: 'MyApi',
-      title: 'My API',
-      description: null,
-      logo: null,
-      docUrl: null,
-      activeVersionId: null,
-      versions: [{ version: 1, status: 'draft', publishedAt: null }],
     });
   });
 
@@ -186,17 +174,15 @@ describe('ConnectorBuilderPage (new)', () => {
   });
 
   /**
-   * The builder edits the manifest, but the connectors list, the picker and every data-mart
-   * page read the connector's ROW — seeded from the manifest at create and, before this,
-   * never updated. A retitled connector saved cleanly and kept its old title everywhere the
-   * user would actually look for it, with nothing to say why.
+   * The connector row that lists and pickers read takes its title, description and docs link
+   * from the version being published, not from a draft; the draft carries them in the manifest.
    */
-  it('sends an edited title to the connector row, not only into the manifest', async () => {
+  it('saves an edited title into the draft and leaves the connector row to publish', async () => {
     saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
     getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: EXISTING_MANIFEST });
     render(<ConnectorBuilderPage id='def-1' />);
     await waitFor(() => {
-      expect(getById).toHaveBeenCalled();
+      expect(getById).toHaveBeenCalledTimes(1);
     });
 
     fireEvent.change(screen.getByPlaceholderText('My Custom API'), {
@@ -205,52 +191,12 @@ describe('ConnectorBuilderPage (new)', () => {
     fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
 
     await waitFor(() => {
-      expect(updateMetadata).toHaveBeenCalledWith(
-        'def-1',
-        expect.objectContaining({ title: 'Renamed API' })
-      );
+      expect(getById).toHaveBeenCalledTimes(2);
     });
-    // The name is what data marts resolve the connector by, so it is never part of the update.
-    expect(updateMetadata.mock.calls[0][1]).not.toHaveProperty('name');
-  });
-
-  /**
-   * An emptied optional field has to clear the column, not store `''`: the row is read by
-   * screens that render these only when present, and an empty string is present.
-   */
-  it('clears an emptied description rather than storing a blank', async () => {
-    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
-    getVersion.mockResolvedValue({
-      version: 1,
-      status: 'draft',
-      manifest: { ...EXISTING_MANIFEST, description: 'Something' },
-    });
-    getById.mockResolvedValue({
-      id: 'def-1',
-      name: 'MyApi',
-      title: 'My API',
-      description: 'Something',
-      logo: null,
-      docUrl: null,
-      activeVersionId: null,
-      versions: [{ version: 1, status: 'draft', publishedAt: null }],
-    });
-    render(<ConnectorBuilderPage id='def-1' />);
-    await waitFor(() => {
-      expect(getById).toHaveBeenCalled();
-    });
-
-    fireEvent.change(screen.getByRole('textbox', { name: /description/i }), {
-      target: { value: '   ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
-
-    await waitFor(() => {
-      expect(updateMetadata).toHaveBeenCalledWith(
-        'def-1',
-        expect.objectContaining({ description: null })
-      );
-    });
+    expect(saveDraft).toHaveBeenCalledWith(
+      'def-1',
+      expect.objectContaining({ title: 'Renamed API' })
+    );
   });
 
   it('keeps the created id when the read that follows create fails', async () => {
@@ -395,7 +341,6 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     vi.clearAllMocks();
     create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
     getById.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
-    updateMetadata.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
     saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
     publish.mockResolvedValue({ version: 1, status: 'published', publishedAt: null, warnings: [] });
     runTest.mockResolvedValue({ rows: [], logs: [] });
@@ -518,7 +463,7 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     releaseSave();
 
     await waitFor(() => {
-      expect(updateMetadata).toHaveBeenCalledTimes(1);
+      expect(getById).toHaveBeenCalledTimes(2);
     });
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
@@ -545,7 +490,6 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
   beforeEach(() => {
     vi.clearAllMocks();
     getById.mockResolvedValue(detail);
-    updateMetadata.mockResolvedValue(detail);
     getVersion.mockImplementation((_id: string, version: number) =>
       Promise.resolve({
         version,
