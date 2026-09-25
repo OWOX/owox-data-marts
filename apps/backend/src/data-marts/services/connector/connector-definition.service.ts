@@ -665,12 +665,15 @@ export class ConnectorDefinitionService {
       projectId,
       DataMartDefinitionType.CONNECTOR
     );
+    // Case-insensitive, as MySQL resolves a Data Mart's connector name at run time: a reference
+    // missed here lets the name be re-created and the Data Mart rebind, secrets and all, to
+    // whatever the new connector does.
+    const name = def.name.toLowerCase();
     const referencedDataMarts = connectorMarts
-      .filter(
-        mart =>
-          (mart.definition as ConnectorSourceDefinition | undefined)?.connector?.source?.name ===
-          def.name
-      )
+      .filter(mart => {
+        const definition = mart.definition as ConnectorSourceDefinition | undefined;
+        return definition?.connector?.source?.name?.toLowerCase() === name;
+      })
       .map(mart => mart.id);
 
     if (referencedDataMarts.length > 0) {

@@ -803,6 +803,26 @@ describe('ConnectorDefinitionService', () => {
       expect(defRepo.softDelete).not.toHaveBeenCalled();
     });
 
+    // A run resolves the connector by name the way the database compares it, and MySQL
+    // ignores case. A reference the guard missed let the connector be deleted and re-created
+    // under the same name, silently rebinding the Data Mart and its secrets to new code.
+    it('refuses to delete a connector a data mart names in another letter case', async () => {
+      const { service, defRepo, dataMartService } = make();
+      const def = await service.create('project-1', 'user-1', {
+        name: 'CocCocAds',
+        title: 'CocCoc Ads',
+        manifest: validManifest,
+      });
+      dataMartService.findByProjectIdAndDefinitionType.mockResolvedValue([
+        { id: 'dm-1', definition: { connector: { source: { name: 'coccocads' } } } },
+      ] as never);
+
+      await expect(service.softDelete('project-1', def.id)).rejects.toMatchObject({
+        errorDetails: { referencedDataMarts: ['dm-1'] },
+      });
+      expect(defRepo.softDelete).not.toHaveBeenCalled();
+    });
+
     it('reports the referencing data mart ids', async () => {
       const { service, dataMartService } = make();
       const def = await service.create('project-1', 'user-1', {
