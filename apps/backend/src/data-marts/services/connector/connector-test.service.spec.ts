@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { join } from 'path';
 import { PassThrough } from 'stream';
 import { Core } from '@owox/connectors';
-import { ConnectorTestService } from './connector-test.service';
+import { ConnectorTestService, MAX_TEST_OUTPUT_LENGTH } from './connector-test.service';
 import {
   MAX_CAPTURED_LINE_LENGTH,
   TRUNCATED_OUTPUT_LINE,
@@ -441,6 +441,30 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     expect(res.logs).toContain('starting fake run');
     expect(res.rows).toEqual([{ i: 0 }]);
   }, 15000);
+
+  // Each line is capped, but a test may ask for up to 1000 rows, several tests run at once in
+  // the backend process, and each row line may be as large as the cap.
+  it('stops reading a test whose output outgrows its budget, and says so', async () => {
+    const svc = makeService();
+    const res = await svc.runTest({
+      projectId: 'p',
+      manifest,
+      node: 'items',
+      configuration: {},
+      maxRows: 1000,
+      _testEnv: { FAKE_BIG_ROWS: '1' },
+    });
+
+    const held = [...res.rows, ...res.logs].reduce(
+      (total: number, item) => total + JSON.stringify(item).length,
+      0
+    );
+    expect(held).toBeLessThanOrEqual(MAX_TEST_OUTPUT_LENGTH);
+    expect(res.rows.length).toBeGreaterThan(0);
+    expect(res.rows.length).toBeLessThan(40);
+    expect(res.error).toBeNull();
+    expect(res.logs.join('\n')).toContain('Stopped reading the test output');
+  }, 30000);
 
   /**
    * A node with an `incremental` block is walked ONE REQUEST PER DAY by the engine, and

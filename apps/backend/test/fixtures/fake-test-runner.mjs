@@ -104,6 +104,14 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
   process.stderr.write(`${huge}\n`);
   process.stdout.write('starting fake run\n');
   process.stdout.write(`${MARKER}${JSON.stringify({ i: 0 })}\n`);
+} else if (process.env.FAKE_BIG_ROWS === '1') {
+  // Rows each under the per-line cap that add up to far more than one test may hold.
+  // No process.exit(), for the same reason as above.
+  const pad = 'x'.repeat(600 * 1024);
+  process.stdout.write('starting fake run\n');
+  for (let i = 0; i < 40; i++) {
+    process.stdout.write(`${MARKER}${JSON.stringify({ i, pad })}\n`);
+  }
 } else {
   const cfg = process.env.OW_CONFIG ? JSON.parse(process.env.OW_CONFIG) : {};
   const fields = cfg?.source?.config?.Fields?.value ?? '';

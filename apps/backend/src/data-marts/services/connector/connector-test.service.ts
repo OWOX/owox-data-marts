@@ -43,6 +43,13 @@ const DEFAULT_TIMEOUT_MS = 20000;
 export const TEST_DATE_WINDOW_DAYS = 2;
 
 /** Fallbacks used when no ConfigService is wired; see env-validation.config.ts. */
+/**
+ * How much output one live test may hold, rows, sample and logs together, in characters. Each
+ * line is capped already, but a test may ask for 1000 rows, each up to that cap, and several
+ * tests run at once inside the backend process.
+ */
+export const MAX_TEST_OUTPUT_LENGTH = 16 * 1024 * 1024;
+
 const DEFAULT_MAX_TESTS_PER_PROJECT = 3;
 const DEFAULT_MAX_TESTS_TOTAL = 10;
 
@@ -521,8 +528,27 @@ export class ConnectorTestService {
       };
       const timer = setTimeout(() => finish(`Test run timed out after ${timeoutMs}ms`), timeoutMs);
 
+      let held = 0;
+      let overBudget = false;
+      // Counts a line against MAX_TEST_OUTPUT_LENGTH; the line that would outgrow it ends the
+      // test with what arrived before it.
+      const admit = (line: string): boolean => {
+        if (overBudget) return false;
+        if (held + line.length <= MAX_TEST_OUTPUT_LENGTH) {
+          held += line.length;
+          return true;
+        }
+        overBudget = true;
+        logs.push(
+          `Stopped reading the test output at ${MAX_TEST_OUTPUT_LENGTH / 1024 / 1024} MiB: ` +
+            `the rows shown are the ones that arrived by then.`
+        );
+        finish(null);
+        return false;
+      };
+
       const onLine = (line: string) => {
-        if (!line) return;
+        if (!line || !admit(line)) return;
         if (line.startsWith(marker)) {
           try {
             rows.push(JSON.parse(line.slice(marker.length)) as Record<string, unknown>);
@@ -578,7 +604,7 @@ export class ConnectorTestService {
       const stdoutBuffer = createCapturedLineBuffer(onLine);
       const stderrBuffer = createCapturedLineBuffer(line => {
         // Blank lines carry nothing; `onLine` drops them on the stdout side too.
-        if (!line) return;
+        if (!line || !admit(line)) return;
         logs.push(line);
         const reported = readRunFailureEnvelope(line);
         if (reported !== null) runFailure ??= reported;
