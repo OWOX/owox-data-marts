@@ -12,7 +12,7 @@ import { parseManifestJson } from '../../../shared/model/manifestJson';
  * the node body that white-screened it. The manifest goes through the real
  * `parseManifestJson` (which normalizes only the top level) into the real reducer, so every
  * section editor below `NodeEditor` sees the node exactly as an author's Code-mode paste —
- * or an AI-authored manifest — leaves it. `CollapsibleCard` collapses with CSS only, so
+ * or an MCP-authored manifest — leaves it. `CollapsibleCard` collapses with CSS only, so
  * the collapsed sections are mounted too and each one really renders here.
  */
 function seed(json: string): BuilderState {

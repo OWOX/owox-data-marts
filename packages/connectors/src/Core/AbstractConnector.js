@@ -1249,7 +1249,8 @@ export class AbstractConnector {
     }
 
     // Cap the window, last line of defence. The backend refuses a longer range before the
-    // run is even created; this catches any path that does not go through it, because the cost of
+    // run is even created; this catches the paths that do not go through it -- a run
+    // triggered over MCP or by `owox-ctl`, and any future caller -- because the cost of
     // missing it is not a slow run but a wedged one: a day-by-day node issues one request
     // per account per day, so an accidental multi-year range holds a concurrency slot for
     // hours before anything notices.

@@ -7,6 +7,7 @@ import {
   StorageDriver,
 } from 'typeorm-transactional';
 
+import { McpConnectorAuthoringFacadeImpl } from '../../facades/mcp-connector-authoring.facade.impl';
 import { CreateConnectorDefinitionTables1788048000000 } from '../../../migrations/1788048000000-create-connector-definition-tables';
 import { ConnectorDefinition } from '../../entities/connector-definition.entity';
 import {
@@ -612,8 +613,124 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
   });
 
   /**
+   * `connector_publish {name, title, manifest}` is one operation to its caller, and an
+   * assistant authoring a connector reaches it with a manifest it has never had validated:
+   * `connector_test` only ever parses the ONE node it runs. Split across two transactions,
+   * a manifest the parser rejects left the definition row committed and unpublishable --
+   * and `assertNameAvailable()` searches `withDeleted: true`, so that row reserved the
+   * connector's name for good. The obvious retry ("publish it again, correctly") then failed
+   * with "already exists in this project" on a connector the caller cannot see.
+   *
+   * These run against the real schema because a rollback is the thing being asserted, and
+   * only a real transaction can roll anything back.
+   */
+  describe('MCP connector_publish, creating and publishing in one call', () => {
+    const INVALID_MANIFEST = { not: 'a manifest' } as Record<string, unknown>;
+    const editor = { projectId: 'project-1', userId: 'user-1', roles: ['editor'] };
+    let facade: McpConnectorAuthoringFacadeImpl;
+
+    beforeEach(() => {
+      facade = new McpConnectorAuthoringFacadeImpl({} as never, service);
+    });
+
+    it('leaves nothing behind when the manifest fails to publish', async () => {
+      await expect(
+        facade.publishConnector({
+          ...editor,
+          name: 'MyCustom',
+          title: 'My Custom',
+          manifest: INVALID_MANIFEST,
+        })
+      ).rejects.toThrow(/Invalid connector manifest/);
+
+      await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(0);
+      await expect(versionRepo.count()).resolves.toBe(0);
+    });
+
+    it('keeps the connector name free for the corrected retry', async () => {
+      await expect(
+        facade.publishConnector({
+          ...editor,
+          name: 'MyCustom',
+          title: 'My Custom',
+          manifest: INVALID_MANIFEST,
+        })
+      ).rejects.toThrow(/Invalid connector manifest/);
+
+      const published = await facade.publishConnector({
+        ...editor,
+        name: 'MyCustom',
+        title: 'My Custom',
+        manifest: VALID_MANIFEST,
+      });
+
+      expect(published).toMatchObject({
+        name: 'MyCustom',
+        version: 1,
+        status: ConnectorDefinitionVersionStatus.PUBLISHED,
+      });
+    });
+
+    it('publishes and activates the first version when the manifest is valid', async () => {
+      const published = await facade.publishConnector({
+        ...editor,
+        name: 'MyCustom',
+        title: 'My Custom',
+        manifest: VALID_MANIFEST,
+      });
+
+      const definition = await definitionRepo.findOneOrFail({
+        where: { id: published.connectorId },
+      });
+      const version = await versionRepo.findOneOrFail({
+        where: { connectorDefinitionId: definition.id },
+      });
+      expect(definition.activeVersionId).toBe(version.id);
+      expect(version.status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);
+      expect(version.publishedAt).not.toBeNull();
+    });
+
+    /**
+     * The update shape (connector_id + manifest) is deliberately NOT atomic the same way:
+     * the connector already exists, so a rejected manifest costs only an unpublished draft
+     * that the next call overwrites, and rolling the draft back would throw away the work
+     * the caller just sent while leaving them nothing to correct.
+     */
+    it('keeps the rejected manifest as a draft when publishing over an existing connector', async () => {
+      const published = await facade.publishConnector({
+        ...editor,
+        name: 'MyCustom',
+        title: 'My Custom',
+        manifest: VALID_MANIFEST,
+      });
+
+      await expect(
+        facade.publishConnector({
+          ...editor,
+          connectorId: published.connectorId,
+          manifest: INVALID_MANIFEST,
+        })
+      ).rejects.toThrow(/Invalid connector manifest/);
+
+      const versions = await versionRepo.find({
+        where: { connectorDefinitionId: published.connectorId },
+        order: { version: 'ASC' },
+      });
+      expect(versions).toHaveLength(2);
+      expect(versions[1].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
+      expect(versions[1].manifest).toEqual(INVALID_MANIFEST);
+      // ...and the connector still serves the version it was serving before.
+      const definition = await definitionRepo.findOneOrFail({
+        where: { id: published.connectorId },
+      });
+      expect(definition.activeVersionId).toBe(versions[0].id);
+    });
+  });
+
+  /**
    * saveDraft() reads the latest version, edits that entity in memory and saves it back.
-   * Between the read and the write a publish can land -- the builder autosaves from another
+   * Between the read and the write a publish can land -- MCP `connector_publish` runs
+   * saveDraft() then publish() on the same connector, and the builder autosaves from another
    * tab -- and the entity the read produced still carries `status: draft, publishedAt: null`.
    * TypeORM's save() diffs the loaded entity against the row and writes every column that
    * differs, so those two travel along with the manifest and UNPUBLISH the version that was
@@ -796,8 +913,9 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
   });
 
   /**
-   * listVersions() feeds version metadata only -- GET :id builds the version-pinning list
-   * from it. Loading the rows whole reads every manifest on the connector, up to MAX_MANIFEST_SIZE_BYTES
+   * Both callers of listVersions() render version metadata only -- GET :id builds the
+   * version-pinning list, MCP connector_versions the same list with an isActive flag. Loading
+   * the rows whole reads every manifest on the connector, up to MAX_MANIFEST_SIZE_BYTES
    * (120 KiB) each, to produce four scalar columns.
    *
    * Asserted on the real schema because `select` is an instruction to the driver: a

@@ -303,13 +303,13 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
    * A test runs ONE node, so it parses the pruned manifest and a broken sibling node goes
    * unseen -- but publish() parses the whole thing and refuses it. That gap is the common
    * shape of an assistant-authored connector: node one is written and tested, node two is
-   * written and never tested, the test passes, and publish rejects the connector.
+   * written and never tested, `connector_test` passes, and publish rejects the connector.
    *
    * Surfaced in the log trail rather than thrown, because the caller asked about THIS node
    * and is entitled to an answer about it: an author iterating on node one with node two
    * half-written must not be locked out of testing. The trail is where a test's other
-   * unhappy news already lands (the 0-record diagnostic), and it names the node the parser
-   * objected to.
+   * unhappy news already lands (the 0-record diagnostic), the MCP facade carries it back
+   * newest-first, and it names the node the parser objected to.
    */
   describe('a sibling node the parser rejects', () => {
     const twoNodeManifest = (broken: Record<string, unknown>) => ({
@@ -602,8 +602,9 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
   /**
    * The manifest and the configuration both reach the runner as process ENVIRONMENT
    * STRINGS, and Linux refuses a single one longer than MAX_ARG_STRLEN (131072 bytes) with
-   * E2BIG. The HTTP DTO bounds what it receives; without a bound on the service too, the
-   * spawn fails and the caller is handed a raw "spawn node E2BIG"
+   * E2BIG. The HTTP DTO bounds what it receives; the MCP `connector_test` tool takes both
+   * through its own Zod schema and the MCP transport accepts a 2 MiB body, so without a
+   * bound on the service the spawn fails and the caller is handed a raw "spawn node E2BIG"
    * on an otherwise 200-shaped result.
    *
    * The number is re-stated rather than imported on purpose, as in

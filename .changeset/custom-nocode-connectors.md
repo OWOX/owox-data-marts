@@ -14,6 +14,10 @@ manifest is readable by editors only — it is author-written JSON that can hold
 typed straight into the builder — while the connector list, its configuration form and its
 field schema stay open to viewers.
 
+AI assistants connected over MCP can do the same — discover connectors, author and test a
+manifest, publish it, run a connector Data Mart and watch the result — and hand you a link to
+open the connector in the builder.
+
 Connector fixes included in this release:
 
 - **LinkedIn Ads** — account ids are sent as bare numbers again, so catalog imports stop being

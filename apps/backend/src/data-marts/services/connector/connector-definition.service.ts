@@ -96,9 +96,11 @@ const VERSION_SUMMARY_COLUMNS: (keyof ConnectorDefinitionVersion)[] = [
 ];
 
 /**
- * What listVersions() returns: the version metadata the GET :id version list renders. Named as
- * a projection rather than left as ConnectorDefinitionVersion so the missing `manifest` is in
- * the type, not a surprise at the call site.
+ * What listVersions() returns: the version metadata both of its callers render — the REST
+ * GET :id version list and MCP `connector_versions`, which adds an isActive flag by
+ * comparing `id` against the definition's activeVersionId. Named as a projection rather than
+ * left as ConnectorDefinitionVersion so the missing `manifest` is in the type, not a
+ * surprise at the call site.
  */
 export type ConnectorDefinitionVersionSummary = Pick<
   ConnectorDefinitionVersion,
@@ -233,6 +235,34 @@ export class ConnectorDefinitionService {
     return definition;
   }
 
+  /**
+   * Creates a connector and publishes its first version as ONE unit.
+   *
+   * create() stores whatever manifest it is handed -- a draft is allowed to be incomplete,
+   * which is the whole point of the builder -- and publish() is where ManifestParser gets a
+   * say. Run as two transactions that is a trap for any caller who does both in a single
+   * operation, which the MCP `connector_publish` tool does: the parser rejects the manifest,
+   * publish() throws, and the definition row stays committed with nothing but an
+   * unpublishable draft. That row holds the connector's name, and the obvious retry -- publish
+   * it again with the manifest corrected -- fails with "already exists in this project" on a
+   * connector the caller was never told about. An assistant cannot delete its way out either:
+   * softDelete() frees a name, but it needs the id, and the throw carried none.
+   *
+   * One transaction instead of validating up front: publish() must remain the authority on
+   * what a valid manifest is, and a second parse here would be a copy of that rule free to
+   * drift from it.
+   */
+  @Transactional()
+  async createAndPublish(
+    projectId: string,
+    userId: string,
+    input: CreateConnectorDefinitionInput
+  ): Promise<{ definition: ConnectorDefinition } & PublishedConnectorVersion> {
+    const definition = await this.create(projectId, userId, input);
+    const { version, warnings } = await this.publish(projectId, definition.id);
+    return { definition, version, warnings };
+  }
+
   async listByProject(projectId: string): Promise<ConnectorDefinition[]> {
     return this.definitionRepo.find({ where: { projectId } });
   }
@@ -249,7 +279,7 @@ export class ConnectorDefinitionService {
    * Updates the connector's display metadata.
    *
    * These columns are a project-local projection of the same fields in the manifest. The
-   * manifest is what travels, while these are what
+   * manifest is what travels -- it is exported, and MCP publishes it -- while these are what
    * every connector list, picker and data-mart page reads. create() seeds them from the
    * manifest and, before this, nothing kept them in step: a title edited in the builder saved
    * without complaint into the draft and changed nothing anyone could see, because the builder
@@ -414,14 +444,67 @@ export class ConnectorDefinitionService {
   }
 
   /**
+   * Resolves the manifest for the AUTHORING path — MCP `connector_details`, whose caller the
+   * facade has already checked for the editor/admin role.
+   *
+   * Serves the active PUBLISHED version when there is one and falls back to the latest
+   * version otherwise, draft included; an explicit version is served whatever its status.
+   * Neither of the other two resolvers does that, and the difference is the AUDIENCE rather
+   * than a relaxation of either:
+   *  - resolveManifest (spec) feeds viewer-readable endpoints that render a configuration
+   *    form, so a draft there shows every project member parameters an editor is still
+   *    typing — and builds a form for a manifest the runner would refuse;
+   *  - tryResolveManifest (run) must never execute anything but what was released;
+   *  - this one answers an author about their own work, and that read is already theirs: GET
+   *    :id/versions/:version serves any version at @Auth(Role.editor()), and
+   *    connector_details withholds its manifest from anyone below that same role.
+   *
+   * Without it the authoring loop had a hole where its first step should be.
+   * `connector_publish` tells callers to read connector_details first, and a connector fresh
+   * from create() has exactly one version and it is a draft — so the documented first step
+   * failed with "has no published version to run" on precisely the connectors it was written
+   * for.
+   *
+   * Returns null when no ConnectorDefinition exists for the name, like tryResolveManifest: a
+   * bundled connector has no manifest, which is an answer and not an error.
+   */
+  async resolveAuthoredManifest(
+    projectId: string,
+    name: string,
+    version?: number
+  ): Promise<Record<string, unknown> | null> {
+    const def = await this.definitionRepo.findOne({ where: { projectId, name } });
+    if (!def) {
+      return null;
+    }
+    const row =
+      version !== undefined
+        ? await this.versionRepo.findOne({ where: { connectorDefinitionId: def.id, version } })
+        : ((await this.resolveActivePublished(def)) ??
+          (await this.versionRepo.findOne({
+            where: { connectorDefinitionId: def.id },
+            order: { version: 'DESC' },
+          })));
+    if (!row) {
+      throw new NotFoundException(
+        version !== undefined
+          ? `Version ${version} of connector '${name}' not found`
+          : `Connector '${name}' has no versions`
+      );
+    }
+    return row.manifest;
+  }
+
+  /**
    * Writes the manifest to the connector's open draft, or opens the next one.
    *
    * Guarded UPDATE rather than the read-modify-write this used to be, and deliberately NOT
    * @Transactional. `save(latest)` wrote the WHOLE loaded entity back — TypeORM diffs the
    * entity against the row and ships every column that differs — so a publish landing
    * between the read and the write was undone: `status` and `publishedAt` reverted to the
-   * values the now-stale entity still carried. The builder autosaves on its own schedule, so
-   * a publish lands on either side of a save. One demotes a released version back to a draft, after which every run
+   * values the now-stale entity still carried. MCP `connector_publish` runs saveDraft() then
+   * publish() on the same connector while the builder autosaves alongside it, so both
+   * orderings happen. One demotes a released version back to a draft, after which every run
    * 400s with "has no published version to run" until someone publishes again; the other
    * publishes the manifest of the save that lost.
    *
@@ -766,8 +849,9 @@ export class ConnectorDefinitionService {
       warnings.push(
         `${prefix} parameter '${parameter}' is SECRET and declares a ` +
           `default, placeholder or options list. Those are values for a credential field, and ` +
-          `the configuration specification — which every project member can read — ` +
-          `withholds them, so they will not reach the configuration form. Remove them, or drop the "SECRET" attribute if the value is not ` +
+          `the configuration specification — which every project member can read, and any MCP ` +
+          `client holding "mcp:read" — withholds them, so they will not reach the ` +
+          `configuration form. Remove them, or drop the "SECRET" attribute if the value is not ` +
           `a credential.`
       );
     }
@@ -823,9 +907,11 @@ export class ConnectorDefinitionService {
    * by which point it is bound to a Data Mart. ConnectorExecutorService.stripManifestForRunner
    * removes only `logo`, so nothing else shrinks it on the way out.
    *
-   * Enforced here as well as on CreateCustomConnectorRequestApiDto so every path into
-   * create()/saveDraft() is bounded. The HTTP DTO keeps its own `@MaxJsonSize` so the refusal
-   * still arrives as a field-level 400 with the rest of the body's errors.
+   * Enforced here rather than only on CreateCustomConnectorRequestApiDto because this is the
+   * choke point both entrances share: the MCP tools take their manifest through their own Zod
+   * schemas (`manifest: z.record(z.unknown())`, unbounded) and reach create()/saveDraft()
+   * without touching that DTO. The HTTP DTO keeps its own `@MaxJsonSize` so the refusal still
+   * arrives as a field-level 400 with the rest of the body's errors.
    *
    * Measured in BYTES, matching what the kernel counts: a manifest carries user-authored
    * labels and descriptions, and a character count would wave through a manifest up to three
