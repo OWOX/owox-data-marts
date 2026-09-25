@@ -9,7 +9,10 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
+import { RunKind } from '../services/project-billing/project-billing.service';
 import {
   PreviewAbortedError,
   PreviewDataMartCommand,
@@ -43,6 +46,7 @@ describe('PreviewDataMartService', () => {
       nativeFields?: { name: string; type: string; fields?: unknown[] }[];
       readerError?: Error;
       composeError?: Error;
+      blocked?: boolean;
       deadlineMs?: number;
       readerNeverResolves?: boolean;
     } = {}
@@ -110,6 +114,15 @@ describe('PreviewDataMartService', () => {
       ),
     };
     const errorMapperResolver = { resolve: jest.fn().mockResolvedValue(errorMapper) };
+    const projectBilling = {
+      verifyCanPerformOperations: overrides.blocked
+        ? jest
+            .fn()
+            .mockRejectedValue(
+              new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+            )
+        : jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new PreviewDataMartService(
       dataMartService as never,
@@ -118,9 +131,10 @@ describe('PreviewDataMartService', () => {
       readerResolver as never,
       accessDecisionService as never,
       errorMapperResolver as never,
+      projectBilling as never,
       overrides.deadlineMs ?? 3_600_000
     );
-    return { service, composer, reader, readerResolver, errorMapper };
+    return { service, composer, reader, readerResolver, errorMapper, projectBilling };
   };
 
   it('reads the default 10 rows (+1 to detect more) from a DRAFT Data Mart', async () => {
@@ -147,6 +161,26 @@ describe('PreviewDataMartService', () => {
       limit: 10,
       truncated: false,
     });
+  });
+
+  it('checks the project operation gate like HTTP Data, without consuming anything', async () => {
+    const { service, projectBilling } = createService();
+
+    await service.run(command());
+
+    expect(projectBilling.verifyCanPerformOperations).toHaveBeenCalledWith(
+      'p1',
+      RunKind.HTTP_DATA_RUN
+    );
+    expect(Object.keys(projectBilling)).toEqual(['verifyCanPerformOperations']);
+  });
+
+  it('reads nothing for a blocked project', async () => {
+    const { service, composer, readerResolver } = createService({ blocked: true });
+
+    await expect(service.run(command())).rejects.toBeInstanceOf(ProjectOperationBlockedException);
+    expect(composer.compose).not.toHaveBeenCalled();
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
   });
 
   it('accepts the maximum limit of 1000', async () => {

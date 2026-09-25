@@ -31,4 +31,4 @@ Hidden fields, calculated fields, and fields from joined Data Marts are not part
 
 Every preview — the first run, **Re-run**, a new limit, a sort, or a filter change — executes a new query in your data warehouse, which your warehouse may bill as usual. Paging through rows you already fetched does not run a new query.
 
-A preview is not a Data Mart run: it does not appear in **Run History** and does not consume OWOX Data Marts credits.
+A preview is not a Data Mart run: it does not appear in **Run History** and does not consume OWOX Data Marts credits. Like other data reads, it is unavailable while the project is blocked or the deployment has no valid license.

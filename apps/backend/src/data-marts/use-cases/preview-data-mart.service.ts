@@ -30,6 +30,10 @@ import {
 } from '../services/blendable-schema.service';
 import { DataMartService } from '../services/data-mart.service';
 import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 
 export const PREVIEW_DEFAULT_LIMIT = 10;
@@ -87,7 +91,8 @@ export class PreviewAbortedError extends HttpException {
  * Every native, reporting-visible field is projected; the caller chooses only a row limit,
  * WHERE filters and ORDER BY — all applied in the warehouse, so a sorted preview shows the real top
  * rows, not a sorted sample. A preview is a look at the data while setting a Data Mart up: it is
- * not a run, so it is neither recorded in Run History nor counted as consumption.
+ * not a run, so it is neither recorded in Run History nor counted as consumption. It is still
+ * gated like other data reads, so a blocked or unlicensed project cannot use it.
  *
  * Unlike `QueryDataMartService` (MCP), a DRAFT Data Mart can be previewed: seeing the data before
  * publishing is the point of the feature.
@@ -105,6 +110,7 @@ export class PreviewDataMartService {
     private readonly accessDecisionService: AccessDecisionService,
     @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
     private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
+    private readonly projectBillingService: ProjectBillingService,
     @Optional() private readonly deadlineMs: number = DEFAULT_PREVIEW_DEADLINE_MS
   ) {}
 
@@ -157,6 +163,15 @@ export class PreviewDataMartService {
     };
 
     // Already cancelled: start no warehouse work.
+    throwIfAborted(signal);
+
+    // A preview consumes nothing, but a blocked or unlicensed project must not read data through
+    // it when reports, HTTP Data and MCP refuse. HTTP_DATA_RUN is the gate of the closest read:
+    // the license-bound billing implementations only gate report-run kinds. Nothing is registered.
+    await this.projectBillingService.verifyCanPerformOperations(
+      dataMart.projectId,
+      RunKind.HTTP_DATA_RUN
+    );
     throwIfAborted(signal);
 
     let result: { columns: DataMartPreviewColumn[]; rows: unknown[][] };

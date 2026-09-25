@@ -35,6 +35,15 @@ const entrypoints: ReportRunEntrypoint[] = [
     firstStorageBoundary: 'this.readerResolver.resolve(',
   },
   {
+    // Not a report run and consumes nothing, but gated like HTTP Data so blocked or unlicensed
+    // projects cannot read data through it.
+    name: 'Data Setup preview',
+    file: join(__dirname, '../../use-cases/preview-data-mart.service.ts'),
+    declaration: 'async run(',
+    runKinds: [RunKind.HTTP_DATA_RUN],
+    firstStorageBoundary: 'this.readRows(',
+  },
+  {
     name: 'Looker Studio reports (streaming)',
     file: join(
       __dirname,
