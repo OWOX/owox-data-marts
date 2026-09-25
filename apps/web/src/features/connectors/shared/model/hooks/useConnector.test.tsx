@@ -211,3 +211,67 @@ describe('useConnector specification requests', () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+/**
+ * The context outlives the sheet that asked, so a request the sheet abandons when it closes
+ * must not leave its loading flag set: the next sheet would show a skeleton until a reload.
+ */
+describe('useConnector requests abandoned on unmount', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const renderControl = (Control: () => React.JSX.Element) => {
+    const view = render(
+      <ConnectorContextProvider>
+        <Control />
+      </ConnectorContextProvider>
+    );
+    fireEvent.click(view.getByRole('button'));
+    expect(view.getByRole('button')).toHaveTextContent('true');
+
+    view.rerender(<ConnectorContextProvider>{null}</ConnectorContextProvider>);
+    view.rerender(
+      <ConnectorContextProvider>
+        <Control />
+      </ConnectorContextProvider>
+    );
+    return view;
+  };
+
+  it('does not leave the specification loading', () => {
+    vi.spyOn(ConnectorApiService.prototype, 'getCustomConnectorSpecification').mockReturnValue(
+      new Promise(() => undefined)
+    );
+    const SpecificationControl = () => {
+      const { loadingSpecification, fetchConnectorSpecification } = useConnector();
+      return (
+        <button type='button' onClick={() => void fetchConnectorSpecification(pinnedConnector(1))}>
+          {String(loadingSpecification)}
+        </button>
+      );
+    };
+
+    const view = renderControl(SpecificationControl);
+
+    expect(view.getByRole('button')).toHaveTextContent('false');
+  });
+
+  it('does not leave the fields loading', () => {
+    vi.spyOn(ConnectorApiService.prototype, 'getCustomConnectorFields').mockReturnValue(
+      new Promise(() => undefined)
+    );
+    const FieldsControl = () => {
+      const { loadingFields, fetchConnectorFields } = useConnector();
+      return (
+        <button type='button' onClick={() => void fetchConnectorFields(pinnedConnector(1))}>
+          {String(loadingFields)}
+        </button>
+      );
+    };
+
+    const view = renderControl(FieldsControl);
+
+    expect(view.getByRole('button')).toHaveTextContent('false');
+  });
+});

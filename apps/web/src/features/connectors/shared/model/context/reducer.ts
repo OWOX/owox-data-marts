@@ -44,6 +44,8 @@ export function reducer(state: ConnectorState, action: ConnectorAction): Connect
       };
     case ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_ERROR:
       return { ...state, loadingSpecification: false, error: action.payload };
+    case ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_RESET:
+      return { ...state, loadingSpecification: false };
     case ConnectorActionType.FETCH_CONNECTOR_FIELDS_START:
       return { ...state, loadingFields: true, error: null };
     case ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS:
