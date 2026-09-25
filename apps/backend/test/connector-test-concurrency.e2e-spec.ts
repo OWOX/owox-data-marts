@@ -42,7 +42,7 @@ class HoldingConnectorTestService extends ConnectorTestService {
   }
 
   async runTest(args: ConnectorTestRequest) {
-    return super.runTest({ ...args, _hang: true, timeoutMs: HOLD_MS });
+    return super.runTest({ ...args, timeoutMs: HOLD_MS }, { hang: true });
   }
 }
 

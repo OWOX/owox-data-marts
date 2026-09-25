@@ -132,14 +132,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('flags a silent 0-row result (no error) so it is visible to humans and the AI fix flow', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_SAMPLE_NO_ROWS: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_SAMPLE_NO_ROWS: '1' } }
+    );
     expect(res.error).toBeNull();
     expect(res.rows.length).toBe(0);
     const joined = res.logs.join('\n');
@@ -150,14 +152,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('surfaces an error-level engine log as the test error when the run exits 0 with no rows', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_ERROR_LOG: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_ERROR_LOG: '1' } }
+    );
     expect(res.rows.length).toBe(0);
     expect(res.error).toMatch(/HTTP 500/);
     // the 0-records diagnostic must NOT also fire once a real error is surfaced
@@ -168,14 +172,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
   // skipped account: a WARN log and a stderr WARNING envelope, no ERROR anywhere.
   it('fails the test when the only account was skipped for a 401', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_SKIPPED: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_SKIPPED: '1' } }
+    );
     expect(res.rows.length).toBe(0);
     expect(res.error).toBe(
       'Nothing was imported because access was refused: HTTP 401: Unauthorized'
@@ -185,14 +191,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('fails the test with the reason when the run fails before any account', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_RUN_FAILED: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_RUN_FAILED: '1' } }
+    );
     expect(res.error).toBe(
       "Unable to load the configuration. The parameter 'ApiKey' is required but was provided with an empty value"
     );
@@ -200,14 +208,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('fails the test with the message, not the stack, when the runner fails before the run starts', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_CRASH: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_CRASH: '1' } }
+    );
     expect(res.error).toBe('Source class "XSource" not found and no declarative manifest for "X"');
   });
 
@@ -226,15 +236,17 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('times out and returns an error when the runner hangs', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      timeoutMs: 300,
-      _hang: true,
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+        timeoutMs: 300,
+      },
+      { hang: true }
+    );
     expect(res.error).toMatch(/timed out/i);
   }, 2000);
 
@@ -375,42 +387,48 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
 
   it('reports error "Test process exited with code N" when the runner exits non-zero and emitted no rows', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_EXIT_CODE: '2' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_EXIT_CODE: '2' } }
+    );
     expect(res.rows.length).toBe(0);
     expect(res.error).toBe('Test process exited with code 2');
   });
 
   it('reports no error when the runner exits non-zero but rows were already emitted', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_EXIT_CODE: '1', FAKE_EXIT_ROWS: '2' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_EXIT_CODE: '1', FAKE_EXIT_ROWS: '2' } }
+    );
     expect(res.rows.length).toBe(2);
     expect(res.error).toBeNull();
   });
 
   it('silently drops a malformed marker line and still counts valid rows', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_MALFORMED_ROW: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_MALFORMED_ROW: '1' } }
+    );
     // The malformed line is dropped; only the one valid row is counted
     expect(res.rows.length).toBe(1);
     expect(res.error).toBeNull();
@@ -424,14 +442,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
    */
   it('bounds an oversized child output line at the production spawner cap, on both streams', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 3,
-      _testEnv: { FAKE_HUGE_LINE: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_HUGE_LINE: '1' } }
+    );
 
     const longest = res.logs.reduce((max, line) => Math.max(max, line.length), 0);
     expect(longest).toBeLessThanOrEqual(MAX_CAPTURED_LINE_LENGTH);
@@ -446,14 +466,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
   // the backend process, and each row line may be as large as the cap.
   it('stops reading a test whose output outgrows its budget, and says so', async () => {
     const svc = makeService();
-    const res = await svc.runTest({
-      projectId: 'p',
-      manifest,
-      node: 'items',
-      configuration: {},
-      maxRows: 1000,
-      _testEnv: { FAKE_BIG_ROWS: '1' },
-    });
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 1000,
+      },
+      { env: { FAKE_BIG_ROWS: '1' } }
+    );
 
     const held = [...res.rows, ...res.logs].reduce(
       (total: number, item) => total + JSON.stringify(item).length,
@@ -561,14 +583,16 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       const svc = makeService();
       capturedSpawnEnv = undefined;
 
-      const res = await svc.runTest({
-        projectId: 'p',
-        manifest: dayByDayManifest,
-        node: 'items',
-        configuration: {},
-        maxRows: 3,
-        _testEnv: { FAKE_SAMPLE_NO_ROWS: '1' },
-      });
+      const res = await svc.runTest(
+        {
+          projectId: 'p',
+          manifest: dayByDayManifest,
+          node: 'items',
+          configuration: {},
+          maxRows: 3,
+        },
+        { env: { FAKE_SAMPLE_NO_ROWS: '1' } }
+      );
 
       const joined = res.logs.join('\n');
       expect(res.error).toBeNull();
@@ -621,6 +645,26 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
         else process.env[key] = value;
       }
     }
+  });
+
+  // The env hook is a separate argument: a request built from what a user sent, whatever it
+  // carries, cannot add to the child's env.
+  it('takes no env entries from the request itself', async () => {
+    const svc = makeService();
+    capturedSpawnEnv = undefined;
+
+    await svc.runTest({
+      projectId: 'p',
+      manifest,
+      node: 'items',
+      configuration: {},
+      maxRows: 3,
+      _testEnv: { OW_ALLOW_LOCAL_EGRESS: '1' },
+      env: { OW_ALLOW_LOCAL_EGRESS: '1' },
+    } as never);
+
+    expect(capturedSpawnEnv).toBeDefined();
+    expect(capturedSpawnEnv?.OW_ALLOW_LOCAL_EGRESS).toBeUndefined();
   });
 
   /**

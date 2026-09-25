@@ -76,9 +76,11 @@ function occupyingRun(projectId: string) {
     configuration: {},
     maxRows: 3,
     timeoutMs: 400,
-    _hang: true,
   };
 }
+
+/** Holds an occupying run's child until its budget expires. */
+const HANG = { hang: true };
 
 /** Arguments for a run that finishes immediately. */
 function quickRun(projectId: string) {
@@ -119,10 +121,7 @@ describe('ConnectorTestService concurrency limit', () => {
   it('releases the slot after a failing test', async () => {
     const svc = makeService({ perProject: 1 });
 
-    const failed = await svc.runTest({
-      ...quickRun('p1'),
-      _testEnv: { FAKE_EXIT_CODE: '2' },
-    });
+    const failed = await svc.runTest(quickRun('p1'), { env: { FAKE_EXIT_CODE: '2' } });
     expect(failed.error).toBe('Test process exited with code 2');
 
     const next = await svc.runTest(quickRun('p1'));
@@ -133,7 +132,7 @@ describe('ConnectorTestService concurrency limit', () => {
   it('releases the slot after a test times out', async () => {
     const svc = makeService({ perProject: 1 });
 
-    const timedOut = await svc.runTest({ ...occupyingRun('p1'), timeoutMs: 200 });
+    const timedOut = await svc.runTest({ ...occupyingRun('p1'), timeoutMs: 200 }, HANG);
     expect(timedOut.error).toMatch(/timed out/i);
 
     const next = await svc.runTest(quickRun('p1'));
@@ -157,12 +156,10 @@ describe('ConnectorTestService concurrency limit', () => {
     const svc = makeService({ perProject: 1 });
     lastSpawnedChild = null;
 
-    const result = await svc.runTest({
-      ...occupyingRun('p1'),
-      timeoutMs: 200,
-      _hang: false,
-      _testEnv: { FAKE_IGNORE_SIGTERM: '1' },
-    });
+    const result = await svc.runTest(
+      { ...occupyingRun('p1'), timeoutMs: 200 },
+      { env: { FAKE_IGNORE_SIGTERM: '1' } }
+    );
 
     expect(result.error).toMatch(/timed out/i);
     const child = lastSpawnedChild as unknown as ChildProcess | null;
@@ -192,7 +189,7 @@ describe('ConnectorTestService concurrency limit', () => {
     const svc = makeService({ perProject: 2 });
 
     const settled = await Promise.allSettled(
-      Array.from({ length: 5 }, () => svc.runTest(occupyingRun('p1')))
+      Array.from({ length: 5 }, () => svc.runTest(occupyingRun('p1'), HANG))
     );
 
     const accepted = settled.filter(r => r.status === 'fulfilled');
@@ -211,8 +208,8 @@ describe('ConnectorTestService concurrency limit', () => {
   it('refuses with the documented code and retry signal', async () => {
     const svc = makeService({ perProject: 1 });
 
-    const running = svc.runTest(occupyingRun('p1'));
-    const refusal = svc.runTest(occupyingRun('p1'));
+    const running = svc.runTest(occupyingRun('p1'), HANG);
+    const refusal = svc.runTest(occupyingRun('p1'), HANG);
 
     await expect(refusal).rejects.toBeInstanceOf(ConcurrencyLimitExceededException);
     await refusal.catch((e: ConcurrencyLimitExceededException) => {
@@ -231,13 +228,13 @@ describe('ConnectorTestService concurrency limit', () => {
   it('does not let one project starve another', async () => {
     const svc = makeService({ perProject: 1, total: 10 });
 
-    const first = svc.runTest(occupyingRun('p1'));
-    await expect(svc.runTest(occupyingRun('p1'))).rejects.toBeInstanceOf(
+    const first = svc.runTest(occupyingRun('p1'), HANG);
+    await expect(svc.runTest(occupyingRun('p1'), HANG)).rejects.toBeInstanceOf(
       ConcurrencyLimitExceededException
     );
 
     // A different project is unaffected by p1 holding its only slot.
-    const other = svc.runTest(occupyingRun('p2'));
+    const other = svc.runTest(occupyingRun('p2'), HANG);
 
     await Promise.all([first, other]);
     expect(spawnCalls).toBe(2);
@@ -247,9 +244,9 @@ describe('ConnectorTestService concurrency limit', () => {
   it('bounds the deployment total across projects, not just each project', async () => {
     const svc = makeService({ perProject: 5, total: 2 });
 
-    const a = svc.runTest(occupyingRun('p1'));
-    const b = svc.runTest(occupyingRun('p2'));
-    const refusal = svc.runTest(occupyingRun('p3'));
+    const a = svc.runTest(occupyingRun('p1'), HANG);
+    const b = svc.runTest(occupyingRun('p2'), HANG);
+    const refusal = svc.runTest(occupyingRun('p3'), HANG);
 
     await expect(refusal).rejects.toBeInstanceOf(ConcurrencyLimitExceededException);
     await refusal.catch((e: ConcurrencyLimitExceededException) => {
@@ -271,7 +268,7 @@ describe('ConnectorTestService concurrency limit', () => {
     (svc as unknown as { runnerPath: () => string }).runnerPath = () => fakeRunner;
 
     const settled = await Promise.allSettled(
-      Array.from({ length: 6 }, () => svc.runTest(occupyingRun('p1')))
+      Array.from({ length: 6 }, () => svc.runTest(occupyingRun('p1'), HANG))
     );
 
     expect(settled.filter(r => r.status === 'fulfilled')).toHaveLength(3);

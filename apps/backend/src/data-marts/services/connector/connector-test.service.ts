@@ -87,14 +87,17 @@ export interface ConnectorTestRequest {
   maxRows?: number;
   maxPages?: number;
   timeoutMs?: number;
-  _hang?: boolean;
-  /**
-   * Test-only escape hatch: extra env entries merged into the (still
-   * allow-listed) child env. Lets specs drive the `fake-test-runner.mjs`
-   * fixture's `FAKE_*` toggles explicitly, without the production code ever
-   * reading ambient `process.env` for them. Never populated outside tests.
-   */
-  _testEnv?: Record<string, string>;
+}
+
+/**
+ * Test-only hooks, a separate argument so that nothing built from a user's request can carry
+ * them: `env` entries are merged into the child env after its allow-list, `hang` makes the
+ * fake runner hang. They let specs drive the `fake-test-runner.mjs` fixture's `FAKE_*`
+ * toggles without production code reading ambient `process.env` for them.
+ */
+export interface ConnectorTestHooks {
+  hang?: boolean;
+  env?: Record<string, string>;
 }
 
 /**
@@ -336,7 +339,10 @@ export class ConnectorTestService {
     };
   }
 
-  async runTest(args: ConnectorTestRequest): Promise<ConnectorTestResult> {
+  async runTest(
+    args: ConnectorTestRequest,
+    hooks: ConnectorTestHooks = {}
+  ): Promise<ConnectorTestResult> {
     // Ahead of the slot: a payload that can never produce a child process must not be able
     // to hold one of the slots that bound them, or a caller sending nothing but oversized
     // manifests would lock its project's real tests out.
@@ -358,14 +364,17 @@ export class ConnectorTestService {
       // Awaited, not returned directly: `finally` runs when the returned promise is
       // CREATED, not when it settles, so dropping this await would free the slot while
       // the child process is still running and make the cap meaningless.
-      const result = await this.execute(args);
+      const result = await this.execute(args, hooks);
       return result;
     } finally {
       release();
     }
   }
 
-  private async execute(args: ConnectorTestRequest): Promise<ConnectorTestResult> {
+  private async execute(
+    args: ConnectorTestRequest,
+    hooks: ConnectorTestHooks
+  ): Promise<ConnectorTestResult> {
     const maxRows = args.maxRows ?? 25;
     const maxPages = args.maxPages ?? 1;
     // Default below the web client's 30s axios timeout so the backend responds
@@ -451,8 +460,8 @@ export class ConnectorTestService {
       }),
       OW_RUN_CONFIG: JSON.stringify({ type: 'INCREMENTAL', data: [], state: {} }),
     };
-    if (args._hang) env.FAKE_HANG = '1';
-    if (args._testEnv) Object.assign(env, args._testEnv);
+    if (hooks.hang) env.FAKE_HANG = '1';
+    if (hooks.env) Object.assign(env, hooks.env);
 
     const marker: string = Core.TEST_ROW_MARKER;
     const rows: Record<string, unknown>[] = [];
