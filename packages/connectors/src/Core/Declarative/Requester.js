@@ -105,7 +105,11 @@ export class Requester {
       // user-controlled templates from altering the effective host via prefixes
       // like "@evil.com" or "//evil.com" before the SsrfGuard even runs.
       if (path && !path.startsWith('/')) {
-        throw new Error(`Requester: rendered path must start with "/", got "${path.slice(0, 40)}"`);
+        // Redacted: an opaque path is the next page the API sent back, query string and
+        // any credential echoed into it included, and this message reaches the run's error.
+        throw new Error(
+          `Requester: rendered path must start with "/", got "${redactUrl(path).slice(0, 40)}"`
+        );
       }
       urlObj = new URL(this.baseUrl + path);
     }

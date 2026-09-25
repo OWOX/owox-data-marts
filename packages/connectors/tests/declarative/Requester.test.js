@@ -133,6 +133,27 @@ describe('Requester', () => {
     );
   });
 
+  // A next page is the link the API sent back, and APIs echo the caller's query into it. The
+  // error ends up in the run's error, which viewers can read.
+  it('keeps the query string of a relative next page out of the path error', async () => {
+    const requester = new Requester({
+      baseUrl: 'https://api.example.com',
+      httpClient: fakeClient({}),
+      auth: new Authenticator(null, engine),
+      ssrfGuard: guardFor(['api.example.com']),
+      templateEngine: engine,
+    });
+    await assert.rejects(
+      () =>
+        requester.send({ method: 'GET', path: opaque('orders?page=2&api_key=SECRET') }, baseScope),
+      error => {
+        assert.match(error.message, /path must start with/);
+        assert.doesNotMatch(error.message, /SECRET|api_key/);
+        return true;
+      }
+    );
+  });
+
   it('blocks a request to a private IP baseUrl', async () => {
     const requester = new Requester({
       baseUrl: 'https://127.0.0.1',
