@@ -164,4 +164,39 @@ describe('Moloco async connector (integration)', () => {
     const control = events.filter(e => e.type === 'CONTROL');
     assert.strictEqual(control[control.length - 1].action, 'completed');
   });
+
+  it('submits the report again after a 5xx, and reads only the job whose id came back', async () => {
+    const answer = globalThis.fetch;
+    let submits = 0;
+    globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/cm/v1/reports') && ++submits === 1) {
+        return {
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { get: () => null },
+          async text() {
+            return '';
+          },
+        };
+      }
+      return answer(url, options);
+    };
+    const context = makeContext();
+    context.emit = () => {};
+    const stores = [];
+    class TrackingStorage extends MockStorage {
+      constructor(...a) {
+        super(...a);
+        stores.push(this);
+      }
+    }
+    const source = new DeclarativeSource(context, new ManifestParser().parse(MOLOCO));
+    source._delay = () => Promise.resolve();
+
+    await new AbstractConnector(context, source, TrackingStorage).run();
+
+    assert.strictEqual(submits, 2);
+    assert.strictEqual(stores[0].records[0].campaign, 'C1');
+  });
 });
