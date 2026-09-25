@@ -95,7 +95,7 @@ export class RedditAdsSource extends AbstractSource {
       },
     };
 
-    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    this._registerParameters();
 
     this.fieldsSchema = RedditFieldsSchema;
   }

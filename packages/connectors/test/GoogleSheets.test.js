@@ -845,6 +845,33 @@ test('retries a 429 from the real request path after the Retry-After delay', asy
   );
 });
 
+// main waited Initial Retry Delay before the first retry; the port ignored the setting and
+// started at twice the built-in default.
+test('waits the configured Initial Retry Delay before its first retry', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'sheet-token';
+  const getParameter = source.context.getParameter;
+  source.context.getParameter = name =>
+    name === 'InitialRetryDelay' ? { value: 1000 } : getParameter(name);
+  const delays = [];
+  source._delayWithAbort = async ms => {
+    delays.push(ms);
+  };
+
+  await withFetch(
+    (_url, _options, callNumber) =>
+      callNumber === 1
+        ? jsonResponse({ error: { message: 'Backend Error' } }, { status: 503 })
+        : jsonResponse({ values: [['Name']] }),
+    async calls => {
+      assert.deepEqual(plain(await source._fetchSheetValues()), [['Name']]);
+      assert.equal(calls.length, 2);
+    }
+  );
+  assert.equal(delays.length, 1);
+  assert.ok(delays[0] >= 500 && delays[0] <= 1500, `first retry after ${delays[0]} ms`);
+});
+
 test('does not retry a non-retryable status from the real request path', async () => {
   const source = createSource();
   source.getAccessToken = async () => 'sheet-token';

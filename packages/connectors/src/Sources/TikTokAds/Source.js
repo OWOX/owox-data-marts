@@ -178,7 +178,7 @@ export class TikTokAdsSource extends AbstractSource {
       },
     };
 
-    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    this._registerParameters();
 
     this.fieldsSchema = TikTokAdsFieldsSchema;
     this.apiVersion = 'v1.3';

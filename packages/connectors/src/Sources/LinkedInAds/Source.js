@@ -190,7 +190,7 @@ export class LinkedInAdsSource extends AbstractSource {
       },
     };
 
-    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    this._registerParameters();
 
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;

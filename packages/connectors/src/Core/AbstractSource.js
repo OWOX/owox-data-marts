@@ -6,7 +6,36 @@
  */
 
 import { TraceEvent } from './Events/TraceEvent.js';
-import { LOG_LEVEL, DATE_STRATEGY } from '../Constants/CommonConstants.js';
+import {
+  LOG_LEVEL,
+  DATE_STRATEGY,
+  CONFIG_ATTRIBUTES,
+  PARAMETER_OWNER,
+} from '../Constants/CommonConstants.js';
+
+// setTimeout's maximum, about 24.8 days; a longer delay fires at once.
+const MAX_TIMER_DELAY_MS = 2147483647;
+
+// The retry settings every bundled connector offers under Advanced settings, worded as on
+// main. Storage writes read them too.
+const RETRY_PARAMETERS = Object.freeze({
+  MaxFetchRetries: {
+    requiredType: 'number',
+    default: 3,
+    label: 'Max Fetch Retries',
+    description:
+      'Total attempts for a failed request, including the first one, before the run stops. Applies both to reading from the source and to saving into the destination storage',
+    attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+  },
+  InitialRetryDelay: {
+    requiredType: 'number',
+    default: 5000,
+    label: 'Initial Retry Delay (ms)',
+    description:
+      'Delay before the first retry in milliseconds. Each retry doubles the delay. Applies both to reading from the source and to saving into the destination storage',
+    attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+  },
+});
 
 /**
  * Strip credentials from a URL for logging/error messages: keep origin + path,
@@ -39,8 +68,18 @@ export class AbstractSource {
   constructor(context) {
     if (!context) throw new Error('context is required');
     this.context = context;
-    // Subclasses set this.parameters and this.fieldsSchema in their constructor
-    // then context.registerParameters(this.parameters, 'source') is called
+    // Subclasses set this.parameters and this.fieldsSchema in their constructor,
+    // then call this._registerParameters().
+  }
+
+  /**
+   * Declares the source's parameters on the context, with the retry settings added at the
+   * end, where main's AbstractSource put them. The setup form is built from
+   * `this.parameters`, so reading the settings with a default is not enough to offer them.
+   */
+  _registerParameters() {
+    this.parameters = { ...this.parameters, ...RETRY_PARAMETERS };
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
   }
 
   // --- Hook defaults (override in subclasses) ---
@@ -508,10 +547,13 @@ export class AbstractSource {
   }
 
   /**
-   * Exponential backoff with jitter.
+   * Exponential backoff with jitter; `attemptNumber` counts retries from 0. Capped, as main's
+   * AsyncUtils.backoffDelay was: a large InitialRetryDelay would otherwise overflow the timer
+   * and retry at once.
    */
-  calculateBackoff(attemptNumber, initialDelay = 5000) {
-    return Math.round(initialDelay * Math.pow(2, attemptNumber) * (0.5 + Math.random()));
+  calculateBackoff(attemptNumber, initialDelay = this._getRetryParam('InitialRetryDelay', 5000)) {
+    const delay = initialDelay * Math.pow(2, attemptNumber) * (0.5 + Math.random());
+    return Math.round(Math.min(delay, MAX_TIMER_DELAY_MS));
   }
 
   /**
