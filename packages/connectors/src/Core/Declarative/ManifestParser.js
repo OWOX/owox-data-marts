@@ -176,6 +176,18 @@ export class ManifestParser {
       throw new Error('ManifestParser: "parameters" must be a non-null object');
     }
 
+    // A name a template can refer to. It also keeps out a leading underscore: the host keeps
+    // its own bookkeeping keys that way (_id, _secrets_id) and passes them through untouched,
+    // so a secret named like one was stored in plain text and shown to viewers.
+    for (const name of Object.keys(raw.parameters)) {
+      if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+        throw new Error(
+          `ManifestParser: parameter "${name}" must start with a letter and contain only ` +
+            `letters, digits and underscores`
+        );
+      }
+    }
+
     // Shallow-copy so the auto-registered parameter below never mutates the
     // caller's raw manifest object.
     const parameters = { ...raw.parameters };
