@@ -419,7 +419,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
       return response.Id;
     } catch (error) {
-      this.context.log(LOG_LEVEL.ERROR, `Query execution failed: ${error.message}`);
+      // INFO, as main's logMessage wrote it: the error is rethrown, and a caller that recovers
+      // from it (a column comment, dropping a temp table) would otherwise leave a failure in
+      // the log of a run that succeeded.
+      this.context.log(LOG_LEVEL.INFO, `Query execution failed: ${error.message}`);
       throw error;
     }
   }

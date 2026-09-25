@@ -30,6 +30,11 @@ function loadStorage(relativePath, className) {
         this.input = input;
       }
     },
+    ExecuteStatementCommand: class ExecuteStatementCommand {
+      constructor(input) {
+        this.input = input;
+      }
+    },
     Blob,
     console,
     require,
@@ -879,4 +884,28 @@ test('Redshift snapshot loading respects the Data API statement byte limit', () 
 
   assert.equal(batches.length, 2);
   assert.deepEqual(JSON.parse(JSON.stringify(batches.flat())), rows);
+});
+
+// A statement can fail in a way its caller recovers from (a column comment, dropping a temp
+// table); the error is rethrown either way, so logging it as an ERROR as well put a failure
+// in the log of a run that succeeded. main logged it without a level.
+test('Redshift leaves a failed statement to its caller rather than logging an error', async () => {
+  const logs = [];
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.context = {
+    ...fakeContext({ Database: value('db'), WorkgroupName: value('wg') }),
+    log: (level, message) => logs.push({ level, message }),
+  };
+  storage.redshiftDataClient = {
+    send: async () => {
+      throw new Error('column "note" does not exist');
+    },
+  };
+
+  await assert.rejects(storage.executeQuery("COMMENT ON COLUMN t.note IS 'x'"), /does not exist/);
+
+  assert.deepEqual(
+    logs.filter(entry => entry.level === LOG_LEVEL.ERROR),
+    []
+  );
 });
