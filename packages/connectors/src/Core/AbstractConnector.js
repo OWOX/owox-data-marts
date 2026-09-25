@@ -284,10 +284,14 @@ export class AbstractConnector {
   }
 
   /**
-   * Splits the selected fields into the two orderings run() needs, warning once
-   * per unknown node. Full-refresh and catalog nodes share an ordering (node
-   * outer, accounts inner); time-series nodes are handed to
-   * _processTimeSeriesNodes, which nests them under the day loop.
+   * Splits the selected fields into the two orderings run() needs. Full-refresh
+   * and catalog nodes share an ordering (node outer, accounts inner); time-series
+   * nodes are handed to _processTimeSeriesNodes, which nests them under the day
+   * loop.
+   *
+   * A selected node the source does not have fails the run before anything is
+   * imported, as main did: it is left over from a renamed or removed node, and
+   * skipping it made the run succeed with nothing imported.
    *
    * @param {object} selectedFields nodeName -> field names, from source.parseFields
    * @returns {{plainNodes: object[], timeSeriesNodes: object[]}}
@@ -300,8 +304,7 @@ export class AbstractConnector {
     for (const [name, fields] of Object.entries(selectedFields)) {
       const schema = this.source.fieldsSchema[name];
       if (!schema) {
-        this.context.log(LOG_LEVEL.WARN, `Unknown node "${name}", skipping`);
-        continue;
+        throw new Error(`Unknown node '${name}'. Please update the Fields configuration`);
       }
       const node = { name, fields, schema };
       // isFullRefresh wins over isTimeSeries: a snapshot replacement has no
