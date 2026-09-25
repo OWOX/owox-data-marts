@@ -330,6 +330,7 @@ export class ManifestParser {
     const allowedHosts = this._collectHosts(raw);
 
     for (const [nodeName, node] of Object.entries(raw.nodes)) {
+      this._validateNodeNames(nodeName, node);
       if (!node.recordSelector && !(node.retriever?.type === 'async')) {
         throw new Error(`ManifestParser: node "${nodeName}" is missing "recordSelector"`);
       }
@@ -851,6 +852,58 @@ export class ManifestParser {
       autoSecretAuthParameters.push(name);
     }
     return { autoSecretAuthParameters, undeclaredAuthParameters };
+  }
+
+  /**
+   * Checks the names a node gives the warehouse.
+   *
+   * A node's name and its fields' names travel in the Data Mart's field selection ("node
+   * field, ..."), which is split on commas and spaces, and they become table and column names
+   * in the storages' SQL, where not every storage quotes them. So they are held to what every
+   * storage takes unquoted: letters, digits and underscores. Unique keys and default fields
+   * have to name fields the node has.
+   *
+   * @param {string} nodeName
+   * @param {object} node
+   */
+  _validateNodeNames(nodeName, node) {
+    const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(nodeName)) {
+      throw new Error(
+        `ManifestParser: node "${nodeName}" must start with a letter and contain only ` +
+          `letters, digits and underscores`
+      );
+    }
+    if (node.destinationName !== undefined && !identifier.test(String(node.destinationName))) {
+      throw new Error(
+        `ManifestParser: node "${nodeName}" destinationName must start with a letter or ` +
+          `underscore and contain only letters, digits and underscores`
+      );
+    }
+    const fields =
+      node.fields && typeof node.fields === 'object' ? Object.keys(node.fields) : [];
+    for (const field of fields) {
+      if (!identifier.test(field)) {
+        throw new Error(
+          `ManifestParser: field "${field}" of node "${nodeName}" must start with a letter or ` +
+            `underscore and contain only letters, digits and underscores`
+        );
+      }
+    }
+    for (const key of ['uniqueKeys', 'defaultFields']) {
+      const names = node[key];
+      if (names === undefined) continue;
+      if (!Array.isArray(names)) {
+        throw new Error(`ManifestParser: node "${nodeName}" ${key} must be a list of field names`);
+      }
+      for (const name of names) {
+        if (!fields.includes(name)) {
+          throw new Error(
+            `ManifestParser: node "${nodeName}" ${key} names "${name}", which is not one of its fields`
+          );
+        }
+      }
+    }
   }
 
   /**

@@ -102,6 +102,48 @@ describe('ManifestParser', () => {
     );
   });
 
+  // A node's and a field's names travel in the Data Mart's field selection ("node field, …"),
+  // which splits on spaces and commas, and become table and column names in the storages'
+  // SQL. "Daily stats" ran as node "Daily" and imported nothing.
+  it('refuses a node name that is not an identifier', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.nodes['Daily stats'] = bad.nodes.rates;
+    delete bad.nodes.rates;
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /node "Daily stats" must start with a letter and contain only letters, digits and underscores/
+    );
+  });
+
+  it('refuses a field name that is not an identifier', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.nodes.rates.fields['created-at'] = { type: 'string' };
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /field "created-at" of node "rates" must start with a letter or underscore/
+    );
+  });
+
+  it('refuses a table name that is not an identifier', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.nodes.rates.destinationName = 'rates`; DROP TABLE x; --';
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /node "rates" destinationName must start with a letter or underscore/
+    );
+  });
+
+  it('refuses unique keys and default fields that are not fields of the node', () => {
+    for (const key of ['uniqueKeys', 'defaultFields']) {
+      const bad = JSON.parse(JSON.stringify(valid));
+      bad.nodes.rates[key] = ['date', 'missing'];
+      assert.throws(
+        () => new ManifestParser().parse(JSON.stringify(bad)),
+        new RegExp(`node "rates" ${key} names "missing", which is not one of its fields`)
+      );
+    }
+  });
+
   it('throws when a node is missing recordSelector', () => {
     const bad = JSON.parse(JSON.stringify(valid));
     delete bad.nodes.rates.recordSelector;

@@ -677,7 +677,7 @@ describe('ConnectorDefinitionService', () => {
     });
 
     await expect(service.publish('proj-1', def.id)).rejects.toThrow(
-      'Node "items" uses "missing" as its primary key, but it is not one of the node\'s fields.'
+      'node "items" uniqueKeys names "missing", which is not one of its fields'
     );
   });
 

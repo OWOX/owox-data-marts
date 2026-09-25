@@ -234,7 +234,9 @@ Picks one of several authentication branches at runtime based on a parameter's v
 
 ## Nodes
 
-`nodes` is an object keyed by node name. Each node describes one data stream:
+`nodes` is an object keyed by node name. Node names, field names and `destinationName` become table and column names, so they contain only letters, digits and underscores; a node name starts with a letter, the others with a letter or an underscore. `uniqueKeys` and `defaultFields` list the node's own field names. For an upstream key such as `created-at`, name the field `created_at` and set its `dataPath` to `created-at`.
+
+Each node describes one data stream:
 
 ```json
 {
