@@ -704,24 +704,11 @@ export class ConnectorExecutorService {
           manifestForRunner
         );
 
-        // A connector can emit a terminal IMPORT_DONE yet ALSO log a hard error
-        // (e.g. a per-account 429 after retries are exhausted) — that is a
-        // failed/incomplete import, not a success. Such an error demotes the config
-        // regardless of the order the status/error arrived.
-        //
-        // ERROR only, NOT `configErrors.length`: that array also collects WARNINGs, and a
-        // WARNING is how the engine reports things it RECOVERED from — MicrosoftAds
-        // "Scope … failed, trying next scope…" (the next scope then succeeds),
-        // GoogleBigQueryStorage "Reducing batch size" (the halved MERGE then succeeds).
-        // Counting those demoted a completed import to FAILED, which also skipped billing
-        // and fired a failure notification. Whether a partially-skipped run is a failure is
-        // the ENGINE's call — it fails the run itself when every account was skipped
-        // (AbstractConnector._reportAccountOutcomes) — so the host must not re-decide it
-        // from log severity.
-        if (success && configErrors.some(m => m.type === ConnectorMessageType.ERROR)) {
-          success = false;
-        }
-
+        // IMPORT_DONE is the engine's verdict and it is not second-guessed from log severity,
+        // as on main: the engine withholds it whenever an account or a node failed, so an
+        // ERROR that still arrives with it is something the run survived — a raw stderr
+        // line such as a short link that did not resolve, or an error a source logged and
+        // then skipped.
         if (success) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
@@ -830,11 +817,11 @@ export class ConnectorExecutorService {
               configId
             );
             if (!credentialsPersisted) {
-              // Logs, not errors: the import itself completed, so this must not demote a
-              // successful run (any entry in configErrors does). It belongs in run history
-              // all the same — it is the only warning of an authentication failure that
-              // will otherwise arrive, unexplained, on the NEXT run. Same shape as the
-              // fields-update warning above, for the same reason.
+              // Logs, not errors: the import itself completed, and the run's errors are
+              // what went wrong with it. It belongs in run history all the same — it is
+              // the only warning of an authentication failure that will otherwise
+              // arrive, unexplained, on the NEXT run. Same shape as the fields-update
+              // warning above, for the same reason.
               const warning =
                 'Connector data was imported, but the refreshed credential could not be saved. ' +
                 'If the next run fails to authenticate, reconnect this source.';

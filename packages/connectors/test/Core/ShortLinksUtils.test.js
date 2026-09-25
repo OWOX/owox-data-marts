@@ -29,12 +29,13 @@ function mockSingleRedirect() {
 describe('processShortLinks', () => {
   beforeEach(() => {
     mockSingleRedirect();
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   // Tests below reassign globalThis.fetch outright; this still restores the real one.
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('resolves nested-path short links on a configured host', async () => {
@@ -226,5 +227,25 @@ describe('processShortLinks', () => {
 
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
     expect(result[0].link_url_asset.website_url).toBe('https://short.example/abc123');
+  });
+
+  // The host reads any raw stderr line as a run failure, so a dead short link in an
+  // otherwise complete import must be reported on stdout.
+  it('reports a link it could not resolve on stdout, not stderr', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const stdout = vi.mocked(console.log);
+    const stderr = [
+      vi.spyOn(console, 'warn').mockImplementation(() => {}),
+      vi.spyOn(console, 'error').mockImplementation(() => {}),
+    ];
+
+    await globalThis.processShortLinks(buildData('https://short.example/abc123'), CONFIG);
+
+    expect(stdout).toHaveBeenCalledWith(
+      'Failed to resolve short link https://short.example/abc123: network down'
+    );
+    for (const spy of stderr) expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -145,12 +145,9 @@ export class SsrfGuard {
    * distinct message, separate from the "honored" notice.
    *
    * Both notices deliberately use `console.log` (stdout), NOT `console.warn`/
-   * `console.error` (stderr): the real connector-runner child process this
-   * class runs inside has its stderr treated as an unconditional run FAILURE
-   * signal by the backend (ConnectorOutputCaptureService.captureError wraps
-   * every stderr line as an ERROR message, and ConnectorExecutorService
-   * demotes a configuration's result to failed the moment ANY error message
-   * is captured — see connector-executor.service.ts). These two lines are
+   * `console.error` (stderr): the backend records every raw stderr line of the
+   * connector-runner child process as an ERROR of the run
+   * (ConnectorOutputCaptureService.captureError). These two lines are
    * informational-only (expected, one-time-per-process test/dev egress
    * notices, not a fault), so they must not surface as a run error merely
    * because OW_ALLOW_LOCAL_EGRESS was legitimately honored.

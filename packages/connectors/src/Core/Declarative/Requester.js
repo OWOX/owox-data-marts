@@ -165,12 +165,10 @@ export class Requester {
    * nothing at all about the missing 90%: no log, and no `rows_extracted`
    * analytics either (that is only emitted when the count is > 0).
    *
-   * INFO, not WARN, deliberately. WARN is not a severity in this system, it is
-   * the run-failure channel: the backend maps LOG(warn) to
-   * ConnectorMessageType.WARNING, pushes it into configErrors and demotes the
-   * config to FAILED. A run failed by the very action the author asked for would
-   * make `IGNORE` indistinguishable from `FAIL` in outcome, i.e. meaningless. An
-   * author who wants a status to end the run already has `action: "FAIL"`.
+   * INFO, not WARN, deliberately: the author asked for this error to be ignored.
+   * At WARN the backend lists the line among the run's warnings, so every run
+   * would carry a warning for the configured behaviour. An author who wants a
+   * status to end the run already has `action: "FAIL"`.
    *
    * The target is REDACTED (origin + path only). This is a run log, persisted
    * and readable by anyone who can see run history including viewers — and with

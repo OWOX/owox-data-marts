@@ -152,9 +152,9 @@ async function _resolveShortLink(linkObj) {
   try {
     return { originalUrl, resolvedUrl: await _followRedirects(originalUrl) };
   } catch (error) {
-    // Context-less helper: write to stderr (not stdout) so this best-effort
-    // diagnostic is not picked up by the host's stdout message parser.
-    console.warn(`Failed to resolve short link ${originalUrl}: ${error.message}`);
+    // stdout, as on main: the host treats any raw stderr line as a run failure, and a
+    // link that cannot be resolved only keeps its original URL.
+    console.log(`Failed to resolve short link ${originalUrl}: ${error.message}`);
     return { originalUrl, resolvedUrl: originalUrl };
   }
 }

@@ -116,11 +116,9 @@ export class SyncRetriever {
    * indistinguishable from "the paginator said stop". The node reported success
    * and the cursor advanced over pages that were never fetched.
    *
-   * INFO for the same reason as Requester._reportIgnored: WARN is the backend's
-   * run-failure channel (LOG(warn) -> ConnectorMessageType.WARNING -> configErrors
-   * -> success = false). maxPages is additionally the normal stop for a live test
-   * run — connector-test.service.ts caps it at 1 by default — so at WARN every
-   * builder test run of a paginated node would report as FAILED.
+   * INFO, not WARN: maxPages is also the normal stop for a live test run —
+   * connector-test.service.ts caps it at 1 by default — so at WARN every builder
+   * test of a paginated node would carry a warning.
    *
    * The target is REDACTED (origin + path only) for the same reason as
    * Requester._reportIgnored: this is a persisted, viewer-readable run log, and

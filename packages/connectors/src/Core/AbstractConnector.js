@@ -262,10 +262,10 @@ export class AbstractConnector {
       // "all accounts were skipped" error a few lines above.
       //
       // Suppressing it for flagged errors does NOT weaken the run outcome: the
-      // host files WARNING messages into the same configErrors list as ERROR
-      // ones, so the run is still demoted to failed, and the terminal-status
-      // fallback still does not fire. Only the paging severity changes, which
-      // is exactly what the flag is for. An unflagged error is unchanged.
+      // run never reported COMPLETED, so the host still records it as failed,
+      // and the WARNING envelope keeps the terminal-status fallback from
+      // firing. Only the paging severity changes, which is exactly what the
+      // flag is for. An unflagged error is unchanged.
       if (error?.isWarning !== true) {
         this.context.emit(new ControlEvent(CONTROL_ACTION.FAILED, { error: error.message }));
       }
@@ -1155,10 +1155,9 @@ export class AbstractConnector {
     // EndDate in the future is clamped to today, not an error. Logged at INFO
     // (as main's config.logMessage did): the clamp is the DESIGNED handling --
     // the run request DTO was deliberately loosened to accept a future EndDate
-    // precisely because the engine clamps it. At WARN the backend translates the
-    // log into ConnectorMessageType.WARNING, pushes it into configErrors and
-    // demotes the config to FAILED, so a complete, correct backfill would report
-    // as a failed run.
+    // precisely because the engine clamps it. At WARN the backend would list it
+    // among the run's warnings, flagging a complete, correct backfill for doing
+    // exactly what it was designed to do.
     if (endMs > todayMs) {
       this.context.log(LOG_LEVEL.INFO, `EndDate (${endDate}) is in the future, adjusting to today`);
       endMs = todayMs;
