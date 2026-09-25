@@ -256,8 +256,8 @@ export function useBuilder() {
     const api = new ConnectorBuilderApiService();
     // Flagged before the save, not after it: on a never-saved connector the save is what
     // creates the connector and assigns its id, and that id is what swaps the route
-    // /connectors/builder/new → /:id — a remount that reloads the connector from the
-    // server. The flag is what holds that swap back until the published version exists,
+    // /connectors/builder/new → /:id, which reloads the connector from the server.
+    // The flag is what holds that swap back until the published version exists,
     // instead of reloading the draft under a "Published" toast (see ConnectorBuilderPage).
     dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: true });
     dispatch({ type: BuilderActionType.SET_ERROR, payload: null });

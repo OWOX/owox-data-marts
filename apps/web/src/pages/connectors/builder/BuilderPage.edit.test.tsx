@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import type { Role, User } from '../../../features/idp/types';
-import ConnectorBuilderEditPage from './EditPage';
+import ConnectorBuilderRoutePage from './BuilderPage';
 
 const authUser = vi.hoisted(() => ({ value: null as User | null }));
 const getById = vi.hoisted(() => vi.fn());
@@ -42,7 +42,7 @@ function user(roles: Role[]): User {
 function renderRoute() {
   const router = createMemoryRouter(
     [
-      { path: '/connectors/builder/:id', element: <ConnectorBuilderEditPage /> },
+      { path: '/connectors/builder/:id', element: <ConnectorBuilderRoutePage /> },
       { path: '/connectors', element: <div data-testid='connectors-list' /> },
     ],
     { initialEntries: ['/connectors/builder/def-1'] }
@@ -51,7 +51,7 @@ function renderRoute() {
   return router;
 }
 
-describe('ConnectorBuilderEditPage', () => {
+describe('ConnectorBuilderRoutePage — an existing connector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();

@@ -29,8 +29,7 @@ import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPag
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
 import { pluginsRoutes } from './plugins/routes';
 import { CredentialsPage } from '../pages/credentials/CredentialsPage';
-import ConnectorBuilderCreatePage from '../pages/connectors/builder/CreatePage';
-import ConnectorBuilderEditPage from '../pages/connectors/builder/EditPage';
+import ConnectorBuilderRoutePage from '../pages/connectors/builder/BuilderPage';
 
 const routes: RouteObject[] = [
   {
@@ -156,13 +155,9 @@ const routes: RouteObject[] = [
         errorElement: <LayoutErrorBoundary />,
       },
       {
-        path: 'connectors/builder/new',
-        element: <ConnectorBuilderCreatePage />,
-        errorElement: <LayoutErrorBoundary />,
-      },
-      {
+        // Also /connectors/builder/new: one route, so a new connector's first save keeps it.
         path: 'connectors/builder/:id',
-        element: <ConnectorBuilderEditPage />,
+        element: <ConnectorBuilderRoutePage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

@@ -129,9 +129,9 @@ function BuilderShell({
   // back so the page can swap /connectors/builder/new → /connectors/builder/:id.
   //
   // Held back while a publish is in flight. Publish on a never-saved connector creates it
-  // first, so the id arrives mid-publish — and /new and /:id are different route elements,
-  // so announcing it there remounts this page and reloads the connector before the publish
-  // has landed: the author would be shown the draft under a "Published" toast.
+  // first, so the id arrives mid-publish — and announcing it there hands this page the id,
+  // which reloads the connector before the publish has landed: the author would be shown
+  // the draft under a "Published" toast.
   useEffect(() => {
     if (!id && state.id && !state.publishing && !announcedCreate.current) {
       announcedCreate.current = true;

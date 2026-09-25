@@ -3,11 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import type { Role, User } from '../../../features/idp/types';
-import ConnectorBuilderCreatePage from './CreatePage';
+import ConnectorBuilderRoutePage from './BuilderPage';
 
 const authUser = vi.hoisted(() => ({ value: null as User | null }));
 const create = vi.hoisted(() => vi.fn());
 const getById = vi.hoisted(() => vi.fn());
+const getVersion = vi.hoisted(() => vi.fn());
 
 vi.mock('../../../features/idp/hooks/useAuthState', () => ({
   useAuthState: () => ({ isLoading: false }),
@@ -20,7 +21,7 @@ vi.mock('../../../features/connector-builder/shared/api/connector-builder-api.se
   ConnectorBuilderApiService: class {
     create = create;
     getById = getById;
-    getVersion = vi.fn();
+    getVersion = getVersion;
     saveDraft = vi.fn();
     publish = vi.fn();
     softDelete = vi.fn();
@@ -38,19 +39,17 @@ function user(roles: Role[]): User {
   return { id: 'u-1', projectId: 'p-1', roles };
 }
 
+/** The builder route as the app declares it, opened on a connector that does not exist yet. */
 function renderRoute() {
   const router = createMemoryRouter(
-    [
-      { path: '/connectors/builder/new', element: <ConnectorBuilderCreatePage /> },
-      { path: '/connectors/builder/:id', element: <div data-testid='edit-route' /> },
-    ],
+    [{ path: '/connectors/builder/:id', element: <ConnectorBuilderRoutePage /> }],
     { initialEntries: ['/connectors/builder/new'] }
   );
   render(<RouterProvider router={router} />);
   return router;
 }
 
-describe('ConnectorBuilderCreatePage', () => {
+describe('ConnectorBuilderRoutePage — a new connector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -110,6 +109,30 @@ describe('ConnectorBuilderCreatePage', () => {
       activeVersionId: null,
       versions: [{ version: 1, status: 'draft', publishedAt: null }],
     });
+  });
+
+  it('keeps the builder open, test panel and all, when the first save swaps the URL', async () => {
+    getVersion.mockResolvedValue({
+      version: 1,
+      status: 'draft',
+      manifest: { version: '1.0', name: 'MyApi', baseUrl: '', parameters: {}, nodes: {} },
+    });
+    const router = renderRoute();
+    fireEvent.click(screen.getByTestId('open-dock'));
+    expect(screen.getByTestId('test-panel')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/connectors/builder/def-1');
+    });
+    // Only a builder rendered for the new URL reads the version back, so this waits for the
+    // swap to have rendered rather than just for the router to have moved.
+    await waitFor(() => {
+      expect(getVersion).toHaveBeenCalledWith('def-1', 1);
+    });
+    expect(screen.getByTestId('test-panel')).toBeInTheDocument();
   });
 
   it('does not open the builder for a viewer', () => {
