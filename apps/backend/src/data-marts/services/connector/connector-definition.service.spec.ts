@@ -876,6 +876,23 @@ describe('ConnectorDefinitionService', () => {
     expect(result).toBeNull();
   });
 
+  // A custom connector made before a release shipped a bundled one of the same name. The
+  // specification, secret masking and OAuth take the bundled one, so a run must as well: the
+  // custom manifest would otherwise run with secrets stored and masked as the bundled
+  // connector's.
+  it('tryResolveManifest() leaves a bundled name to the bundled connector', async () => {
+    const { service, store } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: validManifest,
+    });
+    await service.publish('proj-1', def.id);
+    store.defs[0].name = 'GitHub';
+
+    await expect(service.tryResolveManifest('proj-1', 'GitHub')).resolves.toBeNull();
+  });
+
   it('tryResolveManifest() returns the manifest for an existing custom connector (published)', async () => {
     const { service } = make();
     const def = await service.create('proj-1', 'u', {

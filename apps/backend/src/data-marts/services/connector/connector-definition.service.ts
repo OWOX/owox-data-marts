@@ -66,6 +66,11 @@ const RESERVED_NAMES: ReadonlySet<string> = new Set(
   ((AvailableConnectors as string[] | undefined) ?? []).map(name => name.toLowerCase())
 );
 
+/** The bundled connectors' names exactly as ConnectorService matches them. */
+const BUNDLED_NAMES: ReadonlySet<string> = new Set(
+  (AvailableConnectors as string[] | undefined) ?? []
+);
+
 /**
  * How many times saveDraft() re-reads and tries again before giving up. Each loss is a stale
  * read, so a retry is the fix; a bound is what keeps a pathologically contended connector
@@ -373,6 +378,9 @@ export class ConnectorDefinitionService {
   /**
    * Resolves the manifest for the RUN path. Like resolveManifest (the spec path) it serves
    * PUBLISHED versions only; it differs in what it does when there is nothing to serve:
+   * - returns null for a bundled connector's name, even when a custom connector has it (made
+   *   before a release shipped the bundled one): the specification, secret masking and OAuth
+   *   take the bundled connector, so the run must too;
    * - returns null when no ConnectorDefinition exists for the name (bundled connector);
    * - when a version is pinned, requires that exact version to be PUBLISHED;
    * - when unpinned, requires the active version to be PUBLISHED;
@@ -384,6 +392,9 @@ export class ConnectorDefinitionService {
     name: string,
     version?: number
   ): Promise<Record<string, unknown> | null> {
+    if (BUNDLED_NAMES.has(name)) {
+      return null;
+    }
     const def = await this.definitionRepo.findOne({ where: { projectId, name } });
     if (!def) {
       return null;
