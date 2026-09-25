@@ -33,6 +33,53 @@ function extractAuthDecorators(source: string): Array<{ method: string; role: st
   return results;
 }
 
+/**
+ * Every route handler of a controller with the role its @Auth names, or 'none'.
+ *
+ * Read from each handler's own block of decorators, starting from the route decorator rather
+ * than from @Auth: a handler with no @Auth, a role such as Role.none(), or a method that is
+ * not async is reported instead of skipped, which a map meant to pin a whole surface needs.
+ */
+function extractRouteGuards(source: string): Record<string, string> {
+  const guards: Record<string, string> = {};
+  let decorators: string[] = [];
+  for (const line of source.split('\n')) {
+    const text = line.trim();
+    if (text.startsWith('@')) {
+      decorators.push(text);
+      continue;
+    }
+    if (text === '' || text.startsWith('//') || text.startsWith('*') || text.startsWith('/*')) {
+      continue;
+    }
+    const method = /^(?:async\s+)?(\w+)\s*\(/.exec(text);
+    if (method && decorators.some(d => /^@(Get|Post|Put|Patch|Delete)\(/.test(d))) {
+      const auth = decorators.map(d => /^@Auth\(Role\.(\w+)\(/.exec(d)).find(Boolean);
+      guards[method[1]] = auth ? auth[1] : 'none';
+    }
+    decorators = [];
+  }
+  return guards;
+}
+
+describe('extractRouteGuards', () => {
+  it('reports handlers without @Auth, with any role, async or not', () => {
+    const source = [
+      '  @Auth(Role.viewer())',
+      "  @Get(':id')",
+      '  async get(@Param() id: string) {}',
+      "  @Post(':id/run')",
+      '  run(@Param() id: string) {}',
+      '  @Auth(Role.none())',
+      '  @Delete()',
+      '  remove() {}',
+      '  helper() {}',
+    ].join('\n');
+
+    expect(extractRouteGuards(source)).toEqual({ get: 'viewer', run: 'none', remove: 'none' });
+  });
+});
+
 function extractViewOnlySafeMethods(source: string): string[] {
   const results: string[] = [];
   const lines = source.split('\n');
@@ -221,9 +268,7 @@ describe('Report controller — viewer guards (ownership-based)', () => {
  */
 describe('ConnectorDefinition controller — the custom connector surface, pinned whole', () => {
   const source = readController('connector-definition.controller.ts');
-  const guards = Object.fromEntries(
-    extractAuthDecorators(source).map(d => [d.method, d.role])
-  ) as Record<string, string>;
+  const guards = extractRouteGuards(source);
 
   it('guards every handler at exactly the level it is meant to have', () => {
     expect(guards).toEqual({
