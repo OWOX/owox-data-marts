@@ -2722,6 +2722,64 @@ describe('AbstractConnector', () => {
       }
     });
 
+    // Google Sheets has no accounts: a renamed tab or revoked access came back as a stackless
+    // warning about "1 of 1 accounts … Affected accounts: null" instead of what went wrong.
+    it('fails with the source`s own error when a source without accounts cannot be read', async () => {
+      const restore = suppressStdout();
+      try {
+        const failure = new Error('Unable to parse range: Data!A1:Z');
+        const source = fullRefreshSource({
+          fetchData: async () => {
+            throw failure;
+          },
+        });
+        const StorageClass = createMockStorageClass();
+        const error = await new AbstractConnector(createTestContext(), source, StorageClass)
+          .run()
+          .then(
+            () => null,
+            e => e
+          );
+
+        assert.strictEqual(error, failure);
+        assert.notStrictEqual(error.isWarning, true);
+        assert.deepStrictEqual(
+          StorageClass.instances.flatMap(s => s.replaceCalls),
+          []
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it('pages, and says why, when a missing account failed rather than being turned away', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = fullRefreshSource({
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            if (req.accountId === 'b') throw new Error('HTTP 500: Internal Server Error');
+            return [{ id: 'a-1' }];
+          },
+        });
+        const error = await new AbstractConnector(
+          createTestContext(),
+          source,
+          createMockStorageClass()
+        )
+          .run()
+          .then(
+            () => null,
+            e => e
+          );
+
+        assert.notStrictEqual(error?.isWarning, true);
+        assert.match(error.message, /b: HTTP 500: Internal Server Error/);
+      } finally {
+        restore();
+      }
+    });
+
     it('a complete snapshot still replaces the table once, with every account`s rows', async () => {
       // The guard against over-correcting: when nothing was skipped the
       // destructive write is exactly what full-refresh mode is for.

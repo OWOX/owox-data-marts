@@ -1049,14 +1049,23 @@ export class AbstractConnector {
     // is thrown outside _runForAccount, so _recordAccountFailure can never see
     // it and mistake it for an account-scoped 401/403.
     if (missing.size) {
+      const keys = [...missing];
+      const errorsOf = key => runState.issues.get(key)?.errors ?? [];
+      const lastError = key => errorsOf(key)[errorsOf(key).length - 1];
+      // With a single account, or none to speak of (Google Sheets), its own error says what
+      // went wrong, with its stack; wrapping it only hid the cause.
+      if (runState.attemptedCount === 1 && lastError(keys[0])) throw lastError(keys[0]);
+
       const error = new Error(
         `Node "${nodeName}" replaces its whole destination table on every run, but ` +
           `${missing.size} of ${runState.attemptedCount} accounts could not be read, so this ` +
           `snapshot is missing their rows. Publishing it would delete the data those accounts ` +
           `imported earlier, so the run is failed instead and the table is left untouched. ` +
-          `Affected accounts: ${[...missing].join(', ')}`
+          `Errors: ${keys.map(key => `${key}: ${lastError(key)?.message ?? 'unknown error'}`).join('; ')}`
       );
-      error.isWarning = true;
+      // A warning only when every missing account was turned away for permissions, the
+      // same rule _reportAccountOutcomes applies: an account that died on a 500 must page.
+      error.isWarning = keys.every(key => errorsOf(key).every(e => e?.isWarning === true));
       throw error;
     }
 
