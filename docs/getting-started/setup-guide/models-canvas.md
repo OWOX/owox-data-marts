@@ -22,7 +22,7 @@ A count of zero shows no badge. A Data Mart without triggers has no triggers bad
 
 Every card leads with an icon, so you can tell purchases from sessions at a glance. A Data Mart shows a plain box until someone picks an icon for it.
 
-To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend, traffic sources and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
+To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. There are also icons for the parts of a data stack: data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
 
 The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG [exports](models-canvas-export.md).
 

@@ -3,11 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { Button } from '@owox/ui/components/button';
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
-import {
-  DATA_MART_ICON_GROUPS,
-  DATA_MART_ICON_OPTIONS,
-  type DataMartIconKey,
-} from './data-mart-icons';
+import { DATA_MART_ICON_OPTIONS, type DataMartIconKey } from './data-mart-icons';
 import { DataMartIconGlyph } from './DataMartIconGlyph';
 
 interface DataMartIconPickerProps {
@@ -16,12 +12,7 @@ interface DataMartIconPickerProps {
   className?: string;
 }
 
-const ICON_SECTIONS = DATA_MART_ICON_GROUPS.map(group => ({
-  group,
-  options: DATA_MART_ICON_OPTIONS.filter(option => option.group === group),
-}));
-
-/** Icon tile beside the Data Mart title; clicking it opens the icon grid, grouped by subject. */
+/** Icon tile beside the Data Mart title; clicking it opens the icon grid. */
 export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPickerProps) {
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -56,33 +47,30 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
       </PopoverTrigger>
       <PopoverContent align='start' className='w-auto p-3'>
         <PopoverTitle className='mb-2 text-sm font-medium'>Data Mart icon</PopoverTitle>
-        <div className='-mr-1 max-h-[min(26rem,60vh)] space-y-3 overflow-y-auto pr-1'>
-          {ICON_SECTIONS.map(({ group, options }) => (
-            <section key={group}>
-              <h4 className='text-muted-foreground mb-1 text-xs font-medium'>{group}</h4>
-              <div className='grid grid-cols-8 gap-1' role='group' aria-label={group}>
-                {options.map(({ key, label, icon: Icon }) => {
-                  const selected = key === icon;
-                  return (
-                    <button
-                      key={key}
-                      type='button'
-                      aria-pressed={selected}
-                      aria-label={label}
-                      title={label}
-                      onClick={() => void pick(key)}
-                      className={cn(
-                        'text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px]',
-                        selected && 'bg-primary/10 text-primary ring-primary/40 ring-1'
-                      )}
-                    >
-                      <Icon className='size-4' aria-hidden='true' />
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+        <div
+          className='-mr-1 grid max-h-[min(26rem,60vh)] grid-cols-8 gap-1 overflow-y-auto pr-1'
+          role='group'
+          aria-label='Data Mart icons'
+        >
+          {DATA_MART_ICON_OPTIONS.map(({ key, label, icon: Icon }) => {
+            const selected = key === icon;
+            return (
+              <button
+                key={key}
+                type='button'
+                aria-pressed={selected}
+                aria-label={label}
+                title={label}
+                onClick={() => void pick(key)}
+                className={cn(
+                  'text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px]',
+                  selected && 'bg-primary/10 text-primary ring-primary/40 ring-1'
+                )}
+              >
+                <Icon className='size-4' aria-hidden='true' />
+              </button>
+            );
+          })}
         </div>
         <Button
           variant='ghost'

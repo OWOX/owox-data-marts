@@ -1,12 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartIconPicker } from './DataMartIconPicker';
-import {
-  DATA_MART_ICON_GROUPS,
-  DATA_MART_ICON_OPTIONS,
-  DEFAULT_DATA_MART_ICON,
-  getDataMartIcon,
-} from './data-mart-icons';
+import { DATA_MART_ICON_OPTIONS, DEFAULT_DATA_MART_ICON, getDataMartIcon } from './data-mart-icons';
 import { DATA_MART_ICON_KEYS } from '../../enums/data-mart-icon.enum';
 
 describe('getDataMartIcon', () => {
@@ -25,12 +20,6 @@ describe('getDataMartIcon', () => {
     expect([...DATA_MART_ICON_OPTIONS.map(option => option.key)].sort()).toEqual(
       [...DATA_MART_ICON_KEYS].sort()
     );
-  });
-
-  it('leaves no picker section empty', () => {
-    for (const group of DATA_MART_ICON_GROUPS) {
-      expect(DATA_MART_ICON_OPTIONS.some(option => option.group === group)).toBe(true);
-    }
   });
 });
 
@@ -55,18 +44,17 @@ describe('DataMartIconPicker', () => {
     });
   });
 
-  it('groups the icons into titled sections', () => {
+  it('lists every icon in one grid, in registry order', () => {
     render(<DataMartIconPicker icon={null} onChange={vi.fn()} />);
 
     open();
 
-    for (const group of DATA_MART_ICON_GROUPS) {
-      expect(screen.getByRole('group', { name: group })).toBeInTheDocument();
-    }
-    const iconButtons = DATA_MART_ICON_GROUPS.flatMap(group =>
-      within(screen.getByRole('group', { name: group })).getAllByRole('button')
+    const iconButtons = within(screen.getByRole('group', { name: 'Data Mart icons' })).getAllByRole(
+      'button'
     );
-    expect(iconButtons).toHaveLength(DATA_MART_ICON_OPTIONS.length);
+    expect(iconButtons.map(button => button.getAttribute('aria-label'))).toEqual(
+      DATA_MART_ICON_OPTIONS.map(option => option.label)
+    );
   });
 
   it('does not save when the current icon is picked again', () => {

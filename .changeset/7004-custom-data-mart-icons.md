@@ -4,7 +4,7 @@
 
 **Pick an icon for each Data Mart**
 
-Click the icon next to a Data Mart's title to give it one that matches its subject: purchases, orders, sessions, customers, countries, ad spend, traffic sources and more. The icon shows on the Data Mart page, on its card on **Data Marts → Models** and in the canvas PNG and SVG exports. **Reset to default** brings back the plain box that Data Marts show until an icon is picked.
+Click the icon next to a Data Mart's title to give it one that matches its subject. Pick from purchases, orders, sessions, customers, countries, ad spend and traffic sources, or from the data stack: data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. The icon shows on the Data Mart page, on its card on **Data Marts → Models** and in the canvas PNG and SVG exports. **Reset to default** brings back the plain box that Data Marts show until an icon is picked.
 
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d35ceae3211057665fd00b51d5904bce/iframe>
 
