@@ -64,6 +64,14 @@ function tombstonedName(name: string, id: string): string {
 }
 
 /**
+ * A nullable display column's value: blank is none. The row is read by screens that show these
+ * only when present, and an empty string is present.
+ */
+function blankToNull(value: string | null | undefined): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/**
  * Bundled connector names, folded to lower case — see assertNameAvailable for why the fold
  * is here and not left to the database.
  *
@@ -219,9 +227,9 @@ export class ConnectorDefinitionService {
           projectId,
           name: input.name,
           title: input.title,
-          description: input.description ?? null,
-          logo: input.logo ?? null,
-          docUrl: input.docUrl ?? null,
+          description: blankToNull(input.description),
+          logo: blankToNull(input.logo),
+          docUrl: blankToNull(input.docUrl),
           createdById: userId,
         })
       );

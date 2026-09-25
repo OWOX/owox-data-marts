@@ -148,6 +148,23 @@ describe('ConnectorDefinitionService', () => {
     },
   };
 
+  // The row is read by screens that show these only when present, and an empty string is
+  // present; publishing already clears a field its manifest states empty.
+  it('create() stores a blank description, docs link or logo as none', async () => {
+    const { service, store } = make();
+
+    await service.create('proj-1', 'u', {
+      name: 'MyCustom',
+      title: 'A',
+      description: '',
+      docUrl: '  ',
+      logo: '',
+      manifest: validManifest,
+    });
+
+    expect(store.defs[0]).toMatchObject({ description: null, docUrl: null, logo: null });
+  });
+
   it('create() stores a definition and a draft version 1', async () => {
     const { service, store } = make();
     const def = await service.create('proj-1', 'user-1', {
