@@ -16,6 +16,13 @@ export interface ValidatedOAuthAuthorizationRequest {
   resourceContext: McpResourceContext;
 }
 
+export interface OAuthAuthorizationErrorContext {
+  clientId: string;
+  redirectUri: string;
+  state?: string;
+  resourceContext: McpResourceContext;
+}
+
 export interface ValidatedOAuthTokenRequest {
   request: OAuthTokenExchangeRequest;
   resourceContext: McpResourceContext;
@@ -56,6 +63,35 @@ export class OAuthRequestValidator {
         codeChallenge,
         codeChallengeMethod: 'S256',
       },
+      resourceContext,
+    };
+  }
+
+  async resolveAuthorizationErrorContext(
+    input: OAuthInput
+  ): Promise<OAuthAuthorizationErrorContext | null> {
+    const clientId = this.optionalString(input.client_id);
+    const redirectUri = this.optionalString(input.redirect_uri);
+    if (!clientId || !redirectUri) {
+      return null;
+    }
+
+    const client = await this.clientRegistry.get(clientId);
+    if (!client || !client.redirectUris.includes(redirectUri) || !client.resource) {
+      return null;
+    }
+
+    let resourceContext: McpResourceContext;
+    try {
+      resourceContext = this.resourceResolver.resolveResource(client.resource);
+    } catch {
+      return null;
+    }
+
+    return {
+      clientId,
+      redirectUri,
+      state: this.optionalString(input.state),
       resourceContext,
     };
   }
@@ -130,6 +166,10 @@ export class OAuthRequestValidator {
       throw new BadRequestException(`${field} is required`);
     }
     return value.trim();
+  }
+
+  private optionalString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
   private resolveClientResource(

@@ -37,7 +37,8 @@ export class OAuthMetadataController {
   }
 
   private getBaseMetadata(request?: Request) {
-    const issuer = this.resolveIssuer(request);
+    const resourceContext = request ? this.resourceResolver.tryResolveRequest(request) : null;
+    const issuer = resourceContext?.publicBaseUrl ?? this.config.issuer;
 
     return {
       issuer,
@@ -50,15 +51,13 @@ export class OAuthMetadataController {
       code_challenge_methods_supported: ['S256'],
       scopes_supported: this.config.scopes,
       token_endpoint_auth_methods_supported: ['none'],
+      // RFC 9207: only project-specific issuers need this — their authorization_endpoint lives on
+      // a different origin (app.owox.com) than the issuer, which is exactly the split-origin case
+      // issuer-bound callbacks (e.g. Codex) refuse without it. The shared MCP host's issuer and
+      // authorization_endpoint already share one origin, so it has nothing to prove here.
+      ...(resourceContext?.kind === 'project'
+        ? { authorization_response_iss_parameter_supported: true }
+        : {}),
     };
-  }
-
-  private resolveIssuer(request?: Request): string {
-    if (!request) {
-      return this.config.issuer;
-    }
-
-    const resourceContext = this.resourceResolver.tryResolveRequest(request);
-    return resourceContext?.publicBaseUrl ?? this.config.issuer;
   }
 }

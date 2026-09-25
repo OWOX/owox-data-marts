@@ -79,24 +79,30 @@ describe('OAuthMetadataController', () => {
       authorization_endpoint: 'https://app.owox.com/oauth/authorize',
       token_endpoint: `https://${projectId}.mcp.owox.com/oauth/token`,
       registration_endpoint: `https://${projectId}.mcp.owox.com/oauth/register`,
+      // RFC 9207: project issuer and authorization_endpoint are on different origins, so clients
+      // that enforce issuer-bound callbacks (e.g. Codex) need this to trust the split.
+      authorization_response_iss_parameter_supported: true,
     });
   });
 
   it('keeps authorize on the app host for shared MCP metadata in split production config', () => {
     const controller = createController();
 
-    expect(
-      controller.getAuthorizationServerMetadata({
-        protocol: 'https',
-        host: 'mcp.owox.com',
-        headers: { host: 'mcp.owox.com' },
-      } as never)
-    ).toMatchObject({
+    const metadata = controller.getAuthorizationServerMetadata({
+      protocol: 'https',
+      host: 'mcp.owox.com',
+      headers: { host: 'mcp.owox.com' },
+    } as never);
+
+    expect(metadata).toMatchObject({
       issuer: 'https://mcp.owox.com',
       authorization_endpoint: 'https://app.owox.com/oauth/authorize',
       token_endpoint: 'https://mcp.owox.com/oauth/token',
       registration_endpoint: 'https://mcp.owox.com/oauth/register',
       jwks_uri: 'https://mcp.owox.com/oauth/jwks',
     });
+    // Shared issuer and authorization_endpoint already share one origin — nothing to prove, and
+    // omitting the flag (vs. sending `false`) matches RFC 9207 §3's own default-false semantics.
+    expect(metadata).not.toHaveProperty('authorization_response_iss_parameter_supported');
   });
 });

@@ -183,6 +183,45 @@ describe('OAuthRequestValidator', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('resolves a trusted project callback context for authorization errors', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    await registry.register({
+      clientId: 'mcp_dyn_project',
+      resource: `https://${projectId}.mcp.owox.com/mcp`,
+      redirectUris: ['http://127.0.0.1:5555/callback'],
+      scopes: ['mcp:read'],
+      createdAt: new Date('2026-06-10T10:00:00.000Z'),
+    });
+
+    await expect(
+      validator.resolveAuthorizationErrorContext({
+        client_id: 'mcp_dyn_project',
+        redirect_uri: 'http://127.0.0.1:5555/callback',
+        state: 'state-1',
+      })
+    ).resolves.toEqual({
+      clientId: 'mcp_dyn_project',
+      redirectUri: 'http://127.0.0.1:5555/callback',
+      state: 'state-1',
+      resourceContext: {
+        kind: 'project',
+        resource: `https://${projectId}.mcp.owox.com/mcp`,
+        publicBaseUrl: `https://${projectId}.mcp.owox.com`,
+        projectId,
+      },
+    });
+  });
+
+  it('does not trust an unregistered redirect URI for authorization errors', async () => {
+    await expect(
+      validator.resolveAuthorizationErrorContext({
+        client_id: 'mcp_dyn_123',
+        redirect_uri: 'https://attacker.example/callback',
+        state: 'state-1',
+      })
+    ).resolves.toBeNull();
+  });
+
   it('maps authorization-code token request from OAuth field names', async () => {
     const result = await validator.validateTokenRequest(
       {
