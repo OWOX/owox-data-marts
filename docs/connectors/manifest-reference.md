@@ -605,7 +605,7 @@ What happens to an unresolved path depends on where it is:
 1. Read this reference before writing or editing a manifest. An AI assistant gets the same grammar from the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt).
 2. Research the target API and author the manifest: pick the authentication type, define one node per data stream you need, and add pagination, incremental extraction, filters, transformations, or error handling only where the API actually needs them.
 3. Open the [connector builder](connector-builder.md) and bring the manifest in: **⋮** → **Import JSON…** for a `.json` file, or paste it into Code mode.
-4. Run **Test** on one node. Enter an API key or a token only into a parameter marked `SECRET`: the builder uses Secret values for the test and never saves them, while other test values are saved in the browser.
+4. Run **Test** on one node. Enter an API key or a token only into a parameter marked `SECRET` or used by the authentication: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then test again.
 6. Once it passes, **Publish** the connector.
 

@@ -70,7 +70,7 @@ Click **Test** in the top bar, then the gear icon to open **Test settings**. Cho
 
 The result opens as a **Table**, as raw **JSON**, or as the run's **Logs**. If the test fails, the error and the **Logs** show what went wrong.
 
-The builder remembers test values in this browser for the next test. Values of Secret parameters are never saved.
+The builder remembers test values in this browser for the next test. Values of Secret parameters, and of parameters the authentication uses, are never saved.
 
 ## Step 6: Define the fields
 
