@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import { McpServer, type ServerContext, type ToolAnnotations } from '@modelcontextprotocol/server';
 import type { McpScope } from '@owox/idp-protocol';
-import type { ZodRawShape } from 'zod';
+import type { ZodRawShape } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import { McpCallInstrumentation } from '../observability/mcp-call-instrumentation';
@@ -18,7 +17,7 @@ type McpSdkToolRegistrar = {
       outputSchema?: ZodRawShape;
       annotations?: ToolAnnotations;
     },
-    callback: (input: unknown, extra: { signal?: AbortSignal }) => Promise<McpToolResult>
+    callback: (input: unknown, ctx: ServerContext) => Promise<McpToolResult>
   ): unknown;
 };
 
@@ -42,11 +41,11 @@ export class McpSdkServerFactory {
     const sdkToolRegistrar = server as unknown as McpSdkToolRegistrar;
 
     for (const tool of this.toolRegistry.getTools()) {
-      const wrapped = this.instrumentation.wrap(tool.name, async (input, extra) => {
+      const wrapped = this.instrumentation.wrap(tool.name, async (input, ctx) => {
         this.assertScopes(mcpContext, tool.requiredScopes);
-        // extra.signal fires on client disconnect/cancel — thread it so an abandoned query stops
-        // waiting and is recorded CANCELLED (not billed) instead of running to completion.
-        return tool.handler(input, mcpContext, extra?.signal);
+        // ctx.mcpReq.signal fires on client disconnect/cancel — thread it so an abandoned query
+        // stops waiting and is recorded CANCELLED (not billed) instead of running to completion.
+        return tool.handler(input, mcpContext, ctx?.mcpReq?.signal);
       });
 
       sdkToolRegistrar.registerTool(

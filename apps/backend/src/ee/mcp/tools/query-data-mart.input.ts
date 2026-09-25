@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import {
   IN_LIST_MAX_VALUES,
   RELATIVE_DATE_MAX_N,
@@ -86,19 +86,23 @@ export const ADVERTISED_MCP_OPERATORS = MCP_OPERATORS.filter(
  * Accepts every SUPPORTED operator while the serialized JSON Schema advertises only
  * the ADVERTISED ones (#6779): the legacy null/empty cluster must keep parsing for
  * pre-merge callers WITH its original semantics, but the input contract the tools
- * publish must not offer it. zod-to-json-schema renders ZodEffects (input strategy)
- * and ZodCatch as their inner type, so this field serializes as the advertised enum
- * alone; at parse time a non-advertised value falls into the catch and is re-judged
- * by the superRefine — legacy names pass through unchanged, a missing operator stays
- * required, and anything else is rejected with the operator-guidance message.
- * Fresh enum instance per use — a shared one becomes a JSON-Schema $ref across
+ * publish must not offer it. Base schema is `z.any()` — zod v4's `toJSONSchema` refuses
+ * to represent a dynamic `.catch()` at all (throws "Dynamic catch values are not
+ * supported"), so the pass-through-anything behavior a dynamic catch used to give us
+ * comes from never rejecting at the schema level in the first place; `.meta({enum})`
+ * attaches the advertised-only JSON Schema constraint directly to the schema (picked
+ * up by the SDK's own `z.toJSONSchema()` call, not just this file's tests) independently
+ * of what superRefine accepts at parse time. superRefine does 100% of the real gating:
+ * legacy names pass through unchanged, a missing operator stays required, and anything
+ * else is rejected with the operator-guidance message.
+ * Fresh instance per use — a shared one becomes a JSON-Schema $ref across
  * filters/slices that OpenAI can't resolve. Pinned by the JSON-Schema contract spec
  * (mcp-operator-advertising.spec.ts).
  */
 const makeMcpOperatorSchema = () =>
   z
-    .enum(ADVERTISED_MCP_OPERATORS as [McpOperator, ...McpOperator[]])
-    .catch(ctx => ctx.input as McpOperator)
+    .any()
+    .meta({ enum: ADVERTISED_MCP_OPERATORS as unknown as McpOperator[] })
     .superRefine((op, ctx) => {
       if (op === undefined || op === null) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'operator is required' });
@@ -110,7 +114,7 @@ const makeMcpOperatorSchema = () =>
           message: unsupportedOperatorMessage(String(op)),
         });
       }
-    });
+    }) as unknown as z.ZodType<McpOperator>;
 
 // Fresh instance per use — a shared one becomes a JSON-Schema $ref that OpenAI can't resolve (filters → any[]).
 // Also reused by add_report/update_report so report filters speak the exact same vocabulary as query filters.
@@ -124,7 +128,7 @@ export const makeMcpFilterSchema = () =>
         z.number(),
         z.boolean(),
         z.array(z.unknown()),
-        z.record(z.unknown()),
+        z.record(z.string(), z.unknown()),
         z.null(),
       ])
       .optional()

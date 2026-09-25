@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod-v4';
 
 /**
  * Output-schema shape of a report's stored output controls, spelled in the input

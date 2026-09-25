@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';

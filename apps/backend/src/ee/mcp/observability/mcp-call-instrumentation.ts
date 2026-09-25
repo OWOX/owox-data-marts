@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ServerContext } from '@modelcontextprotocol/server';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
@@ -6,11 +7,8 @@ import { MCP_LOG_CONTEXT_KEY, type McpLogContext } from './mcp-log-context';
 import { buildMcpToolCallEvent } from './mcp-tool-call-event';
 import { MCP_TOOL_DIAGNOSTICS_KEY, type McpToolDiagnostics } from './mcp-tool-diagnostics';
 
-/** The SDK passes each JSON-RPC message's own `_meta` in `extra` (per message, not request-wide). */
-export type SdkToolCallback = (
-  input: unknown,
-  extra?: { signal?: AbortSignal; _meta?: Record<string, unknown> }
-) => Promise<McpToolResult>;
+/** The SDK passes each JSON-RPC message's own `_meta` in `ctx.mcpReq` (per message, not request-wide). */
+export type SdkToolCallback = (input: unknown, ctx?: ServerContext) => Promise<McpToolResult>;
 
 /**
  * Wraps an MCP SDK tool callback to emit one structured event per call.
@@ -24,7 +22,7 @@ export class McpCallInstrumentation {
   ) {}
 
   wrap(toolName: string, callback: SdkToolCallback): SdkToolCallback {
-    return async (input, extra) => {
+    return async (input, ctx) => {
       try {
         this.cls.set(MCP_TOOL_DIAGNOSTICS_KEY, {});
       } catch {
@@ -32,11 +30,11 @@ export class McpCallInstrumentation {
       }
       const startedAt = Date.now();
       try {
-        const result = await callback(input, extra);
-        this.emit(toolName, input, Date.now() - startedAt, { result }, extra);
+        const result = await callback(input, ctx);
+        this.emit(toolName, input, Date.now() - startedAt, { result }, ctx);
         return result;
       } catch (error) {
-        this.emit(toolName, input, Date.now() - startedAt, { error }, extra);
+        this.emit(toolName, input, Date.now() - startedAt, { error }, ctx);
         throw error;
       }
     };
@@ -47,14 +45,14 @@ export class McpCallInstrumentation {
     input: unknown,
     durationMs: number,
     outcome: { result?: McpToolResult; error?: unknown },
-    extra?: { _meta?: Record<string, unknown> }
+    ctx?: ServerContext
   ): void {
     try {
       const context: McpLogContext = this.cls.get(MCP_LOG_CONTEXT_KEY) ?? {};
       const diagnostics: McpToolDiagnostics = this.cls.get(MCP_TOOL_DIAGNOSTICS_KEY) ?? {};
       // Per-call: each JSON-RPC message carries its own _meta, so a batch's calls are attributed to
       // their own conversations (a request-wide slot would tag them all with the first message's).
-      const meta = extra?._meta;
+      const meta = ctx?.mcpReq?._meta;
       const event = buildMcpToolCallEvent({
         methodName: 'tools/call',
         toolName,

@@ -31,7 +31,7 @@ describe('McpCallInstrumentation', () => {
   it('зберігає результат handler і емітить подію success', async () => {
     const dispatcher = makeDispatcher();
     const instr = new McpCallInstrumentation(dispatcher as never, makeCls() as never);
-    const result = { content: [{ type: 'text', text: 'ok' }] };
+    const result = { content: [{ type: 'text' as const, text: 'ok' }] };
     const wrapped = instr.wrap('query_data_mart', async () => result);
 
     await expect(wrapped({ id: 'dm1' })).resolves.toBe(result);
@@ -75,8 +75,8 @@ describe('McpCallInstrumentation', () => {
     const handler = jest.fn(async () => ({ content: [] }));
     const wrapped = instr.wrap('x', handler);
     const signal = new AbortController().signal;
-    await wrapped({ a: 1 }, { signal });
-    expect(handler).toHaveBeenCalledWith({ a: 1 }, { signal });
+    await wrapped({ a: 1 }, { mcpReq: { signal } } as never);
+    expect(handler).toHaveBeenCalledWith({ a: 1 }, { mcpReq: { signal } });
   });
 
   it('executedSql з CLS-діагностики потрапляє у подію', async () => {
@@ -117,7 +117,7 @@ describe('McpCallInstrumentation', () => {
       makeCls({ projectId: 'p1' }) as never
     );
     const wrapped = instr.wrap('query_data_mart', async () => ({ content: [] }));
-    await wrapped({}, { _meta: { 'openai/session': 'sess-x' } });
+    await wrapped({}, { mcpReq: { _meta: { 'openai/session': 'sess-x' } } } as never);
     const ev = dispatcher.publishExternalSafely.mock.calls[0][0];
     expect(ev.payload['owox_conversation_id']).toBe('sess-x');
     expect(ev.payload['owox_conversation_id_is_pseudo']).toBe(false);
@@ -133,8 +133,8 @@ describe('McpCallInstrumentation', () => {
     const callB = instr.wrap('list_data_marts', async () => ({ content: [] }));
 
     // Two JSON-RPC messages in one batch, each with its own conversation _meta.
-    await callA({}, { _meta: { 'openai/session': 'conv-A' } });
-    await callB({}, { _meta: { 'openai/session': 'conv-B' } });
+    await callA({}, { mcpReq: { _meta: { 'openai/session': 'conv-A' } } } as never);
+    await callB({}, { mcpReq: { _meta: { 'openai/session': 'conv-B' } } } as never);
 
     const [evA, evB] = dispatcher.publishExternalSafely.mock.calls.map(c => c[0]);
     expect(evA.payload['owox_conversation_id']).toBe('conv-A');

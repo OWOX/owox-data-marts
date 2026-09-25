@@ -1,6 +1,6 @@
 import { castError } from '@owox/internal-helpers';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_PROJECT_CONTEXT_FACADE,

@@ -21,6 +21,21 @@ describe('EE MCP boundary', () => {
       }
     }
   });
+
+  // The MCP SDK's registerTool rejects zod v3 schemas at runtime (a TypeError, not a type error —
+  // `npm run lint`/`tsc` won't catch it), while every non-MCP file in this app stays on zod v3. A
+  // stray `from 'zod'` here type-checks fine and only fails the moment that tool is registered,
+  // taking down the whole /mcp endpoint on the first request after deploy. Catch it before deploy.
+  it('imports the zod-v4 alias, never plain zod, for MCP schemas', () => {
+    const root = join(__dirname);
+    const files = collectTypeScriptFiles(root);
+    const plainZodImport = /from\s+['"]zod['"]/;
+
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      expect(source).not.toMatch(plainZodImport);
+    }
+  });
 });
 
 function collectTypeScriptFiles(dir: string): string[] {

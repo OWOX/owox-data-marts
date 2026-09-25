@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import { McpToolRegistry } from './mcp-tool.registry';
 import type { McpToolDefinition } from './mcp-tool.definition';
 

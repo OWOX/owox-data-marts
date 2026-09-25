@@ -942,7 +942,11 @@ describe('QueryDataMartTool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
-      expect((result.structuredContent as { message?: string }).message).toContain('BOGUS_FN');
+      // zod v4's default enum-rejection message names the field and lists valid options, but
+      // (unlike v3) no longer echoes the specific rejected value back in the message text.
+      expect((result.structuredContent as { message?: string }).message).toContain(
+        'aggregations.0.function'
+      );
     });
 
     it('invalid date bucket unit fails at schema parse (ZodError) → invalid_input', async () => {
@@ -957,7 +961,9 @@ describe('QueryDataMartTool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
-      expect((result.structuredContent as { message?: string }).message).toContain('DECADE');
+      expect((result.structuredContent as { message?: string }).message).toContain(
+        'date_buckets.0.unit'
+      );
     });
 
     it('missing required data_mart_id (ZodError) → invalid_input', async () => {
@@ -1462,7 +1468,9 @@ describe('QueryDataMartTool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
-      expect((result.structuredContent as { message?: string }).message).toContain('STRING_AGG');
+      expect((result.structuredContent as { message?: string }).message).toContain(
+        'aggregations.0.function'
+      );
     });
 
     it('maps AGGREGATION_COLUMN_NOT_SELECTED → field_not_selected (structural, names the column, no schema re-fetch)', async () => {
