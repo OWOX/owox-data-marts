@@ -24,7 +24,7 @@ must be assigned to the ad account.
 2. Log in with a TikTok account that can access the advertiser account.
 3. Approve access for the advertiser accounts you want to import.
 
-![Set Up Connector panel with the Continue with TikTok button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/029b7eea-6eeb-4840-cba2-5198d4c01400/public)
+![Set Up Connector panel with the Continue with TikTok button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f59c1aa8-7dbf-4c37-98da-76117c16c300/public)
 
 TikTok returns the advertiser accounts your user can reach. OWOX Data Marts stores the token and
 lists those advertiser IDs.
@@ -60,7 +60,7 @@ and generate an access token. If you already used **OAuth**, skip this section.
 4. Enter your first name, last name, communication email, and phone number.
 5. Click **Next**, then choose your company type and finish your application.
 
-![TikTok for Business developer portal with the Become a Developer button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0328c249-395b-44c4-c6b4-639ba830fd00/public)
+![TikTok for Business developer portal with the Become a Developer button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f9d409ec-2966-4276-57cd-130b0cc5b900/public)
 
 ![TikTok developer registration form with the Business Information fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d4199717-04d2-45da-94f0-0862eb68ce00/public)
 
