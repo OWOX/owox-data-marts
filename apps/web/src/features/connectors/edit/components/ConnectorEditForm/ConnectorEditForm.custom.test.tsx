@@ -287,6 +287,55 @@ describe('ConnectorEditForm — custom connector', () => {
     expect(payload.source.version).toBe(1);
   });
 
+  it('shows the connector picked last after another one was picked in between', async () => {
+    renderForm(vi.fn());
+
+    fireEvent.click(await screen.findByText(CUSTOM_NAME));
+    await waitFor(() => {
+      expect(getCustomConnectorSpecification).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByText('Bundled A'));
+    await waitFor(() => {
+      expect(getConnectorSpecification).toHaveBeenCalledWith('bundledA');
+    });
+    fireEvent.click(screen.getByText(CUSTOM_NAME));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    expect(await screen.findByLabelText(/API Token/i)).toBeInTheDocument();
+  });
+
+  it('shows the active version again when the connector is picked again after a pin', async () => {
+    getCustomConnectorSpecification.mockImplementation(async (_id: string, version?: number) =>
+      version === 1 ? [{ name: 'LegacyKey', title: 'Legacy Key', required: true }] : customSpec
+    );
+    renderForm(vi.fn());
+
+    fireEvent.click(await screen.findByText(CUSTOM_NAME));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(await screen.findByTestId('connector-version-badge'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Pin to version 1' }));
+    expect(await screen.findByLabelText(/Legacy Key/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(await screen.findByText(CUSTOM_NAME));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    expect(await screen.findByTestId('connector-version-badge')).toHaveTextContent(
+      'Following active · v2'
+    );
+    expect(await screen.findByLabelText(/API Token/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Legacy Key/i)).not.toBeInTheDocument();
+  });
+
   describe('a saved source, opened to edit or add a configuration', () => {
     const savedSource = (
       version: number | undefined,

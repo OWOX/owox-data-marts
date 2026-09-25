@@ -338,6 +338,24 @@ export function ConnectorEditForm({
     return required?.length ? Array.from(new Set([...fields, ...required])) : fields;
   }, [existingConnector, selectedFields, selectedNode, effectiveDataLevel, connectorFields]);
 
+  /**
+   * Loads the schema of a connector the user has just picked, or of the version they pinned.
+   *
+   * Not through loadSpecificationSafely/loadFieldsSafely: their guards read this render's
+   * loaded sets, where a connector picked before is still marked loaded (the key ignores the
+   * version, and deleting it only lands on the next render), so they skipped exactly the fetch
+   * a new pick needs and left the previous connector's or version's schema on screen. Both
+   * fetches keep only the newest response, so a repeated click costs a request, not a mix-up.
+   */
+  const fetchSchemaFor = (connector: ConnectorListItem) => {
+    const key = connectorKey(connector);
+    setLoadedSpecifications(prev => new Set(prev).add(key));
+    void fetchConnectorSpecification(connector);
+    if (connector.name === GOOGLE_SHEETS_CONNECTOR_NAME) return;
+    setLoadedFields(prev => new Set(prev).add(key));
+    void fetchConnectorFields(connector);
+  };
+
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
@@ -351,43 +369,14 @@ export function ConnectorEditForm({
     }
     setPinnedVersion(undefined);
     setIsDirty(true);
-    const key = connectorKey(connector);
-    setLoadedSpecifications(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(key);
-      return newSet;
-    });
-    setLoadedFields(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(key);
-      return newSet;
-    });
-    void loadSpecificationSafely(connector);
-    if (connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
-      void loadFieldsSafely(connector);
-    }
+    fetchSchemaFor(connector);
   };
 
   const handleChangeVersion = (version?: number) => {
     if (!selectedConnector) return;
     setPinnedVersion(version);
     setIsDirty(true);
-    // connectorKey only varies by id/name, not version — the key is already
-    // marked "loaded" from the initial fetch, so the loadSpecificationSafely/
-    // loadFieldsSafely guards (which key off that same loaded-set) would skip
-    // a refetch here even after we delete the key, since their closures were
-    // captured before this render's setState calls apply. Fetch directly
-    // instead — this handler is an explicit user-triggered refetch, not the
-    // load-once-per-mount case those helpers guard against. fetchConnectorSpecification/
-    // fetchConnectorFields have no duplicate-call guard of their own, so this is
-    // safe only because onChangeVersion is fired solely from an explicit user
-    // click here — a second call site would need its own dedup.
-    const pinnedConnector = { ...selectedConnector, version };
-    const key = connectorKey(pinnedConnector);
-    setLoadedSpecifications(prev => new Set(prev).add(key));
-    setLoadedFields(prev => new Set(prev).add(key));
-    void fetchConnectorSpecification(pinnedConnector);
-    void fetchConnectorFields(pinnedConnector);
+    fetchSchemaFor({ ...selectedConnector, version });
   };
 
   const handleFieldSelect = (fieldName: string) => {
