@@ -16,6 +16,16 @@ import {
   MAX_MANUAL_BACKFILL_DAYS,
 } from '../Constants/CommonConstants.js';
 
+// Marks an error raised by the destination storage, which ends the run instead of failing
+// one account.
+const STORAGE_FAILURE = Symbol('storageFailure');
+
+function asStorageFailure(error) {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  failure[STORAGE_FAILURE] = true;
+  return failure;
+}
+
 export class AbstractConnector {
   constructor(context, source, StorageClass) {
     if (!context) throw new Error('context is required');
@@ -422,6 +432,10 @@ export class AbstractConnector {
       return true;
     } catch (error) {
       this.source.onAccountError(account, error);
+      // The storage is shared by every account and day, so a failure there is not this
+      // account's: the next write would fail the same way, and BigQuery would resubmit the
+      // rows it kept buffered. main ended the run at the first one.
+      if (error?.[STORAGE_FAILURE]) throw error;
       // No log here. This ran BEFORE _recordAccountFailure classified the error, so a
       // skipped account was reported twice at two severities -- ERROR here and WARN
       // there -- and the ERROR arrived first, paging someone for a failure the engine
@@ -449,7 +463,7 @@ export class AbstractConnector {
    *   one account's gap into total data loss. main advanced past skipped accounts
    *   for the same reason (FacebookMarketing #1519). The gap is surfaced by
    *   _reportAccountOutcomes and recovered with a manual backfill.
-   * - EVERYTHING ELSE (a storage write, an exhausted transient error, a 500):
+   * - EVERYTHING ELSE (an exhausted transient error, a 500):
    *   reported at ERROR, and the cursor is WITHHELD for this pass. These are the
    *   failures that plausibly succeed on the next attempt, so the date must stay
    *   re-readable; without that, dropping the rethrow would silently lose that
@@ -691,8 +705,14 @@ export class AbstractConnector {
   _nodeWriter(writers, node) {
     let writer = writers.get(node.name);
     if (!writer) {
+      let storage;
+      try {
+        storage = this.getStorageForNode(node.name, node.schema, node.fields);
+      } catch (error) {
+        throw asStorageFailure(error);
+      }
       writer = {
-        storage: this.getStorageForNode(node.name, node.schema, node.fields),
+        storage,
         uniqueKeys: this.getUniqueKeysForNode(node.name, node.schema),
         initialized: false,
       };
@@ -718,11 +738,15 @@ export class AbstractConnector {
   async _writeBatch(writer, data, fields) {
     const createEmptyTables = this.context.getParameter('CreateEmptyTables')?.value;
     if (!((data && data.length > 0) || createEmptyTables)) return;
-    if (!writer.initialized) {
-      await writer.storage.init();
-      writer.initialized = true;
+    try {
+      if (!writer.initialized) {
+        await writer.storage.init();
+        writer.initialized = true;
+      }
+      await writer.storage.saveData(this._addMissingFields(data || [], fields));
+    } catch (error) {
+      throw asStorageFailure(error);
     }
-    await writer.storage.saveData(this._addMissingFields(data || [], fields));
   }
 
   /**

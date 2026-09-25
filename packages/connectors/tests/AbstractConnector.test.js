@@ -2921,6 +2921,71 @@ describe('AbstractConnector', () => {
     });
   });
 
+  describe('storage failures', () => {
+    const runError = connector =>
+      connector.run().then(
+        () => null,
+        error => error
+      );
+
+    // A storage failure is not the account's: the next account writes through the same
+    // storage, and BigQuery keeps rows that failed to merge buffered for the next write.
+    // main ended the run at the first one.
+    it('ends the run at the first failed write instead of moving on to the next account', async () => {
+      const cap = captureEvents();
+      try {
+        const fetched = [];
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            fetched.push(req.accountId);
+            return [{ id: 1 }];
+          },
+        });
+        const StorageClass = class extends createMockStorageClass() {
+          async saveData() {
+            throw new Error('BigQuery: Not found: Dataset p:missing');
+          }
+        };
+        const error = await runError(
+          new AbstractConnector(createTestContext(), source, StorageClass)
+        );
+        assert.strictEqual(error?.message, 'BigQuery: Not found: Dataset p:missing');
+        assert.deepStrictEqual(fetched, ['a']);
+        const logs = cap.events.filter(e => e.type === 'LOG').map(e => e.message);
+        assert.ok(!logs.some(m => /Error processing account/.test(m)), logs.join('; '));
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('does not create a storage that failed again for every account and day', async () => {
+      const restore = suppressStdout();
+      try {
+        let constructed = 0;
+        const StorageClass = class {
+          constructor() {
+            constructed += 1;
+            throw new Error('Invalid credentials for the destination');
+          }
+        };
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+        });
+        const ctx = createTestContext({
+          LastRequestedDate: { value: utcDay(-4) },
+          ReimportLookbackWindow: { value: '0' },
+        });
+        const error = await runError(new AbstractConnector(ctx, source, StorageClass));
+        assert.strictEqual(error?.message, 'Invalid credentials for the destination');
+        assert.strictEqual(constructed, 1);
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('manual backfill of a connector without backfill fields', () => {
     // The web offers Backfill for every connector, and one without date fields sends no
     // data items. main ran it as an ordinary import, which Google Sheets relies on.
