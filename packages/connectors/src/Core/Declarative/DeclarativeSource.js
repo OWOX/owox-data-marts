@@ -412,7 +412,9 @@ export class DeclarativeSource extends AbstractSource {
       const query = { ...(spec.queryParameters || {}) };
       if (inj.startName && startDate)
         query[inj.startName] = formatCursorDate(startDate, inj.format);
-      if (inj.endName && endDate) query[inj.endName] = formatCursorDate(endDate, inj.format);
+      if (inj.endName && endDate) {
+        query[inj.endName] = formatCursorDate(endDate, inj.format, { endOfDay: true });
+      }
       return { ...spec, queryParameters: query };
     }
 
@@ -420,8 +422,9 @@ export class DeclarativeSource extends AbstractSource {
       const body = JSON.parse(JSON.stringify(spec.body || {}));
       if (inj.startPath && startDate)
         this._setPath(body, inj.startPath, formatCursorDate(startDate, inj.format));
-      if (inj.endPath && endDate)
-        this._setPath(body, inj.endPath, formatCursorDate(endDate, inj.format));
+      if (inj.endPath && endDate) {
+        this._setPath(body, inj.endPath, formatCursorDate(endDate, inj.format, { endOfDay: true }));
+      }
       return { ...spec, body };
     }
 

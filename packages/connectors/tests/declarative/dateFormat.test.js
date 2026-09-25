@@ -42,3 +42,24 @@ describe('formatCursorDate', () => {
     assert.strictEqual(formatCursorDate('not-a-date', 'YYYY-MM-DDTHH:mm:ssZ'), 'not-a-date');
   });
 });
+
+// A day-by-day request asks for one day with both bounds on the same date. Rendered as a
+// time, both became that day's midnight, and an API that takes timestamps returned nothing.
+describe('formatCursorDate for the end of a window', () => {
+  it('renders the last second of the day when the format carries a time', () => {
+    assert.strictEqual(formatCursorDate('2024-01-15', 'X', { endOfDay: true }), '1705363199');
+    assert.strictEqual(formatCursorDate('2024-01-15', 'x', { endOfDay: true }), '1705363199999');
+    assert.strictEqual(
+      formatCursorDate('2024-01-15', 'YYYY-MM-DDTHH:mm:ss', { endOfDay: true }),
+      '2024-01-15T23:59:59'
+    );
+  });
+
+  it('leaves a date-only format and the start of a window as they were', () => {
+    assert.strictEqual(
+      formatCursorDate('2024-01-15', 'YYYY/MM/DD', { endOfDay: true }),
+      '2024/01/15'
+    );
+    assert.strictEqual(formatCursorDate('2024-01-15', 'X'), '1705276800');
+  });
+});

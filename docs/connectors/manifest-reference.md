@@ -388,7 +388,7 @@ The run is split into one request per calendar day. The window's start and end a
 
 One request per configured date range; use `startName` + `endName` (query) or `startPath` + `endPath` (body).
 
-`request.into` is `"query"` (adds `startName`/`endName` query parameters) or `"body"` (deep-sets `startPath`/`endPath`, arrays, into the request body). `request.format` uses **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are always `00`); `X`/`x` mean unix epoch seconds/milliseconds. Omitted, or `YYYY-MM-DD`, means "pass the date through unchanged." Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (for example, don't put `mm` inside a literal word).
+`request.into` is `"query"` (adds `startName`/`endName` query parameters) or `"body"` (deep-sets `startPath`/`endPath`, arrays, into the request body). `request.format` uses **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are `00` for the start and `23:59:59` for the end, so a one-day window covers the whole day); `X`/`x` mean unix epoch seconds/milliseconds, read the same way. Omitted, or `YYYY-MM-DD`, means "pass the date through unchanged." Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (for example, don't put `mm` inside a literal word).
 
 Inside the node's own `request` (or `retriever.submit`), the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how [`transformations.add`](#transformations) stamps a `date` field onto records the API itself doesn't return dated.
 
