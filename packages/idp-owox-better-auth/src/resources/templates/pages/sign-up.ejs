@@ -92,6 +92,26 @@
 
 <%- include('../partials/social-auth') %>
 <script>
+  const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
+  const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+
+  /**
+   * Ensures a PKCE state exists before running a sign-in action. If one
+   * isn't set up yet, this navigates to the same page with `pendingAction`
+   * set instead of running the action immediately - that request starts the
+   * Platform round trip that mints a state, and once it returns, this exact
+   * action is resumed automatically via autoSubmitProvider.
+   */
+  function ensureStateThenRun(pendingAction, run) {
+    if (hasAuthState) {
+      run();
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.set('pendingAction', pendingAction);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get('redirect');
   const magicLinkSignupIntent = '<%= magicLinkSignupIntent %>';
@@ -200,7 +220,17 @@
 
   const googleButton = document.getElementById('google-signup');
   const microsoftButton = document.getElementById('microsoft-signup');
-  googleButton?.addEventListener('click', () => submitSocial('google'));
-  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
+  googleButton?.addEventListener('click', () =>
+    ensureStateThenRun('google', () => submitSocial('google'))
+  );
+  microsoftButton?.addEventListener('click', () =>
+    ensureStateThenRun('microsoft', () => submitSocial('microsoft'))
+  );
   signupForm?.addEventListener('submit', handleSignUp);
+
+  // Resume the action the user originally clicked, now that a fresh PKCE
+  // state has come back from the Platform round trip.
+  if (autoSubmitProvider) {
+    submitSocial(autoSubmitProvider);
+  }
 </script>

@@ -125,6 +125,91 @@
 
 <%- include('../partials/social-auth') %>
 <script>
+  let hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
+  const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+
+  /**
+   * Ensures a PKCE state exists before running a sign-in action. If one
+   * isn't set up yet, this navigates to the same page with `pendingAction`
+   * set instead of running the action immediately - that request starts the
+   * Platform round trip that mints a state, and once it returns, this exact
+   * action is resumed automatically (see autoSubmitProvider) or, for the
+   * email form, the user simply submits again now that state is ready.
+   */
+  function ensureStateThenRun(pendingAction, run) {
+    if (hasAuthState) {
+      run();
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.set('pendingAction', pendingAction);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  }
+
+  const STATE_FRAME_TIMEOUT_MS = 15000;
+
+  /**
+   * Obtains a PKCE state via a hidden same-site iframe instead of navigating
+   * this page away, so an already-typed email/password is never lost or
+   * stored anywhere - it stays only in the live form fields. The iframe
+   * drives the exact same pendingAction round trip a full-page bounce would
+   * (ODM -> Platform -> back to ODM); Platform's own CSP allows this page to
+   * embed just the Platform signin/signup route for this purpose. Once the
+   * iframe lands back on this same origin with a state, the browser has
+   * already stored it as a cookie shared by every tab/frame on this origin,
+   * so this page can simply proceed - no message needs to be read from the
+   * frame at all. Rejects (letting the caller fall back to a full-page
+   * bounce) if that never happens within the timeout, e.g. because the
+   * frame-ancestors allowlist isn't deployed yet in this environment.
+   */
+  function ensureStateViaHiddenFrame(pendingAction) {
+    return new Promise((resolve, reject) => {
+      const frame = document.createElement('iframe');
+      frame.style.display = 'none';
+      frame.setAttribute('aria-hidden', 'true');
+
+      let settled = false;
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        frame.removeEventListener('load', onLoad);
+        frame.remove();
+        if (ok) {
+          resolve();
+        } else {
+          reject(new Error('Timed out waiting for PKCE state'));
+        }
+      };
+
+      const timer = setTimeout(() => finish(false), STATE_FRAME_TIMEOUT_MS);
+
+      function onLoad() {
+        let sameOriginHref;
+        try {
+          sameOriginHref = frame.contentWindow.location.href;
+        } catch {
+          // Still on Platform (cross-origin) - keep waiting for the bounce back.
+          return;
+        }
+        try {
+          if (new URL(sameOriginHref).searchParams.has('state')) {
+            finish(true);
+          }
+        } catch {
+          // Not a parseable same-origin URL yet (e.g. a blocked-frame page) -
+          // keep waiting until the timeout settles this one way or the other.
+        }
+      }
+
+      frame.addEventListener('load', onLoad);
+      const params = new URLSearchParams(window.location.search);
+      params.set('pendingAction', pendingAction);
+      frame.src = `${window.location.pathname}?${params.toString()}`;
+      document.body.appendChild(frame);
+    });
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const redirect =
     urlParams.get('redirect') ||
@@ -241,9 +326,34 @@
     }
   }
 
-  googleButton?.addEventListener('click', () => submitSocial('google'));
-  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
-  emailForm?.addEventListener('submit', submitEmailSignIn);
+  googleButton?.addEventListener('click', () =>
+    ensureStateThenRun('google', () => submitSocial('google'))
+  );
+  microsoftButton?.addEventListener('click', () =>
+    ensureStateThenRun('microsoft', () => submitSocial('microsoft'))
+  );
+  emailForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (hasAuthState) {
+      submitEmailSignIn(event);
+      return;
+    }
+    // Try the hidden-iframe path first so a password already typed here is
+    // never lost; only fall back to the full-page bounce (which does lose
+    // it, requiring the user to resubmit) if that path doesn't pan out.
+    ensureStateViaHiddenFrame('email')
+      .then(() => {
+        hasAuthState = true;
+        submitEmailSignIn(event);
+      })
+      .catch(() => ensureStateThenRun('email', () => submitEmailSignIn(event)));
+  });
+
+  // Resume the action the user originally clicked, now that a fresh PKCE
+  // state has come back from the Platform round trip.
+  if (autoSubmitProvider) {
+    submitSocial(autoSubmitProvider);
+  }
 
   // Password visibility toggle
   const passwordInput = document.getElementById('password');
