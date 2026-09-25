@@ -18,7 +18,7 @@
  * published. That surface is closed and small -- grep `storage.` in
  * AbstractConnector.js -- and is, in full:
  *
- *   constructor(context, uniqueKeys, fields, destinationName)  getStorageForNode
+ *   constructor(context, uniqueKeys, fields, description)      getStorageForNode
  *   init()                                                     _writeBatch
  *   saveData(data)                                             _writeBatch
  *   replaceData(data)                                          processFullRefreshNode
@@ -44,11 +44,11 @@ import { TEST_ROW_MARKER } from '../Constants/CommonConstants.js';
 export { TEST_ROW_MARKER };
 
 export class TestStorage {
-  constructor(context, uniqueKeys, fields, destinationName) {
+  constructor(context, uniqueKeys, fields, description) {
     this.context = context;
     this.uniqueKeys = uniqueKeys;
     this.fields = fields;
-    this.destinationName = destinationName;
+    this.description = description;
   }
 
   async init() {}

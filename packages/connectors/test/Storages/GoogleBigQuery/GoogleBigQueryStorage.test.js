@@ -470,6 +470,20 @@ describe('createTableIfItDoesntExist partitioning', () => {
     expect(query).toContain('PARTITION BY TIMESTAMP_TRUNC(ts, DAY)');
   });
 
+  // The description is the node's own text, and a quote in it ended the DDL string.
+  it('escapes quotes in the table description', async () => {
+    const storage = createStorage({ id: { type: 'STRING' } });
+    storage.description = 'Ads "daily" stats';
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+
+    await storage.createTableIfItDoesntExist();
+
+    expect(query).toContain('OPTIONS(description="Ads \\"daily\\" stats")');
+  });
+
   it('skips partitioning for a non-date flag and says so in the log', async () => {
     const storage = createStorage({
       id: { type: 'STRING', GoogleBigQueryPartitioned: true },

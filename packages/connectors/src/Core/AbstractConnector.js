@@ -47,13 +47,12 @@ export class AbstractConnector {
    */
   getStorageForNode(nodeName, nodeSchema, nodeFields = null) {
     const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeSchema);
-    const destinationName = this._wireNodeConfig(nodeName, nodeSchema, nodeFields, uniqueKeys);
-    return new this.StorageClass(
-      this.context,
-      uniqueKeys,
-      nodeSchema.fields || [],
-      destinationName
-    );
+    this._wireNodeConfig(nodeName, nodeSchema, nodeFields, uniqueKeys);
+    // The storage reads the table name from the context; this argument is the description
+    // a new table gets, and main gave it the node's description and documentation link.
+    const description =
+      [nodeSchema.description, nodeSchema.documentation].filter(Boolean).join(' ') || null;
+    return new this.StorageClass(this.context, uniqueKeys, nodeSchema.fields || [], description);
   }
 
   /**

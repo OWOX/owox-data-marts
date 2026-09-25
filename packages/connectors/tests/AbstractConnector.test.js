@@ -44,9 +44,11 @@ function createMockSource(overrides = {}) {
 function createMockStorageClass() {
   const instances = [];
   const StorageClass = class MockStorage {
-    constructor(context, uniqueKeys, fields, tableName) {
+    constructor(context, uniqueKeys, fields, description) {
       this.context = context;
-      this.tableName = tableName;
+      // Read the way a real storage does: the engine points DestinationTableName at the node.
+      this.tableName = context.getParameter?.('DestinationTableName')?.value ?? null;
+      this.description = description;
       this.uniqueKeys = uniqueKeys;
       this.fields = fields;
       this.savedData = [];
@@ -82,9 +84,10 @@ function createMockStorageClass() {
 function createSpiedStorageClass() {
   const instances = [];
   const StorageClass = class SpiedStorage {
-    constructor(context, uniqueKeys, fields, tableName) {
+    constructor(context, uniqueKeys, fields, description) {
       this.context = context;
-      this.tableName = tableName;
+      this.tableName = context.getParameter?.('DestinationTableName')?.value ?? null;
+      this.description = description;
       this.uniqueKeys = uniqueKeys;
       this.fields = fields;
       this.initCalls = 0;
@@ -905,6 +908,32 @@ describe('AbstractConnector', () => {
         assert.strictEqual(StorageClass.instances.length, 2);
         const tableNames = StorageClass.instances.map(s => s.tableName).sort();
         assert.deepStrictEqual(tableNames, ['campaigns_t', 'stats_t']);
+      } finally {
+        restore();
+      }
+    });
+
+    it('describes a new table with its node description and documentation, as main did', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = createMockSource({
+          fieldsSchema: {
+            campaigns: {
+              fields: [],
+              uniqueKeys: ['id'],
+              isTimeSeries: false,
+              destinationName: 'campaigns',
+              description: 'Campaigns of the account',
+              documentation: 'https://example.com/docs/campaigns',
+            },
+          },
+        });
+        const StorageClass = createMockStorageClass();
+        await new AbstractConnector(createTestContext(), source, StorageClass).run();
+        assert.strictEqual(
+          StorageClass.instances[0].description,
+          'Campaigns of the account https://example.com/docs/campaigns'
+        );
       } finally {
         restore();
       }
