@@ -177,7 +177,9 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       _testEnv: { FAKE_SKIPPED: '1' },
     });
     expect(res.rows.length).toBe(0);
-    expect(res.error).toMatch(/skipped.*HTTP 401/);
+    expect(res.error).toBe(
+      'Nothing was imported because access was refused: HTTP 401: Unauthorized'
+    );
     expect(res.logs.join('\n')).not.toContain('Test produced 0 records');
   });
 

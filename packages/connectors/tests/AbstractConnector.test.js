@@ -586,8 +586,11 @@ describe('AbstractConnector', () => {
           e => e
         );
         assert.ok(error);
-        assert.match(error.message, /All 1 accounts were skipped/);
-        assert.match(error.message, /Token has expired/);
+        // The builder's Test shows this message, and there are no accounts to speak of.
+        assert.strictEqual(
+          error.message,
+          'Nothing was imported because access was refused: Token has expired'
+        );
         assert.strictEqual(error.isWarning, true);
       } finally {
         restore();

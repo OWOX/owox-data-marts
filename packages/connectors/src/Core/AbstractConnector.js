@@ -620,13 +620,18 @@ export class AbstractConnector {
       if (failed.length && state.attemptedCount === 1) {
         throw failed[0][1].errors.filter(error => error?.isWarning !== true).pop();
       }
-      const error = new Error(
-        failed.length
-          ? `None of the ${state.attemptedCount} accounts imported any data. Errors: ${describe(entries)}`
-          : `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
-              `to a global failure, such as an expired access token, rather than individual accounts ` +
-              `being inaccessible. Errors: ${describe(entries)}`
-      );
+      let message;
+      if (failed.length) {
+        message = `None of the ${state.attemptedCount} accounts imported any data. Errors: ${describe(entries)}`;
+      } else if (state.accountless) {
+        message = `Nothing was imported because access was refused: ${describe(entries)}`;
+      } else {
+        message =
+          `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
+          `to a global failure, such as an expired access token, rather than individual accounts ` +
+          `being inaccessible. Errors: ${describe(entries)}`;
+      }
+      const error = new Error(message);
       // Flagged ONLY when every account was turned away for permissions -- something the
       // customer can act on, and RunFailureReport then keeps the readable message instead
       // of a stack. A run whose accounts died on 500s is not that: it must page.
