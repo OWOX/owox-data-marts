@@ -23,8 +23,10 @@ import {
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import {
   type CanvasViewMode,
-  type CardBadgeRow,
-  cardBadgeRows,
+  type CardCountKind,
+  cardCountBadges,
+  packCountBadges,
+  pluralizeCount,
   cardBadges,
   nodeLayoutOptions,
   nodeWidth,
@@ -74,9 +76,11 @@ export interface ModelCanvasFlowNodeData {
   onRunQuality: () => Promise<void>;
 }
 
-function pluralize(count: number, singular: string): string {
-  return `${String(count)} ${singular}${count === 1 ? '' : 's'}`;
-}
+const COUNT_BADGE_ICONS: Record<CardCountKind, LucideIcon> = {
+  triggers: CalendarClock,
+  reports: FileText,
+  relationships: Waypoints,
+};
 
 /** Soft-filled pill with a leading icon, as on the product website's Data Mart cards. */
 function CardPill({
@@ -139,7 +143,9 @@ export default function ModelCanvasFlowNode({
       : null;
   // Published is the norm, so only a draft earns a pill — next to the title.
   const withDraft = !labels.status && data.isDraft;
-  const badgeRows = cardBadgeRows(badges);
+  const withMetaLine = badges.definition || badges.fieldCount;
+  // Counts fill a line while they fit its width — the layout estimate packs them the same way.
+  const countLines = packCountBadges(cardCountBadges(data, badges), data.viewMode);
   // "Uncheck all — title only" strips the card down to its name: counts,
   // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
@@ -147,38 +153,6 @@ export default function ModelCanvasFlowNode({
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
   const openExternalLabel = `Open ${data.title} in new tab`;
-
-  function renderBadgeRow(row: CardBadgeRow) {
-    if (row === 'meta') {
-      return (
-        <>
-          {definitionInfo && (
-            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
-          )}
-          {badges.fieldCount && (
-            <CardPill icon={Columns3}>{pluralize(data.fieldCount, 'field')}</CardPill>
-          )}
-        </>
-      );
-    }
-    if (row === 'usage') {
-      return (
-        <>
-          {badges.triggers && (
-            <CardPill icon={CalendarClock}>
-              {pluralize(data.triggersCount ?? 0, 'trigger')}
-            </CardPill>
-          )}
-          {badges.reports && (
-            <CardPill icon={FileText}>{pluralize(data.reportsCount ?? 0, 'report')}</CardPill>
-          )}
-        </>
-      );
-    }
-    return (
-      <CardPill icon={Waypoints}>{pluralize(data.relationshipCount, 'relationship')}</CardPill>
-    );
-  }
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -260,13 +234,27 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Badge rows: source + field count, triggers + reports, relationships */}
-      {badgeRows.map((row, index) => (
+      {/* Badge lines: source + field count, then the counts packed by width */}
+      {withMetaLine && (
+        <div className='flex items-center gap-1 overflow-hidden pt-2 pr-3 pl-3'>
+          {definitionInfo && (
+            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
+          )}
+          {badges.fieldCount && (
+            <CardPill icon={Columns3}>{pluralizeCount(data.fieldCount, 'field')}</CardPill>
+          )}
+        </div>
+      )}
+      {countLines.map((line, index) => (
         <div
-          key={row}
-          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 ? 'pt-2' : 'pt-1'}`}
+          key={line.map(count => count.kind).join('+')}
+          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 && !withMetaLine ? 'pt-2' : 'pt-1'}`}
         >
-          {renderBadgeRow(row)}
+          {line.map(count => (
+            <CardPill key={count.kind} icon={COUNT_BADGE_ICONS[count.kind]}>
+              {count.label}
+            </CardPill>
+          ))}
         </div>
       ))}
 

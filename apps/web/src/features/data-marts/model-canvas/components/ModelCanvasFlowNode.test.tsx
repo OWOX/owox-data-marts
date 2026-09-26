@@ -326,12 +326,24 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
   });
 
-  it('puts triggers and reports on one row and relationships on the next', () => {
+  it('fills a line with counts while they fit and wraps the one that does not', () => {
     renderNode();
 
     const triggers = screen.getByText('2 triggers').parentElement;
     expect(screen.getByText('3 reports').parentElement).toBe(triggers);
     expect(screen.getByText('1 relationship').parentElement).not.toBe(triggers);
+  });
+
+  it('keeps reports and relationships on one line when there are no triggers', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      triggersCount: 0,
+      reportsCount: 2,
+      relationshipCount: 2,
+    });
+
+    expect(screen.getByText('2 relationships').parentElement).toBe(
+      screen.getByText('2 reports').parentElement
+    );
   });
 
   it('waits for enrichment before showing the triggers count', () => {
