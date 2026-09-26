@@ -10,6 +10,7 @@ import {
 } from '../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../shared/canvas/view-mode';
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
+import { measureBadgeText } from '../../shared/canvas/measure-badge-text';
 import type { ModelCanvasNode } from './types';
 
 /** Canvas node display density. Compact = header only; ERD = header + field rows. */
@@ -29,11 +30,12 @@ export {
 // an expanded ERD node may overlap below until the user drags it (nodes are
 // draggable) — same behaviour as owox/models.
 
-// Card rows, top to bottom: title (icon tile + name), then up to three badge
-// rows — source + field count, triggers + reports, relationships — then the
-// footer (quality indicators + sharing). Each row is a fixed single line so the
-// estimate stays exact. A count of zero shows no badge, and a row left without
-// badges is dropped.
+// Card rows, top to bottom: title (icon tile + name), the source + field count
+// row, the count badges (triggers, reports, relationships) packed onto as few
+// lines as their measured widths allow, then the footer (quality indicators +
+// sharing). Every line is a fixed single line, and the card and this estimate
+// pack the badges the same way, so the estimate stays exact. A count of zero
+// shows no badge, and a line left without badges is dropped.
 /** Title row: top padding + the 28px icon tile. */
 export const CARD_TITLE_ROW_HEIGHT = 40;
 /** Extra bottom padding the title row gets when it is all the card shows. */
@@ -46,11 +48,11 @@ export const CARD_BADGE_ROW_HEIGHT = 24;
 export const CARD_FOOTER_HEIGHT = 42;
 
 export const COMPACT_NODE_WIDTH = 240;
-/** Tallest Compact card — every row present. */
+/** Tallest Compact card — every count on its own line. */
 export const COMPACT_NODE_HEIGHT =
   CARD_TITLE_ROW_HEIGHT +
   CARD_FIRST_BADGE_ROW_HEIGHT +
-  2 * CARD_BADGE_ROW_HEIGHT +
+  3 * CARD_BADGE_ROW_HEIGHT +
   CARD_FOOTER_HEIGHT;
 
 export const ERD_NODE_WIDTH = 256;
@@ -116,24 +118,93 @@ export function cardBadges(
   };
 }
 
-export type CardBadgeRow = 'meta' | 'usage' | 'relationships';
+export function pluralizeCount(count: number, singular: string): string {
+  return `${String(count)} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+export type CardCountKind = 'triggers' | 'reports' | 'relationships';
+
+export interface CardCountBadge {
+  kind: CardCountKind;
+  label: string;
+}
+
+/** The count badges a card shows, in display order. */
+export function cardCountBadges(node: CardBadgeInput, badges: CardBadges): CardCountBadge[] {
+  const counts: CardCountBadge[] = [];
+  if (badges.triggers) {
+    counts.push({ kind: 'triggers', label: pluralizeCount(node.triggersCount ?? 0, 'trigger') });
+  }
+  if (badges.reports) {
+    counts.push({ kind: 'reports', label: pluralizeCount(node.reportsCount ?? 0, 'report') });
+  }
+  if (badges.relationships) {
+    counts.push({
+      kind: 'relationships',
+      label: pluralizeCount(node.relationshipCount ?? 0, 'relationship'),
+    });
+  }
+  return counts;
+}
+
+/** Horizontal padding of a card row (`pl-3` + `pr-3`). */
+export const CARD_ROW_INSET = 24;
+/** A badge's width besides its text: `px-1.5` + the 12px icon + `gap-1`. */
+export const CARD_BADGE_CHROME = 28;
+/** Space between two badges on a line (`gap-1`). */
+export const CARD_BADGE_GAP = 4;
+/** Slack per badge so sub-pixel text rounding never wraps a line the estimate kept whole. */
+const CARD_BADGE_SLACK = 2;
+
+export type TextMeasure = (text: string) => number;
 
 /**
- * The badge rows a card shows, in order: source + field count, triggers +
- * reports, relationships. Two usage counts share a row; three counts would not
- * fit one line of the card.
+ * Packs the count badges onto lines, in order, starting a new line when the
+ * next badge would not fit the card's width. The card renders these lines and
+ * the layout estimate counts them, so both agree.
  */
-export function cardBadgeRows(badges: CardBadges): CardBadgeRow[] {
-  const rows: CardBadgeRow[] = [];
-  if (badges.definition || badges.fieldCount) rows.push('meta');
-  if (badges.triggers || badges.reports) rows.push('usage');
-  if (badges.relationships) rows.push('relationships');
-  return rows;
+export function packCountBadges(
+  counts: readonly CardCountBadge[],
+  viewMode: CanvasViewMode,
+  measure: TextMeasure = measureBadgeText
+): CardCountBadge[][] {
+  const available = nodeWidth(viewMode) - CARD_ROW_INSET;
+  const lines: CardCountBadge[][] = [];
+  let lineWidth = 0;
+  for (const count of counts) {
+    const width = Math.ceil(measure(count.label)) + CARD_BADGE_CHROME + CARD_BADGE_SLACK;
+    const current = lines.at(-1);
+    if (current && lineWidth + CARD_BADGE_GAP + width <= available) {
+      current.push(count);
+      lineWidth += CARD_BADGE_GAP + width;
+    } else {
+      lines.push([count]);
+      lineWidth = width;
+    }
+  }
+  return lines;
+}
+
+/** Number of badge lines a card shows: the source + field count line, then the packed counts. */
+export function cardBadgeLineCount(
+  node: CardBadgeInput,
+  viewMode: CanvasViewMode,
+  options: NodeLayoutOptions = {},
+  measure: TextMeasure = measureBadgeText
+): number {
+  const badges = cardBadges(node, options);
+  const metaLine = badges.definition || badges.fieldCount ? 1 : 0;
+  return metaLine + packCountBadges(cardCountBadges(node, badges), viewMode, measure).length;
 }
 
 /** Height of the card header (everything above the ERD field rows). */
-function cardHeaderHeight(node: CardBadgeInput, options: NodeLayoutOptions): number {
-  const rowCount = cardBadgeRows(cardBadges(node, options)).length;
+function cardHeaderHeight(
+  node: CardBadgeInput,
+  viewMode: CanvasViewMode,
+  options: NodeLayoutOptions,
+  measure: TextMeasure
+): number {
+  const rowCount = cardBadgeLineCount(node, viewMode, options, measure);
   const rowsHeight =
     rowCount === 0 ? 0 : CARD_FIRST_BADGE_ROW_HEIGHT + (rowCount - 1) * CARD_BADGE_ROW_HEIGHT;
   const tail = options.statusRowHidden ? CARD_TITLE_ONLY_PADDING : CARD_FOOTER_HEIGHT;
@@ -148,9 +219,10 @@ function cardHeaderHeight(node: CardBadgeInput, options: NodeLayoutOptions): num
 export function computeNodeHeight(
   node: CardBadgeInput & Pick<ModelCanvasNode, 'fields'>,
   viewMode: CanvasViewMode,
-  options: NodeLayoutOptions = {}
+  options: NodeLayoutOptions = {},
+  measure: TextMeasure = measureBadgeText
 ): number {
-  const header = cardHeaderHeight(node, options);
+  const header = cardHeaderHeight(node, viewMode, options, measure);
   if (viewMode !== 'erd') return header;
   const fields = node.fields ?? [];
   if (fields.length === 0) return header;
