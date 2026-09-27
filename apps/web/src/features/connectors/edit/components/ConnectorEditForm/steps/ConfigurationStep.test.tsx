@@ -663,3 +663,55 @@ describe('ConfigurationStep seeding of an existing configuration', () => {
     expect(screen.getByRole('textbox', { name: 'Service Account Key *' })).toBeInTheDocument();
   });
 });
+
+// Re-picking a version in Edit config re-seeds the saved configuration against the new
+// specification. A secret that version added was masked as well, so it looked stored and Save
+// was enabled; the mask was dropped on save, and every run failed on the empty value.
+describe('ConfigurationStep editing a saved configuration against a newer specification', () => {
+  const newerSpecification: ConnectorSpecificationResponseApiDto[] = [
+    {
+      name: 'Token',
+      title: 'Token',
+      requiredType: RequiredType.STRING,
+      required: true,
+      attributes: ['SECRET'],
+    },
+    {
+      name: 'NewKey',
+      title: 'New Key',
+      requiredType: RequiredType.STRING,
+      required: true,
+      attributes: ['SECRET'],
+    },
+  ];
+
+  it('masks only the secrets the saved configuration has', async () => {
+    const onValidationChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={connector}
+          connectorSpecification={newerSpecification}
+          initialConfiguration={{ Token: '**********' }}
+          isEditingExisting
+          onValidationChange={onValidationChange}
+        />
+      </MemoryRouter>
+    );
+
+    // The new secret is an ordinary empty input; only the stored one has an Edit button.
+    const newKey = await screen.findByRole('textbox', { name: 'New Key *' });
+    expect(newKey).toHaveValue('');
+    expect(newKey).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1);
+    await waitFor(() => {
+      expect(onValidationChange).toHaveBeenLastCalledWith(false);
+    });
+
+    fireEvent.change(newKey, { target: { value: 'new-secret' } });
+    await waitFor(() => {
+      expect(onValidationChange).toHaveBeenLastCalledWith(true);
+    });
+  });
+});

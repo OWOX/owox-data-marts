@@ -91,15 +91,34 @@ function migrateNestedConfigValuesToTopLevel(
  * masked. Every (re)seed goes through here, so a rule added to it applies both
  * to a fresh and to an existing configuration.
  */
+const isSecretSpec = (spec: ConnectorSpecificationResponseApiDto) =>
+  Array.isArray(spec.attributes) && spec.attributes.includes('SECRET');
+
+/**
+ * The secrets a saved configuration has a value for. A version picked while editing can add a
+ * secret with nothing stored behind it; masking that one made it pass as set, and the mask was
+ * dropped on save, so every run failed on the empty value.
+ */
+function savedSecretNames(
+  initialConfiguration: Record<string, unknown> | undefined,
+  specs: ConnectorSpecificationResponseApiDto[]
+): Set<string> {
+  const config = migrateNestedConfigValuesToTopLevel({ ...(initialConfiguration ?? {}) }, specs);
+  return new Set(
+    specs.filter(spec => isSecretSpec(spec) && config[spec.name] !== undefined).map(s => s.name)
+  );
+}
+
 function seedConfiguration(
   initialConfiguration: Record<string, unknown> | undefined,
   specs: ConnectorSpecificationResponseApiDto[],
   isEditingExisting: boolean
 ): Record<string, unknown> {
   const config = migrateNestedConfigValuesToTopLevel({ ...(initialConfiguration ?? {}) }, specs);
+  const saved = savedSecretNames(initialConfiguration, specs);
 
   specs.forEach(spec => {
-    const isSecret = Array.isArray(spec.attributes) ? spec.attributes.includes('SECRET') : false;
+    const isSecret = isSecretSpec(spec);
 
     if (config[spec.name] === undefined && spec.default !== undefined) {
       config[spec.name] = spec.default;
@@ -113,7 +132,7 @@ function seedConfiguration(
       config[spec.name] = { [firstOption]: {} };
     }
 
-    if (isEditingExisting && isSecret) {
+    if (isEditingExisting && isSecret && saved.has(spec.name)) {
       config[spec.name] = SECRET_MASK;
     }
   });
@@ -141,6 +160,9 @@ export function ConfigurationStep({
   // own echo and distinguishes it from a genuine outside change.
   const lastEchoedConfigRef = useRef<Record<string, unknown> | null>(null);
   const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
+  // Taken when a configuration is seeded, not from the echo of each edit: clicking Edit empties
+  // a stored secret, which must not turn it into one with nothing stored.
+  const [storedSecrets, setStoredSecrets] = useState<ReadonlySet<string>>(new Set());
   const [managedOAuthModes, setManagedOAuthModes] = useState<Partial<Record<string, boolean>>>({});
 
   useEffect(() => {
@@ -161,6 +183,7 @@ export function ConfigurationStep({
       setConfiguration(
         seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
       );
+      setStoredSecrets(savedSecretNames(initialConfiguration, connectorSpecification));
       initializedRef.current = true;
       setTimeout(() => {
         updatingFromParentRef.current = false;
@@ -185,6 +208,7 @@ export function ConfigurationStep({
       setConfiguration(
         seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
       );
+      setStoredSecrets(savedSecretNames(initialConfiguration, connectorSpecification));
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
@@ -435,6 +459,7 @@ export function ConfigurationStep({
                 onSecretEditToggle={handleSecretEditToggle}
                 secretEditing={secretEditing}
                 isEditingExisting={isEditingExisting}
+                storedSecrets={storedSecrets}
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
               />
@@ -448,6 +473,7 @@ export function ConfigurationStep({
                 onSecretEditToggle={handleSecretEditToggle}
                 secretEditing={secretEditing}
                 isEditingExisting={isEditingExisting}
+                storedSecrets={storedSecrets}
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
               />

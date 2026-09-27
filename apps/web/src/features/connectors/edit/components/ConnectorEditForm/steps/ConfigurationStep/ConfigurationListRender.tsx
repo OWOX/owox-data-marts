@@ -13,6 +13,8 @@ interface ConfigurationListRenderProps {
   onSecretEditToggle: (name: string, enable: boolean) => void;
   secretEditing: Record<string, boolean>;
   isEditingExisting: boolean;
+  /** Secrets the saved configuration has a value for; a new one is an ordinary empty input. */
+  storedSecrets?: ReadonlySet<string>;
   collapsibleTitle?: string;
   connectorName: string;
   onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void;
@@ -25,6 +27,7 @@ function renderItems(
   onSecretEditToggle: (name: string, enable: boolean) => void,
   secretEditing: Record<string, boolean>,
   isEditingExisting: boolean,
+  storedSecrets: ReadonlySet<string> | undefined,
   connectorName: string,
   onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void
 ) {
@@ -54,7 +57,10 @@ function renderItems(
         key={specification.name}
         specification={specification}
         configuration={configuration}
-        isEditingExisting={isEditingExisting}
+        isEditingExisting={
+          isEditingExisting &&
+          (!isSecret || !storedSecrets || storedSecrets.has(specification.name))
+        }
         isSecret={isSecret}
         isSecretEditing={isSecretEditing}
         onValueChange={onValueChange}
@@ -73,6 +79,7 @@ export function ConfigurationListRender({
   onSecretEditToggle,
   secretEditing,
   isEditingExisting,
+  storedSecrets,
   connectorName,
   onManagedOAuthModeChange,
 }: ConfigurationListRenderProps) {
@@ -85,6 +92,7 @@ export function ConfigurationListRender({
         onSecretEditToggle,
         secretEditing,
         isEditingExisting,
+        storedSecrets,
         connectorName,
         onManagedOAuthModeChange
       )}
@@ -97,6 +105,7 @@ export function ConfigurationListRender({
       onSecretEditToggle,
       secretEditing,
       isEditingExisting,
+      storedSecrets,
       connectorName,
       onManagedOAuthModeChange
     )
