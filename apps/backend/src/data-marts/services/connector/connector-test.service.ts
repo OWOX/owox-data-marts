@@ -632,9 +632,9 @@ export class ConnectorTestService {
         if (settled) return;
         stdoutBuffer.flush();
         stderrBuffer.flush();
-        finish(
-          code === 0 || rows.length > 0 ? null : `Test process exited with code ${String(code)}`
-        );
+        // The runner reports every engine failure and exits 0, so any other exit is a crash,
+        // and rows read before it do not make the run a success.
+        finish(code === 0 ? null : `Test process exited with code ${String(code)}`);
       });
       child.on('error', err => finish(err.message));
     });

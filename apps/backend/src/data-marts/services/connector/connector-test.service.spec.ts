@@ -417,7 +417,7 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     expect(res.error).toBe('Test process exited with code 2');
   });
 
-  it('reports no error when the runner exits non-zero but rows were already emitted', async () => {
+  it('reports the exit code when the runner exits non-zero after emitting rows, and keeps the rows', async () => {
     const svc = makeService();
     const res = await svc.runTest(
       {
@@ -430,7 +430,7 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       { env: { FAKE_EXIT_CODE: '1', FAKE_EXIT_ROWS: '2' } }
     );
     expect(res.rows.length).toBe(2);
-    expect(res.error).toBeNull();
+    expect(res.error).toBe('Test process exited with code 1');
   });
 
   it('silently drops a malformed marker line and still counts valid rows', async () => {
