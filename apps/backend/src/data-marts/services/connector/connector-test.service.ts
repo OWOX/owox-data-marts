@@ -489,12 +489,12 @@ export class ConnectorTestService {
         // flushing the stdout buffer could.
         stderrBuffer.flush();
         const captured = rows.slice(0, maxRows);
-        // The runner exits 0 even when the run failed. With no rows to show, that would
-        // read as a misleading "success, 0 rows", so the run's verdict — or failing that,
-        // the first error it logged — becomes the test error.
-        if (error === null && captured.length === 0) {
-          error = runFailure ?? errorLogs[0] ?? null;
-        }
+        // The runner exits 0 even when the run failed, so the run's verdict becomes the test
+        // error whatever was captured: the engine writes one account's rows before the next
+        // account fails, and reports that failure only after the last one. The first error
+        // it logged stands in for a verdict only when there are no rows to show.
+        if (error === null) error = runFailure;
+        if (error === null && captured.length === 0) error = errorLogs[0] ?? null;
         // A run that "succeeds" but yields 0 rows is the most common silent
         // connector bug (usually a wrong recordPath/path/filter). The request
         // and process logs look healthy, so neither a human reading the test

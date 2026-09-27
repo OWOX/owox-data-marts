@@ -438,14 +438,14 @@ function DockBody({
 /** Tabular view: the result grid (cast rows, or the raw sample for a fields-less node),
  * or an error/empty placeholder. */
 function TableView({ result }: { result: ConnectorTestResultDto }) {
-  if (result.error) {
-    return (
-      <div className='p-6 text-sm text-red-600 dark:text-red-400' data-testid='test-error'>
-        {result.error}
-      </div>
-    );
-  }
   const records = displayRecords(result);
+  const errorBlock = result.error ? (
+    <div className='p-6 text-sm text-red-600 dark:text-red-400' data-testid='test-error'>
+      {result.error}
+    </div>
+  ) : null;
+  // A run can fail after some accounts were read; their rows are still shown under the error.
+  if (errorBlock && records.length === 0) return errorBlock;
   if (records.length === 0) {
     return (
       <p className='text-muted-foreground p-6 text-sm' data-testid='test-empty'>
@@ -456,42 +456,48 @@ function TableView({ result }: { result: ConnectorTestResultDto }) {
 
   const { columns, primitive } = deriveColumns(records);
   return (
-    <div data-testid='test-results' className='min-w-max'>
-      <table className='w-full border-collapse text-[13px]'>
-        <thead className='sticky top-0 z-10'>
-          <tr className='bg-accent text-muted-foreground text-[11px] font-medium'>
-            {columns.map((c, i) => (
-              <th
-                key={c}
-                className={cn(
-                  'border-border border-b py-2 text-left font-medium',
-                  i === 0 ? 'pr-2 pl-6' : 'px-3'
-                )}
-              >
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {records.map((row, i) => (
-            <tr key={i} className='border-border hover:bg-accent/60 border-b'>
-              {columns.map((c, j) => (
-                <td
+    <>
+      {errorBlock}
+      <div data-testid='test-results' className='min-w-max'>
+        <table className='w-full border-collapse text-[13px]'>
+          <thead className='sticky top-0 z-10'>
+            <tr className='bg-accent text-muted-foreground text-[11px] font-medium'>
+              {columns.map((c, i) => (
+                <th
                   key={c}
-                  className={cn('max-w-[260px] py-2 align-middle', j === 0 ? 'pr-2 pl-6' : 'px-3')}
+                  className={cn(
+                    'border-border border-b py-2 text-left font-medium',
+                    i === 0 ? 'pr-2 pl-6' : 'px-3'
+                  )}
                 >
-                  {/* `row?.` for the null entries deriveColumns already allows for: the
-                      dock has no error boundary of its own, so a throw here unmounts the
-                      whole builder and the author's unsaved edits with it. */}
-                  <Cell value={primitive ? (row as unknown) : row?.[c]} mono={j === 0} />
-                </td>
+                  {c}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {records.map((row, i) => (
+              <tr key={i} className='border-border hover:bg-accent/60 border-b'>
+                {columns.map((c, j) => (
+                  <td
+                    key={c}
+                    className={cn(
+                      'max-w-[260px] py-2 align-middle',
+                      j === 0 ? 'pr-2 pl-6' : 'px-3'
+                    )}
+                  >
+                    {/* `row?.` for the null entries deriveColumns already allows for: the
+                      dock has no error boundary of its own, so a throw here unmounts the
+                      whole builder and the author's unsaved edits with it. */}
+                    <Cell value={primitive ? (row as unknown) : row?.[c]} mono={j === 0} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

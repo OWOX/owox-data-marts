@@ -206,6 +206,22 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     );
   });
 
+  it('fails the test when the run failed after some rows were written, and keeps the rows', async () => {
+    const svc = makeService();
+    const res = await svc.runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {},
+        maxRows: 3,
+      },
+      { env: { FAKE_ROWS_THEN_FAILED: '1' } }
+    );
+    expect(res.rows).toHaveLength(1);
+    expect(res.error).toBe('Error processing account acct-2: HTTP 404: Not Found');
+  });
+
   it('fails the test with the message, not the stack, when the runner fails before the run starts', async () => {
     const svc = makeService();
     const res = await svc.runTest(

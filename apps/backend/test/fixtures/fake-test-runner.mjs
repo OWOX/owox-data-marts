@@ -62,6 +62,15 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
     }) + '\n'
   );
   process.exit(0);
+} else if (process.env.FAKE_ROWS_THEN_FAILED === '1') {
+  // The first account's rows are written before the second account fails, and the engine
+  // reports the failure only after the last account: CONTROL failed arrives AFTER a row.
+  const message = 'Error processing account acct-2: HTTP 404: Not Found';
+  process.stdout.write(`${MARKER}${JSON.stringify({ i: 0 })}\n`);
+  process.stdout.write(
+    JSON.stringify({ type: 'CONTROL', action: 'failed', error: message }) + '\n'
+  );
+  process.exit(0);
 } else if (process.env.FAKE_CRASH === '1') {
   // The runner fails before the engine starts, so only the stderr envelope exists.
   process.stderr.write(

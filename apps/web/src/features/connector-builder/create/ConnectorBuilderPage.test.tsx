@@ -420,6 +420,28 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     expect(runTest.mock.calls[0][0].manifest.nodes.items.request.path).toBe('/v2');
   });
 
+  it('shows a failed run above the rows the test did read', async () => {
+    runTest.mockResolvedValue({
+      rows: [{ id: 'row-from-account-1' }],
+      logs: [],
+      error: 'Error processing account acct-2: HTTP 404: Not Found',
+    });
+    await savedConnectorInCode();
+    typeInCode(m => {
+      m.nodes = {
+        items: { request: { method: 'GET', path: '/v1' }, recordSelector: { recordPath: [] } },
+      };
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('run-test')).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByTestId('run-test'));
+
+    expect(await screen.findByTestId('test-error')).toHaveTextContent('HTTP 404');
+    expect(screen.getByTestId('test-results')).toHaveTextContent('row-from-account-1');
+  });
+
   it('opening another version asks before discarding it', async () => {
     getById.mockResolvedValue(
       draftDetail([
