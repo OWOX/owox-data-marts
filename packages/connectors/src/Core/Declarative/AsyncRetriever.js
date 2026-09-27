@@ -69,11 +69,13 @@ export class AsyncRetriever {
       // match -- failedValue is optional, and an unset one equalled a missing status.
       if (status !== undefined && status !== null) {
         sawStatus = true;
-        if (status === poll.readyValue) {
+        // Compared as text, as the paginator's stop condition is: the builder saves what the
+        // author typed, so an API answering true or 2 is matched by "true" or "2".
+        if (String(status) === String(poll.readyValue)) {
           resultUrl = getPath(statusBody, poll.resultUrlPath);
           break;
         }
-        if (poll.failedValue !== undefined && status === poll.failedValue) {
+        if (poll.failedValue !== undefined && String(status) === String(poll.failedValue)) {
           throw new Error(`AsyncRetriever: job failed (status "${status}")`);
         }
       }

@@ -208,3 +208,27 @@ describe('AsyncRetriever — a poll without a status', () => {
     );
   });
 });
+
+// The builder saves readyValue and failedValue as the text typed, so an API answering
+// {"done": true} or {"status": 2} never matched "true" or "2", and the job ran out its polls.
+describe('AsyncRetriever — a status that is not a string', () => {
+  it('reads a boolean or a number status as ready when its text matches readyValue', async () => {
+    for (const status of [true, 2]) {
+      const retriever = pollingRetriever({
+        poll: { readyValue: String(status) },
+        statuses: [{ status, url: 'https://cdn.example/J.json' }],
+      });
+
+      assert.deepStrictEqual(await retriever.run({ parameters: {} }), [{ a: 1 }]);
+    }
+  });
+
+  it('reads a number status as failed when its text matches failedValue', async () => {
+    const retriever = pollingRetriever({
+      poll: { readyValue: '2', failedValue: '3' },
+      statuses: [{ status: 3 }],
+    });
+
+    await assert.rejects(() => retriever.run({ parameters: {} }), /job failed \(status "3"\)/);
+  });
+});
