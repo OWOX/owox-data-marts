@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-# Custom no-code connectors
+**Custom no-code connectors**
 
 Build a connector to any REST API without writing code. A declarative manifest describes the
 API — authentication, pagination, nodes and fields — and a three-pane web builder edits it with
@@ -19,7 +19,7 @@ edit access to each of those Data Marts; otherwise a project admin can do it.
 **Frankfurter FX (Declarative)**, a small example of a declarative connector, is bundled and
 appears in the connector list of every project.
 
-## Fixes
+**Fixes**
 
 - **Multi-account imports** — one account failing no longer ends the run. The remaining
   accounts are imported and their data is delivered. An account the API refuses with a 401 or
@@ -39,8 +39,14 @@ appears in the connector list of every project.
 - **Data Mart connector setup** — picking a connector, then another, then the first one again
   showed the second one's settings. The form now always shows the settings of the connector
   picked last.
+- **Open Exchange Rates** — a run with an invalid App ID, or over its quota, now fails. It used
+  to finish successfully with no rows and move on, so those days were never imported.
+- **GitHub** — a 401 or 403 now fails the run. It used to write a row with an empty id.
 
-## For operators
+Data Marts on these two connectors that looked healthy may start failing: they had been
+importing nothing, or for GitHub an empty row.
+
+**For operators**
 
 Three new environment variables, all optional:
 
@@ -52,10 +58,12 @@ Three new environment variables, all optional:
   errors are written to the database. Run logs now appear while the run is still going; `0` turns
   that off and writes them once, when the run ends.
 
-## For developers using `@owox/connectors`
+**For developers using `@owox/connectors`**
 
 Every connector now runs through one shared engine. The per-connector `…Connector` classes
 (`GoogleAdsConnector`, `FacebookMarketingConnector` and the rest) and `AbstractConfig`,
 `AbstractRunConfig`, `NodeJsConfig` and `HttpUtils` are no longer exported. A source's
 `fetchData` receives one node, one account and one date window, and the engine does the
 rest; see the package's `CREATING_CONNECTOR.md`.
+
+<!-- markdownlint-disable-file MD041 MD036 -->
