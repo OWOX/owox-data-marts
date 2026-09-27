@@ -74,7 +74,7 @@ The builder remembers test values in this browser for the next test. Values of S
 
 ## Step 6: Define the fields
 
-In the node's **Fields**, click **Discover fields**. The builder reads the first record of the node's last test and adds its fields with suggested types. Fields you already defined keep their settings. Field names become column names, so they may contain only letters, digits and underscores: a key such as `created-at` is added as the field `created_at`, with the key as its **Data path**.
+In the node's **Fields**, click **Discover fields**. The builder reads the first record of the node's last test and adds its fields with suggested types. Fields you already defined keep their settings. Field names become column names, so they may contain only letters, digits and underscores: a key such as `created-at` is added as the field `created_at`, with the key as its **Data path**. Each value inside a nested object becomes a field of its own in the same way: `stats.clicks` is added as `stats_clicks`, with `stats.clicks` as its **Data path**. An array stays one field.
 
 Then check each field:
 

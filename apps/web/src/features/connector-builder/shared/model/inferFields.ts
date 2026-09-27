@@ -1,21 +1,51 @@
+interface InferredField {
+  type: string;
+  dataPath?: string;
+}
+
+// Deep enough for the metrics and settings objects APIs nest, shallow enough that the proposed
+// column names stay readable. An object nested deeper is proposed as one JSON column.
+const MAX_PATH_SEGMENTS = 4;
+
 /**
- * Infers a manifest field map from a single sample record's top-level keys.
- * Each field is named after its key. A field's name becomes a column name, which the parser
- * limits to letters, digits and underscores, so a key outside that is renamed and read back
+ * Infers a manifest field map from a single sample record. Each value becomes a field, the
+ * values inside a nested object included, named after its path (`stats.clicks` becomes
+ * `stats_clicks`). A field's name becomes a column name, which the parser limits to letters,
+ * digits and underscores, so a field whose name differs from its path reads the value back
  * through `dataPath`; otherwise there is no `dataPath` and FieldCaster falls back to the field
- * name. Used by the "Discover fields from sample" builder action.
+ * name. Arrays stay one field each. Used by the "Discover fields from sample" builder action.
  */
 export function inferFieldsFromSample(
   record: Record<string, unknown> | null | undefined
-): Record<string, { type: string; dataPath?: string }> {
-  if (!record || typeof record !== 'object' || Array.isArray(record)) return {};
-  const out: Record<string, { type: string; dataPath?: string }> = {};
-  for (const [key, value] of Object.entries(record)) {
-    const name = uniqueName(fieldName(key), out);
+): Record<string, InferredField> {
+  if (!isPlainObject(record)) return {};
+  const out: Record<string, InferredField> = {};
+  const add = (path: string[], value: unknown) => {
+    const dataPath = path.join('.');
+    const name = uniqueName(fieldName(path.join('_')), out);
     out[name] =
-      name === key ? { type: inferType(value) } : { type: inferType(value), dataPath: key };
-  }
+      name === dataPath ? { type: inferType(value) } : { type: inferType(value), dataPath };
+  };
+  const walk = (value: Record<string, unknown>, path: string[]) => {
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = [...path, key];
+      if (canDescend(child, childPath)) walk(child, childPath);
+      else add(childPath, child);
+    }
+  };
+  walk(record, []);
   return out;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// A data path is split on dots, so nothing below a key that holds one can be addressed.
+function canDescend(value: unknown, path: string[]): value is Record<string, unknown> {
+  if (!isPlainObject(value) || path.length >= MAX_PATH_SEGMENTS) return false;
+  const keys = Object.keys(value);
+  return keys.length > 0 && [...path, ...keys].every(key => !key.includes('.'));
 }
 
 function fieldName(key: string): string {
@@ -34,6 +64,5 @@ function uniqueName(name: string, taken: Record<string, unknown>): string {
 function inferType(value: unknown): string {
   if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number';
   if (typeof value === 'boolean') return 'boolean';
-  if (value !== null && typeof value === 'object') return 'string';
   return 'string';
 }

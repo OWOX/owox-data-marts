@@ -119,7 +119,9 @@ describe('Field data path', () => {
     });
     const fields = create.mock.calls[0][0].manifest.nodes.games.fields;
     expect(fields.id).toEqual({ type: 'string' }); // pre-existing field preserved (not overwritten to integer)
-    expect(fields.releaseDates).toEqual({ type: 'string' }); // object value → string, newly discovered
+    // a value inside a nested object is a field of its own, read through its path
+    expect(fields.releaseDates_Japan).toEqual({ type: 'string', dataPath: 'releaseDates.Japan' });
+    expect(fields.releaseDates).toBeUndefined();
   });
 
   it('disables Discover fields when there is no sample', () => {

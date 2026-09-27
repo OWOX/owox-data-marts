@@ -10,7 +10,6 @@ describe('inferFieldsFromSample', () => {
         ok: true,
         name: 'x',
         tags: ['a'],
-        meta: { z: 1 },
         none: null,
       })
     ).toEqual({
@@ -19,8 +18,37 @@ describe('inferFieldsFromSample', () => {
       ok: { type: 'boolean' },
       name: { type: 'string' },
       tags: { type: 'string' },
-      meta: { type: 'string' },
       none: { type: 'string' },
+    });
+  });
+
+  // A nested object was proposed as one JSON column, so its values had to be added by hand
+  // or flattened by a transformation first.
+  it('proposes a field for each value inside a nested object, read through its dot-path', () => {
+    expect(
+      inferFieldsFromSample({ id: 1, stats: { clicks: 5, cost: 1.5, video: { views: 7 } } })
+    ).toEqual({
+      id: { type: 'integer' },
+      stats_clicks: { type: 'integer', dataPath: 'stats.clicks' },
+      stats_cost: { type: 'number', dataPath: 'stats.cost' },
+      stats_video_views: { type: 'integer', dataPath: 'stats.video.views' },
+    });
+  });
+
+  it('keeps an array, an empty object and an object nested too deep as one column each', () => {
+    expect(
+      inferFieldsFromSample({ tags: ['a'], meta: {}, a: { b: { c: { d: { e: 1 } } } } })
+    ).toEqual({
+      tags: { type: 'string' },
+      meta: { type: 'string' },
+      a_b_c_d: { type: 'string', dataPath: 'a.b.c.d' },
+    });
+  });
+
+  // A data path is split on dots, so nothing below a key that holds one can be addressed.
+  it('keeps an object whose keys hold a dot as one column', () => {
+    expect(inferFieldsFromSample({ labels: { 'app.version': '1.2' } })).toEqual({
+      labels: { type: 'string' },
     });
   });
 
