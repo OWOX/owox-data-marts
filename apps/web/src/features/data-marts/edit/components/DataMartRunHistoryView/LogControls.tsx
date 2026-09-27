@@ -3,18 +3,12 @@ import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { LogViewType, type SortDir } from './types';
 import type { LogCategory } from './log-category';
-import { getCategoryIcon } from './icons';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { DataMartRunStatus, DataMartRunType } from '../../../shared';
 import { downloadLogs } from './utils';
 import { canCancelDataMartRun } from './cancellable-runs';
 import { CancelRunButton } from './CancelRunButton';
-
-export interface CategoryFilter {
-  category: LogCategory;
-  label: string;
-  count: number;
-}
+import { CategoryChips, type CategoryFilter } from './CategoryChips';
 
 interface LogControlsProps {
   logViewType: LogViewType;
@@ -71,8 +65,8 @@ export function LogControls({
     onToggleCategory !== undefined;
 
   return (
-    <div className='bg-background border-border flex items-center justify-between gap-4 rounded-lg border p-3'>
-      <div className='flex min-w-0 items-center gap-4'>
+    <div className='bg-background border-border flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border p-3'>
+      <div className='flex shrink-0 items-center gap-4'>
         <div className='bg-background border-border flex shrink-0 items-center rounded-lg border'>
           <button
             onClick={e => {
@@ -118,36 +112,17 @@ export function LogControls({
             />
           </div>
         )}
-
-        {showChips && (
-          <div className='flex min-w-0 items-center gap-2 overflow-x-auto'>
-            {categoryFilters.map(({ category, label, count }) => {
-              const isActive = activeCategories?.has(category) ?? true;
-              return (
-                <button
-                  key={category}
-                  onClick={e => {
-                    e.stopPropagation();
-                    onToggleCategory(category);
-                  }}
-                  aria-pressed={isActive}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'border-border bg-accent text-foreground'
-                      : 'border-border text-muted-foreground opacity-60 hover:opacity-100'
-                  }`}
-                >
-                  {getCategoryIcon(category)}
-                  <span>{label}</span>
-                  <span className='text-muted-foreground'>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
-      <div className='flex shrink-0 items-center gap-2'>
+      {showChips && (
+        <CategoryChips
+          filters={categoryFilters}
+          activeCategories={activeCategories}
+          onToggle={onToggleCategory}
+        />
+      )}
+
+      <div className='ml-auto flex shrink-0 items-center gap-2'>
         {dataMartId && canCancelDataMartRun(run.type, run.status) && (
           <CancelRunButton
             runId={run.id}
