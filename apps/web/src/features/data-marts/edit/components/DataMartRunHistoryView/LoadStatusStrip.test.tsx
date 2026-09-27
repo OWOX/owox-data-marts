@@ -38,6 +38,11 @@ describe('LoadStatusStrip', () => {
     expect(strip).not.toHaveTextContent('node');
   });
 
+  it('says row for a single row', () => {
+    render(<LoadStatusStrip entries={[metric('rows_written', 1)]} />);
+    expect(screen.getByTestId('load-status-strip').textContent).toMatch(/Loaded 1 row(?!s)/);
+  });
+
   it('omits the Extracted segment when there are no rows_extracted metrics', () => {
     render(<LoadStatusStrip entries={[metric('rows_written', 100)]} />);
     const strip = screen.getByTestId('load-status-strip');

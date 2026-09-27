@@ -54,7 +54,7 @@ export function LoadStatusStrip({
       )}
       <span>
         Loaded <strong className='text-foreground'>{status.rowsWritten.toLocaleString()}</strong>{' '}
-        rows
+        {status.rowsWritten === 1 ? 'row' : 'rows'}
       </span>
       {status.processingDate && (
         <>
