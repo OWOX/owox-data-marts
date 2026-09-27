@@ -2223,3 +2223,54 @@ describe('ManifestParser shapes that fail only at run time', () => {
     );
   });
 });
+
+// A run has no deadline, so these bounds are what keeps one publish from holding every
+// unpinned Data Mart's run for days.
+describe('ManifestParser waiting bounds', () => {
+  const variant = change => {
+    const m = JSON.parse(JSON.stringify(valid));
+    change(m);
+    return JSON.stringify(m);
+  };
+
+  it('refuses a rateLimit window longer than an hour', () => {
+    const manifest = variant(m => {
+      m.rateLimit = { requests: 1, perSeconds: 86400 };
+    });
+    assert.throws(
+      () => new ManifestParser().parse(manifest),
+      /rateLimit\.perSeconds must be at most 3600/
+    );
+  });
+
+  it('refuses an async poll that could wait longer than the bounds allow', () => {
+    const asyncNode = poll => ({
+      destinationName: 'demo_rates',
+      uniqueKeys: ['date'],
+      fields: { date: { type: 'date' } },
+      retriever: {
+        type: 'async',
+        submit: { method: 'POST', path: '/r', jobIdPath: ['id'] },
+        poll: {
+          method: 'GET',
+          path: '/r/{{ job.id }}',
+          statusPath: ['status'],
+          readyValue: 'READY',
+          resultUrlPath: ['url'],
+          backoff: poll,
+        },
+        download: { recordPath: [] },
+      },
+    });
+    for (const [backoff, message] of [
+      [{ maxMs: 3_600_000 }, /poll\.backoff\.maxMs must be at most 300000/],
+      [{ initialMs: 3_600_000 }, /poll\.backoff\.initialMs must be at most 300000/],
+      [{ maxAttempts: 1_000_000 }, /poll\.backoff\.maxAttempts must be at most 1000/],
+    ]) {
+      const manifest = variant(m => {
+        m.nodes.rates = asyncNode(backoff);
+      });
+      assert.throws(() => new ManifestParser().parse(manifest), message);
+    }
+  });
+});

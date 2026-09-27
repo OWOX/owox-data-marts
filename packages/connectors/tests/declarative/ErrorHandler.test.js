@@ -146,6 +146,20 @@ describe('ErrorHandler', () => {
     );
   });
 
+  // Runs have no deadline, so an author's delay held the run and its slot for as long as it
+  // said: 2e9 ms is 23 days per retry, and a 60 s base with factor 10 is 16.7 h by attempt 3.
+  it('delayMs caps constant and exponential delays at the header-delay ceiling', () => {
+    const eh = new ErrorHandler({});
+    assert.strictEqual(
+      eh.delayMs({ backoff: { type: 'constant', delayMs: 2_000_000_000 } }, null, 0, 5000),
+      MAX_HEADER_RETRY_DELAY_MS
+    );
+    assert.strictEqual(
+      eh.delayMs({ backoff: { type: 'exponential', factor: 10, baseMs: 60_000 } }, null, 3, 5000),
+      MAX_HEADER_RETRY_DELAY_MS
+    );
+  });
+
   it('delayMs falls back to the handler-level backoff when the filter has none', () => {
     const eh = new ErrorHandler({ backoff: { type: 'constant', delayMs: 700 } });
     assert.strictEqual(eh.delayMs(null, null, 0, 5000), 700);

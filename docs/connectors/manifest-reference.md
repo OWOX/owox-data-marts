@@ -480,7 +480,7 @@ For APIs that generate a report asynchronously: submit a job, poll until it's re
 ```
 
 - `submit` — a request spec plus `jobIdPath` (array), locating the newly created job's id in the submit response.
-- `poll` — a request spec (its `path`/templates may reference `{{ job.id }}`) plus `statusPath` (array), `readyValue`, optional `failedValue`, and `resultUrlPath` (array) locating a download URL once the job succeeds. `poll.backoff` bounds the polling loop: `maxAttempts` (default 180), `initialMs` (default 3000), `maxMs` (default 15000) — the delay doubles each attempt up to `maxMs`. The status is compared with `readyValue` and `failedValue` as text, so `"true"` or `"2"` matches an API that answers `true` or `2`. A response matching `failedValue` throws immediately; exhausting `maxAttempts` without reaching `readyValue` also throws. A poll that carries no status at `statusPath` (a job still queued) is polled again; when none of them ever carries one, the error names `statusPath`, since the path is then the likely mistake.
+- `poll` — a request spec (its `path`/templates may reference `{{ job.id }}`) plus `statusPath` (array), `readyValue`, optional `failedValue`, and `resultUrlPath` (array) locating a download URL once the job succeeds. `poll.backoff` bounds the polling loop: `maxAttempts` (default 180, at most 1000), `initialMs` (default 3000) and `maxMs` (default 15000), each at most 300000 — the delay doubles each attempt up to `maxMs`. The status is compared with `readyValue` and `failedValue` as text, so `"true"` or `"2"` matches an API that answers `true` or `2`. A response matching `failedValue` throws immediately; exhausting `maxAttempts` without reaching `readyValue` also throws. A poll that carries no status at `statusPath` (a job still queued) is polled again; when none of them ever carries one, the error names `statusPath`, since the path is then the likely mistake.
 - `jobIdPath`, `statusPath` and `resultUrlPath` must each name at least one key, and `readyValue` is required. The parser refuses an async node without them: an empty path reads the whole response, which never equals `readyValue`, so the poll loop would run out all its attempts first.
 - `download.recordPath` — array; the downloaded JSON is extracted the same way `recordSelector.recordPath` extracts rows. The download URL comes from the API, so it may be on any public HTTPS host, not only the manifest's own.
 - A submit, poll or download request that fails with a 5xx, a 429 or a network error is sent again, as a sync request without an `errorHandler` is. For the submit, an API that created the job before failing is left with one extra job, which the run never reads. Without the retry the day would fail, and the next run would submit the report again anyway.
@@ -573,7 +573,7 @@ An error that matches no filter gets the default treatment: a `5xx` or `429` res
 
 A `backoff` may also be set directly on `errorHandler` (no `responseFilters` match required) as the node's default retry pacing.
 
-A delay read from a response header (`waitTimeFromHeader`, `waitUntilTimeFromHeader`) is capped at 5 minutes, including after the `minMs` floor.
+Every retry delay is capped at 5 minutes: a `constant` or `exponential` one, and one read from a response header (`waitTimeFromHeader`, `waitUntilTimeFromHeader`), including after the `minMs` floor. A run has no deadline of its own, so an uncapped delay would hold it for as long as it said.
 
 ## Rate limiting
 
@@ -583,7 +583,7 @@ Optional, top-level (`rateLimit`); a simple global cap shared by every request t
 { "requests": 60, "perSeconds": 60 }
 ```
 
-`requests` is a positive integer; `perSeconds` is a positive number. The example above means "no more than 60 requests per 60 seconds."
+`requests` is a positive integer; `perSeconds` is a positive number of at most 3600. For a daily quota, retry the API's 429 with an [`errorHandler`](#error-handling) instead. The example above means "no more than 60 requests per 60 seconds."
 
 ## Templating scopes
 

@@ -5,6 +5,7 @@
  * file that was distributed with this source code.
  */
 
+import { MAX_HEADER_RETRY_DELAY_MS } from './ErrorHandler.js';
 import { GENERATED_REFRESH_TOKEN_CONFIG_FIELD } from '../../Constants/CredentialConstants.js';
 import { CONFIG_ATTRIBUTES } from '../../Constants/CommonConstants.js';
 import { TemplateEngine } from './TemplateEngine.js';
@@ -97,6 +98,10 @@ const CREDENTIAL_INJECT_KEY = 'format';
 // Deliberately a narrow name test rather than anything clever: a false positive costs the
 // author one glance at a publish-time warning, a false negative leaks a token.
 const CREDENTIAL_NAME_PATTERN = /token|secret|key|password|credential|auth/i;
+
+// Bounds on how long a manifest can make a run wait; a run has no deadline of its own.
+const MAX_RATE_LIMIT_WINDOW_SECONDS = 3600;
+const MAX_ASYNC_POLL_ATTEMPTS = 1000;
 
 /** Refuses a pattern the engine would otherwise first compile mid-run. */
 function assertRegex(where, pattern) {
@@ -418,6 +423,14 @@ export class ManifestParser {
         rl.perSeconds <= 0
       ) {
         throw new Error('ManifestParser: rateLimit.perSeconds must be a positive number');
+      }
+      // A run has no deadline: a longer window holds the run, and its slot, for as long as it
+      // takes to free, and past 24.8 days the timer overflows into a busy loop.
+      if (rl.perSeconds > MAX_RATE_LIMIT_WINDOW_SECONDS) {
+        throw new Error(
+          `ManifestParser: rateLimit.perSeconds must be at most ${MAX_RATE_LIMIT_WINDOW_SECONDS}; ` +
+            `for a daily quota, retry the API's 429 with an errorHandler instead`
+        );
       }
     }
 
@@ -927,6 +940,12 @@ export class ManifestParser {
           if (!valid) {
             throw new Error(
               `ManifestParser: node "${nodeName}" poll.backoff.${key} must be a positive ${key === 'maxAttempts' ? 'whole number' : 'number of milliseconds'}`
+            );
+          }
+          const most = key === 'maxAttempts' ? MAX_ASYNC_POLL_ATTEMPTS : MAX_HEADER_RETRY_DELAY_MS;
+          if (value > most) {
+            throw new Error(
+              `ManifestParser: node "${nodeName}" poll.backoff.${key} must be at most ${most}`
             );
           }
         }

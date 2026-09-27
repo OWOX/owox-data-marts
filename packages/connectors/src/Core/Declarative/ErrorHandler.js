@@ -101,12 +101,14 @@ export class ErrorHandler {
     const spec = (filter && filter.backoff) || this.backoff;
     if (!spec) return null;
     switch (spec.type) {
+      // Clamped like a header delay: a run has no deadline, so an author's delay would hold it,
+      // and its slot, for as long as it says.
       case 'constant':
-        return Math.max(0, Number(spec.delayMs) || 0);
+        return clampHeaderDelay(Number(spec.delayMs) || 0);
       case 'exponential': {
         const factor = Number.isFinite(spec.factor) ? spec.factor : 2;
         const base = Number.isFinite(spec.baseMs) ? spec.baseMs : initialDelay;
-        return Math.max(0, Math.round(base * Math.pow(factor, attempt)));
+        return clampHeaderDelay(Math.round(base * Math.pow(factor, attempt)));
       }
       case 'waitTimeFromHeader':
         return this._waitTimeFromHeader(spec, response);
