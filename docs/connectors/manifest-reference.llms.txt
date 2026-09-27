@@ -36,7 +36,7 @@ The parser does NOT check for unknown keys: a misspelled key is silently ignored
 - A record's row-selector is `recordSelector.recordPath` (an **array** of keys), **not** `fieldPath`.
 - `fields` is an **object keyed by field name**, **not** an array.
 
-A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`) is an **array of key segments** (`["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
+A related, easy-to-miss fifth gotcha (see §7): a **field's** `dataPath`/`apiName` is a single **dot-string** (`"stats.spending"`), but almost every other "path" in the grammar (`recordSelector.recordPath`, `recordFilter.path`, `errorHandler` `bodyMatch.path`, pagination `cursor.path`/`stopCondition.path`, async `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`, `incremental.request.startPath`/`endPath`, `authentication.exchange.tokenPath`) is an **array of key segments** (`["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
 
 ## 4. `parameters`
 
@@ -262,7 +262,7 @@ Optional, node-level. `pagination.type` is one of `none`, `offset`, `page`, `cur
 ```
 
 - `offset` — stops once a page returns fewer than `pageSize` records; each subsequent request adds `pageSize` to the running offset. The engine does not send the page size itself: request it in `queryParameters` (e.g. `"limit": "100"`, as the Cốc Cốc Ads example does), or a smaller default page from the API stops pagination after the first page.
-- `page` — stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (default 1).
+- `page` — stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (an integer, default 1).
 - `cursor` — reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path`: array) or a response header (`cursor.from: "header"`, `cursor.header`: name, optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found, or when the response hands back the cursor that was just sent.
 
 All types accept an optional `inject` describing WHERE the next-page value is written on the following request:

@@ -98,6 +98,15 @@ const CREDENTIAL_INJECT_KEY = 'format';
 // author one glance at a publish-time warning, a false negative leaks a token.
 const CREDENTIAL_NAME_PATTERN = /token|secret|key|password|credential|auth/i;
 
+/** Refuses a pattern the engine would otherwise first compile mid-run. */
+function assertRegex(where, pattern) {
+  try {
+    new RegExp(pattern);
+  } catch (error) {
+    throw new Error(`ManifestParser: ${where} is not a valid regular expression: ${error.message}`);
+  }
+}
+
 /**
  * Names a manifest parameter cannot take. A source's parameters and its storage's settings
  * share one context, and the source's value wins: a parameter named DestinationTableName sent
@@ -186,6 +195,8 @@ function validateBackoff(b, nodeName, where) {
       throw new Error(
         `ManifestParser: node "${nodeName}" ${where} waitUntilTimeFromHeader regex must be a string`
       );
+    if (b.regex !== undefined)
+      assertRegex(`node "${nodeName}" ${where} waitUntilTimeFromHeader regex`, b.regex);
     if (b.minMs !== undefined && typeof b.minMs !== 'number')
       throw new Error(
         `ManifestParser: node "${nodeName}" ${where} waitUntilTimeFromHeader minMs must be a number`
@@ -250,6 +261,25 @@ export class ManifestParser {
             `uses for its own settings. Rename the parameter.`
         );
       }
+    }
+
+    // Both are read only mid-run, where a dot-string tokenPath walks a string one character at
+    // a time and a broken pattern throws on the first run.
+    const exchanges = [raw.authentication?.exchange];
+    if (raw.authentication?.type === 'selective') {
+      for (const sub of Object.values(raw.authentication.authenticators || {})) {
+        exchanges.push(sub?.exchange);
+      }
+    }
+    for (const exchange of exchanges) {
+      if (exchange?.tokenPath !== undefined && !Array.isArray(exchange.tokenPath)) {
+        throw new Error(
+          `ManifestParser: authentication exchange.tokenPath must be an array of keys (e.g. ["token"]), not a ${typeof exchange.tokenPath}`
+        );
+      }
+    }
+    if (raw.accounts?.parse?.split !== undefined) {
+      assertRegex('accounts.parse.split', raw.accounts.parse.split);
     }
 
     // Shallow-copy so the auto-registered parameter below never mutates the
@@ -434,6 +464,8 @@ export class ManifestParser {
         ['retriever.submit.jobIdPath', node.retriever?.submit?.jobIdPath],
         ['retriever.poll.statusPath', node.retriever?.poll?.statusPath],
         ['retriever.poll.resultUrlPath', node.retriever?.poll?.resultUrlPath],
+        ['incremental.request.startPath', node.incremental?.request?.startPath],
+        ['incremental.request.endPath', node.incremental?.request?.endPath],
       ]) {
         if (value !== undefined && !Array.isArray(value)) {
           throw new Error(
@@ -712,6 +744,12 @@ export class ManifestParser {
           if (!PAGINATION_TYPES.has(pType)) {
             throw new Error(
               `ManifestParser: node "${nodeName}" pagination.type "${pType}" not supported`
+            );
+          }
+          // A string is concatenated rather than incremented: "1" asks for pages 11, 111.
+          if (pg.startPage !== undefined && !Number.isInteger(pg.startPage)) {
+            throw new Error(
+              `ManifestParser: node "${nodeName}" pagination.startPage must be an integer`
             );
           }
           if (pg.inject !== undefined) {

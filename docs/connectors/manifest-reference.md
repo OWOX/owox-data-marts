@@ -76,7 +76,7 @@ The parser does not check for unknown keys. A misspelled key is silently ignored
 - A request's query string is **`queryParameters`**, not `queryParams`.
 - A record's row-selector is **`recordSelector.recordPath`** — an array of keys — not `fieldPath`.
 - **`fields`** is an object keyed by field name, not an array.
-- A **field's** `dataPath`/`apiName` is a single dot-string (e.g. `"stats.spending"`), but almost every other "path" in the grammar — `recordSelector.recordPath`, `recordFilter.path`, `errorHandler`'s `bodyMatch.path`, pagination's `cursor.path`/`stopCondition.path`, an async node's `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, and `partitionRouter.parent.recordPath` — is an **array** of key segments (e.g. `["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
+- A **field's** `dataPath`/`apiName` is a single dot-string (e.g. `"stats.spending"`), but almost every other "path" in the grammar — `recordSelector.recordPath`, `recordFilter.path`, `errorHandler`'s `bodyMatch.path`, pagination's `cursor.path`/`stopCondition.path`, an async node's `jobIdPath`/`statusPath`/`resultUrlPath`/`download.recordPath`, `partitionRouter.parent.recordPath`, `incremental.request.startPath`/`endPath`, and `authentication.exchange.tokenPath` — is an **array** of key segments (e.g. `["stats", "spending"]`). The parser refuses a dot-string in any of those array positions, so that mistake fails at publish. The reverse is silent: an array in a field's `dataPath` is accepted, and the field is always empty.
 
 ## Parameters
 
@@ -316,7 +316,7 @@ Stops once a page returns fewer records than `pageSize`; each subsequent request
 { "type": "page", "pageParam": "page", "startPage": 1 }
 ```
 
-Stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (default 1).
+Stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (an integer, default 1).
 
 ### Cursor pagination
 

@@ -2143,3 +2143,83 @@ describe('ManifestParser node request secrets', () => {
     assert.deepStrictEqual(model.unprotectedRequestParameters, []);
   });
 });
+
+// Three shapes that published cleanly and then misbehaved with nothing said at run time.
+describe('ManifestParser shapes that fail only at run time', () => {
+  const variant = change => {
+    const m = JSON.parse(JSON.stringify(valid));
+    change(m);
+    return JSON.stringify(m);
+  };
+
+  // The path writer walked a dot-string one character at a time, so the date landed at
+  // {"d":{"a":…}} and never reached the API, which then served its default range.
+  it('refuses a dot-string incremental.request.startPath or endPath', () => {
+    for (const key of ['startPath', 'endPath']) {
+      const manifest = variant(m => {
+        m.nodes.rates.incremental = {
+          strategy: 'range',
+          request: {
+            into: 'body',
+            startPath: ['date', 'from'],
+            endPath: ['date', 'to'],
+            [key]: 'date.from',
+          },
+        };
+      });
+      assert.throws(
+        () => new ManifestParser().parse(manifest),
+        new RegExp(`incremental\\.request\\.${key} must be an array of keys`)
+      );
+    }
+  });
+
+  it('refuses a dot-string exchange.tokenPath', () => {
+    const manifest = variant(m => {
+      m.authentication = {
+        type: 'tokenExchange',
+        exchange: { method: 'POST', url: 'https://api.example.com/token', tokenPath: 'data.token' },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      };
+    });
+    assert.throws(
+      () => new ManifestParser().parse(manifest),
+      /exchange\.tokenPath must be an array of keys/
+    );
+  });
+
+  // A string startPage was concatenated instead of incremented: "1" asked for pages 11, 111.
+  it('refuses a startPage that is not an integer', () => {
+    const manifest = variant(m => {
+      m.nodes.rates.pagination = { type: 'page', startPage: '1' };
+    });
+    assert.throws(
+      () => new ManifestParser().parse(manifest),
+      /pagination\.startPage must be an integer/
+    );
+  });
+
+  // A pattern was compiled only when the first run or the first retry needed it.
+  it('refuses an accounts.parse.split that is not a regular expression', () => {
+    const manifest = variant(m => {
+      m.accounts = { from: '{{ parameters.AppId }}', parse: { split: '(' } };
+    });
+    assert.throws(
+      () => new ManifestParser().parse(manifest),
+      /accounts\.parse\.split is not a valid regular expression/
+    );
+  });
+
+  it('refuses a waitUntilTimeFromHeader regex that is not a regular expression', () => {
+    const manifest = variant(m => {
+      m.nodes.rates.errorHandler = {
+        responseFilters: [{ httpCodes: [429], action: 'RETRY' }],
+        backoff: { type: 'waitUntilTimeFromHeader', header: 'X-Reset', regex: '(' },
+      };
+    });
+    assert.throws(
+      () => new ManifestParser().parse(manifest),
+      /waitUntilTimeFromHeader regex is not a valid regular expression/
+    );
+  });
+});
