@@ -129,12 +129,18 @@ describe('_fetchEntityByCampaigns streaming', () => {
     expect(fake.logs.some(m => m.includes('retrying with smaller batch size: 1'))).toBe(true);
   });
 
-  it('does not halve the batch when a storage error mentions 100MB', async () => {
+  /**
+   * The engine marks what the storage throws and ends the run on it. Wrapping it in a new
+   * Error dropped that mark: the failure was retried for every account and blamed on
+   * Microsoft Ads, and BigQuery resent the batch it kept buffered under the next account.
+   */
+  it('passes a storage failure through unchanged, even one that mentions 100MB', async () => {
     const campaignIds = Array.from({ length: 20 }, (_, i) => `c${i}`);
     const fake = makeFakeSource(async ({ campaignBatch, onRecordsChunk }) => {
       await onRecordsChunk(campaignBatch.map(id => ({ Id: id })));
       return [];
     });
+    const storageFailure = new Error('BigQuery: request payload exceeds 100MB');
 
     await expect(
       proto._fetchEntityByCampaigns.call(fake, {
@@ -142,11 +148,33 @@ describe('_fetchEntityByCampaigns streaming', () => {
         entityType: 'Keywords',
         campaignIds,
         onBatchReady: async () => {
-          throw new Error('BigQuery: request payload exceeds 100MB');
+          throw storageFailure;
         },
       })
-    ).rejects.toThrow('Failed to fetch Keywords: BigQuery: request payload exceeds 100MB');
+    ).rejects.toBe(storageFailure);
     expect(fake.logs.some(m => m.includes('retrying with smaller batch size'))).toBe(false);
+    expect(fake.logs.some(m => m.startsWith('Failed to fetch'))).toBe(false);
+  });
+
+  it('passes a storage failure through unchanged from a smaller retried batch', async () => {
+    const campaignIds = Array.from({ length: 20 }, (_, i) => `c${i}`);
+    const fake = makeFakeSource(async ({ campaignBatch, onRecordsChunk }) => {
+      if (campaignBatch.length > 1) throw new Error('Download exceeds 100MB limit');
+      await onRecordsChunk(campaignBatch.map(id => ({ Id: id })));
+      return [];
+    });
+    const storageFailure = new Error('BigQuery: Not found: Dataset');
+
+    await expect(
+      proto._fetchEntityByCampaigns.call(fake, {
+        accountId: '1',
+        entityType: 'Keywords',
+        campaignIds,
+        onBatchReady: async () => {
+          throw storageFailure;
+        },
+      })
+    ).rejects.toBe(storageFailure);
   });
 });
 

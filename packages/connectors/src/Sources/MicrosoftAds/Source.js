@@ -732,6 +732,8 @@ export class MicrosoftAdsSource extends AbstractSource {
         );
         i += campaignBatch.length;
       } catch (error) {
+        // The engine marks a storage failure and ends the run on it; a new Error drops the mark.
+        if (error.isStorageError) throw error;
         if (isTooLargeError(error)) {
           // If still too large, reduce batch size and retry
           const retryRangeEnd = Math.min(i + batchSize, campaignIds.length);
@@ -751,6 +753,7 @@ export class MicrosoftAdsSource extends AbstractSource {
                 `Fetched ${smallerBatchRecordCount} ${entityType.toLowerCase()} from smaller batch (${smallerBatch.length} campaigns)`
               );
             } catch (smallerError) {
+              if (smallerError.isStorageError) throw smallerError;
               if (isTooLargeError(smallerError)) {
                 throw new Error(
                   `Failed to fetch ${entityType}: batch size of ${smallerBatch.length} campaigns still exceeds 100MB limit`
