@@ -336,9 +336,23 @@ export class ConnectorSecretService {
       definition.connector.source.configuration
     );
 
-    // If no secrets in spec and no runtime-generated secrets, return definition as-is
+    // Nothing to keep apart. A pointer left by a connector version that did declare secrets is
+    // dropped too: every run would inject that version's stored values over what the user
+    // enters now, and without the pointer its record is an orphan the definition save deletes.
     if (secretFieldNames.size === 0 && !hasGeneratedRefreshToken) {
-      return definition;
+      return {
+        ...definition,
+        connector: {
+          ...definition.connector,
+          source: {
+            ...definition.connector.source,
+            configuration: definition.connector.source.configuration.map(item => {
+              const { _secrets_id: _dropped, ...rest } = item as Record<string, unknown>;
+              return rest;
+            }),
+          },
+        },
+      };
     }
 
     const processedConfiguration = await Promise.all(

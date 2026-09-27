@@ -623,6 +623,30 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]._secrets_id).toBe('mock-secrets-id');
     });
 
+    // A connector version that made AccountId secret stored it apart; a later version that does
+    // not left the pointer behind, and every run injected the old value over the one the user
+    // had just entered.
+    it('drops the pointer to stored secrets once the connector version declares none', async () => {
+      const { service, credentialsService } = createService([]);
+      const definition = makeDefinition(
+        [{ _id: 'config-1', _secrets_id: 'secrets-1', AccountId: 'typed-now' }],
+        'MyCustomApi'
+      );
+
+      const processed = await service.extractAndSaveSecrets(
+        'dm-1',
+        'proj-1',
+        'MyCustomApi',
+        definition,
+        'user-1'
+      );
+      const cfg = processed.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+      expect(cfg[0]).toMatchObject({ _id: 'config-1', AccountId: 'typed-now' });
+      expect(credentialsService.createSecretsForConfig).not.toHaveBeenCalled();
+    });
+
     it('updates the existing secrets record when it belongs to this DataMart', async () => {
       const { service, credentialsService } = createService(['AccessToken']);
       (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
