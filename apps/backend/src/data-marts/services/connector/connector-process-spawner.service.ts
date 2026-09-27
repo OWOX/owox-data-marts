@@ -62,17 +62,14 @@ export const INHERITED_CONNECTOR_ENV_VARS = [
 ] as const;
 
 /**
- * On top of the shared base, a *production* manifest run also inherits the
- * SsrfGuard gate. Both names are read by the engine, never by the manifest, and
- * they travel as a pair on purpose: SsrfGuard honors OW_ALLOW_LOCAL_EGRESS only
- * when NODE_ENV !== 'production', so forwarding the flag while dropping
- * NODE_ENV would hand a production child a non-production egress posture.
+ * On top of the shared base, a manifest run also inherits NODE_ENV, which the engine reads.
+ *
+ * Deliberately not OW_ALLOW_LOCAL_EGRESS. SsrfGuard honours that switch unless NODE_ENV is
+ * production, and nothing sets NODE_ENV for the shipped backend, so forwarding it let one
+ * variable on the backend switch off the egress checks of every editor-authored manifest. A
+ * test that needs a local upstream sets it on its own child (custom-connector-run.e2e-spec.ts).
  */
-const MANIFEST_RUN_INHERITED_ENV_VARS = [
-  ...INHERITED_CONNECTOR_ENV_VARS,
-  'NODE_ENV',
-  'OW_ALLOW_LOCAL_EGRESS',
-] as const;
+const MANIFEST_RUN_INHERITED_ENV_VARS = [...INHERITED_CONNECTOR_ENV_VARS, 'NODE_ENV'] as const;
 
 /**
  * Copy only the named variables off the parent environment. A name that is
@@ -316,8 +313,8 @@ export class ConnectorProcessSpawnerService {
    * A manifest means the connector body is authored by a project editor, so the
    * child gets an allow-list instead of the backend's whole environment — the
    * same reasoning ConnectorTestService applies to the live-test panel. The
-   * declarative engine reads no arbitrary variables (only NODE_ENV and
-   * OW_ALLOW_LOCAL_EGRESS, both forwarded above); the rest of the allow-list is
+   * declarative engine reads no arbitrary variables (NODE_ENV, forwarded above,
+   * and OW_ALLOW_LOCAL_EGRESS, deliberately not); the rest of the allow-list is
    * the platform plumbing Node itself and the storage clients need, so nothing
    * is lost.
    *

@@ -529,11 +529,18 @@ describe('ConnectorProcessSpawnerService', () => {
       expect(env.OW_CONFIG).toBe(JSON.stringify({ name: 'X' }));
       expect(env.OW_RUN_CONFIG).toBe(JSON.stringify({}));
       expect(env.OW_MANIFEST).toBeDefined();
-      // SsrfGuard reads these two and only honors OW_ALLOW_LOCAL_EGRESS when
-      // NODE_ENV !== 'production'; forwarding the flag without NODE_ENV would
-      // give a production child a non-production egress posture.
-      expect(env.OW_ALLOW_LOCAL_EGRESS).toBe('1');
       expect(env.NODE_ENV).toBe('test');
+    });
+
+    // SsrfGuard honours the switch unless NODE_ENV is production, and nothing sets NODE_ENV
+    // for the shipped backend, so one variable on the backend switched off the egress checks of
+    // every editor-authored manifest: plain http, private addresses, cloud metadata.
+    it('never hands a manifest run the local-egress switch, even when the backend has it', async () => {
+      const env = await withEnv({ OW_ALLOW_LOCAL_EGRESS: '1' }, () =>
+        spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} })
+      );
+
+      expect(env.OW_ALLOW_LOCAL_EGRESS).toBeUndefined();
     });
 
     it('keeps the full parent env for a bundled connector (ambient OAuth app credentials)', async () => {

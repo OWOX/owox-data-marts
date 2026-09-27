@@ -55,8 +55,8 @@ import type { GracefulShutdownService } from '../src/common/scheduler/services/g
  *      turns on `emitSample` and the slice cap in DeclarativeSource's options; neither
  *      affects the row count for the single non-time-series node used here.
  *   2. The upstream. The manifest points at a local http server instead of a vendor API,
- *      which the production spawner permits only because it forwards OW_ALLOW_LOCAL_EGRESS
- *      to the child (SsrfGuard honours it outside NODE_ENV=production). The engine's HTTP
+ *      which only this suite's spawner permits, by setting OW_ALLOW_LOCAL_EGRESS on its own
+ *      child: production never forwards it (SsrfGuard honours it outside NODE_ENV=production). The engine's HTTP
  *      client and recordSelector are the real thing; the manifest declares no pagination,
  *      no authentication and no accounts, so none of those paths are exercised here.
  *
@@ -104,8 +104,7 @@ class RowCapturingSpawner extends ConnectorProcessSpawnerService {
       ...super.buildChildEnv(datamartId, runId, configuration, runConfig, manifest),
       // Swap only the storage class; see "WHAT THIS DOES NOT PROVE" above.
       OW_TEST: '1',
-      // Production already forwards this name when it is set on the backend; setting it
-      // here rather than on process.env keeps the relaxation scoped to this suite.
+      // Production never forwards this name, so the suite sets it on its own child only.
       OW_ALLOW_LOCAL_EGRESS: '1',
     };
   }
