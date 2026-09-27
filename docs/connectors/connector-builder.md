@@ -38,7 +38,7 @@ In **Parameters**, click **Add Parameter** and set:
 - **Name** — how requests refer to the value, e.g. `Package` becomes `{{ parameters.Package }}`.
 - **Type** — `string`, `number`, `boolean` or `date`.
 - **Required** — a run cannot start without a value.
-- **Secret** — the value is masked and stored encrypted. Use it for API keys and tokens.
+- **Secret** — the value is masked in the UI and in API responses, and stored apart from the Data Mart's definition; it is not encrypted. Use it for API keys and tokens.
 - **Label**, **Default** and **Description** — what the setup form shows.
 - **Attributes** — **Manual backfill** lets a one-off backfill run override the value, **Hide in config form** hides the field, **Pinned** moves it to the top of the form, and **Advanced** puts it under the collapsed advanced settings.
 

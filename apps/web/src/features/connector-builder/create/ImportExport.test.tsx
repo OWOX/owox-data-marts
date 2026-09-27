@@ -91,6 +91,17 @@ describe('Builder import and export', () => {
     });
   });
 
+  // A key typed into a header, a template or a parameter default is part of the manifest, and
+  // the export downloads it as it is.
+  it('warns that the export includes whatever was typed into the manifest', async () => {
+    await renderExisting();
+    openMoreActions();
+
+    expect(await screen.findByTestId('builderExportJson')).toHaveTextContent(
+      'Includes anything typed into the manifest'
+    );
+  });
+
   it('links the connector builder guide from the menu', async () => {
     await renderExisting();
     openMoreActions();

@@ -168,7 +168,13 @@ export function BuilderTopBar({
               onClick={exportManifest}
             >
               <Download className='h-4 w-4' />
-              <span>Export JSON</span>
+              <span className='flex flex-col'>
+                <span>Export JSON</span>
+                {/* A key typed into a header, a template or a default is part of the manifest. */}
+                <span className='text-muted-foreground text-xs'>
+                  Includes anything typed into the manifest
+                </span>
+              </span>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <a

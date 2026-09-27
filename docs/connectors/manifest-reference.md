@@ -107,7 +107,7 @@ Each entry in `parameters` describes one user-supplied input, referenced elsewhe
 | `default` | Optional default used when the user leaves the field blank. |
 | `label` | Optional display label shown in the configuration form. |
 | `description` | Optional help text shown next to the field. |
-| `attributes` | Optional flags. The one every author should know is `SECRET` — it masks the value in the UI, stores it encrypted and replaces it with `***` in run logs and errors; always set it for API keys, client secrets, tokens, and passwords. A few advanced/internal flags also exist (`HIDE_IN_CONFIG_FORM`, `ADVANCED`, `OAUTH_FLOW`, `DEPRECATED`, `PINNED`, `MANUAL_BACKFILL`) but are rarely needed when hand-authoring a manifest. |
+| `attributes` | Optional flags. The one every author should know is `SECRET` — it masks the value in the UI and in API responses, stores it apart from the Data Mart's definition and replaces it with `***` in run logs and errors (it is not encrypted); always set it for API keys, client secrets, tokens, and passwords. A few advanced/internal flags also exist (`HIDE_IN_CONFIG_FORM`, `ADVANCED`, `OAUTH_FLOW`, `DEPRECATED`, `PINNED`, `MANUAL_BACKFILL`) but are rarely needed when hand-authoring a manifest. |
 
 Marking a parameter `SECRET` only changes how the *manifest* declares it — the user still enters the actual value themselves, through the connector's configuration form in the browser. A manifest should never contain a real credential value.
 

@@ -61,7 +61,7 @@ See [Roles and Permissions](../project/roles-and-permissions.md).
 
 ## Credentials and network access
 
-Credentials are never part of a manifest, so a manifest can be shared, exported or written by an AI assistant without exposing them. A key or a token goes into a Secret parameter: its value is masked and stored encrypted, and it is entered only on the Data Mart page, or in the builder to run a test.
+Credentials should never be part of a manifest. The engine does not stop one from being typed into a header, a template or a parameter default, and one that is stays in the manifest: **Export JSON** downloads it as it is, and anyone who can edit the connector can read it. A key or a token goes into a Secret parameter instead: its value is masked in the UI and in API responses and stored apart from the Data Mart's definition (it is not encrypted), and it is entered only on the Data Mart page, or in the builder to run a test.
 
 A declarative connector sends requests only over HTTPS, only to the hosts named in its manifest — the base URL and the authentication URLs. The one exception is the download link that an asynchronous report API returns, which may point to any public HTTPS address. A declarative connector never connects to private or local network addresses, so an API inside your own network cannot be reached this way.
 

@@ -248,7 +248,11 @@ export function ParametersEditor() {
                       {headHint('Required', 'Require a value before the connector can run.', true)}
                     </TableHead>
                     <TableHead className='w-[72px]'>
-                      {headHint('Secret', 'Mask and encrypt this value at rest.', true)}
+                      {headHint(
+                        'Secret',
+                        'Mask this value and store it apart from the Data Mart.',
+                        true
+                      )}
                     </TableHead>
                     <TableHead className='min-w-[150px]'>
                       {headHint(
