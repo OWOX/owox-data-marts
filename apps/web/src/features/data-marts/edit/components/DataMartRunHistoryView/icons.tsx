@@ -15,7 +15,7 @@ import {
   CircleDot,
   Bookmark,
   KeyRound,
-  HelpCircle,
+  Terminal,
 } from 'lucide-react';
 import { LogLevel } from './types';
 import { LogCategory } from './log-category';
@@ -105,7 +105,7 @@ export function getCategoryIcon(category: LogCategory) {
     case LogCategory.CREDENTIALS:
       return <KeyRound className='h-3 w-3 text-amber-500' />;
     case LogCategory.UNKNOWN:
-      return <HelpCircle className='text-muted-foreground h-3 w-3' />;
+      return <Terminal className='text-muted-foreground h-3 w-3' />;
     case LogCategory.LOG:
     default:
       return <Info className='h-3 w-3 text-blue-500' />;

@@ -114,7 +114,8 @@ const CATEGORY_LABELS: Record<LogCategory, string> = {
   [LogCategory.STATUS]: 'Status',
   [LogCategory.STATE]: 'State',
   [LogCategory.CREDENTIALS]: 'Credentials',
-  [LogCategory.UNKNOWN]: 'Unknown',
+  // Text a connector printed rather than sent as a message; the backend stores it as unknown.
+  [LogCategory.UNKNOWN]: 'Output',
 };
 
 export function categoryLabel(category: LogCategory): string {

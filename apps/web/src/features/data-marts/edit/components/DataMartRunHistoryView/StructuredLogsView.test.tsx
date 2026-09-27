@@ -41,6 +41,27 @@ describe('StructuredLogsView', () => {
     expect(screen.getByText('careful')).toBeInTheDocument();
   });
 
+  // A storage or library prints such lines itself; "Unknown" with a question mark read as if
+  // something had gone wrong.
+  it('labels a line the connector printed as plain text as Output', () => {
+    const logs = [
+      parseLogEntry(
+        JSON.stringify({
+          type: 'unknown',
+          at,
+          message: 'BigQuery MERGE completed for 114 records',
+        }),
+        0
+      ),
+    ];
+
+    const { container } = render(<StructuredLogsView logs={logs} />);
+
+    expect(screen.getByText('Output')).toBeInTheDocument();
+    expect(screen.queryByText('Unknown')).not.toBeInTheDocument();
+    expect(container.querySelector('.lucide-terminal')).toBeInTheDocument();
+  });
+
   it('renders an empty state when there are no logs', () => {
     render(<StructuredLogsView logs={[]} />);
     expect(screen.getByText('No logs found')).toBeInTheDocument();
