@@ -235,15 +235,6 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
         >
           Discover fields
         </Button>
-        <Button
-          type='button'
-          variant='outline'
-          onClick={addRow}
-          aria-label='Add field'
-          className='h-[34px] gap-1.5'
-        >
-          <Plus className='h-[15px] w-[15px]' /> Add
-        </Button>
       </div>
 
       <datalist id={listId}>
@@ -297,7 +288,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                     colSpan={8}
                     className='text-muted-foreground py-6 text-center text-[13px]'
                   >
-                    No fields yet — add one above{hasSample ? ' or use Discover fields' : ''}.
+                    No fields yet — add one below{hasSample ? ' or use Discover fields' : ''}.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -419,6 +410,16 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
             </TableBody>
           </Table>
         </DndContext>
+
+        <Button
+          type='button'
+          variant='ghost'
+          onClick={addRow}
+          aria-label='Add field'
+          className='text-muted-foreground h-10 w-full justify-center gap-1.5 rounded-none border-t'
+        >
+          <Plus className='h-4 w-4' /> Add field
+        </Button>
       </div>
 
       {!hasSample && (

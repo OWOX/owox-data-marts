@@ -70,12 +70,23 @@ describe('FieldsEditor', () => {
 
   it('shows the empty-fields state for a node with no fields at all', () => {
     renderEditor('{"nodes":{"items":{"recordSelector":{}}}}');
-    expect(screen.getByText('No fields yet — add one above.')).toBeInTheDocument();
+    expect(screen.getByText('No fields yet — add one below.')).toBeInTheDocument();
   });
 
   it('shows that same empty state for an empty fields object', () => {
     renderEditor('{"nodes":{"items":{"recordSelector":{},"fields":{}}}}');
-    expect(screen.getByText('No fields yet — add one above.')).toBeInTheDocument();
+    expect(screen.getByText('No fields yet — add one below.')).toBeInTheDocument();
+  });
+
+  // The parameter tables add a row from under the table; here the button sat above it, beside
+  // Discover fields, where nobody looked for it.
+  it('adds a field from a row under the table, as the parameter tables do', () => {
+    renderEditor('{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string"}}}}}');
+
+    const table = screen.getByRole('table');
+    const add = screen.getByRole('button', { name: 'Add field' });
+    expect(table.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(add).toHaveTextContent('Add field');
   });
 
   it('lists the fields a node does declare', () => {
