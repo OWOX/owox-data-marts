@@ -6,6 +6,7 @@ import {
   createDefaultTransform,
   createDefaultErrorHandler,
   createDefaultResponseFilter,
+  parseHttpCodes,
 } from './manifest.types';
 
 describe('createDefaultAuthentication', () => {
@@ -122,5 +123,18 @@ describe('createDefaultErrorHandler', () => {
   });
   it('response filter preset defaults to a RETRY action with no codes', () => {
     expect(createDefaultResponseFilter()).toEqual({ httpCodes: [], action: 'RETRY' });
+  });
+});
+
+// A cleared or trailing-comma codes field read as [0], a status no response ever has, so the
+// filter never matched and its RETRY never happened.
+describe('parseHttpCodes', () => {
+  it('reads the listed status codes and nothing from blank segments', () => {
+    expect(parseHttpCodes('429, 503,')).toEqual([429, 503]);
+  });
+
+  it('writes nothing for a blank field', () => {
+    expect(parseHttpCodes('')).toBeUndefined();
+    expect(parseHttpCodes(' , ')).toBeUndefined();
   });
 });

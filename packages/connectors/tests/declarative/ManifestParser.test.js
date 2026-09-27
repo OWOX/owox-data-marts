@@ -2274,3 +2274,18 @@ describe('ManifestParser waiting bounds', () => {
     }
   });
 });
+
+// A cleared codes field used to save [0]: no response has that status, so the filter never
+// matched and its RETRY never ran, while Test and Publish passed.
+describe('ManifestParser errorHandler status codes', () => {
+  it('refuses a status code outside 100 to 599', () => {
+    const m = JSON.parse(JSON.stringify(valid));
+    m.nodes.rates.errorHandler = {
+      responseFilters: [{ httpCodes: [0], messageContains: 'rate limit', action: 'RETRY' }],
+    };
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(m)),
+      /httpCodes must be HTTP status codes between 100 and 599/
+    );
+  });
+});

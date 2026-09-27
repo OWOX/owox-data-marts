@@ -564,6 +564,11 @@ export class ManifestParser {
                 `ManifestParser: node "${nodeName}" errorHandler filter httpCodes must be a numeric array`
               );
             }
+            if (hasCodes && !f.httpCodes.every(c => Number.isInteger(c) && c >= 100 && c <= 599)) {
+              throw new Error(
+                `ManifestParser: node "${nodeName}" errorHandler filter httpCodes must be HTTP status codes between 100 and 599`
+              );
+            }
             const hasMsg = f.messageContains !== undefined;
             if (hasMsg && typeof f.messageContains !== 'string') {
               throw new Error(

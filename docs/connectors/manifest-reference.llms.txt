@@ -472,7 +472,7 @@ Optional, node-level, and applies to **sync nodes only** — an `errorHandler` o
 }
 ```
 
-Each filter needs at least one of `httpCodes` (number array), `messageContains` (string, matched against the raw error message/body text), or `bodyMatch` (`{ path: [...], equals?: <string>, contains?: <string> }`, matched against the parsed JSON body) — plus a required `action`. `action` is one of `RETRY`, `IGNORE`, `FAIL`:
+Each filter needs at least one of `httpCodes` (an array of HTTP status codes, 100–599), `messageContains` (string, matched against the raw error message/body text), or `bodyMatch` (`{ path: [...], equals?: <string>, contains?: <string> }`, matched against the parsed JSON body) — plus a required `action`. `action` is one of `RETRY`, `IGNORE`, `FAIL`:
 
 - `RETRY` — retry the request, delayed by this filter's `backoff` (or the handler's top-level `backoff` if the filter has none).
 - `IGNORE` — treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are NOT imported. The run does not fail, and its log names the skipped request.

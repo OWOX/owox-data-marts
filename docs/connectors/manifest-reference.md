@@ -552,7 +552,7 @@ Optional, node-level, and applies to **sync nodes only** — an `errorHandler` o
 }
 ```
 
-Each filter needs at least one of `httpCodes` (number array), `messageContains` (string, matched against the raw error message/body text), or `bodyMatch` (`{ path: [...], equals?: <string>, contains?: <string> }`, matched against the parsed JSON body) — plus a required `action`:
+Each filter needs at least one of `httpCodes` (an array of HTTP status codes, 100–599), `messageContains` (string, matched against the raw error message/body text), or `bodyMatch` (`{ path: [...], equals?: <string>, contains?: <string> }`, matched against the parsed JSON body) — plus a required `action`:
 
 | Action | Effect |
 |---|---|

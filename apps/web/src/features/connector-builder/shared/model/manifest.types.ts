@@ -183,6 +183,21 @@ export function createDefaultResponseFilter(): ResponseFilter {
   return { httpCodes: [], action: 'RETRY' };
 }
 
+/**
+ * The status codes typed into a filter, or undefined when there are none. A blank segment is
+ * skipped rather than read as 0: a cleared field or a trailing comma wrote [0], a status no
+ * response has, so the filter never matched.
+ */
+export function parseHttpCodes(text: string): number[] | undefined {
+  const codes = text
+    .split(',')
+    .map(segment => segment.trim())
+    .filter(segment => segment !== '')
+    .map(Number)
+    .filter(code => Number.isFinite(code));
+  return codes.length ? codes : undefined;
+}
+
 export type ResponseFormat = 'json' | 'csv' | 'jsonl';
 
 export type PartitionRouter =

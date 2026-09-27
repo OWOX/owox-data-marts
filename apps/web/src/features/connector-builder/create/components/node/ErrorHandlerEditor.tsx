@@ -12,6 +12,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useBuilder } from '../../../shared/model/hooks/useBuilder';
 import {
   createDefaultResponseFilter,
+  parseHttpCodes,
   type ErrorAction,
   type ErrorBackoff,
   type NodeErrorHandler,
@@ -58,10 +59,7 @@ export function ErrorHandlerEditor({ nodeName }: { nodeName: string }) {
         idx === i
           ? {
               ...f,
-              httpCodes: text
-                .split(',')
-                .map(s => Number(s.trim()))
-                .filter(n => Number.isFinite(n)),
+              httpCodes: parseHttpCodes(text),
             }
           : f
       )
