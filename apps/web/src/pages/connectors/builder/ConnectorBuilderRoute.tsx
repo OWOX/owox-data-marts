@@ -59,13 +59,19 @@ function GuardedBuilder({ id, onBack, onDeleted, onCreated }: ConnectorBuilderRo
     dirtyRef.current = dirty;
   }, []);
   const guard = useUnsavedChangesGuard(hasUnsavedChanges);
+  // Cleared here, not left to the builder's report of it: that arrives a render later, after
+  // the navigation it would have to let through.
+  const handleDeleted = useCallback(() => {
+    dirtyRef.current = false;
+    onDeleted?.();
+  }, [onDeleted]);
 
   return (
     <>
       <ConnectorBuilderPage
         id={id}
         onBack={onBack}
-        onDeleted={onDeleted}
+        onDeleted={handleDeleted}
         onCreated={onCreated}
         onDirtyChange={handleDirtyChange}
       />

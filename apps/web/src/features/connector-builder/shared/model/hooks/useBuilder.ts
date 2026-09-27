@@ -303,6 +303,8 @@ export function useBuilder() {
     const api = new ConnectorBuilderApiService();
     try {
       await api.softDelete(state.id);
+      // The edits went with the connector: nothing is left unsaved.
+      dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
       toast.success('Connector deleted');
       return true;
     } catch (e) {

@@ -186,6 +186,21 @@ describe('ConnectorBuilderRoutePage — an existing connector', () => {
       expect(router.state.location.pathname).toBe('/connectors');
       expect(screen.queryByText('Unsaved Changes')).toBeNull();
     });
+
+    // The edits went with the connector; asking about them left the author, on Stay, on a
+    // connector that no longer exists.
+    it('does not ask about unsaved edits after the connector is deleted', async () => {
+      const router = await makeDirty();
+
+      fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
+      fireEvent.click(await screen.findByTestId('builder-delete'));
+      fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/connectors');
+      });
+      expect(screen.queryByText('Unsaved Changes')).toBeNull();
+    });
   });
 
   // Deleting went back one step in history, which leaves the app when the builder was opened
