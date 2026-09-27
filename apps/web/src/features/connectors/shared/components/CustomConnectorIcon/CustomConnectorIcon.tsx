@@ -1,4 +1,4 @@
-import { Blocks } from 'lucide-react';
+import { Plug } from 'lucide-react';
 
 interface CustomConnectorIconProps {
   size?: number;
@@ -6,7 +6,7 @@ interface CustomConnectorIconProps {
 
 export function CustomConnectorIcon({ size = 24 }: CustomConnectorIconProps) {
   return (
-    <Blocks
+    <Plug
       className='text-muted-foreground shrink-0'
       size={size}
       strokeWidth={1.5}
