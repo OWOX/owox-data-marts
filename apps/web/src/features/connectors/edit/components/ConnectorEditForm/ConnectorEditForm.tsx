@@ -105,15 +105,22 @@ export function ConnectorEditForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  useEffect(() => {
-    const api = new ConnectorBuilderApiService();
-    api
+  // A failure is shown, not swallowed: without the list a saved custom connector cannot be
+  // found, and the form had nothing to show and no way to change the configuration.
+  const [customConnectorsError, setCustomConnectorsError] = useState<string | null>(null);
+  const loadCustomConnectors = useCallback(() => {
+    setCustomConnectorsError(null);
+    new ConnectorBuilderApiService()
       .list()
       .then(setCustomConnectors)
-      .catch(() => {
+      .catch((error: unknown) => {
         setCustomConnectors([]);
+        setCustomConnectorsError(apiErrorMessage(error, 'The request failed'));
       });
   }, []);
+  useEffect(() => {
+    loadCustomConnectors();
+  }, [loadCustomConnectors]);
 
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
@@ -920,7 +927,22 @@ export function ConnectorEditForm({
 
   return (
     <AppWizard>
-      <AppWizardLayout>{renderCurrentStep()}</AppWizardLayout>
+      <AppWizardLayout>
+        {customConnectorsError && (
+          <div
+            role='alert'
+            data-testid='custom-connectors-error'
+            className='mb-4 flex items-center justify-between gap-3 rounded-md border border-red-200 p-3 text-sm text-red-700 dark:border-red-900 dark:text-red-400'
+          >
+            <span>Custom connectors could not be loaded: {customConnectorsError}</span>
+            <Button variant='outline' size='sm' onClick={loadCustomConnectors}>
+              <RefreshCw className='h-4 w-4' />
+              Try again
+            </Button>
+          </div>
+        )}
+        {renderCurrentStep()}
+      </AppWizardLayout>
 
       <AppWizardActions variant='horizontal'>
         <StepNavigation

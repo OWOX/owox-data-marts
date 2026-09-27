@@ -365,6 +365,19 @@ describe('ConnectorEditForm — custom connector', () => {
         </MemoryRouter>
       );
 
+    // The failed request left the list empty and said nothing: the form had no connector to show,
+    // and neither the configuration nor the version could be changed until a full reload.
+    it('says the custom connectors could not be loaded, and loads them again on request', async () => {
+      builderList.mockRejectedValueOnce(new Error('Network Error'));
+      renderSaved(vi.fn(), savedSource(1, [{ _id: 'cfg-1', Token: 'secret-token' }]));
+
+      expect(await screen.findByText(/custom connectors could not be loaded/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+      expect(await screen.findByTestId('connector-version-badge')).toHaveTextContent('Pinned · v1');
+      expect(screen.queryByText(/custom connectors could not be loaded/i)).toBeNull();
+    });
+
     it('measures the saved pin against the active version when editing a configuration', async () => {
       renderSaved(vi.fn(), savedSource(1, [{ _id: 'cfg-1', Token: 'secret-token' }]));
 
