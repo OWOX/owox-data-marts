@@ -396,7 +396,7 @@ A declarative connector is a single `manifest.json` and nothing else — no `Sou
 JavaScript at all. The declarative engine reads the manifest and performs the requests,
 pagination, incremental windows, filtering and type casting described in it.
 
-`src/Sources/RatesDeclarative/` is the shipped example: one file, under a kilobyte.
+A connector in `src/Sources/RatesDeclarative/` would be this one file, under a kilobyte.
 
 ### What the file contains
 

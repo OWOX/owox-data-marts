@@ -16,9 +16,6 @@ field schema stay open to viewers. Publishing a version, or making another versi
 changes what runs in every Data Mart that follows the connector's active version, so it needs
 edit access to each of those Data Marts; otherwise a project admin can do it.
 
-**Frankfurter FX (Declarative)**, a small example of a declarative connector, is bundled and
-appears in the connector list of every project.
-
 **Fixes**
 
 - **Multi-account imports** — one account failing no longer ends the run. The remaining

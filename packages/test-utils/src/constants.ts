@@ -51,7 +51,6 @@ export const ALL_CONNECTORS = [
   'MicrosoftAds',
   'OpenExchangeRates',
   'OpenHolidays',
-  'RatesDeclarative', // declarative (manifest-only) example connector
   'RedditAds',
   'Shopify',
   'TikTokAds',

@@ -26,9 +26,9 @@ if (!NETWORK_ENABLED) {
 
 const describeIfNetwork = NETWORK_ENABLED ? describe : describe.skip;
 
-// A minimal declarative manifest pointing at the public Switch-games endpoint.
-// Mirrors the shipped RatesDeclarative manifest shape: top-level version/name/
-// baseUrl/parameters/nodes; the node carries request + recordSelector + fields.
+// A minimal declarative manifest pointing at the public Switch-games endpoint:
+// top-level version/name/baseUrl/parameters/nodes; the node carries
+// request + recordSelector + fields.
 // The endpoint returns a root-level JSON array, so recordPath is [].
 const manifest = {
   title: 'Sample APIs — Switch Games (Declarative)',

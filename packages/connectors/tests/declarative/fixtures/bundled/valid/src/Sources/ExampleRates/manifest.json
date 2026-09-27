@@ -1,9 +1,8 @@
 {
-  "title": "Frankfurter FX (Declarative)",
-  "docUrl": "https://frankfurter.dev",
+  "title": "Example rates",
   "version": "1.0",
-  "name": "RatesDeclarative",
-  "baseUrl": "https://api.frankfurter.dev",
+  "name": "ExampleRates",
+  "baseUrl": "https://api.example.com",
   "parameters": {
     "Base": {
       "requiredType": "string",
@@ -14,18 +13,17 @@
   },
   "nodes": {
     "latest": {
-      "overview": "Latest exchange rates snapshot",
-      "destinationName": "frankfurter_latest",
+      "destinationName": "example_latest",
       "isTimeSeries": false,
       "uniqueKeys": ["date", "base"],
       "defaultFields": ["date", "base"],
       "fields": {
-        "date": { "apiName": "date", "type": "date" },
-        "base": { "apiName": "base", "type": "string" }
+        "date": { "type": "date" },
+        "base": { "type": "string" }
       },
       "request": {
         "method": "GET",
-        "path": "/v1/latest",
+        "path": "/latest",
         "queryParameters": { "base": "{{ parameters.Base }}" }
       },
       "recordSelector": { "recordPath": [] }

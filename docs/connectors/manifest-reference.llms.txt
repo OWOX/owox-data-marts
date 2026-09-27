@@ -535,7 +535,7 @@ The per-node pipeline, in order: **fetch (+ pagination) → `recordFilter` → `
 
 All five examples below are complete, parser-valid manifests (or, for the `partitionRouter`/`oauth2` shapes, a full node built directly from the grammar above).
 
-### 19.1 RatesDeclarative — simple GET, no auth
+### 19.1 Simple GET, no auth
 
 ```json
 {

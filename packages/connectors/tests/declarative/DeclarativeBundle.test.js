@@ -3,8 +3,8 @@ import { describe, it, before } from 'node:test';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { runFixture, checkExpectations } from '../fixture-runner.js';
 import { withBuildLock, buildBundle } from '../buildBundleOnce.js';
+import { ConnectorBuilder } from '../../vite.config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(__dirname, '..', '..');
@@ -24,20 +24,6 @@ describe('Declarative connector through the built bundle', () => {
   it('exposes DeclarativeSource and ManifestParser in Core', () => {
     assert.ok(owox.Core.DeclarativeSource, 'Core.DeclarativeSource missing from bundle');
     assert.ok(owox.Core.ManifestParser, 'Core.ManifestParser missing from bundle');
-  });
-
-  it('bundles RatesDeclarative as a declarative connector (manifest with nodes)', () => {
-    const c = owox.Connectors.RatesDeclarative;
-    assert.ok(c, 'RatesDeclarative not in bundle');
-    assert.ok(
-      c.manifest && c.manifest.nodes && c.manifest.nodes.latest,
-      'declarative manifest with nodes expected'
-    );
-    assert.strictEqual(
-      c.RatesDeclarativeSource,
-      undefined,
-      'declarative connector should have no Source class'
-    );
   });
 
   // The bundler concatenates every Core file into one scope and strips all
@@ -68,33 +54,30 @@ describe('Declarative connector through the built bundle', () => {
       `expected a DNS error carrying a code, got: ${err.message}`
     );
   });
+});
 
-  // Opt-in: it calls a public API over the network, which a test gating a pull request must
-  // not depend on. The backend e2e runs a custom connector through the runner without one.
-  it(
-    'replays the declarative connector end-to-end (live public API)',
-    {
-      skip: process.env.OW_LIVE_API_TESTS !== '1' && 'calls a live API; set OW_LIVE_API_TESTS=1',
-    },
-    async () => {
-      const fixture = {
-        name: 'RatesDeclarative-live',
-        definitionRun: {
-          connector: {
-            source: { name: 'RatesDeclarative', node: 'latest', fields: ['date', 'base'] },
-            storage: { fullyQualifiedName: 'test.fixture.rates' },
-          },
-        },
-        sourceCredentials: { Base: 'EUR' },
-        storageType: 'MockStorage',
-        storageCredentials: {},
-        runState: {},
-        expected: { controlAction: 'completed', minRecords: 1, maxDurationMs: 30000, minNodes: 1 },
-      };
-      const result = await runFixture(fixture);
-      const failures = checkExpectations(fixture, result);
-      assert.deepStrictEqual(failures, [], `fixture expectations failed: ${failures.join('; ')}`);
-      assert.ok(result.totalRecords >= 1, 'expected at least one rate record');
-    }
-  );
+// No connector in src/Sources/ is a manifest alone, so the build's path for one runs against
+// a fixture tree laid out the same way.
+describe('Build discovery of a connector that is only a manifest', () => {
+  const discover = tree => {
+    const builder = new ConnectorBuilder();
+    builder.rootDir = path.join(__dirname, 'fixtures', 'bundled', tree);
+    return builder.discoverConnectors();
+  };
+
+  it('bundles a directory holding only a manifest with nodes as a declarative connector', async () => {
+    const [connector] = await discover('valid');
+
+    assert.strictEqual(connector.name, 'ExampleRates');
+    assert.strictEqual(connector.isDeclarative, true);
+    assert.deepStrictEqual(connector.files, []);
+    assert.ok(connector.manifest.nodes.latest, 'the manifest travels with the connector');
+  });
+
+  it('fails the build on a manifest the declarative engine would refuse', async () => {
+    await assert.rejects(
+      discover('invalid'),
+      /Connector "Broken": declarative manifest is invalid/
+    );
+  });
 });

@@ -223,6 +223,38 @@ describe('ConnectorService', () => {
         "Connector 'UnknownConnector' not found"
       );
     });
+
+    // A bundled connector can be a manifest and nothing else: there is no Source class to
+    // build, so the specification comes from the declarative engine reading the manifest.
+    describe('for a bundled connector that is only a manifest', () => {
+      const bundle = Connectors as unknown as Record<string, unknown>;
+      afterEach(() => {
+        delete bundle.ManifestOnly;
+      });
+
+      it('builds the specification from the manifest', async () => {
+        bundle.ManifestOnly = {
+          manifest: {
+            parameters: { Base: { requiredType: 'string', isRequired: true, default: 'EUR' } },
+            nodes: { latest: { request: { method: 'GET', path: '/latest' } } },
+          },
+        };
+        const { service } = createService();
+
+        const result = await service.getConnectorSpecification('ManifestOnly');
+
+        expect(result.map(item => item.name)).toEqual(['Base']);
+      });
+
+      it('refuses one whose manifest does not parse', async () => {
+        bundle.ManifestOnly = { manifest: { nodes: {} } };
+        const { service } = createService();
+
+        await expect(service.getConnectorSpecification('ManifestOnly')).rejects.toThrow(
+          "Connector 'ManifestOnly' has an invalid declarative manifest"
+        );
+      });
+    });
   });
 
   describe('isOAuthEnabled', () => {

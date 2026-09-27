@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "name": "Broken",
+  "baseUrl": "https://api.example.com",
+  "parameters": {},
+  "nodes": {
+    "items": {
+      "uniqueKeys": ["id"],
+      "fields": { "id": { "type": "string" } },
+      "request": { "method": "GET", "path": "/items" },
+      "recordSelector": { "recordPath": "data" }
+    }
+  }
+}

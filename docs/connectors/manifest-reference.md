@@ -619,7 +619,7 @@ Real credentials are connected separately, afterward: the person setting up the 
 
 ## Worked examples
 
-### 1. Simple GET, no auth (RatesDeclarative)
+### 1. Simple GET, no auth
 
 A minimal connector with no `authentication` block at all, one node, and an empty `recordPath` because the response body itself is the record:
 
