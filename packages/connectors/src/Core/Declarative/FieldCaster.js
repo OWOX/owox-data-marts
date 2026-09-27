@@ -26,14 +26,32 @@ const FALSE_TEXT = new Set(['false', '0', 'no', 'n', 'f', 'off']);
 // A date and time with no zone. JavaScript reads one as local time; the run's zone is not the
 // API's, so it is read as UTC, which is what a storage writes a Date as.
 const ZONELESS_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+// JavaScript already reads a bare YYYY-MM-DD as UTC.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NAMES_A_ZONE = /Z$|[+-]\d{2}:?\d{2}\b|\bGMT\b|\bUTC\b/i;
 
 function toDate(value) {
-  const d = new Date(
-    typeof value === 'string' && ZONELESS_DATETIME.test(value)
-      ? `${value.replace(' ', 'T')}Z`
-      : value
+  if (typeof value !== 'string') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const text = value.trim();
+  const d = new Date(ZONELESS_DATETIME.test(text) ? `${text.replace(' ', 'T')}Z` : text);
+  if (Number.isNaN(d.getTime())) return null;
+  if (ZONELESS_DATETIME.test(text) || ISO_DATE.test(text) || NAMES_A_ZONE.test(text)) return d;
+  // Any other text without a zone ("01/15/2024", "Jan 15, 2024") was read in the host's zone:
+  // keep the wall-clock time it names, in UTC.
+  return new Date(
+    Date.UTC(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      d.getHours(),
+      d.getMinutes(),
+      d.getSeconds(),
+      d.getMilliseconds()
+    )
   );
-  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function castValue(value, type) {
@@ -44,7 +62,9 @@ function castValue(value, type) {
       return Number.isFinite(n) ? n : null;
     }
     case 'integer': {
-      const n = parseInt(value, 10);
+      // Not parseInt: it stops at the first character it cannot read, so "1e5" became 1. Ids
+      // beyond 2^53 lose digits either way; the type for them is string.
+      const n = Math.trunc(Number(value));
       return Number.isFinite(n) ? n : null;
     }
     case 'boolean': {
