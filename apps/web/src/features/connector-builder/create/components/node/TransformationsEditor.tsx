@@ -19,6 +19,19 @@ const TYPE_OPTIONS: { value: Transform['type']; label: string }[] = [
   { value: 'flatten', label: 'Flatten' },
 ];
 
+const TYPE_HELP: Record<Transform['type'], string> = {
+  add: 'Sets a top-level field on every record: a constant, or a template such as {{ record.id }}.',
+  remove: 'Deletes a top-level field from every record.',
+  keysToLower:
+    'Lowercases every top-level key. Of two keys that differ only in case, the last one wins.',
+  flatten:
+    'Moves the values of nested objects to the top level, joining their keys with the separator: stats.clicks becomes stats_clicks. Arrays stay as they are.',
+};
+
+// These rename keys, and the node's fields still name the old ones, so the output columns come
+// back empty and the transformation looks as if it did nothing.
+const RENAMES_KEYS: ReadonlySet<Transform['type']> = new Set(['keysToLower', 'flatten']);
+
 export function TransformationsEditor({ nodeName }: { nodeName: string }) {
   const { manifest, setPath } = useBuilder();
   const transforms: Transform[] = manifest.nodes[nodeName].transformations ?? [];
@@ -82,6 +95,13 @@ export function TransformationsEditor({ nodeName }: { nodeName: string }) {
               <Trash2 className='h-[15px] w-[15px]' />
             </Button>
           </div>
+          <p className='text-muted-foreground text-xs'>{TYPE_HELP[t.type]}</p>
+          {RENAMES_KEYS.has(t.type) && (
+            <p className='text-xs text-amber-700 dark:text-amber-400'>
+              Fields keep the names and paths they had. Run the test, then Discover fields to pick
+              up the new keys.
+            </p>
+          )}
           {(t.type === 'add' || t.type === 'remove') && (
             <Input
               value={t.field}
@@ -110,14 +130,17 @@ export function TransformationsEditor({ nodeName }: { nodeName: string }) {
             </div>
           )}
           {t.type === 'flatten' && (
-            <Input
-              value={t.separator ?? '_'}
-              onChange={e => {
-                setField(i, 'separator', e.target.value);
-              }}
-              placeholder='_'
-              className='h-[34px] w-24 font-mono'
-            />
+            <label className='text-muted-foreground flex items-center gap-2 text-xs'>
+              Separator
+              <Input
+                value={t.separator ?? '_'}
+                onChange={e => {
+                  setField(i, 'separator', e.target.value);
+                }}
+                placeholder='_'
+                className='h-[34px] w-24 font-mono'
+              />
+            </label>
           )}
         </div>
       ))}
