@@ -547,6 +547,43 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
     expect(getVersion).toHaveBeenLastCalledWith('def-1', 1);
   });
 
+  // The reload's error was stored where nothing showed it, and "Changes discarded" was shown
+  // over the edits that were still on screen.
+  it('says so when the reload behind Discard fails', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    await waitFor(() => {
+      expect(baseUrl).toHaveValue('https://v2.example.com');
+    });
+    fireEvent.change(baseUrl, { target: { value: 'https://edited.example.com' } });
+    getVersion.mockRejectedValue(new Error('Network Error'));
+
+    fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByTestId('builder-reset'));
+    fireEvent.click(await screen.findByRole('button', { name: /^discard$/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Network Error');
+    });
+    expect(toast.success).not.toHaveBeenCalledWith('Changes discarded');
+  });
+
+  it('says so when a version fails to open', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    await waitFor(() => {
+      expect(baseUrl).toHaveValue('https://v2.example.com');
+    });
+    getVersion.mockRejectedValue(new Error('Network Error'));
+
+    fireEvent.click(screen.getByTestId('version-badge'));
+    fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Network Error');
+    });
+  });
+
   it('publishes the open version, as "Replace & publish" says, with nothing edited', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
     const baseUrl = screen.getByPlaceholderText('https://api.example.com');

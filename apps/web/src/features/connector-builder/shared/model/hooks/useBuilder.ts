@@ -140,8 +140,9 @@ export function useBuilder() {
     });
   }, [dispatch]);
 
+  /** Opens a connector's version into the builder. Resolves to the error it failed with, if any. */
   const loadConnector = useCallback(
-    async (id: string, version?: number) => {
+    async (id: string, version?: number): Promise<string | null> => {
       const api = new ConnectorBuilderApiService();
       try {
         const detail = await api.getById(id);
@@ -161,11 +162,11 @@ export function useBuilder() {
             loadedVersion: targetVersion,
           },
         });
+        return null;
       } catch (e) {
-        dispatch({
-          type: BuilderActionType.SET_ERROR,
-          payload: apiErrorMessage(e, 'Failed to load connector'),
-        });
+        const message = apiErrorMessage(e, 'Failed to load connector');
+        dispatch({ type: BuilderActionType.SET_ERROR, payload: message });
+        return message;
       }
     },
     [dispatch]
@@ -318,7 +319,10 @@ export function useBuilder() {
   const loadVersion = useCallback(
     async (version: number) => {
       if (!state.id) return;
-      await loadConnector(state.id, version);
+      // Only the first open of a connector has a screen for its error; here the builder stays on
+      // the version it had.
+      const error = await loadConnector(state.id, version);
+      if (error) toast.error(error);
     },
     [state.id, loadConnector]
   );
@@ -354,9 +358,12 @@ export function useBuilder() {
   // for an unsaved one. Both paths clear the dirty flag (via SET_MANIFEST).
   const reset = useCallback(async (): Promise<void> => {
     // The version that is open, not the newest: the author discards edits, not their place.
-    if (state.id) await loadConnector(state.id, state.loadedVersion ?? undefined);
+    let error: string | null = null;
+    if (state.id) error = await loadConnector(state.id, state.loadedVersion ?? undefined);
     else initNew();
-    toast.success('Changes discarded');
+    // A failed reload leaves the edits on screen, so it must not be reported as discarding them.
+    if (error) toast.error(error);
+    else toast.success('Changes discarded');
   }, [state.id, state.loadedVersion, loadConnector, initNew]);
 
   return {
