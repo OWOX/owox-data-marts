@@ -6,6 +6,17 @@ import {
 } from './constants';
 
 /**
+ * A blank value means unset. z.coerce reads '' as 0, so a ConfigMap key templated to an empty
+ * string switched log streaming off without an error and stopped the backend on the test caps.
+ */
+function blankAsUnset<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema
+  );
+}
+
+/**
  * Configuration schema for environment variables validation.
  * Validates and transforms specified environment variables while
  * passing through all other fields as-is for backwards compatibility.
@@ -38,8 +49,10 @@ const configSchema = z
     // per-project one keeps a single project from taking the host, and the total keeps many
     // projects from doing together what none can do alone. Per-project mirrors
     // MAX_CONNECTOR_RUNS_PER_PROJECT, which bounds the same class of work for scheduled runs.
-    MAX_CONNECTOR_TESTS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(3),
-    MAX_CONNECTOR_TESTS_TOTAL: z.coerce.number().int().min(1).max(1000).default(10),
+    MAX_CONNECTOR_TESTS_PER_PROJECT: blankAsUnset(
+      z.coerce.number().int().min(1).max(1000).default(3)
+    ),
+    MAX_CONNECTOR_TESTS_TOTAL: blankAsUnset(z.coerce.number().int().min(1).max(1000).default(10)),
 
     // Incremental run-log flush period. Validated here rather than left to passthrough
     // because the consumer's own guard cannot catch a bad value: `'abc' <= 0` is false, so
@@ -47,12 +60,9 @@ const configSchema = z
     // writing the whole log buffer to the database for the entire run. Coercing here turns
     // that into a boot-time failure. 0 stays legal: it is the documented switch that
     // disables streaming and defers logs to the single terminal write.
-    CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(3_600_000)
-      .default(2_000),
+    CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS: blankAsUnset(
+      z.coerce.number().int().min(0).max(3_600_000).default(2_000)
+    ),
 
     // Plugin host. GITHUB_* stay unvalidated pass-through strings: they are optional and
     // mode-dependent, and PluginHostConfigService already treats a blank value as absent.

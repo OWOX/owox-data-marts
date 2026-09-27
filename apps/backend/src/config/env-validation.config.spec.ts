@@ -54,6 +54,24 @@ describe('validateConfig', () => {
     });
   });
 
+  // A ConfigMap key templated to an empty string reads as 0: that switched log streaming off
+  // with no error, and stopped the backend for the test caps, whose documented default is not 0.
+  describe('a blank value', () => {
+    it('means the default for each connector setting', () => {
+      const config = validateConfig({
+        CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS: '',
+        MAX_CONNECTOR_TESTS_PER_PROJECT: '',
+        MAX_CONNECTOR_TESTS_TOTAL: '  ',
+      });
+
+      expect(config).toMatchObject({
+        CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS: 2_000,
+        MAX_CONNECTOR_TESTS_PER_PROJECT: 3,
+        MAX_CONNECTOR_TESTS_TOTAL: 10,
+      });
+    });
+  });
+
   describe('connector test concurrency caps', () => {
     it('applies the documented defaults', () => {
       const config = validateConfig({});

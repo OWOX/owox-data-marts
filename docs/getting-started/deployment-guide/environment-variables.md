@@ -310,6 +310,9 @@ author controls, so both caps bound processes in flight rather than requests per
 per-project cap keeps one project from taking a whole instance; the total cap keeps many
 projects from doing together what none of them can do alone.
 
+A blank value for any of these three means its default, so a key templated to an empty string
+leaves streaming on and the caps at their defaults.
+
 Lowering `CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS` increases database write volume for the entire
 duration of every connector run, because each flush rewrites the run's whole log and error
 buffer. Raise it, or set `0`, on deployments where run logs matter less than database load.
