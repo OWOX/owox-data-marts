@@ -148,3 +148,63 @@ describe('AsyncRetriever', () => {
     await assert.rejects(() => retriever.run({ parameters: {} }), /job failed/i);
   });
 });
+
+/** An async retriever whose polls answer from `statuses`, one per attempt, then READY-less. */
+function pollingRetriever({ poll, statuses }) {
+  let polls = 0;
+  const requester = {
+    async send(spec) {
+      if (spec.path === '/reports') return { id: 'J' };
+      return statuses[Math.min(polls++, statuses.length - 1)];
+    },
+  };
+  return new AsyncRetriever({
+    requester,
+    httpClient: {
+      async urlFetchWithRetry() {
+        return {
+          async json() {
+            return { rows: [{ a: 1 }] };
+          },
+        };
+      },
+    },
+    ssrfGuard: guardFor([]),
+    recordSelector: new RecordSelector({ recordPath: ['rows'] }),
+    config: {
+      submit: { method: 'POST', path: '/reports', body: {}, jobIdPath: ['id'] },
+      poll: {
+        method: 'GET',
+        path: '/reports/{{ job.id }}/status',
+        statusPath: ['status'],
+        resultUrlPath: ['url'],
+        backoff: { initialMs: 1, maxMs: 1, maxAttempts: 3 },
+        ...poll,
+      },
+      download: { format: 'json', recordPath: ['rows'] },
+    },
+    sleep: async () => {},
+  });
+}
+
+describe('AsyncRetriever — a poll without a status', () => {
+  // failedValue is optional and the builder leaves it unset; a poll that carries no status yet
+  // (a queued job, or a statusPath with a typo) matched it as undefined === undefined.
+  it('keeps polling while the status is missing and no failedValue is set', async () => {
+    const retriever = pollingRetriever({
+      poll: { readyValue: 'READY' },
+      statuses: [{}, { status: 'READY', url: 'https://cdn.example/J.json' }],
+    });
+
+    assert.deepStrictEqual(await retriever.run({ parameters: {} }), [{ a: 1 }]);
+  });
+
+  it('names poll.statusPath when no poll ever carried a status', async () => {
+    const retriever = pollingRetriever({ poll: { readyValue: 'READY' }, statuses: [{}] });
+
+    await assert.rejects(
+      () => retriever.run({ parameters: {} }),
+      /no status at poll\.statusPath \["status"\] in any of 3 polls/
+    );
+  });
+});

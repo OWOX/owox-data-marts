@@ -55,6 +55,7 @@ export class AsyncRetriever {
     const maxMs = bo.maxMs || 15000;
 
     let resultUrl;
+    let sawStatus = false;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       // Render the poll path with job context before sending, then mark it
       // opaque. The job id comes out of the submit RESPONSE, so it is upstream-
@@ -64,16 +65,27 @@ export class AsyncRetriever {
       const renderedPollSpec = { ...poll, path: opaque(this._tpl.render(poll.path, pollScope)) };
       const statusBody = await this.requester.send(renderedPollSpec, pollScope);
       const status = getPath(statusBody, poll.statusPath);
-      if (status === poll.readyValue) {
-        resultUrl = getPath(statusBody, poll.resultUrlPath);
-        break;
-      }
-      if (status === poll.failedValue) {
-        throw new Error(`AsyncRetriever: job failed (status "${status}")`);
+      // A queued job often carries no status yet: that is a reason to poll again, never a
+      // match -- failedValue is optional, and an unset one equalled a missing status.
+      if (status !== undefined && status !== null) {
+        sawStatus = true;
+        if (status === poll.readyValue) {
+          resultUrl = getPath(statusBody, poll.resultUrlPath);
+          break;
+        }
+        if (poll.failedValue !== undefined && status === poll.failedValue) {
+          throw new Error(`AsyncRetriever: job failed (status "${status}")`);
+        }
       }
       await this.sleep(Math.min(initialMs * Math.pow(2, attempt), maxMs));
     }
 
+    if (!resultUrl && !sawStatus) {
+      throw new Error(
+        `AsyncRetriever: no status at poll.statusPath ${JSON.stringify(poll.statusPath)} in any ` +
+          `of ${maxAttempts} polls; check the path against the poll response`
+      );
+    }
     if (!resultUrl) {
       throw new Error(`AsyncRetriever: job did not become ready after ${maxAttempts} attempts`);
     }
