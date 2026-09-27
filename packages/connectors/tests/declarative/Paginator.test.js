@@ -37,6 +37,16 @@ describe('Paginator', () => {
     assert.strictEqual(r2, null);
   });
 
+  // An API that repeats its last cursor, or ignores a misnamed cursor parameter and keeps
+  // answering page 1, was followed to the page budget, writing a duplicate batch each time.
+  it('cursor: stops when the API hands back the cursor it was just given', () => {
+    const p = new Paginator({ type: 'cursor', cursorPath: ['next'], cursorParam: 'after' });
+    const r1 = p.next({ response: { next: 'C2' }, request: baseReq, recordCount: 10 });
+    assert.strictEqual(unwrapOpaque(r1.queryParameters.after), 'C2');
+
+    assert.strictEqual(p.next({ response: { next: 'C2' }, request: r1, recordCount: 10 }), null);
+  });
+
   it('offset: advances by pageSize until a short page', () => {
     const p = new Paginator({ type: 'offset', offsetParam: 'offset', pageSize: 100 });
     const r1 = p.next({ response: {}, request: baseReq, recordCount: 100 });
@@ -248,7 +258,7 @@ describe('Paginator iteration budget (via SyncRetriever.maxPages)', () => {
     const requester = {
       async send() {
         calls++;
-        return { items: [{ x: calls }], cursor: 'always-more' };
+        return { items: [{ x: calls }], cursor: `always-more-${calls}` };
       },
     };
     const retriever = new SyncRetriever({

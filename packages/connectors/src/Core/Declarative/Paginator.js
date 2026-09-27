@@ -34,6 +34,7 @@ export class Paginator {
     this.type = this.config.type || 'none';
     this._offset = 0;
     this._page = this.config.startPage ?? 1;
+    this._lastCursor = undefined;
   }
 
   /** True when the cursor is read from a response header (SyncRetriever must surface headers). */
@@ -49,6 +50,10 @@ export class Paginator {
       case 'cursor': {
         const cursor = this._readCursor(response, headers);
         if (cursor === undefined || cursor === null || cursor === '') return null;
+        // The same cursor again is the last page repeating itself, or a cursor parameter the
+        // API ignores and answers page 1 for; following it only re-reads that page.
+        if (String(cursor) === this._lastCursor) return null;
+        this._lastCursor = String(cursor);
         return this._inject(request, cursor);
       }
       case 'offset': {

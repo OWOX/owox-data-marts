@@ -51,7 +51,7 @@ describe('SyncRetriever', () => {
     const requester = {
       async send() {
         calls++;
-        return { items: [{ x: calls }], cursor: 'always' };
+        return { items: [{ x: calls }], cursor: `always-${calls}` };
       },
     };
     const { RecordSelector } = await import('../../src/Core/Declarative/RecordSelector.js');
@@ -237,7 +237,7 @@ describe('SyncRetriever maxPages exhaustion diagnostic', () => {
     const requester = {
       async send() {
         calls++;
-        return { items: [{ x: calls }], cursor: 'always' };
+        return { items: [{ x: calls }], cursor: `always-${calls}` };
       },
     };
     const r = new SyncRetriever({
@@ -406,7 +406,7 @@ describe('SyncRetriever page budget a run did not ask for', () => {
       },
       async send() {
         calls += 1;
-        return { items: [{ x: calls }], cursor: 'always' };
+        return { items: [{ x: calls }], cursor: `always-${calls}` };
       },
     };
   };

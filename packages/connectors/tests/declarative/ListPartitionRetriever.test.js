@@ -157,9 +157,11 @@ describe('runChildSlices accumulates large slices without spreading', () => {
 });
 
 describe('ListPartitionRetriever children and the page budget', () => {
+  let page = 0;
   const endless = {
     async send() {
-      return { rows: [{ x: 1 }], cursor: 'always' };
+      page += 1;
+      return { rows: [{ x: 1 }], cursor: `always-${page}` };
     },
   };
   const router = { type: 'list', values: ['US'], partitionField: 'country' };

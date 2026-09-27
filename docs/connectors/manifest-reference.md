@@ -328,7 +328,7 @@ Stops once a page returns zero records; increments the page number by 1 each tim
 }
 ```
 
-Reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path` as an array) or a response header (`cursor.from: "header"`, `cursor.header` as the name, with an optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found.
+Reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path` as an array) or a response header (`cursor.from: "header"`, `cursor.header` as the name, with an optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found, or when the response hands back the cursor that was just sent (the last page repeating itself, or a cursor parameter the API ignores).
 
 ### Where the next-page value goes
 

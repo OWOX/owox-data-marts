@@ -263,7 +263,7 @@ Optional, node-level. `pagination.type` is one of `none`, `offset`, `page`, `cur
 
 - `offset` — stops once a page returns fewer than `pageSize` records; each subsequent request adds `pageSize` to the running offset. The engine does not send the page size itself: request it in `queryParameters` (e.g. `"limit": "100"`, as the Cốc Cốc Ads example does), or a smaller default page from the API stops pagination after the first page.
 - `page` — stops once a page returns zero records; increments the page number by 1 each time, starting from `startPage` (default 1).
-- `cursor` — reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path`: array) or a response header (`cursor.from: "header"`, `cursor.header`: name, optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found.
+- `cursor` — reads the next cursor value either from the response body (`cursor.from: "body"`, `cursor.path`: array) or a response header (`cursor.from: "header"`, `cursor.header`: name, optional `cursor.linkRel` to parse a `Link:` header's `rel="next"` URL). Pagination stops once no cursor value is found, or when the response hands back the cursor that was just sent.
 
 All types accept an optional `inject` describing WHERE the next-page value is written on the following request:
 
