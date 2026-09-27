@@ -220,6 +220,30 @@ describe('AbstractContext', () => {
       const ctx = createMinimalContext();
       assert.strictEqual(ctx.getParameter('Nonexistent'), null);
     });
+
+    it('reads the destination the host and the engine wire from the storage config first', () => {
+      const ctx = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            DestinationTableName: { value: 'other_table' },
+            DestinationTableNameOverride: { value: 'orders other_table' },
+          },
+        },
+        storage: {
+          name: 'S',
+          config: {
+            DestinationTableName: { value: 'target_table' },
+            DestinationTableNameOverride: { value: 'orders target_table' },
+          },
+        },
+      });
+      assert.strictEqual(ctx.getParameter('DestinationTableName').value, 'target_table');
+      assert.strictEqual(
+        ctx.getParameter('DestinationTableNameOverride').value,
+        'orders target_table'
+      );
+    });
   });
 
   describe('emit', () => {

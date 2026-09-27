@@ -20,6 +20,10 @@ import {
 // log line, and real keys and tokens are longer.
 const MIN_REDACTED_SECRET_LENGTH = 6;
 
+// Wired into the storage config by the host and the engine. A key of the same name in a Data
+// Mart's configuration must not send the write elsewhere; on main the storage config won.
+const STORAGE_WIRED_PARAMETERS = new Set(['DestinationTableName', 'DestinationTableNameOverride']);
+
 export class AbstractContext {
   constructor({ source, storage, runConfig, env }) {
     if (!source?.name) throw new Error('source.name is required');
@@ -292,9 +296,13 @@ export class AbstractContext {
   }
 
   /**
-   * Look up a parameter by name. Checks sourceConfig first, then storageConfig.
+   * Look up a parameter by name. Checks sourceConfig first, then storageConfig, except for the
+   * destination, which the storage config holds.
    */
   getParameter(name) {
+    if (STORAGE_WIRED_PARAMETERS.has(name) && this.storageConfig[name] !== undefined) {
+      return this.storageConfig[name];
+    }
     if (this.sourceConfig[name] !== undefined) return this.sourceConfig[name];
     if (this.storageConfig[name] !== undefined) return this.storageConfig[name];
     return null;
