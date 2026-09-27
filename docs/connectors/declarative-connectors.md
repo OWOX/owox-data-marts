@@ -42,6 +42,8 @@ All three ways end in the [Connector Builder](connector-builder.md), where the c
 - **Write the JSON.** Write the manifest by hand with the [Connector Manifest Reference](manifest-reference.md), then paste it into the builder's **Code** tab or import the file.
 - **Ask an AI assistant.** Give it the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt) and the API's documentation, then import the manifest it writes.
 
+![The Connector Builder with a node of an npm downloads connector open: the configuration tree on the left, the node's settings in the middle, the test bar at the bottom](../res/screens/Connector-Builder-Node.png)
+
 ## Versions
 
 A connector is a draft until you publish it, and Data Marts cannot use a draft. Each **Publish** saves a new version and makes it the active one.

@@ -44,6 +44,8 @@ In **Parameters**, click **Add Parameter** and set:
 
 **Advanced Parameters** sets the defaults of the two parameters every connector has: how many days a run reloads, and whether a run creates the table when the API returns no data. **Accounts** runs the connector once for each account in a list — see [Multi-account fan-out](manifest-reference.md#multi-account-fan-out).
 
+![The Parameters pane with a required Package parameter, and the Advanced Parameters card below it](../res/screens/Connector-Builder-Parameters.png)
+
 ## Step 3: Set up authentication
 
 In **Authentication**, choose how the API authorizes requests: **None**, **API Key**, **Basic**, **Bearer**, **Token Exchange**, **OAuth2** or **Selective**. Point the credential fields at your Secret parameters, e.g. set the **Bearer** format to `Bearer {{ parameters.Token }}`. Each type is described in [Authentication](manifest-reference.md#authentication).
@@ -60,6 +62,8 @@ In the node, fill in:
 - **Request** — the **HTTP Method** (`GET` or `POST`), the **Path** appended to the base URL, the **Query parameters**, and a **Body (JSON)** for `POST`. All of them can use parameters, e.g. the path `/downloads/range/last-month/{{ parameters.Package }}`.
 - **Record path** — where the records are in the response, e.g. `downloads`. Leave it empty if the response itself is the array of records. **Response format** is JSON, CSV or JSONL.
 
+![The daily node open in the builder: its General settings and a GET request to /downloads/range/last-month/ with the Package parameter](../res/screens/Connector-Builder-Node.png)
+
 The collapsed sections cover what some APIs need: **Incremental** (fetch by date window), **Pagination**, **Transformations**, **Partition** (run the node once for each record of a parent list, or for each value in a list), **Record filter** and **Error handling**. For an API that builds a report in the background, switch the **Retriever** to **Async**. The [Connector Manifest Reference](manifest-reference.md#contents) explains each of them.
 
 The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a node by its name, so once you publish, a Data Mart that used the old name fails its runs until its fields are chosen again.
@@ -69,6 +73,8 @@ The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a nod
 Click **Test** in the top bar, then the gear icon to open **Test settings**. Choose the **Node**, enter the parameter values, e.g. the package `owox`, set a **Max rows** limit, and click **Run test**. The test uses the connector as it is in the editor, unsaved changes included.
 
 The result opens as a **Table**, as raw **JSON**, or as the run's **Logs**. If the test fails, the error and the **Logs** show what went wrong.
+
+![A passed test of the daily node: 25 records of day and downloads in the results table](../res/screens/Connector-Builder-Test.png)
 
 The builder remembers test values in this browser for the next test. Values of Secret parameters, and of parameters the authentication uses, are never saved.
 
@@ -82,6 +88,8 @@ Then check each field:
 - **Data path** — where the value is in the record, e.g. `stats.clicks`. Empty means the same as the field name.
 - **Primary key** — the fields that identify a row, e.g. `day`. Later runs update these rows instead of adding duplicates. Every node needs one before you can publish.
 - **Default** — the fields selected when someone adds this node to a Data Mart.
+
+![The Fields table of the daily node: day as a date and the primary key, downloads as an integer, both selected by default](../res/screens/Connector-Builder-Fields.png)
 
 ## Step 7: Save and publish
 
