@@ -285,7 +285,7 @@ An **async** node (see [Asynchronous retriever](#asynchronous-retriever)) replac
 ```
 
 - `type` — one of eight lowercase types: `string`, `integer`, `number`, `boolean`, `date`, `datetime`, `object`, `array`.
-- `dataPath` (preferred) or `apiName` (legacy alias, same meaning) — a **dot-string** path into the raw record, e.g. `"total_market_cap.usd"` reaches a nested object. When the row itself is an array (for example `[[timestamp, price], ...]` selected via `recordPath`), use the positional index as the path: `"0"`, `"1"`. If both are omitted, the field name itself is used as the key — the API's field is assumed to already be named exactly that.
+- `dataPath` (preferred) or `apiName` (legacy alias, same meaning) — a **dot-string** path into the raw record, e.g. `"total_market_cap.usd"` reaches a nested object. Where the record has no such nested path, a key spelled with the dots (`"total_market_cap.usd"` as one key, as `flatten` with the separator `"."` writes it) is read instead. When the row itself is an array (for example `[[timestamp, price], ...]` selected via `recordPath`), use the positional index as the path: `"0"`, `"1"`. If both are omitted, the field name itself is used as the key — the API's field is assumed to already be named exactly that.
 - `description` — optional help text.
 
 Casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean` reads `true`, `1`, `yes`, `y`, `t` and `on` as true, their opposites as false, and any other text as empty. A `date` or `datetime` becomes a date, and one written without a time zone, in any format, is read as UTC. An `integer` reads any number notation (`1e5` is 100000) and drops a fraction; an id beyond 2^53 loses digits as a number, so declare it as `string`. `object`, `array`, and `string` all fall through to the same default branch, which `JSON.stringify`s object/array values instead of keeping them structured — so an `array`/`object`-typed field is written out as a JSON string, not a nested value.
@@ -503,7 +503,7 @@ Optional, node-level array, applied in order, **after** `recordFilter` and **bef
 - **`add`** — `{ field, value }`; sets a top-level field to a templated value. Templating here is uniquely lenient — an unresolved path renders as an empty string instead of throwing — and, uniquely, also exposes the record itself: `{{ parameters.X }}`, `{{ dateWindow.start }}` / `{{ dateWindow.end }}`, `{{ account.id }}`, and `{{ record.<field> }}` (a field already present on this same record) are all available.
 - **`remove`** — `{ field }`; deletes a top-level field.
 - **`keysToLower`** — no options; lowercases every top-level key (last one wins on a collision).
-- **`flatten`** — `{ separator? }` (default `"_"`); recursively flattens nested objects into separator-joined top-level keys (e.g. `{"stats":{"clicks":5}}` → `{"stats_clicks":5}`); arrays are left intact, not flattened.
+- **`flatten`** — `{ separator? }` (default `"_"`); recursively flattens nested objects into separator-joined top-level keys (e.g. `{"stats":{"clicks":5}}` → `{"stats_clicks":5}`); arrays are left intact, not flattened. Fields read the new keys, not the old paths: with `"_"`, `stats.clicks` becomes the key `stats_clicks`; with `"."`, a field's `dataPath` `"stats.clicks"` reads the new key as before.
 
 ## Record filter
 

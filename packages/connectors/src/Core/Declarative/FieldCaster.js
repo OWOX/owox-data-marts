@@ -8,7 +8,8 @@
 /**
  * Projects each raw API record into the declared field set: reads each field's
  * nested path (dataPath, else legacy apiName, else the field name) and casts the
- * value to its declared `type`. Missing/empty values become null (never NaN).
+ * value to its declared `type`. Where the record has no such nested path, a key
+ * spelled with the dots is read instead. Missing/empty values become null (never NaN).
  * Object/array values are JSON-stringified so they never become "[object Object]".
  */
 function getNested(obj, segments) {
@@ -94,11 +95,13 @@ export class FieldCaster {
     // (a fresh array of N pair-arrays) and String(path).split('.') (a fresh array
     // per field) for every single record. On a backfill that is one throwaway
     // allocation per field per row, for a value that never changes.
-    this.plan = Object.entries(fields).map(([name, def]) => ({
-      name,
-      segments: String(def.dataPath ?? def.apiName ?? name).split('.'),
-      type: def.type,
-    }));
+    this.plan = Object.entries(fields).map(([name, def]) => {
+      const path = String(def.dataPath ?? def.apiName ?? name);
+      const segments = path.split('.');
+      // Flatten with the separator "." writes such keys, and some APIs return them. Read only
+      // after the nested path, so a value that path already reached is read the same.
+      return { name, segments, dottedKey: segments.length > 1 ? path : null, type: def.type };
+    });
   }
 
   /**
@@ -111,7 +114,9 @@ export class FieldCaster {
       const out = {};
       for (let i = 0; i < plan.length; i++) {
         const field = plan[i];
-        out[field.name] = castValue(getNested(record, field.segments), field.type);
+        let value = getNested(record, field.segments);
+        if (value === undefined && field.dottedKey !== null) value = record?.[field.dottedKey];
+        out[field.name] = castValue(value, field.type);
       }
       return out;
     });

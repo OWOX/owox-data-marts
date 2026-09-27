@@ -188,6 +188,50 @@ describe('DeclarativeSource (integration)', () => {
     assert.strictEqual(out[0].label, 'item-7');
   });
 
+  it('writes the values a flatten with the separator "." moved to the top level', async () => {
+    const flattenManifest = JSON.stringify({
+      version: '1.0',
+      name: 'FlattenDemo',
+      baseUrl: 'https://api.example.com',
+      authentication: { type: 'apiKey', inject: { into: 'query', name: 'key', format: 'test' } },
+      parameters: {},
+      nodes: {
+        users: {
+          destinationName: 'demo_users',
+          isTimeSeries: false,
+          uniqueKeys: ['id'],
+          fields: {
+            id: { type: 'integer' },
+            address_street: { dataPath: 'address.street', type: 'string' },
+            address_geo_lat: { dataPath: 'address.geo.lat', type: 'number' },
+          },
+          transformations: [{ type: 'flatten', separator: '.' }],
+          request: { method: 'GET', path: '/users' },
+          recordSelector: { recordPath: ['data'] },
+        },
+      },
+    });
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { data: [{ id: 1, address: { street: 'Kulas Light', geo: { lat: '-37.3159' } } }] };
+      },
+    });
+    const model = new ManifestParser().parse(flattenManifest);
+    const source = new DeclarativeSource(makeContext(), model);
+    const out = await source.fetchData({
+      nodeName: 'users',
+      fields: ['id', 'address_street', 'address_geo_lat'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    assert.deepStrictEqual(out, [
+      { id: 1, address_street: 'Kulas Light', address_geo_lat: -37.3159 },
+    ]);
+  });
+
   it('renders {{ node.selectedFields }} as the fields the Data Mart selected, comma-separated', async () => {
     const selectedManifest = JSON.stringify({
       version: '1.0',

@@ -49,6 +49,23 @@ describe('FieldCaster', () => {
     assert.strictEqual(c.cast([{ releaseDates: null }])[0].jp, null);
   });
 
+  // Flatten with the separator "." writes such keys, and an API can return them.
+  it('reads a key that holds dots when the record has no nested path of that name', () => {
+    const c = new FieldCaster({
+      address_street: { dataPath: 'address.street', type: 'string' },
+      address_geo_lat: { dataPath: 'address.geo.lat', type: 'number' },
+    });
+    const out = c.cast([{ 'address.street': 'Kulas Light', 'address.geo.lat': '-37.3159' }]);
+    assert.strictEqual(out[0].address_street, 'Kulas Light');
+    assert.strictEqual(out[0].address_geo_lat, -37.3159);
+  });
+
+  it('reads the nested path first when the record also holds the key with dots', () => {
+    const c = new FieldCaster({ b: { dataPath: 'a.b', type: 'string' } });
+    assert.strictEqual(c.cast([{ 'a.b': 'as written', a: { b: 'nested' } }])[0].b, 'nested');
+    assert.strictEqual(c.cast([{ 'a.b': 'as written', a: { b: null } }])[0].b, null);
+  });
+
   it('JSON-stringifies object and array values instead of [object Object]', () => {
     const c = new FieldCaster({
       genre: { type: 'object' },
