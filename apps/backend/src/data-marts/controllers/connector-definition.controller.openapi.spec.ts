@@ -153,6 +153,16 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     }
   });
 
+  // owox-ctl users follow these descriptions: a viewer key told it may read a manifest got a 403.
+  it('describes the access rule and the delete as the API enforces them', () => {
+    const paths = document.paths as Record<string, Record<string, any>>;
+
+    expect(paths[`${BASE}/{id}/versions/{version}`].get.description).toContain(
+      'Editor access is required'
+    );
+    expect(paths[`${BASE}/{id}`].delete.description).toContain('frees its name for reuse');
+  });
+
   it('publishes the PATCH body with string types for the fields it can clear', () => {
     const bodySchema = resolveRef('#/components/schemas/UpdateCustomConnectorRequestApiDto');
 

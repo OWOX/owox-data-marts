@@ -104,7 +104,9 @@ export function GetCustomConnectorVersionSpec() {
   return applyDecorators(
     ApiOperation({
       summary: 'Get one version of a custom connector',
-      description: 'Returns the manifest stored for that version. Viewer access is required.',
+      description:
+        'Returns the manifest stored for that version. Editor access is required: a manifest ' +
+        'can hold a credential typed into the builder.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiParam({ name: 'version', description: 'Version number', type: Number }),
@@ -213,8 +215,8 @@ export function DeleteCustomConnectorSpec() {
     ApiOperation({
       summary: 'Delete a custom connector',
       description:
-        'Soft-deletes the connector, keeping its name reserved in the project. Refused while any ' +
-        'Data Mart still references it. Editor access is required.',
+        'Soft-deletes the connector and frees its name for reuse in the project. Refused while ' +
+        'any Data Mart still references it. Editor access is required.',
     }),
     ApiParam({ name: 'id', description: 'Custom connector ID' }),
     ApiOkResponse({
