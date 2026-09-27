@@ -630,21 +630,29 @@ export class AbstractConnector {
    *
    * @param {object} state run state from _createRunState
    * @param {string} date the day every account was skipped on
-   * @throws {Error} always, flagged as a warning
+   * @throws {Error} always; flagged as a warning unless an account failed outright earlier
    * @private
    */
   _stopAtSkippedDay(state, date) {
     if (state.succeeded.size === 0) this._reportAccountOutcomes(state);
 
     const errors = this._describeAccountErrors(state, [...state.issues.entries()]);
+    // An account that failed outright on an earlier day still pages, as it would at the end of
+    // the run, and is named: its last error is this day's refusal, which hid the failure.
+    const failures = [...state.issues.entries()].flatMap(([accountId, entry]) => {
+      const failure = entry.errors.filter(e => e?.isWarning !== true).pop();
+      if (!failure) return [];
+      return [state.accountless ? failure.message : `${accountId}: ${failure.message}`];
+    });
     const error = new Error(
-      state.accountless
+      (state.accountless
         ? `Access was refused on ${date}, so the import stopped there: ${errors}`
         : `All ${state.attemptedCount} accounts were skipped on ${date}, so the import stopped ` +
-            `there. This points to a global failure, such as an expired access token, rather ` +
-            `than individual accounts being inaccessible. Errors: ${errors}`
+          `there. This points to a global failure, such as an expired access token, rather ` +
+          `than individual accounts being inaccessible. Errors: ${errors}`) +
+        (failures.length ? `. Earlier failures: ${failures.join('; ')}` : '')
     );
-    error.isWarning = true;
+    error.isWarning = failures.length === 0;
     throw error;
   }
 

@@ -3028,6 +3028,42 @@ describe('AbstractConnector', () => {
       }
     });
 
+    // A 500 on an earlier day still has to page. Flagged as a warning, the notification said
+    // access was refused and named only the 401s, so the owner re-authorized instead of looking.
+    it('does not call it a warning when an account failed outright on an earlier day', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'a' }, { id: 'b' }],
+          fetchData: async req => {
+            if (req.startDate === utcDay(-2) && req.accountId === 'a') {
+              throw Object.assign(new Error('HTTP 500 for a'), { statusCode: 500 });
+            }
+            if (req.startDate === utcDay(-1)) {
+              throw Object.assign(new Error(`HTTP 401 for ${req.accountId}`), { isWarning: true });
+            }
+            return [{ id: 1 }];
+          },
+        });
+        const error = await new AbstractConnector(
+          incrementalWindow(3),
+          source,
+          createMockStorageClass()
+        )
+          .run()
+          .then(
+            () => null,
+            e => e
+          );
+        assert.match(error?.message ?? '', /skipped on/);
+        assert.match(error.message, /HTTP 500 for a/);
+        assert.strictEqual(error.isWarning, false);
+      } finally {
+        cap.restore();
+      }
+    });
+
     it('says access was refused on that day when a source without accounts is turned away mid-run', async () => {
       const cap = captureEvents();
       try {
