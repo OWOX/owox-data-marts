@@ -526,23 +526,23 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
   // Discard reloaded the newest version, so the author was moved off the one they had open.
   it('discards back to the open version, not the newest', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
-    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    const baseUrl = () => screen.getByPlaceholderText('https://api.example.com');
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v2.example.com');
+      expect(baseUrl()).toHaveValue('https://v2.example.com');
     });
     fireEvent.click(screen.getByTestId('version-badge'));
     fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v1.example.com');
+      expect(baseUrl()).toHaveValue('https://v1.example.com');
     });
-    fireEvent.change(baseUrl, { target: { value: 'https://edited.example.com' } });
+    fireEvent.change(baseUrl(), { target: { value: 'https://edited.example.com' } });
 
     fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByTestId('builder-reset'));
     fireEvent.click(await screen.findByRole('button', { name: /^discard$/i }));
 
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v1.example.com');
+      expect(baseUrl()).toHaveValue('https://v1.example.com');
     });
     expect(getVersion).toHaveBeenLastCalledWith('def-1', 1);
   });
@@ -551,11 +551,11 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
   // over the edits that were still on screen.
   it('says so when the reload behind Discard fails', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
-    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    const baseUrl = () => screen.getByPlaceholderText('https://api.example.com');
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v2.example.com');
+      expect(baseUrl()).toHaveValue('https://v2.example.com');
     });
-    fireEvent.change(baseUrl, { target: { value: 'https://edited.example.com' } });
+    fireEvent.change(baseUrl(), { target: { value: 'https://edited.example.com' } });
     getVersion.mockRejectedValue(new Error('Network Error'));
 
     fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
@@ -570,9 +570,9 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
 
   it('says so when a version fails to open', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
-    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    const baseUrl = () => screen.getByPlaceholderText('https://api.example.com');
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v2.example.com');
+      expect(baseUrl()).toHaveValue('https://v2.example.com');
     });
     getVersion.mockRejectedValue(new Error('Network Error'));
 
@@ -586,14 +586,14 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
 
   it('publishes the open version, as "Replace & publish" says, with nothing edited', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
-    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    const baseUrl = () => screen.getByPlaceholderText('https://api.example.com');
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v2.example.com');
+      expect(baseUrl()).toHaveValue('https://v2.example.com');
     });
     fireEvent.click(screen.getByTestId('version-badge'));
     fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://v1.example.com');
+      expect(baseUrl()).toHaveValue('https://v1.example.com');
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
@@ -629,14 +629,14 @@ describe('ConnectorBuilderPage — nothing to publish', () => {
 
   it('offers Publish only once something changed since the newest version was published', async () => {
     render(<ConnectorBuilderPage id='def-1' />);
-    const baseUrl = screen.getByPlaceholderText('https://api.example.com');
+    const baseUrl = () => screen.getByPlaceholderText('https://api.example.com');
     await waitFor(() => {
-      expect(baseUrl).toHaveValue('https://api.example.com');
+      expect(baseUrl()).toHaveValue('https://api.example.com');
     });
 
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeDisabled();
 
-    fireEvent.change(baseUrl, { target: { value: 'https://api.example.org' } });
+    fireEvent.change(baseUrl(), { target: { value: 'https://api.example.org' } });
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled();
   });
 });

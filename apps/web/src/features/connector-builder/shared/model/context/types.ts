@@ -63,6 +63,12 @@ export interface BuilderState {
    * mounted outside it.
    */
   codeInvalid: boolean;
+  /**
+   * Counts whole-manifest replacements: an open, a Discard, a version open, an import or a
+   * Code-mode edit. The form keys its panes on it, because several of their inputs read the
+   * manifest only when they mount.
+   */
+  manifestRevision: number;
 }
 
 export interface BuilderContextValue {

@@ -218,7 +218,14 @@ function BuilderShell({
         <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           {mode === 'builder' ? (
             <div className='min-h-0 flex-1 overflow-y-auto'>
-              <BuilderCenter selection={selection} onSelect={setSelection} />
+              <BuilderCenter
+                // Remounted when the whole manifest is replaced: inputs that read it only on
+                // mount would otherwise keep, and on the next keystroke write back, what was
+                // discarded.
+                key={state.manifestRevision}
+                selection={selection}
+                onSelect={setSelection}
+              />
             </div>
           ) : (
             <div className='flex min-h-0 flex-1 flex-col'>

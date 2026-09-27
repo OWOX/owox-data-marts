@@ -4,6 +4,7 @@ import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 
 const create = vi.fn();
 const getById = vi.fn();
+const getVersion = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
@@ -11,7 +12,7 @@ vi.mock('../shared/api/connector-builder-api.service', () => ({
     getById = getById;
     saveDraft = vi.fn();
     publish = vi.fn();
-    getVersion = vi.fn();
+    getVersion = getVersion;
     softDelete = vi.fn();
   },
 }));
@@ -117,6 +118,48 @@ describe('switching between nodes', () => {
     expect(nodes.alpha.pagination.stopCondition).toEqual({
       path: ['alpha', 'done'],
       equals: true,
+    });
+  });
+});
+
+// Discard, a version open and Import JSON replace the whole manifest, but the node pane's path
+// inputs read it only when they mount, so they kept the discarded edit on screen and the next
+// keystroke wrote it back.
+describe('replacing the whole manifest', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    getById.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+    getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: JSON.parse(TWO_NODES) });
+  });
+
+  it('shows the reloaded values in the node pane after Discard', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(getVersion).toHaveBeenCalled();
+    });
+    selectNode('alpha');
+    const cursorPath = await screen.findByPlaceholderText('paging.next');
+    fireEvent.change(cursorPath, { target: { value: 'edited.next' } });
+
+    fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByTestId('builder-reset'));
+    fireEvent.click(await screen.findByRole('button', { name: /^discard$/i }));
+
+    await waitFor(() => {
+      expect(getVersion).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('paging.next')).toHaveValue('alpha.next');
     });
   });
 });

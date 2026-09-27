@@ -15,12 +15,18 @@ export const initialBuilderState: BuilderState = {
   error: null,
   sample: null,
   codeInvalid: false,
+  manifestRevision: 0,
 };
 
 export function builderReducer(state: BuilderState, action: BuilderAction): BuilderState {
   switch (action.type) {
     case BuilderActionType.SET_MANIFEST:
-      return { ...state, manifest: action.payload, dirty: false };
+      return {
+        ...state,
+        manifest: action.payload,
+        dirty: false,
+        manifestRevision: state.manifestRevision + 1,
+      };
     case BuilderActionType.SET_PATH:
       return {
         ...state,
