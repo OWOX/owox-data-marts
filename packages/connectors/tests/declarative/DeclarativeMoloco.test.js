@@ -23,7 +23,6 @@ const MOLOCO = JSON.stringify({
   parameters: {
     ApiKey: { requiredType: 'string', isRequired: true },
     AdAccountId: { requiredType: 'string', isRequired: true },
-    Fields: {},
   },
   nodes: {
     performance_report: {

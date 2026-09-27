@@ -98,6 +98,64 @@ const CREDENTIAL_INJECT_KEY = 'format';
 // author one glance at a publish-time warning, a false negative leaks a token.
 const CREDENTIAL_NAME_PATTERN = /token|secret|key|password|credential|auth/i;
 
+/**
+ * Names a manifest parameter cannot take. A source's parameters and its storage's settings
+ * share one context, and the source's value wins: a parameter named DestinationTableName sent
+ * every write of every Data Mart on the connector to another table, and one named like a
+ * storage setting either read that setting or failed every run. The host sets Fields,
+ * LastRequestedDate and DestinationTableNameOverride on every run, and the engine writes
+ * DestinationTableName. The rest are what the storages declare; a test keeps this list in step
+ * with them.
+ */
+export const RESERVED_PARAMETER_NAMES = new Set([
+  'Fields',
+  'LastRequestedDate',
+  'DestinationTableName',
+  'DestinationTableNameOverride',
+  'MaxBufferSize',
+  // Google BigQuery
+  'DestinationLocation',
+  'DestinationDatasetID',
+  'DestinationProjectID',
+  'DestinationDatasetName',
+  'ProjectID',
+  'ServiceAccountJson',
+  'OAuthAccessToken',
+  'OAuthRefreshToken',
+  'OAuthAccessTokenExpiry',
+  'OAuthClientId',
+  'OAuthClientSecret',
+  // AWS Athena and Redshift
+  'AWSRegion',
+  'AWSAccessKeyId',
+  'AWSSecretAccessKey',
+  'S3BucketName',
+  'S3Prefix',
+  'AthenaDatabaseName',
+  'AthenaOutputLocation',
+  'Database',
+  'WorkgroupName',
+  'ClusterIdentifier',
+  'Schema',
+  // Snowflake
+  'SnowflakeAccount',
+  'SnowflakeWarehouse',
+  'SnowflakeDatabase',
+  'SnowflakeSchema',
+  'SnowflakeRole',
+  'SnowflakeUsername',
+  'SnowflakePassword',
+  'SnowflakeAuthenticator',
+  'SnowflakePrivateKey',
+  'SnowflakePrivateKeyPassphrase',
+  // Databricks
+  'DatabricksHost',
+  'DatabricksHttpPath',
+  'DatabricksToken',
+  'DatabricksCatalog',
+  'DatabricksSchema',
+]);
+
 function validateBackoff(b, nodeName, where) {
   if (typeof b !== 'object' || b === null || !BACKOFF_TYPES.has(b.type)) {
     throw new Error(
@@ -184,6 +242,12 @@ export class ManifestParser {
         throw new Error(
           `ManifestParser: parameter "${name}" must start with a letter and contain only ` +
             `letters, digits and underscores`
+        );
+      }
+      if (RESERVED_PARAMETER_NAMES.has(name)) {
+        throw new Error(
+          `ManifestParser: parameter "${name}" is a name the engine or a destination storage ` +
+            `uses for its own settings. Rename the parameter.`
         );
       }
     }

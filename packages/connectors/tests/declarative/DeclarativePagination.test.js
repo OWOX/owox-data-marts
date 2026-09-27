@@ -13,7 +13,7 @@ const MANIFEST = JSON.stringify({
     type: 'apiKey',
     inject: { into: 'query', name: 'k', format: '{{ parameters.ApiKey }}' },
   },
-  parameters: { ApiKey: { requiredType: 'string', isRequired: true }, Fields: {} },
+  parameters: { ApiKey: { requiredType: 'string', isRequired: true } },
   nodes: {
     items: {
       destinationName: 'paged_items',

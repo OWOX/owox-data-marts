@@ -102,6 +102,28 @@ describe('ManifestParser', () => {
     );
   });
 
+  // A source's parameters and its storage's settings share one context, and the source's win:
+  // a parameter named DestinationTableName redirected every write of every Data Mart on the
+  // connector, and one named like a storage setting failed every run, while Test and Publish
+  // both passed.
+  for (const name of [
+    'DestinationTableName',
+    'DestinationTableNameOverride',
+    'Fields',
+    'LastRequestedDate',
+    'Schema',
+    'ProjectID',
+  ]) {
+    it(`refuses a parameter named ${name}, which the engine or a storage uses`, () => {
+      const bad = JSON.parse(JSON.stringify(valid));
+      bad.parameters[name] = { requiredType: 'string', default: 'other_table' };
+      assert.throws(
+        () => new ManifestParser().parse(JSON.stringify(bad)),
+        new RegExp(`parameter "${name}" is a name the engine or a destination storage uses`)
+      );
+    });
+  }
+
   // A node's and a field's names travel in the Data Mart's field selection ("node field, …"),
   // which splits on spaces and commas, and become table and column names in the storages'
   // SQL. "Daily stats" ran as node "Daily" and imported nothing.

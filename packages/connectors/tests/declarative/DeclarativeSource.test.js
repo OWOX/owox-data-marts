@@ -17,7 +17,7 @@ const MANIFEST = JSON.stringify({
     type: 'apiKey',
     inject: { into: 'query', name: 'app_id', format: '{{ parameters.AppId }}' },
   },
-  parameters: { AppId: { requiredType: 'string', isRequired: true }, Fields: {} },
+  parameters: { AppId: { requiredType: 'string', isRequired: true } },
   nodes: {
     rates: {
       destinationName: 'demo_rates',
@@ -684,7 +684,6 @@ describe('DeclarativeSource (integration)', () => {
       parameters: {
         AuthMethod: { requiredType: 'string', isRequired: true },
         ApiKey: { requiredType: 'string', isRequired: true },
-        Fields: {},
       },
       nodes: {
         items: {
@@ -1400,7 +1399,7 @@ describe('rows_extracted analytics', () => {
     version: '1.0',
     name: 'Demo',
     baseUrl: 'https://api.example.com',
-    parameters: { Fields: {} },
+    parameters: {},
     nodes: {
       coins: {
         destinationName: 'demo_coins',
@@ -1748,7 +1747,7 @@ describe('blank account parameter fails the run instead of importing an unscoped
       version: '1.0',
       name: 'AcctDemo',
       baseUrl: 'https://api.example.com',
-      parameters: { AccountIDs: { requiredType: 'string' }, Fields: {} },
+      parameters: { AccountIDs: { requiredType: 'string' } },
       ...(accounts ? { accounts } : {}),
       nodes: {
         events: {
@@ -1867,7 +1866,7 @@ describe('IGNORE-swallowed page error is reported, not silent', () => {
     version: '1.0',
     name: 'PagedErrDemo',
     baseUrl: 'https://api.example.com',
-    parameters: { Fields: {} },
+    parameters: {},
     nodes: {
       events: {
         destinationName: 'demo_events',
@@ -1994,7 +1993,7 @@ describe('DeclarativeSource time-series inference (builder-shaped manifest)', ()
     version: '1.0',
     name: 'Builder',
     baseUrl: 'https://api.builder.test',
-    parameters: { Fields: {} },
+    parameters: {},
     nodes: {
       items: {
         // Deliberately NO isTimeSeries key — this is what the builder writes
@@ -2131,18 +2130,17 @@ describe('DeclarativeSource and the storage settings', () => {
       env: { datamartId: 'dm', runId: 'run' },
     });
 
+  // The parser refuses every setting a bundled storage declares today; this is the backstop
+  // for one it does not know yet.
   it('refuses a parameter named like a setting of the destination storage', () => {
-    const context = contextWith(
-      {},
-      { ServiceAccountJson: { value: '{"private_key":"storage-secret"}' } }
-    );
+    const context = contextWith({}, { FutureStorageKey: { value: 'storage-secret' } });
     assert.throws(
       () =>
         new DeclarativeSource(
           context,
-          manifestWith({ ServiceAccountJson: { requiredType: 'string' } })
+          manifestWith({ FutureStorageKey: { requiredType: 'string' } })
         ),
-      /Parameter "ServiceAccountJson" has the same name as a setting of the destination storage/
+      /Parameter "FutureStorageKey" has the same name as a setting of the destination storage/
     );
   });
 

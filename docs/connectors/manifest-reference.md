@@ -111,7 +111,7 @@ Each entry in `parameters` describes one user-supplied input, referenced elsewhe
 
 Marking a parameter `SECRET` only changes how the *manifest* declares it — the user still enters the actual value themselves, through the connector's configuration form in the browser. A manifest should never contain a real credential value.
 
-A parameter name starts with a letter and contains only letters, digits and underscores, so that templates can refer to it. It also cannot share its name with a setting of the Data Mart's storage, such as `ProjectID` or `ServiceAccountJson` in BigQuery: a run on that storage fails until the parameter is renamed.
+A parameter name starts with a letter and contains only letters, digits and underscores, so that templates can refer to it. It also cannot be a name the engine or a storage uses for its own settings: `Fields`, `LastRequestedDate`, `DestinationTableName`, `DestinationTableNameOverride`, `MaxBufferSize`, or a storage setting such as `ProjectID` or `ServiceAccountJson` (BigQuery), `Schema` or `Database` (Redshift) or `AWSRegion` (Athena, Redshift). The parser refuses those names, so Test and Publish fail until the parameter is renamed.
 
 ## Authentication
 

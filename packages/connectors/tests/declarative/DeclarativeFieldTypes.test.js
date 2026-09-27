@@ -8,7 +8,7 @@ const TYPED_MANIFEST = JSON.stringify({
   version: '1.0',
   name: 'Typed',
   baseUrl: 'https://api.example.com',
-  parameters: { Fields: {} },
+  parameters: {},
   nodes: {
     games: {
       fields: {
