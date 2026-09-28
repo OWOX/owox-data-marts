@@ -46,7 +46,7 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 ## Canvas settings
 
-The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have (Input source, Fields, Status and the field rows) and stores its own values.
+The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have. Those are Input source, Fields, Status and the field rows. It stores its own values.
 
 - **View** picks the card density. **Compact** cards show everything listed in [What a card shows](#what-a-card-shows). **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Layout algorithm** lays the graph out horizontally or vertically. Picking an algorithm re-runs the layout and drops the card positions you dragged.
@@ -66,7 +66,7 @@ The gear button on the canvas opens the view settings. They are preferences stor
 
 Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.
 
-![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
+![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 
 ## Notes
 
