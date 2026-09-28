@@ -13,12 +13,13 @@ Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX web
 - Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
 - The colored Data Quality bar on the left edge of the card is gone. The Data Quality shield in the footer shows the status, and hovering it explains the result.
 
-The canvas settings (the gear button) are regrouped, and every checkbox hides exactly what it names:
+The canvas settings (the gear button) have a new design, and every checkbox hides exactly what it names:
 
-- **Card content** has a checkbox for each part of a card: Input source, Fields, Triggers, Reports, Relationships, Draft badge, and Quality and sharing. Untick all of them to leave only the titles.
-- **Field rows** holds Field aliases and Field descriptions. It appears only in the Detailed view, where cards list their fields.
+- **View** is picked from two cards with a small preview of each. **Horizontal** / **Vertical** and **Show join fields** sit on one row below them.
+- **Card content** has a checkbox for each part of a card: Input source, Fields, Triggers, Reports, Relationships, Draft badge, and Quality and sharing. **Title only** unticks all of them and leaves only the titles. **Show all** ticks everything back on.
+- **Field rows** holds Field aliases and Field descriptions, next to Card content. It works in the Detailed view, where cards list their fields, and stays greyed out in the Compact view.
 - Ticking a checkbox or the **Show join fields** switch keeps your zoom and position. Picking another view or layout algorithm still fits the whole graph.
-- **Check all** and **Uncheck all** are gone. A title-only preference saved earlier still shows only the titles.
+- A title-only preference saved earlier still shows only the titles.
 - The settings scroll when the window is too short to fit them.
 
 See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md).

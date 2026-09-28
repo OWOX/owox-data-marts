@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasSettingsPanel, type CanvasSettingsPanelProps } from './canvas-settings-panel';
-import { NOTHING_HIDDEN, type ObjectLabelOption, type ObjectLabelsHidden } from './object-labels';
+import {
+  ALL_HIDDEN,
+  NOTHING_HIDDEN,
+  type ObjectLabelOption,
+  type ObjectLabelsHidden,
+} from './object-labels';
 import type { CanvasViewMode } from './view-mode';
 
 const OPTIONS: readonly ObjectLabelOption[] = [
@@ -39,8 +44,8 @@ describe('CanvasSettingsPanel object labels', () => {
     expect(
       within(card)
         .getAllByRole('checkbox')
-        .map(box => box.textContent)
-    ).toEqual(['Input sourceSource badge', 'TriggersTrigger count']);
+        .map(box => box.closest('label')?.textContent)
+    ).toEqual(['Input source', 'Triggers']);
 
     fireEvent.click(screen.getByRole('checkbox', { name: /^Triggers/ }));
     expect(props.onObjectLabelsChange).toHaveBeenLastCalledWith({
@@ -68,20 +73,36 @@ describe('CanvasSettingsPanel object labels', () => {
     );
   });
 
-  it('offers the field-row options in the Detailed view only', () => {
+  it('enables the field-row options in the Detailed view', () => {
     renderPanel(NOTHING_HIDDEN, 'erd');
-    expect(screen.getByRole('group', { name: 'Field rows' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /^Field aliases/ })).toBeEnabled();
+    expect(screen.queryByText('Detailed only')).not.toBeInTheDocument();
   });
 
-  it('leaves the field-row options out of the Compact view', () => {
+  it('keeps the field-row options visible but disabled in the Compact view', () => {
     renderPanel(NOTHING_HIDDEN, 'compact');
-    expect(screen.queryByRole('group', { name: 'Field rows' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /^Field aliases/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /^Input source/ })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Field rows' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /^Field aliases/ })).toBeDisabled();
+    expect(screen.getByText('Detailed only')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /^Input source/ })).toBeEnabled();
   });
 
-  it('has no Check all / Uncheck all shortcuts', () => {
-    renderPanel();
-    expect(screen.queryByRole('button', { name: /Check all/i })).not.toBeInTheDocument();
+  it('shows every part, or strips the cards to their titles, from the shortcuts', () => {
+    const props = renderPanel({ ...NOTHING_HIDDEN, triggers: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
+    expect(props.onObjectLabelsChange).toHaveBeenLastCalledWith(NOTHING_HIDDEN);
+    fireEvent.click(screen.getByRole('button', { name: 'Title only' }));
+    expect(props.onObjectLabelsChange).toHaveBeenLastCalledWith(ALL_HIDDEN);
+  });
+
+  it('picks the view mode and the layout algorithm from their radio groups', () => {
+    const props = renderPanel(NOTHING_HIDDEN, 'compact');
+    expect(screen.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Detailed' }));
+    expect(props.onViewModeChange).toHaveBeenLastCalledWith('erd');
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    expect(props.onDirectionChange).toHaveBeenLastCalledWith('vertical');
+    fireEvent.click(screen.getByRole('switch', { name: 'Show join fields' }));
+    expect(props.onShowJoinFieldsChange).toHaveBeenLastCalledWith(true);
   });
 });
