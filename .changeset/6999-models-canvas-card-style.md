@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-**Clearer Data Mart cards on the Models canvas**
+**Clearer Data Mart cards and canvas settings on the Models canvas**
 
 Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX website. Each card leads with an icon and the title, then short badges for the input source, the field count, and the number of triggers, reports and relationships. The badges share a line while they fit, and a count of zero shows no badge. The footer keeps the Data Quality and Data Last Updated indicators and shows when the Data Mart is shared for reporting or for maintenance. Hover a sharing icon to see what it allows.
 
@@ -12,7 +12,14 @@ Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX web
 - Click **N fields** in the Compact view to list the Output Schema fields under the card.
 - Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
 - The colored Data Quality bar on the left edge of the card is gone. The Data Quality shield in the footer shows the status, and hovering it explains the result.
-- **Object labels** in the canvas settings still hide the badges. **Uncheck all** still leaves only the titles.
+
+The canvas settings (the gear button) are regrouped, and every checkbox hides exactly what it names:
+
+- **Card content** has a checkbox for each part of a card: Input source, Fields, Triggers, Reports, Relationships, Draft badge, and Quality and sharing. Untick all of them to leave only the titles.
+- **Field rows** holds Field aliases and Field descriptions. It appears only in the Detailed view, where cards list their fields.
+- Ticking a checkbox or the **Show join fields** switch keeps your zoom and position. Picking another view or layout algorithm still fits the whole graph.
+- **Check all** and **Uncheck all** are gone. A title-only preference saved earlier still shows only the titles.
+- The settings scroll when the window is too short to fit them.
 
 See [Models Canvas](../../docs/getting-started/setup-guide/models-canvas.md).
 
