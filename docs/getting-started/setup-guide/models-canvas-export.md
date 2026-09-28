@@ -1,6 +1,6 @@
 # Export the Models Canvas
 
-The **Models** canvas shows your Data Marts as an entity-relationship diagram: every Data Mart is a card, every join is an arrow. The canvas can be exported — as an image for a presentation or documentation, or as a machine-readable model you can archive, diff, or open in other tools.
+The [Models canvas](models-canvas.md) shows your Data Marts as an entity-relationship diagram: every Data Mart is a card, every join is an arrow. The canvas can be exported — as an image for a presentation or documentation, or as a machine-readable model you can archive, diff, or open in other tools.
 
 ## Where to find it
 

@@ -47,6 +47,7 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
         : Array.isArray(reportDto.uniqueCountConfig)
           ? reportDto.uniqueCountConfig
           : [],
+    autoAggregationOptOut: reportDto.autoAggregationOptOut ?? [],
     lastRunDate: reportDto.lastRunAt ? new Date(reportDto.lastRunAt) : null,
     lastRunStatus: reportDto.lastRunStatus,
     lastRunError: reportDto.lastRunError,

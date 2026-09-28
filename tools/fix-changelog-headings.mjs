@@ -21,6 +21,8 @@ const PATTERNS = {
   H3: /^###\s*(.+)$/,
   VERSION_SUFFIX: /\s+[0-9]+\.[0-9]+\.[0-9]+$/,
   QUOTE: /^\s*>/,
+  // "- abc1234: # Title" — a changeset that opened with a Markdown heading
+  ENTRY_HEADING: /^(\s*- [0-9a-f]{7,40}: )#{1,6}\s+(.+?)(?:\s+#+)?\s*$/,
 };
 
 // Target headings to process
@@ -138,6 +140,19 @@ function fixHeadings(filePath) {
 
       // Skip quotes
       if (isQuote(line)) {
+        continue;
+      }
+
+      // Entry title written as a heading renders as a literal "#" after the commit hash;
+      // the changelog convention is a bold title.
+      const entryMatch = lines[i].match(PATTERNS.ENTRY_HEADING);
+      if (entryMatch) {
+        // Drop bold markers inside the title so the whole title is bold exactly once.
+        const newLine = `${entryMatch[1]}**${entryMatch[2].replaceAll('**', '').trim()}**`;
+        console.log(`🔧 Fixed entry title: "${line}" -> "${newLine.trim()}"`);
+        lines[i] = newLine;
+        changesCount++;
+        changed = true;
         continue;
       }
 

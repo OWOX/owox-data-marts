@@ -11,6 +11,7 @@ import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { DataMartDataLastUpdatedResponseApiDto } from './data-mart-data-last-updated-response-api.dto';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -33,6 +34,13 @@ export class DataMartResponseApiDto {
 
   @ApiProperty()
   description?: string;
+
+  @ApiProperty({
+    enum: DataMartIcon,
+    nullable: true,
+    description: 'User-picked icon key; null means the default icon.',
+  })
+  icon: DataMartIcon | null;
 
   @ApiProperty()
   schema?: DataMartSchema;

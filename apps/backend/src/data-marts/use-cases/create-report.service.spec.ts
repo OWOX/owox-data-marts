@@ -58,6 +58,9 @@ describe('CreateReportService', () => {
       save: jest.fn().mockResolvedValue(savedReport),
     };
     const reportOwnerRepository = {};
+    const lookerStudioReportService = {
+      restoreIfDeleted: jest.fn().mockResolvedValue(null),
+    };
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
     };
@@ -124,28 +127,54 @@ describe('CreateReportService', () => {
       eventDispatcher as never,
       outputControlsValidator as never,
       reportAccessService as never,
+      lookerStudioReportService as never,
       advancedSearchIndexSync as never
     );
 
-    return { service, reportRepository, outputControlsValidator, advancedSearchIndexSync };
+    return {
+      service,
+      reportRepository,
+      outputControlsValidator,
+      reportAccessService,
+      advancedSearchIndexSync,
+      lookerStudioReportService,
+    };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('schedules a search reindex for the created report', async () => {
-    const { service, advancedSearchIndexSync } = createService();
+  it.each([false, true])(
+    'schedules a search reindex for the report (restored: %s)',
+    async restored => {
+      const { service, advancedSearchIndexSync, lookerStudioReportService } = createService();
+      if (restored) lookerStudioReportService.restoreIfDeleted.mockResolvedValue(savedReport);
 
-    await service.run(
-      new CreateReportCommand('proj-1', 'user-1', 'Report', 'dm-1', 'dest-1', {} as never)
-    );
+      await service.run(
+        new CreateReportCommand('proj-1', 'user-1', 'Report', 'dm-1', 'dest-1', {} as never)
+      );
 
-    expect(advancedSearchIndexSync.scheduleReindex).toHaveBeenCalledWith(
-      SearchableEntityType.REPORT,
-      'report-1',
-      'proj-1'
-    );
+      expect(advancedSearchIndexSync.scheduleReindex).toHaveBeenCalledWith(
+        SearchableEntityType.REPORT,
+        'report-1',
+        'proj-1'
+      );
+    }
+  );
+
+  it('rejects invalid output controls before restoring a deleted Looker report', async () => {
+    const { service, reportRepository, lookerStudioReportService } = createService({
+      validateForReport: jest.fn().mockRejectedValue(new BadRequestException('Invalid columns')),
+    });
+    const command = new CreateReportCommand('proj-1', 'user-0', 'Test', 'dm-1', 'dest-1', {
+      type: 'looker-studio-config',
+      cacheLifetime: 300,
+    } as never);
+
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
+    expect(lookerStudioReportService.restoreIfDeleted).not.toHaveBeenCalled();
+    expect(reportRepository.save).not.toHaveBeenCalled();
   });
 
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {

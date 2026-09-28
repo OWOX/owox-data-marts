@@ -5,6 +5,7 @@ import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartListItemStorageApiDto } from './data-mart-list-item-storage-api.dto';
 import { DataMartListItemContextApiDto } from './data-mart-list-item-context-api.dto';
 import { DataMartDataLastUpdatedSummaryApiDto } from './data-mart-data-last-updated-response-api.dto';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 
 export class DataMartListItemResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -21,6 +22,13 @@ export class DataMartListItemResponseApiDto {
 
   @ApiProperty({ type: String, example: 'Data mart description', nullable: true })
   description: string | null;
+
+  @ApiProperty({
+    enum: DataMartIcon,
+    nullable: true,
+    description: 'User-picked icon key; null means the default icon.',
+  })
+  icon: DataMartIcon | null;
 
   @ApiProperty({
     enum: DataMartDefinitionType,

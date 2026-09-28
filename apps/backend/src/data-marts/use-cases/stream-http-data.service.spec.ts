@@ -1303,7 +1303,10 @@ describe('StreamHttpDataService', () => {
      * aggregation anywhere. The schema goes on the Data Mart this service loads, not on the one
      * hanging off the report row — the plan is built from the former.
      */
-    function collapsibleReportRead(destinationType: DataDestinationType): void {
+    function collapsibleReportRead(
+      destinationType: DataDestinationType,
+      autoAggregationOptOut: string[] | null = null
+    ): void {
       dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
         fakeDataMart({
           schema: {
@@ -1324,6 +1327,7 @@ describe('StreamHttpDataService', () => {
         aggregationConfig: null,
         dateTruncConfig: null,
         uniqueCountConfig: null,
+        autoAggregationOptOut,
         limitConfig: null,
       } as never);
     }
@@ -1418,6 +1422,16 @@ describe('StreamHttpDataService', () => {
           }),
         })
       );
+    });
+
+    it('does not collapse an Excel read of a report whose aggregation the analyst removed', async () => {
+      collapsibleReportRead(DataDestinationType.EXCEL, ['sessions']);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect(readPlan).toMatchObject({ aggregationConfig: undefined });
+      expect(readPlan).not.toHaveProperty('distinct');
     });
 
     it('records nothing auto-applied for a read that did not collapse', async () => {

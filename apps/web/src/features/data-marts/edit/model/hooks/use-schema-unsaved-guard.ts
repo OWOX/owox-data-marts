@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBlocker } from 'react-router';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 
-export type SchemaGuardIntent = 'ai' | 'refresh' | 'publish' | 'definition' | 'navigation';
+export type SchemaGuardIntent =
+  | 'ai'
+  | 'refresh'
+  | 'publish'
+  | 'definition'
+  | 'navigation'
+  | 'preview';
 
 export type ResolvedSchema = DataMartSchema | null | undefined;
 

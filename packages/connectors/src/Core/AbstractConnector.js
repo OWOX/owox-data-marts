@@ -253,6 +253,10 @@ var AbstractConnector = class AbstractConnector {
         0,
         Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
       );
+
+      if( daysToFetch > MAX_MANUAL_BACKFILL_DAYS ) {
+        throw new Error(`Manual backfill is limited to ${MAX_MANUAL_BACKFILL_DAYS} days per run (requested ${daysToFetch} days)`);
+      }
       
       return [startDate, daysToFetch];
     }

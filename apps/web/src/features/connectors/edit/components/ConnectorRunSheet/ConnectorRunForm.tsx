@@ -1,6 +1,7 @@
+import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { useForm } from 'react-hook-form';
+import { useForm, type Validate } from 'react-hook-form';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
@@ -24,11 +25,78 @@ import type { ConnectorRunFormData } from '../../../shared/model/types/connector
 import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
+import {
+  MAX_MANUAL_BACKFILL_DAYS,
+  countBackfillDays,
+  toUtcDayMs,
+} from '../../../shared/constants/manual-backfill';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
   onClose?: () => void;
   onSubmit?: (data: ConnectorRunFormData) => void;
+}
+
+type BackfillPeriod =
+  | { status: 'incomplete' }
+  | { status: 'reversed' }
+  | { status: 'startInFuture' }
+  | { status: 'tooLong'; days: number }
+  | { status: 'ok'; days: number };
+
+/** Single source of truth for the period: the notice and the field validators both read it. */
+function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string): BackfillPeriod {
+  if (toUtcDayMs(startDate) === undefined || toUtcDayMs(endDate) === undefined) {
+    return { status: 'incomplete' };
+  }
+  if ((startDate as string) > today) return { status: 'startInFuture' };
+  const days = countBackfillDays(startDate, endDate);
+  if (days === 0) return { status: 'reversed' };
+  return days > MAX_MANUAL_BACKFILL_DAYS ? { status: 'tooLong', days } : { status: 'ok', days };
+}
+
+function getBackfillSummary(period: BackfillPeriod): string {
+  switch (period.status) {
+    case 'incomplete':
+      return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
+    case 'startInFuture':
+      return 'The start date cannot be in the future. Pick a date up to today.';
+    case 'reversed':
+      return 'The end date must be on or after the start date.';
+    case 'tooLong':
+      return `This period covers ${period.days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
+    case 'ok':
+      return `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}.`;
+  }
+}
+
+function getBackfillDateValidation(
+  fieldName: string,
+  today: string
+):
+  | Record<string, Validate<ConnectorRunFormData['data'][string], ConnectorRunFormData>>
+  | undefined {
+  if (fieldName === 'StartDate') {
+    return {
+      notInFuture: value =>
+        toUtcDayMs(value) === undefined ||
+        (value as string) <= today ||
+        'Start date cannot be in the future',
+    };
+  }
+  if (fieldName === 'EndDate') {
+    return {
+      period: (value, formValues) => {
+        const period = readBackfillPeriod(formValues.data.StartDate, value, today);
+        if (period.status === 'reversed') return 'End date must be on or after the start date';
+        if (period.status === 'tooLong') {
+          return `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`;
+        }
+        return true;
+      },
+    };
+  }
+  return undefined;
 }
 
 export function ConnectorRunForm({ configuration, onClose, onSubmit }: ConnectorRunFormProps) {
@@ -44,6 +112,15 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     useConnector();
 
   const { dataMart } = useDataMartContext();
+
+  const runType = form.watch('runType');
+  const today = new Date().toISOString().slice(0, 10);
+  // Both dates are required fields, so the notice reports only what the user actually picked.
+  const backfillPeriod = readBackfillPeriod(
+    form.watch('data.StartDate'),
+    form.watch('data.EndDate'),
+    today
+  );
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -95,6 +172,13 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     return <div>No connector specification found</div>;
   }
 
+  const backfillFields = connectorSpecification.filter(field =>
+    field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
+  );
+  // A connector with no date fields treats a backfill as a full refresh, so a period notice
+  // would describe a period it never reads.
+  const hasBackfillPeriod = backfillFields.some(field => field.name === 'StartDate');
+
   return (
     <Form {...form}>
       <AppForm id={formId} noValidate onSubmit={e => void form.handleSubmit(handleSubmit)(e)}>
@@ -120,7 +204,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         orientation='horizontal'
                       />
                       <FormDescription>
-                        {form.watch('runType') === RunType.MANUAL_BACKFILL
+                        {runType === RunType.MANUAL_BACKFILL
                           ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
                           : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                       </FormDescription>
@@ -130,50 +214,62 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
               )}
             />
 
-            {form.watch('runType') === RunType.INCREMENTAL && (
+            {runType === RunType.INCREMENTAL && (
               <ConnectorStateSection
                 configuration={configuration}
                 connectorState={dataMart?.connectorState ?? null}
               />
             )}
           </FormSection>
-          {form.watch('runType') === RunType.MANUAL_BACKFILL && (
+          {runType === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>
-              {connectorSpecification
-                .filter(field =>
-                  field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
-                )
-                .map(connectorField => (
-                  <FormField
-                    key={connectorField.name}
-                    control={form.control}
-                    name={`data.${connectorField.name}`}
-                    render={() => (
-                      <FormItem>
-                        <FormLabel tooltip={connectorField.description}>
-                          {connectorField.title ?? connectorField.name}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            id={connectorField.name}
-                            placeholder={connectorField.description}
-                            type={getInputType(connectorField.requiredType)}
-                            defaultValue={
-                              typeof connectorField.default === 'string' ||
-                              typeof connectorField.default === 'number'
-                                ? connectorField.default.toString()
-                                : undefined
-                            }
-                            {...form.register(`data.${connectorField.name}`, {
-                              required: true,
-                            })}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
+              {backfillFields.map(connectorField => (
+                <FormField
+                  key={connectorField.name}
+                  control={form.control}
+                  name={`data.${connectorField.name}`}
+                  render={() => (
+                    <FormItem>
+                      <FormLabel tooltip={connectorField.description}>
+                        {connectorField.title ?? connectorField.name}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={connectorField.description}
+                          type={getInputType(connectorField.requiredType)}
+                          max={
+                            connectorField.requiredType === RequiredType.DATE ? today : undefined
+                          }
+                          defaultValue={
+                            typeof connectorField.default === 'string' ||
+                            typeof connectorField.default === 'number'
+                              ? connectorField.default.toString()
+                              : undefined
+                          }
+                          {...form.register(`data.${connectorField.name}`, {
+                            required: true,
+                            validate: getBackfillDateValidation(connectorField.name, today),
+                          })}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
+              {hasBackfillPeriod && (
+                <Alert
+                  role='status'
+                  variant={
+                    backfillPeriod.status === 'ok' || backfillPeriod.status === 'incomplete'
+                      ? 'default'
+                      : 'destructive'
+                  }
+                  data-testid='backfill-limit-notice'
+                >
+                  <AlertDescription>{getBackfillSummary(backfillPeriod)}</AlertDescription>
+                </Alert>
+              )}
             </FormSection>
           )}
         </FormLayout>

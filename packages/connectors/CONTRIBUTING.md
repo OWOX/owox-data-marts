@@ -65,10 +65,25 @@ All connectors must extend `AbstractConnector` (in `src/Core/AbstractConnector.j
 
 #### Saving incremental progress
 
-For time series nodes, loop dates on the outside and accounts on the inside. Call
+For time series nodes, loop dates on the outside and accounts and nodes on the inside. Call
 `updateLastRequstedDate(date)` once a date is stored for every account and node, never
 once at the end of the run. A run that saves its progress only at the end loses all of
 it when the process is interrupted, and the retry sweep then restarts the whole range.
+
+That call is also the manual backfill resume checkpoint: the backend records it against the
+run, and the automatic retry of an interrupted backfill restarts from the day after it. Call
+it unconditionally only when both of these hold:
+
+- the date loop encloses every node and every account, so a completed date really is
+  complete for all of them;
+- nothing between the fetch and the call swallows an error, so a date that imported
+  nothing stops the run instead of reaching the checkpoint.
+
+When either fails, keep the call behind `if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL)`
+so a backfill records nothing and its retry reloads the whole period. `Sources/Shopify` breaks the
+first rule, because its date loop sits inside the node loop; `Sources/TikTokAds` breaks the second,
+because it collects per-day failures and reports them only after the whole range. Both keep the
+guard, and both pin it with a `perDayCheckpoint` test.
 
 ### Source
 

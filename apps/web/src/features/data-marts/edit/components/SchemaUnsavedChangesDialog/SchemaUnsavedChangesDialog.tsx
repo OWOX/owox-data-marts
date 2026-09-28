@@ -31,6 +31,8 @@ const DESCRIPTIONS: Record<SchemaGuardIntent, string> = {
     'Saving the input source refreshes the schema. Save to keep your schema changes, or discard to lose them.',
   navigation:
     'You have unsaved schema changes. Save to keep them, or discard them to leave this page.',
+  preview:
+    'Preview reads data using the saved schema. Save to include your changes, or discard to ignore them.',
 };
 
 export function SchemaUnsavedChangesDialog({

@@ -44,6 +44,8 @@ export class MigratePreJoinFilterToUnifiedColumn1779200000000 implements Migrati
     const rows = await queryRunner.manager
       .getRepository(Report)
       .createQueryBuilder('r')
+      // Report.deletedAt is introduced by a later migration.
+      .withDeleted()
       .select('r.id', 'id')
       .addSelect('r.filterConfig', 'filterConfig')
       .where('r.filterConfig IS NOT NULL')

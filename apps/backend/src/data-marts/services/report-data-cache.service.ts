@@ -3,6 +3,7 @@ import { castError } from '@owox/internal-helpers';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { FindOptionsWhere, Repository, MoreThan, LessThan } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -106,21 +107,21 @@ export class ReportDataCacheService {
     report: Report,
     accessor: BlendableSchemaAccessor
   ): Promise<CachedReaderData> {
-    const reportId = report.id;
+    const operationKey = `${report.id}:${report.version}`;
 
-    const existingOperation = this.pendingOperations.get(reportId);
+    const existingOperation = this.pendingOperations.get(operationKey);
     if (existingOperation) {
-      this.logger.debug(`Waiting for existing operation for report ${reportId}`);
+      this.logger.debug(`Waiting for existing operation for report ${report.id}`);
       return existingOperation;
     }
 
     const operationPromise = this.executeGetOrCreateOperation(report, accessor);
-    this.pendingOperations.set(reportId, operationPromise);
+    this.pendingOperations.set(operationKey, operationPromise);
 
     try {
       return await operationPromise;
     } finally {
-      this.pendingOperations.delete(reportId);
+      this.pendingOperations.delete(operationKey);
     }
   }
 
@@ -210,7 +211,7 @@ export class ReportDataCacheService {
     const cacheLifetime = this.getCacheLifetime(report);
     const expiresAt = new Date(Date.now() + cacheLifetime * 1000);
 
-    await this.cacheRepository.save({
+    await this.saveCacheIfReportUnchanged(report, {
       report,
       dataDescription,
       readerState,
@@ -226,6 +227,27 @@ export class ReportDataCacheService {
     };
   }
 
+  @Transactional()
+  private async saveCacheIfReportUnchanged(
+    report: Report,
+    cache: Partial<ReportDataCache>
+  ): Promise<void> {
+    const manager = this.cacheRepository.manager;
+    const activeReport = await manager.findOne(Report, {
+      where: { id: report.id, version: report.version },
+      select: { id: true },
+      loadEagerRelations: false,
+      // Order cache publication against softDelete, including across backend instances.
+      // SQLite transactions are serialized by the application's data source wrapper.
+      ...(manager.connection.options.type === 'mysql'
+        ? { lock: { mode: 'pessimistic_read' as const } }
+        : {}),
+    });
+    if (activeReport) {
+      await this.cacheRepository.save(cache);
+    }
+  }
+
   private static readonly CACHE_ENTRY_RELATIONS = [
     'report',
     'report.dataMart',
@@ -239,6 +261,7 @@ export class ReportDataCacheService {
 
     const expiredEntries = await this.cacheRepository.find({
       where,
+      withDeleted: true,
       relations: ReportDataCacheService.CACHE_ENTRY_RELATIONS,
     });
 
@@ -249,7 +272,7 @@ export class ReportDataCacheService {
     this.logger.log(`Found ${expiredEntries.length} expired cache entries to cleanup`);
     await this.finalizeEntriesInParallel(expiredEntries);
 
-    const result = await this.cacheRepository.delete(where);
+    const result = await this.cacheRepository.delete(expiredEntries.map(entry => entry.id));
     this.logger.log(`Cleaned up ${result.affected || 0} expired cache entries`);
   }
 
@@ -332,6 +355,9 @@ export class ReportDataCacheService {
 
   async invalidateByReportId(reportId: string): Promise<void> {
     await this.invalidateWhere({ report: { id: reportId } }, `report ${reportId}`);
+    // A surrounding MySQL transaction may have an older read snapshot than the deletion lock.
+    // UPDATE is a current read: expire unseen entries, keeping their state for background finalization.
+    await this.cacheRepository.update({ report: { id: reportId } }, { expiresAt: new Date(0) });
   }
 
   async invalidateByDataMartId(dataMartId: string): Promise<void> {
@@ -347,6 +373,7 @@ export class ReportDataCacheService {
   ): Promise<void> {
     const entries = await this.cacheRepository.find({
       where,
+      withDeleted: true,
       relations: ReportDataCacheService.CACHE_ENTRY_RELATIONS,
     });
 
@@ -354,7 +381,7 @@ export class ReportDataCacheService {
 
     await this.finalizeEntriesInParallel(entries);
 
-    const result = await this.cacheRepository.delete(where);
+    const result = await this.cacheRepository.delete(entries.map(entry => entry.id));
     if (result.affected && result.affected > 0) {
       this.logger.log(`Invalidated ${result.affected} cache entries for ${contextLabel}`);
     }

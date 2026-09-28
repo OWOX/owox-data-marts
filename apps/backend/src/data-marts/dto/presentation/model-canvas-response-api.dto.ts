@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartDataLastUpdatedSummaryApiDto } from './data-mart-data-last-updated-response-api.dto';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 
 export class ModelCanvasNodeApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -15,8 +16,21 @@ export class ModelCanvasNodeApiDto {
   @ApiProperty({ type: String, example: 'All orders enriched with customer data', nullable: true })
   description: string | null;
 
+  @ApiProperty({
+    enum: DataMartIcon,
+    nullable: true,
+    description: 'User-picked icon key; null means the default icon.',
+  })
+  icon: DataMartIcon | null;
+
   @ApiProperty({ example: 12, description: 'Number of fields in the output schema' })
   fieldCount: number;
+
+  @ApiProperty({ example: 2, description: 'Number of scheduled triggers of the Data Mart' })
+  triggersCount: number;
+
+  @ApiProperty({ example: 3, description: 'Number of reports built on the Data Mart' })
+  reportsCount: number;
 
   @ApiProperty({
     type: DataMartDataLastUpdatedSummaryApiDto,

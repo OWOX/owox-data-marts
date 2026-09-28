@@ -53,6 +53,13 @@ export interface EditableTextProps {
   isBold?: boolean;
   /** Additional CSS classes for the trigger element */
   className?: string;
+  /**
+   * Additional CSS classes for the editor popover, e.g. a fixed width. The popover is otherwise
+   * sized by its content, which for the built-in textarea is a bare `<textarea>`'s intrinsic
+   * width — about twenty characters — so a consumer editing prose gets to say how wide the
+   * editor should open.
+   */
+  popoverClassName?: string;
   /** Custom save button text */
   saveButtonText?: string;
   /** Custom cancel button text */
@@ -122,6 +129,7 @@ export function EditableText({
   minRows = 1,
   isBold = false,
   className,
+  popoverClassName,
   saveButtonText = 'Apply',
   cancelButtonText = 'Cancel',
   trailingContent,
@@ -242,7 +250,12 @@ export function EditableText({
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className='w-auto max-w-[600px] min-w-[300px] p-2'
+        className={cn(
+          // Capped by the space Radix reports beside the trigger, so a consumer's fixed width is
+          // honoured on a desktop and shrinks on a phone instead of running off its edge.
+          'w-auto max-w-[min(600px,var(--radix-popover-content-available-width))] min-w-[300px] p-2',
+          popoverClassName
+        )}
         align='start'
         // The dialog's accessible name. Only when there IS a title — pointing at an absent element
         // would leave it worse named than the default.

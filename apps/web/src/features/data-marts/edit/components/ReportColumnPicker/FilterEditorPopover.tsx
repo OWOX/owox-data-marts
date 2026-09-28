@@ -25,6 +25,8 @@ export interface FilterEditorPopoverProps {
   onRemoveExistingAt?: (index: number) => void;
   /** Delete the single filter being edited; shown as a header trash action (edit mode only). */
   onDelete?: () => void;
+  /** Short tag next to the field name, e.g. the SQL clause the filter lands in. */
+  headerBadge?: string;
 }
 
 export function FilterEditorPopover(props: FilterEditorPopoverProps) {
@@ -76,7 +78,14 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
       <PopoverContent className='w-72 space-y-3'>
         <div className='flex items-start justify-between gap-2'>
           <div className='min-w-0'>
-            <div className='text-sm font-medium'>{props.displayLabel ?? props.column}</div>
+            <div className='flex items-center gap-2 text-sm font-medium'>
+              <span className='truncate'>{props.displayLabel ?? props.column}</span>
+              {props.headerBadge && (
+                <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] tracking-wide'>
+                  {props.headerBadge}
+                </span>
+              )}
+            </div>
             {props.dataMartName && (
               <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
             )}

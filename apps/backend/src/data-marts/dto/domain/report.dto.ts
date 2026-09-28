@@ -8,6 +8,7 @@ import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
 import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
+import { AutoAggregationOptOut } from '../schemas/auto-aggregation-opt-out.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportDto {
@@ -34,6 +35,7 @@ export class ReportDto {
     public readonly canEditConfig: boolean = false,
     public readonly aggregationConfig?: AggregationConfig | null,
     public readonly dateTruncConfig?: DateTruncConfig | null,
-    public readonly uniqueCountConfig?: UniqueCountConfig
+    public readonly uniqueCountConfig?: UniqueCountConfig,
+    public readonly autoAggregationOptOut?: AutoAggregationOptOut
   ) {}
 }

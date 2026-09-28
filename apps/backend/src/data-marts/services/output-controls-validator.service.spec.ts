@@ -790,6 +790,8 @@ describe('OutputControlsValidatorService', () => {
           postJoinAggregations?: ReportAggregateFunction[];
         }[];
         availableSources?: { aliasPath: string; isIncluded?: boolean }[];
+        /** Names the real service reports as hidden rather than lost — see `hiddenFieldNames`. */
+        hiddenFieldNames?: string[];
       } = {}
     ) => ({
       computeBlendableSchema: jest.fn().mockResolvedValue({
@@ -797,6 +799,7 @@ describe('OutputControlsValidatorService', () => {
         blendedFields: extras.blendedFields ?? [],
         availableSources: extras.availableSources ?? [],
         mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
+        hiddenFieldNames: extras.hiddenFieldNames ?? [],
       }),
     });
 
@@ -1032,6 +1035,91 @@ describe('OutputControlsValidatorService', () => {
       }
 
       expectDisconnectedColumnsError(caught, ['legacy']);
+    });
+
+    it('calls a rule on a HIDDEN column hidden, and offers the fix that applies to it', async () => {
+      // Same shape as the test above, one fact apart: the schema service says this name was
+      // hidden rather than lost. Without it the analyst is sent to restore a schema they broke
+      // on purpose — and every other test here mocks the list empty, so this is the only place
+      // the hidden branch of the error runs at all.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'date', type: 'DATE', status: 'CONNECTED' }],
+        { hiddenFieldNames: ['internal_cost'] }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: [{ column: 'internal_cost', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      const error = caught as BusinessViolationException;
+      expect(error).toBeInstanceOf(BusinessViolationException);
+      expect(error.message).toContain('Hidden columns: "internal_cost".');
+      expect(error.message).toContain('or ask your analyst to show them in reports again.');
+      expect(error.message).not.toContain('Disconnected columns');
+      expect(error.errorDetails).toEqual({
+        unknownColumns: ['internal_cost'],
+        hiddenColumns: ['internal_cost'],
+        dataMartId: 'dm-1',
+      });
+    });
+
+    it('keeps calling a genuinely missing column disconnected while another is merely hidden', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'date', type: 'DATE', status: 'CONNECTED' }],
+        { hiddenFieldNames: ['internal_cost'] }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: [
+            { column: 'internal_cost', direction: 'asc' },
+            { column: 'old_column', direction: 'asc' },
+          ],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      const error = caught as BusinessViolationException;
+      expect(error.message).toContain('Disconnected columns: "old_column".');
+      expect(error.message).toContain('Hidden columns: "internal_cost".');
+      // One of them really is gone, so this is the advice that has to survive.
+      expect(error.message).toContain('or contact your analyst to restore the schema.');
+      expect(error.errorDetails).toEqual({
+        unknownColumns: ['internal_cost', 'old_column'],
+        hiddenColumns: ['internal_cost'],
+        dataMartId: 'dm-1',
+      });
     });
 
     it('lists hidden blended fields used by post-join filters in the disconnected-columns error', async () => {

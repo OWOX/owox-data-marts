@@ -22,11 +22,14 @@ import type {
   AiHelperTriggerResponseDto,
   ValidateFormulaRequestDto,
   ValidateFormulaResponseDto,
+  PreviewDataMartRequestDto,
+  PreviewDataMartResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
+import type { DataMartIconKey } from '../enums/data-mart-icon.enum';
 
 /**
  * Data Mart Service
@@ -115,6 +118,16 @@ export class DataMartService extends ApiService {
   }
 
   /**
+   * Update a data mart icon
+   * @param id Data mart ID
+   * @param icon Icon key, or null to reset to the default icon
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartIcon(id: string, icon: DataMartIconKey | null): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/icon`, { icon });
+  }
+
+  /**
    * Update a data mart title
    * @param id Data mart ID
    * @param title New title for the data mart
@@ -156,6 +169,24 @@ export class DataMartService extends ApiService {
    */
   async runDataMart(id: string, payload: Record<string, unknown>): Promise<{ runId: string }> {
     return this.post<{ runId: string }>(`/${id}/manual-run`, { payload });
+  }
+
+  /**
+   * Read a sample of rows for the Data Setup preview. Every call queries the warehouse; it is not a
+   * run, so nothing is recorded in Run History. Aborting `signal` cancels the warehouse query.
+   */
+  async previewDataMart(
+    id: string,
+    body: PreviewDataMartRequestDto,
+    signal?: AbortSignal
+  ): Promise<PreviewDataMartResponseDto> {
+    return this.post<PreviewDataMartResponseDto>(`/${id}/preview`, body, {
+      // Stays above the backend's 150 s preview deadline, so its 504 reaches the panel.
+      timeout: 180000,
+      signal,
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**

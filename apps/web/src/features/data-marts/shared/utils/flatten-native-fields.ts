@@ -5,7 +5,9 @@ import {
 } from '../../edit/components/ReportColumnPicker/output-controls-operators';
 
 // Mirrors the backend collectSchemaFieldPaths walker: hidden and disconnected nodes (with their
-// subtrees) are unavailable for reporting and surface in the Disconnected columns block instead.
+// subtrees) are unavailable for reporting. A report that still selects one surfaces it above the
+// list — under Hidden columns or Disconnected columns, told apart by `hiddenFieldNames`, because
+// only one of the two means the schema is broken.
 export function flattenNativeFields(fields: readonly NativeField[], prefix = ''): NativeField[] {
   const result: NativeField[] = [];
   for (const field of fields) {

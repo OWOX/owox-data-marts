@@ -1235,4 +1235,267 @@ describe('ConnectorExecutorService', () => {
     );
     expect(JSON.stringify(persistedRunUpdates)).not.toContain('secret-token');
   });
+
+  describe('manual backfill progress', () => {
+    const BACKFILL = {
+      runType: 'MANUAL_BACKFILL',
+      data: { StartDate: '2026-08-01', EndDate: '2026-08-20' },
+    };
+
+    const emitCompletedDay = (emitMessage: (message: unknown) => void, date: string) =>
+      emitMessage({
+        type: ConnectorMessageType.REQUESTED_DATE,
+        at: new Date().toISOString(),
+        date,
+        toFormattedString: () => `[REQUESTED_DATE] ${date}`,
+      });
+
+    const progressUpdates = (dataMartRunRepository: Repository<DataMartRun>) =>
+      (dataMartRunRepository.update as jest.Mock).mock.calls.filter(
+        ([, update]) => update.additionalParams !== undefined
+      );
+
+    const twoConfigDataMart = () => {
+      const dataMart = createDataMart();
+      const definition = dataMart.definition as {
+        connector: { source: { configuration: Array<Record<string, unknown>> } };
+      };
+      definition.connector.source.configuration = [
+        { _id: 'cfg-1', param: 'a' },
+        { _id: 'cfg-2', param: 'b' },
+      ];
+      return dataMart;
+    };
+
+    it('records a completed day against the run instead of the incremental cursor', async () => {
+      // The cursor belongs to incremental loading. A backfill reloads a past period, so
+      // moving it would make the next scheduled run skip everything imported since.
+      const { service, dataMartRunRepository, connectorStateService, processSpawner, emitMessage } =
+        createService();
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-11');
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+
+      expect(connectorStateService.updateState).not.toHaveBeenCalled();
+      expect(progressUpdates(dataMartRunRepository)).toEqual([
+        [{ id: 'run-1' }, { additionalParams: { backfillProgress: { 'cfg-1': '2026-08-11' } } }],
+      ]);
+    });
+
+    it('still moves the incremental cursor for an incremental run', async () => {
+      const { service, dataMartRunRepository, connectorStateService, processSpawner, emitMessage } =
+        createService();
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-11');
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), { runType: 'INCREMENTAL' });
+
+      expect(connectorStateService.updateState).toHaveBeenCalledWith('dm-1', 'cfg-1', {
+        state: { date: '2026-08-11' },
+        at: expect.any(String),
+      });
+      expect(progressUpdates(dataMartRunRepository)).toEqual([]);
+    });
+
+    it('keeps every completed day, so the run reflects the furthest one reached', async () => {
+      const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-01');
+        emitCompletedDay(emitMessage, '2026-08-02');
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+
+      const updates = progressUpdates(dataMartRunRepository);
+      expect(updates.at(-1)?.[1].additionalParams).toEqual({
+        backfillProgress: { 'cfg-1': '2026-08-02' },
+      });
+    });
+
+    it('resumes the retry on the day after the last one a previous attempt loaded', async () => {
+      const { service, sourceConfigService, processSpawner, emitMessage } = createService();
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-13');
+        return Promise.resolve();
+      });
+      // The interrupted-run sweep replays additionalParams, so the payload arrives nested.
+      const run = createRun({
+        additionalParams: { payload: BACKFILL, backfillProgress: { 'cfg-1': '2026-08-12' } },
+      });
+
+      await service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      expect(sourceConfigService.buildRunConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: '2026-08-13', EndDate: '2026-08-20' },
+        }),
+        null
+      );
+    });
+
+    it('explains the shortened period in run history', async () => {
+      const { service, dataMartRunRepository, processSpawner } = createService();
+      (processSpawner.spawnConnector as jest.Mock).mockResolvedValue(undefined);
+      const run = createRun({
+        additionalParams: { payload: BACKFILL, backfillProgress: { 'cfg-1': '2026-08-12' } },
+      });
+
+      await service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      const persisted = (dataMartRunRepository.update as jest.Mock).mock.calls
+        .map(([, update]) => JSON.stringify(update.logs ?? []))
+        .join();
+      expect(persisted).toContain('Resuming manual backfill from 2026-08-13');
+      expect(persisted).toContain('days through 2026-08-12 were loaded by a previous attempt');
+    });
+
+    it('re-runs the final day when a previous attempt reached the end of the period', async () => {
+      // Clamped rather than skipped: re-importing one stored day is idempotent, and the
+      // connector still has to confirm its own field and catalog work.
+      const { service, sourceConfigService, processSpawner } = createService();
+      (processSpawner.spawnConnector as jest.Mock).mockResolvedValue(undefined);
+      const run = createRun({
+        additionalParams: { payload: BACKFILL, backfillProgress: { 'cfg-1': '2026-08-20' } },
+      });
+
+      await service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      expect(processSpawner.spawnConnector).toHaveBeenCalled();
+      expect(sourceConfigService.buildRunConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { StartDate: '2026-08-20', EndDate: '2026-08-20' },
+        }),
+        null
+      );
+    });
+
+    it('keeps the progress of a configuration that is not running in this attempt', async () => {
+      // cfg-1 finished on an earlier attempt; cfg-2 checkpointing now must not erase it.
+      const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+      const dataMart = twoConfigDataMart();
+      let configIndex = 0;
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        if (configIndex++ === 1) emitCompletedDay(emitMessage, '2026-08-05');
+        return Promise.resolve();
+      });
+      const run = createRun({
+        additionalParams: { payload: BACKFILL, backfillProgress: { 'cfg-1': '2026-08-20' } },
+      });
+
+      await service.executeInBackground(
+        dataMart,
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      const updates = progressUpdates(dataMartRunRepository);
+      expect(updates.at(-1)?.[1].additionalParams).toEqual({
+        payload: BACKFILL,
+        backfillProgress: { 'cfg-1': '2026-08-20', 'cfg-2': '2026-08-05' },
+      });
+    });
+
+    it('waits for an in-flight checkpoint before writing the terminal status', async () => {
+      // A retry starts from the persisted checkpoint, so a status written first would strand
+      // the days this attempt actually loaded. Comparing call order alone cannot show that:
+      // a checkpoint that resolves immediately lands first whether or not it is awaited, so
+      // the write is held open here and the run must not reach a terminal status until it
+      // completes. Deleting the `await` in the configuration's `finally` fails this test.
+      const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+
+      let releaseCheckpoint: () => void = () => undefined;
+      const checkpointWritten = new Promise<void>(resolve => {
+        releaseCheckpoint = resolve;
+      });
+
+      const terminalStatuses = [DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED];
+      const terminalWrites = () =>
+        (dataMartRunRepository.update as jest.Mock).mock.calls.filter(([, update]) =>
+          terminalStatuses.includes(update.status)
+        );
+
+      (dataMartRunRepository.update as jest.Mock).mockImplementation(async (_criteria, update) => {
+        if (update.additionalParams !== undefined) {
+          await checkpointWritten;
+        }
+        return { affected: 1 };
+      });
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-11');
+        return Promise.resolve();
+      });
+
+      const execution = service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+      // Let every microtask that does not depend on the checkpoint settle.
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(terminalWrites()).toHaveLength(0);
+
+      releaseCheckpoint();
+      await execution;
+
+      expect(terminalWrites()).not.toHaveLength(0);
+    });
+
+    it('ignores a completed day the connector reported in an unusable form', async () => {
+      const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, 'the day before yesterday');
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+
+      expect(progressUpdates(dataMartRunRepository)).toEqual([]);
+    });
+
+    it('does not fail the run when a checkpoint cannot be saved', async () => {
+      // Losing a checkpoint only costs the retry an idempotent re-import.
+      const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+      (dataMartRunRepository.update as jest.Mock).mockImplementation((_criteria, update) =>
+        update.additionalParams !== undefined
+          ? Promise.reject(new Error('database is gone'))
+          : Promise.resolve({ affected: 1 })
+      );
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitCompletedDay(emitMessage, '2026-08-11');
+        emitSuccessMessageFor(emitMessage);
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(createDataMart(), createRun(), BACKFILL);
+
+      const statuses = (dataMartRunRepository.update as jest.Mock).mock.calls.map(
+        ([, update]) => update.status
+      );
+      expect(statuses).toContain(DataMartRunStatus.SUCCESS);
+    });
+  });
 });
+
+const emitSuccessMessageFor = (emitMessage: (message: unknown) => void) =>
+  emitMessage({
+    type: ConnectorMessageType.STATUS,
+    status: 3,
+    at: new Date().toISOString(),
+    toFormattedString: () => 'STATUS: IMPORT_DONE',
+  });

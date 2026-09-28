@@ -111,7 +111,9 @@ Don’t forget to:
 - **Publish** the data mart
 - **Run** the Data Mart manually for the first time
 
-![Output Schema Auto-Generated](../../res/screens/Manual-run.png)
+The **Manual Run** button sits in the header of the **Input Source** card on the **Data Setup** tab. You can start a run while the card is collapsed.
+
+![The Data Setup tab of a published connector Data Mart, with the Manual Run button in the Input Source card header](../../res/screens/Manual-run.png)
 
 After the first run, you’ll see that the **Output schema was generated automatically**.
 
@@ -131,6 +133,20 @@ Next, you can add **business-friendly names** to improve usability later in BI t
 ![Create Data Mart 8](../../res/screens/Connector-Based-DataMart-Description.png)
 
 Also you can check the **Run History** tab for logs and results
+
+### Backfill a custom period
+
+Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date range from the source.
+
+One backfill run covers at most 31 days, so a full calendar month fits in one run.
+The form shows how many days your period covers and rejects longer periods before the run starts.
+To reload a longer history, run several backfills with consecutive periods, one after another.
+
+If a deploy or restart interrupts a backfill, the automatic retry resumes it.
+That retry starts from the day after the last one it fully loaded.
+It does not reload the days it already imported.
+Starting a backfill yourself always loads the whole period you choose.
+Shopify and TikTok Ads always reload the whole period.
 
 ## Step 6: Set Triggers (Optional but Recommended)
 

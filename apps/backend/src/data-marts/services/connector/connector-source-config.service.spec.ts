@@ -129,5 +129,22 @@ describe('ConnectorSourceConfigService', () => {
 
       expect(result.toObject().state).toEqual({ date: '2025-01-15' });
     });
+
+    it('treats a replayed run payload exactly like a first-attempt payload', () => {
+      // Both shapes reach the connector through one shared unwrap, so a run resumed by the
+      // interrupted-run sweep must configure itself the same way its first attempt did.
+      const { service } = createService();
+      const body = {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2025-01-01', EndDate: '2025-01-31' },
+      };
+
+      const replayed = service.buildRunConfig(
+        { payload: body, backfillProgress: { 'cfg-1': '2025-01-10' } },
+        undefined
+      );
+
+      expect(replayed.toObject()).toEqual(service.buildRunConfig(body, undefined).toObject());
+    });
   });
 });

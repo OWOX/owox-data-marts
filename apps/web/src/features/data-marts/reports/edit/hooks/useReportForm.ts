@@ -39,6 +39,7 @@ export const ReportEditFormSchema = z.object({
   aggregationConfig: z.array(AggregationRuleSchema).nullable(),
   dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
   uniqueCountConfig: z.array(z.string()),
+  autoAggregationOptOut: z.array(z.string()).optional(),
 });
 
 export type ReportEditFormValues = z.infer<typeof ReportEditFormSchema>;
@@ -99,6 +100,7 @@ export function useReportForm({
       aggregationConfig: initialReport?.aggregationConfig ?? null,
       dateTruncConfig: initialReport?.dateTruncConfig ?? null,
       uniqueCountConfig: initialReport?.uniqueCountConfig ?? [],
+      autoAggregationOptOut: initialReport?.autoAggregationOptOut ?? [],
     },
     mode: 'onTouched',
   });
@@ -160,6 +162,7 @@ export function useReportForm({
             aggregationConfig: data.aggregationConfig,
             dateTruncConfig: data.dateTruncConfig,
             uniqueCountConfig: data.uniqueCountConfig,
+            autoAggregationOptOut: data.autoAggregationOptOut,
           });
         } else {
           if (!initialReport) {
@@ -180,6 +183,7 @@ export function useReportForm({
             aggregationConfig: data.aggregationConfig,
             dateTruncConfig: data.dateTruncConfig,
             uniqueCountConfig: data.uniqueCountConfig,
+            autoAggregationOptOut: data.autoAggregationOptOut,
           });
         }
 

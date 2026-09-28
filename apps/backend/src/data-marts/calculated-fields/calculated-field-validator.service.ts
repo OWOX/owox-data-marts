@@ -13,6 +13,7 @@ import {
   buildJoinedReferenceIndex,
   CalculatedSchemaField,
   calculatedFieldsOf,
+  formulaDependencyGraph,
   isCalculatedField,
   isRowLevelCalculatedField,
   type JoinedReferenceIndex,
@@ -24,10 +25,10 @@ import {
   FormulaFunctionDialect,
 } from './formula-function-dialect';
 import { FormulaViolation, FormulaViolations } from './formula-violations';
+import { buildJoinGrainSources, checkJoinGrain } from './join-grain';
 import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
 import { scanSql } from './sql-token-scanner';
 import {
-  FormulaReference,
   FormulaReferenceSyntaxError,
   renderFormula,
   serializeFormulaReference,
@@ -37,7 +38,7 @@ import {
   BlendableSchemaAccessor,
   BlendableSchemaService,
 } from '../services/blendable-schema.service';
-import { hasLiveJoinedReference, liveFormulaReferences } from './formula-live-reference';
+import { hasLiveJoinedReference } from './formula-live-reference';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import type { TableReferenceMemo } from '../services/data-mart-table-reference.service';
 import { buildBlendedFieldUnifiedName } from '../services/blended-field-name';
@@ -160,40 +161,6 @@ function dryRunBatches(
   return [aggregate, rowLevel];
 }
 
-/**
- * `field name → the calculated fields its formula reads`, for the schema's OWN calculated fields.
- *
- * One graph over the whole schema rather than a check inside the per-field loop: `a → b → a` is
- * invisible from either field alone, and both consumers need the whole shape.
- *
- * A joined reference never enters it — calling it a cycle would name the wrong problem — nor does a
- * commented-out one. An unparseable formula contributes no edges rather than throwing, so one bad
- * formula does not lose every other field's verdict.
- */
-function formulaDependencyGraph(
-  fields: readonly CalculatedSchemaField[],
-  byName: ReadonlyMap<string, DataMartSchemaField>
-): ReadonlyMap<string, readonly string[]> {
-  const dependenciesOf = (field: CalculatedSchemaField): string[] => {
-    let references: FormulaReference[];
-    try {
-      references = liveFormulaReferences(field.calculated.formula);
-    } catch {
-      return [];
-    }
-    const named = references
-      .filter(ref => !ref.path)
-      .map(ref => ref.field)
-      .filter(name => {
-        const found = byName.get(name);
-        return found !== undefined && isCalculatedField(found);
-      });
-    return [...new Set(named)];
-  };
-
-  return new Map(fields.map(field => [field.name, dependenciesOf(field)]));
-}
-
 /** Every loop the walk found, reported against each field on it. */
 function formulaCycleViolations(cycles: readonly string[][]): FormulaViolation[] {
   return cycles.flatMap(chain => {
@@ -255,10 +222,17 @@ export class CalculatedFieldValidatorService {
         .map(d => [d.name, d.field])
     );
 
-    const joinTreeRead = await this.resolveJoinedReferences(calculated, joinTree);
+    const joinTreeRead = await this.resolveJoinedReferences(calculated, joinTree, schema.fields);
     const joinedIndex = joinTreeRead?.index;
 
-    const walk = walkFormulaDependencies(formulaDependencyGraph(calculated, byName));
+    // The editor audience: the analyst is already looking at the join tree, and a reference to a
+    // source they cannot report on is refused with its alias named anyway.
+    const grainSources = buildJoinGrainSources(joinTreeRead?.schema.availableSources ?? [], {
+      kind: 'editor',
+    });
+
+    const dependencies = formulaDependencyGraph(calculated, byName);
+    const walk = walkFormulaDependencies(dependencies);
     const errors: FormulaViolation[] = formulaCycleViolations(walk.cycles);
     const warnings: FormulaViolation[] = [];
     const analysed: { field: CalculatedSchemaField; level: CalculatedFieldLevel }[] = [];
@@ -307,15 +281,26 @@ export class CalculatedFieldValidatorService {
         knownField,
       });
 
+      const fieldErrors: FormulaViolation[] = [
+        ...joinedViolations.values(),
+        ...[...mainUniqueCountRefs].map(ref =>
+          FormulaViolations.mainUniqueCountReference(field.name, ref)
+        ),
+        ...analysis.errors,
+      ];
+      // Warnings only: #6926 never refuses. A refused formula is never saved, so it never reaches
+      // the report, the editor's siblings or MCP — the analyst is simply blocked, and in the
+      // incident that created this rule they answered by deleting the fields outright.
+      const grain = checkJoinGrain({
+        fieldName: field.name,
+        aggregateCalls: analysis.aggregateCalls,
+        sources: grainSources,
+      });
+      const fieldWarnings: FormulaViolation[] = [...analysis.warnings, ...grain.warnings];
+
       analyses.set(field, {
-        errors: [
-          ...joinedViolations.values(),
-          ...[...mainUniqueCountRefs].map(ref =>
-            FormulaViolations.mainUniqueCountReference(field.name, ref)
-          ),
-          ...analysis.errors,
-        ],
-        warnings: analysis.warnings,
+        errors: fieldErrors,
+        warnings: fieldWarnings,
         level: analysis.level,
       });
       derivedLevels.set(field.name, analysis.level);
@@ -401,15 +386,19 @@ export class CalculatedFieldValidatorService {
    */
   private async resolveJoinedReferences(
     fields: readonly CalculatedSchemaField[],
-    joinTree?: JoinTreeContext
+    joinTree: JoinTreeContext | undefined,
+    schemaFields: DataMartSchema['fields']
   ): Promise<{ schema: BlendableSchemaDto; index: JoinedReferenceIndex } | undefined> {
     if (!joinTree?.accessor.userId) return undefined;
     if (!fields.some(f => hasLiveJoinedReference(f.calculated.formula))) return undefined;
 
+    // The schema being validated, not the stored one: a save that sets the primary key the last
+    // advisory asked for must be judged against it, or the same advisory comes straight back.
     const blendable = await this.blendableSchemaService.computeBlendableSchema(
       joinTree.dataMartId,
       joinTree.projectId,
-      joinTree.accessor
+      joinTree.accessor,
+      { unsavedMainSchemaFields: schemaFields }
     );
 
     return { schema: blendable, index: buildJoinedReferenceIndex(blendable) };

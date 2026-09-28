@@ -261,7 +261,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
       expect(res2.body.id).not.toBe(res1.body.id);
     });
 
-    it('duplicate Report creation - captures actual behavior', async () => {
+    it('rejects duplicate active Looker Studio reports with a business error', async () => {
       // Use shared dataMartId + dataDestinationId from beforeAll
       const payload = new ReportBuilder()
         .withDataMartId(dataMartId)
@@ -274,13 +274,10 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
 
       const res2 = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
-      // LOOKER_STUDIO reports use deterministic UUID v5 from @BeforeInsert hook.
-      // Same (dataMartId + dataDestinationId) = same UUID.
-      // KNOWN BUG: Should return 409 Conflict, currently returns 500
-      // (SQLITE_CONSTRAINT_PRIMARYKEY) because no upsert logic exists for
-      // duplicate reports with deterministic IDs.
-      // TODO: Fix backend to return 409, then change this assertion.
-      expect([409, 500]).toContain(res2.status);
+      expectErrorShape(res2, 400);
+      expect(res2.body.message).toBe(
+        'A Looker Studio report already exists for this data mart and destination.'
+      );
     });
 
     it('duplicate ScheduledTrigger creation succeeds with different IDs', async () => {

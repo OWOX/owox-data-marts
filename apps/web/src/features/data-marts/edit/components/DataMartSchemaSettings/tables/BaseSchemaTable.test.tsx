@@ -454,6 +454,150 @@ it('calls AI callbacks when header buttons are clicked', () => {
   expect(onGenerateDescriptions).toHaveBeenCalledTimes(1);
 });
 
+describe('BaseSchemaTable — row separators', () => {
+  // The cells are painted `bg-muted` in the dark theme, where the ordinary border colour is that
+  // very shade; the rows, the table's bottom edge and the footer divider therefore all draw with
+  // `border-border-on-muted`, the token that stays visible on a muted surface. That the token
+  // itself exists is border-on-muted-token.test.ts's job — jsdom compiles no CSS, so these
+  // assertions only pin the markup to it.
+  it('every field row, the table bottom edge and the footer divider use the muted-surface separator', () => {
+    const fields = [buildAthenaField({ name: 'clicks' }), buildAthenaField({ name: 'cost' })];
+    render(
+      <AthenaSchemaTable
+        fields={fields}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    const [, ...bodyRows] = screen.getAllByRole('row');
+    expect(bodyRows).toHaveLength(2);
+    for (const row of bodyRows) expect(row).toHaveClass('border-border-on-muted');
+
+    const body = document.querySelector('[data-slot="table-body"]');
+    expect(body).toHaveClass('border-border-on-muted');
+
+    const addCalculated = screen.getAllByRole('button', { name: 'Add calculated field' }).at(-1);
+    expect(addCalculated).toHaveClass('border-l', 'border-border-on-muted');
+  });
+
+  it('a field hidden from reports is still dimmed, alongside its separator', () => {
+    const fields = [
+      buildAthenaField({ name: 'clicks' }),
+      buildAthenaField({ name: 'internal_id', isHiddenForReporting: true }),
+    ];
+    render(
+      <AthenaSchemaTable
+        fields={fields}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    const [, visibleRow, hiddenRow] = screen.getAllByRole('row');
+    expect(hiddenRow).toHaveClass('opacity-70', 'border-border-on-muted');
+    expect(visibleRow).not.toHaveClass('opacity-70');
+  });
+});
+
+describe('BaseSchemaTable — Description column', () => {
+  const longDescription =
+    'Details regarding the origin of the session, such as the source, medium and campaign.\n' +
+    'STRING: channelGrouping, source, medium, campaign\nBOOLEAN: isLastClickDirect';
+
+  /**
+   * The Description cell showing `text`, and its trigger. Located by column rather than by
+   * accessible name: an empty description and an empty alias both read `-`, and a multi-line
+   * description's name is not its text.
+   */
+  function descriptionCell(text: string): { trigger: HTMLElement; cell: HTMLElement } {
+    const column = screen
+      .getAllByRole('columnheader')
+      .findIndex(header => header.textContent.includes('Description'));
+    if (column === -1) throw new Error('no Description column');
+    for (const row of screen.getAllByRole('row')) {
+      // A header row has no cells; `.at()` says so where an index would not.
+      const cell = within(row).queryAllByRole('cell').at(column);
+      if (!cell) continue;
+      const trigger = within(cell)
+        .queryAllByRole('button')
+        .find(candidate => candidate.textContent === text);
+      if (trigger) return { trigger, cell };
+    }
+    throw new Error(`no Description cell showing "${text}"`);
+  }
+
+  // The column decides wrapping, the cell decides its bounds — pinned together, per table,
+  // because either half alone regresses to a Description column that has to be scrolled sideways.
+  function expectWrappedDescription(text: string) {
+    const { trigger, cell } = descriptionCell(text);
+    expect(cell.style.whiteSpace).toBe('pre-wrap');
+    expect(trigger).toHaveClass('max-w-[520px]');
+    expect(trigger).toHaveClass('min-w-[240px]');
+    expect(trigger).toHaveClass('line-clamp-8');
+  }
+
+  it('wraps a description on a flat storage table, through the default cell', () => {
+    render(
+      <AthenaSchemaTable
+        fields={[buildAthenaField({ name: 'traffic_source', description: longDescription })]}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    expectWrappedDescription(longDescription);
+    // Every other column keeps its one-line layout.
+    const nameCell = screen.getByRole('button', { name: 'traffic_source' }).closest('td');
+    expect(nameCell?.style.whiteSpace).toBe('pre');
+  });
+
+  it('wraps a description on the BigQuery table, on a top-level and on a nested row', () => {
+    const nested: BigQuerySchemaField = {
+      name: 'deviceCategory',
+      type: BigQueryFieldType.STRING,
+      mode: BigQueryFieldMode.NULLABLE,
+      isPrimaryKey: false,
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      description: 'The category of the device the session was started from.',
+    };
+    const record: BigQuerySchemaField = {
+      name: 'device',
+      type: BigQueryFieldType.RECORD,
+      mode: BigQueryFieldMode.NULLABLE,
+      isPrimaryKey: false,
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      description: longDescription,
+      fields: [nested],
+    };
+    render(
+      <BigQuerySchemaTable
+        fields={[record]}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    expectWrappedDescription(longDescription);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested fields' }));
+    expectWrappedDescription(nested.description ?? '');
+  });
+
+  it('claims no width for a column of empty descriptions', () => {
+    render(
+      <AthenaSchemaTable
+        fields={[buildAthenaField({ name: 'clicks' })]}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    const { trigger } = descriptionCell('-');
+    expect(trigger).not.toHaveClass('min-w-[240px]');
+  });
+});
+
 describe('BaseSchemaTable — calculated field row', () => {
   function buildCalculatedField(overrides: Partial<AthenaSchemaField> = {}): AthenaSchemaField {
     return buildAthenaField({

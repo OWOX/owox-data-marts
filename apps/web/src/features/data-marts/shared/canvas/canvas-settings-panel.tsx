@@ -29,6 +29,14 @@ const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string
     label: 'Status',
     helper: 'The published/draft indicator',
   },
+  fieldAlias: {
+    label: 'Field aliases',
+    helper: 'The Output Schema alias in place of the field name (Detailed view)',
+  },
+  fieldDescription: {
+    label: 'Field descriptions',
+    helper: 'The Output Schema description under each field (Detailed view)',
+  },
 };
 
 export interface CanvasSettingsPanelProps {

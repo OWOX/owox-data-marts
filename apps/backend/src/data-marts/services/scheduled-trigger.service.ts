@@ -59,6 +59,20 @@ export class ScheduledTriggerService {
     return trigger;
   }
 
+  /** Scheduled triggers per Data Mart; Data Marts without triggers are absent from the map. */
+  async countByDataMartIds(dataMartIds: string[]): Promise<Map<string, number>> {
+    if (dataMartIds.length === 0) return new Map();
+    const rows = await this.triggerRepository
+      .createQueryBuilder('t')
+      .leftJoin('t.dataMart', 'dm')
+      .where('dm.id IN (:...ids)', { ids: dataMartIds })
+      .select('dm.id', 'dataMartId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('dm.id')
+      .getRawMany<{ dataMartId: string; count: string | number }>();
+    return new Map(rows.map(row => [row.dataMartId, Number(row.count)]));
+  }
+
   async getAllByDataMartIdAndProjectId(
     dataMartId: string,
     projectId: string

@@ -2,7 +2,8 @@ import { DataMartStatus } from '../../../shared/enums/data-mart-status.enum';
 import type { ModelCanvasEdge, ModelCanvasTopologyNode } from '../types';
 
 export type CanvasStatusFilter = 'published' | 'draft' | 'all';
-export type CanvasRelFilter = 'connected' | 'all';
+/** `connected` keeps only joined marts, `unconnected` only the ones nothing joins to. */
+export type CanvasRelFilter = 'connected' | 'unconnected' | 'all';
 
 export function filterCanvasData<TNode extends ModelCanvasTopologyNode>(
   data: { nodes: TNode[]; edges: ModelCanvasEdge[] },
@@ -21,12 +22,16 @@ export function filterCanvasData<TNode extends ModelCanvasTopologyNode>(
     edge => visibleIds.has(edge.sourceDataMartId) && visibleIds.has(edge.targetDataMartId)
   );
 
+  if (rel === 'all') return { nodes, edges };
+
+  // Connectivity is judged on the edges that survived the status filter, so a
+  // mart joined only to a hidden draft counts as unconnected in that view.
+  const connectedIds = new Set(
+    edges.flatMap(edge => [edge.sourceDataMartId, edge.targetDataMartId])
+  );
   if (rel === 'connected') {
-    const connectedIds = new Set(
-      edges.flatMap(edge => [edge.sourceDataMartId, edge.targetDataMartId])
-    );
     return { nodes: nodes.filter(node => connectedIds.has(node.id)), edges };
   }
-
-  return { nodes, edges };
+  // Unconnected marts have no edge between them by definition.
+  return { nodes: nodes.filter(node => !connectedIds.has(node.id)), edges: [] };
 }

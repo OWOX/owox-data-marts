@@ -280,6 +280,45 @@ describe('RunReportService', () => {
     expect(logBlendedSqlIfNeeded).toHaveBeenCalledWith(decision, mockLogger);
   });
 
+  it('cancels a run before execution when the report was deleted', async () => {
+    const { service, reportRunService, reportReaderResolver, projectBilling } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.deletedAt = new Date();
+    const reportRun = ReportRun.create(report, createDataMartRun(report));
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.CANCELLED);
+    expect(reportRunService.finish).toHaveBeenCalledWith(reportRun);
+    expect(reportRunService.markAsStarted).not.toHaveBeenCalled();
+    expect(reportReaderResolver.resolve).not.toHaveBeenCalled();
+    expect(projectBilling.verifyCanPerformOperations).not.toHaveBeenCalled();
+  });
+
+  it('lets execution finish when the report is deleted after it starts', async () => {
+    const { service, reportRunService, reportReaderResolver, reportWriterResolver } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reportRun = ReportRun.create(report, createDataMartRun(report));
+    const reader = createReader();
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reader.readReportDataBatch.mockImplementation(async () => {
+      report.deletedAt = new Date();
+      return new ReportDataBatch([], null);
+    });
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+    expect(report.deletedAt).toEqual(expect.any(Date));
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.SUCCESS);
+    expect(reportRunService.finish).toHaveBeenCalled();
+    expect(writer.finalize).toHaveBeenCalled();
+  });
+
   it('registers Google Sheets consumption only after final report success is persisted', async () => {
     const {
       service,

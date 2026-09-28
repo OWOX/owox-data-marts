@@ -45,6 +45,7 @@ export const EmailReportEditFormSchema = z
     aggregationConfig: z.array(AggregationRuleSchema).nullable(),
     dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
     uniqueCountConfig: z.array(z.string()),
+    autoAggregationOptOut: z.array(z.string()).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
@@ -145,6 +146,7 @@ export function useEmailReportForm({
       aggregationConfig: initialReport?.aggregationConfig ?? null,
       dateTruncConfig: initialReport?.dateTruncConfig ?? null,
       uniqueCountConfig: initialReport?.uniqueCountConfig ?? [],
+      autoAggregationOptOut: initialReport?.autoAggregationOptOut ?? [],
     },
     mode: 'onTouched',
   });
@@ -199,6 +201,7 @@ export function useEmailReportForm({
             aggregationConfig: data.aggregationConfig,
             dateTruncConfig: data.dateTruncConfig,
             uniqueCountConfig: data.uniqueCountConfig,
+            autoAggregationOptOut: data.autoAggregationOptOut,
           });
         } else {
           if (!initialReport) {
@@ -219,6 +222,7 @@ export function useEmailReportForm({
             aggregationConfig: data.aggregationConfig,
             dateTruncConfig: data.dateTruncConfig,
             uniqueCountConfig: data.uniqueCountConfig,
+            autoAggregationOptOut: data.autoAggregationOptOut,
           });
         }
 

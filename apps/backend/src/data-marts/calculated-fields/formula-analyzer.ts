@@ -4,6 +4,7 @@ import {
   renderFormula,
   FormulaReferenceSyntaxError,
 } from './formula-reference';
+import { readSetQuantifier } from './set-quantifier';
 import { scanSql, SqlToken } from './sql-token-scanner';
 import { findFunctionCalls, SqlFunctionCall } from './sql-function-calls';
 import { FormulaFunctionDialect } from './formula-function-dialect';
@@ -19,6 +20,14 @@ export interface AggregateCall {
   name: string;
   /** aliasPath of the Data Mart the call reads; '' = the metric's own Data Mart. */
   owner: string;
+  /**
+   * The call's arguments open with the `DISTINCT` keyword.
+   *
+   * Not answerable from `isDistinctCountingFormulaFunction()`, which is keyed on the FUNCTION NAME
+   * on purpose — `APPROX_COUNT_DISTINCT(x)` and `COUNT(DISTINCT x)` ask the same question off
+   * different rows, so that predicate deliberately does not look at this keyword.
+   */
+  distinct: boolean;
   references: FormulaReference[];
   /** Offset of the function name (its first letter), not of its opening parenthesis. Used to splice the outer SELECT. */
   nameStart: number;
@@ -224,6 +233,7 @@ export function analyzeFormula(input: AnalyzeFormulaInput): FormulaAnalysis {
     aggregateCalls.push({
       name: call.name,
       owner: inside[0].path,
+      distinct: readSetQuantifier(tokens, call).distinct,
       references: inside,
       nameStart: call.nameStart,
     });

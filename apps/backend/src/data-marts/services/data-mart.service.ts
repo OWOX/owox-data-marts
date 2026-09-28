@@ -95,6 +95,7 @@ export class DataMartService {
         'dm.title',
         'dm.status',
         'dm.description',
+        'dm.icon',
         'dm.definitionType',
         'dm.createdById',
         'dm.createdAt',
@@ -228,6 +229,7 @@ export class DataMartService {
         'dm.title',
         'dm.status',
         'dm.description',
+        'dm.icon',
         'dm.schema',
         'dm.dataLastUpdated',
       ])

@@ -98,12 +98,31 @@ describe('incremental checkpointing', () => {
     expect(cursorMovedTo).toEqual([]);
   });
 
-  it('never moves the incremental cursor during a manual backfill', async () => {
+  it('reports each completed day during a manual backfill too', async () => {
+    // A backfill checkpoints the same way an incremental run does. The backend routes the
+    // message by run type, storing a backfill's date as run progress rather than moving the
+    // incremental cursor, so an interrupted backfill resumes from its last loaded date.
     const { self, cursorMovedTo } = buildConnector({ runType: 'MANUAL_BACKFILL' });
 
     await connectorProto.startImportProcess.call(self);
 
-    expect(cursorMovedTo).toEqual([]);
+    expect(cursorMovedTo).toEqual(['2026-08-10', '2026-08-11', '2026-08-12']);
+  });
+
+  it('keeps the days a manual backfill already imported when a later day fails', async () => {
+    // The whole point of checkpointing a backfill: the retry resumes at 2026-08-12 rather
+    // than re-importing the range from its StartDate.
+    const { self, cursorMovedTo } = buildConnector({
+      runType: 'MANUAL_BACKFILL',
+      fetchData: async ({ startDate }) => {
+        if (DateUtils.formatDate(startDate) === '2026-08-12') throw new Error('Connector died');
+        return [{ cost: 1 }];
+      },
+    });
+
+    await expect(connectorProto.startImportProcess.call(self)).rejects.toThrow('Connector died');
+
+    expect(cursorMovedTo).toEqual(['2026-08-10', '2026-08-11']);
   });
 });
 

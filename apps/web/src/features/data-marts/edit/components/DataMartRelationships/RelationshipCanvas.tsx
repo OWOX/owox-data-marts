@@ -59,9 +59,10 @@ import {
   ERD_NODE_WIDTH,
   erdFieldsBodyHeight,
   type ErdCardField,
+  type ErdFieldRowLabels,
 } from '../../../shared/canvas/erd-fields';
 import { ErdCardFieldsSection } from '../../../shared/canvas/erd-fields-section';
-import type { ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
+import { toFieldRowLabels, type ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../../shared/canvas/view-mode';
 import { OWOX_GRAY_DARK, OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
@@ -375,6 +376,7 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
       {showFieldRows && (
         <ErdCardFieldsSection
           fields={data.fields}
+          labels={toFieldRowLabels(labels)}
           expanded={expanded}
           onToggleExpanded={() => {
             setExpanded(v => !v);
@@ -533,11 +535,12 @@ interface BuildRelationshipFlowParams {
 function relationshipNodeHeight(
   isSource: boolean,
   fields: ErdCardField[],
-  viewMode: CanvasViewMode
+  viewMode: CanvasViewMode,
+  fieldLabels: ErdFieldRowLabels
 ): number {
   if (isSource) return SRC_H;
   if (viewMode !== 'erd') return TGT_H;
-  return TGT_H + erdFieldsBodyHeight(fields);
+  return TGT_H + erdFieldsBodyHeight(fields, fieldLabels);
 }
 
 function buildRelationshipFlow({
@@ -674,6 +677,7 @@ function buildRelationshipFlow({
   const fields = new Map<string, ErdCardField[]>();
   const widths = new Map<string, number>();
   const heights = new Map<string, number>();
+  const fieldLabels = toFieldRowLabels(objectLabels);
   for (const [nodeKey, info] of nodeInfos) {
     const nodeFields =
       info.isSource || info.aliasPath === undefined
@@ -681,7 +685,7 @@ function buildRelationshipFlow({
         : (fieldsByAliasPath?.get(info.aliasPath) ?? []);
     fields.set(nodeKey, nodeFields);
     widths.set(nodeKey, info.isSource ? NODE_W : nodeCardWidth(viewMode));
-    heights.set(nodeKey, relationshipNodeHeight(info.isSource, nodeFields, viewMode));
+    heights.set(nodeKey, relationshipNodeHeight(info.isSource, nodeFields, viewMode, fieldLabels));
   }
 
   // Same layout engine as the Models canvas: dagre picks the positions and

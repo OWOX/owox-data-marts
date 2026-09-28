@@ -525,6 +525,90 @@ describe('UpdateDataMartSchemaService', () => {
     expect(result.warnings).toEqual([]);
   });
 
+  // The save re-judges every formula. The rows a join drops are true of a joined formula forever,
+  // so without this every unrelated edit would bring back one such advisory per joined field.
+  describe('join advisories about fields the save did not touch', () => {
+    const ROAS = 'SUM({{ref field="revenue"}}) / NULLIF(SUM({{ref path="costs" field="cost"}}), 0)';
+    const ROWS = 'COUNT({{ref path="costs" field="cost"}})';
+    const calculated = (name: string, formula: string) => ({
+      name,
+      type: 'FLOAT',
+      calculated: { formula, level: 'metric' },
+    });
+    const schema = (fields: unknown[]) => ({ type: 'bigquery-data-mart-schema', fields });
+    const warning = (field: string, code: string) => ({ field, code, message: code });
+
+    const save = async (opts: { persisted: unknown[]; submitted: unknown[] }) => {
+      const validate = jest.fn().mockResolvedValue({
+        errors: [],
+        warnings: [
+          warning('roas', 'FORMULA_JOINED_ROWS_EXCLUDED'),
+          warning('cost_rows', 'FORMULA_JOINED_MEASURE_MULTIPLIED'),
+          warning('cost_rows', 'FORMULA_JOINED_ROWS_EXCLUDED'),
+          warning('roas', 'FORMULA_UNGUARDED_DIVISION'),
+        ],
+      });
+      const { service } = buildService({
+        validate,
+        parsedSchema: schema(opts.submitted),
+        dataMart: {
+          id: 'target-1',
+          projectId: 'project-1',
+          storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+          schema: schema(opts.persisted),
+        },
+      });
+      const result = await service.run(
+        new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never)
+      );
+      return result.warnings
+        .filter(w => w.code !== 'FORMULA_WAREHOUSE_CHECK_SKIPPED')
+        .map(w => `${w.field}:${w.code}`);
+    };
+
+    it('keeps the advisories of an edited field and drops those of an untouched one', async () => {
+      const kept = await save({
+        persisted: [calculated('roas', ROAS), calculated('cost_rows', 'COUNT(1)')],
+        submitted: [calculated('roas', ROAS), calculated('cost_rows', ROWS)],
+      });
+      expect(kept).toEqual([
+        'cost_rows:FORMULA_JOINED_MEASURE_MULTIPLIED',
+        'cost_rows:FORMULA_JOINED_ROWS_EXCLUDED',
+        'roas:FORMULA_UNGUARDED_DIVISION',
+      ]);
+    });
+
+    it('treats a field new to the schema as edited', async () => {
+      const kept = await save({
+        persisted: [calculated('roas', ROAS)],
+        submitted: [calculated('roas', ROAS), calculated('cost_rows', ROWS)],
+      });
+      expect(kept).toContain('cost_rows:FORMULA_JOINED_ROWS_EXCLUDED');
+      expect(kept).not.toContain('roas:FORMULA_JOINED_ROWS_EXCLUDED');
+    });
+
+    // Setting the primary key is what "Set a Primary Key to find out" asks for, and it changes
+    // the counting verdict of every field — including ones the save did not touch.
+    it('keeps the counting advisories of untouched fields when the primary key changed', async () => {
+      const kept = await save({
+        persisted: [
+          { name: 'order_id', type: 'STRING' },
+          calculated('roas', ROAS),
+          calculated('cost_rows', ROWS),
+        ],
+        submitted: [
+          { name: 'order_id', type: 'STRING', isPrimaryKey: true },
+          calculated('roas', ROAS),
+          calculated('cost_rows', ROWS),
+        ],
+      });
+      expect(kept).toEqual([
+        'cost_rows:FORMULA_JOINED_MEASURE_MULTIPLIED',
+        'roas:FORMULA_UNGUARDED_DIVISION',
+      ]);
+    });
+  });
+
   it('validates against the parsed schema and the data mart storage type', async () => {
     const parsedSchema = { type: 'bigquery-data-mart-schema', fields: [] };
     const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });

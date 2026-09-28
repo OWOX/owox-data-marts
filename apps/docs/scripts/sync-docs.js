@@ -344,6 +344,21 @@ function renderCloudflareEmbed(url, paddingTop) {
 }
 
 /**
+ * Indents every line of a replacement block like the line it replaces, so a video inside a
+ * list item (for example a changelog entry) stays in that item instead of ending the list
+ * @param {string} line - Original Markdown line
+ * @param {string} block - Replacement block
+ * @returns {string} - Replacement block with the original line's indentation
+ */
+function indentLikeLine(line, block) {
+  const indent = line.match(/^\s*/)[0];
+  return block
+    .split('\n')
+    .map(blockLine => indent + blockLine)
+    .join('\n');
+}
+
+/**
  * Processes GitHub video links in markdown content, converting bare URLs to HTML video tags
  * @param {string} fileContent - Markdown content
  * @returns {string} - Updated markdown content with GitHub video URLs converted to HTML video elements
@@ -366,17 +381,23 @@ function processGithubVideoLinks(fileContent) {
       const assetId = cleanUrl.split('/assets/')[1];
       const cloudflareVideo = GITHUB_TO_CLOUDFLARE_VIDEOS[assetId];
       if (cloudflareVideo) {
-        return renderCloudflareEmbed(
-          `https://customer-4geatlj66rtkaxtz.cloudflarestream.com/${cloudflareVideo.cloudflareId}/iframe`,
-          cloudflareVideo.paddingTop
+        return indentLikeLine(
+          line,
+          renderCloudflareEmbed(
+            `https://customer-4geatlj66rtkaxtz.cloudflarestream.com/${cloudflareVideo.cloudflareId}/iframe`,
+            cloudflareVideo.paddingTop
+          )
         );
       }
-      return `<!-- markdownlint-disable-next-line MD033 MD034 -->
+      return indentLikeLine(
+        line,
+        `<!-- markdownlint-disable-next-line MD033 MD034 -->
 <video controls playsinline muted style="max-width: 100%; height: auto;">
   <!-- markdownlint-disable-next-line MD033 MD034 -->
   <source src="${cleanUrl}" type="video/mp4">
   Your browser does not support the video tag.
-</video>`;
+</video>`
+      );
     }
     // Cloudflare Stream URLs are not supported by markdownlint, so we need to return the original line.
     if (
@@ -385,7 +406,7 @@ function processGithubVideoLinks(fileContent) {
     ) {
       // Extract clean URL by removing angle brackets if present
       const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
-      return renderCloudflareEmbed(cleanUrl, '56.25%');
+      return indentLikeLine(line, renderCloudflareEmbed(cleanUrl, '56.25%'));
     }
     return line;
   });

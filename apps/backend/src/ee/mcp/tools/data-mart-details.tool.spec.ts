@@ -120,6 +120,7 @@ describe('GetDataMartDetailsTool', () => {
       roles: ['viewer'],
       dataMartId: 'dm_1',
       includeJoinedFields: true,
+      includeGrainCaveats: true,
     });
   });
 
@@ -369,6 +370,92 @@ describe('GetDataMartDetailsTool', () => {
     expect(sc.fields[3]).not.toHaveProperty('usage');
   });
 
+  // The facade answers `grainCaveats` for any published calculated field whose formula reads a
+  // joined Data Mart — #6926 refuses nothing, so the field is always one that was saved and is
+  // now being warned about. The incident this feature exists for happened through exactly this call.
+  describe('the caveat a join puts on a number', () => {
+    // Shortened stand-in for the catalogue's sentence: this suite is about where the caveat lands
+    // and how it is framed, never about the wording.
+    const CAVEAT = 'A COUNT over `Costs` counts this Data Mart’s matched rows, not its own.';
+
+    async function details(field: {
+      fieldName: string;
+      level?: string;
+      caveat?: string;
+      /** What the facade answers when no formula reads a joined Data Mart: `{}`, not undefined. */
+      noCaveats?: boolean;
+    }): Promise<{ facade: jest.Mocked<McpDataMartsFacade>; out: Record<string, unknown> }> {
+      const facade = {
+        getDataMartDetails: jest.fn().mockResolvedValue({
+          id: 'dm_1',
+          name: 'Ads',
+          description: '',
+          fields: [
+            {
+              name: field.fieldName,
+              type: 'FLOAT',
+              ...(field.level !== undefined ? { calculated: { level: field.level } } : {}),
+            },
+          ],
+          joinedFields: [],
+          ...(field.caveat !== undefined
+            ? { grainCaveats: { [field.fieldName]: field.caveat } }
+            : field.noCaveats
+              ? { grainCaveats: {} }
+              : {}),
+        }),
+      } as unknown as jest.Mocked<McpDataMartsFacade>;
+      const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+      const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+      const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+      return { facade, out: sc.fields[0] };
+    }
+
+    it('asks the facade for the caveats', async () => {
+      const { facade } = await details({ fieldName: 'clicks' });
+      expect(facade.getDataMartDetails).toHaveBeenCalledWith(
+        expect.objectContaining({ includeGrainCaveats: true })
+      );
+    });
+
+    it('appends the caveat to the usage note of an aggregate-level calculated field', async () => {
+      const { out } = await details({ fieldName: 'roas', level: 'metric', caveat: CAVEAT });
+      expect(out.usage).toContain('Already computed by OWOX');
+      expect(out.usage).toContain(CAVEAT);
+    });
+
+    // The sentence names a fix to make in the formula, next to "do not recompute it": the agent
+    // must be told the formula is not its to change, and that the number carries the caveat onward.
+    it('frames the caveat as one to pass on, with the formula fix left to the Data Mart', async () => {
+      const { out } = await details({ fieldName: 'roas', level: 'metric', caveat: CAVEAT });
+      expect(out.usage).toContain(
+        'Caveat to pass on to the user with this number — a change to its formula belongs in the ' +
+          `Data Mart: ${CAVEAT}`
+      );
+    });
+
+    // `grainCaveats` is a plain object, so a lookup by name reaches Object.prototype.
+    it.each(['constructor', 'toString', 'hasOwnProperty'])(
+      'gives a field named %s no inherited member as its caveat',
+      async fieldName => {
+        const { out } = await details({ fieldName, noCaveats: true });
+        expect(out.usage).toBeUndefined();
+      }
+    );
+
+    it('makes the framed caveat the whole usage note when the field is not aggregate-level', async () => {
+      const { out } = await details({ fieldName: 'ratio', level: 'column', caveat: CAVEAT });
+      expect(out.usage).toMatch(/^Caveat to pass on to the user/);
+      expect(out.usage).toContain(CAVEAT);
+    });
+
+    it('leaves usage absent when there is no caveat and no aggregate level', async () => {
+      const { out } = await details({ fieldName: 'clicks' });
+      expect(out.usage).toBeUndefined();
+    });
+  });
+
   // This prose is the ONLY thing that tells an agent what a Calculated Field is,
   // and a stale sentence in it fails no other test while silently degrading every agent that
   // reads it. Both level texts are pinned verbatim so that editing either one is a visible
@@ -587,6 +674,12 @@ describe('GetDataMartDetailsTool', () => {
     expect(tool.description).toContain('field-level metadata');
     expect(tool.description).toContain('allowedAggregations');
     expect(tool.description).toContain('operators_by_category');
+    // Pinned so a future edit to this clause is a visible change here, not a silent one in a
+    // model's context: without it, an agent reading an empty allowedAggregations has no signal
+    // that the field's "usage" note may be warning it, not just approving it.
+    expect(tool.description).toContain(
+      'read the "usage" note carried on that field — it may also warn that a join distorts the number'
+    );
     expect(tool.description).toContain('mode is REPEATED');
     expect(tool.description).toContain('type or sliceType');
     expect(tool.description).toContain('Array fields');

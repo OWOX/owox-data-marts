@@ -358,7 +358,8 @@ describe('CalculatedFieldValidatorService', () => {
       expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
         'dm-1',
         'project-1',
-        accessor
+        accessor,
+        { unsavedMainSchemaFields: expect.any(Array) }
       );
       // The dry-run policy is untouched by joined resolution: still one run, still stamped.
       expect(result.warehouseValidation).toBe('passed');
@@ -847,6 +848,298 @@ describe('CalculatedFieldValidatorService', () => {
       const [, , passedAccessor, passedSchema] = composer.composeMetricsOnly.mock.calls[0];
       expect(passedAccessor).toEqual(accessor);
       expect(passedSchema).toBeUndefined();
+    });
+
+    describe('join-grain checks', () => {
+      // Every {{ref}} tag the formula carries is made resolvable: a bare one becomes an ordinary
+      // field of the main schema, a path one becomes an ordinary blended field on that source — so
+      // each test only has to say what the JOIN does, not rebuild the whole blendable schema by hand.
+      const REF_TAG = /{{ref\s+(?:path="([^"]*)"\s+)?field="([^"]*)"}}/g;
+
+      interface GrainSourceSpec {
+        aliasPath: string;
+        multiplication: 'none' | 'multiplies' | 'unknown';
+        key: string[];
+        title: string;
+        unprovenAt?: string;
+        multipliedAt?: string;
+        collapse?: 'none' | 'collapses';
+        uniqueCountAvailability?: string;
+      }
+
+      const validateWithSources = async (
+        fieldName: string,
+        formula: string,
+        sources: GrainSourceSpec[]
+      ) => {
+        const refs = [...formula.matchAll(REF_TAG)].map(m => ({ path: m[1], field: m[2] }));
+        const bareFieldNames = [...new Set(refs.filter(r => !r.path).map(r => r.field))];
+        const blendedFields = refs
+          .filter((r): r is { path: string; field: string } => Boolean(r.path))
+          .map(r => ({ aliasPath: r.path, originalFieldName: r.field }));
+
+        const blendableSchema = {
+          nativeFields: [],
+          blendedFields: blendedFields.map(f => ({
+            ...f,
+            isHidden: false,
+            isCalculated: false,
+          })),
+          availableSources: sources.map(s => ({
+            aliasPath: s.aliasPath,
+            isIncluded: true,
+            isAccessibleForReporting: true,
+            title: s.title,
+            mainGrainMultiplication: s.multiplication,
+            mainGrainKeyFields: s.key,
+            mainGrainCollapse: s.collapse ?? 'none',
+            uniqueCountAvailability: s.uniqueCountAvailability ?? 'no-primary-key',
+            ...(s.unprovenAt !== undefined ? { mainGrainUnprovenAt: s.unprovenAt } : {}),
+            ...(s.multipliedAt !== undefined ? { mainGrainMultipliedAt: s.multipliedAt } : {}),
+          })),
+          calculatedFieldIssues: [],
+        };
+
+        const { validator: v } = buildValidator(blendableSchema);
+
+        const schema = schemaWith([
+          ...bareFieldNames.map(name => ({ name, type: 'FLOAT' })),
+          { name: fieldName, type: 'FLOAT', calculated: { formula, level: 'metric' } },
+        ]);
+
+        return v.validate(schema, DataStorageType.GOOGLE_BIGQUERY, undefined, joinTree);
+      };
+
+      const multiplyingCosts: GrainSourceSpec[] = [
+        {
+          aliasPath: 'costs',
+          multiplication: 'multiplies',
+          key: ['traffic_source'],
+          title: 'Costs',
+        },
+      ];
+
+      // The customer case from the thread. `SUM` over a joined Data Mart is planned as its own
+      // `SELECT DISTINCT` sleeve with the aggregate outside it, so the number is already
+      // set-based: the ONLY thing left to say about this formula is that the join drops the
+      // joined Data Mart's unmatched rows.
+      it('says only what is true about a cross-mart ROAS: no refusal, no counting claim', async () => {
+        const result = await validateWithSources(
+          'roas',
+          'SUM({{ref field="revenue"}}) / NULLIF(SUM({{ref path="costs" field="adCost"}}), 0)',
+          multiplyingCosts
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.warnings.map(w => w.code)).toEqual(['FORMULA_JOINED_ROWS_EXCLUDED']);
+      });
+
+      // The one shape the engine really does inflate: a non-DISTINCT joined COUNT is left in the
+      // outer SELECT counting MAIN rows (`metric-sleeve.planner.ts`, `isJoinedCallLeftInPlace`).
+      it('warns — and still does not refuse — a joined COUNT through a multiplying join', async () => {
+        const result = await validateWithSources(
+          'orders_per_source',
+          'COUNT({{ref path="costs" field="adCost"}})',
+          multiplyingCosts
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.warnings.map(w => w.code)).toEqual([
+          'FORMULA_JOINED_MEASURE_MULTIPLIED',
+          'FORMULA_JOINED_ROWS_EXCLUDED',
+        ]);
+        expect(result.warnings[0].field).toBe('orders_per_source');
+        expect(result.warnings[0].message).toContain('`Costs`');
+        expect(result.warnings[0].message).toContain('`traffic_source`');
+      });
+
+      // The rename bug the removed grandfathering carried: it keyed on the field NAME, so renaming
+      // an untouched field re-armed the refusal against a formula nobody had edited. With no
+      // refusal left there is nothing a rename can re-arm — this pins that a formula's verdict
+      // depends on the formula alone, never on what it is called or on what was stored before.
+      it('gives a formula the same verdict whatever the field is called', async () => {
+        const formula = 'COUNT({{ref path="costs" field="adCost"}})';
+        const before = await validateWithSources('orders_per_source', formula, multiplyingCosts);
+        const after = await validateWithSources('orders_by_source', formula, multiplyingCosts);
+        expect(before.errors).toEqual([]);
+        expect(after.errors).toEqual([]);
+        expect(after.warnings.map(w => w.code)).toEqual(before.warnings.map(w => w.code));
+      });
+
+      // The common case in the field: no primary key anywhere, so nothing is proven — but the
+      // message must still name the Data Mart that needs the key.
+      it('warns without refusing when the main Data Mart declares no primary key', async () => {
+        const result = await validateWithSources(
+          'orders_per_source',
+          'COUNT({{ref path="costs" field="adCost"}})',
+          [
+            {
+              aliasPath: 'costs',
+              multiplication: 'unknown',
+              key: [],
+              title: 'Costs',
+              unprovenAt: '',
+            },
+          ]
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.warnings.map(w => w.code)).toContain('FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN');
+        expect(
+          result.warnings.find(w => w.code === 'FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN')!.message
+        ).toContain('this Data Mart');
+      });
+
+      // A calculated field whose formula reads a joined Data Mart cannot be read by another one:
+      // a dependency is substituted flat, and the renderer refuses a joined reference inside it
+      // (`sql-clause-renderer.ts`, `flatMetricReferenceResolver`). Passing its join on would warn
+      // about a number no report can produce.
+      it('passes no join advisory on to a field that reads a joined one', async () => {
+        const blendableSchema = {
+          nativeFields: [],
+          blendedFields: [
+            {
+              aliasPath: 'costs',
+              originalFieldName: 'adCost',
+              isHidden: false,
+              isCalculated: false,
+            },
+          ],
+          availableSources: [
+            {
+              aliasPath: 'costs',
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              title: 'Costs',
+              mainGrainMultiplication: 'multiplies',
+              mainGrainKeyFields: ['traffic_source'],
+              mainGrainCollapse: 'none',
+            },
+          ],
+          calculatedFieldIssues: [],
+        };
+        const { validator: v } = buildValidator(blendableSchema);
+
+        const result = await v.validate(
+          schemaWith([
+            { name: 'revenue', type: 'FLOAT' },
+            {
+              name: 'cost_rows',
+              type: 'FLOAT',
+              calculated: {
+                formula: 'COUNT({{ref path="costs" field="adCost"}})',
+                level: 'metric',
+              },
+            },
+            {
+              name: 'revenue_per_cost_row',
+              type: 'FLOAT',
+              calculated: {
+                formula: 'SUM({{ref field="revenue"}}) / NULLIF({{ref field="cost_rows"}}, 0)',
+                level: 'metric',
+              },
+            },
+          ]),
+          DataStorageType.GOOGLE_BIGQUERY,
+          undefined,
+          joinTree
+        );
+
+        expect(result.warnings.filter(w => w.field === 'cost_rows').map(w => w.code)).toEqual([
+          'FORMULA_JOINED_MEASURE_MULTIPLIED',
+          'FORMULA_JOINED_ROWS_EXCLUDED',
+        ]);
+        expect(result.warnings.filter(w => w.field === 'revenue_per_cost_row')).toEqual([]);
+      });
+
+      it('leaves the count alone when COUNT(DISTINCT ...) reads the joined Data Mart', async () => {
+        const result = await validateWithSources(
+          'buyers',
+          'COUNT(DISTINCT {{ref path="orders" field="customer_id"}})',
+          [
+            {
+              aliasPath: 'orders',
+              multiplication: 'none',
+              key: [],
+              title: 'Orders',
+              collapse: 'collapses',
+            },
+          ]
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.warnings.map(w => w.code)).toEqual(['FORMULA_JOINED_ROWS_EXCLUDED']);
+      });
+
+      // customers → orders on the customer's own primary key: nothing multiplies, but the orders
+      // are collapsed to one row per customer before the join, so the COUNT counts customers.
+      it('warns that a COUNT through a one-to-many join can come out lower', async () => {
+        const result = await validateWithSources(
+          'orders_count',
+          'COUNT({{ref path="orders" field="order_id"}})',
+          [
+            {
+              aliasPath: 'orders',
+              multiplication: 'none',
+              key: [],
+              title: 'Orders',
+              collapse: 'collapses',
+            },
+          ]
+        );
+        expect(result.warnings.map(w => w.code)).toEqual([
+          'FORMULA_JOINED_MEASURE_COLLAPSED',
+          'FORMULA_JOINED_ROWS_EXCLUDED',
+        ]);
+        expect(result.warnings[0].subject).toBe('orders.order_id');
+      });
+
+      // Two joins deep: the key at fault belongs to the ancestor hop, and the sentence must send
+      // the analyst to THAT relationship.
+      it('names the ancestor join that multiplies a COUNT two joins deep', async () => {
+        const result = await validateWithSources(
+          'campaign_rows',
+          'COUNT({{ref path="costs.campaigns" field="budget"}})',
+          [
+            {
+              aliasPath: 'costs',
+              multiplication: 'multiplies',
+              key: ['traffic_source'],
+              title: 'Costs',
+            },
+            {
+              aliasPath: 'costs.campaigns',
+              multiplication: 'multiplies',
+              key: ['traffic_source'],
+              title: 'Campaigns',
+              multipliedAt: 'costs',
+            },
+          ]
+        );
+        expect(result.warnings[0].message).toContain(
+          '`costs.campaigns.budget` comes from `Campaigns`, reached through `Costs` joined on ' +
+            '`traffic_source`'
+        );
+      });
+
+      it('offers Unique Count only for a source the report would carry', async () => {
+        const offer = (uniqueCountAvailability: string) =>
+          validateWithSources('rows', 'COUNT({{ref path="costs" field="adCost"}})', [
+            { ...multiplyingCosts[0], uniqueCountAvailability },
+          ]);
+        expect((await offer('available')).warnings[0].message).toContain(
+          'pick its Unique Count measure in a report'
+        );
+        expect((await offer('no-primary-key')).warnings[0].message).not.toContain('Unique Count');
+      });
+
+      // The advice says "Set a Primary Key to find out"; the save that follows it must be judged
+      // against that key, not against the stored schema still missing it.
+      it('judges the join against the primary key of the schema being saved', async () => {
+        const { validator: v, blendableSchemaService } = buildValidator(ordersWithAmount);
+        const schema = metric('COUNT({{ref path="orders" field="amount"}})');
+
+        await v.validate(schema, DataStorageType.GOOGLE_BIGQUERY, undefined, joinTree);
+
+        const options = blendableSchemaService.computeBlendableSchema.mock.calls[0][3];
+        expect(options?.unsavedMainSchemaFields).toBe(schema.fields);
+      });
     });
   });
 

@@ -3,6 +3,7 @@ import type { DataMartStatus } from '../../shared/enums';
 import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -21,6 +22,8 @@ export interface ModelCanvasNode {
   title: string;
   status: DataMartStatus;
   description: string | null;
+  /** User-picked icon; null draws the default one. */
+  icon?: DataMartIconKey | null;
   fieldCount: number;
   /**
    * Definition type + fields are enriched client-side from the Data Mart detail
@@ -31,6 +34,21 @@ export interface ModelCanvasNode {
   fields?: CanvasNodeField[];
   /** Physical reference (table/view path, pattern) or SQL text — enriched client-side. */
   definition?: string | null;
+  /**
+   * Scheduled triggers of the Data Mart, from the canvas list. Optional only so
+   * fixtures and older responses stay valid; unknown shows no badge.
+   */
+  triggersCount?: number;
+  /** Reports built on the Data Mart, from the canvas list; unknown shows no badge. */
+  reportsCount?: number;
+  /** Sharing flags — enriched client-side; unknown until the detail fetch resolves. */
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
+  /**
+   * Relationships this Data Mart takes part in (either side), counted over the
+   * storage's whole model — not just what the canvas filters leave on screen.
+   */
+  relationshipCount?: number;
   qualitySummary: DataQualityCompactSummary;
   dataLastUpdated: DataLastUpdatedDto | null;
 }

@@ -1,11 +1,6 @@
-import { Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import {
-  AuthorizationError,
-  ViewOnlyModeError,
-  type McpOAuthProjectMemberContext,
-  type Payload,
-} from '@owox/idp-protocol';
+import { type McpOAuthProjectMemberContext, type Payload } from '@owox/idp-protocol';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort } from '../oauth-idp.port';
@@ -84,6 +79,7 @@ describe('OAuthAuthorizationController', () => {
   ) {
     const validator = {
       validateAuthorizationRequest: jest.fn().mockResolvedValue(validatedAuthorizationRequest),
+      resolveAuthorizationErrorContext: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<OAuthRequestValidator>;
     const projectMemberResolver = {
       resolve: jest.fn().mockReturnValue(projectMember),
@@ -262,9 +258,12 @@ describe('OAuthAuthorizationController', () => {
       },
     });
 
-    await expect(
-      controller.authorize({}, request, response as unknown as Response)
-    ).rejects.toThrow(AuthorizationError);
+    await controller.authorize({}, request, response as unknown as Response);
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('access_denied');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.has('iss')).toBe(false);
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
   });
 
@@ -279,9 +278,12 @@ describe('OAuthAuthorizationController', () => {
       headers: { 'x-owox-authorization': 'Bearer view-only-access-token' },
     });
 
-    await expect(
-      controller.authorize({}, request, response as unknown as Response)
-    ).rejects.toThrow(ViewOnlyModeError);
+    await controller.authorize({}, request, response as unknown as Response);
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('access_denied');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.has('iss')).toBe(false);
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
     expect(clientRegistry.attachUserIfMissing).not.toHaveBeenCalled();
   });
@@ -295,11 +297,117 @@ describe('OAuthAuthorizationController', () => {
     const response = createResponse();
     const request = createRequest({ cookies: { refreshToken: 'refresh-token-1' } });
 
-    await expect(
-      controller.authorize({}, request, response as unknown as Response)
-    ).rejects.toThrow(ViewOnlyModeError);
+    await controller.authorize({}, request, response as unknown as Response);
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('access_denied');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.has('iss')).toBe(false);
     expect(provider.refreshToken).toHaveBeenCalledWith('refresh-token-1');
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('adds the project issuer to authorization error callbacks', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const projectAuthorizationRequest = {
+      ...authorizationRequest,
+      resource: `https://${projectId}.mcp.owox.com/mcp`,
+    };
+    const { controller, provider, oauthIdp } = createController({
+      request: projectAuthorizationRequest,
+      resourceContext: {
+        kind: 'project',
+        resource: projectAuthorizationRequest.resource,
+        publicBaseUrl: `https://${projectId}.mcp.owox.com`,
+        projectId,
+      },
+    });
+    provider.parseToken.mockResolvedValueOnce({
+      ...payload,
+      viewOnly: true,
+    });
+    const response = createResponse();
+    const request = createRequest({ headers: { 'x-owox-authorization': 'Bearer view-only' } });
+
+    await controller.authorize({}, request, response as unknown as Response);
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('access_denied');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.get('iss')).toBe(`https://${projectId}.mcp.owox.com`);
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('returns an issuer-bound invalid_request after project request validation succeeds', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const projectAuthorizationRequest = {
+      ...authorizationRequest,
+      resource: `https://${projectId}.mcp.owox.com/mcp`,
+    };
+    const { controller, oauthIdp } = createController({
+      request: projectAuthorizationRequest,
+      resourceContext: {
+        kind: 'project',
+        resource: projectAuthorizationRequest.resource,
+        publicBaseUrl: `https://${projectId}.mcp.owox.com`,
+        projectId,
+      },
+    });
+    const response = createResponse();
+    const request = createRequest({ cookies: { refreshToken: 'refresh-token-1' } });
+
+    await controller.authorize(
+      { selected_project_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      request,
+      response as unknown as Response
+    );
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('invalid_request');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.get('iss')).toBe(`https://${projectId}.mcp.owox.com`);
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect when request validation fails before redirect_uri is trusted', async () => {
+    const { controller, validator } = createController();
+    validator.validateAuthorizationRequest.mockRejectedValueOnce(
+      new BadRequestException('redirect_uri is not registered for client')
+    );
+    const response = createResponse();
+
+    await expect(
+      controller.authorize({}, createRequest(), response as unknown as Response)
+    ).rejects.toThrow('redirect_uri is not registered for client');
+
+    expect(response.redirect).not.toHaveBeenCalled();
+  });
+
+  it('returns an issuer-bound error when validation fails after redirect_uri is trusted', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const { controller, validator } = createController();
+    validator.validateAuthorizationRequest.mockRejectedValueOnce(
+      new BadRequestException('unsupported scope: unknown')
+    );
+    validator.resolveAuthorizationErrorContext.mockResolvedValueOnce({
+      clientId: 'client-1',
+      redirectUri: authorizationRequest.redirectUri,
+      state: authorizationRequest.state,
+      resourceContext: {
+        kind: 'project',
+        resource: `https://${projectId}.mcp.owox.com/mcp`,
+        publicBaseUrl: `https://${projectId}.mcp.owox.com`,
+        projectId,
+      },
+    });
+    const response = createResponse();
+
+    await controller.authorize({}, createRequest(), response as unknown as Response);
+
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('invalid_request');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.get('iss')).toBe(`https://${projectId}.mcp.owox.com`);
   });
 
   it('renders MCP project selection when authenticated user has multiple projects and none is selected', async () => {
@@ -405,9 +513,13 @@ describe('OAuthAuthorizationController', () => {
       projectAuthorizationRequest,
       projectMember
     );
-    expect(response.redirect).toHaveBeenCalledWith(
-      'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
-    );
+    // RFC 9207: project-specific redirects must be issuer-bound so clients like Codex, which
+    // enforce this, can trust that the authorize response really came from the project issuer.
+    const expectedRedirect = new URL('http://127.0.0.1:63888/callback');
+    expectedRedirect.searchParams.set('code', 'auth-code-1');
+    expectedRedirect.searchParams.set('state', 'state-1');
+    expectedRedirect.searchParams.set('iss', `https://${projectId}.mcp.owox.com`);
+    expect(response.redirect).toHaveBeenCalledWith(expectedRedirect.toString());
   });
 
   it('attaches user to dynamic client when authorization flow starts even if authorization code creation fails', async () => {
@@ -416,11 +528,12 @@ describe('OAuthAuthorizationController', () => {
     const response = createResponse();
     const request = createRequest({ cookies: { refreshToken: 'refresh-token-1' } });
 
-    await expect(
-      controller.authorize({}, request, response as unknown as Response)
-    ).rejects.toThrow('IB unavailable');
+    await controller.authorize({}, request, response as unknown as Response);
 
     expect(clientRegistry.attachUserIfMissing).toHaveBeenCalledWith('client-1', 'user-1');
-    expect(response.redirect).not.toHaveBeenCalled();
+    const redirectUrl = new URL(response.redirect.mock.calls[0]?.[0] as string);
+    expect(redirectUrl.searchParams.get('error')).toBe('server_error');
+    expect(redirectUrl.searchParams.get('state')).toBe('state-1');
+    expect(redirectUrl.searchParams.has('iss')).toBe(false);
   });
 });

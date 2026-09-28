@@ -5,13 +5,14 @@ const httpMock = {
   post: jest.fn(),
 };
 const axiosCreateMock = jest.fn(() => httpMock);
+const isAxiosErrorMock = jest.fn();
 const getIdTokenMock = jest.fn();
 
 jest.unstable_mockModule('axios', () => ({
   __esModule: true,
   default: {
     create: axiosCreateMock,
-    isAxiosError: jest.fn(() => false),
+    isAxiosError: isAxiosErrorMock,
   },
 }));
 
@@ -55,6 +56,7 @@ function createClient() {
 describe('IdentityOwoxClient MCP OAuth flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    isAxiosErrorMock.mockReturnValue(false);
     getIdTokenMock.mockResolvedValue('id-token');
   });
 
@@ -124,6 +126,78 @@ describe('IdentityOwoxClient MCP OAuth flow', () => {
       { headers: { Authorization: 'Bearer id-token' } }
     );
     expect(result.access_token).toBe('mcp-access-token');
+  });
+
+  it.each(['Authentication Error', 'Authentication Error, Invalid token'])(
+    'classifies the IB grant rejection %j as an authentication error',
+    async message => {
+      const upstreamError = {
+        response: {
+          status: 401,
+          data: { message },
+        },
+      };
+      isAxiosErrorMock.mockImplementation(error => error === upstreamError);
+      httpMock.post.mockRejectedValueOnce(upstreamError);
+
+      await expect(
+        createClient().exchangeMcpOAuthToken({
+          grantType: 'refresh_token',
+          refreshToken: 'expired-refresh-token',
+          clientId: 'mcp-client',
+          resource: 'https://mcp.owox.com/mcp',
+        })
+      ).rejects.toMatchObject({
+        name: 'AuthenticationException',
+        status: 401,
+      });
+    }
+  );
+
+  it('keeps a C2C interceptor 401 as an upstream failure', async () => {
+    const upstreamError = {
+      response: {
+        status: 401,
+        data: undefined,
+      },
+    };
+    isAxiosErrorMock.mockImplementation(error => error === upstreamError);
+    httpMock.post.mockRejectedValueOnce(upstreamError);
+
+    await expect(
+      createClient().exchangeMcpOAuthToken({
+        grantType: 'refresh_token',
+        refreshToken: 'valid-refresh-token',
+        clientId: 'mcp-client',
+        resource: 'https://mcp.owox.com/mcp',
+      })
+    ).rejects.toMatchObject({
+      name: 'IdpFailedException',
+      status: 401,
+    });
+  });
+
+  it('keeps an unknown structured 401 as an upstream failure', async () => {
+    const upstreamError = {
+      response: {
+        status: 401,
+        data: { message: 'A new upstream authentication response' },
+      },
+    };
+    isAxiosErrorMock.mockImplementation(error => error === upstreamError);
+    httpMock.post.mockRejectedValueOnce(upstreamError);
+
+    await expect(
+      createClient().exchangeMcpOAuthToken({
+        grantType: 'refresh_token',
+        refreshToken: 'valid-refresh-token',
+        clientId: 'mcp-client',
+        resource: 'https://mcp.owox.com/mcp',
+      })
+    ).rejects.toMatchObject({
+      name: 'IdpFailedException',
+      status: 401,
+    });
   });
 
   it('verifies MCP access token through C2C backchannel', async () => {

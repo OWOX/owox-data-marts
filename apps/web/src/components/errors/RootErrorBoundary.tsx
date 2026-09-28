@@ -3,12 +3,14 @@ import { useRouteError, isRouteErrorResponse } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { logRouteError } from './logRouteError';
+import { trackRouteError } from './trackRouteError';
 
 export function RootErrorBoundary() {
   const error = useRouteError();
 
   useEffect(() => {
     logRouteError(error);
+    trackRouteError(error, 'RootErrorBoundary');
   }, [error]);
 
   if (isRouteErrorResponse(error) && error.status === 404) {

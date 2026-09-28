@@ -11,6 +11,7 @@ import { EditableText } from '@owox/ui/components/common/editable-text';
 import {
   SchemaFieldActionsButton,
   SchemaFieldCalculatedIcon,
+  SchemaFieldDescriptionText,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldStatusIcon,
   SchemaHeaderAiButton,
@@ -477,6 +478,9 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       },
       {
         accessorKey: 'description',
+        // The one column that holds prose: its cells fold to the column's width instead of
+        // running the table out to the longest line, see `SchemaFieldDescriptionText`.
+        meta: { wrap: true },
         header: () => (
           <div className='group flex items-center gap-1'>
             <Tooltip>
@@ -508,13 +512,11 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           }
           const fname = fields[row.index]?.name;
           return (
-            <EditableText
+            <SchemaFieldDescriptionText
               value={row.getValue('description')}
               onValueChange={value => {
                 updateField(row.index, { description: value } as Partial<T>);
               }}
-              minRows={5}
-              placeholder='-'
               editorAction={renderFieldDescriptionAi(aiHelper, fname)}
             />
           );

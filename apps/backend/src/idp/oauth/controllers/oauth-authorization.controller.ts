@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { castError } from '@owox/internal-helpers';
 import {
   AuthorizationError,
   isViewOnlyPayload,
@@ -23,7 +24,18 @@ import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort, OAUTH_IDP_PORT } from '../oauth-idp.port';
 import { OAuthProjectSelectionService } from '../oauth-project-selection.service';
 import { OAuthProjectMemberResolver } from '../oauth-project-member.resolver';
-import { OAuthRequestValidator } from '../oauth-request.validator';
+import {
+  type OAuthAuthorizationErrorContext,
+  OAuthRequestValidator,
+  type ValidatedOAuthAuthorizationRequest,
+} from '../oauth-request.validator';
+
+type OAuthAuthorizationErrorCode = 'invalid_request' | 'access_denied' | 'server_error';
+
+interface OAuthAuthorizationErrorResponse {
+  error: OAuthAuthorizationErrorCode;
+  description: string;
+}
 
 @Controller('/oauth')
 export class OAuthAuthorizationController {
@@ -44,7 +56,34 @@ export class OAuthAuthorizationController {
     @Req() request: Request,
     @Res() response: Response
   ): Promise<void> {
-    const validated = await this.validator.validateAuthorizationRequest(query);
+    let validated: ValidatedOAuthAuthorizationRequest;
+    try {
+      validated = await this.validator.validateAuthorizationRequest(query);
+    } catch (error) {
+      const errorContext = await this.validator.resolveAuthorizationErrorContext(query);
+      if (!errorContext) {
+        throw error;
+      }
+      this.redirectAuthorizationError(errorContext, response, error);
+      return;
+    }
+
+    try {
+      await this.completeAuthorization(query, request, response, validated);
+    } catch (error) {
+      if (response.headersSent) {
+        throw error;
+      }
+      this.redirectAuthorizationError(this.toAuthorizationErrorContext(validated), response, error);
+    }
+  }
+
+  private async completeAuthorization(
+    query: Record<string, unknown>,
+    request: Request,
+    response: Response,
+    validated: ValidatedOAuthAuthorizationRequest
+  ): Promise<void> {
     const authorizationRequest = validated.request;
     const resourceContext = validated.resourceContext;
     const provider = this.idpProviderService.getProvider(request);
@@ -96,7 +135,77 @@ export class OAuthAuthorizationController {
     const redirectUrl = new URL(authorizationRequest.redirectUri);
     redirectUrl.searchParams.set('code', authorizationCode.code);
     redirectUrl.searchParams.set('state', authorizationRequest.state);
+    // RFC 9207 issuer-bound callbacks: only meaningful (and only advertised via
+    // authorization_response_iss_parameter_supported) for project-specific issuers — see
+    // OAuthMetadataController.getBaseMetadata for why the shared host doesn't need this.
+    if (resourceContext.kind === 'project') {
+      redirectUrl.searchParams.set('iss', resourceContext.publicBaseUrl);
+    }
     response.redirect(redirectUrl.toString());
+  }
+
+  private redirectAuthorizationError(
+    context: OAuthAuthorizationErrorContext,
+    response: Response,
+    cause: unknown
+  ): void {
+    const oauthError = this.mapAuthorizationError(cause);
+    const redirectUrl = new URL(context.redirectUri);
+    redirectUrl.searchParams.set('error', oauthError.error);
+    redirectUrl.searchParams.set('error_description', oauthError.description);
+    if (context.state) {
+      redirectUrl.searchParams.set('state', context.state);
+    }
+    if (context.resourceContext.kind === 'project') {
+      redirectUrl.searchParams.set('iss', context.resourceContext.publicBaseUrl);
+    }
+
+    const metadata = {
+      clientId: context.clientId,
+      error: oauthError.error,
+      issuer: context.resourceContext.publicBaseUrl,
+    };
+    if (oauthError.error === 'server_error') {
+      this.logger.error(
+        'OAuth authorization failed after request validation',
+        castError(cause).stack,
+        metadata
+      );
+    } else {
+      this.logger.warn('OAuth authorization rejected after request validation', metadata);
+    }
+
+    response.redirect(redirectUrl.toString());
+  }
+
+  private toAuthorizationErrorContext(
+    validated: ValidatedOAuthAuthorizationRequest
+  ): OAuthAuthorizationErrorContext {
+    return {
+      clientId: validated.request.clientId,
+      redirectUri: validated.request.redirectUri,
+      state: validated.request.state,
+      resourceContext: validated.resourceContext,
+    };
+  }
+
+  private mapAuthorizationError(cause: unknown): OAuthAuthorizationErrorResponse {
+    if (cause instanceof AuthorizationError) {
+      return {
+        error: 'access_denied',
+        description: 'The authorization request was denied.',
+      };
+    }
+    if (cause instanceof BadRequestException) {
+      return {
+        error: 'invalid_request',
+        description: 'The authorization request could not be completed.',
+      };
+    }
+    return {
+      error: 'server_error',
+      description: 'The authorization server encountered an unexpected condition.',
+    };
   }
 
   private resolveProjectHostMember(

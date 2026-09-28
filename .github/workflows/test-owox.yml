@@ -50,6 +50,9 @@ jobs:
           - name: 'Overall test @owox/ctl'
             command: 'npm run test -w @owox/ctl'
             timeout: 10
+          - name: 'Overall test @owox/connectors'
+            command: 'npm run test -w @owox/connectors'
+            timeout: 10
 
     steps:
       - name: Checkout repository

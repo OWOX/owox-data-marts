@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AvailableSource,
   BlendableSchema,
   DataMartRelationship,
   RelationshipGraph,
@@ -25,6 +26,8 @@ interface CanvasStubProps {
 
 interface AccordionStubProps {
   row: { relationship: DataMartRelationship; rowKey: string };
+  onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  onRelationshipDescriptionSaved: (updated: DataMartRelationship) => void;
   onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
 }
 
@@ -86,6 +89,7 @@ const harness = vi.hoisted(() => {
     schema,
     canvasProps: { current: null as CanvasStubProps | null },
     accordionProps: { current: null as AccordionStubProps | null },
+    accordionPropsByRowKey: new Map<string, AccordionStubProps>(),
     syncDataMartFromResponse: vi.fn(),
     toast: { success: vi.fn(), error: vi.fn() },
   };
@@ -131,7 +135,15 @@ vi.mock('./useRelationshipDefinitionTypes', () => ({
 vi.mock('./RelationshipAccordionItem', () => ({
   RelationshipAccordionItem: (props: AccordionStubProps) => {
     harness.accordionProps.current = props;
-    return <div data-testid='relationship-row'>{props.row.relationship.targetDataMart.title}</div>;
+    harness.accordionPropsByRowKey.set(props.row.rowKey, props);
+    return (
+      <>
+        <div data-testid='relationship-row'>{props.row.relationship.targetDataMart.title}</div>
+        <div data-testid={`relationship-description-${props.row.rowKey}`}>
+          {props.row.relationship.description ?? ''}
+        </div>
+      </>
+    );
   },
 }));
 
@@ -412,5 +424,217 @@ describe('DataMartRelationshipsContent config saves', () => {
       expect(harness.toast.error).toHaveBeenCalledWith('Failed to save changes');
     });
     expect(harness.syncDataMartFromResponse).not.toHaveBeenCalled();
+  });
+});
+
+describe('DataMartRelationshipsContent relationship saves', () => {
+  const service = vi.mocked(dataMartRelationshipService);
+  const SCHEMA_KEY = [BLENDABLE_SCHEMA_QUERY_KEY, 'dm-1', 'include-draft-targets'];
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(res => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  }
+
+  const buildSource = (aliasPath: string, relationshipId: string): AvailableSource => ({
+    aliasPath,
+    title: aliasPath,
+    defaultAlias: aliasPath,
+    depth: aliasPath.split('.').length,
+    fieldCount: 1,
+    isIncluded: true,
+    relationshipId,
+    dataMartId: `dm-${aliasPath}`,
+    isAccessibleForReporting: true,
+  });
+
+  beforeEach(() => {
+    service.getRelationshipGraph.mockClear();
+    service.getBlendableSchema.mockClear();
+    service.updateBlendedFieldsConfig.mockReset();
+    harness.toast.success.mockClear();
+    harness.accordionPropsByRowKey.clear();
+  });
+
+  async function renderRows() {
+    const rendered = renderContent();
+    await waitFor(() => {
+      expect(harness.accordionPropsByRowKey.get('alpha')).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
+    });
+    return rendered;
+  }
+
+  it('applies a description autosave in place: rows stay mounted, no reload, no toast', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+    const rowBefore = screen.getAllByTestId('relationship-row')[0];
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+        // A description response that overtook a Join Settings save carries older settings.
+        targetAlias: 'stale-alias',
+      });
+    });
+
+    // The graph was fetched once on mount and never again: no skeleton, no unmount of the
+    // expanded row and its focused textarea while the user is still typing.
+    expect(service.getRelationshipGraph).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByTestId('relationship-row')[0]).toBe(rowBefore);
+    expect(screen.getByTestId('relationship-description-alpha')).toHaveTextContent(
+      'Product where run was occurring'
+    );
+    expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
+    // Only the description is taken from the response: the PATCH sent nothing else, so nothing
+    // else may move — an older alias in the response must not revert the Join Settings form.
+    expect(harness.accordionPropsByRowKey.get('alpha')?.row.relationship.targetAlias).toBe(
+      'dm-alpha'
+    );
+    // Silent, like the row's other autosaving fields — a toast after every typing pause is noise.
+    expect(harness.toast.success).not.toHaveBeenCalled();
+  });
+
+  it('patches the cached blendable schema instead of refetching it, keeping per-join overrides', async () => {
+    service.getBlendableSchema.mockResolvedValueOnce({
+      ...harness.schema,
+      availableSources: [
+        buildSource('alpha', 'rel-alpha'),
+        { ...buildSource('beta.alpha', 'rel-alpha'), joinDescription: 'own text' },
+        buildSource('beta', 'rel-beta'),
+      ],
+    });
+    service.updateBlendedFieldsConfig.mockResolvedValue({} as never);
+    const { queryClient } = await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // The transient reuse of the same relationship carries its own override.
+    act(() => {
+      alpha.onDescriptionOverrideChange(
+        { aliasPath: 'beta.alpha', alias: 'Alpha' } as SourceEntry,
+        'own text'
+      );
+    });
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+      });
+    });
+
+    const cached = queryClient.getQueryData<BlendableSchema>(SCHEMA_KEY);
+    const byPath = new Map(cached?.availableSources.map(s => [s.aliasPath, s.joinDescription]));
+    expect(byPath.get('alpha')).toBe('Product where run was occurring');
+    expect(byPath.get('beta.alpha')).toBe('own text');
+    expect(byPath.get('beta')).toBeUndefined();
+    expect(service.getBlendableSchema).toHaveBeenCalledTimes(1);
+
+    // Clearing the description drops the effective text where nothing overrides it.
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({ ...alpha.row.relationship, description: undefined });
+    });
+    const cleared = queryClient.getQueryData<BlendableSchema>(SCHEMA_KEY);
+    expect(cleared?.availableSources.find(s => s.aliasPath === 'alpha')).not.toHaveProperty(
+      'joinDescription'
+    );
+    expect(cleared?.availableSources.find(s => s.aliasPath === 'beta.alpha')?.joinDescription).toBe(
+      'own text'
+    );
+  });
+
+  it('refetches the schema when a save lands while a schema fetch is in flight', async () => {
+    const stale = deferred<BlendableSchema>();
+    const withSource = (joinDescription?: string): BlendableSchema => ({
+      ...harness.schema,
+      availableSources: [
+        joinDescription
+          ? { ...buildSource('alpha', 'rel-alpha'), joinDescription }
+          : buildSource('alpha', 'rel-alpha'),
+      ],
+    });
+    service.getBlendableSchema
+      .mockResolvedValueOnce(withSource())
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(withSource('Product where run was occurring'));
+    const { queryClient } = await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // Something else (a config save) started a schema refetch that predates the description.
+    act(() => {
+      void queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });
+    });
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(2);
+    });
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({
+        ...alpha.row.relationship,
+        description: 'Product where run was occurring',
+      });
+    });
+    // The in-flight fetch is replaced by one that sees the committed description; the stale
+    // response, whenever it arrives, must not win.
+    await waitFor(() => {
+      expect(service.getBlendableSchema).toHaveBeenCalledTimes(3);
+    });
+    await act(async () => {
+      stale.resolve(withSource());
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryData<BlendableSchema>(SCHEMA_KEY)
+          ?.availableSources.find(s => s.aliasPath === 'alpha')?.joinDescription
+      ).toBe('Product where run was occurring');
+    });
+  });
+
+  it('re-applies a description saved while a reload was in flight over the stale response', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    // A Join Settings save reloads the graph; the reload is answered from before the
+    // description PATCH committed, so the payload it returns still lacks the description.
+    const reload = deferred<RelationshipGraph>();
+    service.getRelationshipGraph.mockReturnValueOnce(reload.promise);
+    act(() => {
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship });
+    });
+    expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      alpha.onRelationshipDescriptionSaved({ ...alpha.row.relationship, description: 'late' });
+    });
+    await act(async () => {
+      reload.resolve(harness.graph);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('relationship-description-alpha')).toHaveTextContent('late');
+    });
+    expect(screen.getByTestId('relationship-description-beta')).toHaveTextContent('');
+  });
+
+  it('still reloads the list after a Join Settings save', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+
+    act(() => {
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship, targetAlias: 'alpha' });
+    });
+
+    await waitFor(() => {
+      expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
+    });
+    expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated');
   });
 });

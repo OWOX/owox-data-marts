@@ -66,6 +66,7 @@ function buildMockCachedReader(
 const mockReader = buildMockReader(MOCK_HEADERS, MOCK_ROWS);
 
 const mockCacheService = {
+  invalidateByReportId: jest.fn().mockResolvedValue(undefined),
   getOrCreateCachedReader: jest
     .fn()
     .mockResolvedValue(buildMockCachedReader(mockReader, MOCK_HEADERS, MOCK_ROWS)),
@@ -88,6 +89,7 @@ describe('Looker Studio Connector (e2e)', () => {
   let destinationId: string;
   let destinationSecretKey: string;
   let reportId: string;
+  let dataMartId: string;
 
   /** Send a signed JWT request to a Looker Studio endpoint. */
   function postLooker(path: string, payload: unknown): supertest.Test {
@@ -106,6 +108,7 @@ describe('Looker Studio Connector (e2e)', () => {
 
     // Create prerequisite chain: storage -> data mart -> definition -> publish -> destination
     const prerequisites = await setupReportPrerequisites(agent);
+    dataMartId = prerequisites.dataMartId;
     destinationId = prerequisites.dataDestinationId;
 
     // Seed storage credentials directly in DB (the Looker Studio queries use
@@ -159,6 +162,49 @@ describe('Looker Studio Connector (e2e)', () => {
       type: 'bigquery-data-mart-schema',
       fields: [],
     });
+  });
+
+  it('blocks connector access while disabled and reconnects the same report after re-enabling', async () => {
+    const connectionConfig = {
+      deploymentUrl: 'http://localhost',
+      destinationId,
+      destinationSecretKey,
+    };
+    const request = {
+      configParams: { destinationId, reportId },
+      fields: [{ name: 'date' }, { name: 'revenue' }],
+      scriptParams: { sampleExtraction: true },
+    };
+    await agent.delete(`/api/reports/${reportId}`).set(AUTH_HEADER).expect(200);
+
+    const disabled = await postLooker('/api/external/looker/get-config', { connectionConfig });
+    expect(disabled.status).toBe(200);
+    expect(
+      disabled.body.configParams.find((p: { name: string }) => p.name === 'reportId').options
+    ).toEqual([]);
+    for (const endpoint of ['get-schema', 'get-data']) {
+      await postLooker(`/api/external/looker/${endpoint}`, { connectionConfig, request }).expect(
+        400
+      );
+    }
+    expect(mockCacheService.getOrCreateCachedReader).not.toHaveBeenCalled();
+
+    const restored = await agent
+      .post('/api/reports')
+      .set(AUTH_HEADER)
+      .send(
+        new ReportBuilder().withDataMartId(dataMartId).withDataDestinationId(destinationId).build()
+      )
+      .expect(201);
+    expect(restored.body.id).toBe(reportId);
+
+    const enabled = await postLooker('/api/external/looker/get-config', { connectionConfig });
+    expect(enabled.status).toBe(200);
+    expect(
+      enabled.body.configParams.find((p: { name: string }) => p.name === 'reportId').options
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ value: reportId })]));
+    await postLooker('/api/external/looker/get-schema', { connectionConfig, request }).expect(200);
+    await postLooker('/api/external/looker/get-data', { connectionConfig, request }).expect(200);
   });
 
   // -------------------------------------------------------------------------

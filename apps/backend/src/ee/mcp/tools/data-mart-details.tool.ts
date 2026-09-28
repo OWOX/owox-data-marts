@@ -92,6 +92,13 @@ const AGGREGATE_LEVEL_USAGE =
   'Already computed by OWOX at the grain your query asks for: list it in "fields" and read the ' +
   'value. Do not recompute it from other fields, and do not name it in "aggregations".';
 
+// The caveat is written for the analyst who owns the formula — it names a fix to make there. The
+// agent reads it next to "do not recompute it", so it has to know a change to the FORMULA is not
+// its to make; the one query-side step the caveat may offer (a joined Unique Count) stays open.
+const GRAIN_CAVEAT_PREFIX =
+  'Caveat to pass on to the user with this number — a change to its formula belongs in the ' +
+  'Data Mart:';
+
 const DataMartFieldSchema = z
   .object({
     name: z.string(),
@@ -106,7 +113,9 @@ const DataMartFieldSchema = z
       .string()
       .optional()
       .describe(
-        'Present only on a field the Data Mart has ALREADY computed for you. Read it before writing a query that mentions this field.'
+        'Present on a field that needs reading before you query it: one the Data Mart has ' +
+          'ALREADY computed for you, one whose number a join can distort, or both. Read it ' +
+          'before writing a query that mentions this field.'
       ),
   })
   .passthrough();
@@ -203,7 +212,7 @@ function isAggregateLevelCalculatedField(field: RawField): boolean {
 export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDetailsInput> {
   readonly name = 'get_data_mart_details_by_id';
   readonly description =
-    'Get available details for a specific published OWOX Data Mart by data_mart_id, including its URL, native output fields, and (only on explicit request) joined_fields contributed by blended/joined data marts. Use detail_level=native by default: it avoids exposing irrelevant joined fields and keeps the response fast. Request detail_level=with_joined_fields only when the question truly needs a joined Data Mart. Use displayName for user-facing wording and copy name verbatim into query_data_mart. Each controllable field carries its type "category", and every field carries the effective "allowedAggregations" query_data_mart may apply to it; "operators_by_category" maps each category to the filter/slice operators its fields accept — build queries from these instead of guessing. An empty allowedAggregations on a field whose "calculated" level is "metric" means the value is ALREADY computed, not that the field is unusable: select it by name in query_data_mart instead of recomputing it from other fields, and read the "usage" note carried on that field. Array fields are the exception: when mode is REPEATED or type or sliceType is ARRAY, the field omits category and has empty allowedAggregations. It may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. This tool is optional in the discovery flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
+    'Get available details for a specific published OWOX Data Mart by data_mart_id, including its URL, native output fields, and (only on explicit request) joined_fields contributed by blended/joined data marts. Use detail_level=native by default: it avoids exposing irrelevant joined fields and keeps the response fast. Request detail_level=with_joined_fields only when the question truly needs a joined Data Mart. Use displayName for user-facing wording and copy name verbatim into query_data_mart. Each controllable field carries its type "category", and every field carries the effective "allowedAggregations" query_data_mart may apply to it; "operators_by_category" maps each category to the filter/slice operators its fields accept — build queries from these instead of guessing. An empty allowedAggregations on a field whose "calculated" level is "metric" means the value is ALREADY computed, not that the field is unusable: select it by name in query_data_mart instead of recomputing it from other fields, and read the "usage" note carried on that field — it may also warn that a join distorts the number. Array fields are the exception: when mode is REPEATED or type or sliceType is ARRAY, the field omits category and has empty allowedAggregations. It may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. This tool is optional in the discovery flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     id: z.string().describe('Data mart identifier.'),
@@ -260,10 +269,21 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       roles: context.roles,
       dataMartId: parsed.data_mart_id,
       includeJoinedFields,
+      includeGrainCaveats: true,
     });
 
     const categories = new Set<FieldTypeCategory>();
-    const fields = result.fields.map(f => this.enrichField(f as RawField, categories));
+    // A plain object keyed by field name: a field called `constructor` must not read the inherited
+    // member as its caveat.
+    const grainCaveats = result.grainCaveats ?? {};
+    const fields = result.fields.map(f => {
+      const field = f as RawField;
+      const caveat =
+        typeof field.name === 'string' && Object.hasOwn(grainCaveats, field.name)
+          ? grainCaveats[field.name]
+          : undefined;
+      return this.enrichField(field, categories, caveat);
+    });
     // Joined fields go through the same enrichment as native ones (they simply have no
     // aggregationRole and no nested fields), so a future governance knob cannot be
     // applied to one path and silently missed on the other.
@@ -300,7 +320,11 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
    * resolved with the SAME governance function the validator enforces, so the advertised
    * set cannot drift from what a query is actually allowed to do.
    */
-  private enrichField(field: RawField, categories: Set<FieldTypeCategory>): RawField {
+  private enrichField(
+    field: RawField,
+    categories: Set<FieldTypeCategory>,
+    grainCaveat?: string
+  ): RawField {
     const out: RawField = { ...field };
     let isArray = false;
     if (typeof out.type === 'string') {
@@ -337,9 +361,12 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
               aggregationRole: out.aggregationRole as AggregationRole | undefined,
               allowedAggregations: out.allowedAggregations as ReportAggregateFunction[] | undefined,
             });
-      if (isAggregateLevelCalculatedField(out)) {
-        out.usage = AGGREGATE_LEVEL_USAGE;
-      }
+    }
+    const caveat = grainCaveat === undefined ? undefined : `${GRAIN_CAVEAT_PREFIX} ${grainCaveat}`;
+    if (isAggregateLevelCalculatedField(out)) {
+      out.usage = caveat ? `${AGGREGATE_LEVEL_USAGE} ${caveat}` : AGGREGATE_LEVEL_USAGE;
+    } else if (caveat) {
+      out.usage = caveat;
     }
     // sliceType is present only when a type-changing dedup makes the pre-join type differ from
     // the blended "type". For a controllable field, give that pre-join lookup its own category.

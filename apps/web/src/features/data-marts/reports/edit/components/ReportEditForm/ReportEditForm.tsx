@@ -225,6 +225,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
           aggregationConfig: initialReport.aggregationConfig ?? null,
           dateTruncConfig: initialReport.dateTruncConfig ?? null,
           uniqueCountConfig: initialReport.uniqueCountConfig,
+          autoAggregationOptOut: initialReport.autoAggregationOptOut,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
@@ -240,6 +241,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
           aggregationConfig: null,
           dateTruncConfig: null,
           uniqueCountConfig: [],
+          autoAggregationOptOut: [],
         });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
@@ -407,6 +409,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                 'aggregationConfig',
                 'dateTruncConfig',
                 'uniqueCountConfig',
+                'autoAggregationOptOut',
               ]}
             >
               <FormField
@@ -433,6 +436,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
                               aggregationConfig: form.watch('aggregationConfig') ?? [],
                               dateTruncConfig: form.watch('dateTruncConfig') ?? [],
                               uniqueCountConfig: form.watch('uniqueCountConfig'),
+                              autoAggregationOptOut: form.watch('autoAggregationOptOut'),
                             }}
                             onOutputConfigChange={(config, options) => {
                               applyOutputConfigChange(form, config, options);

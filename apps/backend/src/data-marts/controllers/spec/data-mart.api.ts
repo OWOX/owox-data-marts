@@ -14,6 +14,7 @@ import { CreateDataMartResponseApiDto } from '../../dto/presentation/create-data
 import { BatchDataMartHealthStatusRequestApiDto } from '../../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartIconApiDto } from '../../dto/presentation/update-data-mart-icon-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
@@ -127,6 +128,15 @@ export function UpdateDataMartDescriptionSpec() {
     ApiOperation({ summary: 'Update DataMart description' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartDescriptionApiDto }),
+    ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function UpdateDataMartIconSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update DataMart icon' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: UpdateDataMartIconApiDto }),
     ApiOkResponse({ type: DataMartResponseApiDto })
   );
 }

@@ -28,6 +28,7 @@ import {
   McpOAuthTokenExchangeRequestSchema,
   McpOAuthTokenExchangeResponse,
   McpOAuthTokenExchangeResponseSchema,
+  McpOAuthGrantErrorResponseSchema,
   McpOAuthTokenVerificationRequest,
   McpOAuthTokenVerificationRequestSchema,
   McpOAuthTokenVerificationResponseSchema,
@@ -243,11 +244,12 @@ export class IdentityOwoxClient {
     req: McpOAuthTokenExchangeRequest
   ): Promise<McpOAuthTokenExchangeResponse> {
     const parsed = McpOAuthTokenExchangeRequestSchema.parse(req);
-    const authHeader = await this.getC2cAuthHeader('exchange MCP OAuth token', {
+    const context = {
       grantType: parsed.grantType,
       clientId: parsed.clientId,
       resource: parsed.resource,
-    });
+    };
+    const authHeader = await this.getC2cAuthHeader('exchange MCP OAuth token', context);
 
     try {
       const { data } = await this.http.post<unknown>(
@@ -257,7 +259,7 @@ export class IdentityOwoxClient {
       );
       return McpOAuthTokenExchangeResponseSchema.parse(data);
     } catch (err) {
-      this.handleAxiosError(err, { req }, 'Failed to exchange MCP OAuth token');
+      this.handleMcpOAuthTokenExchangeError(err, context);
     }
   }
 
@@ -785,5 +787,24 @@ export class IdentityOwoxClient {
           status,
         });
     }
+  }
+
+  private handleMcpOAuthTokenExchangeError(
+    error: unknown,
+    context: Record<string, unknown>
+  ): never {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !McpOAuthGrantErrorResponseSchema.safeParse(error.response.data).success
+    ) {
+      throw new IdpFailedException('Failed to exchange MCP OAuth token: 401', {
+        cause: error,
+        context,
+        status: 401,
+      });
+    }
+
+    this.handleAxiosError(error, context, 'Failed to exchange MCP OAuth token');
   }
 }

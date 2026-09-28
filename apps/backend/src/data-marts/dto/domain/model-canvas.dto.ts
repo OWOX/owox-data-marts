@@ -1,4 +1,5 @@
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 import { DataMartRelationshipGraphEdgeDto } from './data-mart-relationship-graph-edge.dto';
 import { SourceDataLastUpdatedSummary } from '../schemas/source-data-last-updated.schema';
 
@@ -7,7 +8,12 @@ export interface ModelCanvasNodeDto {
   title: string;
   status: DataMartStatus;
   description: string | null;
+  icon: DataMartIcon | null;
   fieldCount: number;
+  /** Scheduled triggers of the Data Mart. */
+  triggersCount: number;
+  /** Reports built on the Data Mart. */
+  reportsCount: number;
   /** Last-known snapshot; the canvas refresh button re-computes it per visible node. */
   dataLastUpdated: SourceDataLastUpdatedSummary | null;
 }

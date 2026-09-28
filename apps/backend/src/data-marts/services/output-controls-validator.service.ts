@@ -983,7 +983,9 @@ export class OutputControlsValidatorService {
         // A pre-join slice on a non-actualized schema can't be validated (no
         // fields to resolve against) and would otherwise be skipped — the run
         // path then hands the builder an empty fieldIndex and fails with a 500.
-        // Surface the slice columns as disconnected (a 400) instead.
+        // Surface the slice columns as disconnected (a 400) instead. No hidden set is passed:
+        // there is no actualized schema to have hidden anything, so every name here is
+        // unresolvable for the harsher reason.
         const preJoinRefs = parsedFilters
           .filter(r => r.placement === 'pre-join')
           .map(r => r.column);
@@ -1153,10 +1155,10 @@ export class OutputControlsValidatorService {
         // caller to repair a schema link that is not broken. Same honesty the MCP tool's
         // UniqueCountFieldUnsupportedClauseError already gives.
         // A real field may legitimately own one of these names — then it IS that field. Checked
-        // against a set that KEEPS hidden blended fields, unlike `homeFieldTypes`: a field that
-        // went hidden is a broken schema link, and the disconnected diagnosis names it and says
-        // how to repair it. Calling it a Unique Count metric instead is simply false — the report
-        // may have no Unique Count enabled at all.
+        // against a set that KEEPS hidden blended fields, unlike `homeFieldTypes`: a hidden field
+        // still cannot be reported on, and the unresolved-column diagnosis names it and says how
+        // to get it back (shown again, or the schema restored — see the error helper). Calling it
+        // a Unique Count metric instead is simply false — the report may have none enabled.
         const realFieldNames = new Set([
           ...homeFieldTypes.keys(),
           ...blendableSchema.blendedFields.map(f => f.name),
@@ -1438,7 +1440,11 @@ export class OutputControlsValidatorService {
           knownOutputColumns
         );
         if (disconnectedOutputControlRefs.length > 0) {
-          throwDisconnectedReportColumnsError(args.dataMartId, disconnectedOutputControlRefs);
+          throwDisconnectedReportColumnsError(
+            args.dataMartId,
+            disconnectedOutputControlRefs,
+            new Set(blendableSchema.hiddenFieldNames)
+          );
         }
       }
     }

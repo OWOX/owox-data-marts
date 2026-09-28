@@ -29,6 +29,7 @@ export const lookerStudioReportFormSchema = z.object({
   aggregationConfig: z.array(AggregationRuleSchema).nullable(),
   dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
   uniqueCountConfig: z.array(z.string()),
+  autoAggregationOptOut: z.array(z.string()).optional(),
 });
 
 // Define the form data type
@@ -67,6 +68,7 @@ export function useLookerStudioReportForm({
       aggregationConfig: initialReport?.aggregationConfig ?? null,
       dateTruncConfig: initialReport?.dateTruncConfig ?? null,
       uniqueCountConfig: initialReport?.uniqueCountConfig ?? [],
+      autoAggregationOptOut: initialReport?.autoAggregationOptOut ?? [],
     },
     mode: 'onTouched',
   });
@@ -98,6 +100,7 @@ export function useLookerStudioReportForm({
           aggregationConfig: data.aggregationConfig,
           dateTruncConfig: data.dateTruncConfig,
           uniqueCountConfig: data.uniqueCountConfig,
+          autoAggregationOptOut: data.autoAggregationOptOut,
         });
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility
@@ -114,6 +117,7 @@ export function useLookerStudioReportForm({
           aggregationConfig: data.aggregationConfig,
           dateTruncConfig: data.dateTruncConfig,
           uniqueCountConfig: data.uniqueCountConfig,
+          autoAggregationOptOut: data.autoAggregationOptOut,
         });
       }
       onSuccess?.();

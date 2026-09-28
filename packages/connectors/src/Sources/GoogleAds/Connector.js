@@ -53,7 +53,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
   /**
    * Imports every time series node for every customer, one date at a time.
    *
-   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * The loop is date-outer on purpose: the checkpoint may only move once a
    * date is complete for *all* customers and nodes, so a run interrupted midway
    * resumes from the last fully imported date instead of restarting the range.
    *
@@ -89,10 +89,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
         }
       }
 
-      // Every customer and node stored this date, so the cursor can move past it.
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(currentDate);
-      }
+      // Every customer and node stored this date, so the checkpoint can move past it.
+      this.config.updateLastRequstedDate(currentDate);
     }
   }
 

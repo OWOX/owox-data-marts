@@ -746,6 +746,40 @@ describe('FormulaEditor', () => {
       expect(screen.getByRole('status')).toHaveTextContent('divides without guarding');
     });
 
+    // FORMULA_JOINED_ROWS_EXCLUDED (formula-violations.ts `joinedRowsExcluded`) is the one
+    // violation the catalogue gives NO `subject` at all — an exclusion caused by the join belongs to
+    // the formula as a whole, and there is no token to blame it on. Its message also backticks two
+    // Data Mart names, which is exactly the shape `violationSubject`'s message-parsing fallback
+    // looks for; this pins that the fallback still finds nothing to mark because those names never
+    // appear standalone in the SQL on screen (which spells them lowercase, as join aliases). The
+    // catalogue has since dropped those backticks, so this fixture is now the HARDER shape rather
+    // than the literal one — the guard is worth keeping in that form. There is no `role="alert"` in
+    // this component — errors and warnings share one `role="status"` list and are told apart only by
+    // tone class, which is what this asserts.
+    it('renders a subjectless, multi-sentence join warning without marking up any token', () => {
+      const message =
+        'This formula reads `Orders` and `Costs` through joins. Their rows that match nothing ' +
+        "here are dropped, so the result may not match those Data Marts' own totals.";
+      render(
+        <FormulaEditor
+          value='SUM(costs.adCost) - SUM(orders.revenue)'
+          references={[]}
+          index={index}
+          onChange={vi.fn()}
+          diagnostics={diagnostics({
+            warnings: [{ code: 'FORMULA_JOINED_ROWS_EXCLUDED', field: 'roas', message }],
+          })}
+        />
+      );
+
+      expect(lastMarkers()).toEqual([]);
+      const rendered = screen.getByText(/through joins/);
+      expect(rendered).toHaveTextContent(message);
+      // The POSITIVE class: `not.toHaveClass('text-destructive')` also passes for an element that
+      // stopped rendering its tone at all.
+      expect(rendered).toHaveClass('text-amber-700');
+    });
+
     // Names the field and the consequence, never the cause: the wire carries no baseline, so this
     // same bucket holds a metric that was already broken before this editor opened.
     it('reports what would refuse the save elsewhere without marking up this formula', () => {

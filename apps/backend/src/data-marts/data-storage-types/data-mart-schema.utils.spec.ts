@@ -2,6 +2,7 @@ import {
   isConnected,
   classifyJoinedUniqueCountAvailability,
   collectFormulaReferenceableFields,
+  collectHiddenForReportingPaths,
   collectPrimaryKeyRowIdentity,
   collectSchemaFieldPathDescriptors,
   collectSchemaFieldPathTypes,
@@ -633,5 +634,79 @@ describe('collectFormulaReferenceableFields', () => {
     ];
 
     expect(collectFormulaReferenceableFields(fields).map(d => d.name)).toEqual(['items']);
+  });
+});
+
+describe('collectHiddenForReportingPaths', () => {
+  const mkField = (name: string, extra: Partial<DataMartSchemaField> = {}): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  it('names exactly what the reporting lists dropped for being hidden', () => {
+    const fields = [mkField('internal_id', { isHiddenForReporting: true }), mkField('clicks')];
+
+    expect(collectHiddenForReportingPaths(fields)).toEqual(['internal_id']);
+    // The complement of what reporting sees: together they account for every connected field.
+    expect(collectSchemaFieldPathDescriptors(fields).map(d => d.name)).toEqual(['clicks']);
+  });
+
+  it('takes the whole subtree of a hidden RECORD, including children hidden in their own right', () => {
+    // A report could have selected `metrics.ctr` before the parent was hidden, and that name is
+    // just as hidden now — the descriptor walker stops at the parent and never emits it.
+    const fields = [
+      mkField('metrics', {
+        type: 'RECORD',
+        isHiddenForReporting: true,
+        fields: [mkField('ctr'), mkField('cost', { isHiddenForReporting: true })],
+      }),
+    ];
+
+    expect(collectHiddenForReportingPaths(fields)).toEqual([
+      'metrics',
+      'metrics.ctr',
+      'metrics.cost',
+    ]);
+  });
+
+  it('finds a hidden field nested under a visible parent', () => {
+    const fields = [
+      mkField('metrics', {
+        type: 'RECORD',
+        fields: [mkField('ctr'), mkField('internal_cost', { isHiddenForReporting: true })],
+      }),
+    ];
+
+    expect(collectHiddenForReportingPaths(fields)).toEqual(['metrics.internal_cost']);
+  });
+
+  it('leaves out a DISCONNECTED column even when it also carries the flag', () => {
+    // Gone is the more useful thing to be told: hiding it changes nothing about the fact that the
+    // source no longer has it, and "ask your analyst to show it again" would not bring it back.
+    const fields = [
+      mkField('gone', {
+        status: DataMartSchemaFieldStatus.DISCONNECTED,
+        isHiddenForReporting: true,
+      }),
+      mkField('clicks'),
+    ];
+
+    expect(collectHiddenForReportingPaths(fields)).toEqual([]);
+  });
+
+  it('does not expose the descendants of a hidden array column', () => {
+    const fields = [
+      mkField('items', {
+        type: 'RECORD',
+        mode: 'REPEATED',
+        isHiddenForReporting: true,
+        fields: [mkField('sku')],
+      } as Partial<DataMartSchemaField>),
+    ];
+
+    expect(collectHiddenForReportingPaths(fields)).toEqual(['items']);
   });
 });

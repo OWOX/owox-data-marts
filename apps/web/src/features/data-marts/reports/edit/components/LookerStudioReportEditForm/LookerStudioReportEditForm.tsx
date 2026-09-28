@@ -158,6 +158,7 @@ export const LookerStudioReportEditForm = forwardRef<
           aggregationConfig: initialReport.aggregationConfig ?? null,
           dateTruncConfig: initialReport.dateTruncConfig ?? null,
           uniqueCountConfig: initialReport.uniqueCountConfig,
+          autoAggregationOptOut: initialReport.autoAggregationOptOut,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
@@ -170,6 +171,7 @@ export const LookerStudioReportEditForm = forwardRef<
           aggregationConfig: null,
           dateTruncConfig: null,
           uniqueCountConfig: [],
+          autoAggregationOptOut: [],
         });
       }
     }, [initialReport, mode, reset]);
@@ -237,6 +239,7 @@ export const LookerStudioReportEditForm = forwardRef<
                 'aggregationConfig',
                 'dateTruncConfig',
                 'uniqueCountConfig',
+                'autoAggregationOptOut',
               ]}
             >
               <FormField
@@ -263,6 +266,7 @@ export const LookerStudioReportEditForm = forwardRef<
                               aggregationConfig: form.watch('aggregationConfig') ?? [],
                               dateTruncConfig: form.watch('dateTruncConfig') ?? [],
                               uniqueCountConfig: form.watch('uniqueCountConfig'),
+                              autoAggregationOptOut: form.watch('autoAggregationOptOut'),
                             }}
                             onOutputConfigChange={(config, options) => {
                               applyOutputConfigChange(form, config, options);

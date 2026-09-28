@@ -22,6 +22,12 @@ import {
   UniqueCountConfig,
   UniqueCountConfigRequestSchema,
 } from '../schemas/unique-count-config.schema';
+import {
+  AUTO_AGGREGATION_OPT_OUT_MAX_COLUMNS,
+  AUTO_AGGREGATION_OPT_OUT_OPENAPI,
+  AutoAggregationOptOut,
+  AutoAggregationOptOutSchema,
+} from '../schemas/auto-aggregation-opt-out.schema';
 import { IsZodValid } from '../../../common/validators/is-zod-valid.validator';
 
 export class UpdateReportRequestApiDto {
@@ -131,4 +137,11 @@ export class UpdateReportRequestApiDto {
     message: `uniqueCountConfig must be true, false, null, or an array of at most ${UNIQUE_COUNT_CONFIG_MAX_SOURCES} source alias paths`,
   })
   uniqueCountConfig?: UniqueCountConfig;
+
+  @ApiProperty({ ...AUTO_AGGREGATION_OPT_OUT_OPENAPI, required: false })
+  @IsOptional()
+  @IsZodValid(AutoAggregationOptOutSchema, {
+    message: `autoAggregationOptOut must be null or an array of at most ${AUTO_AGGREGATION_OPT_OUT_MAX_COLUMNS} column names`,
+  })
+  autoAggregationOptOut?: AutoAggregationOptOut;
 }

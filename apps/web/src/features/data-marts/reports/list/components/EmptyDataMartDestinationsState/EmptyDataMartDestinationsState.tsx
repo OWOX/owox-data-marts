@@ -142,7 +142,7 @@ export function EmptyDataMartDestinationsState({
                 description='Access live data directly in&nbsp;Excel&nbsp;— choose columns and build reports without SQL or&nbsp;CSV&nbsp;exports.'
                 primaryAction={{
                   label: 'Connect Microsoft Excel',
-                  href: 'https://marketplace.microsoft.com/en-us/product/WA200011946',
+                  href: 'https://marketplace.microsoft.com/en-us/product/WA200011946?src=owox_data_marts&mktcmpid=dm-dest-empty&ocid=dm-dest-empty&utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state',
                 }}
                 secondaryAction={{
                   label: 'Create destination',

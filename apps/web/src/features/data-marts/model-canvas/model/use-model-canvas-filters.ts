@@ -25,7 +25,8 @@ export function useModelCanvasFilters() {
 
   const statusFilter: CanvasStatusFilter =
     status.value === 'draft' ? 'draft' : status.value === 'published' ? 'published' : 'all';
-  const relFilter: CanvasRelFilter = rel.value === 'connected' ? 'connected' : 'all';
+  const relFilter: CanvasRelFilter =
+    rel.value === 'connected' ? 'connected' : rel.value === 'unconnected' ? 'unconnected' : 'all';
 
   const { setParam: setStatusParam, removeParam: removeStatusParam } = status;
   const { setParam: setRelParam, removeParam: removeRelParam } = rel;

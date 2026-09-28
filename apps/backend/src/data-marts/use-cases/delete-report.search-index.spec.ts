@@ -4,6 +4,12 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
+import {
+  addTransactionalDataSource,
+  deleteDataSourceByName,
+  initializeTransactionalContext,
+  StorageDriver,
+} from 'typeorm-transactional';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -36,6 +42,7 @@ import { DeleteReportService } from './delete-report.service';
 
 describe('DeleteReportService search queue with SQLite', () => {
   it('schedules DELETE for the removed report without changing another report REINDEX', async () => {
+    initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
     const dataSource = await new DataSource({
       type: 'better-sqlite3',
       database: ':memory:',
@@ -62,6 +69,7 @@ describe('DeleteReportService search queue with SQLite', () => {
         SearchReindexTrigger,
       ],
     }).initialize();
+    addTransactionalDataSource(dataSource);
 
     try {
       const storage = await dataSource.getRepository(DataStorage).save({
@@ -109,13 +117,13 @@ describe('DeleteReportService search queue with SQLite', () => {
       );
       await indexSync.scheduleReindex(SearchableEntityType.REPORT, 'report-b', 'proj-1');
       const pendingReindex = await triggerRepository.findOneByOrFail({ entityId: 'report-b' });
-      const remove = jest.spyOn(reportRepository, 'remove');
       const service = new DeleteReportService(
         reportRepository,
         new ReportService(
           reportRepository,
           { deleteAllByReportIdAndDataMartIdAndProjectId: jest.fn() } as never,
-          null as never
+          null as never,
+          { invalidateByReportId: jest.fn() } as never
         ),
         { checkMutateAccess: jest.fn() } as never,
         new EventEmitter2(),
@@ -124,7 +132,9 @@ describe('DeleteReportService search queue with SQLite', () => {
 
       await service.run(new DeleteReportCommand('report-a', 'proj-1', 'user-1', ['admin']));
 
-      expect(remove.mock.calls[0][0].id).toBeUndefined();
+      await expect(
+        reportRepository.findOne({ where: { id: 'report-a' }, withDeleted: true })
+      ).resolves.toMatchObject({ id: 'report-a', deletedAt: expect.any(Date) });
       await expect(reportRepository.existsBy({ id: 'report-a' })).resolves.toBe(false);
       await expect(reportRepository.existsBy({ id: 'report-b' })).resolves.toBe(true);
       await expect(triggerRepository.findOneByOrFail({ entityId: 'report-b' })).resolves.toEqual(
@@ -137,6 +147,7 @@ describe('DeleteReportService search queue with SQLite', () => {
         status: TriggerStatus.IDLE,
       });
     } finally {
+      deleteDataSourceByName('default');
       await dataSource.destroy();
     }
   });

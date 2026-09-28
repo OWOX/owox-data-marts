@@ -72,7 +72,8 @@ export class ReportMapper {
       dto.limitConfig ?? null,
       this.parseConfig(AggregationConfigSchema, dto.aggregationConfig, 'aggregationConfig') ?? null,
       this.parseConfig(DateTruncConfigSchema, dto.dateTruncConfig, 'dateTruncConfig') ?? null,
-      dto.uniqueCountConfig ?? null
+      dto.uniqueCountConfig ?? null,
+      dto.autoAggregationOptOut
     );
   }
 
@@ -109,7 +110,8 @@ export class ReportMapper {
       capabilities.canEditConfig,
       entity.aggregationConfig ?? null,
       entity.dateTruncConfig ?? null,
-      entity.uniqueCountConfig ?? null
+      entity.uniqueCountConfig ?? null,
+      entity.autoAggregationOptOut ?? null
     );
   }
 
@@ -129,6 +131,7 @@ export class ReportMapper {
       aggregationConfig: dto.aggregationConfig ?? null,
       dateTruncConfig: dto.dateTruncConfig ?? null,
       uniqueCountConfig: dto.uniqueCountConfig ?? null,
+      autoAggregationOptOut: dto.autoAggregationOptOut ?? null,
       lastRunAt: dto.lastRunAt,
       lastRunStatus: dto.lastRunStatus,
       lastRunError: dto.lastRunError,
@@ -239,7 +242,8 @@ export class ReportMapper {
       dto.limitConfig ?? null,
       this.parseConfig(AggregationConfigSchema, dto.aggregationConfig, 'aggregationConfig') ?? null,
       this.parseConfig(DateTruncConfigSchema, dto.dateTruncConfig, 'dateTruncConfig') ?? null,
-      dto.uniqueCountConfig ?? null
+      dto.uniqueCountConfig ?? null,
+      dto.autoAggregationOptOut
     );
   }
 

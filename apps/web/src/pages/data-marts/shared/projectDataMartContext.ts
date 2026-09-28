@@ -67,6 +67,7 @@ export function buildProjectDataMartContextValue(
     deleteDataMart: noopPromise,
     updateDataMartTitle: noopPromise,
     updateDataMartDescription: noopPromise,
+    updateDataMartIcon: noopPromise,
     updateDataMartStorage: () => undefined,
     updateDataMartDefinition: noopPromise,
     publishDataMart: noopPromise,

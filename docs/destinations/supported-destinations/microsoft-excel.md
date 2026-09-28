@@ -2,7 +2,7 @@
 
 Use **Microsoft Excel** as a Destination. You can browse published Data Marts, create a report, and refresh it inside the workbook.
 
-You can create this destination in the OWOX web app, or let the add-in create it for you. Install the **OWOX Data Marts** add-in from the [Office Add-ins store](https://marketplace.microsoft.com/en-us/product/WA200011946) inside Excel, sign in, and build a report. If you have no Excel destination you can use, the add-in creates one, and it appears in your **Destinations** list. If your project has more than one Excel destination, the add-in asks which one to use when you create a report. Either way the destination stores no credentials. The add-in reads the report with your OWOX access and writes rows into a worksheet in your workbook.
+You can create this destination in the OWOX web app, or let the add-in create it for you. Install the **OWOX Data Marts** add-in from the [Office Add-ins store](https://marketplace.microsoft.com/en-us/product/WA200011946?src=owox_data_marts&mktcmpid=docs-excel&ocid=docs-excel&utm_source=owox_data_marts&utm_medium=docs&utm_campaign=docs-excel) inside Excel, sign in, and build a report. If you have no Excel destination you can use, the add-in creates one, and it appears in your **Destinations** list. If your project has more than one Excel destination, the add-in asks which one to use when you create a report. Either way the destination stores no credentials. The add-in reads the report with your OWOX access and writes rows into a worksheet in your workbook.
 
 Scheduled refresh is not available, and you cannot create Excel reports from the **Destinations** tab.
 
@@ -42,7 +42,7 @@ The store lives inside Excel. It is not the Windows **Microsoft Store** app.
 
 The **OWOX Data Marts** tab appears on the ribbon. Select **Launch sidebar** to open the task pane. Excel may ask you to trust the add-in on first launch. That prompt is expected.
 
-> 💡 You can also start from the [Microsoft Marketplace listing](https://marketplace.microsoft.com/en-us/product/WA200011946). Select **Get it now** and follow the prompts to open Excel.
+> 💡 You can also start from the [Microsoft Marketplace listing](https://marketplace.microsoft.com/en-us/product/WA200011946?src=owox_data_marts&mktcmpid=docs-excel&ocid=docs-excel&utm_source=owox_data_marts&utm_medium=docs&utm_campaign=docs-excel). Select **Get it now** and follow the prompts to open Excel.
 
 The add-in installs per Microsoft account. It follows you to every device where you sign in with the same account.
 
@@ -97,7 +97,24 @@ Use the ribbon buttons on the **OWOX Data Marts** tab:
 
 You can also open **All reports** in the task pane and refresh a report from the list.
 
-A refresh clears the whole bound sheet, then writes the rows again. Anything you typed on that sheet disappears, including formulas and formatting. Keep your own formulas on another sheet and reference the report sheet from there.
+A refresh rewrites only the columns the report imported and leaves the rest of the sheet to you. These rules match a [Google Sheets](google-sheets.md#working-with-imported-data) report:
+
+- **Your column order stays.** Drag imported columns into any order; the next refresh writes each field into the column that now holds it. Fields match by their name in the Data Mart, not by position. An alias in the header does not change the matching.
+- **New report columns** appear at the right edge of the imported range, and your content to the right shifts right. **Removed** report columns disappear; a formula that pointed at one shows `#REF!`.
+- **Formulas and columns to the right of the imported range survive.** The add-in fills a row-2 formula in such a column down to the last data row on every refresh. It leaves a static value in row 2 alone, so lookup tables and notes stay as you wrote them.
+- **Your formats on imported columns survive.** A date or currency format you set on a column stays across refreshes.
+- **Fewer rows than last time** clear the imported cells below the new last row. A formula you filled down in a column to the right stays in place and now points at empty cells.
+- **If the refresh fails before any data arrives**, the sheet stays as it was.
+
+Keep your own columns **to the right** of the imported range. Inside that range, Excel does this:
+
+- **A value or formula typed in an imported cell disappears** on the next refresh. The refresh rewrites that cell.
+- **The refresh deletes a column you insert between imported columns.** It writes each imported field in the column the field moved to. No second copy remains.
+- **A retyped header is not a report field.** If an imported header still sits to its right, the refresh deletes the retyped column. It writes that field again at the right edge of the imported range. If the retyped header is the last imported column, the refresh leaves it in place. It writes the field again at the right edge. The retyped column stays just past the imported range until you delete it.
+- **Excel Tables** over the imported columns do not survive a refresh. The add-in removes the table and rewrites the cells as a plain range. Keep tables to the right of the imported range or on another sheet.
+- **On the first refresh** the add-in freezes row 1 and colors the tab. Unfreeze or recolor as you like; the add-in does not set them again.
+
+After you update the add-in, the first refresh of an existing sheet writes from column A in the report's order. It does not clear the sheet. If the report lost columns, the old ones — with their data and header notes — stay to the right. Delete them once by hand.
 
 ### Share the workbook
 
@@ -111,7 +128,7 @@ Each header note holds the column description from the Data Mart. On Windows and
 
 ### Copy or delete a sheet
 
-- Copying a worksheet copies its report binding. The add-in refreshes the copy you are viewing. When neither copy is active, it picks one of them. Delete the copy you do not need.
+- Copying a worksheet copies the values, not the report. The copy has no binding and no column layout, so a refresh never touches it. To refresh the same data on another sheet, create a report there.
 - Deleting a bound sheet removes the binding. The report stays in **All reports**, but a refresh reports that it lost the sheet.
 
 ### Limits
@@ -204,9 +221,7 @@ Excel on the web cannot resize notes. The full text is there. Drag the note's ed
 
 ### A refresh reports nothing, or the wrong sheet changed
 
-**The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh starts by clearing the sheet.
-
-**Two sheets share one report.** Copying a worksheet copies its binding. Delete the copy you do not need.
+**The report lost its worksheet.** Someone deleted the bound sheet, or the report belongs to another workbook. The add-in stops instead of guessing, because a refresh rewrites the imported columns of whichever sheet it picks.
 
 ### Still stuck
 

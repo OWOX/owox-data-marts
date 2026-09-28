@@ -2,6 +2,11 @@ import type { NodeProps } from '@xyflow/react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import {
+  ALL_HIDDEN,
+  NOTHING_HIDDEN,
+  type ObjectLabelsHidden,
+} from '../../shared/canvas/object-labels';
 import type { CanvasNodeField } from '../model/types';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -9,6 +14,12 @@ vi.mock('@xyflow/react', () => ({
   useUpdateNodeInternals: () => () => undefined,
   Handle: () => null,
   Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
+}));
+
+// A fixed 6 px per character, so line breaks do not depend on the fallback width or the view mode.
+vi.mock('../../shared/canvas/measure-badge-text', () => ({
+  CARD_BADGE_FONT_SIZE_PX: 11,
+  measureBadgeText: (text: string) => text.length * 6,
 }));
 
 const DEFAULT_FIELDS: CanvasNodeField[] = [
@@ -35,7 +46,8 @@ function renderNode(
   onOpenQuality = vi.fn(),
   onRunQuality = vi.fn().mockResolvedValue(undefined),
   onParentClick = vi.fn(),
-  objectLabels?: { source: boolean; fields: boolean; status: boolean }
+  objectLabels?: ObjectLabelsHidden,
+  dataOverrides: Partial<ModelCanvasFlowNodeType['data']> = {}
 ) {
   const props = {
     id: 'orders',
@@ -45,7 +57,13 @@ function renderNode(
       isDraft: false,
       dataLastUpdated: null,
       fieldCount: fields.length,
+      triggersCount: 2,
+      reportsCount: 3,
+      relationshipCount: 1,
+      availableForReporting: true,
+      availableForMaintenance: false,
       description: 'Customer order facts',
+      icon: null,
       definitionType: DataMartDefinitionType.VIEW,
       fields,
       viewMode: 'erd',
@@ -74,6 +92,7 @@ function renderNode(
         dataMartRunId: 'run-1',
         lastRunAt: '2026-07-15T12:00:00.000Z',
       },
+      ...dataOverrides,
     },
     dragging: false,
     zIndex: 0,
@@ -113,6 +132,24 @@ describe('ModelCanvasFlowNode', () => {
     );
   });
 
+  it('draws the default icon until one is picked, then the picked one', () => {
+    const { container, unmount } = renderNode();
+    expect(container.querySelector('.lucide-box')).not.toBeNull();
+    unmount();
+
+    const picked = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      vi.fn(),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      undefined,
+      { icon: 'purchases' }
+    );
+    expect(picked.container.querySelector('.lucide-shopping-cart')).not.toBeNull();
+    expect(picked.container.querySelector('.lucide-box')).toBeNull();
+  });
+
   it('includes the data mart title in the external action name', () => {
     const onOpenExternal = vi.fn();
     renderNode(onOpenExternal);
@@ -147,6 +184,60 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByRole('button', { name: /more field/ })).not.toBeInTheDocument();
   });
 
+  it('leads each row with the alias, keeps the technical name on hover, and adds the description', () => {
+    const fields: CanvasNodeField[] = [
+      {
+        name: 'order_id',
+        alias: 'Order ID',
+        type: 'STRING',
+        description: 'Unique order key',
+        isPrimaryKey: true,
+        isHidden: false,
+      },
+      { name: 'status', alias: 'status', type: 'STRING', isPrimaryKey: false, isHidden: false },
+    ];
+    const { container } = renderNode(vi.fn(), fields);
+
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.queryByText('order_id')).not.toBeInTheDocument();
+    expect(container.querySelector('[title="Order ID · order_id"]')).toBeInTheDocument();
+    expect(screen.getByText('Unique order key')).toBeInTheDocument();
+    // The full description is reachable on hover even when the line truncates.
+    expect(container.querySelector('[title="Unique order key"]')).toBeInTheDocument();
+    // A field without a distinct alias just shows its name.
+    expect(screen.getByText('status')).toBeInTheDocument();
+  });
+
+  it('swaps in the technical name or drops the description when its label is unticked', () => {
+    const fields: CanvasNodeField[] = [
+      {
+        name: 'order_id',
+        alias: 'Order ID',
+        type: 'STRING',
+        description: 'Unique order key',
+        isPrimaryKey: true,
+        isHidden: false,
+      },
+    ];
+    const { unmount, container } = renderNode(vi.fn(), fields, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      fieldAlias: true,
+    });
+    expect(screen.getByText('order_id')).toBeInTheDocument();
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
+    // …and the alias moves to the tooltip, after the (possibly truncated) row text.
+    expect(container.querySelector('[title="order_id · Order ID"]')).toBeInTheDocument();
+    expect(screen.getByText('Unique order key')).toBeInTheDocument();
+    unmount();
+
+    renderNode(vi.fn(), fields, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      fieldDescription: true,
+    });
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    expect(screen.queryByText('Unique order key')).not.toBeInTheDocument();
+  });
+
   it('collapses long field lists and expands them in place', () => {
     const manyFields: CanvasNodeField[] = Array.from({ length: 6 }, (_, i) => ({
       name: `field_${String(i)}`,
@@ -167,35 +258,107 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText('Field 5')).not.toBeInTheDocument();
   });
 
-  it('hides the badge, field count and status pill when all object labels are hidden', () => {
-    const { container } = renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
-      source: true,
-      fields: true,
-      status: true,
-    });
+  it('hides the badges, counts and sharing when all object labels are hidden', () => {
+    const { container } = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      undefined,
+      undefined,
+      undefined,
+      ALL_HIDDEN
+    );
 
     expect(screen.queryByText('View')).not.toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.queryByText('Published')).not.toBeInTheDocument();
+    expect(screen.queryByText('2 triggers')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 relationship')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Shared for reporting')).not.toBeInTheDocument();
     expect(screen.getByText('Orders')).toBeInTheDocument();
     // Title-only mode also drops the quality indicators row.
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Data Last Updated for Orders/)).not.toBeInTheDocument();
-    // The ERD body (field rows) is a view-mode concern and stays visible.
-    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    // The ERD body (field rows) is a view-mode concern and stays visible —
+    // only the alias swaps back to the technical name.
+    expect(screen.getByText('order_id')).toBeInTheDocument();
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
     expect(container.querySelector('[title="Orders"]')).toBeInTheDocument();
   });
 
   it('hides only the field count when the fields label is unticked', () => {
     renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
-      source: false,
+      ...NOTHING_HIDDEN,
       fields: true,
-      status: false,
     });
 
     expect(screen.getByText('View')).toBeInTheDocument();
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
-    expect(screen.getByText('Published')).toBeInTheDocument();
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+  });
+
+  it('shows a Draft pill only for drafts and only while the status label is ticked', () => {
+    const { unmount } = renderNode();
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument();
+    expect(screen.queryByText('Published')).not.toBeInTheDocument();
+    unmount();
+
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      isDraft: true,
+    });
+    expect(screen.getByText('Draft')).toBeInTheDocument();
+  });
+
+  it('shows the triggers and relationships counts and the sharing flags that are on', () => {
+    renderNode();
+
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Shared for maintenance' })).not.toBeInTheDocument();
+  });
+
+  it('hides the badges whose count is zero and drops the emptied row', () => {
+    renderNode(vi.fn(), [], undefined, undefined, undefined, undefined, {
+      triggersCount: 0,
+      reportsCount: 0,
+      relationshipCount: 0,
+    });
+
+    expect(screen.queryByText(/field/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/report/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/relationship/)).not.toBeInTheDocument();
+    // The source badge still shows, and the footer keeps the indicators.
+    expect(screen.getByText('View')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+  });
+
+  it('fills a line with counts while they fit and wraps the one that does not', () => {
+    renderNode();
+
+    const triggers = screen.getByText('2 triggers').parentElement;
+    expect(screen.getByText('3 reports').parentElement).toBe(triggers);
+    expect(screen.getByText('1 relationship').parentElement).not.toBe(triggers);
+  });
+
+  it('keeps reports and relationships on one line when there are no triggers', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      triggersCount: 0,
+      reportsCount: 2,
+      relationshipCount: 2,
+    });
+
+    expect(screen.getByText('2 relationships').parentElement).toBe(
+      screen.getByText('2 reports').parentElement
+    );
+  });
+
+  it('waits for enrichment before showing the triggers count', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
+      triggersCount: undefined,
+    });
+
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
   });
 
   it('orders primary keys first in the field list', () => {
@@ -207,8 +370,9 @@ describe('ModelCanvasFlowNode', () => {
 
     const rowTexts = [...container.querySelectorAll('[title]')]
       .map(el => el.getAttribute('title'))
-      .filter(title => title === 'A' || title === 'B');
-    expect(rowTexts).toEqual(['A', 'B']);
+      .filter(title => title === 'A · a' || title === 'B · b');
+    // Rows lead with the alias and add the technical name to the tooltip.
+    expect(rowTexts).toEqual(['A · a', 'B · b']);
   });
 
   it('opens the Quality tab from the status details without bubbling to the node', async () => {
@@ -235,18 +399,16 @@ describe('ModelCanvasFlowNode', () => {
     ).toHaveClass('-ml-0.5');
   });
 
-  it('renders Data Quality indicators and the field count on one row below the badge', () => {
+  it('renders the Data Quality indicators in the footer, below the count badges', () => {
     renderNode();
 
     const qualityRow = screen.getByRole('button', {
       name: /^Open Data Quality for Orders: Issues found/,
     }).parentElement;
-    const metadataRow = screen.getByText('View').parentElement;
 
-    expect(qualityRow).not.toBe(metadataRow);
-    // The field count shares the status row with the quality indicators, so
-    // cards stay one row shorter than with a dedicated field-count line.
-    expect(screen.getByText('3 fields').parentElement).toBe(qualityRow);
+    expect(screen.getByText('View').closest('div')).not.toBe(qualityRow);
+    expect(screen.getByText('3 fields').closest('div')).not.toBe(qualityRow);
+    expect(qualityRow).toContainElement(screen.getByRole('img', { name: 'Shared for reporting' }));
   });
 
   it('provides the non-bubbling run action inside the quality details', async () => {

@@ -8,6 +8,7 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { DataStorageCredential } from '../../entities/data-storage-credential.entity';
 import { DataStorage } from '../../entities/data-storage.entity';
 import { Report } from '../../entities/report.entity';
+import { ReportDataCache } from '../../entities/report-data-cache.entity';
 import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
 import { ReportRunTrigger } from '../../entities/report-run-trigger.entity';
 import { AdvancedSearchIndexSyncService } from '../../services/advanced-search-index-sync.service';
@@ -47,6 +48,7 @@ export class MoveLegacyDataStorageService {
         .subQuery()
         .select('r.id')
         .from(Report, 'r')
+        .withDeleted()
         .where(`r.dataMartId IN ${dataMartSubQuery}`)
         .getQuery();
 
@@ -67,9 +69,17 @@ export class MoveLegacyDataStorageService {
 
       const reportResult = await manager
         .createQueryBuilder()
-        .delete()
+        .softDelete()
         .from(Report)
         .where(`dataMartId IN ${dataMartSubQuery}`, subQueryParams)
+        .andWhere('deletedAt IS NULL')
+        .execute();
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(ReportDataCache)
+        .where(`reportId IN ${reportSubQuery}`, subQueryParams)
         .execute();
 
       const triggerResult = await manager
@@ -112,7 +122,7 @@ export class MoveLegacyDataStorageService {
       }
 
       this.logger.log(
-        `Moved storage ${storage.id}: deleted ${reportResult.affected ?? 0} reports, ` +
+        `Moved storage ${storage.id}: soft-deleted ${reportResult.affected ?? 0} reports, deleted ` +
           `${triggerResult.affected ?? 0} scheduled triggers, ` +
           `${connectorTriggerResult.affected ?? 0} connector triggers, ` +
           `${reportTriggerResult.affected ?? 0} report triggers, ` +

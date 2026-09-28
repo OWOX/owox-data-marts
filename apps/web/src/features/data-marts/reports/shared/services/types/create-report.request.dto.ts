@@ -22,4 +22,5 @@ export interface CreateReportRequestDto {
   aggregationConfig?: AggregationRule[] | null;
   dateTruncConfig?: DateTruncRule[] | null;
   uniqueCountConfig?: string[] | null;
+  autoAggregationOptOut?: string[] | null;
 }

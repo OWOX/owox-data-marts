@@ -52,7 +52,12 @@ export function GetReportSpec() {
 
 export function DeleteReportSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Delete a report' }),
+    ApiOperation({
+      summary: 'Delete a report',
+      description:
+        'Soft-deletes the report, retaining its configuration and run history. ' +
+        'Deleted reports are excluded from report lists and cannot be read or run.',
+    }),
     ApiParam({ name: 'id', description: 'Report ID' }),
     ApiOkResponse({
       description: 'The report has been successfully deleted.',

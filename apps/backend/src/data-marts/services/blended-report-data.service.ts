@@ -260,7 +260,12 @@ export class BlendedReportDataService {
       [...columnConfig, ...restrictionColumns],
       blendableSchema.blendedFields
     );
-    this.assertNoOrphanedColumnReferences(dataMart, columnConfig, blendedFieldsByName);
+    this.assertNoOrphanedColumnReferences(
+      dataMart,
+      columnConfig,
+      blendedFieldsByName,
+      blendableSchema.hiddenFieldNames
+    );
 
     // A calculated field renders through the builder's `calculatedFields` channel — its stored
     // formula, substituted and qualified against `main` — never as a plain projected column. Built
@@ -911,7 +916,15 @@ export class BlendedReportDataService {
   private assertNoOrphanedColumnReferences(
     dataMart: DataMart,
     columnConfig: string[],
-    blendedFieldsByName: ReadonlyMap<string, BlendedFieldDto>
+    blendedFieldsByName: ReadonlyMap<string, BlendedFieldDto>,
+    /**
+     * Every name someone hid, in both namespaces — own dotted paths AND joined unified names.
+     * Taken from the schema rather than re-derived from `dataMart.schema`: the unknown columns
+     * below are drawn from both, so a set built from the main Data Mart alone leaves a hidden
+     * JOINED column called disconnected on this path only — the picker, the save and the SQL
+     * preview would all be saying something else about the same column.
+     */
+    hiddenFieldNames: readonly string[]
   ): void {
     const schemaFields = dataMart.schema?.fields ?? [];
     if (schemaFields.length === 0) return;
@@ -925,7 +938,7 @@ export class BlendedReportDataService {
     });
     if (unknownColumns.length === 0) return;
 
-    throwDisconnectedReportColumnsError(dataMart.id, unknownColumns);
+    throwDisconnectedReportColumnsError(dataMart.id, unknownColumns, new Set(hiddenFieldNames));
   }
 
   private async assertAllRequestedSourcesAccessible(

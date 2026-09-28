@@ -27,6 +27,10 @@ import {
   foldEmptyUniqueCountConfig,
   normalizeUniqueCountSources,
 } from '../dto/schemas/unique-count-sources';
+import {
+  foldEmptyAutoAggregationOptOut,
+  selectedAutoAggregationOptOut,
+} from '../dto/schemas/auto-aggregation-opt-out.schema';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 
@@ -178,6 +182,20 @@ export class UpdateReportService {
     const dateTruncChanged =
       JSON.stringify(previousDateTruncConfig) !== JSON.stringify(nextDateTruncConfig);
 
+    // Absent means "not sent", not "cleared": an extension build or API client that predates the
+    // field would otherwise wipe the analyst's opt-out on every save.
+    const previousAutoAggregationOptOut = foldEmptyAutoAggregationOptOut(
+      report.autoAggregationOptOut
+    );
+    const nextAutoAggregationOptOut = selectedAutoAggregationOptOut(
+      command.autoAggregationOptOut === undefined
+        ? previousAutoAggregationOptOut
+        : command.autoAggregationOptOut,
+      nextColumnConfig
+    );
+    const autoAggregationOptOutChanged =
+      JSON.stringify(previousAutoAggregationOptOut) !== JSON.stringify(nextAutoAggregationOptOut);
+
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
@@ -188,6 +206,7 @@ export class UpdateReportService {
     report.aggregationConfig = nextAggregationConfig;
     report.dateTruncConfig = nextDateTruncConfig;
     report.uniqueCountConfig = nextUniqueCountConfig;
+    report.autoAggregationOptOut = nextAutoAggregationOptOut;
 
     const updatedReport = await this.reportRepository.save(report);
     await this.advancedSearchIndexSync?.scheduleReindex(
@@ -220,7 +239,8 @@ export class UpdateReportService {
       limitChanged ||
       aggregationChanged ||
       dateTruncChanged ||
-      uniqueCountChanged
+      uniqueCountChanged ||
+      autoAggregationOptOutChanged
     ) {
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }

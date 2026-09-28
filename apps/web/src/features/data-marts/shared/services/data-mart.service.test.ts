@@ -215,6 +215,25 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('previewDataMart', () => {
+    it('waits past the backend preview deadline and forwards the cancel signal', async () => {
+      (apiClient.post as any).mockResolvedValueOnce({ data: { rowCount: 0 } });
+      const controller = new AbortController();
+
+      await service.previewDataMart(mockDataMartId, { limit: 10 }, controller.signal);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/preview`,
+        { limit: 10 },
+        expect.objectContaining({
+          timeout: 180000,
+          signal: controller.signal,
+          skipErrorToast: true,
+        })
+      );
+    });
+  });
+
   describe('cancelDataMartRun', () => {
     it('should suppress the global error toast so the run history button can show the specific message', async () => {
       await service.cancelDataMartRun(mockDataMartId, 'run-1');
@@ -224,6 +243,21 @@ describe('DataMartService', () => {
         undefined,
         { skipErrorToast: true }
       );
+    });
+  });
+
+  describe('updateDataMartIcon', () => {
+    it.each([['purchases' as const], [null]])('sends %s to the icon endpoint', async icon => {
+      (apiClient.put as any).mockResolvedValueOnce({ data: { ...mockDataMartResponse, icon } });
+
+      const result = await service.updateDataMartIcon(mockDataMartId, icon);
+
+      expect(apiClient.put).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/icon`,
+        { icon },
+        undefined
+      );
+      expect(result).toEqual({ ...mockDataMartResponse, icon });
     });
   });
 

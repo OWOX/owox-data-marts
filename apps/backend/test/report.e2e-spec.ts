@@ -16,6 +16,7 @@ describe('Report API (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let dataMartId: string;
+  let storageId: string;
   let dataDestinationId: string;
   let createdId: string;
 
@@ -26,6 +27,7 @@ describe('Report API (e2e)', () => {
 
     const prerequisites = await setupReportPrerequisites(agent);
     dataMartId = prerequisites.dataMartId;
+    storageId = prerequisites.storageId;
     dataDestinationId = prerequisites.dataDestinationId;
   });
 
@@ -73,6 +75,18 @@ describe('Report API (e2e)', () => {
 
     const found = res.body.find((item: Record<string, unknown>) => item.id === createdId);
     expect(found).toBeDefined();
+  });
+
+  // RPT-03b: the Models canvas counts the report on the Data Mart's card
+  it('GET /api/model-canvas/data-marts - counts the created report', async () => {
+    const res = await agent
+      .get('/api/model-canvas/data-marts')
+      .query({ storageId })
+      .set(AUTH_HEADER);
+
+    expect(res.status).toBe(200);
+    const node = res.body.items.find((item: { id: string }) => item.id === dataMartId);
+    expect(node).toMatchObject({ reportsCount: 1 });
   });
 
   // RPT-04: List all reports for project

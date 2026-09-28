@@ -1,10 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
+import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
   DataMartRelationship,
   TransientRelationshipRow,
 } from '../../../shared/types/relationship.types';
+
+vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
+  dataMartRelationshipService: {
+    updateRelationship: vi.fn(),
+  },
+}));
 
 vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
   useProjectRoute: () => ({
@@ -84,6 +91,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -111,6 +119,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -143,6 +152,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -179,6 +189,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -215,6 +226,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -249,6 +261,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -282,6 +295,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         siblingAliases={[]}
         onDelete={noopAsync}
         onRelationshipUpdated={noop}
+        onRelationshipDescriptionSaved={noop}
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
@@ -290,5 +304,49 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
     );
 
     expect(screen.queryByText('No primary key')).not.toBeInTheDocument();
+  });
+});
+
+describe('RelationshipAccordionItem — save callbacks', () => {
+  beforeAll(() => {
+    // jsdom has no scrollIntoView; the item scrolls itself into view after opening by default.
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it('routes a Description autosave to onRelationshipDescriptionSaved, not onRelationshipUpdated', async () => {
+    const relationship = buildRelationship();
+    const saved = { ...relationship, description: 'Product where run was occurring' };
+    vi.mocked(dataMartRelationshipService.updateRelationship).mockResolvedValue(saved);
+    const onRelationshipUpdated = vi.fn();
+    const onRelationshipDescriptionSaved = vi.fn();
+
+    render(
+      <RelationshipAccordionItem
+        row={buildRow({ relationship })}
+        source={null}
+        dataMartId='dm-1'
+        storageId='storage-1'
+        siblingAliases={[]}
+        defaultOpenTab='description'
+        onDelete={noopAsync}
+        onRelationshipUpdated={onRelationshipUpdated}
+        onRelationshipDescriptionSaved={onRelationshipDescriptionSaved}
+        onAliasChange={noop}
+        onHideForReportingChange={noop}
+        onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
+      />
+    );
+
+    const textarea = await screen.findByPlaceholderText(/visitors from the website/i);
+    fireEvent.change(textarea, { target: { value: 'Product where run was occurring' } });
+    fireEvent.blur(textarea);
+
+    await waitFor(() => {
+      expect(onRelationshipDescriptionSaved).toHaveBeenCalledWith(saved);
+    });
+    expect(onRelationshipUpdated).not.toHaveBeenCalled();
+    // The reload-free path must not unmount the field the user is typing in.
+    expect(screen.getByPlaceholderText(/visitors from the website/i)).toBe(textarea);
   });
 });

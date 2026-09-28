@@ -47,7 +47,13 @@ import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges'
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
 import type { PathPoint } from '../../shared/canvas/path-point';
 import type { ModelCanvasNode } from '../model/types';
-import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
+import {
+  type CanvasViewMode,
+  computeNodeHeight,
+  nodeLayoutOptions,
+  type NodeLayoutOptions,
+  nodeWidth,
+} from '../model/erd-node';
 import {
   parseObjectLabelsHidden,
   serializeObjectLabelsHidden,
@@ -111,15 +117,35 @@ const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
 
 function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
   return JSON.stringify(
-    nodes.map(({ id, title, status, description, fieldCount, definitionType, fields }) => ({
-      id,
-      title,
-      status,
-      description,
-      fieldCount,
-      definitionType,
-      fields,
-    }))
+    nodes.map(
+      ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        reportsCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      }) => ({
+        id,
+        title,
+        status,
+        description,
+        fieldCount,
+        definitionType,
+        fields,
+        triggersCount,
+        reportsCount,
+        relationshipCount,
+        availableForReporting,
+        availableForMaintenance,
+      })
+    )
   );
 }
 
@@ -145,6 +171,8 @@ interface FlowNodeParams {
   direction: CanvasDirection;
   viewMode: CanvasViewMode;
   objectLabels: ObjectLabelsHidden;
+  /** Derived from `objectLabels` once per layout pass and shared by every node. */
+  layout: NodeLayoutOptions;
   isCheckingDataLastUpdated: boolean;
   onOpenExternal: () => void;
   onOpenQuality: () => void;
@@ -153,16 +181,12 @@ interface FlowNodeParams {
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
   const { node, highlight, viewMode, objectLabels } = params;
-  // The field count lives in the status icons row, so the meta row only holds
-  // the status pill and the source badge — hiding both drops the whole row.
-  const metaRowHidden = objectLabels.source && objectLabels.status;
-  const statusRowHidden = objectLabels.source && objectLabels.fields && objectLabels.status;
   return {
     id: node.id,
     type: 'modelCanvasNode',
     position: params.position,
     width: nodeWidth(viewMode),
-    height: computeNodeHeight(node, viewMode, metaRowHidden, statusRowHidden),
+    height: computeNodeHeight(node, viewMode, params.layout),
     draggable: true,
     selectable: false,
     focusable: false,
@@ -174,7 +198,13 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       title: node.title,
       isDraft: node.status === DataMartStatus.DRAFT,
       fieldCount: node.fieldCount,
+      triggersCount: node.triggersCount,
+      reportsCount: node.reportsCount,
+      relationshipCount: node.relationshipCount ?? 0,
+      availableForReporting: node.availableForReporting,
+      availableForMaintenance: node.availableForMaintenance,
       description: node.description,
+      icon: node.icon ?? null,
       definitionType: node.definitionType ?? null,
       fields: node.fields ?? [],
       viewMode,
@@ -334,11 +364,11 @@ function ModelCanvasInner({
       n => n.title
     );
 
-    const metaRowHidden = objectLabels.source && objectLabels.status;
+    const layout = nodeLayoutOptions(objectLabels);
     const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
-      height: computeNodeHeight(n, viewMode, metaRowHidden),
+      height: computeNodeHeight(n, viewMode, layout),
     }));
     const joinLabels = showJoinLabels
       ? new Map(topologyEdges.map(e => [e.id, buildJoinLabel(e)]))
@@ -372,6 +402,9 @@ function ModelCanvasInner({
     const liveDataLastUpdated = new Map(
       nodesRef.current.map(node => [node.id, node.dataLastUpdated])
     );
+    // The icon stays out of the topology signature (picking one must not re-run
+    // the layout), so the snapshot may hold a stale one — read it live too.
+    const liveIcons = new Map(nodesRef.current.map(node => [node.id, node.icon]));
 
     setFlowNodes(
       topologyNodes.map(topologyNode =>
@@ -382,6 +415,9 @@ function ModelCanvasInner({
               liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
             dataLastUpdated:
               liveDataLastUpdated.get(topologyNode.id) ?? topologyNode.dataLastUpdated,
+            icon: liveIcons.has(topologyNode.id)
+              ? liveIcons.get(topologyNode.id)
+              : topologyNode.icon,
           },
           // A user-dragged position wins over the computed layout.
           position: savedPositions[topologyNode.id] ??
@@ -392,6 +428,7 @@ function ModelCanvasInner({
           direction,
           viewMode,
           objectLabels,
+          layout,
           onOpenExternal: () => {
             onOpenDataMartRef.current(topologyNode.id);
           },
@@ -516,22 +553,26 @@ function ModelCanvasInner({
     []
   );
 
-  // Data-only updates (quality polling, a finished Data Last Updated sweep) flow into the
+  // Data-only updates (quality polling, a finished Data Last Updated sweep, a newly picked
+  // icon) flow into the
   // existing flow nodes here: the layout effect above deliberately re-runs only when the
   // TOPOLOGY signature changes, so without this sync fresh values would not appear until a
   // reload.
   useEffect(() => {
     const summaries = new Map(nodes.map(node => [node.id, node.qualitySummary]));
     const lastUpdated = new Map(nodes.map(node => [node.id, node.dataLastUpdated]));
+    const icons = new Map(nodes.map(node => [node.id, node.icon ?? null]));
     setFlowNodes(current =>
       current.map(node => {
         const qualitySummary = summaries.get(node.id) ?? node.data.qualitySummary;
         const dataLastUpdated = lastUpdated.has(node.id)
           ? (lastUpdated.get(node.id) ?? null)
           : node.data.dataLastUpdated;
+        const icon = icons.has(node.id) ? (icons.get(node.id) ?? null) : node.data.icon;
         return node.data.qualitySummary !== qualitySummary ||
-          node.data.dataLastUpdated !== dataLastUpdated
-          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated } }
+          node.data.dataLastUpdated !== dataLastUpdated ||
+          node.data.icon !== icon
+          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated, icon } }
           : node;
       })
     );

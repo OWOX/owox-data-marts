@@ -564,8 +564,7 @@ describe('RelationshipCanvas view settings', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: /^Status/ }));
     expect(props.onObjectLabelsChange).toHaveBeenCalledWith({
-      source: false,
-      fields: false,
+      ...NOTHING_HIDDEN,
       status: true,
     });
   });
@@ -595,6 +594,38 @@ describe('RelationshipCanvas view settings', () => {
       'field_4',
       'field_5',
     ]);
+  });
+
+  it('reserves an extra line per shown field description in Detailed view', async () => {
+    const fields = buildFields(2).map((field, index) =>
+      index === 0 ? { ...field, description: 'Explained' } : field
+    );
+    const { rerender } = render(
+      <RelationshipCanvas
+        {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])}
+        viewMode='erd'
+        fieldsByAliasPath={new Map([['target-1', fields]])}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+    const target = () => reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
+    // 92 header + 2 rows × 26 + one 14px description line.
+    expect(target()?.height).toBe(92 + 2 * 26 + 14);
+
+    rerender(
+      <RelationshipCanvas
+        {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])}
+        viewMode='erd'
+        fieldsByAliasPath={new Map([['target-1', fields]])}
+        objectLabels={{ ...NOTHING_HIDDEN, fieldDescription: true }}
+      />
+    );
+    await waitFor(() => {
+      expect(target()?.height).toBe(92 + 2 * 26);
+    });
   });
 
   it('keeps the selection and viewport across view-settings toggles', async () => {

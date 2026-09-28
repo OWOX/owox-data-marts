@@ -81,6 +81,10 @@ var ShopifyConnector = class ShopifyConnector extends AbstractConnector {
         await storage.saveData(preparedData);
       }
 
+      // Incremental only, unlike the other per-day connectors: this loop sits *inside*
+      // `for (const nodeName in fields)`, so a date completed for orders says nothing about
+      // customers. Checkpointing a backfill here would let a retry resume past days a later
+      // node never imported. Restore this once the date loop encloses every node.
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
