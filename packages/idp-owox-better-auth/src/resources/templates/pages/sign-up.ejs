@@ -92,22 +92,20 @@
 
 <%- include('../partials/social-auth') %>
 <script>
-  const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
 
   /**
-   * Ensures a PKCE state exists before running a sign-in action. If one
-   * isn't set up yet, this navigates to the same page with `pendingAction`
-   * set instead of running the action immediately - that request starts the
-   * Platform round trip that mints a state, and once it returns, this exact
-   * action is resumed automatically via autoSubmitProvider.
+   * Always bounces through Platform for a brand-new state on click - a
+   * click is a separate, later action from whatever state the page
+   * happened to load with, so the state backing it should be fresh
+   * regardless of how long the page has been open. Strips any `state`
+   * already in the URL first so the request reaches the no-state branch
+   * server-side; the persisted `pendingAction` is what makes the return leg
+   * auto-resume this exact provider (see autoSubmitProvider).
    */
-  function ensureStateThenRun(pendingAction, run) {
-    if (hasAuthState) {
-      run();
-      return;
-    }
+  function alwaysGetFreshStateThenRun(pendingAction) {
     const params = new URLSearchParams(window.location.search);
+    params.delete('state');
     params.set('pendingAction', pendingAction);
     window.location.href = `${window.location.pathname}?${params.toString()}`;
   }
@@ -220,12 +218,8 @@
 
   const googleButton = document.getElementById('google-signup');
   const microsoftButton = document.getElementById('microsoft-signup');
-  googleButton?.addEventListener('click', () =>
-    ensureStateThenRun('google', () => submitSocial('google'))
-  );
-  microsoftButton?.addEventListener('click', () =>
-    ensureStateThenRun('microsoft', () => submitSocial('microsoft'))
-  );
+  googleButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('google'));
+  microsoftButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('microsoft'));
   signupForm?.addEventListener('submit', handleSignUp);
 
   // Resume the action the user originally clicked, now that a fresh PKCE

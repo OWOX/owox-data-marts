@@ -374,13 +374,18 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const state = req.query.state as string | undefined;
       if (!code) {
         this.logger.warn('Redirect url should contain code param', { path: req.path });
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        clearAuthFlowCookies(res, req);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
 
       if (!state) {
         this.logger.warn('Redirect url should contain state param', { path: req.path });
         clearAuthFlowCookies(res, req);
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
 
       try {
@@ -465,7 +470,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
             error instanceof Error ? error : undefined
           );
         }
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        clearAuthFlowCookies(res, req);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
     });
   }
@@ -494,12 +502,16 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   /**
    * Handles sign-in when no query state is present.
-   * Attempts fast-path IDP start or refresh token reuse. Otherwise, only starts
-   * the Platform PKCE round trip (which mints a short-lived state) when this
-   * exact request carries an explicit `pendingAction` (i.e. the user just
-   * clicked a specific sign-in action) - a plain, unauthenticated page load
-   * renders the sign-in page locally without minting any state, so the state's
-   * TTL only starts counting down once the user has shown real intent.
+   * Attempts fast-path IDP start or refresh token reuse, otherwise redirects
+   * to Platform to mint a state - the email/password form needs one ready as
+   * soon as the page renders (a client-side deferral was tried and dropped:
+   * it either lost an in-progress password to a full-page bounce, or left a
+   * window where the state could still expire mid-form-fill). `pendingAction`
+   * still matters here: the Google/Microsoft buttons always force a *fresh*
+   * bounce on click (stripping any state already in the URL first, see
+   * sign-in.ejs), specifically so a click is never serviced by a state that
+   * has been sitting around since page load; the persisted `pendingAction`
+   * is what lets the return leg auto-resume that exact action.
    */
   private async handleNoState(req: e.Request, res: e.Response): Promise<void | e.Response> {
     const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
@@ -538,10 +550,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (refreshToken) {
       const handled = await this.handleExistingRefreshToken(req, res, refreshToken);
       if (handled) return;
-    }
-
-    if (!pendingAction) {
-      return this.pageController.signInPage(req, res);
     }
 
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
@@ -597,6 +605,16 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
   }
 
+  /**
+   * A bare `/auth/sign-in` redirect after a failure mid-flow renders
+   * identically to a fresh, never-touched page - the user has no way to
+   * tell a real failure apart from their click having done nothing at all.
+   */
+  private signInErrorRedirect(reason: string): string {
+    const params = new URLSearchParams({ error: reason });
+    return `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}?${params.toString()}`;
+  }
+
   private resolveExistingRefreshRedirect(params: AuthFlowParams): string {
     const allowedRedirectOrigins = this.config.idpOwox.idpConfig.allowedRedirectOrigins;
     return (
@@ -640,11 +658,19 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     if (!queryState) {
-      const authFlowParams = extractAuthFlowParams(req);
+      // projectId/appRedirectTo are read from the query only, not the
+      // cookie-inclusive extractAuthFlowParams: a project invite/bind link
+      // is a signal carried by *this* request, not by whatever the params
+      // cookie happens to still hold from an earlier, unrelated visit.
+      const hasQueryProjectId =
+        typeof req.query?.projectId === 'string' && req.query.projectId.length > 0;
+      const hasQueryAppRedirectTo =
+        typeof req.query?.['app-redirect-to'] === 'string' &&
+        req.query['app-redirect-to'].length > 0;
       const hasEstablishedIntent =
         Boolean(readPendingActionFromQuery(req)) ||
-        Boolean(authFlowParams.projectId) ||
-        Boolean(authFlowParams.appRedirectTo) ||
+        hasQueryProjectId ||
+        hasQueryAppRedirectTo ||
         Boolean(extractRefreshToken(req));
       if (!hasEstablishedIntent) {
         return this.pageController.signUpPage(req, res);
@@ -666,6 +692,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
     clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
     clearBetterAuthCookies(res, req);
+    // Leaving these behind would let a subsequent /auth/sign-in trust a dead
+    // state (or a stale pendingAction) as if it were fresh.
+    clearAuthFlowCookies(res, req);
     const redirectUrl =
       this.config.idpOwox.idpConfig.signOutRedirectUrl ??
       `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`;

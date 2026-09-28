@@ -34,6 +34,17 @@ export class PkceFlowOrchestrator {
   ) {}
 
   /**
+   * A bare `/auth/sign-in` redirect after a failure mid-flow renders
+   * identically to a fresh, never-touched page - the user has no way to
+   * tell a real failure apart from their click having done nothing at all.
+   */
+  private signInErrorUrl(reason: string): URL {
+    const url = new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+    url.searchParams.set('error', reason);
+    return url;
+  }
+
+  /**
    * Revokes refresh token and clears auth cookies before redirecting to sign-in.
    */
   private async revokeRefreshTokenAndClearCookies(
@@ -102,7 +113,7 @@ export class PkceFlowOrchestrator {
     } catch (error) {
       if (isStateExpiredError(error)) {
         clearAllAuthCookies(res, req);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       if (error instanceof AuthenticationException) {
         this.logger.warn(
@@ -113,7 +124,7 @@ export class PkceFlowOrchestrator {
           error
         );
         await this.revokeRefreshTokenAndClearCookies(refreshToken, req, res);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       this.logger.warn(
         'Platform fast-path failed, will fallback to UI',
@@ -143,7 +154,7 @@ export class PkceFlowOrchestrator {
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
       clearAllAuthCookies(res, req);
-      return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+      return this.signInErrorUrl('Your sign-in session expired. Please try again.');
     }
     try {
       const { code, payload } =
@@ -168,7 +179,7 @@ export class PkceFlowOrchestrator {
     } catch (error) {
       if (isStateExpiredError(error)) {
         clearAllAuthCookies(res, req);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       this.logger.warn(
         'Auto-complete auth flow on callback failed',

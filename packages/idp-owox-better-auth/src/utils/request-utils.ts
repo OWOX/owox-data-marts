@@ -1,4 +1,5 @@
 import { type Request, type Response } from 'express';
+import ms from 'ms';
 import { z } from 'zod';
 import {
   BETTER_AUTH_CSRF_COOKIE,
@@ -171,7 +172,11 @@ export class StateManager {
 
   persist(res: Response, state: string): void {
     if (!state) return;
-    setCookie(res, this.req, STATE_COOKIE, state);
+    // IB's own state record lives for 2 minutes (idp.authFlow.stateLifetime);
+    // capping the cookie at the same window means a stale cookie left behind
+    // by an abandoned or failed attempt self-corrects instead of silently
+    // being trusted as "state exists" long after IB would reject it.
+    setCookie(res, this.req, STATE_COOKIE, state, { maxAgeMs: ms('2m') });
   }
 }
 
@@ -358,6 +363,22 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
  */
 export function readPendingActionFromQuery(req: Request): PendingAction | undefined {
   return isPendingAction(req.query?.pendingAction) ? req.query.pendingAction : undefined;
+}
+
+/**
+ * Reads a validated `pendingAction` from the persisted params cookie only,
+ * ignoring the query string. Platform's redirect back never carries
+ * `pendingAction` in its query (it isn't in the set of params
+ * `platform-redirect-builder.ts` forwards), so on a genuine return leg this
+ * is the only place the value can legitimately come from. Deciding whether
+ * to auto-submit a sign-in action from the query instead would let a bare
+ * link (`?state=...&pendingAction=google`) trigger it with no user gesture
+ * at all - use this, not `extractAuthFlowParams(req).pendingAction`, for
+ * that decision.
+ */
+export function readPendingActionFromCookie(req: Request): PendingAction | undefined {
+  const cookieParams = parseSerializedAuthFlowParams(getCookie(req, AUTH_FLOW_PARAMS_COOKIE));
+  return cookieParams?.pendingAction;
 }
 
 /**

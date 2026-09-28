@@ -11,18 +11,20 @@ import type { UiAuthProviders } from '../types/index.js';
 import {
   clearPendingAction,
   extractAuthFlowParams,
-  extractState,
   persistAuthFlowContext,
+  readPendingActionFromCookie,
 } from '../utils/request-utils.js';
 
 type AutoSubmitProvider = 'google' | 'microsoft';
 
 function resolveAutoSubmitProvider(
-  hasState: boolean,
-  pendingAction: string | undefined
+  hasQueryState: boolean,
+  pendingAction: string | undefined,
+  enabledProviders: UiAuthProviders
 ): AutoSubmitProvider | undefined {
-  if (!hasState) return undefined;
-  return pendingAction === 'google' || pendingAction === 'microsoft' ? pendingAction : undefined;
+  if (!hasQueryState) return undefined;
+  if (pendingAction !== 'google' && pendingAction !== 'microsoft') return undefined;
+  return enabledProviders[pendingAction] ? pendingAction : undefined;
 }
 
 /**
@@ -40,11 +42,26 @@ export class PageController {
     persistAuthFlowContext(req, res, { state, params });
   }
 
+  /**
+   * Whether *this exact request* is a genuine return leg from the Platform
+   * round trip (state literally present in its own query), never merely
+   * "some state cookie happens to still be around". Deliberately not
+   * cookie-inclusive: a stale leftover cookie (abandoned attempt, an error
+   * path that didn't clear it, etc.) must not be trusted as fresh, and -
+   * more importantly - this value gates auto-submitting a sign-in action
+   * with no further click, so it must not be satisfiable by a query
+   * parameter alone (a crafted `?state=x&pendingAction=google` link).
+   */
+  private hasQueryState(req: ExpressRequest): boolean {
+    return typeof req.query?.state === 'string' && req.query.state.length > 0;
+  }
+
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const hasState = Boolean(extractState(req));
+    const hasState = this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
-      extractAuthFlowParams(req).pendingAction
+      readPendingActionFromCookie(req),
+      this.providers
     );
     this.persistAuthFlowContext(req, res);
     // pendingAction is single-use: once read for this render, drop it so a
@@ -66,10 +83,11 @@ export class PageController {
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const hasState = Boolean(extractState(req));
+    const hasState = this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
-      extractAuthFlowParams(req).pendingAction
+      readPendingActionFromCookie(req),
+      this.providers
     );
     this.persistAuthFlowContext(req, res);
     clearPendingAction(req, res);
@@ -82,7 +100,6 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
-        hasState,
         autoSubmitProvider,
       })
     );

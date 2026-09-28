@@ -44,7 +44,7 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('let hasAuthState = false;');
+    expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
@@ -58,7 +58,7 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('let hasAuthState = true;');
+    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = "google";');
 
     const persisted = lastParamsCookieValue(res);
@@ -76,18 +76,47 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('let hasAuthState = true;');
+    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
-  it('never auto-submits when there is no state yet, even if a stale pendingAction cookie exists', async () => {
+  it('never auto-submits when there is no query state, even if a stale state+pendingAction cookie exists', async () => {
     const controller = new PageController(providers);
-    const req = createRequest({}, paramsCookieHeader({ pendingAction: 'google' }));
+    const req = createRequest(
+      {},
+      `idp-owox-state=stale-state; ${paramsCookieHeader({ pendingAction: 'google' })}`
+    );
     const res = createResponse();
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('let hasAuthState = false;');
+    expect(res.body).toContain('const hasAuthState = false;');
+    expect(res.body).toContain('const autoSubmitProvider = null;');
+  });
+
+  it('does not auto-submit a query-only state with no matching pendingAction cookie (crafted-link check)', async () => {
+    const controller = new PageController(providers);
+    const req = createRequest({ state: 'attacker-supplied', pendingAction: 'google' });
+    const res = createResponse();
+
+    await controller.signInPage(req, res);
+
+    // hasState is true (query carries state), but pendingAction must come
+    // from the cookie only - a bare link can never supply that.
+    expect(res.body).toContain('const hasAuthState = true;');
+    expect(res.body).toContain('const autoSubmitProvider = null;');
+  });
+
+  it('does not auto-submit for a disabled provider even with a valid resume cookie', async () => {
+    const controller = new PageController({ google: false, microsoft: true, email: true });
+    const req = createRequest(
+      { state: 'fresh-state' },
+      paramsCookieHeader({ pendingAction: 'google' })
+    );
+    const res = createResponse();
+
+    await controller.signInPage(req, res);
+
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
@@ -101,7 +130,6 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signUpPage(req, res);
 
-    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = "microsoft";');
   });
 });
