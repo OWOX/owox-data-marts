@@ -46,14 +46,14 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 ## Canvas settings
 
-The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have (Input source, Field count, Status and the field rows) and stores its own values.
+The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have (Input source, Fields, Status and the field rows) and stores its own values.
 
 - **View** picks the card density. **Compact** cards show everything listed in [What a card shows](#what-a-card-shows). **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Layout algorithm** lays the graph out horizontally or vertically. Picking an algorithm re-runs the layout and drops the card positions you dragged.
 - **Show join fields** labels every arrow with its join conditions (`source_field = target_field`).
 - **Card content** picks what every card shows. Each checkbox hides one thing and leaves the rest of the card as it is:
   - **Input source** shows the badge with the definition type (View, Table, SQL, Pattern or Connector).
-  - **Field count** shows the number of fields in the Output Schema.
+  - **Fields** shows the number of fields in the Output Schema.
   - **Triggers**, **Reports** and **Relationships** show those counts.
   - **Draft badge** shows **Draft** next to the title of unpublished Data Marts.
   - **Quality and sharing** shows the footer: the Data Quality and Data Last Updated indicators and the sharing icons.
