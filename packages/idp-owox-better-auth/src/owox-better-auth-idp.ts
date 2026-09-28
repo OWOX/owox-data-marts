@@ -552,6 +552,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       if (handled) return;
     }
 
+    if (pendingAction === 'google' || pendingAction === 'microsoft') {
+      // The page already has a state cookie. A social click requests a fresh
+      // state, so remove the old cookie before Platform returns with the new one.
+      clearAuthFlowStateCookie(res, req);
+    }
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
   }
 
@@ -667,13 +672,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const hasQueryAppRedirectTo =
         typeof req.query?.['app-redirect-to'] === 'string' &&
         req.query['app-redirect-to'].length > 0;
+      const pendingAction = readPendingActionFromQuery(req);
       const hasEstablishedIntent =
-        Boolean(readPendingActionFromQuery(req)) ||
+        Boolean(pendingAction) ||
         hasQueryProjectId ||
         hasQueryAppRedirectTo ||
         Boolean(extractRefreshToken(req));
       if (!hasEstablishedIntent) {
         return this.pageController.signUpPage(req, res);
+      }
+      if (pendingAction === 'google' || pendingAction === 'microsoft') {
+        clearAuthFlowStateCookie(res, req);
       }
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }

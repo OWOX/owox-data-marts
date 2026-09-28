@@ -94,7 +94,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
     it('starts the Platform PKCE round trip when the request carries an explicit pendingAction', async () => {
       const provider = createProvider();
       const request = {
-        headers: { cookie: '' },
+        headers: { cookie: 'idp-owox-state=page-load-state' },
         query: { pendingAction: 'google' },
       } as unknown as Request;
       const response = createResponse();
@@ -104,6 +104,10 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
       expect(response.redirect).toHaveBeenCalledWith(
         expect.stringContaining('https://platform.test/auth/sign-in')
+      );
+      expect(response.clearCookie).toHaveBeenCalledWith(
+        'idp-owox-state',
+        expect.objectContaining({ path: '/' })
       );
       // pendingAction must survive into the persisted params cookie so it can
       // be resumed once state comes back from Platform.
@@ -170,7 +174,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
     it('starts the Platform PKCE round trip when the request carries an explicit pendingAction', async () => {
       const provider = createProvider();
       const request = {
-        headers: { cookie: '' },
+        headers: { cookie: 'idp-owox-state=page-load-state' },
         query: { pendingAction: 'microsoft' },
       } as unknown as Request;
       const response = createResponse();
@@ -180,6 +184,15 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       expect(provider['pageController'].signUpPage).not.toHaveBeenCalled();
       expect(response.redirect).toHaveBeenCalledWith(
         expect.stringContaining('https://platform.test/auth/sign-up')
+      );
+      expect(response.clearCookie).toHaveBeenCalledWith(
+        'idp-owox-state',
+        expect.objectContaining({ path: '/' })
+      );
+      expect(response.cookie).toHaveBeenCalledWith(
+        'idp-owox-params',
+        expect.stringContaining('pendingAction'),
+        expect.anything()
       );
     });
 
