@@ -12,8 +12,9 @@ import {
   ERD_ROW_HEIGHT,
   cardBadgeLineCount,
   cardBadges,
-  cardCountBadges,
-  packCountBadges,
+  cardBadgeList,
+  cardBadgeLines,
+  packBadges,
   collapsedRowCount,
   computeNodeHeight,
   nodeLayoutOptions,
@@ -111,49 +112,63 @@ const ONE_PER_LINE = () => 1000;
 /** A fixed 6 px per character, to pin exact line breaks. */
 const SIX_PX = (text: string) => text.length * 6;
 
-describe('packCountBadges', () => {
-  it('orders the counts as triggers, reports, relationships', () => {
-    expect(cardCountBadges(FULL, cardBadges(FULL)).map(count => count.label)).toEqual([
+describe('packBadges', () => {
+  it('lists the badges as source, fields, triggers, reports, relationships', () => {
+    expect(cardBadgeList(FULL, cardBadges(FULL)).map(badge => badge.label)).toEqual([
+      'View',
+      '3 fields',
       '2 triggers',
       '4 reports',
       '1 relationship',
     ]);
   });
 
-  it('keeps counts on one line while they fit the card and wraps the next one', () => {
+  it('fills each line while the badges fit the card and wraps the next one', () => {
     // Compact line: 240 − 26 = 214 px; a badge is its text + 28 px chrome + 2 px slack.
-    const counts = cardCountBadges(FULL, cardBadges(FULL));
-    const lines = packCountBadges(counts, 'compact', SIX_PX);
-    // 2 triggers (60+30) + gap 4 + 4 reports (54+30) = 178 fits; + 1 relationship (84+30) does not.
-    expect(lines.map(line => line.map(count => count.kind))).toEqual([
-      ['triggers', 'reports'],
-      ['relationships'],
-    ]);
+    // View (24+30) + 3 fields (48+30) = 136; + 2 triggers (60+30) would be 230 → wrap.
+    // 2 triggers + 4 reports (54+30) = 178; + 1 relationship (84+30) would be 296 → wrap.
+    expect(
+      cardBadgeLines(FULL, 'compact', {}, SIX_PX).map(line => line.map(badge => badge.kind))
+    ).toEqual([['definition', 'fields'], ['triggers', 'reports'], ['relationships']]);
   });
 
   it('puts reports and relationships on one line when they fit', () => {
-    const node = { ...FULL, triggersCount: 0, reportsCount: 2, relationshipCount: 2 };
-    const lines = packCountBadges(cardCountBadges(node, cardBadges(node)), 'compact', SIX_PX);
-    expect(lines.map(line => line.map(count => count.label))).toEqual([
+    const node = {
+      ...FULL,
+      fieldCount: 6,
+      triggersCount: 0,
+      reportsCount: 2,
+      relationshipCount: 2,
+    };
+    expect(
+      cardBadgeLines(node, 'compact', {}, SIX_PX).map(line => line.map(badge => badge.label))
+    ).toEqual([
+      ['View', '6 fields'],
       ['2 reports', '2 relationships'],
     ]);
   });
 
-  it('gives a badge wider than the line a line of its own', () => {
-    const counts = cardCountBadges(FULL, cardBadges(FULL));
-    expect(packCountBadges(counts, 'compact', ONE_PER_LINE)).toHaveLength(3);
+  it('lets a count join the source line when the line has room', () => {
+    const node = { ...FULL, triggersCount: 0, reportsCount: 1, relationshipCount: 0 };
+    // View (54) + 3 fields (78) + 1 report (48+30) = 218 > 214 → wraps; without fields it fits.
+    expect(cardBadgeLines(node, 'compact', { fieldCountHidden: true }, SIX_PX)).toHaveLength(1);
   });
 
-  it('counts the source + field count line on top of the packed counts', () => {
+  it('gives a badge wider than the line a line of its own', () => {
+    expect(packBadges(cardBadgeList(FULL, cardBadges(FULL)), 'compact', ONE_PER_LINE)).toHaveLength(
+      5
+    );
+  });
+
+  it('counts the packed lines', () => {
     expect(cardBadgeLineCount(FULL, 'compact', {}, SIX_PX)).toBe(3);
-    expect(cardBadgeLineCount({ ...FULL, triggersCount: 0 }, 'compact', {}, SIX_PX)).toBe(2);
     expect(cardBadgeLineCount(EMPTY, 'compact', {}, SIX_PX)).toBe(0);
   });
 });
 
 describe('computeNodeHeight', () => {
-  it('sizes a card with every count on its own line as title + four badge lines + footer', () => {
-    expect(COMPACT_NODE_HEIGHT).toBe(182);
+  it('sizes a card with every badge on its own line as title + five badge lines + footer', () => {
+    expect(COMPACT_NODE_HEIGHT).toBe(206);
     expect(computeNodeHeight(FULL, 'compact', {}, ONE_PER_LINE)).toBe(COMPACT_NODE_HEIGHT);
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CalendarClock,
   Columns3,
@@ -11,7 +11,14 @@ import {
   Waypoints,
   type LucideIcon,
 } from 'lucide-react';
-import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
+import {
+  Handle,
+  Position,
+  useReactFlow,
+  useUpdateNodeInternals,
+  type Node,
+  type NodeProps,
+} from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import {
@@ -23,10 +30,9 @@ import {
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import {
   type CanvasViewMode,
-  type CardCountKind,
-  cardCountBadges,
-  packCountBadges,
-  pluralizeCount,
+  type CardBadge,
+  type CardBadgeKind,
+  cardBadgeLines,
   cardBadges,
   nodeLayoutOptions,
   nodeWidth,
@@ -38,7 +44,8 @@ import {
   type ObjectLabelsHidden,
 } from '../../shared/canvas/object-labels';
 import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
-import type { CanvasNodeField } from '../model/types';
+import type { CanvasNodeField, CanvasNodeRelationship } from '../model/types';
+import { CardRelationshipsSection } from './CardRelationshipsSection';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
@@ -55,6 +62,8 @@ export interface ModelCanvasFlowNodeData {
   triggersCount?: number;
   reportsCount?: number;
   relationshipCount: number;
+  /** The relationships behind `relationshipCount`, listed when its badge is clicked. */
+  relationships: CanvasNodeRelationship[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   description: string | null;
@@ -76,7 +85,11 @@ export interface ModelCanvasFlowNodeData {
   onRunQuality: () => Promise<void>;
 }
 
-const COUNT_BADGE_ICONS: Record<CardCountKind, LucideIcon> = {
+/** Above every resting card, so an opened list is never covered by the card below. */
+const RAISED_NODE_Z_INDEX = 1000;
+
+const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {
+  fields: Columns3,
   triggers: CalendarClock,
   reports: FileText,
   relationships: Waypoints,
@@ -90,17 +103,48 @@ const COUNT_BADGE_ICONS: Record<CardCountKind, LucideIcon> = {
 function CardPill({
   icon: Icon,
   children,
+  toggle,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
+  /** Makes the pill a button that opens and closes a section of the card. */
+  toggle?: { expanded: boolean; label: string; onToggle: () => void };
 }) {
-  return (
-    <span className='bg-muted text-muted-foreground inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] leading-none whitespace-nowrap'>
+  const className =
+    'inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] leading-none whitespace-nowrap';
+  const content = (
+    <>
       <span className='inline-flex shrink-0' aria-hidden='true'>
         <Icon className='h-3 w-3' />
       </span>
       {children}
-    </span>
+    </>
+  );
+  if (!toggle) {
+    return <span className={`bg-muted text-muted-foreground ${className}`}>{content}</span>;
+  }
+  return (
+    <button
+      type='button'
+      className={`nodrag cursor-pointer transition-colors ${className} ${
+        toggle.expanded
+          ? 'bg-foreground/10 text-foreground'
+          : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-foreground/10'
+      }`}
+      aria-expanded={toggle.expanded}
+      aria-label={toggle.label}
+      title={toggle.label}
+      onPointerDown={e => {
+        e.stopPropagation();
+      }}
+      onClick={e => {
+        // The card itself toggles its edge highlight on click — keep the two apart.
+        e.stopPropagation();
+        toggle.onToggle();
+      }}
+    >
+      {content}
+    </button>
   );
 }
 
@@ -127,12 +171,24 @@ export default function ModelCanvasFlowNode({
   // Owned here (not in the section) so expansion survives Compact↔Detailed
   // round-trips — the node stays mounted while the section unmounts.
   const [expanded, setExpanded] = useState(false);
+  // The section a clicked badge opened: the field list (Compact view) or the relationships.
+  const [openSection, setOpenSection] = useState<'fields' | 'relationships' | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   // Expansion grows the card past its layout height, moving the handles —
   // re-measure so edges stay attached to the handle dots.
   useEffect(() => {
     updateNodeInternals(id);
-  }, [expanded, id, updateNodeInternals]);
+  }, [expanded, openSection, id, updateNodeInternals]);
+  // An opened list runs past the card's layout height, over the card below —
+  // lift this card above its neighbours while it is open.
+  const { updateNode } = useReactFlow();
+  const raised = openSection !== null || expanded;
+  const wasRaised = useRef(false);
+  useEffect(() => {
+    if (raised === wasRaised.current) return;
+    wasRaised.current = raised;
+    updateNode(id, { zIndex: raised ? RAISED_NODE_Z_INDEX : 0 });
+  }, [raised, id, updateNode]);
 
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
@@ -147,9 +203,16 @@ export default function ModelCanvasFlowNode({
       : null;
   // Published is the norm, so only a draft earns a pill — next to the title.
   const withDraft = !labels.status && data.isDraft;
-  const withMetaLine = badges.definition || badges.fieldCount;
-  // Counts fill a line while they fit its width — the layout estimate packs them the same way.
-  const countLines = packCountBadges(cardCountBadges(data, badges), data.viewMode);
+  // Badges fill a line while they fit its width — the layout estimate packs them the same way.
+  const badgeLines = cardBadgeLines(data, data.viewMode, nodeLayoutOptions(labels));
+  // The Detailed view already lists the fields, so there the field count stays a plain badge.
+  const canOpenFields = !isErd && fields.length > 0;
+  const canOpenRelationships = data.relationships.length > 0;
+  const showFields = openSection === 'fields' && canOpenFields;
+  const showRelationships = openSection === 'relationships' && canOpenRelationships;
+  const toggleSection = (section: 'fields' | 'relationships') => {
+    setOpenSection(current => (current === section ? null : section));
+  };
   // "Uncheck all — title only" strips the card down to its name: counts,
   // quality indicators and sharing go too.
   const titleOnly = isTitleOnly(labels);
@@ -157,6 +220,39 @@ export default function ModelCanvasFlowNode({
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
   const openExternalLabel = `Open ${data.title} in new tab`;
+
+  function renderBadge(badge: CardBadge) {
+    if (badge.kind === 'definition') {
+      return definitionInfo ? (
+        <CardPill key={badge.kind} icon={definitionInfo.icon}>
+          {badge.label}
+        </CardPill>
+      ) : null;
+    }
+    const toggle =
+      badge.kind === 'fields' && canOpenFields
+        ? {
+            expanded: showFields,
+            label: `${showFields ? 'Hide' : 'Show'} fields of ${data.title}`,
+            onToggle: () => {
+              toggleSection('fields');
+            },
+          }
+        : badge.kind === 'relationships' && canOpenRelationships
+          ? {
+              expanded: showRelationships,
+              label: `${showRelationships ? 'Hide' : 'Show'} relationships of ${data.title}`,
+              onToggle: () => {
+                toggleSection('relationships');
+              },
+            }
+          : undefined;
+    return (
+      <CardPill key={badge.kind} icon={BADGE_ICONS[badge.kind]} toggle={toggle}>
+        {badge.label}
+      </CardPill>
+    );
+  }
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -238,27 +334,13 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Badge lines: source + field count, then the counts packed by width */}
-      {withMetaLine && (
-        <div className='flex items-center gap-1 overflow-hidden pt-2 pr-3 pl-3'>
-          {definitionInfo && (
-            <CardPill icon={definitionInfo.icon}>{definitionInfo.displayName}</CardPill>
-          )}
-          {badges.fieldCount && (
-            <CardPill icon={Columns3}>{pluralizeCount(data.fieldCount, 'field')}</CardPill>
-          )}
-        </div>
-      )}
-      {countLines.map((line, index) => (
+      {/* Badge lines: source, fields, triggers, reports, relationships — packed by width */}
+      {badgeLines.map((line, index) => (
         <div
-          key={line.map(count => count.kind).join('+')}
-          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 && !withMetaLine ? 'pt-2' : 'pt-1'}`}
+          key={line.map(badge => badge.kind).join('+')}
+          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 ? 'pt-2' : 'pt-1'}`}
         >
-          {line.map(count => (
-            <CardPill key={count.kind} icon={COUNT_BADGE_ICONS[count.kind]}>
-              {count.label}
-            </CardPill>
-          ))}
+          {line.map(renderBadge)}
         </div>
       ))}
 
@@ -293,6 +375,21 @@ export default function ModelCanvasFlowNode({
             </span>
           </div>
         </>
+      )}
+
+      {/* Sections opened from the badges */}
+      {showRelationships && (
+        <CardRelationshipsSection dataMartTitle={data.title} relationships={data.relationships} />
+      )}
+      {showFields && (
+        <ErdCardFieldsSection
+          fields={fields}
+          labels={toFieldRowLabels(labels)}
+          expanded={expanded}
+          onToggleExpanded={() => {
+            setExpanded(v => !v);
+          }}
+        />
       )}
 
       {/* ERD body: field rows (only in ERD view) */}

@@ -30,10 +30,9 @@ export {
 // an expanded ERD node may overlap below until the user drags it (nodes are
 // draggable) — same behaviour as owox/models.
 
-// Card rows, top to bottom: title (icon tile + name), the source + field count
-// row, the count badges (triggers, reports, relationships) packed onto as few
-// lines as their measured widths allow, then the footer (quality indicators +
-// sharing). Every line is a fixed single line, and the card and this estimate
+// Card rows, top to bottom: title (icon tile + name), the badges (source, field
+// count, triggers, reports, relationships) packed onto as few lines as their
+// measured widths allow, then the footer (quality indicators + sharing). Every line is a fixed single line, and the card and this estimate
 // pack the badges the same way, so the estimate stays exact. A count of zero
 // shows no badge, and a line left without badges is dropped.
 /** Title row: top padding + the 28px icon tile. */
@@ -48,11 +47,11 @@ export const CARD_BADGE_ROW_HEIGHT = 24;
 export const CARD_FOOTER_HEIGHT = 42;
 
 export const COMPACT_NODE_WIDTH = 240;
-/** Tallest Compact card — every count on its own line. */
+/** Tallest Compact card — each of the five badges on a line of its own. */
 export const COMPACT_NODE_HEIGHT =
   CARD_TITLE_ROW_HEIGHT +
   CARD_FIRST_BADGE_ROW_HEIGHT +
-  3 * CARD_BADGE_ROW_HEIGHT +
+  4 * CARD_BADGE_ROW_HEIGHT +
   CARD_FOOTER_HEIGHT;
 
 export const ERD_NODE_WIDTH = 256;
@@ -122,29 +121,38 @@ export function pluralizeCount(count: number, singular: string): string {
   return `${String(count)} ${singular}${count === 1 ? '' : 's'}`;
 }
 
-export type CardCountKind = 'triggers' | 'reports' | 'relationships';
+export type CardBadgeKind = 'definition' | 'fields' | 'triggers' | 'reports' | 'relationships';
 
-export interface CardCountBadge {
-  kind: CardCountKind;
+export interface CardBadge {
+  kind: CardBadgeKind;
   label: string;
 }
 
-/** The count badges a card shows, in display order. */
-export function cardCountBadges(node: CardBadgeInput, badges: CardBadges): CardCountBadge[] {
-  const counts: CardCountBadge[] = [];
+/** The badges a card shows, in display order: source, fields, triggers, reports, relationships. */
+export function cardBadgeList(node: CardBadgeInput, badges: CardBadges): CardBadge[] {
+  const list: CardBadge[] = [];
+  if (badges.definition && node.definitionType) {
+    list.push({
+      kind: 'definition',
+      label: DataMartDefinitionTypeModel.getInfo(node.definitionType).displayName,
+    });
+  }
+  if (badges.fieldCount) {
+    list.push({ kind: 'fields', label: pluralizeCount(node.fieldCount, 'field') });
+  }
   if (badges.triggers) {
-    counts.push({ kind: 'triggers', label: pluralizeCount(node.triggersCount ?? 0, 'trigger') });
+    list.push({ kind: 'triggers', label: pluralizeCount(node.triggersCount ?? 0, 'trigger') });
   }
   if (badges.reports) {
-    counts.push({ kind: 'reports', label: pluralizeCount(node.reportsCount ?? 0, 'report') });
+    list.push({ kind: 'reports', label: pluralizeCount(node.reportsCount ?? 0, 'report') });
   }
   if (badges.relationships) {
-    counts.push({
+    list.push({
       kind: 'relationships',
       label: pluralizeCount(node.relationshipCount ?? 0, 'relationship'),
     });
   }
-  return counts;
+  return list;
 }
 
 /** Horizontal inset of a card row: `pl-3` + `pr-3` plus the card's 1px `border` on each side. */
@@ -159,42 +167,50 @@ const CARD_BADGE_SLACK = 2;
 export type TextMeasure = (text: string) => number;
 
 /**
- * Packs the count badges onto lines, in order, starting a new line when the
- * next badge would not fit the card's width. The card renders these lines and
- * the layout estimate counts them, so both agree.
+ * Packs the badges onto lines, in order, starting a new line only when the
+ * next badge would not fit the card's width — fewer lines keep the card short.
+ * The card renders these lines and the layout estimate counts them, so both agree.
  */
-export function packCountBadges(
-  counts: readonly CardCountBadge[],
+export function packBadges(
+  badges: readonly CardBadge[],
   viewMode: CanvasViewMode,
   measure: TextMeasure = measureBadgeText
-): CardCountBadge[][] {
+): CardBadge[][] {
   const available = nodeWidth(viewMode) - CARD_ROW_INSET;
-  const lines: CardCountBadge[][] = [];
+  const lines: CardBadge[][] = [];
   let lineWidth = 0;
-  for (const count of counts) {
-    const width = Math.ceil(measure(count.label)) + CARD_BADGE_CHROME + CARD_BADGE_SLACK;
+  for (const badge of badges) {
+    const width = Math.ceil(measure(badge.label)) + CARD_BADGE_CHROME + CARD_BADGE_SLACK;
     const current = lines.at(-1);
     if (current && lineWidth + CARD_BADGE_GAP + width <= available) {
-      current.push(count);
+      current.push(badge);
       lineWidth += CARD_BADGE_GAP + width;
     } else {
-      lines.push([count]);
+      lines.push([badge]);
       lineWidth = width;
     }
   }
   return lines;
 }
 
-/** Number of badge lines a card shows: the source + field count line, then the packed counts. */
+/** The badge lines a card shows, exactly as the card renders them. */
+export function cardBadgeLines(
+  node: CardBadgeInput,
+  viewMode: CanvasViewMode,
+  options: NodeLayoutOptions = {},
+  measure: TextMeasure = measureBadgeText
+): CardBadge[][] {
+  return packBadges(cardBadgeList(node, cardBadges(node, options)), viewMode, measure);
+}
+
+/** Number of badge lines a card shows. */
 export function cardBadgeLineCount(
   node: CardBadgeInput,
   viewMode: CanvasViewMode,
   options: NodeLayoutOptions = {},
   measure: TextMeasure = measureBadgeText
 ): number {
-  const badges = cardBadges(node, options);
-  const metaLine = badges.definition || badges.fieldCount ? 1 : 0;
-  return metaLine + packCountBadges(cardCountBadges(node, badges), viewMode, measure).length;
+  return cardBadgeLines(node, viewMode, options, measure).length;
 }
 
 /** Height of the card header (everything above the ERD field rows). */

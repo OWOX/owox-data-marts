@@ -129,6 +129,7 @@ function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
         triggersCount,
         reportsCount,
         relationshipCount,
+        relationships,
         availableForReporting,
         availableForMaintenance,
       }) => ({
@@ -142,6 +143,7 @@ function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
         triggersCount,
         reportsCount,
         relationshipCount,
+        relationships,
         availableForReporting,
         availableForMaintenance,
       })
@@ -201,6 +203,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       triggersCount: node.triggersCount,
       reportsCount: node.reportsCount,
       relationshipCount: node.relationshipCount ?? 0,
+      relationships: node.relationships ?? [],
       availableForReporting: node.availableForReporting,
       availableForMaintenance: node.availableForMaintenance,
       description: node.description,

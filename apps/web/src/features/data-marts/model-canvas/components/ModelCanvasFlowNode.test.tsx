@@ -10,8 +10,16 @@ import {
 import type { CanvasNodeField } from '../model/types';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
+// A fixed 6 px per character pins the line breaks (canvas text metrics vary by environment).
+vi.mock('../../shared/canvas/measure-badge-text', () => ({
+  measureBadgeText: (text: string) => text.length * 6,
+}));
+
+const updateNode = vi.hoisted(() => vi.fn());
+
 vi.mock('@xyflow/react', () => ({
   useUpdateNodeInternals: () => () => undefined,
+  useReactFlow: () => ({ updateNode }),
   Handle: () => null,
   Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
 }));
@@ -60,6 +68,15 @@ function renderNode(
       triggersCount: 2,
       reportsCount: 3,
       relationshipCount: 1,
+      relationships: [
+        {
+          id: 'edge-1',
+          direction: 'outgoing',
+          otherDataMartId: 'customers',
+          otherTitle: 'Customers',
+          joinFields: [{ field: 'customer_id', otherField: 'id' }],
+        },
+      ],
       availableForReporting: true,
       availableForMaintenance: false,
       description: 'Customer order facts',
@@ -332,24 +349,71 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
   });
 
-  it('fills a line with counts while they fit and wraps the one that does not', () => {
+  it('packs the badges onto as few lines as fit the card', () => {
     renderNode();
 
-    const triggers = screen.getByText('2 triggers').parentElement;
-    expect(screen.getByText('3 reports').parentElement).toBe(triggers);
-    expect(screen.getByText('1 relationship').parentElement).not.toBe(triggers);
+    // Detailed line: 256 − 26 = 230 px; each badge is its text (6 px/char) + 30 px.
+    // View (54) + 3 fields (78) + 2 triggers (90) = 230 fits; 3 reports + 1 relationship wrap.
+    const firstLine = screen.getByText('View').parentElement;
+    expect(screen.getByText('2 triggers').parentElement).toBe(firstLine);
+    const secondLine = screen.getByText('3 reports').parentElement;
+    expect(secondLine).not.toBe(firstLine);
+    expect(screen.getByRole('button', { name: 'Show relationships of Orders' }).parentElement).toBe(
+      secondLine
+    );
   });
 
-  it('keeps reports and relationships on one line when there are no triggers', () => {
-    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
-      triggersCount: 0,
-      reportsCount: 2,
-      relationshipCount: 2,
-    });
+  it('opens the relationships list from its badge without selecting the card', () => {
+    const parentClick = vi.fn();
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, parentClick);
 
-    expect(screen.getByText('2 relationships').parentElement).toBe(
-      screen.getByText('2 reports').parentElement
+    const badge = screen.getByRole('button', { name: 'Show relationships of Orders' });
+    expect(badge).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(badge);
+
+    const list = screen.getByRole('list', { name: 'Relationships of Orders' });
+    expect(list).toHaveTextContent('Customers');
+    expect(list).toHaveTextContent('customer_id = id');
+    expect(screen.getByRole('button', { name: 'Hide relationships of Orders' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
     );
+    expect(parentClick).not.toHaveBeenCalled();
+
+    // The open list may run over the card below, so the card is lifted meanwhile.
+    expect(updateNode).toHaveBeenLastCalledWith('orders', { zIndex: 1000 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide relationships of Orders' }));
+    expect(screen.queryByRole('list', { name: 'Relationships of Orders' })).not.toBeInTheDocument();
+    expect(updateNode).toHaveBeenLastCalledWith('orders', { zIndex: 0 });
+  });
+
+  it('opens the field list from the field count in the Compact view only', () => {
+    const { unmount } = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        viewMode: 'compact',
+      }
+    );
+
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show fields of Orders' }));
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    // Opening one section closes the other.
+    fireEvent.click(screen.getByRole('button', { name: 'Show relationships of Orders' }));
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Relationships of Orders' })).toBeInTheDocument();
+    unmount();
+
+    // The Detailed view already lists the fields, so there the count is a plain badge.
+    renderNode();
+    expect(screen.queryByRole('button', { name: 'Show fields of Orders' })).not.toBeInTheDocument();
+    expect(screen.getByText('3 fields')).toBeInTheDocument();
   });
 
   it('waits for enrichment before showing the triggers count', () => {

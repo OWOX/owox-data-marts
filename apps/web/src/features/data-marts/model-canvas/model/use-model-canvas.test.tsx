@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { countRelationships, useModelCanvas } from './use-model-canvas';
+import { countRelationships, listRelationships, useModelCanvas } from './use-model-canvas';
 
 const serviceMocks = vi.hoisted(() => ({
   getDataMarts: vi.fn(),
@@ -125,6 +125,7 @@ describe('useModelCanvas', () => {
           definition: 'project.dataset.orders_view',
           fields: [],
           relationshipCount: 0,
+          relationships: [],
         },
       ],
       edges: [],
@@ -166,6 +167,41 @@ describe('useModelCanvas', () => {
       availableForMaintenance: false,
       relationshipCount: 2,
     });
+  });
+});
+
+describe('listRelationships', () => {
+  it('lists each relationship from both sides with the fields oriented to that side', () => {
+    const lists = listRelationships(
+      [
+        {
+          id: 'e1',
+          sourceDataMartId: 'orders',
+          targetDataMartId: 'customers',
+          joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'id' }],
+        },
+        { id: 'e2', sourceDataMartId: 'orders', targetDataMartId: 'orders', joinConditions: [] },
+      ],
+      [
+        { id: 'orders', title: 'Orders' },
+        { id: 'customers', title: 'Customers' },
+      ]
+    );
+
+    expect(lists.get('customers')).toEqual([
+      {
+        id: 'e1',
+        direction: 'incoming',
+        otherDataMartId: 'orders',
+        otherTitle: 'Orders',
+        joinFields: [{ field: 'id', otherField: 'customer_id' }],
+      },
+    ]);
+    // A self-relationship is listed once, as outgoing.
+    expect(lists.get('orders')?.map(r => [r.id, r.direction, r.otherTitle])).toEqual([
+      ['e1', 'outgoing', 'Customers'],
+      ['e2', 'outgoing', 'Orders'],
+    ]);
   });
 });
 

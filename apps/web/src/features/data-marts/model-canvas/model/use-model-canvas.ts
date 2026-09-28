@@ -8,6 +8,7 @@ import { modelCanvasService } from '../api/model-canvas.service';
 import { extractDefinitionText } from './definition-text';
 import type {
   CanvasNodeField,
+  CanvasNodeRelationship,
   ModelCanvasEdge,
   ModelCanvasTopologyData,
   ModelCanvasTopologyNode,
@@ -42,6 +43,49 @@ export function countRelationships(edges: readonly ModelCanvasEdge[]): Map<strin
     if (edge.targetDataMartId !== edge.sourceDataMartId) bump(edge.targetDataMartId);
   }
   return counts;
+}
+
+/**
+ * Every Data Mart's relationships, seen from its own side, over the storage's
+ * whole model. A self-relationship is listed once, as outgoing.
+ */
+export function listRelationships(
+  edges: readonly ModelCanvasEdge[],
+  nodes: readonly Pick<ModelCanvasTopologyNode, 'id' | 'title'>[]
+): Map<string, CanvasNodeRelationship[]> {
+  const titles = new Map(nodes.map(node => [node.id, node.title]));
+  const byDataMart = new Map<string, CanvasNodeRelationship[]>();
+  const add = (id: string, relationship: CanvasNodeRelationship) => {
+    const list = byDataMart.get(id);
+    if (list) list.push(relationship);
+    else byDataMart.set(id, [relationship]);
+  };
+  for (const edge of edges) {
+    const { sourceDataMartId: source, targetDataMartId: target } = edge;
+    add(source, {
+      id: edge.id,
+      direction: 'outgoing',
+      otherDataMartId: target,
+      otherTitle: titles.get(target) ?? 'Unknown Data Mart',
+      joinFields: edge.joinConditions.map(c => ({
+        field: c.sourceFieldName,
+        otherField: c.targetFieldName,
+      })),
+    });
+    if (target !== source) {
+      add(target, {
+        id: edge.id,
+        direction: 'incoming',
+        otherDataMartId: source,
+        otherTitle: titles.get(source) ?? 'Unknown Data Mart',
+        joinFields: edge.joinConditions.map(c => ({
+          field: c.targetFieldName,
+          otherField: c.sourceFieldName,
+        })),
+      });
+    }
+  }
+  return byDataMart;
 }
 
 /**
@@ -125,10 +169,12 @@ export function useModelCanvas(storageId: string | null) {
     const details = detailsQuery.data;
     const detailById = new Map(details?.map(node => [node.id, node]));
     const relationshipCounts = countRelationships(baseQuery.data.edges);
+    const relationships = listRelationships(baseQuery.data.edges, baseQuery.data.nodes);
     return {
       nodes: baseQuery.data.nodes.map(node => {
         const detail = detailById.get(node.id);
         const relationshipCount = relationshipCounts.get(node.id) ?? 0;
+        const nodeRelationships = relationships.get(node.id) ?? [];
         return detail
           ? {
               ...node,
@@ -138,8 +184,9 @@ export function useModelCanvas(storageId: string | null) {
               availableForReporting: detail.availableForReporting,
               availableForMaintenance: detail.availableForMaintenance,
               relationshipCount,
+              relationships: nodeRelationships,
             }
-          : { ...node, relationshipCount };
+          : { ...node, relationshipCount, relationships: nodeRelationships };
       }),
       edges: baseQuery.data.edges,
     };

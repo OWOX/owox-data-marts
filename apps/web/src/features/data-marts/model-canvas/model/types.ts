@@ -17,6 +17,19 @@ export interface ModelCanvasJoinCondition {
  */
 export type CanvasNodeField = ErdCardField;
 
+/**
+ * One relationship seen from a Data Mart's side: which Data Mart it joins and
+ * on which fields. `outgoing` means this Data Mart defines the relationship.
+ */
+export interface CanvasNodeRelationship {
+  id: string;
+  direction: 'outgoing' | 'incoming';
+  otherDataMartId: string;
+  otherTitle: string;
+  /** `field` belongs to this Data Mart, `otherField` to the other one. */
+  joinFields: { field: string; otherField: string }[];
+}
+
 export interface ModelCanvasNode {
   id: string;
   title: string;
@@ -49,6 +62,8 @@ export interface ModelCanvasNode {
    * storage's whole model — not just what the canvas filters leave on screen.
    */
   relationshipCount?: number;
+  /** The relationships behind `relationshipCount`, for the card's relationships list. */
+  relationships?: CanvasNodeRelationship[];
   qualitySummary: DataQualityCompactSummary;
   dataLastUpdated: DataLastUpdatedDto | null;
 }
