@@ -1969,25 +1969,52 @@ describe('ReportSqlComposerService', () => {
         expect(sql.slice(sql.lastIndexOf('\nSELECT'))).not.toContain('GROUP BY');
       });
 
+      type FixtureField = Record<string, unknown>;
+      const withFields = (map: (fields: FixtureField[]) => FixtureField[]) => {
+        const { schema } = dataMart as { schema: { fields: FixtureField[] } };
+        return { ...(dataMart as object), schema: { ...schema, fields: map(schema.fields) } };
+      };
+
       it('dry-runs a joined metric the analyst hid from reports', async () => {
         const { composer } = makeRealComposer();
-        const { schema } = dataMart as { schema: { fields: Record<string, unknown>[] } };
-        const withHiddenRoi = {
-          ...(dataMart as object),
-          schema: {
-            ...schema,
-            fields: schema.fields.map(field =>
-              field.name === 'roi' ? { ...field, isHiddenForReporting: true } : field
-            ),
-          },
-        } as never;
+        const withHiddenRoi = withFields(fields =>
+          fields.map(field =>
+            field.name === 'roi' ? { ...field, isHiddenForReporting: true } : field
+          )
+        );
 
-        const { sql } = await composer.composeMetricsOnly(withHiddenRoi, ['roi'], {
+        const { sql } = await composer.composeMetricsOnly(withHiddenRoi as never, ['roi'], {
           userId: 'user-1',
           roles: ['editor'],
         });
 
         expect(sql).toContain('SUM(main.cost) * ANY_VALUE(sleeve_fx_roi_1._fx_roi_1) AS `roi`');
+        // The schema save persists this same entity right after the dry run.
+        expect(
+          withHiddenRoi.schema.fields.find(field => field.name === 'roi')?.isHiddenForReporting
+        ).toBe(true);
+      });
+
+      it('dry-runs a hidden own-column metric batched with a joined one', async () => {
+        const { composer } = makeRealComposer();
+        const withHiddenAvgCost = withFields(fields => [
+          ...fields,
+          {
+            name: 'avg_cost',
+            type: 'FLOAT',
+            status: 'CONNECTED',
+            isHiddenForReporting: true,
+            calculated: { formula: 'AVG({{ref field="cost"}})', level: 'metric' },
+          },
+        ]);
+
+        const { sql } = await composer.composeMetricsOnly(
+          withHiddenAvgCost as never,
+          ['roi', 'avg_cost'],
+          { userId: 'user-1', roles: ['editor'] }
+        );
+
+        expect(sql).toContain('AS `avg_cost`');
       });
 
       it('refreshes each Data Mart table reference once per save, not once per composed query', async () => {
