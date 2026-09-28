@@ -144,7 +144,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ff20092f-b242-4ad6-2ce5-c8e196db5100/w=800" alt="The Models canvas relationships filter open with All Data Marts, With relationships only and Without relationships only, the last one selected and a single unconnected Data Mart left on the canvas"></p>
 <p>The page URL carries the filters and the search (<code dir="auto">rel</code>, <code dir="auto">status</code>, <code dir="auto">search</code>). Share the link to share the filtered canvas.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="canvas-settings">Canvas settings</h2><a class="sl-anchor-link" href="#canvas-settings"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Canvas settings”</span></a></div>
-<p>The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings and stores its own values.</p>
+<p>The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have. Those are Input source, Fields, Status and the field rows. It stores its own values.</p>
 <ul>
 <li>
 <p><strong>View</strong> picks the card density. <strong>Compact</strong> cards show everything listed in <a href="#what-a-card-shows">What a card shows</a>. <strong>Detailed</strong> cards add the field rows of the Data Mart’s Output Schema, primary keys first. Long schemas collapse behind a <strong>+N more fields</strong> toggle.</p>
@@ -156,18 +156,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <p><strong>Show join fields</strong> labels every arrow with its join conditions (<code dir="auto">source_field = target_field</code>).</p>
 </li>
 <li>
-<p><strong>Object labels</strong> picks what every card shows:</p>
+<p><strong>Card content</strong> picks what every card shows. Each checkbox hides one thing and leaves the rest of the card as it is:</p>
 <ul>
-<li><strong>Input source</strong> shows the badge with the definition type (VIEW / TABLE / SQL / PATTERN / CONNECTOR).</li>
-<li><strong>Field count</strong> shows the number of fields in the Output Schema.</li>
-<li><strong>Status</strong> shows the <strong>Draft</strong> badge on unpublished Data Marts.</li>
-<li><strong>Field aliases</strong> leads each field row in the Detailed view with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.</li>
-<li><strong>Field descriptions</strong> adds the Output Schema description under each field in the Detailed view, when the field has one. The line shows one row of text. Hover it to read the whole description.</li>
+<li><strong>Input source</strong> shows the badge with the definition type (View, Table, SQL, Pattern or Connector).</li>
+<li><strong>Fields</strong> shows the number of fields in the Output Schema.</li>
+<li><strong>Triggers</strong>, <strong>Reports</strong> and <strong>Relationships</strong> show those counts.</li>
+<li><strong>Draft badge</strong> shows <strong>Draft</strong> next to the title of unpublished Data Marts.</li>
+<li><strong>Quality and sharing</strong> shows the footer: the Data Quality and Data Last Updated indicators and the sharing icons.</li>
 </ul>
-<p><strong>Check all</strong> turns every label back on. <strong>Uncheck all</strong> leaves only the titles. It also hides the counts, the indicators and the sharing icons. In the Detailed view it also leaves the technical field names and their types.</p>
+<p>Untick all of them to leave only the titles.</p>
+</li>
+<li>
+<p><strong>Field rows</strong> appears in the Detailed view and picks what each field row shows:</p>
+<ul>
+<li><strong>Field aliases</strong> leads each field row with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.</li>
+<li><strong>Field descriptions</strong> adds the Output Schema description under each field, when the field has one. The line shows one row of text. Hover it to read the whole description.</li>
+</ul>
 </li>
 </ul>
-<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800" alt="The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Object labels, and the Orders card lists each field by its alias with its description underneath"></p>
+<p>Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.</p>
+<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800" alt="The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath"></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="notes">Notes</h2><a class="sl-anchor-link" href="#notes"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Notes”</span></a></div>
 <ul>
 <li>Field rows, aliases and descriptions appear once the canvas has loaded the Data Mart details. On a very large model, the cards fill in a few seconds after the diagram appears.</li>
