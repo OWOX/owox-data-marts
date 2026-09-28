@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import {
   createMcpHandler,
-  SUPPORTED_PROTOCOL_VERSIONS,
   UnsupportedProtocolVersionError,
   type McpHttpHandler,
 } from '@modelcontextprotocol/server';
@@ -22,15 +21,11 @@ import { McpSdkServerFactory } from '../sdk/mcp-sdk-server.factory';
 // doesn't blunt-reset a computing MCP call before it can return a clean query_timeout. LB (1h) caps.
 export const MCP_REQUEST_SOCKET_TIMEOUT_MS = 4 * 60_000;
 
-// Protocol revisions ODM's MCP endpoint is meant to serve post-migration: every "legacy" revision
-// the SDK's own legacy-fallback path supports, plus the 2026-07-28 "modern" era (negotiated via
-// server/discover, outside that legacy set — the SDK has no single constant covering both). Used
-// only to decide onerror's log severity for a rejected protocol version — never for negotiation
-// itself, which createMcpHandler owns entirely.
-const EXPECTED_SUPPORTED_PROTOCOL_VERSIONS = new Set<string>([
-  ...SUPPORTED_PROTOCOL_VERSIONS,
-  '2026-07-28',
-]);
+// Modern protocol revisions ODM explicitly promises to serve. Keep this contract literal rather
+// than deriving it from the installed SDK: if an SDK upgrade drops one of these revisions, its
+// rejection must become an ERROR. Legacy revisions belong to the fallback path and must not page
+// when a malformed modern envelope claims one of them.
+const REQUIRED_MODERN_PROTOCOL_VERSIONS = new Set<string>(['2026-07-28']);
 
 /**
  * Mounts /mcp directly on the underlying Express app instead of as a NestJS controller.
@@ -46,6 +41,7 @@ const EXPECTED_SUPPORTED_PROTOCOL_VERSIONS = new Set<string>([
 export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(McpHttpEntryService.name);
   private handler?: McpHttpHandler;
+  private handlerClosePromise?: Promise<void>;
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -93,7 +89,23 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     // guarantee ActiveRequestInterceptor gives every Nest-routed endpoint. Without it, a rolling
     // deploy could abort a multi-minute query_data_mart call mid-query instead of draining it.
     await this.gracefulShutdownService.initiateShutdown();
-    await this.handler?.close();
+    await this.closeTransport();
+  }
+
+  /**
+   * Closes the MCP transport once, terminating long-lived subscription streams and any remaining
+   * exchanges. The `owox serve` shutdown path calls this after tracked requests have drained but
+   * before awaiting `httpServer.close()`, because an open SSE response otherwise keeps that server
+   * promise pending and prevents Nest lifecycle hooks from running.
+   */
+  async closeTransport(): Promise<void> {
+    const handler = this.handler;
+    if (!handler) {
+      return;
+    }
+
+    this.handlerClosePromise ??= Promise.resolve().then(() => handler.close());
+    await this.handlerClosePromise;
   }
 
   private async handleRequest(
@@ -215,7 +227,7 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
       ...logContext,
     };
 
-    if (isVersionRejection && EXPECTED_SUPPORTED_PROTOCOL_VERSIONS.has(error.requested)) {
+    if (isVersionRejection && REQUIRED_MODERN_PROTOCOL_VERSIONS.has(error.requested)) {
       this.logger.error('MCP rejected a protocol version it is expected to support', metadata);
       return;
     }

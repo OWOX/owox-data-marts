@@ -228,6 +228,21 @@ describe('McpHttpEntryService', () => {
     expect(calls).toEqual(['drained', 'closed']);
   });
 
+  it('closes the handler only once when the CLI shutdown path closes it before module destroy', async () => {
+    const { service, adapterHost } = createService();
+    (adapterHost.httpAdapter.getInstance as jest.Mock).mockReturnValue({ all: jest.fn() });
+    service.onModuleInit();
+    const closeSpy = jest.spyOn(
+      (service as unknown as { handler: { close: () => Promise<void> } }).handler,
+      'close'
+    );
+
+    await service.closeTransport();
+    await service.onModuleDestroy();
+
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('registers and unregisters the request as an active process for graceful shutdown', async () => {
     const { service, gracefulShutdownService } = createService();
     const request = { auth: { extra: { mcpContext } }, setTimeout: jest.fn(), headers: {} };
@@ -318,6 +333,25 @@ describe('McpHttpEntryService onTransportError', () => {
     const error = new UnsupportedProtocolVersionError({
       requested: '2099-01-01',
       supported: ['2025-11-25', '2026-07-28'],
+    });
+
+    callOnTransportError(service, error);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs WARN when a malformed modern envelope claims a legacy protocol revision', () => {
+    const service = createService();
+    const errorSpy = jest
+      .spyOn((service as unknown as { logger: { error: () => void } }).logger, 'error')
+      .mockImplementation(() => undefined);
+    const warnSpy = jest
+      .spyOn((service as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    const error = new UnsupportedProtocolVersionError({
+      requested: '2025-06-18',
+      supported: ['2026-07-28'],
     });
 
     callOnTransportError(service, error);

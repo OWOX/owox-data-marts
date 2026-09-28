@@ -5,4 +5,5 @@ export { applyDump } from './dump/apply-dump';
 export { runMigrations, revertMigration, getMigrationStatus } from './config/migrations.config';
 export { createHealthProbe, type HealthProbeAware } from './health/health-probe';
 export { GracefulShutdownService } from './common/scheduler/services/graceful-shutdown.service';
+export { McpHttpEntryService } from './ee/mcp/transport/mcp-http-entry.service';
 export { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
