@@ -20,7 +20,7 @@ The badges share a line while they fit the card. A count of zero shows no badge.
 
 Click a badge to see what is behind it:
 
-- **N fields** lists the Output Schema fields under the card, in the Compact view. The Detailed view lists them already.
+- **N fields** lists the Output Schema fields under the card, in Compact mode. The ERD view lists them already.
 - **N relationships** lists the Data Marts this one joins or is joined by, with the join fields, for example `customer_id = id`.
 
 Click the badge again to close the list.
@@ -48,7 +48,7 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have. Those are Input source, Fields, Status and the field rows. It stores its own values.
 
-- **View** picks the card density with two cards at the top of the menu. **Compact** cards show everything listed in [What a card shows](#what-a-card-shows). **Detailed** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
+- **View** picks the card density with two cards at the top of the menu. **Compact mode** cards show everything listed in [What a card shows](#what-a-card-shows). **ERD** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Horizontal** and **Vertical** pick the layout algorithm. Picking an algorithm re-runs the layout and drops the card positions you dragged.
 - **Show join fields**, next to them, labels every arrow with its join conditions (`source_field = target_field`).
 - **Card content**, the left column of checkboxes, picks what every card shows. Each checkbox hides one thing and leaves the rest of the card as it is:
@@ -60,13 +60,13 @@ The gear button on the canvas opens the view settings. They are preferences stor
 
   Untick all of them, or click **Title only**, to leave only the titles.
 
-- **Field rows**, the right column, picks what each field row shows. It works in the Detailed view and stays greyed out in the Compact view:
+- **Field rows**, the right column, picks what each field row shows. It works in the ERD view and stays greyed out in Compact mode:
   - **Field aliases** leads each field row with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.
   - **Field descriptions** adds the Output Schema description under each field, when the field has one. The line shows one row of text. Hover it to read the whole description.
 
 **Show all** ticks every checkbox back on. Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.
 
-![The Models canvas in the Detailed view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
+![The Models canvas in the ERD view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 
 ## Notes
 

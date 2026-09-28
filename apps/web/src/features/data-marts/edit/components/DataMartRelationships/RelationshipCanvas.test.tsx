@@ -553,7 +553,7 @@ describe('RelationshipCanvas view settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
 
-    fireEvent.click(await screen.findByRole('radio', { name: 'Detailed' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'ERD' }));
     expect(props.onViewModeChange).toHaveBeenCalledWith('erd');
 
     fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));

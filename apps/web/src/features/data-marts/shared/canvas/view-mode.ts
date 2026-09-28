@@ -2,8 +2,8 @@
 export type CanvasViewMode = 'compact' | 'erd';
 
 export const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
-  { value: 'compact', label: 'Compact' },
-  { value: 'erd', label: 'Detailed' },
+  { value: 'compact', label: 'Compact mode' },
+  { value: 'erd', label: 'ERD' },
 ];
 
 export function parseCanvasViewMode(value: unknown): CanvasViewMode {

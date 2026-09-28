@@ -73,17 +73,17 @@ describe('CanvasSettingsPanel object labels', () => {
     );
   });
 
-  it('enables the field-row options in the Detailed view', () => {
+  it('enables the field-row options in the ERD view', () => {
     renderPanel(NOTHING_HIDDEN, 'erd');
     expect(screen.getByRole('checkbox', { name: /^Field aliases/ })).toBeEnabled();
-    expect(screen.queryByText('Detailed only')).not.toBeInTheDocument();
+    expect(screen.queryByText('ERD only')).not.toBeInTheDocument();
   });
 
   it('keeps the field-row options visible but disabled in the Compact view', () => {
     renderPanel(NOTHING_HIDDEN, 'compact');
     expect(screen.getByRole('group', { name: 'Field rows' })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /^Field aliases/ })).toBeDisabled();
-    expect(screen.getByText('Detailed only')).toBeInTheDocument();
+    expect(screen.getByText('ERD only')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /^Input source/ })).toBeEnabled();
   });
 
@@ -97,8 +97,11 @@ describe('CanvasSettingsPanel object labels', () => {
 
   it('picks the view mode and the layout algorithm from their radio groups', () => {
     const props = renderPanel(NOTHING_HIDDEN, 'compact');
-    expect(screen.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('radio', { name: 'Detailed' }));
+    expect(screen.getByRole('radio', { name: 'Compact mode' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'ERD' }));
     expect(props.onViewModeChange).toHaveBeenLastCalledWith('erd');
     fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
     expect(props.onDirectionChange).toHaveBeenLastCalledWith('vertical');

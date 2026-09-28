@@ -143,7 +143,7 @@ export function CanvasSettingsPanel({
   const fieldRowOptions = objectLabelOptions.filter(option =>
     FIELD_ROW_PARTS.includes(option.part)
   );
-  // Field rows exist only in the Detailed view, so their options wait for it.
+  // Field rows exist only in the ERD view, so their options wait for it.
   const fieldRowsDisabled = viewMode !== 'erd';
 
   return (
@@ -251,7 +251,7 @@ export function CanvasSettingsPanel({
                 Field rows
                 {fieldRowsDisabled && (
                   <span className='bg-muted text-muted-foreground rounded-lg px-1.5 py-px text-[10.5px] font-normal tracking-normal normal-case'>
-                    Detailed only
+                    ERD only
                   </span>
                 )}
               </SectionHeading>
