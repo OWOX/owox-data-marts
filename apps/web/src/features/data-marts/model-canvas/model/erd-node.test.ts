@@ -3,7 +3,7 @@ import {
   CARD_BADGE_ROW_HEIGHT,
   CARD_FIRST_BADGE_ROW_HEIGHT,
   CARD_FOOTER_HEIGHT,
-  CARD_TITLE_ONLY_PADDING,
+  CARD_NO_FOOTER_PADDING,
   CARD_TITLE_ROW_HEIGHT,
   COMPACT_NODE_HEIGHT,
   ERD_COLLAPSED_ROWS,
@@ -104,6 +104,25 @@ describe('cardBadges', () => {
       reports: false,
       relationships: false,
     });
+    // Each count badge follows its own label and nothing else.
+    for (const [part, badge] of [
+      ['triggers', 'triggers'],
+      ['reports', 'reports'],
+      ['relationships', 'relationships'],
+    ] as const) {
+      expect(cardBadges(FULL, nodeLayoutOptions({ ...NOTHING_HIDDEN, [part]: true }))).toEqual({
+        definition: true,
+        fieldCount: true,
+        triggers: true,
+        reports: true,
+        relationships: true,
+        [badge]: false,
+      });
+    }
+    // The draft badge and the footer are not counts: unticking them keeps every count.
+    expect(
+      cardBadges(FULL, nodeLayoutOptions({ ...NOTHING_HIDDEN, status: true, footer: true }))
+    ).toEqual(cardBadges(FULL));
   });
 });
 
@@ -198,14 +217,21 @@ describe('computeNodeHeight', () => {
     );
   });
 
-  it('keeps only the padded title row in title-only mode', () => {
+  it('keeps only the padded title row when every label is unticked', () => {
     const titleOnly = nodeLayoutOptions(ALL_HIDDEN);
     expect(computeNodeHeight(FULL, 'compact', titleOnly, ONE_PER_LINE)).toBe(
-      CARD_TITLE_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING
+      CARD_TITLE_ROW_HEIGHT + CARD_NO_FOOTER_PADDING
     );
     const fields = [field('a')];
     expect(computeNodeHeight({ ...FULL, fields }, 'erd', titleOnly, ONE_PER_LINE)).toBe(
-      CARD_TITLE_ROW_HEIGHT + CARD_TITLE_ONLY_PADDING + ERD_ROW_HEIGHT
+      CARD_TITLE_ROW_HEIGHT + CARD_NO_FOOTER_PADDING + ERD_ROW_HEIGHT
+    );
+  });
+
+  it('swaps only the footer for its padding when the footer label is unticked', () => {
+    const noFooter = nodeLayoutOptions({ ...NOTHING_HIDDEN, footer: true });
+    expect(computeNodeHeight(FULL, 'compact', noFooter, ONE_PER_LINE)).toBe(
+      COMPACT_NODE_HEIGHT - CARD_FOOTER_HEIGHT + CARD_NO_FOOTER_PADDING
     );
   });
 
@@ -242,13 +268,19 @@ describe('computeNodeHeight', () => {
     expect(nodeLayoutOptions(NOTHING_HIDDEN)).toEqual({
       sourceHidden: false,
       fieldCountHidden: false,
-      statusRowHidden: false,
+      triggersHidden: false,
+      reportsHidden: false,
+      relationshipsHidden: false,
+      footerHidden: false,
       fieldLabels: { alias: true, description: true },
     });
     expect(nodeLayoutOptions(ALL_HIDDEN)).toEqual({
       sourceHidden: true,
       fieldCountHidden: true,
-      statusRowHidden: true,
+      triggersHidden: true,
+      reportsHidden: true,
+      relationshipsHidden: true,
+      footerHidden: true,
       fieldLabels: { alias: false, description: false },
     });
   });

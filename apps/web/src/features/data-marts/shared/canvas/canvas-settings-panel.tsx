@@ -5,39 +5,12 @@ import { Switch } from '@owox/ui/components/switch';
 import { Button } from '../../../../shared/components/Button';
 import { CANVAS_DIRECTION_OPTIONS, type CanvasDirection } from './canvas-direction';
 import {
-  ALL_HIDDEN,
-  isAllHidden,
-  isNothingHidden,
-  NOTHING_HIDDEN,
-  OBJECT_LABEL_PARTS,
+  FIELD_ROW_PARTS,
   toggleObjectLabelPart,
-  type ObjectLabelPart,
+  type ObjectLabelOption,
   type ObjectLabelsHidden,
 } from './object-labels';
 import { VIEW_MODE_OPTIONS, type CanvasViewMode } from './view-mode';
-
-const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string }> = {
-  source: {
-    label: 'Input source',
-    helper: 'The source badge (VIEW / TABLE / SQL / PATTERN / CONNECTOR)',
-  },
-  fields: {
-    label: 'Field count',
-    helper: 'The field count shown on each object',
-  },
-  status: {
-    label: 'Status',
-    helper: 'The published/draft indicator',
-  },
-  fieldAlias: {
-    label: 'Field aliases',
-    helper: 'The Output Schema alias in place of the field name (Detailed view)',
-  },
-  fieldDescription: {
-    label: 'Field descriptions',
-    helper: 'The Output Schema description under each field (Detailed view)',
-  },
-};
 
 export interface CanvasSettingsPanelProps {
   viewMode: CanvasViewMode;
@@ -50,13 +23,16 @@ export interface CanvasSettingsPanelProps {
   joinFieldsSwitchId: string;
   objectLabels: ObjectLabelsHidden;
   onObjectLabelsChange: (next: ObjectLabelsHidden) => void;
+  /** The checkboxes this canvas offers — only the parts its cards have, in menu order. */
+  objectLabelOptions: readonly ObjectLabelOption[];
 }
 
 /**
  * The gear-popover content shared by the Models canvas and the Joinable Data
- * Marts diagram: view density, layout algorithm, join-field edge labels and
- * the object-labels checklist. Purely presentational — persistence stays with
- * the owning canvas.
+ * Marts diagram: view density, layout algorithm, join-field edge labels, what
+ * each card shows and, in the Detailed view, what each field row shows. Every
+ * checkbox hides exactly one thing. Purely presentational — persistence stays
+ * with the owning canvas.
  */
 export function CanvasSettingsPanel({
   viewMode,
@@ -68,7 +44,14 @@ export function CanvasSettingsPanel({
   joinFieldsSwitchId,
   objectLabels,
   onObjectLabelsChange,
+  objectLabelOptions,
 }: CanvasSettingsPanelProps) {
+  const cardOptions = objectLabelOptions.filter(option => !FIELD_ROW_PARTS.includes(option.part));
+  // Field rows exist only in the Detailed view, so their options show only there.
+  const fieldRowOptions =
+    viewMode === 'erd'
+      ? objectLabelOptions.filter(option => FIELD_ROW_PARTS.includes(option.part))
+      : [];
   return (
     <>
       <PopoverTitle>View</PopoverTitle>
@@ -124,87 +107,78 @@ export function CanvasSettingsPanel({
           onCheckedChange={onShowJoinFieldsChange}
         />
       </div>
-      <PopoverTitle className='mt-3 border-t pt-3'>Object labels</PopoverTitle>
-      <p className='text-muted-foreground mt-1 text-xs leading-snug'>
-        Tick what every object shows — untick to hide it.
-      </p>
-      <div className='mt-2 space-y-0.5'>
-        {/* A checked box means the part is VISIBLE — unchecking hides it.
-            The stored state is the hidden set, hence the inversion here. */}
-        {OBJECT_LABEL_PARTS.map(part => {
-          const meta = OBJECT_LABEL_META[part];
-          const shown = !objectLabels[part];
-          return (
-            <button
-              key={part}
-              type='button'
-              role='checkbox'
-              aria-checked={shown}
-              className='hover:bg-muted flex w-full items-start gap-2 rounded px-2 py-1.5 text-left'
-              onClick={() => {
-                onObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
-              }}
-            >
-              <span
-                className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                  shown
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-input bg-background text-transparent'
-                }`}
-                aria-hidden='true'
-              >
-                <Check className='h-2.5 w-2.5' strokeWidth={3.5} />
-              </span>
-              <span className='flex min-w-0 flex-col'>
-                <span
-                  className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
-                >
-                  {meta.label}
-                </span>
-                <span className='text-muted-foreground text-xs leading-snug'>{meta.helper}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      {/* Both-ends shortcuts: tick everything back on, or clear it all. */}
-      <div className='mt-1 space-y-0.5 border-t pt-1'>
-        <button
-          type='button'
-          aria-pressed={isNothingHidden(objectLabels)}
-          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-            isNothingHidden(objectLabels)
-              ? 'bg-primary/10 text-primary'
-              : 'text-foreground hover:bg-muted'
-          }`}
-          onClick={() => {
-            onObjectLabelsChange(NOTHING_HIDDEN);
-          }}
-        >
-          <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
-            ≡
-          </span>
-          Check all — show everything
-        </button>
-        <button
-          type='button'
-          aria-pressed={isAllHidden(objectLabels)}
-          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-            isAllHidden(objectLabels)
-              ? 'bg-primary/10 text-primary'
-              : 'text-foreground hover:bg-muted'
-          }`}
-          onClick={() => {
-            onObjectLabelsChange(ALL_HIDDEN);
-          }}
-        >
-          <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
-            ⊘
-          </span>
-          Uncheck all — title only
-        </button>
-      </div>
+      <PopoverTitle className='mt-3 border-t pt-3'>Card content</PopoverTitle>
+      <ObjectLabelChecklist
+        label='Card content'
+        options={cardOptions}
+        objectLabels={objectLabels}
+        onObjectLabelsChange={onObjectLabelsChange}
+      />
+      {fieldRowOptions.length > 0 && (
+        <>
+          <PopoverTitle className='mt-3 border-t pt-3'>Field rows</PopoverTitle>
+          <ObjectLabelChecklist
+            label='Field rows'
+            options={fieldRowOptions}
+            objectLabels={objectLabels}
+            onObjectLabelsChange={onObjectLabelsChange}
+          />
+        </>
+      )}
     </>
+  );
+}
+
+function ObjectLabelChecklist({
+  label,
+  options,
+  objectLabels,
+  onObjectLabelsChange,
+}: {
+  label: string;
+  options: readonly ObjectLabelOption[];
+  objectLabels: ObjectLabelsHidden;
+  onObjectLabelsChange: (next: ObjectLabelsHidden) => void;
+}) {
+  return (
+    <div role='group' aria-label={label} className='mt-2 space-y-0.5'>
+      {/* A checked box means the part is VISIBLE — unchecking hides it.
+          The stored state is the hidden set, hence the inversion here. */}
+      {options.map(({ part, label: optionLabel, helper }) => {
+        const shown = !objectLabels[part];
+        return (
+          <button
+            key={part}
+            type='button'
+            role='checkbox'
+            aria-checked={shown}
+            className='hover:bg-muted flex w-full items-start gap-2 rounded px-2 py-1.5 text-left'
+            onClick={() => {
+              onObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
+            }}
+          >
+            <span
+              className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                shown
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-input bg-background text-transparent'
+              }`}
+              aria-hidden='true'
+            >
+              <Check className='h-2.5 w-2.5' strokeWidth={3.5} />
+            </span>
+            <span className='flex min-w-0 flex-col'>
+              <span
+                className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
+              >
+                {optionLabel}
+              </span>
+              <span className='text-muted-foreground text-xs leading-snug'>{helper}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -225,7 +199,13 @@ export function CanvasSettingsPopover(props: CanvasSettingsPopoverProps) {
           <Settings className='h-6 w-6' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align='end' side='left' className='w-56'>
+      {/* Scrolls when the window is shorter than the menu, so every option stays reachable. */}
+      <PopoverContent
+        align='end'
+        side='left'
+        collisionPadding={8}
+        className='max-h-(--radix-popover-content-available-height) w-64 overflow-y-auto'
+      >
         <CanvasSettingsPanel {...props} joinFieldsSwitchId={joinFieldsSwitchId} />
       </PopoverContent>
     </Popover>

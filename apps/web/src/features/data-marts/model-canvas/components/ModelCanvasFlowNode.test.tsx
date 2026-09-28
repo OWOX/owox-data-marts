@@ -299,7 +299,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText('1 relationship')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Shared for reporting')).not.toBeInTheDocument();
     expect(screen.getByText('Orders')).toBeInTheDocument();
-    // Title-only mode also drops the quality indicators row.
+    // The footer label drops the quality indicators row too.
     expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Data Last Updated for Orders/)).not.toBeInTheDocument();
     // The ERD body (field rows) is a view-mode concern and stays visible —
@@ -307,6 +307,30 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.getByText('order_id')).toBeInTheDocument();
     expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
     expect(container.querySelector('[title="Orders"]')).toBeInTheDocument();
+  });
+
+  it('hides only the triggers badge when the triggers label is unticked', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      triggers: true,
+    });
+
+    expect(screen.queryByText('2 triggers')).not.toBeInTheDocument();
+    expect(screen.getByText('3 fields')).toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
+    expect(screen.getByLabelText('Shared for reporting')).toBeInTheDocument();
+  });
+
+  it('hides only the footer when the quality and sharing label is unticked', () => {
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, {
+      ...NOTHING_HIDDEN,
+      footer: true,
+    });
+
+    expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Shared for reporting')).not.toBeInTheDocument();
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+    expect(screen.getByText('1 relationship')).toBeInTheDocument();
   });
 
   it('hides only the field count when the fields label is unticked', () => {
@@ -415,8 +439,8 @@ describe('ModelCanvasFlowNode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show relationships of Orders' }));
     expect(screen.getByRole('list', { name: 'Relationships of Orders' })).toBeInTheDocument();
 
-    // "Uncheck all — title only" removes the badge, so the list goes with it.
-    rerenderData({ objectLabels: ALL_HIDDEN });
+    // Unticking the relationships label removes the badge, so the list goes with it.
+    rerenderData({ objectLabels: { ...NOTHING_HIDDEN, relationships: true } });
     expect(screen.queryByRole('list', { name: 'Relationships of Orders' })).not.toBeInTheDocument();
     expect(onRaisedChange).toHaveBeenLastCalledWith(false);
 

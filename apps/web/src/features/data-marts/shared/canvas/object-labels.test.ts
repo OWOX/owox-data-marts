@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_HIDDEN,
-  isAllHidden,
-  isNothingHidden,
-  isTitleOnly,
   NOTHING_HIDDEN,
   parseObjectLabelsHidden,
   serializeObjectLabelsHidden,
@@ -30,29 +27,32 @@ describe('object labels state', () => {
   });
 
   it('keeps the field-row parts visible for a preference stored before they existed', () => {
-    const legacy = parseObjectLabelsHidden('source,fields,status');
+    const legacy = parseObjectLabelsHidden('source,fields');
     expect(legacy.fieldAlias).toBe(false);
     expect(legacy.fieldDescription).toBe(false);
-    // An old "title only" preference still reads as title only.
-    expect(isTitleOnly(legacy)).toBe(true);
+  });
+
+  it('keeps an old "title only" preference down to the title', () => {
+    // Stored before the per-badge parts: source, fields and status hidden meant title only.
+    expect(parseObjectLabelsHidden('source,fields,status')).toEqual({
+      ...ALL_HIDDEN,
+      fieldAlias: false,
+      fieldDescription: false,
+    });
+  });
+
+  it('never re-hides the newer parts in a preference written by this version', () => {
+    const hidden = { ...NOTHING_HIDDEN, source: true, fields: true, status: true };
+    expect(parseObjectLabelsHidden(serializeObjectLabelsHidden(hidden))).toEqual(hidden);
+    expect(parseObjectLabelsHidden(serializeObjectLabelsHidden(NOTHING_HIDDEN))).toEqual(
+      NOTHING_HIDDEN
+    );
   });
 
   it('toggles a single part without touching the others', () => {
     const next = toggleObjectLabelPart(NOTHING_HIDDEN, 'fields');
     expect(next).toEqual({ ...NOTHING_HIDDEN, fields: true });
     expect(toggleObjectLabelPart(next, 'fields')).toEqual(NOTHING_HIDDEN);
-  });
-
-  it('detects the two extremes', () => {
-    expect(isNothingHidden(NOTHING_HIDDEN)).toBe(true);
-    expect(isNothingHidden(ALL_HIDDEN)).toBe(false);
-    expect(isTitleOnly(ALL_HIDDEN)).toBe(true);
-    expect(isTitleOnly({ ...ALL_HIDDEN, status: false })).toBe(false);
-    // The field-row parts do not decide title-only mode either way…
-    expect(isTitleOnly({ ...ALL_HIDDEN, fieldDescription: false })).toBe(true);
-    // …but they do decide whether everything is hidden.
-    expect(isAllHidden(ALL_HIDDEN)).toBe(true);
-    expect(isAllHidden({ ...ALL_HIDDEN, fieldDescription: false })).toBe(false);
   });
 
   it('maps the field-row parts to the shape the rows consume', () => {

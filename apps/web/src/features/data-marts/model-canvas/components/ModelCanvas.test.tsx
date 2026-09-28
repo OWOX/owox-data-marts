@@ -415,6 +415,49 @@ describe('ModelCanvas', () => {
     expect(reactFlow.latestProps?.nodes?.[0].data?.qualitySummary?.state).toBe('PASSED');
   });
 
+  it('keeps the zoom when a card label or join fields are toggled, and refits on a new layout', async () => {
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    await waitFor(() => {
+      expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Triggers/ }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(3);
+    });
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(reactFlow.fitView).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it('applies a fresh Data Last Updated value to nodes without rerunning layout', async () => {
     // Regression: the layout effect only reacts to TOPOLOGY changes, so a finished check
     // (which changes node data only) must flow in through the data-sync effect — before this,

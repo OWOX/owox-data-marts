@@ -62,6 +62,7 @@ import {
   type ErdFieldRowLabels,
 } from '../../../shared/canvas/erd-fields';
 import { ErdCardFieldsSection } from '../../../shared/canvas/erd-fields-section';
+import { RELATIONSHIP_CANVAS_OBJECT_LABEL_OPTIONS } from './relationship-canvas-object-label-options';
 import { toFieldRowLabels, type ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../../shared/canvas/view-mode';
 import { OWOX_GRAY_DARK, OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
@@ -1122,6 +1123,7 @@ function RelationshipCanvasInner({
             onShowJoinFieldsChange={onShowJoinFieldsChange}
             objectLabels={objectLabels}
             onObjectLabelsChange={onObjectLabelsChange}
+            objectLabelOptions={RELATIONSHIP_CANVAS_OBJECT_LABEL_OPTIONS}
           />
         </div>
       </div>

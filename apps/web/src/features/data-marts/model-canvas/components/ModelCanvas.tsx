@@ -23,6 +23,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Button } from '../../../../shared/components/Button';
 import { CanvasSettingsPopover } from '../../shared/canvas/canvas-settings-panel';
+import { MODEL_CANVAS_OBJECT_LABEL_OPTIONS } from '../model/object-label-options';
 import { storageService } from '../../../../services/localstorage.service';
 import {
   MINIMAP_NODE_COLOR,
@@ -116,6 +117,15 @@ const CANVAS_PAN_PADDING = 150;
 
 const nodeTypes = { modelCanvasNode: ModelCanvasFlowNode };
 const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
+
+/** What the viewport is fitted to: the stable topology snapshots plus the layout choices. */
+type FitKey = readonly [
+  readonly ModelCanvasNode[],
+  readonly unknown[],
+  CanvasDirection,
+  number,
+  CanvasViewMode,
+];
 
 function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
   return JSON.stringify(
@@ -334,6 +344,8 @@ function ModelCanvasInner({
   // state alone would bail out of React's re-render, silently clearing saved
   // positions without the expected re-flow.
   const [layoutEpoch, setLayoutEpoch] = useState(0);
+  // What the viewport was last fitted to; see the layout effect.
+  const lastFitKeyRef = useRef<FitKey | null>(null);
   const [ready, setReady] = useState(false);
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
@@ -482,10 +494,19 @@ function ModelCanvasInner({
 
     setReady(true);
 
+    // Refit only when the picture itself changes — the graph or its data, the
+    // layout algorithm or the view density. Toggling what a card or an arrow
+    // shows re-runs the layout too, but keeps the user's zoom and pan.
+    const fitKey: FitKey = [topologyNodes, topologyEdges, direction, layoutEpoch, viewMode];
+    const lastFitKey = lastFitKeyRef.current;
+    if (lastFitKey?.every((part, index) => part === fitKey[index])) return;
+
     const matchingIds = [...highlightState.entries()]
       .filter(([, state]) => state.highlighted)
       .map(([id]) => id);
     const rafId = requestAnimationFrame(() => {
+      // Recorded once the fit runs: a re-run that cancels this frame fits again.
+      lastFitKeyRef.current = fitKey;
       void reactFlow.fitView(
         matchingIds.length > 0
           ? {
@@ -669,8 +690,7 @@ function ModelCanvasInner({
 
   const handleObjectLabelsChange = useCallback((next: ObjectLabelsHidden) => {
     setObjectLabels(current => {
-      // No-op picks (e.g. "Check all" when everything is checked) must not
-      // re-run the layout effect and throw away the user's pan/zoom.
+      // A pick that changes nothing must not re-run the layout effect.
       if (serializeObjectLabelsHidden(current) === serializeObjectLabelsHidden(next)) {
         return current;
       }
@@ -752,6 +772,7 @@ function ModelCanvasInner({
           onShowJoinFieldsChange={handleJoinLabelsChange}
           objectLabels={objectLabels}
           onObjectLabelsChange={handleObjectLabelsChange}
+          objectLabelOptions={MODEL_CANVAS_OBJECT_LABEL_OPTIONS}
         />
       </div>
       {ready && (

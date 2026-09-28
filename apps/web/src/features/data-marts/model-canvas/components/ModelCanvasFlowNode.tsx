@@ -31,7 +31,6 @@ import {
   nodeWidth,
 } from '../model/erd-node';
 import {
-  isTitleOnly,
   NOTHING_HIDDEN,
   toFieldRowLabels,
   type ObjectLabelsHidden,
@@ -217,8 +216,7 @@ export default function ModelCanvasFlowNode({
   // Badges fill a line while they fit its width — the layout estimate packs them the same way.
   const badgeLines = cardBadgeLines(data, data.viewMode, nodeLayoutOptions(labels));
   // The Detailed view already lists the fields, so there the field count stays a plain badge.
-  // A list shows only while its badge does: title-only mode hides both, and so
-  // does unticking the badge's object label.
+  // A list shows only while its badge does: unticking the badge's object label hides both.
   const canOpenFields = !isErd && fields.length > 0 && badges.fieldCount;
   const canOpenRelationships = data.relationships.length > 0 && badges.relationships;
   const showFields = openSection === 'fields' && canOpenFields;
@@ -240,9 +238,7 @@ export default function ModelCanvasFlowNode({
   const toggleSection = (section: 'fields' | 'relationships') => {
     setOpenSection(current => (current === section ? null : section));
   };
-  // "Uncheck all — title only" strips the card down to its name: counts,
-  // quality indicators and sharing go too.
-  const titleOnly = isTitleOnly(labels);
+  const withFooter = !labels.footer;
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
@@ -314,7 +310,7 @@ export default function ModelCanvasFlowNode({
       )}
 
       {/* Title row: icon tile + name + draft pill + actions */}
-      <div className={`flex items-center gap-2 pt-3 pr-3 pl-3 ${titleOnly ? 'pb-3' : ''}`}>
+      <div className='flex items-center gap-2 pt-3 pr-3 pl-3'>
         <span
           className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
           aria-hidden='true'
@@ -371,7 +367,9 @@ export default function ModelCanvasFlowNode({
         </div>
       ))}
 
-      {!titleOnly && (
+      {/* Without the footer the card still closes with its bottom padding. */}
+      {!withFooter && <div className='h-3' aria-hidden='true' />}
+      {withFooter && (
         <>
           {/* Footer: quality shield + Data Last Updated clock, sharing on the right */}
           <div

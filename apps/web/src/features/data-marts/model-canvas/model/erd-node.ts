@@ -3,11 +3,7 @@ import {
   erdFieldsBodyHeight,
   type ErdFieldRowLabels,
 } from '../../shared/canvas/erd-fields';
-import {
-  isTitleOnly,
-  toFieldRowLabels,
-  type ObjectLabelsHidden,
-} from '../../shared/canvas/object-labels';
+import { toFieldRowLabels, type ObjectLabelsHidden } from '../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../shared/canvas/view-mode';
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import { measureBadgeText } from '../../shared/canvas/measure-badge-text';
@@ -37,13 +33,13 @@ export {
 // shows no badge, and a line left without badges is dropped.
 /** Title row: top padding + the 28px icon tile. */
 export const CARD_TITLE_ROW_HEIGHT = 40;
-/** Extra bottom padding the title row gets when it is all the card shows. */
-export const CARD_TITLE_ONLY_PADDING = 12;
+/** Bottom padding the card gets in place of a hidden footer. */
+export const CARD_NO_FOOTER_PADDING = 12;
 /** The first badge row, right under the title (it takes the larger top padding). */
 export const CARD_FIRST_BADGE_ROW_HEIGHT = 28;
 /** Every further badge row. */
 export const CARD_BADGE_ROW_HEIGHT = 24;
-/** Footer: quality indicators + sharing, dropped in title-only mode. */
+/** Footer: quality indicators + sharing, dropped when its object label is unticked. */
 export const CARD_FOOTER_HEIGHT = 42;
 
 export const COMPACT_NODE_WIDTH = 240;
@@ -66,8 +62,14 @@ export interface NodeLayoutOptions {
   sourceHidden?: boolean;
   /** The field count badge is unticked. */
   fieldCountHidden?: boolean;
-  /** Title-only mode: the counts row and the footer are dropped too. */
-  statusRowHidden?: boolean;
+  /** The triggers badge is unticked. */
+  triggersHidden?: boolean;
+  /** The reports badge is unticked. */
+  reportsHidden?: boolean;
+  /** The relationships badge is unticked. */
+  relationshipsHidden?: boolean;
+  /** The footer (quality indicators + sharing) is unticked. */
+  footerHidden?: boolean;
   /** Which optional lines each ERD field row shows. */
   fieldLabels?: ErdFieldRowLabels;
 }
@@ -77,7 +79,10 @@ export function nodeLayoutOptions(objectLabels: ObjectLabelsHidden): Required<No
   return {
     sourceHidden: objectLabels.source,
     fieldCountHidden: objectLabels.fields,
-    statusRowHidden: isTitleOnly(objectLabels),
+    triggersHidden: objectLabels.triggers,
+    reportsHidden: objectLabels.reports,
+    relationshipsHidden: objectLabels.relationships,
+    footerHidden: objectLabels.footer,
     fieldLabels: toFieldRowLabels(objectLabels),
   };
 }
@@ -101,7 +106,9 @@ export function cardBadges(
   {
     sourceHidden = false,
     fieldCountHidden = false,
-    statusRowHidden = false,
+    triggersHidden = false,
+    reportsHidden = false,
+    relationshipsHidden = false,
   }: NodeLayoutOptions = {}
 ): CardBadges {
   return {
@@ -111,9 +118,9 @@ export function cardBadges(
       !!node.definitionType &&
       DataMartDefinitionTypeModel.getInfo(node.definitionType).type !== null,
     fieldCount: !fieldCountHidden && node.fieldCount > 0,
-    triggers: !statusRowHidden && (node.triggersCount ?? 0) > 0,
-    reports: !statusRowHidden && (node.reportsCount ?? 0) > 0,
-    relationships: !statusRowHidden && (node.relationshipCount ?? 0) > 0,
+    triggers: !triggersHidden && (node.triggersCount ?? 0) > 0,
+    reports: !reportsHidden && (node.reportsCount ?? 0) > 0,
+    relationships: !relationshipsHidden && (node.relationshipCount ?? 0) > 0,
   };
 }
 
@@ -223,7 +230,7 @@ function cardHeaderHeight(
   const rowCount = cardBadgeLineCount(node, viewMode, options, measure);
   const rowsHeight =
     rowCount === 0 ? 0 : CARD_FIRST_BADGE_ROW_HEIGHT + (rowCount - 1) * CARD_BADGE_ROW_HEIGHT;
-  const tail = options.statusRowHidden ? CARD_TITLE_ONLY_PADDING : CARD_FOOTER_HEIGHT;
+  const tail = options.footerHidden ? CARD_NO_FOOTER_PADDING : CARD_FOOTER_HEIGHT;
   return CARD_TITLE_ROW_HEIGHT + rowsHeight + tail;
 }
 
