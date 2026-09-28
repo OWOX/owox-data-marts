@@ -10,19 +10,23 @@ import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
 import {
   clearPendingAction,
+  consumeAuthFlowError,
   extractAuthFlowParams,
   persistAuthFlowContext,
   readPendingActionFromCookie,
 } from '../utils/request-utils.js';
+import { issueSocialIntentNonce } from '../utils/social-intent.js';
 
 type AutoSubmitProvider = 'google' | 'microsoft';
 
 function resolveAutoSubmitProvider(
   hasQueryState: boolean,
   pendingAction: string | undefined,
+  socialIntentVerified: boolean | undefined,
   enabledProviders: UiAuthProviders
 ): AutoSubmitProvider | undefined {
   if (!hasQueryState) return undefined;
+  if (!socialIntentVerified) return undefined;
   if (pendingAction !== 'google' && pendingAction !== 'microsoft') return undefined;
   return enabledProviders[pendingAction] ? pendingAction : undefined;
 }
@@ -50,10 +54,15 @@ export class PageController {
    * path that didn't clear it, etc.) must not be trusted as fresh, and -
    * more importantly - this value gates auto-submitting a sign-in action
    * with no further click, so it must not be satisfiable by a query
-   * parameter alone (a crafted `?state=x&pendingAction=google` link).
+   * parameter alone (a crafted `?state=x&pendingAction=google` link). The
+   * persisted action also needs proof from the one-time button POST.
    */
   private hasQueryState(req: ExpressRequest): boolean {
     return typeof req.query?.state === 'string' && req.query.state.length > 0;
+  }
+
+  isSocialProviderEnabled(provider: AutoSubmitProvider): boolean {
+    return Boolean(this.providers[provider]);
   }
 
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -61,13 +70,15 @@ export class PageController {
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
       readPendingActionFromCookie(req),
+      extractAuthFlowParams(req).socialIntentVerified,
       this.providers
     );
     this.persistAuthFlowContext(req, res);
     // pendingAction is single-use: once read for this render, drop it so a
     // later reload of this same page does not silently replay a stale action.
     clearPendingAction(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
+    const savedError = consumeAuthFlowError(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -78,6 +89,7 @@ export class PageController {
         gtmContainerId: this.gtmContainerId,
         hasState,
         autoSubmitProvider,
+        socialIntentNonce: issueSocialIntentNonce(req, res),
       })
     );
   }
@@ -87,11 +99,13 @@ export class PageController {
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
       readPendingActionFromCookie(req),
+      extractAuthFlowParams(req).socialIntentVerified,
       this.providers
     );
     this.persistAuthFlowContext(req, res);
     clearPendingAction(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
+    const savedError = consumeAuthFlowError(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -101,6 +115,7 @@ export class PageController {
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
         autoSubmitProvider,
+        socialIntentNonce: issueSocialIntentNonce(req, res),
       })
     );
   }

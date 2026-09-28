@@ -64,6 +64,7 @@ export class TemplateService {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign In - OWOX Data Marts',
       heading: 'Sign in to OWOX',
+      socialIntentNonce: '',
       ...data,
       providers: data.providers,
       gtmContainerId: data.gtmContainerId,
@@ -76,6 +77,7 @@ export class TemplateService {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign Up - OWOX Data Marts',
       heading: 'Create your OWOX account',
+      socialIntentNonce: '',
       magicLinkSignupIntent: MAGIC_LINK_INTENT.SIGNUP,
       ...data,
       providers: data.providers,

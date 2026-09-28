@@ -127,6 +127,7 @@
 <script>
   const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+  const socialIntentNonce = <%- JSON.stringify(socialIntentNonce) %>;
 
   /**
    * Ensures a PKCE state exists before running a sign-in action, falling
@@ -151,22 +152,28 @@
   }
 
   /**
-   * Unlike `ensureStateThenRun`, this always bounces through Platform for a
-   * brand-new state, even if `hasAuthState` is already true - a click is a
-   * separate, later action from whatever state the page happened to load
-   * with, and the state backing the click should be fresh regardless of how
-   * long the page has been sitting open. Strips any `state` already in the
-   * URL first so the request reaches the no-state branch server-side; the
-   * persisted `pendingAction` is what makes the return leg auto-resume this
-   * exact provider.
+   * A POST with the one-time page token records the clicked provider and
+   * starts a fresh Platform state round trip, bypassing refresh-token reuse.
    */
-  function alwaysGetFreshStateThenRun(pendingAction) {
+  function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);
     if (submitBtn) submitBtn.disabled = true;
     const params = new URLSearchParams(window.location.search);
     params.delete('state');
-    params.set('pendingAction', pendingAction);
-    window.location.href = `${window.location.pathname}?${params.toString()}`;
+    params.delete('pendingAction');
+    params.delete('error');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/auth/sign-in/social-intent?${params.toString()}`;
+    for (const [name, value] of Object.entries({ provider, nonce: socialIntentNonce })) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
   }
 
   const urlParams = new URLSearchParams(window.location.search);

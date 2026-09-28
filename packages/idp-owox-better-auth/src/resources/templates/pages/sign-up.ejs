@@ -93,21 +93,31 @@
 <%- include('../partials/social-auth') %>
 <script>
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+  const socialIntentNonce = <%- JSON.stringify(socialIntentNonce) %>;
 
   /**
-   * Always bounces through Platform for a brand-new state on click - a
-   * click is a separate, later action from whatever state the page
-   * happened to load with, so the state backing it should be fresh
-   * regardless of how long the page has been open. Strips any `state`
-   * already in the URL first so the request reaches the no-state branch
-   * server-side; the persisted `pendingAction` is what makes the return leg
-   * auto-resume this exact provider (see autoSubmitProvider).
+   * Submit the clicked provider with a one-time page token so the server
+   * can request a new state and resume this exact action after Platform.
    */
-  function alwaysGetFreshStateThenRun(pendingAction) {
+  function alwaysGetFreshStateThenRun(provider) {
+    setSocialButtonsDisabled(true);
+    if (signupSubmit) signupSubmit.disabled = true;
     const params = new URLSearchParams(window.location.search);
     params.delete('state');
-    params.set('pendingAction', pendingAction);
-    window.location.href = `${window.location.pathname}?${params.toString()}`;
+    params.delete('pendingAction');
+    params.delete('error');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/auth/sign-up/social-intent?${params.toString()}`;
+    for (const [name, value] of Object.entries({ provider, nonce: socialIntentNonce })) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
   }
 
   const urlParams = new URLSearchParams(window.location.search);

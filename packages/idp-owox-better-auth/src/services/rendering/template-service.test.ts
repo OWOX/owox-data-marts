@@ -26,6 +26,9 @@ describe('TemplateService', () => {
 
     expect(html).toContain('function alwaysGetFreshStateThenRun(');
     expect(html).toContain("params.delete('state');");
+    expect(html).toContain("form.action = `/auth/sign-in/social-intent?${params.toString()}`;");
+    expect(html).toContain("form.method = 'POST';");
+    expect(html).toContain('nonce: socialIntentNonce');
     expect(html).toContain(
       "googleButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('google'));"
     );
@@ -47,6 +50,8 @@ describe('TemplateService', () => {
     });
 
     expect(html).toContain('function alwaysGetFreshStateThenRun(');
+    expect(html).toContain("form.action = `/auth/sign-up/social-intent?${params.toString()}`;");
+    expect(html).toContain('nonce: socialIntentNonce');
     expect(html).toContain(
       "googleButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('google'));"
     );

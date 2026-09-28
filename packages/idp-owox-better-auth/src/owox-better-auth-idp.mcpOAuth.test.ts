@@ -226,6 +226,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const routes = new Map<string, (req: Request, res: Response) => Promise<void>>();
     const app = {
       use: jest.fn(),
+      post: jest.fn(),
       get: jest.fn((path: string, handler: (req: Request, res: Response) => Promise<void>) => {
         routes.set(path, handler);
       }),
@@ -306,6 +307,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const routes = new Map<string, (req: Request, res: Response) => Promise<void>>();
     const app = {
       use: jest.fn(),
+      post: jest.fn(),
       get: jest.fn((path: string, handler: (req: Request, res: Response) => Promise<void>) => {
         routes.set(path, handler);
       }),

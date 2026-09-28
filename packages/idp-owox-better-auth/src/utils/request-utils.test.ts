@@ -335,9 +335,15 @@ describe('request-utils', () => {
   });
 
   describe('pendingAction', () => {
-    it('reads a valid pendingAction from the query string', () => {
-      const req = { query: { pendingAction: 'google' } } as unknown as Request;
-      expect(readPendingActionFromQuery(req)).toBe('google');
+    it('ignores a social provider named in the query string', () => {
+      const req = { query: { pendingAction: 'google' }, headers: { cookie: '' } } as unknown as Request;
+      expect(readPendingActionFromQuery(req)).toBeUndefined();
+      expect(extractAuthFlowParams(req).pendingAction).toBeUndefined();
+    });
+
+    it('keeps the email fallback from the query string', () => {
+      const req = { query: { pendingAction: 'email' } } as unknown as Request;
+      expect(readPendingActionFromQuery(req)).toBe('email');
     });
 
     it('rejects a pendingAction value outside the known allowlist', () => {

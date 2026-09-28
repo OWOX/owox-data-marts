@@ -74,10 +74,12 @@ import {
   extractAuthFlowParams,
   extractRefreshToken,
   getStateManager,
+  persistAuthFlowError,
   persistAuthFlowParams,
   readPendingActionFromQuery,
   type AuthFlowParams,
 } from './utils/request-utils.js';
+import { consumeSocialIntentNonce } from './utils/social-intent.js';
 
 const MCP_PROJECT_ID_PATTERN = /^[a-f0-9]{32}$/;
 
@@ -360,6 +362,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.authErrorController.registerRoutes(app);
     this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
+    app.post(`${AUTH_BASE_PATH}/sign-in/social-intent`, (req, res) =>
+      this.handleSocialIntent(req, res, this.config.idpOwox.idpConfig.platformSignInUrl)
+    );
+    app.post(`${AUTH_BASE_PATH}/sign-up/social-intent`, (req, res) =>
+      this.handleSocialIntent(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl)
+    );
     this.passwordFlowController.registerRoutes(app);
     this.googleSheetsAuthController.registerRoutes(app);
     this.extensionAuthController?.registerRoutes(app);
@@ -506,12 +514,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
    * to Platform to mint a state - the email/password form needs one ready as
    * soon as the page renders (a client-side deferral was tried and dropped:
    * it either lost an in-progress password to a full-page bounce, or left a
-   * window where the state could still expire mid-form-fill). `pendingAction`
-   * still matters here: the Google/Microsoft buttons always force a *fresh*
-   * bounce on click (stripping any state already in the URL first, see
-   * sign-in.ejs), specifically so a click is never serviced by a state that
-   * has been sitting around since page load; the persisted `pendingAction`
-   * is what lets the return leg auto-resume that exact action.
+   * window where the state could still expire mid-form-fill). A separate
+   * verified button POST starts a fresh social state round trip before the
+   * refresh-token fast paths run.
    */
   private async handleNoState(req: e.Request, res: e.Response): Promise<void | e.Response> {
     const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
@@ -519,6 +524,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const authFlowParams = extractAuthFlowParams(req);
     const hasOAuthAuthorizeContinuation = this.hasOAuthAuthorizeContinuation(authFlowParams);
     const pendingAction = readPendingActionFromQuery(req);
+    const error = typeof req.query?.error === 'string' ? req.query.error : undefined;
 
     this.logger.info('Sign-in request without state', {
       path: req.path,
@@ -529,6 +535,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       hasOAuthAuthorizeContinuation,
       pendingAction,
     });
+
+    if (error) {
+      persistAuthFlowError(req, res, error);
+      clearAuthFlowStateCookie(res, req);
+      return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+    }
 
     if (!refreshToken && hasOAuthAuthorizeContinuation) {
       this.logger.info(
@@ -552,12 +564,30 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       if (handled) return;
     }
 
-    if (pendingAction === 'google' || pendingAction === 'microsoft') {
-      // The page already has a state cookie. A social click requests a fresh
-      // state, so remove the old cookie before Platform returns with the new one.
-      clearAuthFlowStateCookie(res, req);
-    }
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+  }
+
+  private async handleSocialIntent(
+    req: e.Request,
+    res: e.Response,
+    platformUrl: string
+  ): Promise<void | e.Response> {
+    const provider = req.body?.provider;
+    if (
+      (provider !== 'google' && provider !== 'microsoft') ||
+      !this.pageController.isSocialProviderEnabled(provider) ||
+      !consumeSocialIntentNonce(req, res, req.body?.nonce)
+    ) {
+      return res.status(403).send('Sign-in page expired. Please reload and try again.');
+    }
+
+    // This route is reached by a same-origin button POST and deliberately
+    // precedes the ordinary refresh-token fast paths.
+    clearAuthFlowStateCookie(res, req);
+    return this.redirectToPlatform(req, res, platformUrl, {
+      pendingAction: provider,
+      socialIntentVerified: true,
+    });
   }
 
   private hasOAuthAuthorizeContinuation(params: AuthFlowParams): boolean {
@@ -680,9 +710,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         Boolean(extractRefreshToken(req));
       if (!hasEstablishedIntent) {
         return this.pageController.signUpPage(req, res);
-      }
-      if (pendingAction === 'google' || pendingAction === 'microsoft') {
-        clearAuthFlowStateCookie(res, req);
       }
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
@@ -928,9 +955,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private async redirectToPlatform(
     req: e.Request,
     res: e.Response,
-    authUrl: string
+    authUrl: string,
+    overrides: Partial<AuthFlowParams> = {}
   ): Promise<void | e.Response> {
-    const params = extractAuthFlowParams(req);
+    const params = { ...extractAuthFlowParams(req), ...overrides };
     const generatedProjectId = params.projectId && !params.appRedirectTo ? params.projectId : null;
     let projectRedirectUserId = params.projectRedirectUserId;
     let preserveGeneratedProjectRedirect = true;

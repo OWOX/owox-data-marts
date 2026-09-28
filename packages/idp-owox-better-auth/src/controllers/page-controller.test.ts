@@ -46,13 +46,40 @@ describe('PageController.signInPage / signUpPage', () => {
 
     expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
+    expect(res.body).toContain('const socialIntentNonce = "');
+    expect(res.cookie).toHaveBeenCalledWith(
+      'idp-owox-social-intent',
+      expect.any(String),
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax' })
+    );
+  });
+
+  it('shows a saved error once after the new state returns', async () => {
+    const controller = new PageController(providers);
+    const req = createRequest(
+      { state: 'fresh-state' },
+      `idp-owox-auth-error=${encodeURIComponent('Your sign-in session expired. Please try again.')}`
+    );
+    const res = createResponse();
+
+    await controller.signInPage(req, res);
+
+    expect(res.body).toContain('Your sign-in session expired. Please try again.');
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'idp-owox-auth-error',
+      expect.objectContaining({ path: '/' })
+    );
   });
 
   it('auto-submits the pending Google action once state has come back, and clears pendingAction (single use)', async () => {
     const controller = new PageController(providers);
     const req = createRequest(
       { state: 'fresh-state' },
-      paramsCookieHeader({ pendingAction: 'google', redirectTo: '/dashboard' })
+      paramsCookieHeader({
+        pendingAction: 'google',
+        socialIntentVerified: true,
+        redirectTo: '/dashboard',
+      })
     );
     const res = createResponse();
 
@@ -63,6 +90,7 @@ describe('PageController.signInPage / signUpPage', () => {
 
     const persisted = lastParamsCookieValue(res);
     expect(persisted?.pendingAction).toBeUndefined();
+    expect(persisted?.socialIntentVerified).toBeUndefined();
     expect(persisted?.redirectTo).toBe('/dashboard');
   });
 
@@ -107,6 +135,19 @@ describe('PageController.signInPage / signUpPage', () => {
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
+  it('does not auto-submit a provider left in a cookie without a verified button POST', async () => {
+    const controller = new PageController(providers);
+    const req = createRequest(
+      { state: 'fresh-state' },
+      paramsCookieHeader({ pendingAction: 'google' })
+    );
+    const res = createResponse();
+
+    await controller.signInPage(req, res);
+
+    expect(res.body).toContain('const autoSubmitProvider = null;');
+  });
+
   it('does not auto-submit for a disabled provider even with a valid resume cookie', async () => {
     const controller = new PageController({ google: false, microsoft: true, email: true });
     const req = createRequest(
@@ -124,7 +165,7 @@ describe('PageController.signInPage / signUpPage', () => {
     const controller = new PageController(providers);
     const req = createRequest(
       { state: 'fresh-state' },
-      paramsCookieHeader({ pendingAction: 'microsoft' })
+      paramsCookieHeader({ pendingAction: 'microsoft', socialIntentVerified: true })
     );
     const res = createResponse();
 

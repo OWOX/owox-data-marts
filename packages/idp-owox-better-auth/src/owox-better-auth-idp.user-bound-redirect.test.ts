@@ -13,6 +13,7 @@ function createCallbackProvider(params: {
   const routes = new Map<string, RouteHandler>();
   const app = {
     use: jest.fn(),
+    post: jest.fn(),
     get: jest.fn((path: string, handler: RouteHandler) => routes.set(path, handler)),
   };
   const tokenFacade = {
