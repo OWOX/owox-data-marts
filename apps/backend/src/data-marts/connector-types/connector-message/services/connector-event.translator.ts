@@ -62,6 +62,7 @@ export function isNewEvent(value: unknown): value is RawEvent {
  *   CONTROL.paused      -> { type: 'log', message: '[CONTROL] paused' }
  *   CONTROL.cancelled   -> { type: 'log', message: '[CONTROL] cancelled' }
  *   STATE               -> { type: 'updateLastRequstedDate', date: state.lastRequestedDate }
+ *   STATE (other keys)  -> { type: 'updateState', state } (host persists, e.g. the short link cache)
  *   TRACE               -> { type: 'log', message: '[TRACE] ...' }
  *   ANALYTICS           -> { type: 'log', message: '[ANALYTICS] ...' }
  *   CREDENTIALS         -> { type: 'updateCredentials', credentials } (host persists)
@@ -132,6 +133,15 @@ function translateEventBody(
           type: ConnectorMessageType.REQUESTED_DATE,
           at,
           date: lastRequestedDate,
+        };
+      }
+      // State a connector keeps for itself, such as the short link cache: persisted, never
+      // logged, since it can run to tens of kilobytes.
+      if (Object.keys(state).length > 0) {
+        return {
+          type: ConnectorMessageType.STATE_UPDATE,
+          at,
+          state,
         };
       }
       // Fall back to a log so we still surface the state in run history.

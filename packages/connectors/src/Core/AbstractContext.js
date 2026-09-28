@@ -9,6 +9,7 @@
 import { LogEvent } from './Events/LogEvent.js';
 import { CredentialsEvent } from './Events/CredentialsEvent.js';
 import { FieldsEvent } from './Events/FieldsEvent.js';
+import { StateEvent } from './Events/StateEvent.js';
 import { AnalyticsEvent } from './Events/AnalyticsEvent.js';
 import {
   RUN_CONFIG_TYPE,
@@ -401,6 +402,17 @@ export class AbstractContext {
    */
   updateFields(fields) {
     this.emit(new FieldsEvent(fields));
+  }
+
+  /**
+   * Emit state the connector keeps for itself, such as the short link cache. The host merges
+   * these keys into the configuration's state and hands them back on the next run as
+   * `runConfig.state`; the incremental cursor is not one of them.
+   *
+   * @param {object} state - Keys to persist, e.g. `{ shortLinks }`
+   */
+  updateState(state) {
+    this.emit(new StateEvent(state));
   }
 
   /**

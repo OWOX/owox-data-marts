@@ -225,7 +225,7 @@ describe('processShortLinks', () => {
       options
     );
 
-    const shortLinkCalls = globalThis.HttpUtils.fetch.mock.calls.filter(
+    const shortLinkCalls = globalThis.fetch.mock.calls.filter(
       ([url]) => url === 'https://short.example/abc123'
     );
     expect(shortLinkCalls).toHaveLength(1);
@@ -234,7 +234,7 @@ describe('processShortLinks', () => {
   });
 
   it('caches failed resolutions so a failing link is not retried within the run', async () => {
-    globalThis.HttpUtils.fetch = vi.fn(async () => {
+    globalThis.fetch = vi.fn(async () => {
       throw new Error('network down');
     });
     const cache = new Map();
@@ -246,7 +246,7 @@ describe('processShortLinks', () => {
       options
     );
 
-    expect(globalThis.HttpUtils.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(second[0].link_url_asset.parsed_url).toBeUndefined();
   });
 
@@ -262,7 +262,7 @@ describe('processShortLinks', () => {
       resolvedLinksCache: cache,
     });
 
-    expect(globalThis.HttpUtils.fetch.mock.calls.map(([url]) => url)).not.toContain(
+    expect(globalThis.fetch.mock.calls.map(([url]) => url)).not.toContain(
       'https://short.example/known'
     );
     expect(result.map(record => record.link_url_asset.parsed_url)).toEqual([
@@ -372,7 +372,7 @@ describe('resolveShortLinkFields', () => {
       { field: 'post_url', target: 'post_url_parsed' },
     ]);
 
-    const shortLinkCalls = globalThis.HttpUtils.fetch.mock.calls.filter(
+    const shortLinkCalls = globalThis.fetch.mock.calls.filter(
       ([url]) => url === 'https://short.example/abc123'
     );
     expect(shortLinkCalls).toHaveLength(1);
@@ -391,13 +391,19 @@ describe('failed and unanswered requests', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it('reports failed requests and leaves out URLs that answered without a redirect', async () => {
-    globalThis.HttpUtils = {
-      fetch: vi.fn(async url => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async url => {
         if (url === 'https://short.example/down') throw new Error('network down');
-        return { getResponseCode: () => 200, getHeaders: () => ({}) };
-      }),
-    };
+        return finalPage();
+      })
+    );
     const failedLinks = new Set();
     const cache = new Map();
 

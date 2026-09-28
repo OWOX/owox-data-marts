@@ -17,6 +17,8 @@ const helperPath = path.join(__dirname, '../../../src/Sources/MicrosoftAds/Helpe
 globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
 loadGasClass(fileUtilsPath);
 loadGasClass(helperPath);
+// fetchData calls omitShortLinkTargets, another bundle global.
+loadGasClass(path.join(__dirname, '../../../src/Core/Utils/ShortLinksUtils.js'));
 const MicrosoftAdsHelper = vm.runInThisContext('MicrosoftAdsHelper');
 const proto = MicrosoftAdsSource.prototype;
 

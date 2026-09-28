@@ -16,6 +16,8 @@ const apiReferenceDir = path.join(
 // it to every source. The field-reference files below are still GAS-style scripts, so
 // they keep going through loadGasClass.
 globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+// fetchData calls omitShortLinkTargets, another bundle global.
+loadGasClass(path.join(__dirname, '../../../src/Core/Utils/ShortLinksUtils.js'));
 const proto = GoogleAdsSource.prototype;
 
 // Each field file declares its object with `var`, so it attaches to globalThis once

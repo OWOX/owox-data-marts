@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../support/loadGasClass.js';
+import { GoogleAdsSource } from '../../src/Sources/GoogleAds/Source.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sourcesDir = path.join(__dirname, '../../src/Sources');
@@ -40,12 +41,12 @@ describe('sources that declare shortLinks strip the targets before calling the v
 
 describe('GoogleAds fetchData', () => {
   loadGasClass(path.join(__dirname, '../../src/Core/Utils/ShortLinksUtils.js'));
-  loadGasClass(path.join(__dirname, '../../src/Core/AbstractSource.js'));
-  loadGasClass(path.join(__dirname, '../../src/Sources/GoogleAds/Source.js'));
-  const proto = globalThis.GoogleAdsSource.prototype;
+  globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+  const proto = GoogleAdsSource.prototype;
 
   it('never puts a _parsed field into the GAQL query or the request', async () => {
     const self = Object.assign(Object.create(proto), {
+      context: { log: () => {} },
       fieldsSchema: {
         ad_group_ads_stats: {
           shortLinks: [{ field: 'ad_final_urls', target: 'ad_final_urls_parsed' }],
@@ -54,11 +55,13 @@ describe('GoogleAds fetchData', () => {
       _buildQuery: vi.fn(() => 'SELECT ...'),
       makeRequest: vi.fn(async () => []),
     });
-    vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await proto.fetchData.call(self, 'ad_group_ads_stats', '123', {
+    await proto.fetchData.call(self, {
+      nodeName: 'ad_group_ads_stats',
+      accountId: '123',
       fields: ['ad_id', 'ad_final_urls', 'ad_final_urls_parsed'],
-      startDate: new Date('2026-09-01T00:00:00Z'),
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
     });
 
     expect(self._buildQuery.mock.calls[0][0].fields).toEqual(['ad_id', 'ad_final_urls']);

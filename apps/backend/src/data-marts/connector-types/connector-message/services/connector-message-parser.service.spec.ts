@@ -295,17 +295,33 @@ describe('ConnectorMessageParserService', () => {
       expect((result as unknown as { date: string }).date).toBe('2026-04-30');
     });
 
-    it('translates STATE without lastRequestedDate to LOG fallback', () => {
+    // The engine sends the short link cache this way; logging it would put up to 24 KiB of
+    // URL pairs into run history on every run.
+    it('translates STATE without lastRequestedDate to a STATE_UPDATE the host persists', () => {
+      const shortLinks = { 'https://short.example/abc': ['https://example.com/landing', 1] };
       const result = service.parse(
-        JSON.stringify({
-          type: 'STATE',
-          timestamp: ts,
-          state: { someOtherField: 'x' },
-        })
+        JSON.stringify({ type: 'STATE', timestamp: ts, state: { shortLinks } })
       );
-      expect(result).not.toBeNull();
+      expect(result!.type).toBe(ConnectorMessageType.STATE_UPDATE);
+      expect((result as unknown as { state: unknown }).state).toEqual({ shortLinks });
+    });
+
+    it('translates an empty STATE to the LOG fallback', () => {
+      const result = service.parse(JSON.stringify({ type: 'STATE', timestamp: ts, state: {} }));
       expect(result!.type).toBe(ConnectorMessageType.LOG);
       expect(result!.toFormattedString()).toContain('[STATE]');
+    });
+
+    it('refuses a STATE that would move the incremental cursor outside REQUESTED_DATE', () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      try {
+        const result = service.parse(
+          JSON.stringify({ type: 'STATE', timestamp: ts, state: { date: '2026-01-01' } })
+        );
+        expect(result!.type).toBe(ConnectorMessageType.UNKNOWN);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('translates TRACE to LOG bucket with tagged message', () => {

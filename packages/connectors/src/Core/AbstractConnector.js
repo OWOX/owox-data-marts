@@ -216,7 +216,8 @@ export class AbstractConnector {
    * fetchData, onAccountComplete, onAccountError, onImportComplete.
    *
    * Events emitted: ControlEvent (started, completed|failed), StateEvent (per
-   * completed day/window, for both run types -- see _emitCursor).
+   * completed day/window, for both run types -- see _emitCursor -- and once at
+   * the end with the short link cache when the run resolved new links).
    */
   async run() {
     this.context.emit(new ControlEvent(CONTROL_ACTION.STARTED));
@@ -284,6 +285,9 @@ export class AbstractConnector {
         this.context.emit(new ControlEvent(CONTROL_ACTION.FAILED, { error: error.message }));
       }
       throw error;
+    } finally {
+      // A failed run still answered the links it resolved before it stopped
+      this._flushShortLinksState();
     }
   }
 
@@ -783,6 +787,7 @@ export class AbstractConnector {
         throw asStorageFailure(error);
       }
       writer = {
+        nodeName: node.name,
         storage,
         uniqueKeys: this.getUniqueKeysForNode(node.name, node.schema),
         initialized: false,
@@ -809,14 +814,99 @@ export class AbstractConnector {
   async _writeBatch(writer, data, fields) {
     const createEmptyTables = this.context.getParameter('CreateEmptyTables')?.value;
     if (!((data && data.length > 0) || createEmptyTables)) return;
+    const rows = await this.resolveShortLinks(writer.nodeName, data || [], fields);
     try {
       if (!writer.initialized) {
         await writer.storage.init();
         writer.initialized = true;
       }
-      await writer.storage.saveData(this._addMissingFields(data || [], fields));
+      await writer.storage.saveData(this._addMissingFields(rows, fields));
     } catch (error) {
       throw asStorageFailure(error);
+    }
+  }
+
+  /**
+   * Resolves short links for the fields a schema node declares under `shortLinks`, writing
+   * each landing page next to its original. No-op when the node has no spec, Process Short
+   * Links is off, or no spec has its field (and its `_parsed` target) selected.
+   *
+   * The helpers are bare globals of Core/Utils/ShortLinksUtils.js, a script in the bundle's
+   * scope; nothing here touches them for a node without a spec.
+   *
+   * @param {string} nodeName - schema node name
+   * @param {object[]} data - fetched records
+   * @param {string[]} fields - field names selected for the node
+   * @returns {Promise<object[]>} records with resolved links, or the same array
+   */
+  async resolveShortLinks(nodeName, data, fields) {
+    const specs = this.source?.fieldsSchema?.[nodeName]?.shortLinks;
+    if (!Array.isArray(specs) || specs.length === 0 || !data.length) return data;
+    if (this.context.getParameter('ProcessShortLinks')?.value === false) return data;
+
+    const selected = new Set(fields || []);
+    // An object spec only needs its field; a sibling `_parsed` target also needs the source field
+    const activeSpecs = specs.filter(
+      spec => selected.has(spec.field) && (spec.urlKey || selected.has(spec.target))
+    );
+    if (activeSpecs.length === 0) return data;
+
+    const cache = this._shortLinksCache();
+    return resolveShortLinkFields(data, activeSpecs, {
+      nestedPathHosts: [
+        ...getShortLinkDomainsFromEnv(),
+        // Domains saved by the former Facebook "Short Link Domains" setting keep working
+        // until every environment sets CONNECTOR_SHORT_LINK_DOMAINS.
+        ...parseShortLinkDomains(this.context.getParameter('ShortLinkDomains')?.value),
+      ],
+      resolvedLinksCache: cache.resolved,
+      failedLinks: cache.failed,
+    });
+  }
+
+  /**
+   * The run's short link cache, seeded on first use from the resolutions earlier runs of this
+   * Data Mart persisted (`runConfig.state.shortLinks`), so a link is requested once, not once
+   * per run.
+   * @private
+   */
+  _shortLinksCache() {
+    if (!this._shortLinks) {
+      const persisted = loadShortLinksState(this.context.runConfig?.state?.shortLinks);
+      this._shortLinks = {
+        persisted,
+        resolved: new Map(Array.from(persisted, ([original, { url }]) => [original, url])),
+        // A failed request stays cached for this run only, so the next run retries it
+        failed: new Set(),
+      };
+    }
+    return this._shortLinks;
+  }
+
+  /**
+   * Persists the short links this run answered, once, at the end of the run. The cache only
+   * saves requests and does not change the imported data, so a failure here is logged and
+   * never fails the run.
+   * @private
+   */
+  _flushShortLinksState() {
+    const cache = this._shortLinks;
+    if (!cache) return;
+    // Every answered request is kept, including URLs that did not redirect; a failed one never is
+    const answered = Array.from(cache.resolved).filter(([original]) => !cache.failed.has(original));
+    if (!answered.some(([original]) => !cache.persisted.has(original))) return;
+
+    try {
+      const now = Date.now();
+      const entries = new Map(
+        answered.map(([original, url]) => [
+          original,
+          { url, at: cache.persisted.get(original)?.at ?? now },
+        ])
+      );
+      this.context.updateState({ shortLinks: buildShortLinksState(entries, now) });
+    } catch (error) {
+      this.context.log(LOG_LEVEL.INFO, `Failed to persist short link cache: ${error.message}`);
     }
   }
 

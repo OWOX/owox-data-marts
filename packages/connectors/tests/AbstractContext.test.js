@@ -355,6 +355,29 @@ describe('AbstractContext', () => {
     });
   });
 
+  describe('updateState', () => {
+    // The host turns a STATE without lastRequestedDate into a state update and merges its
+    // keys into the configuration's state, so the short link cache survives to the next run.
+    it('emits a STATE event carrying the keys, without a cursor date', () => {
+      const ctx = createMinimalContext();
+      const written = [];
+      const originalWrite = process.stdout.write;
+      process.stdout.write = data => {
+        written.push(data);
+        return true;
+      };
+      try {
+        const shortLinks = { 'https://short.example/a': ['https://example.com/a', 1] };
+        ctx.updateState({ shortLinks });
+        const parsed = JSON.parse(written[0].trim());
+        assert.strictEqual(parsed.type, 'STATE');
+        assert.deepStrictEqual(parsed.state, { shortLinks });
+      } finally {
+        process.stdout.write = originalWrite;
+      }
+    });
+  });
+
   describe('* suffix required parameters', () => {
     it('treats * suffix as isRequired', () => {
       const ctx = new AbstractContext({
