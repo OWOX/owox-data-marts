@@ -11,14 +11,7 @@ import {
   Waypoints,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  Handle,
-  Position,
-  useReactFlow,
-  useUpdateNodeInternals,
-  type Node,
-  type NodeProps,
-} from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import {
@@ -84,10 +77,9 @@ export interface ModelCanvasFlowNodeData {
   qualitySummary: DataQualityCompactSummary;
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
+  /** Tells the canvas whether a list on this card runs past it, so the canvas can lift the card. */
+  onRaisedChange?: (raised: boolean) => void;
 }
-
-/** Above every resting card, so an opened list is never covered by the card below. */
-const RAISED_NODE_Z_INDEX = 1000;
 
 const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {
   fields: Columns3,
@@ -208,16 +200,6 @@ export default function ModelCanvasFlowNode({
   useEffect(() => {
     updateNodeInternals(id);
   }, [expanded, openSection, id, updateNodeInternals]);
-  // An opened list runs past the card's layout height, over the card below —
-  // lift this card above its neighbours while it is open.
-  const { updateNode } = useReactFlow();
-  const raised = openSection !== null || expanded;
-  const wasRaised = useRef(false);
-  useEffect(() => {
-    if (raised === wasRaised.current) return;
-    wasRaised.current = raised;
-    updateNode(id, { zIndex: raised ? RAISED_NODE_Z_INDEX : 0 });
-  }, [raised, id, updateNode]);
 
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
@@ -235,10 +217,26 @@ export default function ModelCanvasFlowNode({
   // Badges fill a line while they fit its width — the layout estimate packs them the same way.
   const badgeLines = cardBadgeLines(data, data.viewMode, nodeLayoutOptions(labels));
   // The Detailed view already lists the fields, so there the field count stays a plain badge.
-  const canOpenFields = !isErd && fields.length > 0;
-  const canOpenRelationships = data.relationships.length > 0;
+  // A list shows only while its badge does: title-only mode hides both, and so
+  // does unticking the badge's object label.
+  const canOpenFields = !isErd && fields.length > 0 && badges.fieldCount;
+  const canOpenRelationships = data.relationships.length > 0 && badges.relationships;
   const showFields = openSection === 'fields' && canOpenFields;
   const showRelationships = openSection === 'relationships' && canOpenRelationships;
+  // A shown list runs past the card's layout height, over the card below — the
+  // canvas lifts this card above its neighbours while one is on screen.
+  const raised = showFields || showRelationships || (showBody && expanded);
+  const onRaisedChangeRef = useRef(data.onRaisedChange);
+  onRaisedChangeRef.current = data.onRaisedChange;
+  useEffect(() => {
+    onRaisedChangeRef.current?.(raised);
+  }, [raised]);
+  useEffect(
+    () => () => {
+      onRaisedChangeRef.current?.(false);
+    },
+    []
+  );
   const toggleSection = (section: 'fields' | 'relationships') => {
     setOpenSection(current => (current === section ? null : section));
   };

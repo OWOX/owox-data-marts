@@ -110,6 +110,8 @@ function loadSavedPositions(storageId: string | undefined): SavedPositions {
 }
 
 const FIT_VIEW_PADDING = 0.2;
+/** Above every resting card, so a card's open list is never covered by the card below. */
+const RAISED_NODE_Z_INDEX = 1000;
 const CANVAS_PAN_PADDING = 150;
 
 const nodeTypes = { modelCanvasNode: ModelCanvasFlowNode };
@@ -179,6 +181,7 @@ interface FlowNodeParams {
   onOpenExternal: () => void;
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
+  onRaisedChange: (raised: boolean) => void;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
@@ -222,6 +225,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       onOpenExternal: params.onOpenExternal,
       qualitySummary: node.qualitySummary,
       onOpenQuality: params.onOpenQuality,
+      onRaisedChange: params.onRaisedChange,
       onRunQuality: params.onRunQuality,
     },
   };
@@ -333,6 +337,17 @@ function ModelCanvasInner({
   const [ready, setReady] = useState(false);
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
+  // Cards whose open list runs past them — lifted above their neighbours.
+  const [raisedNodeIds, setRaisedNodeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const setNodeRaised = useCallback((nodeId: string, raised: boolean) => {
+    setRaisedNodeIds(current => {
+      if (current.has(nodeId) === raised) return current;
+      const next = new Set(current);
+      if (raised) next.add(nodeId);
+      else next.delete(nodeId);
+      return next;
+    });
+  }, []);
   const graphBounds = useMemo(() => getCanvasGraphBounds(flowNodes), [flowNodes]);
   const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
   const topologyEdges = useStableValue(edges, getEdgeTopologySignature);
@@ -439,6 +454,9 @@ function ModelCanvasInner({
             onOpenQualityRef.current(topologyNode.id);
           },
           onRunQuality: () => onRunQualityRef.current(topologyNode.id),
+          onRaisedChange: raised => {
+            setNodeRaised(topologyNode.id, raised);
+          },
           isCheckingDataLastUpdated: isCheckingDataLastUpdatedRef.current,
         })
       )
@@ -491,6 +509,7 @@ function ModelCanvasInner({
     showJoinLabels,
     objectLabels,
     reactFlow,
+    setNodeRaised,
   ]);
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
@@ -524,12 +543,18 @@ function ModelCanvasInner({
     setSelectedNodeId(null);
   }, []);
 
+  // Selection and lift are view state, derived here on every render rather than
+  // stored on the flow nodes, so a layout rebuild never drops or strands them.
   const displayNodes = useMemo(
     () =>
-      selectedNodeId
-        ? flowNodes.map(node => (node.id === selectedNodeId ? { ...node, selected: true } : node))
-        : flowNodes,
-    [flowNodes, selectedNodeId]
+      flowNodes.map(node => {
+        const selected = node.id === selectedNodeId;
+        const zIndex = raisedNodeIds.has(node.id) ? RAISED_NODE_Z_INDEX : 0;
+        return Boolean(node.selected) === selected && (node.zIndex ?? 0) === zIndex
+          ? node
+          : { ...node, selected, zIndex };
+      }),
+    [flowNodes, selectedNodeId, raisedNodeIds]
   );
 
   const displayEdges = useMemo(

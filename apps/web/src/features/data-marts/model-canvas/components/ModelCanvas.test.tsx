@@ -15,6 +15,7 @@ interface ReactFlowStubProps {
   nodes?: {
     id?: string;
     selected?: boolean;
+    zIndex?: number;
     deletable?: boolean;
     position: { x: number; y: number };
     width?: number;
@@ -26,6 +27,7 @@ interface ReactFlowStubProps {
       dataLastUpdated?: unknown;
       icon?: string | null;
       isCheckingDataLastUpdated?: boolean;
+      onRaisedChange?: (raised: boolean) => void;
     };
   }[];
   edges?: {
@@ -493,6 +495,62 @@ describe('ModelCanvas', () => {
       expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
     });
     expect(reactFlow.latestProps?.nodes?.[0].data?.icon).toBe('orders');
+  });
+
+  it('keeps a lifted card lifted through a layout rebuild and never strands its selection', async () => {
+    const node = {
+      id: 'orders',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      fieldCount: 3,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    };
+    render(
+      <ModelCanvas
+        nodes={[node]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    });
+    const orders = () => reactFlow.latestProps?.nodes?.find(n => n.id === 'orders');
+    expect(orders()?.zIndex ?? 0).toBe(0);
+
+    // A card whose list opened asks to be lifted…
+    act(() => {
+      orders()?.data?.onRaisedChange?.(true);
+    });
+    expect(orders()?.zIndex).toBe(1000);
+
+    // …and stays lifted when a setting rebuilds every node.
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    expect(orders()?.zIndex).toBe(1000);
+
+    // Selecting and deselecting the lifted card leaves no selection behind.
+    act(() => {
+      reactFlow.latestProps?.onNodeClick?.(null, { id: 'orders' });
+    });
+    expect(orders()?.selected).toBe(true);
+    act(() => {
+      reactFlow.latestProps?.onNodeClick?.(null, { id: 'orders' });
+    });
+    expect(orders()?.selected ?? false).toBe(false);
+
+    act(() => {
+      orders()?.data?.onRaisedChange?.(false);
+    });
+    expect(orders()?.zIndex ?? 0).toBe(0);
   });
 
   it('flips the checking flag on every node while the Data Last Updated sweep runs', async () => {

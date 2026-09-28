@@ -15,11 +15,8 @@ vi.mock('../../shared/canvas/measure-badge-text', () => ({
   measureBadgeText: (text: string) => text.length * 6,
 }));
 
-const updateNode = vi.hoisted(() => vi.fn());
-
 vi.mock('@xyflow/react', () => ({
   useUpdateNodeInternals: () => () => undefined,
-  useReactFlow: () => ({ updateNode }),
   Handle: () => null,
   Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
 }));
@@ -122,11 +119,22 @@ function renderNode(
     positionAbsoluteY: 0,
   } as NodeProps<ModelCanvasFlowNodeType>;
 
-  return render(
+  const view = render(
     <div onClick={onParentClick}>
       <ModelCanvasFlowNode {...props} />
     </div>
   );
+  return {
+    ...view,
+    /** Re-renders the same card with some data changed, keeping its local state. */
+    rerenderData: (changes: Partial<ModelCanvasFlowNodeType['data']>) => {
+      view.rerender(
+        <div onClick={onParentClick}>
+          <ModelCanvasFlowNode {...props} data={{ ...props.data, ...changes }} />
+        </div>
+      );
+    },
+  };
 }
 
 describe('ModelCanvasFlowNode', () => {
@@ -367,7 +375,10 @@ describe('ModelCanvasFlowNode', () => {
 
   it('opens the relationships list from its badge without selecting the card', () => {
     const parentClick = vi.fn();
-    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, parentClick);
+    const onRaisedChange = vi.fn();
+    renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, parentClick, undefined, {
+      onRaisedChange,
+    });
 
     const badge = screen.getByRole('button', { name: 'Show relationships of Orders' });
     expect(badge).toHaveAttribute('aria-expanded', 'false');
@@ -382,12 +393,39 @@ describe('ModelCanvasFlowNode', () => {
     );
     expect(parentClick).not.toHaveBeenCalled();
 
-    // The open list may run over the card below, so the card is lifted meanwhile.
-    expect(updateNode).toHaveBeenLastCalledWith('orders', { zIndex: 1000 });
+    // The open list may run over the card below, so the card asks to be lifted meanwhile.
+    expect(onRaisedChange).toHaveBeenLastCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide relationships of Orders' }));
     expect(screen.queryByRole('list', { name: 'Relationships of Orders' })).not.toBeInTheDocument();
-    expect(updateNode).toHaveBeenLastCalledWith('orders', { zIndex: 0 });
+    expect(onRaisedChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('hides an open list, and drops the lift, once its badge is hidden', () => {
+    const onRaisedChange = vi.fn();
+    const { rerenderData } = renderNode(
+      vi.fn(),
+      DEFAULT_FIELDS,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { viewMode: 'compact', onRaisedChange }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show relationships of Orders' }));
+    expect(screen.getByRole('list', { name: 'Relationships of Orders' })).toBeInTheDocument();
+
+    // "Uncheck all — title only" removes the badge, so the list goes with it.
+    rerenderData({ objectLabels: ALL_HIDDEN });
+    expect(screen.queryByRole('list', { name: 'Relationships of Orders' })).not.toBeInTheDocument();
+    expect(onRaisedChange).toHaveBeenLastCalledWith(false);
+
+    // The same holds for the field list when the field count label is unticked.
+    rerenderData({ objectLabels: NOTHING_HIDDEN });
+    fireEvent.click(screen.getByRole('button', { name: 'Show fields of Orders' }));
+    expect(screen.getByText('Order ID')).toBeInTheDocument();
+    rerenderData({ objectLabels: { ...NOTHING_HIDDEN, fields: true } });
+    expect(screen.queryByText('Order ID')).not.toBeInTheDocument();
   });
 
   it('opens the field list from the field count in the Compact view only', () => {
