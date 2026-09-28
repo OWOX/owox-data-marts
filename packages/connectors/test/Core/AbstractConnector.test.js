@@ -111,12 +111,14 @@ describe('short link resolution hook', () => {
     expect(await buildConnector().resolveShortLinks('ads', data, ['click_url'])).toBe(data);
   });
 
-  it('persists new resolutions once and keeps the original resolution time of seeded ones', () => {
+  it('persists answered requests, including landing pages, and keeps seeded resolution times', () => {
     const connector = buildConnector({
       shortLinks: { [SEEDED]: ['https://example.com/seeded', NOW - 1000] },
     });
     connector._shortLinksCache.set('https://short.example/new', 'https://example.com/new');
+    connector._shortLinksCache.set('https://brand.example/sale', 'https://brand.example/sale');
     connector._shortLinksCache.set('https://short.example/failed', 'https://short.example/failed');
+    connector._failedShortLinks.add('https://short.example/failed');
 
     connector._flushShortLinksState();
 
@@ -124,17 +126,37 @@ describe('short link resolution hook', () => {
     const { shortLinks } = connector.config.updateState.mock.calls[0][0];
     expect(shortLinks[SEEDED]).toEqual(['https://example.com/seeded', NOW - 1000]);
     expect(shortLinks['https://short.example/new'][0]).toBe('https://example.com/new');
+    // A landing page that answered without a redirect is remembered compactly
+    expect(shortLinks['https://brand.example/sale'][0]).toBeNull();
+    // A failed request is retried by the next run, so it is not persisted
     expect(shortLinks['https://short.example/failed']).toBeUndefined();
   });
 
-  it('does not emit state when nothing new was resolved', () => {
+  it('does not emit state when only failed requests are new', () => {
     const connector = buildConnector({
       shortLinks: { [SEEDED]: ['https://example.com/seeded', NOW] },
     });
     connector._shortLinksCache.set('https://short.example/failed', 'https://short.example/failed');
+    connector._failedShortLinks.add('https://short.example/failed');
 
     connector._flushShortLinksState();
 
     expect(connector.config.updateState).not.toHaveBeenCalled();
+  });
+
+  it('does not request a landing page that a previous run already checked', async () => {
+    globalThis.HttpUtils = { fetch: vi.fn() };
+    const connector = buildConnector({
+      shortLinks: { 'https://brand.example/sale': [null, NOW] },
+    });
+
+    const result = await connector.resolveShortLinks(
+      'ads',
+      [{ click_url: 'https://brand.example/sale' }],
+      ['click_url', 'click_url_parsed']
+    );
+
+    expect(globalThis.HttpUtils.fetch).not.toHaveBeenCalled();
+    expect(result[0].click_url_parsed).toBe('https://brand.example/sale');
   });
 });

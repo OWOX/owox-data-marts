@@ -23,7 +23,7 @@ reference. The connector requests TikTok Business API version `v1.3`.
 | **Advertiser Account** (`advertiser`) | Advertiser account — name, company, and currency. | 4 | `advertiser_id` | `tiktok_ads_advertiser` |
 | **Campaigns** (`campaigns`) | Your campaigns — objective, type, status, budget, and schedule. | 34 | `campaign_id` | `tiktok_ads_campaigns` |
 | **Ad Groups** (`ad_groups`) | Ad groups within your campaigns — bid strategy, optimization goal, placement, and targeting schedule. | 45 | `adgroup_id` | `tiktok_ads_ad_groups` |
-| **Ads** (`ads`) | Individual ads — creative type, format, call to action, status, and links to their campaigns and ad groups. | 46 | `ad_id` | `tiktok_ads_ads` |
+| **Ads** (`ads`) | Individual ads — creative type, format, call to action, status, and links to their campaigns and ad groups. | 48 | `ad_id` | `tiktok_ads_ads` |
 | **Custom Audiences** (`audiences`) | Custom audiences — type, size, validity status, and expiration. | 9 | `audience_id` | `tiktok_ads_audiences` |
 | **Ad Performance** (`ad_insights`) | Daily ad performance — impressions, clicks, spend, conversions, video views, and engagement. | 39 | Varies by Data Level | `tiktok_ads_ad_insights` |
 | **Ad Performance by Country** (`ad_insights_by_country`) | Daily ad performance broken down by country — impressions, clicks, spend, conversions, and video views. | 40 | Varies by Data Level | `tiktok_ads_ad_insights_by_country` |
@@ -196,7 +196,7 @@ Destination table: `tiktok_ads_ads`
 
 Unique keys: `ad_id`
 
-Fields: 46. Selected by default: `ad_name`, `advertiser_id`, `campaign_id`, `campaign_name`, `adgroup_id`, `adgroup_name`.
+Fields: 48. Selected by default: `ad_name`, `advertiser_id`, `campaign_id`, `campaign_name`, `adgroup_id`, `adgroup_name`, `landing_page_url`, `landing_page_url_parsed`.
 
 | Connector field | Data type | Required | Description |
 | --- | --- | --- | --- |
@@ -221,7 +221,9 @@ Fields: 46. Selected by default: `ad_name`, `advertiser_id`, `campaign_id`, `cam
 | `creative_type` | `STRING` | No | Type of Creative (video, image, etc.) |
 | `ad_format` | `STRING` | No | Format of the Ad |
 | `landing_page_url` | `STRING` | No | Landing Page URL |
+| `landing_page_url_parsed` | `STRING` | No | landing_page_url resolved to its landing page when it is a short link; otherwise the same value. Requires landing_page_url and Process Short Links. |
 | `landing_page_urls` | `ARRAY` | No | Multiple Landing Page URLs |
+| `landing_page_urls_parsed` | `ARRAY` | No | landing_page_urls with each short link resolved to its landing page; other URLs stay unchanged. Requires landing_page_urls and Process Short Links. |
 | `deeplink` | `STRING` | No | Deep Link URL |
 | `deeplink_type` | `STRING` | No | Type of Deep Link |
 | `tracking_pixel_id` | `STRING` | No | Pixel ID for Tracking |

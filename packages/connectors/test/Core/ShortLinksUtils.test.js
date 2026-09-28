@@ -362,6 +362,36 @@ describe('resolveShortLinkFields', () => {
   });
 });
 
+describe('failed and unanswered requests', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  it('reports failed requests and leaves out URLs that answered without a redirect', async () => {
+    globalThis.HttpUtils = {
+      fetch: vi.fn(async url => {
+        if (url === 'https://short.example/down') throw new Error('network down');
+        return { getResponseCode: () => 200, getHeaders: () => ({}) };
+      }),
+    };
+    const failedLinks = new Set();
+    const cache = new Map();
+
+    const result = await globalThis.resolveShortLinkFields(
+      [{ click_url: 'https://short.example/down' }, { click_url: 'https://brand.example/sale' }],
+      [{ field: 'click_url', target: 'click_url_parsed' }],
+      { resolvedLinksCache: cache, failedLinks }
+    );
+
+    expect(Array.from(failedLinks)).toEqual(['https://short.example/down']);
+    expect(cache.get('https://brand.example/sale')).toBe('https://brand.example/sale');
+    expect(result.map(r => r.click_url_parsed)).toEqual([
+      'https://short.example/down',
+      'https://brand.example/sale',
+    ]);
+  });
+});
+
 describe('omitShortLinkTargets', () => {
   const node = {
     shortLinks: [
@@ -409,53 +439,72 @@ describe('short links state', () => {
   const NOW = 1_700_000_000_000;
   const DAY = 24 * 60 * 60 * 1000;
 
-  it('loads valid entries and drops expired or malformed ones', () => {
+  it('loads valid entries, maps a null target to the URL itself, and drops expired or malformed ones', () => {
     const raw = {
       'https://short.example/fresh': ['https://example.com/fresh', NOW - DAY],
+      'https://brand.example/sale': [null, NOW - DAY],
       'https://short.example/stale': ['https://example.com/stale', NOW - 31 * DAY],
       'https://short.example/broken': 'not-an-entry',
+      'https://short.example/bad-target': [42, NOW],
     };
 
     const entries = globalThis.loadShortLinksState(raw, NOW);
 
-    expect(Array.from(entries.keys())).toEqual(['https://short.example/fresh']);
+    expect(Array.from(entries.keys())).toEqual([
+      'https://short.example/fresh',
+      'https://brand.example/sale',
+    ]);
     expect(entries.get('https://short.example/fresh')).toEqual({
       url: 'https://example.com/fresh',
+      at: NOW - DAY,
+    });
+    expect(entries.get('https://brand.example/sale')).toEqual({
+      url: 'https://brand.example/sale',
       at: NOW - DAY,
     });
     expect(globalThis.loadShortLinksState(undefined, NOW).size).toBe(0);
   });
 
-  it('persists only successful resolutions, newest first, and keeps the resolution time', () => {
+  it('persists newest first, stores a URL that did not redirect as null, and keeps the resolution time', () => {
     const entries = new Map([
       ['https://short.example/old', { url: 'https://example.com/old', at: NOW - 2 * DAY }],
+      ['https://brand.example/sale', { url: 'https://brand.example/sale', at: NOW - DAY }],
       ['https://short.example/new', { url: 'https://example.com/new', at: NOW }],
-      ['https://short.example/failed', { url: 'https://short.example/failed', at: NOW }],
+      ['https://short.example/expired', { url: 'https://example.com/expired', at: NOW - 31 * DAY }],
     ]);
 
     const state = globalThis.buildShortLinksState(entries, NOW);
 
-    expect(Object.keys(state)).toEqual(['https://short.example/new', 'https://short.example/old']);
+    expect(Object.keys(state)).toEqual([
+      'https://short.example/new',
+      'https://brand.example/sale',
+      'https://short.example/old',
+    ]);
+    expect(state['https://brand.example/sale']).toEqual([null, NOW - DAY]);
     expect(state['https://short.example/old']).toEqual(['https://example.com/old', NOW - 2 * DAY]);
   });
 
-  it('caps the entry count at 200 and the serialized size at 24 KiB', () => {
-    const many = new Map(
-      Array.from({ length: 300 }, (_, i) => [
-        `https://s.example/${i}`,
-        { url: `https://e.example/${i}`, at: NOW - i },
-      ])
-    );
-    expect(Object.keys(globalThis.buildShortLinksState(many, NOW))).toHaveLength(200);
+  it('fills the 24 KiB budget entry by entry instead of dropping half of it', () => {
+    const entry = i => [
+      `https://short.example/${String(i).padStart(4, '0')}`,
+      {
+        url: `https://example.com/landing/${'x'.repeat(70)}/${String(i).padStart(4, '0')}`,
+        at: NOW - i,
+      },
+    ];
+    const entries = new Map(Array.from({ length: 400 }, (_, i) => entry(i)));
 
-    const huge = new Map(
-      Array.from({ length: 150 }, (_, i) => [
-        `https://short.example/${i}`,
-        { url: `https://example.com/${'x'.repeat(300)}-${i}`, at: NOW - i },
-      ])
-    );
-    const state = globalThis.buildShortLinksState(huge, NOW);
-    expect(JSON.stringify(state).length).toBeLessThanOrEqual(24 * 1024);
-    expect(Object.keys(state).length).toBeGreaterThan(0);
+    const state = globalThis.buildShortLinksState(entries, NOW);
+    const size = JSON.stringify(state).length;
+    const kept = Object.keys(state).length;
+    const nextEntrySize =
+      JSON.stringify({ [entry(kept)[0]]: [entry(kept)[1].url, NOW] }).length - 1;
+
+    expect(size).toBeLessThanOrEqual(24 * 1024);
+    // The next entry would not have fitted, so no budget was left unused
+    expect(size + nextEntrySize).toBeGreaterThan(24 * 1024);
+    // Newest entries win
+    expect(Object.keys(state)[0]).toBe(entry(0)[0]);
+    expect(Object.keys(state)[kept - 1]).toBe(entry(kept - 1)[0]);
   });
 });

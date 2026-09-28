@@ -107,6 +107,7 @@ Open **Advanced settings** to reach these options. The defaults suit most import
 | **Reimport Lookback Window** | `2` | Days to re-request before the last imported date. Refreshes metrics that TikTok updated later. |
 | **Include Deleted** | Off | Imports deleted campaigns, ad groups, and ads. It does not affect the advertiser, performance, or audience endpoints. |
 | **Sandbox Mode** | Off | Sends requests to TikTok's test environment. Use it only to test an integration. |
+| **Process Short Links** | On | Resolves short links in `landing_page_url` and `landing_page_urls` into their `_parsed` fields. See [Resolve Short Links](#resolve-short-links). |
 | **Create Empty Tables** | On | Creates the destination table with every selected column, even when TikTok returns no rows. |
 
 > Keep **Create Empty Tables** on. When you turn it off and TikTok returns no rows, the connector
@@ -119,6 +120,20 @@ and spend settle within a day or two.
 **Sandbox Mode** restricts what you can import. TikTok supplies mock reporting data for
 2020-12-08 through 2020-12-19 only. It does not support `AUCTION_ADVERTISER`, the `advertiser`
 endpoint, or the `audiences` endpoint. See [Troubleshooting](TROUBLESHOOTING.md#sandbox-mode-limits).
+
+### Resolve Short Links
+
+Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+
+- **Ads**: `landing_page_url` resolves into `landing_page_url_parsed`, and `landing_page_urls` into `landing_page_urls_parsed`.
+
+Keep the source field and its parsed field selected and keep **Process Short Links** on. OWOX selects `landing_page_url` and `landing_page_url_parsed` by default. A parsed field holds the landing page for short links and the original value for other links.
+
+OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
+
+OWOX sends one request per distinct link and remembers the answer for 30 days, including links that do not redirect. Later runs skip remembered links. If a Data Mart has more distinct links than the memory holds, OWOX requests the extra ones on each run.
+
+OWOX re-imports **Ads** on every run, so existing rows get the parsed field on the next run.
 
 ## Start a Manual Run
 

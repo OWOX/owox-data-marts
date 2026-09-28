@@ -49,7 +49,9 @@ Keep the source field and its parsed field selected and enable **Process Short L
 
 OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
 
-OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
+OWOX sends one request per distinct link and remembers the answer for 30 days, including links that do not redirect. Later runs skip remembered links. If a Data Mart has more distinct links than the memory holds, OWOX requests the extra ones on each run.
+
+OWOX re-imports **All Cards** on every run, so existing rows get the parsed field on the next run.
 
 ## Run the Data Mart
 

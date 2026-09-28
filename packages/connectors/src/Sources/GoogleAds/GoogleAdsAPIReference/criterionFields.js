@@ -52,7 +52,7 @@ var criterionFields = {
     'type': DATA_TYPES.ARRAY
   },
   'final_urls_parsed': {
-    'description': 'final_urls resolved to its landing page when it is a short link; otherwise the same value. Requires final_urls and Process Short Links.',
+    'description': 'final_urls with each short link resolved to its landing page; other URLs stay unchanged. Requires final_urls and Process Short Links.',
     'type': DATA_TYPES.ARRAY
   },
   'negative': {

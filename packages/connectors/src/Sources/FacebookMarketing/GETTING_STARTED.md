@@ -78,7 +78,9 @@ OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any doma
 
 OWOX skips links with query parameters, such as `?utm_source=facebook`, because they already point to the landing page. OWOX follows HTTP redirects only, so a short link that opens an interstitial page stays unresolved.
 
-OWOX resolves each short link once per Data Mart and remembers the result for 30 days. Rows imported before you selected a parsed field keep their old values until you run a backfill.
+OWOX sends one request per distinct link and remembers the answer for 30 days, including links that do not redirect. Later runs skip remembered links. If a Data Mart has more distinct links than the memory holds, OWOX requests the extra ones on each run.
+
+**Ad Creatives** rows get the parsed field on the next run, because every run re-imports them. For **Ad Account Insights by Link URL Asset**, rows imported earlier keep their old values until you run a backfill.
 
 ## Start a Manual Run
 

@@ -99,7 +99,7 @@ var adsFields = {
     'type': DATA_TYPES.ARRAY
   },
   'landing_page_urls_parsed': {
-    'description': 'landing_page_urls resolved to its landing page when it is a short link; otherwise the same value. Requires landing_page_urls and Process Short Links.',
+    'description': 'landing_page_urls with each short link resolved to its landing page; other URLs stay unchanged. Requires landing_page_urls and Process Short Links.',
     'type': DATA_TYPES.ARRAY
   },
   'deeplink': {

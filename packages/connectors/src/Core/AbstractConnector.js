@@ -70,6 +70,8 @@ var AbstractConnector = class AbstractConnector {
     _initShortLinksCache() {
       this._shortLinksState = loadShortLinksState(this.runConfig?.state?.shortLinks);
       this._shortLinksCache = new Map(Array.from(this._shortLinksState, ([original, { url }]) => [original, url]));
+      // Failed requests stay in the cache for this run only, so they are retried by the next run
+      this._failedShortLinks = new Set();
     }
     //----------------------------------------------------------------
 
@@ -100,7 +102,8 @@ var AbstractConnector = class AbstractConnector {
           // the rollout order of CONNECTOR_SHORT_LINK_DOMAINS. Drop once every environment sets it.
           ...parseShortLinkDomains(this.config.ShortLinkDomains?.value)
         ],
-        resolvedLinksCache: this._shortLinksCache
+        resolvedLinksCache: this._shortLinksCache,
+        failedLinks: this._failedShortLinks
       });
     }
     //----------------------------------------------------------------
@@ -113,16 +116,14 @@ var AbstractConnector = class AbstractConnector {
      */
     _flushShortLinksState() {
       if (!this._shortLinksCache) return;
-      const isNew = ([original, url]) => url !== original && !this._shortLinksState.has(original);
-      if (!Array.from(this._shortLinksCache).some(isNew)) return;
+      // Persist every answered request, including URLs that did not redirect; never a failed one
+      const answered = Array.from(this._shortLinksCache).filter(([original]) => !this._failedShortLinks?.has(original));
+      if (!answered.some(([original]) => !this._shortLinksState.has(original))) return;
 
       try {
         const now = Date.now();
         const entries = new Map(
-          Array.from(this._shortLinksCache, ([original, url]) => [
-            original,
-            { url, at: this._shortLinksState.get(original)?.at ?? now }
-          ])
+          answered.map(([original, url]) => [original, { url, at: this._shortLinksState.get(original)?.at ?? now }])
         );
         this.config.updateState({ shortLinks: buildShortLinksState(entries, now) });
       } catch (error) {

@@ -43,10 +43,13 @@ async function processShortLinks(data, { shortLinkField, urlFieldName, nestedPat
  * @param {Array<{field: string, target: string, urlKey?: string}>} specs - Field specs
  * @param {Object} [options]
  * @param {Array<string>} [options.nestedPathHosts] - Short-link domains whose links may contain nested paths
- * @param {Map<string, string>} [options.resolvedLinksCache] - Original URL to resolved URL, updated in place
+ * @param {Map<string, string>} [options.resolvedLinksCache] - Original URL to resolved URL, updated in place.
+ *   A URL that answered without a redirect maps to itself.
+ * @param {Set<string>} [options.failedLinks] - Receives URLs whose request failed. They sit in the cache for
+ *   the rest of the run, so they are not retried, but must not be persisted across runs.
  * @return {Promise<Array>} Data with resolved links; the same array when there is nothing to do
  */
-async function resolveShortLinkFields(data, specs, { nestedPathHosts = [], resolvedLinksCache = new Map() } = {}) {
+async function resolveShortLinkFields(data, specs, { nestedPathHosts = [], resolvedLinksCache = new Map(), failedLinks = new Set() } = {}) {
   if (!Array.isArray(data) || data.length === 0 || !Array.isArray(specs) || specs.length === 0) return data;
 
   const candidates = _collectCandidateUrls(data, specs, nestedPathHosts);
@@ -55,7 +58,10 @@ async function resolveShortLinkFields(data, specs, { nestedPathHosts = [], resol
 
   const uncachedLinks = candidates.filter(url => !resolvedLinksCache.has(url)).map(originalUrl => ({ originalUrl }));
   const freshlyResolved = await _resolveShortLinks(uncachedLinks);
-  freshlyResolved.forEach(link => resolvedLinksCache.set(link.originalUrl, link.resolvedUrl));
+  freshlyResolved.forEach(link => {
+    resolvedLinksCache.set(link.originalUrl, link.resolvedUrl);
+    if (!link.ok) failedLinks.add(link.originalUrl);
+  });
 
   return data.map(record => specs.reduce((current, spec) => _applySpec(current, spec, resolvedLinksCache), record));
 }
@@ -198,16 +204,17 @@ function parseShortLinkDomains(value) {
 
 //---- short links state (persisted per data mart across runs) ------------
 const SHORT_LINKS_STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const SHORT_LINKS_STATE_MAX_ENTRIES = 200;
 // The state travels back to the connector inside the OW_RUN_CONFIG environment variable. Windows caps
 // one variable at 32,767 characters, so the serialized cache stays well under that with room for the
-// rest of the run config.
+// rest of the run config. This size budget is the only bound on the number of entries.
 const SHORT_LINKS_STATE_MAX_BYTES = 24 * 1024;
 
 /**
- * Loads persisted resolutions, dropping malformed and expired entries
+ * Loads persisted resolutions, dropping malformed and expired entries.
+ * An entry is `[resolvedUrl, resolvedAtMs]`, or `[null, resolvedAtMs]` for a URL that answered
+ * without a redirect (it resolves to itself).
  *
- * @param {Object|undefined} raw - `{ [originalUrl]: [resolvedUrl, resolvedAtMs] }` from connector state
+ * @param {Object|undefined} raw - `{ [originalUrl]: [resolvedUrl | null, resolvedAtMs] }` from connector state
  * @param {number} [now] - Current time in ms
  * @return {Map<string, {url: string, at: number}>} Usable entries
  */
@@ -217,31 +224,35 @@ function loadShortLinksState(raw, now = Date.now()) {
   Object.entries(raw).forEach(([original, value]) => {
     if (!Array.isArray(value)) return;
     const [url, at] = value;
-    if (typeof url !== 'string' || typeof at !== 'number' || now - at > SHORT_LINKS_STATE_TTL_MS) return;
-    entries.set(original, { url, at });
+    if ((url !== null && typeof url !== 'string') || typeof at !== 'number' || now - at > SHORT_LINKS_STATE_TTL_MS) return;
+    entries.set(original, { url: url === null ? original : url, at });
   });
   return entries;
 }
 
 /**
- * Builds the object to persist: successful resolutions only, newest first, bounded in count and size
+ * Builds the object to persist: answered resolutions, newest first, as many as fit the size budget.
+ * The caller leaves out failed requests. A URL that did not redirect is stored as `[null, at]`,
+ * so landing pages are not requested again on every run and cost little of the budget.
  *
  * @param {Map<string, {url: string, at: number}>} entries - Original URL to resolution
  * @param {number} [now] - Current time in ms
- * @return {Object} `{ [originalUrl]: [resolvedUrl, resolvedAtMs] }`
+ * @return {Object} `{ [originalUrl]: [resolvedUrl | null, resolvedAtMs] }`
  */
 function buildShortLinksState(entries, now = Date.now()) {
-  const kept = Array.from(entries.entries())
-    .filter(([original, { url, at }]) => url !== original && now - at <= SHORT_LINKS_STATE_TTL_MS)
-    .sort((a, b) => b[1].at - a[1].at)
-    .slice(0, SHORT_LINKS_STATE_MAX_ENTRIES);
+  const newestFirst = Array.from(entries.entries())
+    .filter(([, { at }]) => now - at <= SHORT_LINKS_STATE_TTL_MS)
+    .sort((a, b) => b[1].at - a[1].at);
 
-  const toObject = list => Object.fromEntries(list.map(([original, { url, at }]) => [original, [url, at]]));
-  let state = toObject(kept);
-  let size = kept.length;
-  while (size > 0 && JSON.stringify(state).length > SHORT_LINKS_STATE_MAX_BYTES) {
-    size = Math.floor(size / 2);
-    state = toObject(kept.slice(0, size));
+  // Fill the budget entry by entry: `{` + `"key":value` pairs joined by `,` + `}`
+  const state = {};
+  let size = 2;
+  for (const [original, { url, at }] of newestFirst) {
+    const value = [url === original ? null : url, at];
+    const entrySize = JSON.stringify(original).length + 1 + JSON.stringify(value).length + (size > 2 ? 1 : 0);
+    if (size + entrySize > SHORT_LINKS_STATE_MAX_BYTES) break;
+    state[original] = value;
+    size += entrySize;
   }
   return state;
 }
@@ -316,7 +327,7 @@ const SHORT_LINK_CONCURRENCY = 10;
  * Resolves short links to their full URLs, a bounded number at a time
  *
  * @param {Array} shortLinks - Array of short link objects
- * @return {Promise<Array<{originalUrl: string, resolvedUrl: string}>>} Promise resolving to array with resolved URLs
+ * @return {Promise<Array<{originalUrl: string, resolvedUrl: string, ok: boolean}>>} Resolution results
  * @private
  */
 async function _resolveShortLinks(shortLinks) {
@@ -330,19 +341,21 @@ async function _resolveShortLinks(shortLinks) {
 
 //---- _resolveShortLink --------------------------------------------------
 /**
- * Resolves one short link; on any failure the original URL is kept
+ * Resolves one short link; on any failure the original URL is kept.
+ * `ok` tells an answered request (redirected or not) apart from a failed one: only answered
+ * results are worth remembering across runs, a failure should be retried next run.
  *
  * @param {{originalUrl: string}} linkObj - Short link object
- * @return {Promise<{originalUrl: string, resolvedUrl: string}>} Resolved pair
+ * @return {Promise<{originalUrl: string, resolvedUrl: string, ok: boolean}>} Resolution result
  * @private
  */
 async function _resolveShortLink(linkObj) {
   const originalUrl = linkObj.originalUrl;
   try {
-    return { originalUrl, resolvedUrl: await _followRedirects(originalUrl) };
+    return { originalUrl, resolvedUrl: await _followRedirects(originalUrl), ok: true };
   } catch (error) {
     console.log(`Failed to resolve short link ${originalUrl}: ${error.message}`);
-    return { originalUrl, resolvedUrl: originalUrl };
+    return { originalUrl, resolvedUrl: originalUrl, ok: false };
   }
 }
 
