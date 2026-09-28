@@ -121,7 +121,7 @@ describe('packCountBadges', () => {
   });
 
   it('keeps counts on one line while they fit the card and wraps the next one', () => {
-    // Compact line: 240 − 24 = 216 px; a badge is its text + 28 px chrome + 2 px slack.
+    // Compact line: 240 − 26 = 214 px; a badge is its text + 28 px chrome + 2 px slack.
     const counts = cardCountBadges(FULL, cardBadges(FULL));
     const lines = packCountBadges(counts, 'compact', SIX_PX);
     // 2 triggers (60+30) + gap 4 + 4 reports (54+30) = 178 fits; + 1 relationship (84+30) does not.

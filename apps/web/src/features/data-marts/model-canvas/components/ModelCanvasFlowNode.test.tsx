@@ -16,6 +16,12 @@ vi.mock('@xyflow/react', () => ({
   Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
 }));
 
+// A fixed 6 px per character, so line breaks do not depend on the fallback width or the view mode.
+vi.mock('../../shared/canvas/measure-badge-text', () => ({
+  CARD_BADGE_FONT_SIZE_PX: 11,
+  measureBadgeText: (text: string) => text.length * 6,
+}));
+
 const DEFAULT_FIELDS: CanvasNodeField[] = [
   {
     name: 'order_id',

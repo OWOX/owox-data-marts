@@ -82,7 +82,11 @@ const COUNT_BADGE_ICONS: Record<CardCountKind, LucideIcon> = {
   relationships: Waypoints,
 };
 
-/** Soft-filled pill with a leading icon, as on the product website's Data Mart cards. */
+/**
+ * Soft-filled pill with a leading icon, as on the product website's Data Mart cards.
+ * The layout estimate relies on these classes: keep `px-1.5`, `gap-1` and the `h-3 w-3`
+ * icon in sync with `CARD_BADGE_CHROME`, and `text-[11px]` with `CARD_BADGE_FONT_SIZE_PX`.
+ */
 function CardPill({
   icon: Icon,
   children,

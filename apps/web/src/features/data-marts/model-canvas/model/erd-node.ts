@@ -147,8 +147,8 @@ export function cardCountBadges(node: CardBadgeInput, badges: CardBadges): CardC
   return counts;
 }
 
-/** Horizontal padding of a card row (`pl-3` + `pr-3`). */
-export const CARD_ROW_INSET = 24;
+/** Horizontal inset of a card row: `pl-3` + `pr-3` plus the card's 1px `border` on each side. */
+export const CARD_ROW_INSET = 26;
 /** A badge's width besides its text: `px-1.5` + the 12px icon + `gap-1`. */
 export const CARD_BADGE_CHROME = 28;
 /** Space between two badges on a line (`gap-1`). */
