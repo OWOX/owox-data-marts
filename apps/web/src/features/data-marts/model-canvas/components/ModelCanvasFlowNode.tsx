@@ -48,6 +48,7 @@ import type { CanvasNodeField, CanvasNodeRelationship } from '../model/types';
 import { CardRelationshipsSection } from './CardRelationshipsSection';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
+import { DATA_MART_SHARING_TEXTS } from '../../../../shared/components/AvailabilitySheet/data-mart-sharing-texts';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
@@ -148,13 +149,41 @@ function CardPill({
   );
 }
 
-/** A sharing flag in the card footer; renders nothing while the flag is off or unknown. */
-function SharingIcon({ icon: Icon, label, on }: { icon: LucideIcon; label: string; on?: boolean }) {
+/**
+ * A sharing flag in the card footer; renders nothing while the flag is off or
+ * unknown. The tooltip names the flag and what it allows, in the words of the
+ * Share Data Mart sheet.
+ */
+function SharingIcon({
+  icon: Icon,
+  flag,
+  on,
+}: {
+  icon: LucideIcon;
+  flag: keyof typeof DATA_MART_SHARING_TEXTS;
+  on?: boolean;
+}) {
   if (!on) return null;
+  const { label, description } = DATA_MART_SHARING_TEXTS[flag];
   return (
-    <span className='inline-flex p-0.5' title={label} role='img' aria-label={label}>
-      <Icon className='h-3.5 w-3.5' aria-hidden='true' />
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          className='hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
+          aria-label={label}
+          onPointerDown={e => {
+            e.stopPropagation();
+          }}
+        >
+          <Icon className='h-3.5 w-3.5' aria-hidden='true' />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side='top' align='end' role='tooltip' className='max-w-xs'>
+        <div className='text-xs font-medium'>{label}</div>
+        <div className='text-xs opacity-80'>{description}</div>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -364,12 +393,12 @@ export default function ModelCanvasFlowNode({
             <span className='ml-auto flex items-center gap-1'>
               <SharingIcon
                 icon={Share2}
-                label='Shared for reporting'
+                flag='availableForReporting'
                 on={data.availableForReporting}
               />
               <SharingIcon
                 icon={Users}
-                label='Shared for maintenance'
+                flag='availableForMaintenance'
                 on={data.availableForMaintenance}
               />
             </span>

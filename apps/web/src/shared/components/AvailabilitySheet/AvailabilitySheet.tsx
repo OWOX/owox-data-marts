@@ -17,6 +17,7 @@ import { Switch } from '@owox/ui/components/switch';
 import { FormLayout, FormSection, FormItem, FormLabel, Form } from '@owox/ui/components/form';
 import { useForm } from 'react-hook-form';
 import { Button } from '../Button';
+import { DATA_MART_SHARING_TEXTS } from './data-mart-sharing-texts';
 
 export type AvailabilityEntityType = 'data-mart' | 'storage' | 'destination';
 
@@ -49,8 +50,7 @@ function getAvailabilityFields(
       {
         key: 'availableForReporting',
         sectionTitle: 'Reporting',
-        label: 'Shared for reporting',
-        description: 'All project members can see this Data Mart and build reports on it',
+        ...DATA_MART_SHARING_TEXTS.availableForReporting,
         helpTitle: 'What does "Shared for reporting" mean?',
         helpContent:
           'When enabled, all project members (both Technical and Business Users) can see this Data Mart in the catalog and use it to create reports. Owners always have access regardless of this setting. Disable this to restrict visibility to owners only.',
@@ -58,8 +58,7 @@ function getAvailabilityFields(
       {
         key: 'availableForMaintenance',
         sectionTitle: 'Maintenance',
-        label: 'Shared for maintenance',
-        description: 'Technical users can edit, delete, and manage triggers for this Data Mart',
+        ...DATA_MART_SHARING_TEXTS.availableForMaintenance,
         helpTitle: 'What does "Shared for maintenance" mean?',
         helpContent:
           'When enabled, Technical Users who are not owners can edit the Data Mart definition, delete it, and manage its scheduled triggers. Business Users are not affected by this setting — they cannot perform maintenance actions regardless. Use this when you want other Technical Users on your team to help manage this Data Mart.',

@@ -329,8 +329,10 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.getByText('2 triggers')).toBeInTheDocument();
     expect(screen.getByText('1 relationship')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'Shared for maintenance' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shared for reporting' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Shared for maintenance' })
+    ).not.toBeInTheDocument();
   });
 
   it('hides the badges whose count is zero and drops the emptied row', () => {
@@ -346,7 +348,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText(/relationship/)).not.toBeInTheDocument();
     // The source badge still shows, and the footer keeps the indicators.
     expect(screen.getByText('View')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Shared for reporting' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shared for reporting' })).toBeInTheDocument();
   });
 
   it('packs the badges onto as few lines as fit the card', () => {
@@ -416,6 +418,22 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.getByText('3 fields')).toBeInTheDocument();
   });
 
+  it('explains a sharing flag in a tooltip with the Share Data Mart wording', async () => {
+    renderNode();
+
+    const flag = screen.getByRole('button', { name: 'Shared for reporting' });
+    act(() => {
+      flag.focus();
+    });
+
+    await waitFor(() => {
+      expect(flag).toHaveAttribute('aria-describedby');
+    });
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toHaveTextContent(
+      'All project members can see this Data Mart and build reports on it'
+    );
+  });
+
   it('waits for enrichment before showing the triggers count', () => {
     renderNode(vi.fn(), DEFAULT_FIELDS, undefined, undefined, undefined, undefined, {
       triggersCount: undefined,
@@ -472,7 +490,9 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(screen.getByText('View').closest('div')).not.toBe(qualityRow);
     expect(screen.getByText('3 fields').closest('div')).not.toBe(qualityRow);
-    expect(qualityRow).toContainElement(screen.getByRole('img', { name: 'Shared for reporting' }));
+    expect(qualityRow).toContainElement(
+      screen.getByRole('button', { name: 'Shared for reporting' })
+    );
   });
 
   it('provides the non-bubbling run action inside the quality details', async () => {
