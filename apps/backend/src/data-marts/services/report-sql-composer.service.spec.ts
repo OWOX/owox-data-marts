@@ -1969,6 +1969,27 @@ describe('ReportSqlComposerService', () => {
         expect(sql.slice(sql.lastIndexOf('\nSELECT'))).not.toContain('GROUP BY');
       });
 
+      it('dry-runs a joined metric the analyst hid from reports', async () => {
+        const { composer } = makeRealComposer();
+        const { schema } = dataMart as { schema: { fields: Record<string, unknown>[] } };
+        const withHiddenRoi = {
+          ...(dataMart as object),
+          schema: {
+            ...schema,
+            fields: schema.fields.map(field =>
+              field.name === 'roi' ? { ...field, isHiddenForReporting: true } : field
+            ),
+          },
+        } as never;
+
+        const { sql } = await composer.composeMetricsOnly(withHiddenRoi, ['roi'], {
+          userId: 'user-1',
+          roles: ['editor'],
+        });
+
+        expect(sql).toContain('SUM(main.cost) * ANY_VALUE(sleeve_fx_roi_1._fx_roi_1) AS `roi`');
+      });
+
       it('refreshes each Data Mart table reference once per save, not once per composed query', async () => {
         const { composer, tableReferenceService } = makeRealComposer();
         const accessor = { userId: 'user-1', roles: ['editor'] };

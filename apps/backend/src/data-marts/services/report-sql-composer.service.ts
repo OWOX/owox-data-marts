@@ -33,7 +33,10 @@ import {
 } from '../calculated-fields/calculated-plan-grain';
 import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule, isWhereFilterRule } from '../dto/domain/filter-clause';
-import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
+import type {
+  DataMartSchema,
+  DataMartSchemaField,
+} from '../data-storage-types/data-mart-schema.type';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -61,6 +64,30 @@ import { StorageFieldType } from '../dto/domain/storage-field-type';
 import { JoinedUniqueCountSource } from '../data-storage-types/interfaces/blended-query-builder.interface';
 
 type SchemaFieldDescriptor = ReturnType<typeof collectSchemaFieldPathDescriptors>[number];
+
+// The joined report path drops hidden columns, yet a hidden metric's formula must still be dry-run.
+function withMetricsShownForDryRun(dataMart: DataMart, metricNames: readonly string[]): DataMart {
+  const fields = dataMart.schema?.fields ?? [];
+  const isHiddenMetric = (field: DataMartSchemaField) =>
+    field.isHiddenForReporting === true &&
+    isCalculatedField(field) &&
+    metricNames.includes(field.name);
+  if (!fields.some(isHiddenMetric)) return dataMart;
+
+  // Keeps the prototype: `DataMart` exposes its owner ids as accessors, which a spread would drop.
+  return Object.assign(
+    Object.create(Object.getPrototypeOf(dataMart) as object) as DataMart,
+    dataMart,
+    {
+      schema: {
+        ...dataMart.schema,
+        fields: fields.map(field =>
+          isHiddenMetric(field) ? { ...field, isHiddenForReporting: false } : field
+        ),
+      } as DataMartSchema,
+    }
+  );
+}
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -785,7 +812,7 @@ export class ReportSqlComposerService {
     tableReferences?: TableReferenceMemo
   ): Promise<{ sql: string }> {
     const plan: ReportLikeReadPlan = {
-      dataMart,
+      dataMart: withMetricsShownForDryRun(dataMart, metricNames),
       columnConfig: metricNames,
     };
 
