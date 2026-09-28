@@ -336,7 +336,10 @@ describe('request-utils', () => {
 
   describe('pendingAction', () => {
     it('ignores a social provider named in the query string', () => {
-      const req = { query: { pendingAction: 'google' }, headers: { cookie: '' } } as unknown as Request;
+      const req = {
+        query: { pendingAction: 'google' },
+        headers: { cookie: '' },
+      } as unknown as Request;
       expect(readPendingActionFromQuery(req)).toBeUndefined();
       expect(extractAuthFlowParams(req).pendingAction).toBeUndefined();
     });
