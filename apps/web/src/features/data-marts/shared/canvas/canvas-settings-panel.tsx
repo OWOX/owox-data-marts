@@ -1,7 +1,8 @@
 import { useId, type ReactNode } from 'react';
-import { Link2, Settings } from 'lucide-react';
+import { Info, Link2, Settings } from 'lucide-react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Button } from '../../../../shared/components/Button';
 import { CANVAS_DIRECTION_OPTIONS, type CanvasDirection } from './canvas-direction';
 import {
@@ -291,6 +292,26 @@ export function CanvasSettingsPanel({
   );
 }
 
+/** The row's description: an info icon that shows on row hover, with the standard tooltip. */
+function OptionInfoTooltip({ label, text }: { label: string; text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role='img'
+          aria-label={`About ${label}`}
+          className='text-muted-foreground hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover/row:opacity-100'
+        >
+          <Info className='size-3.5' aria-hidden='true' />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side='top' className='max-w-xs'>
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ObjectLabelChecklist({
   heading,
   label,
@@ -316,26 +337,32 @@ function ObjectLabelChecklist({
       {options.map(({ part, label: optionLabel, helper }) => {
         const id = `${idPrefix}-${part}`;
         return (
-          <label
+          <div
             key={part}
-            htmlFor={id}
-            title={helper}
-            className={`flex min-h-[34px] items-center gap-2 text-[13.5px] ${
-              disabled
-                ? 'text-muted-foreground/70 cursor-not-allowed'
-                : 'text-foreground cursor-pointer'
+            className={`group/row -mx-1.5 flex min-h-[34px] items-center rounded-md pr-0.5 pl-1.5 transition-colors ${
+              disabled ? '' : 'hover:bg-muted/60'
             }`}
           >
-            <Checkbox
-              id={id}
-              checked={!objectLabels[part]}
-              disabled={disabled}
-              onCheckedChange={() => {
-                onObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
-              }}
-            />
-            <span className='min-w-0 truncate'>{optionLabel}</span>
-          </label>
+            <label
+              htmlFor={id}
+              className={`flex min-w-0 flex-1 items-center gap-2 self-stretch text-[13.5px] ${
+                disabled
+                  ? 'text-muted-foreground/70 cursor-not-allowed'
+                  : 'text-foreground cursor-pointer'
+              }`}
+            >
+              <Checkbox
+                id={id}
+                checked={!objectLabels[part]}
+                disabled={disabled}
+                onCheckedChange={() => {
+                  onObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
+                }}
+              />
+              <span className='min-w-0 truncate'>{optionLabel}</span>
+            </label>
+            <OptionInfoTooltip label={optionLabel} text={helper} />
+          </div>
         );
       })}
     </div>

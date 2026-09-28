@@ -87,6 +87,17 @@ describe('CanvasSettingsPanel object labels', () => {
     expect(screen.getByRole('checkbox', { name: /^Input source/ })).toBeEnabled();
   });
 
+  it('gives every option an info icon with its description, which does not toggle it', async () => {
+    const props = renderPanel();
+    const info = screen.getByRole('img', { name: 'About Triggers' });
+    fireEvent.click(info);
+    expect(props.onObjectLabelsChange).not.toHaveBeenCalled();
+
+    fireEvent.focus(info);
+    fireEvent.pointerMove(info);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Trigger count');
+  });
+
   it('shows every part, or strips the cards to their titles, from the shortcuts', () => {
     const props = renderPanel({ ...NOTHING_HIDDEN, triggers: true });
     fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
