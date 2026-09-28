@@ -46,11 +46,11 @@ describe('PageController.signInPage / signUpPage', () => {
 
     expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
-    expect(res.body).toContain('const socialIntentNonce = "');
-    expect(res.cookie).toHaveBeenCalledWith(
+    expect(res.body).toContain('requestSocialIntentNonce()');
+    expect(res.cookie).not.toHaveBeenCalledWith(
       'idp-owox-social-intent',
-      expect.any(String),
-      expect.objectContaining({ httpOnly: true, sameSite: 'lax' })
+      expect.anything(),
+      expect.anything()
     );
   });
 

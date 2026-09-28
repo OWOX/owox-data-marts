@@ -15,7 +15,6 @@ import {
   persistAuthFlowContext,
   readPendingActionFromCookie,
 } from '../utils/request-utils.js';
-import { issueSocialIntentNonce } from '../utils/social-intent.js';
 
 type AutoSubmitProvider = 'google' | 'microsoft';
 
@@ -89,7 +88,6 @@ export class PageController {
         gtmContainerId: this.gtmContainerId,
         hasState,
         autoSubmitProvider,
-        socialIntentNonce: issueSocialIntentNonce(req, res),
       })
     );
   }
@@ -115,7 +113,6 @@ export class PageController {
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
         autoSubmitProvider,
-        socialIntentNonce: issueSocialIntentNonce(req, res),
       })
     );
   }

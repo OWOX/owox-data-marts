@@ -47,6 +47,7 @@
         <span>Continue with Microsoft</span>
       </button>
     <% } %>
+    <p id="social-auth-status" class="text-sm text-red-600" aria-live="polite"></p>
   </div>
 
   <% if (enabledProviders.email) { %>
@@ -93,15 +94,26 @@
 <%- include('../partials/social-auth') %>
 <script>
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
-  const socialIntentNonce = <%- JSON.stringify(socialIntentNonce) %>;
 
   /**
-   * Submit the clicked provider with a one-time page token so the server
-   * can request a new state and resume this exact action after Platform.
+   * Obtain a short-lived token at click time, then submit the selected
+   * provider so the server can request a new state from Platform.
    */
-  function alwaysGetFreshStateThenRun(provider) {
+  async function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);
     if (signupSubmit) signupSubmit.disabled = true;
+    document.getElementById('social-auth-status').textContent = '';
+    let nonce;
+    try {
+      nonce = await requestSocialIntentNonce();
+    } catch (error) {
+      console.error('Unable to start social sign-up', error);
+      document.getElementById('social-auth-status').textContent =
+        'Unable to start sign-up. Please try again.';
+      setSocialButtonsDisabled(false);
+      if (signupSubmit) signupSubmit.disabled = false;
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     params.delete('state');
     params.delete('pendingAction');
@@ -109,7 +121,7 @@
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/auth/sign-up/social-intent?${params.toString()}`;
-    for (const [name, value] of Object.entries({ provider, nonce: socialIntentNonce })) {
+    for (const [name, value] of Object.entries({ provider, nonce })) {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = name;

@@ -49,6 +49,7 @@
         <span id="microsoft-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
       </button>
     <% } %>
+    <p id="social-auth-status" class="text-sm text-red-600" aria-live="polite"></p>
   </div>
 
   <% if (enabledProviders.email) { %>
@@ -127,7 +128,6 @@
 <script>
   const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
-  const socialIntentNonce = <%- JSON.stringify(socialIntentNonce) %>;
 
   /**
    * Ensures a PKCE state exists before running a sign-in action, falling
@@ -152,12 +152,24 @@
   }
 
   /**
-   * A POST with the one-time page token records the clicked provider and
-   * starts a fresh Platform state round trip, bypassing refresh-token reuse.
+   * Obtain a short-lived token at click time, then POST the chosen provider
+   * to start a fresh Platform state round trip.
    */
-  function alwaysGetFreshStateThenRun(provider) {
+  async function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);
     if (submitBtn) submitBtn.disabled = true;
+    document.getElementById('social-auth-status').textContent = '';
+    let nonce;
+    try {
+      nonce = await requestSocialIntentNonce();
+    } catch (error) {
+      console.error('Unable to start social sign-in', error);
+      document.getElementById('social-auth-status').textContent =
+        'Unable to start sign-in. Please try again.';
+      setSocialButtonsDisabled(false);
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     params.delete('state');
     params.delete('pendingAction');
@@ -165,7 +177,7 @@
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/auth/sign-in/social-intent?${params.toString()}`;
-    for (const [name, value] of Object.entries({ provider, nonce: socialIntentNonce })) {
+    for (const [name, value] of Object.entries({ provider, nonce })) {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = name;

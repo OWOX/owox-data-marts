@@ -11,6 +11,9 @@ function createResponse(): Response {
     clearCookie: jest.fn(),
     redirect: jest.fn(),
     send: jest.fn(),
+    sendStatus: jest.fn(),
+    set: jest.fn(),
+    json: jest.fn(),
   } as unknown as Response;
   response.status = jest.fn().mockReturnValue(response) as unknown as Response['status'];
   return response;
@@ -19,12 +22,13 @@ function createResponse(): Response {
 function createCallbackProvider(overrides: Record<string, unknown> = {}): {
   provider: OwoxBetterAuthIdp;
   callback: RouteHandler;
+  nonceRoute: RouteHandler;
 } {
   const routes = new Map<string, RouteHandler>();
   const app = {
     use: jest.fn(),
     get: jest.fn((path: string, handler: RouteHandler) => routes.set(path, handler)),
-    post: jest.fn(),
+    post: jest.fn((path: string, handler: RouteHandler) => routes.set(`POST ${path}`, handler)),
   };
   const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
     betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
@@ -50,7 +54,9 @@ function createCallbackProvider(overrides: Record<string, unknown> = {}): {
   provider.registerRoutes(app as never);
   const callback = routes.get(`${AUTH_BASE_PATH}/callback`);
   if (!callback) throw new Error('Callback route was not registered');
-  return { provider, callback };
+  const nonceRoute = routes.get(`POST ${AUTH_BASE_PATH}/social-intent/nonce`);
+  if (!nonceRoute) throw new Error('Social intent nonce route was not registered');
+  return { provider, callback, nonceRoute };
 }
 
 function createProvider(overrides: Record<string, unknown> = {}): OwoxBetterAuthIdp {
@@ -181,6 +187,45 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
   });
 
   describe('social-intent POST', () => {
+    it('issues a fresh nonce on a same-origin button request', async () => {
+      const { nonceRoute } = createCallbackProvider();
+      const request = {
+        headers: { cookie: '' },
+        protocol: 'https',
+        hostname: 'app.test',
+        get: jest.fn((name: string) =>
+          name === 'host' ? 'app.test' : name === 'origin' ? 'https://app.test' : undefined
+        ),
+      } as unknown as Request;
+      const response = createResponse();
+
+      await nonceRoute(request, response);
+
+      expect(response.cookie).toHaveBeenCalledWith(
+        'idp-owox-social-intent',
+        expect.any(String),
+        expect.objectContaining({ maxAge: 120000, httpOnly: true })
+      );
+      expect(response.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
+      expect(response.json).toHaveBeenCalledWith({ nonce: expect.any(String) });
+    });
+
+    it('does not issue a readable nonce to a different origin', async () => {
+      const { nonceRoute } = createCallbackProvider();
+      const request = {
+        protocol: 'https',
+        get: jest.fn((name: string) =>
+          name === 'host' ? 'app.test' : name === 'origin' ? 'https://other.test' : undefined
+        ),
+      } as unknown as Request;
+      const response = createResponse();
+
+      await nonceRoute(request, response);
+
+      expect(response.sendStatus).toHaveBeenCalledWith(403);
+      expect(response.cookie).not.toHaveBeenCalled();
+    });
+
     it('accepts a page nonce, clears the old state, and bypasses refresh-token reuse', async () => {
       const handleExistingRefreshToken = jest.fn();
       const provider = createProvider({ handleExistingRefreshToken });

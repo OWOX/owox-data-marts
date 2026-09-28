@@ -79,7 +79,7 @@ import {
   readPendingActionFromQuery,
   type AuthFlowParams,
 } from './utils/request-utils.js';
-import { consumeSocialIntentNonce } from './utils/social-intent.js';
+import { consumeSocialIntentNonce, issueSocialIntentNonce } from './utils/social-intent.js';
 
 const MCP_PROJECT_ID_PATTERN = /^[a-f0-9]{32}$/;
 
@@ -362,6 +362,14 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.authErrorController.registerRoutes(app);
     this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
+    app.post(`${AUTH_BASE_PATH}/social-intent/nonce`, (req, res) => {
+      const host = req.get('host');
+      if (!host || req.get('origin') !== `${req.protocol}://${host}`) {
+        return res.sendStatus(403);
+      }
+      res.set('Cache-Control', 'no-store');
+      return res.json({ nonce: issueSocialIntentNonce(req, res) });
+    });
     app.post(`${AUTH_BASE_PATH}/sign-in/social-intent`, (req, res) =>
       this.handleSocialIntent(req, res, this.config.idpOwox.idpConfig.platformSignInUrl)
     );
