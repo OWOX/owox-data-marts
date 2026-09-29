@@ -1,4 +1,4 @@
-# Deployment Guide
+# Deployment Overview
 
 Self-managed OWOX Data Marts runs on your own infrastructure — your laptop, your cloud, your rules. This guide helps you pick a deployment path and configure it.
 

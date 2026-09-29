@@ -103,7 +103,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Project Settings',
           items: [
-            'docs/project',
+            { label: 'Overview', slug: 'docs/project' },
             'docs/project/license-keys',
             {
               label: 'Members Management',
@@ -126,12 +126,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         },
         {
           label: 'Reports',
-          items: ['docs/reports'],
+          items: [{ label: 'Overview', slug: 'docs/reports' }],
         },
         {
           label: 'Destinations',
           items: [
-            'docs/destinations',
+            { label: 'Overview', slug: 'docs/destinations' },
             'docs/destinations/manage-destinations',
             {
               label: 'Supported Destinations',
@@ -142,7 +142,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Storages',
           items: [
-            'docs/storages',
+            { label: 'Overview', slug: 'docs/storages' },
             'docs/storages/manage-storages',
             {
               label: 'Supported Storages',
@@ -153,7 +153,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Sources',
           items: [
-            'docs/connectors',
+            { label: 'Overview', slug: 'docs/connectors' },
             {
               label: 'Declarative Connectors',
               items: [
@@ -174,7 +174,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'API',
           items: [
-            'docs/api',
+            { label: 'Overview', slug: 'docs/api' },
             'docs/api/api-keys',
             'docs/api/owox-ctl',
             'docs/api/api-client',
@@ -185,7 +185,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Plugins',
           items: [
-            'docs/plugins',
+            { label: 'Overview', slug: 'docs/plugins' },
             'docs/plugins/project-setup',
             'docs/plugins/authoring-guide',
             'docs/plugins/trusted-plugins',
