@@ -177,7 +177,7 @@
   changes what runs in every Data Mart that follows the connector's active version, so it needs
   edit access to each of those Data Marts; otherwise a project admin can do it.
 
-  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/b77d79bcd8a9b08d55501a57daa85b59/iframe>
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/6887d0f55f47abe312f4aae7c11a8e36/iframe>
 
   See [Declarative Connectors](../../docs/connectors/declarative-connectors.md) and
   [Connector Builder](../../docs/connectors/connector-builder.md).
