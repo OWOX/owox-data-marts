@@ -2,7 +2,7 @@
 
 ## 0.36.0
 
-### Minor Changes
+### Minor Changes 0.36.0
 
 - 42c797b: **Preview Data Mart rows from Data Setup**
 
@@ -262,7 +262,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.36.0
 
 - @owox/internal-helpers@0.36.0
 - @owox/idp-protocol@0.36.0
