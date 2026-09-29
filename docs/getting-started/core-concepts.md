@@ -28,7 +28,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 
 ![Data Marts](../res/screens/data-marts-table.png)
 
-An OWOX Data Mart is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting.
+An OWOX [Data Mart](../data-marts/) is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting.
 
 It’s crafted by data analysts and can be defined using:
 
@@ -61,7 +61,7 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ### Source
 
-**Source** is a service that holds data you want to manipulate—for example, Facebook Ads, TikTok Ads, Google Analytics, Salesforce, Google Sheets, etc. You can find [the available connectors here](https://docs.owox.com/#data-sources).
+[**Source**](../connectors/) is a service that holds data you want to manipulate—for example, Facebook Ads, TikTok Ads, Google Analytics, Salesforce, Google Sheets, etc. You can find [the available connectors here](https://docs.owox.com/#data-sources).
 
 > ☝️ By managing a Data Mart’s **Sources**, a Data Analyst controls the origin of the data.
 
@@ -69,7 +69,7 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ![Storages](../res/screens/storages-table.png)
 
-[**Storage**](../storages/manage-storages.md) is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
+[**Storage**](../storages/) is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
 
 - [Google BigQuery](../storages/supported-storages/google-bigquery.md)
 - [AWS Athena](../storages/supported-storages/aws-athena.md)
@@ -88,7 +88,7 @@ Each Storage has **Owners** — the team members responsible for its configurati
 
 ![Destinations](../res/screens/destinations-table.png)
 
-A [**Destination**](../destinations/manage-destinations.md) is an interface or application used by business users to access the data. Supported destinations include:
+A [**Destination**](../destinations/) is an interface or application used by business users to access the data. Supported destinations include:
 
 - [Google Sheets](../destinations/supported-destinations/google-sheets.md)
 - [Microsoft Excel](../destinations/supported-destinations/microsoft-excel.md)
@@ -106,7 +106,7 @@ Each Destination has **Owners** — the team members responsible for its configu
 
 ### Report
 
-A **Report** defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
+A [**Report**](../reports/) defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
 Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
 
 Each Report has **Owners** — the team members responsible for its configuration. The creator is automatically assigned as an owner.

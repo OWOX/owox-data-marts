@@ -123,8 +123,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Data Marts',
+          items: ['docs/data-marts'],
+        },
+        {
           label: 'Destinations',
           items: [
+            'docs/destinations',
             'docs/destinations/manage-destinations',
             {
               label: 'Supported Destinations',
@@ -133,8 +138,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Reports',
+          items: ['docs/reports'],
+        },
+        {
           label: 'Storages',
           items: [
+            'docs/storages',
             'docs/storages/manage-storages',
             {
               label: 'Supported Storages',
@@ -145,6 +155,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Sources',
           items: [
+            'docs/connectors',
             {
               label: 'Declarative Connectors',
               items: [

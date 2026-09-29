@@ -523,6 +523,9 @@ function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
     '/'
   );
 
+  // index pages are served at their folder path, e.g. /docs/api/index/ -> /docs/api/
+  pagePath = pagePath.replace(/\/index\/$/, '/');
+
   // handle custom page path cases
   if (pagePath === '/readme/') {
     pagePath = '/';
