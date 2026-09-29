@@ -277,7 +277,7 @@
 
 ### Minor Changes 0.35.0
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/904807b00496db5eeca1a76de410fcf5/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/672e28ac6d47709764b2d8efc1a5361d/iframe>
 
 - 6a5d52e: **Deleted reports are retained**
 
