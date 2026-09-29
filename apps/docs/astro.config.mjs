@@ -62,6 +62,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               label: 'Deployment Guide',
               items: [{ autogenerate: { directory: 'docs/getting-started/deployment-guide' } }],
             },
+            'docs/data-marts',
             {
               label: 'Setup Guide',
               items: [
@@ -122,10 +123,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
             },
           ],
-        },
-        {
-          label: 'Data Marts',
-          items: ['docs/data-marts'],
         },
         {
           label: 'Destinations',
