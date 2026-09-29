@@ -433,10 +433,11 @@ export class AbstractConnector {
    * @param {object} state run state from _createRunState
    * @param {object|null} account the account this unit belongs to
    * @param {Function} work async thunk performing the fetch + write
+   * @param {string} subject what the unit imports -- a node name, or the day for day-by-day
    * @returns {Promise<boolean>} true when the unit completed
    * @private
    */
-  async _runForAccount(state, account, work) {
+  async _runForAccount(state, account, work, subject) {
     try {
       await work();
       state.succeeded.add(this._accountKey(account));
@@ -452,7 +453,7 @@ export class AbstractConnector {
       // there -- and the ERROR arrived first, paging someone for a failure the engine
       // had already decided not to page for. _recordAccountFailure now owns the whole
       // report and emits exactly one line at the severity classification chose.
-      this._recordAccountFailure(state, account, error);
+      this._recordAccountFailure(state, account, error, subject);
       return false;
     }
   }
@@ -492,9 +493,10 @@ export class AbstractConnector {
    * @param {object} state run state from _createRunState
    * @param {object|null} account the account that failed
    * @param {Error} error the failure to classify
+   * @param {string} [subject] what was being imported, named in the report as main did
    * @private
    */
-  _recordAccountFailure(state, account, error) {
+  _recordAccountFailure(state, account, error, subject) {
     const accountId = this._accountKey(account);
     const isSkip = error?.isWarning === true;
 
@@ -502,10 +504,11 @@ export class AbstractConnector {
 
     let entry = state.issues.get(accountId);
     if (!entry) {
-      entry = { errors: [], reported: new Set() };
+      entry = { errors: [], reported: new Set(), subjects: new Set() };
       state.issues.set(accountId, entry);
     }
     entry.errors.push(error);
+    if (subject) entry.subjects.add(subject);
 
     // Severity follows the classification, and the failure is reported here exactly once --
     // by the classifier, not by the caller before it. Reporting it earlier meant a skipped
@@ -530,7 +533,11 @@ export class AbstractConnector {
           ? 'Skipped'
           : 'Import failed'
         : `${isSkip ? 'Skipped account' : 'Error processing account'} ${accountId}`;
-    this.context.log(level, `${what}: ${error.message}`);
+    const line = `${what}: ${error.message}`;
+    this.context.log(
+      level,
+      subject ? `Importing ${subject}: ${line[0].toLowerCase()}${line.slice(1)}` : line
+    );
   }
 
   /**
@@ -715,8 +722,10 @@ export class AbstractConnector {
       } else if (state.accountless) {
         message = `Nothing was imported because access was refused: ${describe(entries)}`;
       } else {
+        const subjects = new Set(entries.flatMap(([, entry]) => [...entry.subjects]));
+        const where = subjects.size === 1 ? ` while importing ${[...subjects][0]}` : '';
         message =
-          `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
+          `All ${state.attemptedCount} accounts were skipped${where}, so nothing was imported. This points ` +
           `to a global failure, such as an expired access token, rather than individual accounts ` +
           `being inaccessible. Errors: ${describe(entries)}`;
       }
@@ -940,7 +949,7 @@ export class AbstractConnector {
           onBatch: batch => this._writeBatch(writer, batch, fields),
         });
         await this._writeBatch(writer, data, fields);
-      });
+      }, nodeName);
     }
     // Catalog nodes are full snapshots; no incremental state to persist.
   }
@@ -1036,7 +1045,7 @@ export class AbstractConnector {
           endDate: dateRange.endDate,
         });
         await this._writeBatch(writer, data, node.fields);
-      });
+      }, node.name);
       if (done) completedBy += 1;
     }
 
@@ -1124,7 +1133,7 @@ export class AbstractConnector {
             });
             await this._writeBatch(writer, data, node.fields);
           }
-        });
+        }, formattedDate);
         if (done) completedBy += 1;
       }
 
@@ -1196,7 +1205,7 @@ export class AbstractConnector {
           endDate: null,
         });
         if (data && data.length) batches.push(data);
-      });
+      }, nodeName);
       if (!done) missing.add(this._accountKey(account));
     }
 

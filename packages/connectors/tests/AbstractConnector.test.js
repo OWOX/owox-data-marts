@@ -476,11 +476,67 @@ describe('AbstractConnector', () => {
         const connector = new AbstractConnector(ctx, source, createMockStorageClass());
         await connector.run();
 
-        assert.ok(warnings.some(w => w.includes('Skipped account revoked')));
+        assert.ok(warnings.some(w => w.includes('skipped account revoked')));
         assert.ok(
           warnings.some(w => w.includes('1 out of 2 accounts were skipped')),
           'the run must carry a summary warning, not just a per-account one'
         );
+      } finally {
+        restore();
+      }
+    });
+
+    it('names the node being imported when an account is skipped', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = createTestContext();
+        const warnings = captureWarnings(ctx);
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'revoked' }, { id: 'working' }],
+          fetchData: async req => {
+            if (req.accountId === 'revoked') {
+              throw Object.assign(new Error('Application has been deleted.'), { isWarning: true });
+            }
+            return [];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+
+        assert.ok(
+          warnings.includes(
+            'Importing campaigns: skipped account revoked: Application has been deleted.'
+          ),
+          warnings.join(' | ')
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it('names the node when every account was skipped while importing it', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'revoked' }],
+          fetchData: async () => {
+            throw Object.assign(new Error('Application has been deleted.'), { isWarning: true });
+          },
+        });
+        const connector = new AbstractConnector(
+          createTestContext(),
+          source,
+          createMockStorageClass()
+        );
+        const error = await connector.run().then(
+          () => null,
+          e => e
+        );
+
+        assert.match(
+          error?.message ?? '',
+          /^All 1 accounts were skipped while importing campaigns, so nothing was imported\. .*Errors: revoked: Application has been deleted\.$/
+        );
+        assert.strictEqual(error.isWarning, true);
       } finally {
         restore();
       }
@@ -2289,7 +2345,7 @@ describe('AbstractConnector', () => {
           .filter(e => e.type === 'LOG' && e.level === 'warn')
           .map(e => e.message);
         assert.ok(
-          warnings.some(w => w.includes('Skipped account revoked')),
+          warnings.some(w => w.includes('skipped account revoked')),
           `the skip must still be reported; got: ${warnings.join(' | ')}`
         );
       } finally {
@@ -3094,6 +3150,32 @@ describe('AbstractConnector', () => {
         assert.deepStrictEqual(stateDates(cap), [utcDay(-2)]);
       } finally {
         cap.restore();
+      }
+    });
+
+    it('names the day being imported when an account is skipped day by day', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = incrementalWindow(3);
+        const warnings = captureWarnings(ctx);
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'revoked' }, { id: 'working' }],
+          fetchData: async req => {
+            if (req.accountId === 'revoked') {
+              throw Object.assign(new Error('HTTP 403: Forbidden'), { isWarning: true });
+            }
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+
+        const skips = warnings.filter(w => w.includes('skipped account revoked'));
+        assert.deepStrictEqual(skips, [
+          `Importing ${utcDay(-2)}: skipped account revoked: HTTP 403: Forbidden`,
+        ]);
+      } finally {
+        restore();
       }
     });
 
