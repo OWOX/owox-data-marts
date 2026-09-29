@@ -16,4 +16,9 @@ field schema stay open to viewers. Publishing a version, or making another versi
 changes what runs in every Data Mart that follows the connector's active version, so it needs
 edit access to each of those Data Marts; otherwise a project admin can do it.
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/b77d79bcd8a9b08d55501a57daa85b59/iframe>
+
+See [Declarative Connectors](../../docs/connectors/declarative-connectors.md) and
+[Connector Builder](../../docs/connectors/connector-builder.md).
+
 <!-- markdownlint-disable-file MD041 MD036 -->
