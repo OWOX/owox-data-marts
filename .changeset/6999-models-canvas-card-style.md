@@ -16,7 +16,8 @@ Cards on **Data Marts → Models** now match the Data Mart cards on the OWOX web
 The canvas settings (the gear button) have a new design, and every checkbox hides exactly what it names:
 
 - **View** is picked from two cards with a small preview of each. **Horizontal** / **Vertical** and **Show join fields** sit on one row below them.
-- **Card content** has a checkbox for each part of a card: Input source, Fields, Triggers, Reports, Relationships, Draft badge, and Quality and sharing. **Title only** unticks all of them and leaves only the titles. **Show all** ticks everything back on.
+- **Card content** has a checkbox for each part of a card: Input source, Fields, Triggers, Reports, Relationships, Draft badge, and Quality and sharing. **Title only** unticks every checkbox, Field rows included, and leaves only the titles. **Show all** ticks everything back on.
+- Hover an option to see an info icon with a tooltip that explains it.
 - **Field rows** holds Field aliases and Field descriptions, next to Card content. It works in the ERD view, where cards list their fields, and stays greyed out in Compact mode.
 - Ticking a checkbox or the **Show join fields** switch keeps your zoom and position. Picking another view or layout algorithm still fits the whole graph.
 - A title-only preference saved earlier still shows only the titles.

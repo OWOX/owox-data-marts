@@ -65,7 +65,7 @@ interface ErdCardFieldsSectionProps {
   labels?: ErdFieldRowLabels;
   /**
    * Expansion state is owned by the node component (which stays mounted across
-   * Compact↔Detailed toggles), so an expanded card survives a view-mode
+   * Compact↔ERD toggles), so an expanded card survives a view-mode
    * round-trip instead of resetting when this section unmounts.
    */
   expanded: boolean;

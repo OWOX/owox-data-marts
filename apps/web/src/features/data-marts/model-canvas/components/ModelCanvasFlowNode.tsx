@@ -188,7 +188,7 @@ export default function ModelCanvasFlowNode({
   data,
   selected,
 }: NodeProps<ModelCanvasFlowNodeType>) {
-  // Owned here (not in the section) so expansion survives Compact↔Detailed
+  // Owned here (not in the section) so expansion survives Compact↔ERD
   // round-trips — the node stays mounted while the section unmounts.
   const [expanded, setExpanded] = useState(false);
   // The section a clicked badge opened: the field list (Compact view) or the relationships.
@@ -215,7 +215,7 @@ export default function ModelCanvasFlowNode({
   const withDraft = !labels.status && data.isDraft;
   // Badges fill a line while they fit its width — the layout estimate packs them the same way.
   const badgeLines = cardBadgeLines(data, data.viewMode, nodeLayoutOptions(labels));
-  // The Detailed view already lists the fields, so there the field count stays a plain badge.
+  // The ERD view already lists the fields, so there the field count stays a plain badge.
   // A list shows only while its badge does: unticking the badge's object label hides both.
   const canOpenFields = !isErd && fields.length > 0 && badges.fieldCount;
   const canOpenRelationships = data.relationships.length > 0 && badges.relationships;

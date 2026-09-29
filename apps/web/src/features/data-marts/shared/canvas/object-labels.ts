@@ -11,7 +11,7 @@ import type { ErdFieldRowLabels } from './erd-fields';
  *
  * Every canvas offers only the parts its cards have (see
  * {@link ObjectLabelOption}); `fieldAlias` and `fieldDescription` are the
- * optional lines under each field row, so they only matter in the Detailed view.
+ * optional lines under each field row, so they only matter in the ERD view.
  */
 export type ObjectLabelPart =
   | 'source'
@@ -37,7 +37,7 @@ export const OBJECT_LABEL_PARTS: readonly ObjectLabelPart[] = [
   'fieldDescription',
 ];
 
-/** The parts that change the field rows — offered in the Detailed view only. */
+/** The parts that change the field rows — offered in the ERD view only. */
 export const FIELD_ROW_PARTS: readonly ObjectLabelPart[] = ['fieldAlias', 'fieldDescription'];
 
 /** One checkbox of a canvas's settings: the part it hides, and how the menu names it. */
@@ -114,7 +114,7 @@ export function toggleObjectLabelPart(
   return { ...hidden, [part]: !hidden[part] };
 }
 
-/** The Detailed-view half of the preference, in the shape the field rows consume. */
+/** The ERD-view half of the preference, in the shape the field rows consume. */
 export function toFieldRowLabels(hidden: ObjectLabelsHidden): ErdFieldRowLabels {
   return { alias: !hidden.fieldAlias, description: !hidden.fieldDescription };
 }

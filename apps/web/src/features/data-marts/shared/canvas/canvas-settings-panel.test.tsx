@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasSettingsPanel, type CanvasSettingsPanelProps } from './canvas-settings-panel';
 import {
@@ -89,12 +89,16 @@ describe('CanvasSettingsPanel object labels', () => {
 
   it('gives every option an info icon with its description, which does not toggle it', async () => {
     const props = renderPanel();
-    const info = screen.getByRole('img', { name: 'About Triggers' });
+    const info = screen.getByRole('button', { name: 'About Triggers' });
     fireEvent.click(info);
     expect(props.onObjectLabelsChange).not.toHaveBeenCalled();
 
-    fireEvent.focus(info);
-    fireEvent.pointerMove(info);
+    // A real button: keyboard focus reaches it, and focus opens the tooltip.
+    expect(info.tabIndex).toBe(0);
+    act(() => {
+      info.focus();
+    });
+    expect(info).toHaveFocus();
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Trigger count');
   });
 

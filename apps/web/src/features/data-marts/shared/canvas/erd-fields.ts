@@ -15,7 +15,7 @@ export interface ErdCardField {
 }
 
 /**
- * The Detailed-view half of the object-labels preference (see object-labels.ts):
+ * The ERD-view half of the object-labels preference (see object-labels.ts):
  * what an ERD field row shows besides the type.
  */
 export interface ErdFieldRowLabels {

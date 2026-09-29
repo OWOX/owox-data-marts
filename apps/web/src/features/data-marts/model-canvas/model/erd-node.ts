@@ -237,7 +237,7 @@ function cardHeaderHeight(
 /**
  * Collapsed layout height for a node, used by dagre and as the initial render
  * size: the header rows the node's content and the preference leave, plus the
- * ERD field rows in the Detailed view.
+ * ERD field rows in the ERD view.
  */
 export function computeNodeHeight(
   node: CardBadgeInput & Pick<ModelCanvasNode, 'fields'>,

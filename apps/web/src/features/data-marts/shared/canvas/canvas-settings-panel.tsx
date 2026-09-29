@@ -292,18 +292,22 @@ export function CanvasSettingsPanel({
   );
 }
 
-/** The row's description: an info icon that shows on row hover, with the standard tooltip. */
+/**
+ * The row's description: an info icon that shows on row hover or keyboard
+ * focus, with the standard tooltip. A real button, so Tab reaches it and
+ * Radix opens the tooltip on focus.
+ */
 function OptionInfoTooltip({ label, text }: { label: string; text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          role='img'
+        <button
+          type='button'
           aria-label={`About ${label}`}
-          className='text-muted-foreground hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover/row:opacity-100'
+          className='text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded opacity-0 transition-opacity outline-none group-hover/row:opacity-100 focus-visible:opacity-100 focus-visible:ring-[3px]'
         >
           <Info className='size-3.5' aria-hidden='true' />
-        </span>
+        </button>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         {text}

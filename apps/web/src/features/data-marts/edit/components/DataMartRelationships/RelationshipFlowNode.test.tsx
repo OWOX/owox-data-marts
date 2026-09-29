@@ -109,7 +109,7 @@ describe('RelationshipFlowNode', () => {
     expect(document.querySelector('.lucide-triangle-alert')).toBeNull();
   });
 
-  it('renders collapsed field rows in Detailed view and expands them in place', () => {
+  it('renders collapsed field rows in the ERD view and expands them in place', () => {
     renderNode(vi.fn(), { viewMode: 'erd', fields: buildFields(6) });
 
     expect(screen.getByText('field_0')).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe('RelationshipFlowNode', () => {
     expect(screen.getByRole('button', { name: /Show less/ })).toBeInTheDocument();
   });
 
-  it('leads with the blend alias and adds the description under it in Detailed view', () => {
+  it('leads with the blend alias and adds the description under it in the ERD view', () => {
     const [aliased, plain] = buildFields(2);
     const { container } = renderNode(vi.fn(), {
       viewMode: 'erd',

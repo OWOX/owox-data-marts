@@ -58,13 +58,13 @@ The gear button on the canvas opens the view settings. They are preferences stor
   - **Draft badge** shows **Draft** next to the title of unpublished Data Marts.
   - **Quality and sharing** shows the footer: the Data Quality and Data Last Updated indicators and the sharing icons.
 
-  Untick all of them, or click **Title only**, to leave only the titles.
+  Untick all of them to leave only the titles.
 
 - **Field rows**, the right column, picks what each field row shows. It works in the ERD view and stays greyed out in Compact mode:
   - **Field aliases** leads each field row with the Output Schema alias, when the field has one. Untick it to see the technical field names instead. Hover a row to read both.
   - **Field descriptions** adds the Output Schema description under each field, when the field has one. The line shows one row of text. Hover it to read the whole description.
 
-**Show all** ticks every checkbox back on. Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.
+**Title only** unticks every checkbox in both columns, Field rows included, and leaves only the titles. **Show all** ticks every checkbox back on. Hover an option, or tab to it, to see an info icon with a tooltip that explains the option. Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.
 
 ![The Models canvas in the ERD view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
 

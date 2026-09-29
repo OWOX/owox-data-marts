@@ -126,7 +126,7 @@ interface RelationshipCanvasProps {
   onShowJoinFieldsChange: (checked: boolean) => void;
   objectLabels: ObjectLabelsHidden;
   onObjectLabelsChange: (next: ObjectLabelsHidden) => void;
-  /** Fields per aliasPath (from the blendable schema) — ERD rows in Detailed view. */
+  /** Fields per aliasPath (from the blendable schema) — ERD rows in the ERD view. */
   fieldsByAliasPath?: Map<string, ErdCardField[]>;
   className?: string;
   style?: React.CSSProperties;
@@ -158,7 +158,7 @@ export interface RelationshipNodeData {
   hasOutgoing: boolean;
   highlighted: boolean;
   dimmed: boolean;
-  /** ERD rows shown in Detailed view; empty when the schema has none for this node. */
+  /** ERD rows shown in the ERD view; empty when the schema has none for this node. */
   fields: ErdCardField[];
   viewMode: CanvasViewMode;
   objectLabels: ObjectLabelsHidden;
@@ -246,7 +246,7 @@ function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CS
 }
 
 export function RelationshipFlowNode({ id, data, selected }: NodeProps<RelationshipFlowNodeType>) {
-  // Owned here (not in the section) so expansion survives Compact↔Detailed
+  // Owned here (not in the section) so expansion survives Compact↔ERD
   // round-trips — the node stays mounted while the section unmounts.
   const [expanded, setExpanded] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -373,7 +373,7 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
         )}
       </div>
 
-      {/* ERD body: field rows (only in Detailed view) */}
+      {/* ERD body: field rows (only in the ERD view) */}
       {showFieldRows && (
         <ErdCardFieldsSection
           fields={data.fields}

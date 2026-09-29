@@ -386,7 +386,7 @@ describe('ModelCanvasFlowNode', () => {
   it('packs the badges onto as few lines as fit the card', () => {
     renderNode();
 
-    // Detailed line: 256 − 26 = 230 px; each badge is its text (6 px/char) + 30 px.
+    // ERD line: 256 − 26 = 230 px; each badge is its text (6 px/char) + 30 px.
     // View (54) + 3 fields (78) + 2 triggers (90) = 230 fits; 3 reports + 1 relationship wrap.
     const firstLine = screen.getByText('View').parentElement;
     expect(screen.getByText('2 triggers').parentElement).toBe(firstLine);
@@ -474,7 +474,7 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.getByRole('list', { name: 'Relationships of Orders' })).toBeInTheDocument();
     unmount();
 
-    // The Detailed view already lists the fields, so there the count is a plain badge.
+    // The ERD view already lists the fields, so there the count is a plain badge.
     renderNode();
     expect(screen.queryByRole('button', { name: 'Show fields of Orders' })).not.toBeInTheDocument();
     expect(screen.getByText('3 fields')).toBeInTheDocument();

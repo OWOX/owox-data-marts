@@ -358,7 +358,7 @@ export function DataMartRelationshipsContent({
     storageService.set(CANVAS_OBJECT_LABELS_KEY, serializeObjectLabelsHidden(next));
   }, []);
 
-  // ERD rows for the Detailed canvas view, keyed by aliasPath. The root
+  // ERD rows for the ERD canvas view, keyed by aliasPath. The root
   // mart's native fields are untyped in the schema payload, so the root card
   // stays compact. Primary-key info is not part of the blendable schema —
   // rows render without key icons.
