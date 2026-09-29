@@ -125,6 +125,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Reports',
+          items: ['docs/reports'],
+        },
+        {
           label: 'Destinations',
           items: [
             'docs/destinations',
@@ -134,10 +138,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               items: [{ autogenerate: { directory: 'docs/destinations/supported-destinations' } }],
             },
           ],
-        },
-        {
-          label: 'Reports',
-          items: ['docs/reports'],
         },
         {
           label: 'Storages',
