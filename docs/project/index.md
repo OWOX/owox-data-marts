@@ -20,7 +20,7 @@ Access to a specific resource combines the member's role, their ownership status
 
 - You invite teammates and assign them roles.
 - Different teams should see different subsets of Data Marts, Storages, or Destinations.
-- You want clear owners for each resource instead of shared everything.
+- You want a clear owner for each Storage, Destination, and Report.
 - A self-managed deployment needs a license key from your Cloud project.
 
 ## Get started

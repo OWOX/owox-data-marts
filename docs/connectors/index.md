@@ -1,6 +1,6 @@
 # Sources
 
-A **Source** is a platform that holds data you want to analyze — for example, Facebook Ads, TikTok Ads, LinkedIn Ads, or Shopify. Connectors collect raw data from Sources into your Storage.
+A **Source** is a platform that holds data you want to analyze — for example, Facebook Ads, TikTok Ads, or Shopify. Connectors collect raw data from Sources into your Storage.
 
 ## What Sources do in OWOX
 

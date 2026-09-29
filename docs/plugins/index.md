@@ -1,6 +1,6 @@
 # Plugins
 
-A **Plugin** is a custom application that runs inside OWOX Data Marts and extends it with your own experience — a dashboard, a workflow helper, or an analysis tool.
+A **Plugin** is a custom application that runs inside OWOX Data Marts. It adds your own experience — a dashboard, a workflow helper, or an analysis tool.
 
 Plugins build on the same entities as the rest of the platform. They can read data that [Data Marts](../data-marts/) prepare and present it the way your team needs. You install [trusted plugins](./trusted-plugins.md) or build your own, with or without an AI coding agent.
 

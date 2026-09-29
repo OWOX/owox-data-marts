@@ -6,7 +6,7 @@ A **Data Mart** is a documented, reusable dataset that a data analyst prepares f
 
 A Data Mart turns raw warehouse data into a business-ready artifact with a description, output schema, and friendly field names. Analysts define the logic once. Business users then run, filter, and schedule reports without changing that logic.
 
-Unlike a raw table in your warehouse, a Data Mart is documented, owned, reusable across BI tools, and safe to share.
+Unlike a raw warehouse table, a Data Mart is documented, owned, reusable across BI tools, and safe to share.
 
 ## How Data Marts fit the workflow
 

@@ -1,6 +1,6 @@
 # Reports
 
-A **Report** delivers a Data Mart's output to a Destination, such as a Google Sheets tab or a Looker Studio data source. Reports are how business users consume the data that analysts prepare.
+A **Report** delivers a Data Mart's output to a Destination — for example, a Google Sheets tab. Reports are how business users consume the data that analysts prepare.
 
 ## What Reports do in OWOX
 
@@ -22,7 +22,7 @@ Each Report belongs to one Data Mart and one Destination. One Data Mart can have
 - Business users need current numbers in Google Sheets without asking an analyst.
 - A dashboard should refresh on a schedule instead of manual exports.
 - Different teams need the same Data Mart in different tools or tabs.
-- You want to send run results to Email, Slack, Microsoft Teams, or Google Chat.
+- You want to deliver data to Email, Slack, Microsoft Teams, or Google Chat.
 
 ## Get started
 

@@ -1,6 +1,6 @@
 # Storages
 
-A **Storage** is your project's data warehouse — a SQL-compatible system, such as Google BigQuery or Snowflake, where all your data lives and gets processed.
+A **Storage** is your project's data warehouse — a SQL-compatible system where all your data lives. Examples include Google BigQuery, Snowflake, and AWS Athena.
 
 ## What Storages do in OWOX
 
