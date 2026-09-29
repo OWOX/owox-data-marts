@@ -314,6 +314,11 @@ Declaring a strategy other than `none` makes the node a time series on its own �
 
 Inside the node's own `request`/`retriever.submit`, the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how `transformations.add` (§13) stamps a `date` field onto records the API itself doesn't return dated.
 
+Which strategy to choose:
+
+- Prefer `range` when the API takes a start and an end date and returns the date on every record (for example, a report broken down by day). A `day-by-day` run sends one request per day and writes each day to the storage separately; a BigQuery write takes a few seconds even for a handful of rows, so a manual backfill of 31 days (the most one run covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
+- Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
+
 ## 10. `partitionRouter` — substream & list
 
 Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. **Mutually exclusive with `retriever: { type: "async" }`.** The node's own `request` / `recordSelector` / `pagination` describe the CHILD (per-slice) request.

@@ -392,6 +392,12 @@ One request per configured date range; use `startName` + `endName` (query) or `s
 
 Inside the node's own `request` (or `retriever.submit`), the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how [`transformations.add`](#transformations) stamps a `date` field onto records the API itself doesn't return dated.
 
+### Which strategy to choose
+
+Prefer `range` when the API takes a start and an end date and returns the date on every record — a report broken down by day, for example. A `day-by-day` run sends one request per day and writes each day to the storage separately. A write to BigQuery takes a few seconds even for a handful of rows, so a manual backfill of 31 days (the most one run covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
+
+Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
+
 ## Partition router: substream and list
 
 Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. **Mutually exclusive with an async retriever.** The node's own `request` / `recordSelector` / `pagination` describe the child (per-slice) request.
