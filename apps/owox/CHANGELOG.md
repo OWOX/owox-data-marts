@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.36.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/3708adb35ccaf9bdbbacb98f56d998ca/iframe>
+
 - 42c797b: **Preview Data Mart rows from Data Setup**
 
   The **Data Setup** tab now has a **Preview data** button under the Output Schema. It runs a query in your data warehouse and shows the first 10 rows of every visible field, so you can check the Input Source and schema before building reports. Draft Data Marts can be previewed too.
