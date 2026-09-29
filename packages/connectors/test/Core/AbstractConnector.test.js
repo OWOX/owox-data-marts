@@ -61,6 +61,7 @@ describe('short link resolution hook', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   // Pass nodeSpecs: null to model a node without a spec.
@@ -84,7 +85,10 @@ describe('short link resolution hook', () => {
 
   it('seeds the cache from persisted state so a known link is not fetched again', async () => {
     vi.stubGlobal('fetch', vi.fn());
-    const connector = buildConnector({ shortLinks: { [SEEDED]: [LANDING, NOW] } });
+    const connector = buildConnector({
+      shortLinks: { [SEEDED]: [LANDING, NOW] },
+      params: { ShortLinkDomains: 'short.example' },
+    });
 
     const result = await connector.resolveShortLinks('ads', [{ click_url: SEEDED }], both);
 
@@ -102,6 +106,50 @@ describe('short link resolution hook', () => {
     const result = await connector.resolveShortLinks(
       'ads',
       [{ click_url: 'https://short.example/a/b' }],
+      both
+    );
+
+    expect(result[0].click_url_parsed).toBe(LANDING);
+  });
+
+  it('allowlists the domains in CONNECTOR_SHORT_LINK_DOMAINS', async () => {
+    vi.stubEnv('CONNECTOR_SHORT_LINK_DOMAINS', 'short.example');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async url => (url === LANDING ? finalPage() : redirectTo(LANDING)))
+    );
+    const connector = buildConnector();
+
+    const result = await connector.resolveShortLinks(
+      'ads',
+      [{ click_url: 'https://short.example/abc123' }],
+      both
+    );
+
+    expect(result[0].click_url_parsed).toBe(LANDING);
+  });
+
+  it('does not apply a saved answer for a link whose domain is no longer allowlisted', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    // Saved by an earlier run, when one-part links resolved on any domain
+    const connector = buildConnector({ shortLinks: { [SEEDED]: [LANDING, NOW] } });
+
+    const result = await connector.resolveShortLinks('ads', [{ click_url: SEEDED }], both);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result[0].click_url_parsed).toBe(SEEDED);
+  });
+
+  it('resolves links on built-in short link services with no configuration at all', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async url => (url === LANDING ? finalPage() : redirectTo(LANDING)))
+    );
+    const connector = buildConnector();
+
+    const result = await connector.resolveShortLinks(
+      'ads',
+      [{ click_url: 'https://bit.ly/abc123' }],
       both
     );
 
@@ -160,7 +208,10 @@ describe('short link resolution hook', () => {
 
   it('does not request a landing page that a previous run already checked', async () => {
     vi.stubGlobal('fetch', vi.fn());
-    const connector = buildConnector({ shortLinks: { 'https://brand.example/sale': [null, NOW] } });
+    const connector = buildConnector({
+      shortLinks: { 'https://brand.example/sale': [null, NOW] },
+      params: { ShortLinkDomains: 'brand.example' },
+    });
 
     const result = await connector.resolveShortLinks(
       'ads',
@@ -175,7 +226,10 @@ describe('short link resolution hook', () => {
   // main resolved in every connector's save calls; here every write goes through _writeBatch,
   // catalog pages included.
   it('resolves each batch before the storage saves it', async () => {
-    const connector = buildConnector({ shortLinks: { [SEEDED]: [LANDING, NOW] } });
+    const connector = buildConnector({
+      shortLinks: { [SEEDED]: [LANDING, NOW] },
+      params: { ShortLinkDomains: 'short.example' },
+    });
     const saved = [];
     const writer = {
       nodeName: 'ads',

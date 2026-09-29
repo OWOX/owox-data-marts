@@ -864,11 +864,14 @@ export class AbstractConnector {
     if (activeSpecs.length === 0) return data;
 
     const cache = this._shortLinksCache();
+    // Only allowlisted domains resolve: the built-in public shorteners in ShortLinksUtils
+    // plus the deployment's CONNECTOR_SHORT_LINK_DOMAINS.
     return resolveShortLinkFields(data, activeSpecs, {
-      nestedPathHosts: [
+      allowedHosts: [
         ...getShortLinkDomainsFromEnv(),
-        // Domains saved by the former Facebook "Short Link Domains" setting keep working
-        // until every environment sets CONNECTOR_SHORT_LINK_DOMAINS.
+        // Compatibility fallback: domains saved by the former Facebook "Short Link Domains"
+        // setting stay allowlisted for that Data Mart. Once every environment that ran a build
+        // with the setting has CONNECTOR_SHORT_LINK_DOMAINS set, drop this line and its test.
         ...parseShortLinkDomains(this.context.getParameter('ShortLinkDomains')?.value),
       ],
       resolvedLinksCache: cache.resolved,

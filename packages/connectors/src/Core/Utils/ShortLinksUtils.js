@@ -15,16 +15,16 @@
  * @param {Object} config - Configuration object
  * @param {string} config.shortLinkField - Field that contains URL objects
  * @param {string} config.urlFieldName - Name of the URL field within the object
- * @param {Array<string>} [config.nestedPathHosts] - Short-link domains whose links may contain nested paths
+ * @param {Array<string>} [config.allowedHosts] - Extra allowed short link domains, added to the built-in services
  * @param {Map<string, string>} [config.resolvedLinksCache] - Original URL to resolved URL. Pass the same Map
  *   across calls to resolve each link once; it is updated in place. Failed resolutions are cached too.
  * @return {Array} Data with processed links
  */
-async function processShortLinks(data, { shortLinkField, urlFieldName, nestedPathHosts = [], resolvedLinksCache = new Map() }) {
+async function processShortLinks(data, { shortLinkField, urlFieldName, allowedHosts = [], resolvedLinksCache = new Map() }) {
   return resolveShortLinkFields(
     data,
     [{ field: shortLinkField, urlKey: urlFieldName, target: 'parsed_url' }],
-    { nestedPathHosts, resolvedLinksCache }
+    { allowedHosts, resolvedLinksCache }
   );
 }
 
@@ -42,28 +42,33 @@ async function processShortLinks(data, { shortLinkField, urlFieldName, nestedPat
  * @param {Array} data - Array of data records
  * @param {Array<{field: string, target: string, urlKey?: string}>} specs - Field specs
  * @param {Object} [options]
- * @param {Array<string>} [options.nestedPathHosts] - Short-link domains whose links may contain nested paths
+ * @param {Array<string>} [options.allowedHosts] - Extra allowed short link domains, added to the built-in services
  * @param {Map<string, string>} [options.resolvedLinksCache] - Original URL to resolved URL, updated in place.
  *   A URL that answered without a redirect maps to itself.
  * @param {Set<string>} [options.failedLinks] - Receives URLs whose request failed. They sit in the cache for
  *   the rest of the run, so they are not retried, but must not be persisted across runs.
  * @return {Promise<Array>} Data with resolved links; the same array when there is nothing to do
  */
-async function resolveShortLinkFields(data, specs, { nestedPathHosts = [], resolvedLinksCache = new Map(), failedLinks = new Set() } = {}) {
+async function resolveShortLinkFields(data, specs, { allowedHosts = [], resolvedLinksCache = new Map(), failedLinks = new Set() } = {}) {
   if (!Array.isArray(data) || data.length === 0 || !Array.isArray(specs) || specs.length === 0) return data;
 
-  const candidates = _collectCandidateUrls(data, specs, nestedPathHosts);
+  const candidates = _collectCandidateUrls(data, specs, allowedHosts);
   const hasPlainTargets = specs.some(spec => !spec.urlKey);
   if (candidates.length === 0 && !hasPlainTargets) return data;
 
   const uncachedLinks = candidates.filter(url => !resolvedLinksCache.has(url)).map(originalUrl => ({ originalUrl }));
-  const freshlyResolved = await _resolveShortLinks(uncachedLinks);
+  const freshlyResolved = await _resolveShortLinks(uncachedLinks, allowedHosts);
   freshlyResolved.forEach(link => {
     resolvedLinksCache.set(link.originalUrl, link.resolvedUrl);
     if (!link.ok) failedLinks.add(link.originalUrl);
   });
 
-  return data.map(record => specs.reduce((current, spec) => _applySpec(current, spec, resolvedLinksCache), record));
+  // Only today's allowlisted candidates take a cached answer: the cache is seeded from saved
+  // state, which may hold links on domains that are no longer (or were never) allowlisted.
+  const resolvable = new Set(candidates);
+  return data.map(record =>
+    specs.reduce((current, spec) => _applySpec(current, spec, resolvedLinksCache, resolvable), record)
+  );
 }
 
 //---- _collectCandidateUrls ----------------------------------------------
@@ -72,16 +77,16 @@ async function resolveShortLinkFields(data, specs, { nestedPathHosts = [], resol
  *
  * @param {Array} data - Data records
  * @param {Array} specs - Field specs
- * @param {Array<string>} nestedPathHosts - Short-link domains whose links may contain nested paths
+ * @param {Array<string>} allowedHosts - Extra allowed short link domains, added to the built-in services
  * @return {Array<string>} Unique URLs worth resolving
  * @private
  */
-function _collectCandidateUrls(data, specs, nestedPathHosts) {
+function _collectCandidateUrls(data, specs, allowedHosts) {
   const unique = new Set();
   data.forEach(record => {
     specs.forEach(spec => {
       _readUrls(record[spec.field], spec).forEach(url => {
-        if (_isPotentialShortLink(url, nestedPathHosts)) unique.add(url);
+        if (_isPotentialShortLink(url, allowedHosts)) unique.add(url);
       });
     });
   });
@@ -133,12 +138,13 @@ function _asArray(value) {
  * @param {Object} record - Data record
  * @param {{field: string, target: string, urlKey?: string}} spec - Field spec
  * @param {Map<string, string>} cache - Original URL to resolved URL
+ * @param {Set<string>} resolvable - URLs allowed to take a cached answer in this call
  * @return {Object} New record, or the same record when nothing changes
  * @private
  */
-function _applySpec(record, spec, cache) {
+function _applySpec(record, spec, cache, resolvable) {
   const value = record[spec.field];
-  const resolve = url => (typeof url === 'string' && cache.has(url) ? cache.get(url) : url);
+  const resolve = url => (typeof url === 'string' && resolvable.has(url) && cache.has(url) ? cache.get(url) : url);
 
   if (spec.urlKey) {
     const original = value && value[spec.urlKey];
@@ -176,7 +182,7 @@ function omitShortLinkTargets(node, fields) {
 const SHORT_LINK_DOMAINS_ENV = 'CONNECTOR_SHORT_LINK_DOMAINS';
 
 /**
- * Reads the deployment-wide list of short link domains whose links contain nested paths
+ * Reads the deployment-wide list of additional allowed short link domains
  *
  * @param {Object} [env] - Environment map; defaults to process.env
  * @return {Array<string>} Lower-cased domains, empty when the variable is unset
@@ -188,7 +194,8 @@ function getShortLinkDomainsFromEnv(env = typeof process !== 'undefined' ? proce
 //---- parseShortLinkDomains ----------------------------------------------
 /**
  * Parses a comma, semicolon or whitespace separated list of domains.
- * Accepts bare domains as well as full URLs; scheme, port, path and trailing dot are stripped.
+ * Accepts bare domains as well as full URLs; scheme, a leading `*.` or `.`, port, path and
+ * trailing dot are stripped.
  * Entries without a dot (bare TLDs, localhost) are ignored.
  *
  * @param {string|undefined} value - Raw list
@@ -198,7 +205,7 @@ function parseShortLinkDomains(value) {
   if (!value) return [];
   return String(value)
     .split(/[,;\s]+/)
-    .map(entry => entry.replace(/^[a-z]+:\/\//i, '').split('/')[0].split(':')[0].replace(/\.$/, '').trim().toLowerCase())
+    .map(entry => entry.replace(/^[a-z]+:\/\//i, '').replace(/^\*?\./, '').split('/')[0].split(':')[0].replace(/\.$/, '').trim().toLowerCase())
     .filter(host => host.includes('.'));
 }
 
@@ -260,16 +267,34 @@ function buildShortLinksState(entries, now = Date.now()) {
 // Links carrying UTM tags anywhere (query or fragment) already point at the landing page
 const UTM_PARAM_PATTERN = /utm_(source|medium|campaign|term|content)/;
 
-//---- _isPotentialShortLink ---------------------------------------------- 
+// Well-known public URL shortener services, resolved without any configuration.
+// Deployment-specific services are added through CONNECTOR_SHORT_LINK_DOMAINS.
+const KNOWN_SHORT_LINK_DOMAINS = [
+  'bit.ly',
+  'tinyurl.com',
+  't.co',
+  'lnkd.in',
+  'youtu.be',
+  'amzn.to',
+  'ow.ly',
+  'buff.ly',
+  'cutt.ly',
+  'is.gd',
+  'rebrand.ly'
+];
+
+//---- _isPotentialShortLink ----------------------------------------------
 /**
- * Determines if URL is a potential short link
- * 
+ * Determines whether a URL is a short link worth resolving.
+ * Only links on allowlisted domains qualify: the built-in services above plus the
+ * deployment's configured domains. Everything else is treated as a landing page.
+ *
  * @param {string} url - URL to check
- * @param {Array<string>} nestedPathHosts - Short-link domains whose links may contain nested paths
- * @return {boolean} True if potentially a short link
+ * @param {Array<string>} allowedHosts - Extra allowed short link domains, added to the built-in services
+ * @return {boolean} True if the link should be resolved
  * @private
  */
-function _isPotentialShortLink(url, nestedPathHosts) {
+function _isPotentialShortLink(url, allowedHosts) {
   if (!url || typeof url !== 'string') return false;
 
   try {
@@ -279,12 +304,11 @@ function _isPotentialShortLink(url, nestedPathHosts) {
       return false;
     }
 
-    const isConfiguredHost = _isNestedPathHost(parsedUrl.hostname, nestedPathHosts);
-    const pathSegments = _getPathSegments(parsedUrl.pathname, isConfiguredHost);
+    if (!_isAllowedShortLinkHost(parsedUrl.hostname, allowedHosts)) return false;
 
-    if (!pathSegments.every(Boolean)) return false;
-
-    return pathSegments.length === 1 || isConfiguredHost;
+    // Rejects a bare root ([''] fails every) and empty segments from double slashes
+    const pathSegments = _getPathSegments(parsedUrl.pathname);
+    return pathSegments.every(Boolean);
   } catch (_error) {
     return false;
   }
@@ -292,30 +316,31 @@ function _isPotentialShortLink(url, nestedPathHosts) {
 
 //---- _getPathSegments ---------------------------------------------------
 /**
- * Splits a pathname into segments; on configured hosts one trailing slash is tolerated
+ * Splits a pathname into segments. One trailing slash is tolerated; empty segments
+ * elsewhere (a bare root, a double slash) are kept so callers can reject them.
  *
  * @param {string} pathname - URL pathname
- * @param {boolean} allowTrailingSlash - Whether a single trailing slash is accepted
- * @return {Array<string>} Path segments, empty strings kept so callers can reject them
+ * @return {Array<string>} Path segments
  * @private
  */
-function _getPathSegments(pathname, allowTrailingSlash) {
+function _getPathSegments(pathname) {
   const segments = pathname.slice(1).split('/');
   const hasTrailingSlash = segments.length > 1 && segments[segments.length - 1] === '';
-  return allowTrailingSlash && hasTrailingSlash ? segments.slice(0, -1) : segments;
+  return hasTrailingSlash ? segments.slice(0, -1) : segments;
 }
 
-//---- _isNestedPathHost --------------------------------------------------
+//---- _isAllowedShortLinkHost --------------------------------------------
 /**
- * Checks whether hostname equals or is a subdomain of a configured nested-path short-link domain
+ * Checks whether a hostname equals or is a subdomain of an allowlisted short link domain
  *
  * @param {string} hostname - Hostname to check
- * @param {Array<string>} nestedPathHosts - Configured short-link domains
- * @return {boolean} True if hostname matches a configured domain
+ * @param {Array<string>} allowedHosts - Extra allowed domains beyond the built-in services
+ * @return {boolean} True if the hostname is allowlisted
  * @private
  */
-function _isNestedPathHost(hostname, nestedPathHosts) {
-  return nestedPathHosts.some(host => hostname === host || hostname.endsWith(`.${host}`));
+function _isAllowedShortLinkHost(hostname, allowedHosts) {
+  const isMatch = host => hostname === host || hostname.endsWith(`.${host}`);
+  return KNOWN_SHORT_LINK_DOMAINS.some(isMatch) || allowedHosts.some(isMatch);
 }
 
 //---- _resolveShortLinks -------------------------------------------------
@@ -327,14 +352,15 @@ const SHORT_LINK_CONCURRENCY = 10;
  * Resolves short links to their full URLs, a bounded number at a time
  *
  * @param {Array} shortLinks - Array of short link objects
+ * @param {Array<string>} allowedHosts - Extra allowed short link domains, added to the built-in services
  * @return {Promise<Array<{originalUrl: string, resolvedUrl: string, ok: boolean}>>} Resolution results
  * @private
  */
-async function _resolveShortLinks(shortLinks) {
+async function _resolveShortLinks(shortLinks, allowedHosts = []) {
   const results = [];
   for (let i = 0; i < shortLinks.length; i += SHORT_LINK_CONCURRENCY) {
     const batch = shortLinks.slice(i, i + SHORT_LINK_CONCURRENCY);
-    results.push(...(await Promise.all(batch.map(_resolveShortLink))));
+    results.push(...(await Promise.all(batch.map(link => _resolveShortLink(link, allowedHosts)))));
   }
   return results;
 }
@@ -346,13 +372,14 @@ async function _resolveShortLinks(shortLinks) {
  * results are worth remembering across runs, a failure should be retried next run.
  *
  * @param {{originalUrl: string}} linkObj - Short link object
+ * @param {Array<string>} allowedHosts - Extra allowed short link domains, added to the built-in services
  * @return {Promise<{originalUrl: string, resolvedUrl: string, ok: boolean}>} Resolution result
  * @private
  */
-async function _resolveShortLink(linkObj) {
+async function _resolveShortLink(linkObj, allowedHosts = []) {
   const originalUrl = linkObj.originalUrl;
   try {
-    return { originalUrl, resolvedUrl: await _followRedirects(originalUrl), ok: true };
+    return { originalUrl, resolvedUrl: await _followRedirects(originalUrl, allowedHosts), ok: true };
   } catch (error) {
     // stdout, as on main: the host treats any raw stderr line as a run failure, and a
     // link that cannot be resolved only keeps its original URL.
@@ -362,18 +389,29 @@ async function _resolveShortLink(linkObj) {
 }
 
 //---- _followRedirects ---------------------------------------------------
+// A short link service answering with one of these is overloaded or down, not answering for the
+// link: treat it as a failed request so the next run retries, instead of caching "no redirect".
+// 404 and 410 stay answers, since a deleted short link stays deleted.
+const SHORT_LINK_TRANSIENT_STATUS = status => status === 408 || status === 429 || status >= 500;
+
 /**
- * Follows HTTP redirects manually so every hop is checked before it is requested
+ * Follows HTTP redirects manually, checking every hop before it is requested. Only allowlisted
+ * short link services are ever requested: the first hop that leaves the allowlist is returned as
+ * the result without being requested, so the connector never contacts a landing site.
  *
- * @param {string} startUrl - URL to start from
- * @return {Promise<string>} Final URL after redirects
+ * @param {string} startUrl - URL to start from (an allowlisted short link)
+ * @param {Array<string>} allowedHosts - Extra allowed short link domains, added to the built-in services
+ * @return {Promise<string>} The address the short link service points to
  * @private
  */
-async function _followRedirects(startUrl) {
+async function _followRedirects(startUrl, allowedHosts = []) {
   let currentUrl = startUrl;
   for (let hop = 0; hop <= SHORT_LINK_MAX_REDIRECTS; hop++) {
     if (!_isPublicHttpUrl(currentUrl)) {
       throw new Error(`Refusing to request non-public URL ${currentUrl}`);
+    }
+    if (hop > 0 && !_isAllowedShortLinkHost(new URL(currentUrl).hostname, allowedHosts)) {
+      return currentUrl;
     }
     // Native fetch: Node returns the 3xx itself under `redirect: 'manual'`, with a
     // readable status and Location, so each hop can be vetted before it is followed.
@@ -382,6 +420,9 @@ async function _followRedirects(startUrl) {
       redirect: 'manual',
       signal: AbortSignal.timeout(SHORT_LINK_FETCH_TIMEOUT_MS)
     });
+    if (SHORT_LINK_TRANSIENT_STATUS(response.status)) {
+      throw new Error(`Short link service answered ${response.status}`);
+    }
     const location = _getRedirectLocation(response);
     if (!location) return currentUrl;
     currentUrl = new URL(location, currentUrl).toString();

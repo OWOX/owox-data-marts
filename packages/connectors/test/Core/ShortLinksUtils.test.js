@@ -8,6 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadGasClass(path.join(__dirname, '../../src/Core/Utils/ShortLinksUtils.js'));
 
 const CONFIG = { shortLinkField: 'link_url_asset', urlFieldName: 'website_url' };
+// Test domains are not built-in services, so tests allowlist them explicitly
+const ALLOW = ['short.example'];
 const LANDING = 'https://example.com/landing-page';
 
 // Native fetch responses: under `redirect: 'manual'` Node hands back the 3xx itself.
@@ -43,7 +45,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, {
       ...CONFIG,
-      nestedPathHosts: ['short.example'],
+      allowedHosts: ['short.example'],
     });
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -60,9 +62,14 @@ describe('processShortLinks', () => {
   it('matches subdomains of a configured host', async () => {
     const data = buildData('https://brand.short.example/abc/xyz');
 
-    await globalThis.processShortLinks(data, { ...CONFIG, nestedPathHosts: ['short.example'] });
+    const result = await globalThis.processShortLinks(data, {
+      ...CONFIG,
+      allowedHosts: ['short.example'],
+    });
 
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    // One request to the short link service; the landing page it names is not requested
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
   });
 
   it('does not treat nested paths on unconfigured hosts as short links', async () => {
@@ -70,61 +77,156 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, {
       ...CONFIG,
-      nestedPathHosts: ['short.example'],
+      allowedHosts: ['short.example'],
     });
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
-  it('does not treat nested paths as short links when no hosts are configured', async () => {
-    const data = buildData('https://short.example/abc/xyz');
-
-    const result = await globalThis.processShortLinks(data, CONFIG);
-
+  it('does not resolve any link, one-segment or nested, on a domain outside the allowlist', async () => {
+    for (const url of ['https://unlisted.example/abc123', 'https://unlisted.example/abc/xyz']) {
+      const result = await globalThis.processShortLinks(buildData(url), { ...CONFIG });
+      expect(result[0].link_url_asset.parsed_url).toBeUndefined();
+    }
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(result).toBe(data);
   });
 
-  it('keeps resolving one-segment short links on any host', async () => {
-    const data = buildData('https://short.example/abc123');
+  it('resolves one-segment links on built-in services without any configuration', async () => {
+    const data = buildData('https://bit.ly/abc123');
 
-    const result = await globalThis.processShortLinks(data, CONFIG);
+    const result = await globalThis.processShortLinks(data, { ...CONFIG });
 
     expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
   });
 
-  it('keeps rejecting single-segment URLs with a trailing slash', async () => {
-    const data = buildData('https://brand.example/shop/');
+  it('resolves one-segment links on configured domains', async () => {
+    const data = buildData('https://short.example/abc123');
 
-    const result = await globalThis.processShortLinks(data, CONFIG);
+    const result = await globalThis.processShortLinks(data, {
+      ...CONFIG,
+      allowedHosts: ['short.example'],
+    });
+
+    expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
+  });
+
+  it('does not treat look-alike hosts as allowlisted services', async () => {
+    for (const url of ['https://evilbit.ly/abc123', 'https://microsoft.co/abc123']) {
+      const result = await globalThis.processShortLinks(buildData(url), { ...CONFIG });
+      expect(result[0].link_url_asset.parsed_url).toBeUndefined();
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stops at the first redirect that leaves the allowlist and does not request it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => redirectTo('http://any-host.example:8080/landing'))
+    );
+
+    const result = await globalThis.processShortLinks(buildData('https://is.gd/abc123'), {
+      ...CONFIG,
+    });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(result[0].link_url_asset.parsed_url).toBe('http://any-host.example:8080/landing');
+  });
+
+  it('keeps following redirects between allowlisted short link services', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async url =>
+        url === 'https://bit.ly/abc123'
+          ? redirectTo('https://tinyurl.com/xyz')
+          : redirectTo(LANDING)
+      )
+    );
+
+    const result = await globalThis.processShortLinks(buildData('https://bit.ly/abc123'), {
+      ...CONFIG,
+    });
+
+    expect(globalThis.fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://bit.ly/abc123',
+      'https://tinyurl.com/xyz',
+    ]);
+    expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
+  });
+
+  it.each([408, 429, 500, 503])(
+    'treats a %s answer from the service as a failed request, not a landing page',
+    async status => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(null, { status }))
+      );
+      const failedLinks = new Set();
+      const cache = new Map();
+
+      await globalThis.resolveShortLinkFields(
+        [{ click_url: 'https://bit.ly/abc123' }],
+        [{ field: 'click_url', target: 'click_url_parsed' }],
+        { resolvedLinksCache: cache, failedLinks }
+      );
+
+      expect(Array.from(failedLinks)).toEqual(['https://bit.ly/abc123']);
+    }
+  );
+
+  it('keeps a 404 answer as an answer, since a deleted short link stays deleted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 404 }))
+    );
+    const failedLinks = new Set();
+
+    await globalThis.resolveShortLinkFields(
+      [{ click_url: 'https://bit.ly/gone' }],
+      [{ field: 'click_url', target: 'click_url_parsed' }],
+      { failedLinks }
+    );
+
+    expect(failedLinks.size).toBe(0);
+  });
+
+  it('does not apply a cached answer to a link outside the allowlist', async () => {
+    const cache = new Map([['https://unlisted.example/abc123', LANDING]]);
+
+    const result = await globalThis.resolveShortLinkFields(
+      [{ click_url: 'https://unlisted.example/abc123' }],
+      [{ field: 'click_url', target: 'click_url_parsed' }],
+      { resolvedLinksCache: cache }
+    );
+
+    expect(result[0].click_url_parsed).toBe('https://unlisted.example/abc123');
+  });
+
+  it('keeps rejecting links with UTM tags in the fragment, even on an allowlisted host', async () => {
+    const data = buildData('https://short.example/landing#utm_source=facebook&utm_medium=cpc');
+
+    const result = await globalThis.processShortLinks(data, {
+      ...CONFIG,
+      allowedHosts: ['short.example'],
+    });
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toBe(data);
   });
 
-  it('keeps rejecting links with UTM tags in the fragment', async () => {
-    const data = buildData('https://brand.example/landing#utm_source=facebook&utm_medium=cpc');
-
-    const result = await globalThis.processShortLinks(data, CONFIG);
-
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(result).toBe(data);
-  });
-
-  it('accepts one trailing slash on a configured host', async () => {
+  it('accepts one trailing slash on an allowlisted host', async () => {
     const data = buildData('https://go.brand.example/summer/');
 
     const result = await globalThis.processShortLinks(data, {
       ...CONFIG,
-      nestedPathHosts: ['go.brand.example'],
+      allowedHosts: ['go.brand.example'],
     });
 
     expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
   });
 
   it('still rejects empty path segments and a bare root on a configured host', async () => {
-    const options = { ...CONFIG, nestedPathHosts: ['go.brand.example'] };
+    const options = { ...CONFIG, allowedHosts: ['go.brand.example'] };
 
     for (const url of ['https://go.brand.example/a//b', 'https://go.brand.example/']) {
       const result = await globalThis.processShortLinks(buildData(url), options);
@@ -138,7 +240,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, {
       ...CONFIG,
-      nestedPathHosts: ['short.example'],
+      allowedHosts: ['short.example'],
     });
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -151,7 +253,7 @@ describe('processShortLinks', () => {
       ...buildData('https://short.example/abc123'),
     ];
 
-    const result = await globalThis.processShortLinks(data, CONFIG);
+    const result = await globalThis.processShortLinks(data, { ...CONFIG, allowedHosts: ALLOW });
 
     expect(
       globalThis.fetch.mock.calls.filter(([url]) => url === 'https://short.example/abc123')
@@ -166,10 +268,10 @@ describe('processShortLinks', () => {
       return finalPage();
     });
 
-    const result = await globalThis.processShortLinks(
-      buildData('https://short.example/abc123'),
-      CONFIG
-    );
+    const result = await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     expect(result[0].link_url_asset.parsed_url).toBe(LANDING);
   });
@@ -185,10 +287,10 @@ describe('processShortLinks', () => {
   ])('does not follow a redirect to a %s address', async (_label, target) => {
     globalThis.fetch = vi.fn(async () => redirectTo(target));
 
-    const result = await globalThis.processShortLinks(
-      buildData('https://short.example/abc123'),
-      CONFIG
-    );
+    const result = await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
@@ -198,17 +300,20 @@ describe('processShortLinks', () => {
     let hop = 0;
     globalThis.fetch = vi.fn(async () => redirectTo(`https://short.example/hop-${++hop}`));
 
-    const result = await globalThis.processShortLinks(
-      buildData('https://short.example/abc123'),
-      CONFIG
-    );
+    const result = await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(21);
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
   });
 
   it('passes a timeout signal to every request', async () => {
-    await globalThis.processShortLinks(buildData('https://short.example/abc123'), CONFIG);
+    await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     for (const [, options] of globalThis.fetch.mock.calls) {
       expect(options.signal).toBeInstanceOf(AbortSignal);
@@ -217,7 +322,7 @@ describe('processShortLinks', () => {
 
   it('reuses resolved links from a shared cache across calls', async () => {
     const cache = new Map();
-    const options = { ...CONFIG, resolvedLinksCache: cache };
+    const options = { ...CONFIG, allowedHosts: ALLOW, resolvedLinksCache: cache };
 
     await globalThis.processShortLinks(buildData('https://short.example/abc123'), options);
     const second = await globalThis.processShortLinks(
@@ -238,7 +343,7 @@ describe('processShortLinks', () => {
       throw new Error('network down');
     });
     const cache = new Map();
-    const options = { ...CONFIG, resolvedLinksCache: cache };
+    const options = { ...CONFIG, allowedHosts: ALLOW, resolvedLinksCache: cache };
 
     await globalThis.processShortLinks(buildData('https://short.example/abc123'), options);
     const second = await globalThis.processShortLinks(
@@ -259,6 +364,7 @@ describe('processShortLinks', () => {
 
     const result = await globalThis.processShortLinks(data, {
       ...CONFIG,
+      allowedHosts: ALLOW,
       resolvedLinksCache: cache,
     });
 
@@ -276,10 +382,10 @@ describe('processShortLinks', () => {
       throw new Error('network down');
     });
 
-    const result = await globalThis.processShortLinks(
-      buildData('https://short.example/abc123'),
-      CONFIG
-    );
+    const result = await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     expect(result[0].link_url_asset.parsed_url).toBeUndefined();
     expect(result[0].link_url_asset.website_url).toBe('https://short.example/abc123');
@@ -297,7 +403,10 @@ describe('processShortLinks', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {}),
     ];
 
-    await globalThis.processShortLinks(buildData('https://short.example/abc123'), CONFIG);
+    await globalThis.processShortLinks(buildData('https://short.example/abc123'), {
+      ...CONFIG,
+      allowedHosts: ALLOW,
+    });
 
     expect(stdout).toHaveBeenCalledWith(
       'Failed to resolve short link https://short.example/abc123: network down'
@@ -308,7 +417,7 @@ describe('processShortLinks', () => {
 
 describe('resolveShortLinkFields', () => {
   const resolveWith = (records, specs, options = {}) =>
-    globalThis.resolveShortLinkFields(records, specs, options);
+    globalThis.resolveShortLinkFields(records, specs, { allowedHosts: ALLOW, ...options });
 
   beforeEach(() => {
     mockSingleRedirect();
@@ -410,7 +519,7 @@ describe('failed and unanswered requests', () => {
     const result = await globalThis.resolveShortLinkFields(
       [{ click_url: 'https://short.example/down' }, { click_url: 'https://brand.example/sale' }],
       [{ field: 'click_url', target: 'click_url_parsed' }],
-      { resolvedLinksCache: cache, failedLinks }
+      { allowedHosts: ['short.example', 'brand.example'], resolvedLinksCache: cache, failedLinks }
     );
 
     expect(Array.from(failedLinks)).toEqual(['https://short.example/down']);
@@ -448,6 +557,14 @@ describe('omitShortLinkTargets', () => {
 });
 
 describe('short link domains from the environment', () => {
+  it('accepts *.host and .host entries as the host itself', () => {
+    expect(
+      globalThis.getShortLinkDomainsFromEnv({
+        CONNECTOR_SHORT_LINK_DOMAINS: '*.links.example.com, .short.example',
+      })
+    ).toEqual(['links.example.com', 'short.example']);
+  });
+
   it('returns an empty list when the variable is unset or blank', () => {
     expect(globalThis.getShortLinkDomainsFromEnv({})).toEqual([]);
     expect(globalThis.getShortLinkDomainsFromEnv({ CONNECTOR_SHORT_LINK_DOMAINS: ' ' })).toEqual(
