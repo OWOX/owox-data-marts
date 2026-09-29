@@ -221,6 +221,7 @@ export class AbstractConnector {
    */
   async run() {
     this.context.emit(new ControlEvent(CONTROL_ACTION.STARTED));
+    this._rowsByNode = new Map();
 
     try {
       this.context.validate();
@@ -257,6 +258,7 @@ export class AbstractConnector {
       }
 
       this._reportAccountOutcomes(state);
+      this._reportEmptyNodes([...plainNodes, ...timeSeriesNodes]);
 
       this.source.onImportComplete(this.context);
       this.context.emit(new ControlEvent(CONTROL_ACTION.COMPLETED));
@@ -833,6 +835,7 @@ export class AbstractConnector {
     } catch (error) {
       throw asStorageFailure(error);
     }
+    this._countRows(writer.nodeName, rows.length);
   }
 
   /**
@@ -1307,6 +1310,30 @@ export class AbstractConnector {
       );
     }
     await storage.replaceData(snapshot);
+    this._countRows(nodeName, snapshot.length);
+  }
+
+  /** @private */
+  _countRows(nodeName, count) {
+    if (!this._rowsByNode) return;
+    this._rowsByNode.set(nodeName, (this._rowsByNode.get(nodeName) ?? 0) + count);
+  }
+
+  /**
+   * Reports 0 rows written for every node that loaded nothing in a completed run. The
+   * storages report only the rows they write, so without this Run History showed such a run
+   * as a plain success with no count at all.
+   *
+   * @param {object[]} nodes the run's planned nodes
+   * @private
+   */
+  _reportEmptyNodes(nodes) {
+    for (const node of nodes) {
+      if (this._rowsByNode?.get(node.name) > 0) continue;
+      this.context.emitAnalytics('rows_written', 0, {
+        node: this.source.getDestinationName(node.name, node.schema),
+      });
+    }
   }
 
   /**

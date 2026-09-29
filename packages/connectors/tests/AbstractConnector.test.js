@@ -3563,4 +3563,84 @@ describe('AbstractConnector', () => {
       }
     });
   });
+
+  // Run History shows "Loaded N rows" only when the run reports rows_written, so a run that
+  // loaded nothing looked like a plain success with no count at all.
+  describe('a node that loaded nothing', () => {
+    const zeroWrites = cap =>
+      cap.events
+        .filter(e => e.type === 'ANALYTICS' && e.metric === 'rows_written' && e.value === 0)
+        .map(e => e.tags.node);
+
+    it('reports 0 rows written for it', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({ fetchData: async () => [] });
+        await new AbstractConnector(createTestContext(), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['campaigns']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports nothing extra for a node that loaded rows', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          parseFields: () => ({ campaigns: ['id'], stats: ['id', 'date'] }),
+          fetchData: async req => (req.nodeName === 'campaigns' ? [{ id: 1 }] : []),
+        });
+        await new AbstractConnector(
+          createTestContext({
+            LastRequestedDate: { value: utcDay(-1) },
+            ReimportLookbackWindow: { value: '0' },
+          }),
+          source,
+          createMockStorageClass()
+        ).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['stats']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports 0 rows written for an empty full-refresh snapshot', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fieldsSchema: {
+            people: {
+              fields: { id: { type: 'INTEGER' } },
+              uniqueKeys: ['id'],
+              isFullRefresh: true,
+              destinationName: 'people',
+            },
+          },
+          parseFields: () => ({ people: ['id'] }),
+          fetchData: async () => [],
+        });
+        await new AbstractConnector(createTestContext(), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['people']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports nothing when the run fails', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fetchData: async () => {
+            throw new Error('HTTP 500');
+          },
+        });
+        await assert.rejects(() =>
+          new AbstractConnector(createTestContext(), source, createMockStorageClass()).run()
+        );
+        assert.deepStrictEqual(zeroWrites(cap), []);
+      } finally {
+        cap.restore();
+      }
+    });
+  });
 });

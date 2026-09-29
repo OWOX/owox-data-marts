@@ -1518,6 +1518,75 @@ describe('rows_extracted analytics', () => {
 
     assert.ok(!events.some(e => e.type === 'ANALYTICS' && e.metric === 'rows_extracted'));
   });
+
+  const fetchCoins = source =>
+    source.fetchData({
+      nodeName: 'coins',
+      fields: ['id', 'cur'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+
+  it('reports 0 extracted at the end of a run in which the node got no records', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { rows: [] };
+      },
+    });
+    const model = new ManifestParser().parse(FILTER_MANIFEST);
+    const context = makeSelectiveContext({ Fields: { value: 'coins id, coins cur' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(context, model);
+
+    await fetchCoins(source);
+    await fetchCoins(source);
+    source.onImportComplete(context);
+
+    const extracted = events.filter(e => e.type === 'ANALYTICS' && e.metric === 'rows_extracted');
+    assert.deepStrictEqual(
+      extracted.map(e => [e.value, e.tags.node]),
+      [[0, 'coins']]
+    );
+    const hints = events.filter(e => e.type === 'LOG' && /No records came back/.test(e.message));
+    assert.deepStrictEqual(
+      hints.map(e => [e.level, e.message]),
+      [
+        [
+          'info',
+          'No records came back for node "coins" in this run. If you expected data, check the ' +
+            "node's record path, and the parameters and dates its request uses.",
+        ],
+      ]
+    );
+  });
+
+  it('adds nothing at the end for a node that got records on any request', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        calls += 1;
+        return { rows: calls === 1 ? [] : [{ id: 'a', cur: 'USD' }] };
+      },
+    });
+    const model = new ManifestParser().parse(FILTER_MANIFEST);
+    const context = makeSelectiveContext({ Fields: { value: 'coins id, coins cur' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(context, model);
+
+    await fetchCoins(source);
+    await fetchCoins(source);
+    const before = events.length;
+    source.onImportComplete(context);
+
+    assert.deepStrictEqual(events.slice(before), []);
+  });
 });
 
 describe('DeclarativeSource oauth2 refresh-token rotation', () => {

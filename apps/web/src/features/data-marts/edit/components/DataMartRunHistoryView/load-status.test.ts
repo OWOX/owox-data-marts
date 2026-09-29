@@ -40,6 +40,20 @@ describe('aggregateLoadStatus', () => {
     });
   });
 
+  it('shows a run that loaded nothing as 0 rows, not as no status', () => {
+    expect(
+      aggregateLoadStatus([
+        metricEntry('rows_extracted', 0, 'raw_data'),
+        metricEntry('rows_written', 0, 'raw_data'),
+      ])
+    ).toEqual({
+      rowsExtracted: 0,
+      rowsWritten: 0,
+      hasExtracted: true,
+      processingDate: null,
+    });
+  });
+
   it('reports hasExtracted false when only rows_written is present', () => {
     expect(aggregateLoadStatus([metricEntry('rows_written', 100, 'x')])).toEqual({
       rowsExtracted: 0,

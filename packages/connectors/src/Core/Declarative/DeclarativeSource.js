@@ -20,7 +20,7 @@ import { createRateLimiter } from './rateLimiter.js';
 import { RecordFilter } from './RecordFilter.js';
 import { setPathSafe } from './pathUtils.js';
 import { isTimeSeriesManifestNode, nodeDateStrategy } from './timeSeries.js';
-import { PARAMETER_OWNER, DATE_STRATEGY } from '../../Constants/CommonConstants.js';
+import { PARAMETER_OWNER, DATE_STRATEGY, LOG_LEVEL } from '../../Constants/CommonConstants.js';
 import { SampleEvent } from '../Events/SampleEvent.js';
 import {
   GENERATED_REFRESH_TOKEN_CONFIG_FIELD,
@@ -114,6 +114,8 @@ export class DeclarativeSource extends AbstractSource {
     // with different credentials cannot see each other's tokens; one Map per
     // source instance additionally means it cannot outlive the run.
     this._tokenCache = new Map();
+    // nodeName -> { tag, count } of raw records over the run, for onImportComplete.
+    this._extractedByNode = new Map();
   }
 
   _compileNodes(nodes = {}) {
@@ -250,8 +252,12 @@ export class DeclarativeSource extends AbstractSource {
     );
 
     const rawRecords = await retriever.run(scope);
+    const nodeTag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
+    this._extractedByNode.set(nodeName, {
+      tag: nodeTag,
+      count: (this._extractedByNode.get(nodeName)?.count ?? 0) + rawRecords.length,
+    });
     if (rawRecords.length > 0) {
-      const nodeTag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
       this.context.emitAnalytics('rows_extracted', rawRecords.length, { node: nodeTag });
     }
     const recordFilter = node.recordFilter ? new RecordFilter(node.recordFilter) : null;
@@ -267,6 +273,24 @@ export class DeclarativeSource extends AbstractSource {
       this.context.emit(new SampleEvent(records.slice(0, this.sampleSize)));
     }
     return this._selectFields(new FieldCaster(node.fields || {}).cast(records), node, fields);
+  }
+
+  /**
+   * Names each node whose requests got no records in the whole run. A record path that
+   * misses the data or a wrong parameter value completes like a run with nothing new, so this
+   * is the only hint the run leaves. INFO, not WARN: an API with nothing for the window is
+   * also a normal outcome.
+   */
+  onImportComplete() {
+    for (const [nodeName, { tag, count }] of this._extractedByNode) {
+      if (count > 0) continue;
+      this.context.emitAnalytics('rows_extracted', 0, { node: tag });
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `No records came back for node "${nodeName}" in this run. If you expected data, check ` +
+          `the node's record path, and the parameters and dates its request uses.`
+      );
+    }
   }
 
   /**
