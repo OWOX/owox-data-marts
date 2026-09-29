@@ -33,15 +33,15 @@ Already have data in your warehouse? Create a [SQL](./setup-guide/sql-data-mart.
 
 ## Step 3: Run it and check the data
 
-1. Click **Save**, then **Publish** the Data Mart.
-2. Click **Manual Run** in the **Input Source** card header.
-3. Watch the **Run History** tab for logs and results.
+1. Click **Save**, then **Publish & Run Data Mart** — the first import starts automatically.
+2. Watch the **Run History** tab for logs and results.
+3. To load data again later, click **Manual Run** in the **Input Source** card header.
 
 After the first run, the **Output Schema** appears automatically. Add business-friendly field names there — they become the column aliases business users see.
 
 ## Step 4: Add a Google Sheets Destination
 
-A [Destination](../destinations/) is the tool where business users access the data.
+A [Destination](../destinations/) is the tool where business users access the data. This tutorial uses Google Sheets, but any [supported Destination](../destinations/) works the same way — Data Studio, Excel, Email, Slack, and more.
 
 1. Open **Destinations** in the left sidebar and click **+ New Destination**.
 2. Choose **Google Sheets** and follow the [setup guide](../destinations/supported-destinations/google-sheets.md) to authenticate.
@@ -50,10 +50,9 @@ A [Destination](../destinations/) is the tool where business users access the da
 
 A [Report](../reports/) delivers the Data Mart's output to your Destination.
 
-1. Open your Data Mart's **Destinations** tab and click **+ Add report**.
-2. Name the report and select your Google Sheets Destination.
-3. Link the target spreadsheet tab and click **Create new report**.
-4. Run the report and open the document — your data is in the sheet.
+1. Open your Data Mart's **Destinations** tab and click **+ New Report** in your Destination's block.
+2. Name the report and link the target spreadsheet tab.
+3. Click **Create & Run report**, then open the document — your data is in the sheet.
 
 ## Step 6: Automate it with Triggers
 

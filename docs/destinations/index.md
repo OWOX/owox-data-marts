@@ -1,6 +1,6 @@
 # Destinations
 
-A **Destination** is the tool where business users access data — for example, Google Sheets, Looker Studio, or Microsoft Excel.
+A **Destination** is the tool where business users access data — for example, Google Sheets, Data Studio, or Microsoft Excel.
 
 ## What Destinations do in OWOX
 
@@ -9,7 +9,7 @@ A Destination connects OWOX Data Marts to the tools your team already uses. Anal
 Destinations work in two modes:
 
 - **Push mode** — OWOX exports [Data Mart](../data-marts/) data into the tool on a manual or scheduled run. Google Sheets works this way.
-- **Pull mode** — the tool queries the [Storage](../storages/) when a user requests data. Looker Studio, Excel, and OData work this way.
+- **Pull mode** — the tool queries the [Storage](../storages/) when a user requests data. Data Studio, Excel, and OData work this way.
 
 ## How Destinations fit the workflow
 
@@ -21,7 +21,7 @@ Destinations work in two modes:
 | --- | --- |
 | Google Sheets | [Setup guide](./supported-destinations/google-sheets.md) |
 | Microsoft Excel | [Setup guide](./supported-destinations/microsoft-excel.md) |
-| Looker Studio (Data Studio) | [Setup guide](./supported-destinations/data-studio.md) |
+| Data Studio | [Setup guide](./supported-destinations/data-studio.md) |
 | Email | [Setup guide](./supported-destinations/email.md) |
 | Slack | [Setup guide](./supported-destinations/slack.md) |
 | Microsoft Teams | [Setup guide](./supported-destinations/microsoft-teams.md) |

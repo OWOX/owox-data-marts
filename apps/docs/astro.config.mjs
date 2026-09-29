@@ -62,10 +62,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               label: 'Deployment Guide',
               items: [{ autogenerate: { directory: 'docs/getting-started/deployment-guide' } }],
             },
-            'docs/data-marts',
             {
               label: 'Setup Guide',
               items: [
+                'docs/data-marts',
                 'docs/getting-started/first-data-mart',
                 'docs/getting-started/setup-guide/insights',
                 'docs/getting-started/setup-guide/extension-data-marts',

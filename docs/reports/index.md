@@ -9,7 +9,7 @@ A Report connects one [Data Mart](../data-marts/) to one [Destination](../destin
 Reports move data in two modes:
 
 - **Push mode** — OWOX exports data into the Destination on a manual or scheduled run. Google Sheets works this way.
-- **Pull mode** — the Destination queries the Storage when a user or tool requests data. Looker Studio, Excel, and OData work this way.
+- **Pull mode** — the Destination queries the Storage when a user or tool requests data. Data Studio, Excel, and OData work this way.
 
 ## How Reports fit the workflow
 

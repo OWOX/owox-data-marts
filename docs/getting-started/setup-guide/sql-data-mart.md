@@ -57,14 +57,14 @@ Use the **Overview** tab to describe:
 
 ## Step 5: Add Reports
 
-Under the **Destinations** section, click **+ Add report**.
+Under the **Destinations** section, click **+ New Report**.
 
 1. Give your report a name, e.g. `Website Visitors`
 2. Select a destination
 3. Create a new Google Sheets document (or use an existing one)
 4. Share the document (with **Edit permissions**) with your **Google Sheets Service Account**
 5. Add the link to your document (to a tab in the doc)
-6. Click **Create new report**
+6. Click **Create & Run report**. To save without running, open the dropdown next to the button and select **Create new report**
 
 ![Create Data Mart-5](../../res/screens/SQL-Based-DataMart-Report.png)
 
