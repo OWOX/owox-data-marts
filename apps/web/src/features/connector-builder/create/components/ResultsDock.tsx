@@ -184,10 +184,15 @@ export function ResultsDock({
 
   const namesKey = nodeNames.join('\n');
   const previousNames = useRef(nodeNames);
+  const previousSelected = useRef<string | undefined>(undefined);
   useEffect(() => {
     const previous = previousNames.current;
     previousNames.current = nodeNames;
-    if (selectedNode && selectedNode in manifest.nodes) {
+    const selectionChanged = previousSelected.current !== selectedNode;
+    previousSelected.current = selectedNode;
+    // Only a new nav-rail pick moves the dock. Code mode hides the rail, so a rename there
+    // leaves `selectedNode` on the last Builder pick while the dock holds the author's own.
+    if (selectionChanged && selectedNode && selectedNode in manifest.nodes) {
       setNode(selectedNode);
     } else {
       setNode(prev => followNode(previous, prev, nodeNames));
@@ -344,7 +349,7 @@ export function ResultsDock({
         <div className='ml-auto flex items-center gap-2.5'>
           {hasNodes && (
             <Select value={node} onValueChange={setNode}>
-              <SelectTrigger className='h-8 w-[120px] text-xs'>
+              <SelectTrigger className='h-8 w-[120px] text-xs' aria-label='Node to test'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
