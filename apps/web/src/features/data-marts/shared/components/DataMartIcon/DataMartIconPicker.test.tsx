@@ -49,6 +49,10 @@ describe('lucide icon catalogue', () => {
     expect(LUCIDE_ICON_OPTIONS.find(option => option.value === 'lucide:shopping-cart')?.label).toBe(
       'Shopping cart'
     );
+    expect(getLucideIcon('lucide:package-2')).toBeDefined();
+    expect(getLucideIcon('lucide:grid-2x2-check')).toBeDefined();
+    expect(getLucideIcon('lucide:a-arrow-down')).toBeDefined();
+    expect(getLucideIcon('lucide:map-pin-x-inside')).toBeDefined();
     expect(getLucideIcon('lucide:no-such-icon')).toBeUndefined();
   });
 });

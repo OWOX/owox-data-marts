@@ -1,11 +1,16 @@
 import { LUCIDE_ICON_PREFIX, type LucideIconValue } from '../../enums/data-mart-icon.enum';
 
 /**
- * Kebab-case name of a lucide icon component (`ShoppingCart` → `shopping-cart`),
- * the same conversion lucide uses for its `lucide-*` class names.
+ * Kebab-case name of a lucide icon component, as lucide.dev spells it:
+ * `ShoppingCart` → `shopping-cart`, `Package2` → `package-2`,
+ * `Grid2x2Check` → `grid-2x2-check`, `AArrowDown` → `a-arrow-down`.
  */
 export function toLucideIconName(componentName: string): string {
-  return componentName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return componentName
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .replace(/(?<![0-9])([a-zA-Z])([0-9])/g, '$1-$2')
+    .toLowerCase();
 }
 
 /** Human label for a lucide icon name (`shopping-cart` → `Shopping cart`). */

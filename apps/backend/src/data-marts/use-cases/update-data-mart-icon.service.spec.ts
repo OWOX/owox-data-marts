@@ -63,7 +63,7 @@ describe('Data Mart icon request validation', () => {
   it.each([
     ['a known key', { icon: 'purchases' }],
     ['a library icon', { icon: 'lucide:shopping-cart' }],
-    ['a library icon with digits', { icon: 'lucide:grid2x2-check' }],
+    ['a library icon with digits', { icon: 'lucide:grid-2x2-check' }],
     ['null', { icon: null }],
   ])('accepts %s on update', async (_label, body) => {
     const errors = await validate(plainToInstance(UpdateDataMartIconApiDto, body));
