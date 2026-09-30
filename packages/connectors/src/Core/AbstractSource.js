@@ -454,7 +454,9 @@ export class AbstractSource {
 
   /**
    * The reason a provider gave in its JSON error body, looked up where main's
-   * _extractErrorInfo looked for it, and in a JSON:API error's `detail`, then `title`.
+   * _extractErrorInfo looked for it, and in a JSON:API error's `detail`. Not its `title`: that
+   * is the same summary for every occurrence, and the body snippet it would replace names the
+   * field in `source.pointer`.
    *
    * @param {*} payload - the parsed error body
    * @returns {string|null} null when the body names no message
@@ -468,7 +470,6 @@ export class AbstractSource {
       payload?.error_message,
       firstError?.message,
       firstError?.detail,
-      firstError?.title,
     ];
     return candidates.find(message => typeof message === 'string' && message.trim()) ?? null;
   }

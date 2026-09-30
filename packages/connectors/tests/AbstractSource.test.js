@@ -324,7 +324,6 @@ describe('AbstractSource', () => {
       ['error_message', { error_message: 'Quota exceeded' }],
       ['errors[0].message', { errors: [{ message: 'Quota exceeded' }, { message: 'other' }] }],
       ['errors[0].detail', { errors: [{ detail: 'Quota exceeded' }] }],
-      ['errors[0].title', { errors: [{ title: 'Quota exceeded' }] }],
     ]) {
       it(`reads the provider message from ${shape}`, async () => {
         const restore = suppressStdout();
@@ -347,7 +346,7 @@ describe('AbstractSource', () => {
 
     // JSON:API errors (Klaviyo among them) put the short summary in `title` and the
     // explanation, here the wait the API asks for, in `detail`.
-    it('prefers a JSON:API error detail to its title', async () => {
+    it('reads a JSON:API error from its detail rather than its title', async () => {
       const restore = suppressStdout();
       globalThis.fetch = async () => ({
         ok: false,
@@ -374,6 +373,34 @@ describe('AbstractSource', () => {
         await assert.rejects(() => source.urlFetchWithRetry('https://example.com/api'), {
           message: 'HTTP 429: Request was throttled. Expected available in 58 seconds.',
         });
+      } finally {
+        restore();
+      }
+    });
+
+    // A JSON:API title is the same summary for every occurrence ("Invalid Attribute"); the
+    // snippet is what names the field, in `source.pointer`.
+    it('keeps the body snippet for a JSON:API error that has only a title', async () => {
+      const restore = suppressStdout();
+      const body = JSON.stringify({
+        errors: [
+          {
+            status: '422',
+            title: 'Invalid Attribute',
+            source: { pointer: '/data/attributes/firstName' },
+          },
+        ],
+      });
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        text: async () => body,
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        const error = await source.urlFetchWithRetry('https://example.com/api').catch(e => e);
+        assert.strictEqual(error.message, `HTTP 422: Unprocessable Entity — ${body}`);
       } finally {
         restore();
       }

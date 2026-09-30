@@ -382,13 +382,16 @@ export class DeclarativeSource extends AbstractSource {
       if (ms != null) return ms;
     }
     // An API that says when to come back knows better than the default backoff, which spent
-    // its retries seconds into a minute-long rate limit. A builder Test keeps its short retry,
-    // so the author reads the refusal instead of waiting out a timeout.
+    // its retries seconds into a minute-long rate limit. It is a floor, not a replacement: a
+    // `Retry-After: 0`, or a date already past on our clock, must not retry sooner than before.
+    // A builder Test keeps its short retry, so the author reads the refusal instead of waiting
+    // out a timeout.
+    const fallback = super.calculateBackoff(attempt, initialDelay);
     if (pending && !process.env.OW_TEST) {
       const ms = retryAfterDelayMs(pending.response);
-      if (ms != null) return ms;
+      if (ms != null) return Math.max(ms, fallback);
     }
-    return super.calculateBackoff(attempt, initialDelay);
+    return fallback;
   }
 
   /**

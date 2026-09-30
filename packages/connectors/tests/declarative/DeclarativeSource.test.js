@@ -499,6 +499,14 @@ describe('DeclarativeSource (integration)', () => {
     assert.ok(delay >= 2500 && delay <= 7500, `expected the 5s default with jitter, got ${delay}`);
   });
 
+  // `Retry-After: 0`, or a date already past on our clock, must not retry sooner than the
+  // default backoff did: both retries would land inside the same limit.
+  it('never waits less than the default backoff for a Retry-After', async () => {
+    const [delay] = await retryAfterRun({ retryAfter: '0' });
+
+    assert.ok(delay >= 2500, `expected at least the 5s default with jitter, got ${delay}`);
+  });
+
   it('caps a Retry-After at the header delay ceiling', async () => {
     assert.deepStrictEqual(await retryAfterRun({ retryAfter: '100000' }), [
       MAX_HEADER_RETRY_DELAY_MS,
