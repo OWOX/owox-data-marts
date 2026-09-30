@@ -77,11 +77,11 @@ import {
 } from 'lucide-react';
 import type { DataMartIconKey } from '../../enums/data-mart-icon.enum';
 
-export type { DataMartIconKey } from '../../enums/data-mart-icon.enum';
+export type { DataMartIconKey, DataMartIconValue } from '../../enums/data-mart-icon.enum';
 
 /**
- * Glyph and label for every icon key a user can pick (`DATA_MART_ICON_KEYS`),
- * in picker order.
+ * Glyph and label for every recommended icon key (`DATA_MART_ICON_KEYS`), in
+ * picker order. Any other lucide icon comes from the lazily loaded catalogue.
  */
 export const DATA_MART_ICON_OPTIONS = [
   { key: 'purchases', label: 'Purchases', icon: ShoppingCart },
@@ -170,7 +170,10 @@ const ICONS_BY_KEY = new Map<string, LucideIcon>(
   DATA_MART_ICON_OPTIONS.map(option => [option.key, option.icon])
 );
 
-/** The icon to draw for a Data Mart; unknown or missing keys fall back to the default. */
+/**
+ * The icon to draw for a recommended key; unknown or missing keys fall back to
+ * the default. `lucide:` values are drawn by `DataMartIconGlyph`.
+ */
 export function getDataMartIcon(key: string | null | undefined): LucideIcon {
   return (key ? ICONS_BY_KEY.get(key) : undefined) ?? DEFAULT_DATA_MART_ICON;
 }

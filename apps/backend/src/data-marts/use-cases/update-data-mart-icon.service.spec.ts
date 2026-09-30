@@ -62,6 +62,8 @@ describe('UpdateDataMartIconService', () => {
 describe('Data Mart icon request validation', () => {
   it.each([
     ['a known key', { icon: 'purchases' }],
+    ['a library icon', { icon: 'lucide:shopping-cart' }],
+    ['a library icon with digits', { icon: 'lucide:grid2x2-check' }],
     ['null', { icon: null }],
   ])('accepts %s on update', async (_label, body) => {
     const errors = await validate(plainToInstance(UpdateDataMartIconApiDto, body));
@@ -70,15 +72,26 @@ describe('Data Mart icon request validation', () => {
 
   it.each([
     ['an unknown key', { icon: 'rocket' }],
+    ['a library icon without a name', { icon: 'lucide:' }],
+    ['a library icon in PascalCase', { icon: 'lucide:ShoppingCart' }],
+    ['a library icon with markup', { icon: 'lucide:<svg>' }],
+    ['a key with a suffix', { icon: 'purchases-x' }],
+    ['a value longer than the column', { icon: `lucide:${'a'.repeat(60)}` }],
+    ['a non-string icon', { icon: 42 }],
     ['a body without icon', {}],
   ])('rejects %s on update', async (_label, body) => {
     const errors = await validate(plainToInstance(UpdateDataMartIconApiDto, body));
     expect(errors.map(e => e.property)).toEqual(['icon']);
   });
 
-  it('accepts create without an icon and rejects an unknown one', async () => {
+  it('accepts create without an icon or with a library icon, and rejects an unknown one', async () => {
     const base = { title: 'Orders', storageId: 'st-1' };
     expect(await validate(plainToInstance(CreateDataMartRequestApiDto, base))).toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(CreateDataMartRequestApiDto, { ...base, icon: 'lucide:rocket' })
+      )
+    ).toHaveLength(0);
     const errors = await validate(
       plainToInstance(CreateDataMartRequestApiDto, { ...base, icon: 'rocket' })
     );

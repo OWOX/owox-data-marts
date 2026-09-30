@@ -1,5 +1,5 @@
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
-import { DataMartIcon } from '../../enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../enums/data-mart-icon.enum';
 import { DataMartRelationshipGraphEdgeDto } from './data-mart-relationship-graph-edge.dto';
 import { SourceDataLastUpdatedSummary } from '../schemas/source-data-last-updated.schema';
 
@@ -8,7 +8,7 @@ export interface ModelCanvasNodeDto {
   title: string;
   status: DataMartStatus;
   description: string | null;
-  icon: DataMartIcon | null;
+  icon: DataMartIconValue | null;
   fieldCount: number;
   /** Scheduled triggers of the Data Mart. */
   triggersCount: number;

@@ -1,7 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartDataLastUpdatedSummaryApiDto } from './data-mart-data-last-updated-response-api.dto';
-import { DataMartIcon } from '../../enums/data-mart-icon.enum';
+import {
+  DATA_MART_ICON_API_DESCRIPTION,
+  type DataMartIconValue,
+} from '../../enums/data-mart-icon.enum';
 
 export class ModelCanvasNodeApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -17,11 +20,12 @@ export class ModelCanvasNodeApiDto {
   description: string | null;
 
   @ApiProperty({
-    enum: DataMartIcon,
+    type: String,
     nullable: true,
-    description: 'User-picked icon key; null means the default icon.',
+    example: 'purchases',
+    description: `User-picked icon: ${DATA_MART_ICON_API_DESCRIPTION} null means the default icon.`,
   })
-  icon: DataMartIcon | null;
+  icon: DataMartIconValue | null;
 
   @ApiProperty({ example: 12, description: 'Number of fields in the output schema' })
   fieldCount: number;

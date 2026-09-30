@@ -29,7 +29,7 @@ import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/creat
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
-import type { DataMartIconKey } from '../enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 
 /**
  * Data Mart Service
@@ -123,7 +123,10 @@ export class DataMartService extends ApiService {
    * @param icon Icon key, or null to reset to the default icon
    * @returns Promise with updated data mart
    */
-  async updateDataMartIcon(id: string, icon: DataMartIconKey | null): Promise<DataMartResponseDto> {
+  async updateDataMartIcon(
+    id: string,
+    icon: DataMartIconValue | null
+  ): Promise<DataMartResponseDto> {
     return this.put<DataMartResponseDto>(`/${id}/icon`, { icon });
   }
 

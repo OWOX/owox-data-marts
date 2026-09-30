@@ -44,7 +44,7 @@ import { DATA_MART_SHARING_TEXTS } from '../../../../shared/components/Availabil
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../shared/enums/data-mart-icon.enum';
 import { DataMartIconGlyph } from '../../shared/components/DataMartIcon/DataMartIconGlyph';
 
 export interface ModelCanvasFlowNodeData {
@@ -60,7 +60,7 @@ export interface ModelCanvasFlowNodeData {
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   description: string | null;
-  icon: DataMartIconKey | null;
+  icon: DataMartIconValue | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;

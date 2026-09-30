@@ -5,7 +5,7 @@ import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { SourceDataLastUpdatedSummary } from '../schemas/source-data-last-updated.schema';
-import { DataMartIcon } from '../../enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../enums/data-mart-icon.enum';
 
 export class DataMartListItemDto {
   constructor(
@@ -28,6 +28,6 @@ export class DataMartListItemDto {
     public readonly availableForReporting: boolean = true,
     public readonly availableForMaintenance: boolean = false,
     public readonly dataLastUpdated: SourceDataLastUpdatedSummary | null = null,
-    public readonly icon: DataMartIcon | null = null
+    public readonly icon: DataMartIconValue | null = null
   ) {}
 }

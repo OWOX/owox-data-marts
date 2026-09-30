@@ -48,7 +48,7 @@ import {
   describeSchemaFieldSummary,
   summarizeSchemaFields,
 } from '../../../shared/utils/schema-field-summary';
-import type { DataMartIconKey } from '../../../shared/enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../../shared/enums/data-mart-icon.enum';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -287,7 +287,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Update data mart icon
-  const updateDataMartIcon = useCallback(async (id: string, icon: DataMartIconKey | null) => {
+  const updateDataMartIcon = useCallback(async (id: string, icon: DataMartIconValue | null) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_ICON_START' });
       await dataMartService.updateDataMartIcon(id, icon);

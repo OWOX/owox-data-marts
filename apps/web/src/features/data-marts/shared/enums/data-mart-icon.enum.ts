@@ -1,7 +1,7 @@
 /**
- * Icon keys a Data Mart can carry — the API shape. They mirror the backend's
- * closed set (the API rejects any other key), so adding one means adding it
- * there too. The glyph and label for each key live in the icon registry
+ * Recommended icon keys — the picker's first section. They mirror the
+ * backend's `DataMartIcon` set, so adding one means adding it there too. The
+ * glyph and label for each key live in the icon registry
  * (`shared/components/DataMartIcon`).
  */
 export const DATA_MART_ICON_KEYS = [
@@ -81,3 +81,12 @@ export const DATA_MART_ICON_KEYS = [
 ] as const;
 
 export type DataMartIconKey = (typeof DATA_MART_ICON_KEYS)[number];
+
+/** Prefix of an icon value that names any lucide icon instead of a recommended key. */
+export const LUCIDE_ICON_PREFIX = 'lucide:';
+
+/** A lucide icon: `lucide:` plus its kebab-case name, e.g. `lucide:shopping-cart`. */
+export type LucideIconValue = `${typeof LUCIDE_ICON_PREFIX}${string}`;
+
+/** What a Data Mart's `icon` holds in the API: a recommended key or a lucide icon. */
+export type DataMartIconValue = DataMartIconKey | LucideIconValue;

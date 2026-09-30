@@ -29,7 +29,9 @@ Click the badge again to close the list.
 
 Every card leads with an icon, so you can tell purchases from sessions at a glance. A Data Mart shows a plain box until someone picks an icon for it.
 
-To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. Data-stack icons cover data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
+To pick one, open the Data Mart and click the icon next to its title. **Recommended** icons come first. They cover common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. They also cover the data stack: data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **All icons** below them lists the rest of the [Lucide](https://lucide.dev/icons/) icon library, more than 1,500 icons in all.
+
+Type in the search box to filter both lists by English name, for example `cart`, `rocket` or `arrow up`. A recommended icon also matches the name of its picture, so `cart` finds **Purchases**. Press Enter to pick the first match. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
 
 The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG [exports](models-canvas-export.md).
 

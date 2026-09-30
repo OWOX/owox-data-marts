@@ -42,7 +42,7 @@ import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
-import { DataMartIconPicker, type DataMartIconKey } from '../../shared/components/DataMartIcon';
+import { DataMartIconPicker, type DataMartIconValue } from '../../shared/components/DataMartIcon';
 import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
@@ -202,7 +202,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   );
 
   const handleIconChange = useCallback(
-    async (icon: DataMartIconKey | null) => {
+    async (icon: DataMartIconValue | null) => {
       if (!dataMartId) return;
       await updateDataMartIcon(dataMartId, icon);
     },
