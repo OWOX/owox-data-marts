@@ -182,7 +182,7 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly annotations = {
     title: 'Update Report',
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     // The refresh run writes to the customer's Google Sheet or delivers an
     // email / chat message — the same external side effect run_report has.
     openWorldHint: true,

@@ -21,10 +21,10 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
     '`revenue | SUM`, Unique Count, calculated fields), which appear in no data mart schema. ' +
     'Answers from the stored schema and the report config, so it reads no report data — the ' +
     "columns are as of the Data Mart's last schema actualization, so one added warehouse-side and " +
-    'not yet actualized is missing until a run or a data read picks it up. One ' +
-    'caveat behind the read-only hint: for a report that joins other data marts, resolving the ' +
-    "join refreshes each SQL-defined source's technical view, so a repeated call is not free on " +
-    'the warehouse.';
+    'not yet actualized is missing until a run or a data read picks it up. For a report that ' +
+    'joins other data marts, resolving the join may refresh SQL-defined source views in the ' +
+    'warehouse. This changes warehouse state and can incur warehouse costs even though the tool ' +
+    'does not return report data rows.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -53,7 +53,7 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
   };
   readonly annotations = {
     title: 'Get Report Output Schema',
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
     openWorldHint: false,
   };

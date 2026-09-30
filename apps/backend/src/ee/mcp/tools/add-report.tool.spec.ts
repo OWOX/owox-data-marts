@@ -518,7 +518,7 @@ describe('AddReportTool', () => {
       annotations: {
         title: 'Add Report',
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         // The tool creates (and may share) a document in Google Drive.
         openWorldHint: true,
       },

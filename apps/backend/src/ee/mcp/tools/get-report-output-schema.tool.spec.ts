@@ -110,18 +110,15 @@ describe('GetReportOutputSchemaTool', () => {
     expect(() => tool.parseInput({ report_id: '   ' })).toThrow();
   });
 
-  // Describing a report reads no report data and changes no OWOX entity, so a client holding only
-  // `mcp:read` must be able to call it. The hint stays optimistic deliberately: a JOINED report on
-  // a SQL-defined Data Mart still refreshes each source's technical view through the blending
-  // decision, which the description warns about — unlike `query_data_mart`, which sets the hint to
-  // false because every call costs credits and records a billable run.
-  it('is registered as a read-only tool requiring only the read scope', () => {
+  // A blended SQL source may refresh a warehouse view while resolving headers.
+  // The hint must reflect that side effect even though the OAuth scope remains mcp:read.
+  it('advertises the warehouse side effect and keeps the read scope', () => {
     const registry = new McpToolRegistry([new GetReportOutputSchemaTool({} as McpReportsFacade)]);
 
     expect(new GetReportOutputSchemaTool({} as McpReportsFacade)).toMatchObject({
       name: 'get_report_output_schema',
       requiredScopes: ['mcp:read'],
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toContain('GetReportOutputSchemaTool');
     expect(registry.getTool('get_report_output_schema')).toBeDefined();
