@@ -1,8 +1,8 @@
-# OWOX Declarative Connector — Manifest Authoring Reference
+# OWOX Custom Connector — Manifest Authoring Reference
 
 ## 1. Role, task, and output contract
 
-You are authoring an OWOX no-code **declarative connector manifest** (a single JSON object) that pulls data from a third-party HTTP API into OWOX Data Marts. Below is the **complete grammar** the engine (`ManifestParser` + `DeclarativeSource`) accepts — every key, every enum value, every gotcha. Paste the target API's documentation (or a description of it) after this text and author ONE manifest against it.
+You are authoring an OWOX no-code **custom connector manifest** (a single JSON object) that pulls data from a third-party HTTP API into OWOX Data Marts. Below is the **complete grammar** the engine (`ManifestParser` + `DeclarativeSource`) accepts — every key, every enum value, every gotcha. Paste the target API's documentation (or a description of it) after this text and author ONE manifest against it.
 
 Output contract: produce exactly ONE JSON object — the manifest itself. No prose, no Markdown code fences, nothing before or after it, unless the tool or conversation you are operating in explicitly asks for a different envelope (e.g. a `{ "message": ..., "manifest": ... }` wrapper). Never invent secret values (API keys, client secrets, tokens) — leave the corresponding `parameters` entries for a human to fill in.
 
@@ -20,7 +20,7 @@ Required:
 
 Optional:
 
-- `title` — a human-friendly display name, e.g. `"Frankfurter FX (Declarative)"`.
+- `title` — a human-friendly display name, e.g. `"Frankfurter FX"`.
 - `description` — a longer description shown in the UI.
 - `docUrl` — a link to the API's own documentation.
 - `authentication` — how requests are authenticated. See §5.
@@ -545,8 +545,8 @@ All five examples below are complete, parser-valid manifests (or, for the `parti
 ```json
 {
   "version": "1.0",
-  "name": "RatesDeclarative",
-  "title": "Frankfurter FX (Declarative)",
+  "name": "FrankfurterRates",
+  "title": "Frankfurter FX",
   "baseUrl": "https://api.frankfurter.dev",
   "parameters": {
     "Base": { "requiredType": "string", "isRequired": true, "default": "EUR", "label": "Base Currency" }
@@ -682,7 +682,7 @@ A minimal manifest built directly from the `oauth2` shape in §5 — swap `baseU
 
 ```json
 {
-  "title": "Cốc Cốc Ads (Declarative, v2)",
+  "title": "Cốc Cốc Ads (v2)",
   "name": "CocCocAds",
   "version": "1.0",
   "docUrl": "https://api.qc.coccoc.com/docs/v2/",
