@@ -65,7 +65,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             {
               label: 'Setup Guide',
               items: [
-                'docs/data-marts',
+                { label: 'Data Marts Overview', slug: 'docs/data-marts' },
                 'docs/getting-started/first-data-mart',
                 'docs/getting-started/setup-guide/insights',
                 'docs/getting-started/setup-guide/extension-data-marts',
