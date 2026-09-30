@@ -13,6 +13,10 @@ Four facts decide what a model can answer:
 3. **A joined measure is counted once per joined row.** A report's `Sum`, `Average`, `Min`, `Max` and `Count Unique` over a joined field — and `SUM`, `AVG`, `MIN`, `MAX` and `COUNT(DISTINCT …)` inside a calculated field — count a joined row once, however many base rows it reaches. A plain `COUNT` is [the exception](../setup-guide/joinable-data-marts.md#a-joined-count-counts-this-data-marts-rows-not-the-joined-ones).
 4. **A relationship runs one way.** It is defined on the Data Mart you report from, and the relationships of every Data Mart it reaches are followed too, so a path you never drew can appear in the column picker. See [Transitive Joins](../setup-guide/joinable-data-marts.md#transitive-joins).
 
+The SQL a report runs shows the third fact at work: a joined measure is summed over the distinct rows of the joined Data Mart — one per order here — however many base rows reach it.
+
+![Report SQL: a joined revenue sum is computed over SELECT DISTINCT rows keyed by order ID, so the join's fan-out cannot distort it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/df625606-dc7b-4e88-6579-74690eb93f00/public)
+
 So the arithmetic of a join is rarely what goes wrong. The questions a model has to get right are different: **does each path connect rows that belong together, and does the base keep every row the metric needs?** The steps below make both answers yes.
 
 ## Step 1: Name the Business Objects
@@ -34,11 +38,17 @@ Each of those things becomes a Data Mart of one of two kinds:
 
 ## Step 2: Make the Grain the Primary Key
 
-The primary key is the grain written as fields: the fields that make one row unique. `order_line_id` for order lines; `date`, `source`, `medium` and `campaign` together for daily ad spend. Composite keys are normal. Keys are marked in the [Output Schema](../setup-guide/sql-data-mart.md#step-3-define-output-schema).
+The primary key is the grain written as fields: the fields that make one row unique. `order_line_id` for order lines; `date`, `source`, `medium` and `campaign` together for daily ad spend; `ad_id`, `date_start` and `date_stop` for an ad platform's daily report. Composite keys are normal. Keys are marked in the [Output Schema](../setup-guide/sql-data-mart.md#step-3-define-output-schema):
+
+![Output Schema of an ad performance Data Mart with ad_id, date_start and date_stop marked as the primary key, every field with an alias and a description](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a33e5b33-d736-47a8-6d1c-1eef00840800/public)
 
 - **Declare a primary key on every Data Mart.** Without one there is no [Unique Count](../setup-guide/report-aggregations.md#unique-count), and a calculated field that counts across a join can only warn that it cannot tell whether the count is right.
 - **Prove it.** OWOX trusts the key you declare. Turn on the **Primary key uniqueness** check in [Data Quality Checks](../setup-guide/data-quality-checks.md), or compare `COUNT(*)` with `COUNT(DISTINCT …)` over the key once. Keep key fields filled: Unique Count skips a row whose key is empty.
 - **Store identifiers as text.** A report's **Count Unique** is offered for text fields, not for numbers, so a report cannot count the distinct values of a numeric `order_id`.
+
+A key that does not hold shows up at the first check, with the duplicated values as examples:
+
+![Data Quality report with Primary key uniqueness failed: 76 violations, each example a key value found on two rows](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e095056f-a730-49c0-5fef-eca0ee69b900/public)
 
 ## Step 3: Connect Objects the Way the Business Does
 
@@ -56,6 +66,8 @@ This path answers "leads from the countries these sessions came from", not "lead
 
 **Event to event: join on what makes two rows the same moment or the same thing.** `session_id` joins an order to the session it came from; `date`, `source`, `medium` and `campaign` join a day of ad spend to the sessions that campaign brought that day. Every hop on the path has to carry that link — one hop without the date breaks it.
 
+![Join Settings of the relationship from Unified Ad Spend to Sessions, joined on date, source, medium and campaign](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ddfdefdc-e04d-4d8e-c917-19d4dd546100/public)
+
 **Keep an object off a metric's path unless the metric depends on it.** Spend exists without sessions: impressions, offline ads, lost tracking. Orders exist without sessions: phone orders, missing tags. A path from spend through sessions to orders drops every order no tracked session led to. If each order already carries the traffic source it is attributed to, join spend to orders directly.
 
 **Use the same values for the same thing.** A join matches values, not meanings. `Google` against `google`, a channel group derived one way for spend and another way for revenue, or an empty campaign on one side silently drop rows. Derive a shared attribute once — in the reference Data Mart, or with the same SQL everywhere — and replace an empty key with the same placeholder, such as `(not set)`, on both sides. The **Relationship integrity** check in [Data Quality Checks](../setup-guide/data-quality-checks.md) lists join values the target does not have.
@@ -71,6 +83,12 @@ Ad Spend ─(date, source, medium, campaign)─▶ Sessions ─(session_id)─�
     ▼                                            ▼                        ▼                     ▼
 Campaigns                                  Traffic Sources            Customers             Products
 ```
+
+The same chain in a demo project, where the spend Data Mart is Unified Ad Spend and order lines are Purchases — in the Relationship Diagram, and built from scratch in a minute:
+
+![Relationship Diagram of Unified Ad Spend: Unified Ad Spend, Sessions, Orders, Purchases](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8c766039-b552-4202-b8e6-3d97507a8600/public)
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/076475f502cb9cc9f1f4f1abd1f40a5b/iframe>
 
 And the shape to avoid. Spend reaches revenue through a reference, so a week of spend meets the source's sessions from all time, and orders without a session never reach the metric:
 
@@ -89,7 +107,9 @@ The base keeps all of its rows, and everything joined to it is seen from it. So 
 | Session conversion rate                       | Sessions                                                                                   | every session | orders without a session     |
 | Spend and revenue side by side, both complete | a Data Mart at the grain they share ([Step 5](#step-5-put-each-metric-where-its-rows-are)) | both          | nothing                      |
 
-What a wrong base costs, measured on a demo project: with Sessions as the base, one ad platform's spend came to $5,846.12 instead of $5,865.17, because eleven days had spend and no session. With Ad Spend as the base, it matched to the cent.
+What a wrong base costs, measured on a demo project: with Sessions as the base, one ad platform's spend came to $5,846.12 instead of $5,865.17, because eleven days had spend and no session. With Ad Spend as the base, it matched to the cent — every spend row stays in the report, including the ones no session reached:
+
+![Google Sheets report on Unified Ad Spend: one row per day and campaign with spend, platform conversions, sessions, orders and revenue; spend without sessions stays in with zero sessions](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4aa0ee7b-994c-4800-5786-df7a799add00/public)
 
 ## Step 5: Put Each Metric Where Its Rows Are
 
@@ -132,7 +152,9 @@ Declare `date`, `source`, `medium` and `campaign` as its primary key, join it to
 
 ## Step 6: Describe the Model for People and AI
 
-An assistant knows only what the model tells it.
+An assistant knows only what the model tells it. Asked what a project can answer, it reads the Data Mart list and the descriptions you wrote:
+
+![AI assistant listing what the project can answer by area, with the Data Marts and typical questions for each](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8c5f1031-201c-4f7d-767d-932cbc426d00/public)
 
 | Where                    | What to write                                                                                                                                                                                            |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -151,6 +173,10 @@ Data Mart descriptions are written on the [Overview tab](../setup-guide/sql-data
 - **Read the warnings on calculated fields.** A warning that OWOX cannot tell whether a count is right means a Data Mart on the path declares no primary key.
 - **Read the SQL** a report runs — see [View Generated SQL](../setup-guide/joinable-data-marts.md#view-generated-sql).
 - **Ask the question the business will ask.** In your AI assistant, check that the answer names the Data Mart it used and selects your calculated field instead of dividing two columns itself.
+
+A good answer says where its numbers come from, which rows they cover, and which figures the assistant computed itself:
+
+![AI assistant answer with a chart and a source line: the Purchases Data Mart, Completed orders only; sums from OWOX, growth percentages computed by the assistant](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/75b8da4d-dc6a-4461-bebe-bb208f6f2f00/public)
 
 ## Common Mistakes
 
