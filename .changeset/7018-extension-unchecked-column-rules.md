@@ -14,4 +14,10 @@ Now the Extension removes the rules that hang on an unchecked column:
 
 This covers the row checkboxes, the checkbox that selects or clears all columns, and unchecking a disconnected column. See [Report Output Controls](../../docs/getting-started/setup-guide/output-controls.md#sort).
 
+Also fixed in the Extension:
+
+- Editing a metric filter, a filter on an aggregated value such as the Sum of Revenue, keeps it a metric filter. Before, the edit turned it into a filter on the rows. The filter lists now name the aggregate, for example `Sum greater than 100`.
+- Unchecking every column of a report with slices shows **Select at least one column** and does not save. Before, **Save & Run** failed on the server.
+- Adding a slice to a report that lists no columns now shows the automatic aggregation that the report gets on delivery.
+
 <!-- markdownlint-disable-file MD041 MD036 -->
