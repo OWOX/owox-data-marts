@@ -16,6 +16,8 @@ Every member has one of three roles:
 
 Access to a specific resource combines the member's role, their ownership status, and the resource's sharing settings. [Contexts](./contexts.md) add business-domain labels, such as Marketing or Finance. They limit visibility only for members whose **Role scope** is **Selected contexts only**.
 
+Use **Project Settings → Overview → Description** to tell AI assistants your project's business context, terminology, and conventions. The description holds up to 10,000 characters, and only Project Admins can edit it. AI assistants connected through MCP receive it in full through the `get_project_context` tool. See [Add project context for your assistant](../getting-started/setup-guide/mcp.md#add-project-context-for-your-assistant).
+
 ## When to use Project Settings
 
 - You invite teammates and assign them roles.
@@ -39,3 +41,4 @@ Access to a specific resource combines the member's role, their ownership status
 | Scope visibility by business domain | [Contexts](./contexts.md) |
 | Connect a self-managed deployment to Cloud | [License Keys](./license-keys.md) |
 | Alert the team about run results | [Notification Settings](../notifications/notification-settings.md) |
+| Give AI assistants your project's business context | [MCP Server](../getting-started/setup-guide/mcp.md#add-project-context-for-your-assistant) |
