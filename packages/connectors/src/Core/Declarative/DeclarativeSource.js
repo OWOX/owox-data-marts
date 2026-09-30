@@ -13,7 +13,7 @@ import { Requester } from './Requester.js';
 import { FieldCaster } from './FieldCaster.js';
 import { formatCursorDate } from './dateFormat.js';
 import { Transformer } from './Transformer.js';
-import { ErrorHandler } from './ErrorHandler.js';
+import { ErrorHandler, retryAfterDelayMs } from './ErrorHandler.js';
 import { AccountResolver } from './AccountResolver.js';
 import { RetrieverFactory } from './RetrieverFactory.js';
 import { createRateLimiter } from './rateLimiter.js';
@@ -347,9 +347,10 @@ export class DeclarativeSource extends AbstractSource {
   async isValidToRetry(error) {
     const handler = this._activeErrorHandler;
     if (!handler) {
-      this._pendingBackoff = null;
       error._declAction = null;
-      return this._defaultRetryable(error);
+      const retry = this._defaultRetryable(error);
+      this._pendingBackoff = retry ? { filter: null, response: error.response } : null;
+      return retry;
     }
     let bodyText = '';
     let bodyJson = null;
@@ -369,10 +370,22 @@ export class DeclarativeSource extends AbstractSource {
   }
 
   calculateBackoff(attempt, initialDelay) {
-    if (this._pendingBackoff && this._activeErrorHandler) {
-      const { filter, response } = this._pendingBackoff;
-      this._pendingBackoff = null;
-      const ms = this._activeErrorHandler.delayMs(filter, response, attempt, initialDelay);
+    const pending = this._pendingBackoff;
+    this._pendingBackoff = null;
+    if (pending && this._activeErrorHandler) {
+      const ms = this._activeErrorHandler.delayMs(
+        pending.filter,
+        pending.response,
+        attempt,
+        initialDelay
+      );
+      if (ms != null) return ms;
+    }
+    // An API that says when to come back knows better than the default backoff, which spent
+    // its retries seconds into a minute-long rate limit. A builder Test keeps its short retry,
+    // so the author reads the refusal instead of waiting out a timeout.
+    if (pending && !process.env.OW_TEST) {
+      const ms = retryAfterDelayMs(pending.response);
       if (ms != null) return ms;
     }
     return super.calculateBackoff(attempt, initialDelay);

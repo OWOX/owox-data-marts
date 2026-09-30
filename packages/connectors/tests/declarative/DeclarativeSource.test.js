@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { DeclarativeSource } from '../../src/Core/Declarative/DeclarativeSource.js';
 import { ManifestParser } from '../../src/Core/Declarative/ManifestParser.js';
+import { MAX_HEADER_RETRY_DELAY_MS } from '../../src/Core/Declarative/ErrorHandler.js';
 import { AbstractContext } from '../../src/Core/AbstractContext.js';
 import { AbstractConnector } from '../../src/Core/AbstractConnector.js';
 import {
@@ -432,6 +433,103 @@ describe('DeclarativeSource (integration)', () => {
     assert.strictEqual(calls, 2);
     assert.deepStrictEqual(delays, [1000]); // Retry-After 1s honoured, not exponential
     assert.strictEqual(out[0].id, '1');
+  });
+
+  // A rate-limited API says when to come back, often a minute away. The default backoff
+  // (5s, then 10s) spent the whole retry budget before that, and the run failed on the 429.
+  const retryAfterRun = async ({ errorHandler, retryAfter }) => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: n => (n === 'Retry-After' ? retryAfter : null) },
+          async json() {
+            return {};
+          },
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        async json() {
+          return { data: [{ id: '1' }] };
+        },
+      };
+    };
+    const source = new DeclarativeSource(
+      makeContext(),
+      new ManifestParser().parse(errorManifest(errorHandler))
+    );
+    const delays = [];
+    source._delay = ms => {
+      delays.push(ms);
+      return Promise.resolve();
+    };
+    await source.fetchData({
+      nodeName: 'events',
+      fields: ['id'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    return delays;
+  };
+
+  it('waits as long as Retry-After asks on a 429 the manifest sets no errorHandler for', async () => {
+    assert.deepStrictEqual(await retryAfterRun({ retryAfter: '30' }), [30000]);
+  });
+
+  it('waits as long as Retry-After asks when the matching filter sets no backoff', async () => {
+    const delays = await retryAfterRun({
+      errorHandler: { responseFilters: [{ httpCodes: [429], action: 'RETRY' }] },
+      retryAfter: '30',
+    });
+
+    assert.deepStrictEqual(delays, [30000]);
+  });
+
+  it('keeps the default backoff when the 429 carries no Retry-After', async () => {
+    const [delay] = await retryAfterRun({ retryAfter: null });
+
+    assert.ok(delay >= 2500 && delay <= 7500, `expected the 5s default with jitter, got ${delay}`);
+  });
+
+  it('caps a Retry-After at the header delay ceiling', async () => {
+    assert.deepStrictEqual(await retryAfterRun({ retryAfter: '100000' }), [
+      MAX_HEADER_RETRY_DELAY_MS,
+    ]);
+  });
+
+  it("keeps the manifest author's backoff over Retry-After", async () => {
+    const delays = await retryAfterRun({
+      errorHandler: {
+        responseFilters: [{ httpCodes: [429], action: 'RETRY' }],
+        backoff: { type: 'constant', delayMs: 10 },
+      },
+      retryAfter: '30',
+    });
+
+    assert.deepStrictEqual(delays, [10]);
+  });
+
+  // A builder Test keeps its retries short so the author sees the refusal rather than a
+  // timed-out test.
+  it('keeps the short Test-run retry in a builder Test', async () => {
+    const previous = process.env.OW_TEST;
+    process.env.OW_TEST = '1';
+    try {
+      const [delay] = await retryAfterRun({ retryAfter: '30' });
+
+      assert.ok(delay < 1000, `expected the short Test-run retry, got ${delay}`);
+    } finally {
+      if (previous === undefined) delete process.env.OW_TEST;
+      else process.env.OW_TEST = previous;
+    }
   });
 
   it('IGNORE-filters a status and returns zero records without failing', async () => {

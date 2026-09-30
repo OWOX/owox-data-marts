@@ -566,7 +566,7 @@ Each filter needs at least one of `httpCodes` (an array of HTTP status codes, 10
 | `IGNORE` | Treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are not imported. The run does not fail, and its log names the skipped request. |
 | `FAIL` | Do not retry; the error fails the run. |
 
-An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once.
+An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once. When no `backoff` applies to a retry, it waits as long as the response's `Retry-After` header asks, if the response has one (a Test in the builder keeps its short retry).
 
 `backoff.type` is one of:
 

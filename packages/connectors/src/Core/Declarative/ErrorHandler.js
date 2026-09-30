@@ -41,6 +41,23 @@ function clampHeaderDelay(ms) {
 }
 
 /**
+ * The wait a response asks for in a Retry-After style header, in seconds or as an HTTP
+ * date, clamped like every header delay. Null when the header is absent or unreadable.
+ * @param {Response|undefined} response
+ * @param {string} [headerName]
+ * @returns {number|null}
+ */
+export function retryAfterDelayMs(response, headerName = 'Retry-After') {
+  const raw = response?.headers?.get?.(headerName);
+  if (raw == null) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs)) return clampHeaderDelay(secs * 1000);
+  const dateMs = Date.parse(raw);
+  if (!Number.isNaN(dateMs)) return clampHeaderDelay(dateMs - Date.now());
+  return null;
+}
+
+/**
  * Declarative per-node HTTP error policy. Matches a response (status code and,
  * when configured, the body) to a filter that yields an action, and computes a
  * retry delay from a backoff strategy. Consulted by DeclarativeSource (retry
@@ -120,15 +137,7 @@ export class ErrorHandler {
   }
 
   _waitTimeFromHeader(spec, response) {
-    if (!response) return null;
-    const headerName = (spec && spec.header) || 'Retry-After';
-    const raw = response.headers?.get?.(headerName);
-    if (raw == null) return null;
-    const secs = Number(raw);
-    if (Number.isFinite(secs)) return clampHeaderDelay(secs * 1000);
-    const dateMs = Date.parse(raw);
-    if (!Number.isNaN(dateMs)) return clampHeaderDelay(dateMs - Date.now());
-    return null;
+    return retryAfterDelayMs(response, (spec && spec.header) || 'Retry-After');
   }
 
   _waitUntilTimeFromHeader(spec, response) {

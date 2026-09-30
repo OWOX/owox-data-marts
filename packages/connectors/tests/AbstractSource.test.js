@@ -323,6 +323,8 @@ describe('AbstractSource', () => {
       ['errorMessage', { errorMessage: 'Quota exceeded' }],
       ['error_message', { error_message: 'Quota exceeded' }],
       ['errors[0].message', { errors: [{ message: 'Quota exceeded' }, { message: 'other' }] }],
+      ['errors[0].detail', { errors: [{ detail: 'Quota exceeded' }] }],
+      ['errors[0].title', { errors: [{ title: 'Quota exceeded' }] }],
     ]) {
       it(`reads the provider message from ${shape}`, async () => {
         const restore = suppressStdout();
@@ -342,6 +344,40 @@ describe('AbstractSource', () => {
         }
       });
     }
+
+    // JSON:API errors (Klaviyo among them) put the short summary in `title` and the
+    // explanation, here the wait the API asks for, in `detail`.
+    it('prefers a JSON:API error detail to its title', async () => {
+      const restore = suppressStdout();
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        text: async () =>
+          JSON.stringify({
+            errors: [
+              {
+                id: 'e1',
+                status: 429,
+                code: 'throttled',
+                title: 'Request was throttled.',
+                detail: 'Request was throttled. Expected available in 58 seconds.',
+                source: { pointer: '/data' },
+                links: { type: 'https://developers.example.com/docs/rate_limits' },
+                meta: {},
+              },
+            ],
+          }),
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        await assert.rejects(() => source.urlFetchWithRetry('https://example.com/api'), {
+          message: 'HTTP 429: Request was throttled. Expected available in 58 seconds.',
+        });
+      } finally {
+        restore();
+      }
+    });
 
     it('keeps the body snippet when the response names no message', async () => {
       const restore = suppressStdout();

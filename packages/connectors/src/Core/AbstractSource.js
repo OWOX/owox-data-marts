@@ -454,18 +454,21 @@ export class AbstractSource {
 
   /**
    * The reason a provider gave in its JSON error body, looked up where main's
-   * _extractErrorInfo looked for it.
+   * _extractErrorInfo looked for it, and in a JSON:API error's `detail`, then `title`.
    *
    * @param {*} payload - the parsed error body
    * @returns {string|null} null when the body names no message
    */
   static _providerErrorMessage(payload) {
+    const firstError = Array.isArray(payload?.errors) ? payload.errors[0] : undefined;
     const candidates = [
       payload?.error?.message,
       payload?.message,
       payload?.errorMessage,
       payload?.error_message,
-      Array.isArray(payload?.errors) ? payload.errors[0]?.message : undefined,
+      firstError?.message,
+      firstError?.detail,
+      firstError?.title,
     ];
     return candidates.find(message => typeof message === 'string' && message.trim()) ?? null;
   }
