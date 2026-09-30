@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { BuilderManifest } from '../../shared/model/manifest.types';
+import { nodeNameProblem } from '../../shared/model/manifestNames';
 
 export type BuilderSelection =
   | { kind: 'global'; section: 'general' | 'parameters' | 'authentication' }
@@ -116,11 +117,13 @@ export function BuilderNavRail({ manifest, selection, onSelect, onAddNode, onClo
   const nodeNames = Object.keys(manifest.nodes);
   const paramCount = Object.keys(manifest.parameters).length;
   const [newName, setNewName] = useState('');
+  const problemId = useId();
+  const typed = newName.trim();
+  const problem = typed ? nodeNameProblem(typed, nodeNames) : null;
 
   const add = () => {
-    const name = newName.trim();
-    if (!name || name in manifest.nodes) return;
-    onAddNode(name);
+    if (!typed || problem) return;
+    onAddNode(typed);
     setNewName('');
   };
 
@@ -187,26 +190,35 @@ export function BuilderNavRail({ manifest, selection, onSelect, onAddNode, onClo
         />
       ))}
 
-      <div className='mt-2.5 flex gap-2 px-1'>
-        <Input
-          value={newName}
-          onChange={e => {
-            setNewName(e.target.value);
-          }}
-          placeholder='Node name'
-          className='h-8 flex-1'
-          onKeyDown={e => {
-            if (e.key === 'Enter') add();
-          }}
-        />
-        <button
-          type='button'
-          onClick={add}
-          aria-label='Add node'
-          className='border-border bg-card text-foreground hover:bg-accent flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] border'
-        >
-          <Plus className='h-[15px] w-[15px]' />
-        </button>
+      <div className='mt-2.5 flex flex-col gap-1.5 px-1'>
+        <div className='flex gap-2'>
+          <Input
+            value={newName}
+            onChange={e => {
+              setNewName(e.target.value);
+            }}
+            placeholder='Node name'
+            className='h-8 flex-1'
+            aria-invalid={problem !== null}
+            aria-describedby={problem ? problemId : undefined}
+            onKeyDown={e => {
+              if (e.key === 'Enter') add();
+            }}
+          />
+          <button
+            type='button'
+            onClick={add}
+            aria-label='Add node'
+            className='border-border bg-card text-foreground hover:bg-accent flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] border'
+          >
+            <Plus className='h-[15px] w-[15px]' />
+          </button>
+        </div>
+        {problem && (
+          <p id={problemId} role='alert' className='text-destructive text-[11px] leading-snug'>
+            {problem}
+          </p>
+        )}
       </div>
     </nav>
   );

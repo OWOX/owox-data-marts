@@ -1033,7 +1033,8 @@ export class ManifestParser {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(nodeName)) {
       throw new Error(
         `ManifestParser: node "${nodeName}" must start with a letter and contain only ` +
-          `letters, digits and underscores`
+          `letters, digits and underscores` +
+          (nodeName.includes('/') ? `; the API path goes in the node's request.path` : '')
       );
     }
     if (node.destinationName !== undefined && !identifier.test(String(node.destinationName))) {

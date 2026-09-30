@@ -137,6 +137,18 @@ describe('ManifestParser', () => {
     );
   });
 
+  // Authors name a node after the endpoint it calls and read the refusal as a problem with
+  // the path; the message has to say the path belongs elsewhere.
+  it('says where the API path goes when a node is named like one', () => {
+    const bad = JSON.parse(JSON.stringify(valid));
+    bad.nodes['v1/balance/history'] = bad.nodes.rates;
+    delete bad.nodes.rates;
+    assert.throws(
+      () => new ManifestParser().parse(JSON.stringify(bad)),
+      /node "v1\/balance\/history" must start with a letter .*; the API path goes in the node's request\.path/
+    );
+  });
+
   it('refuses a field name that is not an identifier', () => {
     const bad = JSON.parse(JSON.stringify(valid));
     bad.nodes.rates.fields['created-at'] = { type: 'string' };

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { CirclePlay, Play, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -56,6 +56,18 @@ export function deriveColumns(records: (Record<string, unknown> | null)[]): {
   if (primitive) return { columns: ['value'], primitive: true };
   const columns = Array.from(new Set(records.flatMap(r => Object.keys(r ?? {}))));
   return { columns, primitive: false };
+}
+
+/**
+ * The node to test once the node names change. A rename, in Code mode especially, keeps the
+ * key where it was, so the node at the same position is the renamed one; testing the old name
+ * would be refused as an unknown node.
+ */
+export function followNode(previous: string[], current: string, next: string[]): string {
+  if (current && next.includes(current)) return current;
+  const index = previous.indexOf(current);
+  if (index >= 0 && index < next.length) return next[index];
+  return next.length > 0 ? next[0] : '';
 }
 
 /**
@@ -170,16 +182,20 @@ export function ResultsDock({
     window.addEventListener('mouseup', cleanup);
   };
 
+  const namesKey = nodeNames.join('\n');
+  const previousNames = useRef(nodeNames);
   useEffect(() => {
+    const previous = previousNames.current;
+    previousNames.current = nodeNames;
     if (selectedNode && selectedNode in manifest.nodes) {
       setNode(selectedNode);
     } else {
-      setNode(prev => (prev && prev in manifest.nodes ? prev : (nodeNames[0] ?? '')));
+      setNode(prev => followNode(previous, prev, nodeNames));
     }
-    // Re-sync only when the nav-rail selection or the set of nodes changes, so a manual
+    // Re-sync only when the nav-rail selection or the node names change, so a manual
     // pick in the Select below is not overridden on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNode, nodeNames.length]);
+  }, [selectedNode, namesKey]);
 
   // Restore the saved test inputs for this connector (once per connector id). Saving
   // happens in the updateValue/updateMaxRows handlers, so this never clobbers fresh edits.
@@ -212,15 +228,19 @@ export function ResultsDock({
     if (!open) onToggleOpen();
     setRunning(true);
     setResult(null);
+    // Code mode may still hold a rename the effect above has not seen.
+    const sent = flushCodeEdits() ?? manifest;
+    const target = followNode(nodeNames, node, Object.keys(sent.nodes));
+    if (target !== node) setNode(target);
     try {
       const res = await new ConnectorBuilderApiService().test({
-        manifest: flushCodeEdits() ?? manifest,
-        node,
+        manifest: sent,
+        node: target,
         configuration: values,
         maxRows,
       });
       setResult(res);
-      setSample(node, res.sample ?? []);
+      setSample(target, res.sample ?? []);
     } catch (e) {
       setResult({ rows: [], logs: [], error: testFailureMessage(e) });
     } finally {

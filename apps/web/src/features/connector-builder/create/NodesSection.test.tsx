@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { toast } from 'react-hot-toast';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 import { addField } from './parameters-test-helpers';
 
@@ -112,6 +113,22 @@ describe('Builder Nodes flow', () => {
     const manifest = create.mock.calls[0][0].manifest;
     expect(manifest.nodes.orders).toBeDefined();
     expect(manifest.nodes.items).toBeUndefined();
+  });
+
+  it('keeps the name when a rename is not one the engine accepts, and says why', () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('Node name'), { target: { value: 'items' } });
+    fireEvent.click(screen.getByRole('button', { name: /add node/i }));
+
+    fireEvent.click(screen.getByTestId('node-rename'));
+    const input = screen.getByTestId('node-rename-input');
+    fireEvent.change(input, { target: { value: 'v1/balance/history' } });
+    fireEvent.blur(input);
+
+    expect(screen.getByTestId('node-editor-items')).toBeInTheDocument();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+      expect.stringContaining('v1_balance_history')
+    );
   });
 
   it('adds an error-handler filter to a node and the saved manifest reflects it', async () => {
