@@ -120,7 +120,7 @@ test.describe('DataMart List with data', () => {
     await popover.getByRole('combobox').first().click();
     await page.getByRole('option', { name: 'Status' }).click();
 
-    // Step 2: Operator auto-selects "is" (eq). No action needed.
+    // Step 2: Operator auto-selects "is any of" (eq). No action needed.
 
     // Step 3: Select "Draft" value in the Combobox value control.
     // The value control is a chips-based multi-select Combobox.

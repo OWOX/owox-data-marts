@@ -19,8 +19,8 @@ import { SelectValueControl, InputValueControl } from './index';
  * ------------------------------------------------------------------------ */
 
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
-  eq: 'is',
-  neq: 'is not',
+  eq: 'is any of',
+  neq: 'is none of',
   contains: 'contains',
   not_contains: 'does not contain',
 };
@@ -316,7 +316,12 @@ export const FiltersForm = forwardRef<FiltersFormRef, FiltersFormProps>(function
   }));
 
   // Report state changes to parent (for Apply button enable/disable)
-  const watchedFilters = useWatch({ control, name: 'filters' });
+  const watchedFilters = useWatch({
+    control,
+    name: 'filters',
+    // useWatch may return the form's live array, which later edits mutate in place without a new reference.
+    compute: filters => filters.map(f => ({ ...f, value: [...f.value] })),
+  });
 
   useEffect(() => {
     if (!onStateChange) return;
