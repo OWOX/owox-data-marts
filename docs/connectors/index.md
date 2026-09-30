@@ -9,7 +9,7 @@ OWOX Data Marts ships open-source connectors for popular advertising and busines
 Two connector kinds cover different needs:
 
 - **Built-in connectors** — ready-made integrations for platforms such as Google Ads, Facebook Ads, and TikTok Ads. Browse them in the sidebar under Sources.
-- **[Declarative connectors](./declarative-connectors.md)** — connectors you describe in a JSON manifest, without code, for any HTTP API.
+- **[Custom connectors](./custom-connectors.md)** — connectors you describe in a JSON manifest, without code, for any HTTP API.
 
 ## How Sources fit the workflow
 
@@ -33,8 +33,8 @@ A [Connector Data Mart](../getting-started/setup-guide/connector-data-mart.md) i
 
 | Need | Read |
 | --- | --- |
-| Connect an API without a built-in connector | [Declarative Connectors](./declarative-connectors.md) |
-| Build a declarative connector in the UI | [Connector Builder](./connector-builder.md) |
+| Connect an API without a built-in connector | [Custom Connectors](./custom-connectors.md) |
+| Build a custom connector in the UI | [Connector Builder](./connector-builder.md) |
 | Write or edit a connector manifest | [Manifest Reference](./manifest-reference.md) |
 | Contribute a new open-source connector | [Connector Development](../../packages/connectors/CONTRIBUTING.md) |
 | Core terms and how entities relate | [Core Concepts](../getting-started/core-concepts.md) |

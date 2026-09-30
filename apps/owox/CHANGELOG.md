@@ -165,7 +165,7 @@
 
 - d77c01b: **Custom no-code connectors**
 
-  Build a connector to any REST API without writing code. A declarative manifest describes the
+  Build a connector to any REST API without writing code. A manifest describes the
   API — authentication, pagination, nodes and fields — and a three-pane web builder edits it with
   live testing against the real endpoint. Connectors are versioned: publish, roll back, and bind
   them to Data Marts alongside the built-in ones. Title, description and documentation link stay
@@ -177,9 +177,9 @@
   changes what runs in every Data Mart that follows the connector's active version, so it needs
   edit access to each of those Data Marts; otherwise a project admin can do it.
 
-  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/6887d0f55f47abe312f4aae7c11a8e36/iframe>
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9929744a2d3796d4a4a7fe3461b7b2ee/iframe>
 
-  See [Declarative Connectors](../../docs/connectors/declarative-connectors.md) and
+  See [Custom Connectors](../../docs/connectors/custom-connectors.md) and
   [Connector Builder](../../docs/connectors/connector-builder.md).
 
   <!-- markdownlint-disable-file MD041 MD036 -->

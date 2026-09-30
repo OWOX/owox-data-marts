@@ -1,6 +1,6 @@
 # Connector Builder
 
-The Connector Builder creates a connector for any HTTP API that has no ready-made OWOX connector, without writing code. You describe the requests in a form, and the builder stores them as a declarative manifest — the JSON format described in the [Connector Manifest Reference](manifest-reference.md). Once you publish the connector, it appears in every Data Mart of the project next to the built-in connectors.
+The Connector Builder creates a connector for any HTTP API that has no ready-made OWOX connector, without writing code. You describe the requests in a form, and the builder stores them as a manifest — the JSON format described in the [Connector Manifest Reference](manifest-reference.md). Once you publish the connector, it appears in every Data Mart of the project next to the built-in connectors.
 
 Project Admins and Technical Users can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
 
@@ -127,7 +127,7 @@ In the builder, choose **⋮** → **Delete connector**, or choose **Delete** in
 
 ## Related Links
 
-- [Declarative Connectors →](declarative-connectors.md)
+- [Custom Connectors →](custom-connectors.md)
 - [Connector Manifest Reference →](manifest-reference.md)
 - [Connector-based Data Mart →](../getting-started/setup-guide/connector-data-mart.md)
 - [Roles and Permissions →](../project/roles-and-permissions.md)

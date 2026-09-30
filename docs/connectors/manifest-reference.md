@@ -1,6 +1,6 @@
-# Declarative Connector Manifest Reference
+# Custom Connector Manifest Reference
 
-A **declarative connector manifest** is a single JSON document that tells OWOX Data Marts how to pull data from a third-party HTTP API — no code required. You describe the API's shape (base URL, authentication, endpoints, pagination, how a raw record maps to output fields) and the engine (`ManifestParser` + `DeclarativeSource`) does the rest: making requests, paging through results, applying your date window, filtering and transforming records, and casting fields to their declared types.
+A **custom connector manifest** is a single JSON document that tells OWOX Data Marts how to pull data from a third-party HTTP API — no code required. You describe the API's shape (base URL, authentication, endpoints, pagination, how a raw record maps to output fields) and the engine (`ManifestParser` + `DeclarativeSource`) does the rest: making requests, paging through results, applying your date window, filtering and transforming records, and casting fields to their declared types.
 
 This page is the complete grammar the engine accepts, written for a person authoring or reviewing a manifest by hand — every key, every enum value, and the mistakes that most often make the parser reject a manifest. To build a connector step by step in the UI instead, see [Connector Builder](connector-builder.md).
 
@@ -61,7 +61,7 @@ Once records are selected, `recordFilter` (optional, keep-or-drop) runs first, t
 | `baseUrl` | Yes | The address every request path is appended to, over HTTPS, e.g. `https://api.example.com` or `https://api.example.com/v1`. Leave off the trailing slash. |
 | `parameters` | Yes | An object of user-supplied inputs — may be `{}` if the connector needs none. See [Parameters](#parameters). |
 | `nodes` | Yes | An object keyed by node name; each value is one data stream. See [Nodes](#nodes). |
-| `title` | No | A human-friendly display name, e.g. `"Frankfurter FX (Declarative)"`. |
+| `title` | No | A human-friendly display name, e.g. `"Frankfurter FX"`. |
 | `description` | No | A longer description shown in the UI. |
 | `docUrl` | No | A link to the API's own documentation. |
 | `authentication` | No | How requests are authenticated. See [Authentication](#authentication). |
@@ -632,8 +632,8 @@ A minimal connector with no `authentication` block at all, one node, and an empt
 ```json
 {
   "version": "1.0",
-  "name": "RatesDeclarative",
-  "title": "Frankfurter FX (Declarative)",
+  "name": "FrankfurterRates",
+  "title": "Frankfurter FX",
   "baseUrl": "https://api.frankfurter.dev",
   "parameters": {
     "Base": { "requiredType": "string", "isRequired": true, "default": "EUR", "label": "Base Currency" }
@@ -773,7 +773,7 @@ A larger, realistic manifest: a header-injected API key, three sibling nodes, `d
 
 ```json
 {
-  "title": "Cốc Cốc Ads (Declarative, v2)",
+  "title": "Cốc Cốc Ads (v2)",
   "name": "CocCocAds",
   "version": "1.0",
   "docUrl": "https://api.qc.coccoc.com/docs/v2/",

@@ -12,6 +12,10 @@ export default defineConfig({
   site,
   base,
   trailingSlash: 'always',
+  // The page was published under its old name, and links to it are already shared.
+  redirects: {
+    '/docs/connectors/declarative-connectors/': '/docs/connectors/custom-connectors/',
+  },
   integrations: [
     starlight({
       title: 'OWOX Data Marts',
@@ -156,11 +160,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           items: [
             { label: 'Overview', slug: 'docs/connectors' },
             {
-              label: 'Declarative Connectors',
+              label: 'Custom Connectors',
               items: [
                 {
-                  label: 'Declarative Connectors Source',
-                  slug: 'docs/connectors/declarative-connectors',
+                  label: 'Custom Connectors Source',
+                  slug: 'docs/connectors/custom-connectors',
                 },
                 { label: 'Connector Builder', slug: 'docs/connectors/connector-builder' },
                 {
