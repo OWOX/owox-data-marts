@@ -316,10 +316,10 @@ describe('McpConnectorsFacadeImpl.getConnectorDetails on a draft-only connector'
       resolveConnectorSpecification: jest.fn(),
       resolveConnectorFieldsSchema: jest.fn(),
       getSpecificationFromManifest: jest.fn(() => {
-        throw new Error('Invalid declarative manifest: nodes must be an object');
+        throw new Error('Invalid manifest: nodes must be an object');
       }),
       getFieldsSchemaFromManifest: jest.fn(() => {
-        throw new Error('Invalid declarative manifest: nodes must be an object');
+        throw new Error('Invalid manifest: nodes must be an object');
       }),
     } as unknown as ConnectorService;
     const definitionService = {

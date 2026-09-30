@@ -645,7 +645,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
           title: 'My Custom',
           manifest: INVALID_MANIFEST,
         })
-      ).rejects.toThrow(/Invalid connector manifest/);
+      ).rejects.toThrow(/^Invalid manifest: /);
 
       await expect(definitionRepo.count({ withDeleted: true })).resolves.toBe(0);
       await expect(versionRepo.count()).resolves.toBe(0);
@@ -659,7 +659,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
           title: 'My Custom',
           manifest: INVALID_MANIFEST,
         })
-      ).rejects.toThrow(/Invalid connector manifest/);
+      ).rejects.toThrow(/^Invalid manifest: /);
 
       const published = await facade.publishConnector({
         ...editor,
@@ -714,7 +714,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
           connectorId: published.connectorId,
           manifest: INVALID_MANIFEST,
         })
-      ).rejects.toThrow(/Invalid connector manifest/);
+      ).rejects.toThrow(/^Invalid manifest: /);
 
       const versions = await versionRepo.find({
         where: { connectorDefinitionId: published.connectorId },

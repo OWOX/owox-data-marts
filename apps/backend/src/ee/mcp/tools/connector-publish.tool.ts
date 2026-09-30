@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
@@ -49,7 +49,10 @@ const baseInputSchema = z
       .max(MAX_VARCHAR_LENGTH)
       .optional()
       .describe('Display title for a new connector'),
-    manifest: z.record(z.unknown()).optional().describe('The manifest for a new connector'),
+    manifest: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('The manifest for a new connector'),
   })
   .strict();
 

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_CONNECTOR_AUTHORING_FACADE,
@@ -10,10 +10,10 @@ import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mc
 
 const inputSchema = z
   .object({
-    manifest: z.record(z.unknown()).describe('The connector manifest to dry-run'),
+    manifest: z.record(z.string(), z.unknown()).describe('The connector manifest to dry-run'),
     node: z.string().min(1).describe('The manifest node to test'),
     configuration: z
-      .record(z.unknown())
+      .record(z.string(), z.unknown())
       .optional()
       .describe(
         'Non-secret config values only. Do NOT put API keys/tokens here — secure credential entry arrives via the browser in a later step.'
@@ -34,8 +34,8 @@ export class ConnectorTestTool implements McpToolDefinition<TestConnectorInput> 
     'Use only non-secret config; do not paste API keys.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
-    rows: z.array(z.record(z.unknown())),
-    sample: z.array(z.record(z.unknown())),
+    rows: z.array(z.record(z.string(), z.unknown())),
+    sample: z.array(z.record(z.string(), z.unknown())),
     error: z.string().nullable(),
     logs: z.array(z.string()),
   };

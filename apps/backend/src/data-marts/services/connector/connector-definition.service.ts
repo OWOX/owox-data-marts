@@ -285,11 +285,11 @@ export class ConnectorDefinitionService {
   @Transactional()
   async createAndPublish(
     projectId: string,
-    userId: string,
+    actor: ConnectorVersionActor,
     input: CreateConnectorDefinitionInput
   ): Promise<{ definition: ConnectorDefinition } & PublishedConnectorVersion> {
-    const definition = await this.create(projectId, userId, input);
-    const { version, warnings } = await this.publish(projectId, definition.id);
+    const definition = await this.create(projectId, actor.userId, input);
+    const { version, warnings } = await this.publish(projectId, definition.id, actor);
     return { definition, version, warnings };
   }
 

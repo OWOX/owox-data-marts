@@ -139,7 +139,7 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
       // a committed, unpublishable connector whose name stayed reserved for good.
       const { definition, version, warnings } = await this.definitionService.createAndPublish(
         request.projectId,
-        request.userId,
+        { userId: request.userId, roles: request.roles },
         {
           name: request.name!,
           title: request.title!,
@@ -168,7 +168,8 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
 
     const { version: published, warnings } = await this.definitionService.publish(
       request.projectId,
-      connectorId
+      connectorId,
+      { userId: request.userId, roles: request.roles }
     );
     const name =
       request.name ?? (await this.definitionService.getById(request.projectId, connectorId)).name;
@@ -220,7 +221,8 @@ export class McpConnectorAuthoringFacadeImpl implements McpConnectorAuthoringFac
     await this.definitionService.setActiveVersion(
       request.projectId,
       request.connectorId,
-      request.version
+      request.version,
+      { userId: request.userId, roles: request.roles }
     );
     return { connectorId: request.connectorId, activeVersion: request.version };
   }

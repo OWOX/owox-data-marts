@@ -128,11 +128,15 @@ describe('McpConnectorAuthoringFacadeImpl.publishConnector', () => {
       manifest: { source: {} },
     });
 
-    expect(definitionService.createAndPublish).toHaveBeenCalledWith('p1', 'u1', {
-      name: 'Acme',
-      title: 'Acme API',
-      manifest: { source: {} },
-    });
+    expect(definitionService.createAndPublish).toHaveBeenCalledWith(
+      'p1',
+      { userId: 'u1', roles: ['editor'] },
+      {
+        name: 'Acme',
+        title: 'Acme API',
+        manifest: { source: {} },
+      }
+    );
     // The two-step path is what left orphans behind; neither half may be called on its own.
     expect(definitionService.create).not.toHaveBeenCalled();
     expect(definitionService.publish).not.toHaveBeenCalled();
@@ -164,7 +168,10 @@ describe('McpConnectorAuthoringFacadeImpl.publishConnector', () => {
     const res = await facade.publishConnector({ ...base, connectorId: 'def_9' });
 
     expect(definitionService.create).not.toHaveBeenCalled();
-    expect(definitionService.publish).toHaveBeenCalledWith('p1', 'def_9');
+    expect(definitionService.publish).toHaveBeenCalledWith('p1', 'def_9', {
+      userId: 'u1',
+      roles: ['editor'],
+    });
     expect(res).toEqual({
       connectorId: 'def_9',
       name: 'Existing',
@@ -202,7 +209,10 @@ describe('publishConnector update branch', () => {
       version: '1.0',
       name: 'CocCocAds',
     });
-    expect(definitionService.publish).toHaveBeenCalledWith('project-1', 'def-1');
+    expect(definitionService.publish).toHaveBeenCalledWith('project-1', 'def-1', {
+      userId: 'user-1',
+      roles: ['editor'],
+    });
     // The draft must be saved before publishing, or publish() would ship the
     // stale prior draft while the new manifest sits unpublished.
     expect((definitionService.saveDraft as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
@@ -354,7 +364,10 @@ describe('setConnectorVersion', () => {
       version: 1,
     });
 
-    expect(spy).toHaveBeenCalledWith('project-1', 'def-1', 1);
+    expect(spy).toHaveBeenCalledWith('project-1', 'def-1', 1, {
+      userId: 'user-1',
+      roles: ['editor'],
+    });
     expect(result).toEqual({ connectorId: 'def-1', activeVersion: 1 });
   });
 });

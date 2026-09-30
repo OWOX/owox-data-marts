@@ -137,7 +137,7 @@ it('relays the publish coverage warnings so the assistant can show them to the a
   const res = await tool.handler({ connector_id: 'c1' }, context);
   expect((res.structuredContent as { warnings: string[] }).warnings).toEqual(warnings);
   // Also in the text block: a client that reads only `content` must still see them.
-  expect(res.content[0].text).toContain('undeclared parameter(s) Token');
+  expect((res.content[0] as { text: string }).text).toContain('undeclared parameter(s) Token');
 });
 
 it('rejects input satisfying neither valid shape', () => {

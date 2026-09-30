@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod';
+import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_CONNECTORS_FACADE,
@@ -26,9 +26,9 @@ export class ConnectorDetailsTool implements McpToolDefinition<ConnectorDetailsI
   readonly outputSchema = {
     name: z.string(),
     connector_id: z.string().nullable(),
-    configFields: z.array(z.record(z.unknown())),
-    nodes: z.array(z.record(z.unknown())),
-    manifest: z.record(z.unknown()).nullable(),
+    configFields: z.array(z.record(z.string(), z.unknown())),
+    nodes: z.array(z.record(z.string(), z.unknown())),
+    manifest: z.record(z.string(), z.unknown()).nullable(),
   };
   readonly annotations = {
     title: 'Connector Details',
