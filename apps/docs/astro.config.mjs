@@ -5,6 +5,7 @@ import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 import starlightLinksValidator from 'starlight-links-validator';
 import { getConfig } from './scripts/env-config.js';
+import rehypeChangelogEntryAnchors from './scripts/rehype-changelog-entry-anchors.js';
 
 const { site, base, gtmId } = getConfig();
 
@@ -269,6 +270,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   ],
   markdown: {
     rehypePlugins: [
+      rehypeChangelogEntryAnchors,
       [
         rehypeExternalLinks,
         {
