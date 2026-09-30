@@ -161,11 +161,32 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
     });
 
-    it('keeps an expired-state error across the Platform bounce, even with a refresh token', async () => {
+    it('does not reuse a refresh token while a verified social choice is awaiting state', async () => {
       const handleExistingRefreshToken = jest.fn();
       const provider = createProvider({ handleExistingRefreshToken });
       const request = {
-        headers: { cookie: 'refreshToken=existing' },
+        headers: {
+          cookie: 'refreshToken=existing; idp-owox-verified-social-intent=microsoft',
+        },
+        query: {},
+      } as unknown as Request;
+      const response = createResponse();
+
+      await provider.signInMiddleware(request, response, jest.fn());
+
+      expect(handleExistingRefreshToken).not.toHaveBeenCalled();
+      expect(response.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('https://platform.test/auth/sign-in')
+      );
+    });
+
+    it('keeps an expired-state error across the Platform bounce, even with a refresh token', async () => {
+      const handleExistingRefreshToken = jest.fn();
+      const provider = createProvider({ handleExistingRefreshToken });
+      const redirectTo = '/oauth/authorize?client_id=mcp-client';
+      const paramsCookie = encodeURIComponent(JSON.stringify({ redirectTo }));
+      const request = {
+        headers: { cookie: `refreshToken=existing; idp-owox-params=${paramsCookie}` },
         query: { error: 'Your sign-in session expired. Please try again.' },
         protocol: 'https',
         hostname: 'app.test',
@@ -182,6 +203,11 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       );
       expect(response.redirect).toHaveBeenCalledWith(
         expect.stringContaining('https://platform.test/auth/sign-in')
+      );
+      expect(response.cookie).toHaveBeenCalledWith(
+        'idp-owox-params',
+        expect.stringContaining(encodeURIComponent('/oauth/authorize')),
+        expect.anything()
       );
     });
   });
@@ -253,8 +279,13 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
         expect.objectContaining({ path: '/' })
       );
       expect(response.cookie).toHaveBeenCalledWith(
+        'idp-owox-verified-social-intent',
+        'google',
+        expect.objectContaining({ maxAge: 120000, httpOnly: true })
+      );
+      expect(response.cookie).not.toHaveBeenCalledWith(
         'idp-owox-params',
-        expect.stringContaining('socialIntentVerified'),
+        expect.stringContaining('pendingAction'),
         expect.anything()
       );
       expect(response.redirect).toHaveBeenCalledWith(
@@ -268,6 +299,53 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
         headers: { cookie: '' },
         query: {},
         body: { provider: 'microsoft', nonce: 'forged' },
+      } as unknown as Request;
+      const response = createResponse();
+
+      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+
+      expect(response.status).toHaveBeenCalledWith(403);
+      expect(response.redirect).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['replayed', Date.now(), 'different-nonce'],
+      ['expired', Date.now() - 120001, 'page-nonce'],
+    ])('rejects a %s nonce', async (_case, issuedAt, submittedNonce) => {
+      const provider = createProvider();
+      const nonceCookie = encodeURIComponent(JSON.stringify([{ value: 'page-nonce', issuedAt }]));
+      const request = {
+        headers: { cookie: `idp-owox-social-intent=${nonceCookie}` },
+        query: {},
+        body: { provider: 'google', nonce: submittedNonce },
+        protocol: 'https',
+        hostname: 'app.test',
+      } as unknown as Request;
+      const response = createResponse();
+
+      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+
+      expect(response.status).toHaveBeenCalledWith(403);
+      expect(response.redirect).not.toHaveBeenCalled();
+      expect(response.cookie).not.toHaveBeenCalledWith(
+        'idp-owox-verified-social-intent',
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('rejects a disabled Microsoft provider with a valid nonce', async () => {
+      const isSocialProviderEnabled = jest.fn((provider: string) => provider !== 'microsoft');
+      const provider = createProvider({ pageController: { isSocialProviderEnabled } });
+      const nonceCookie = encodeURIComponent(
+        JSON.stringify([{ value: 'page-nonce', issuedAt: Date.now() }])
+      );
+      const request = {
+        headers: { cookie: `idp-owox-social-intent=${nonceCookie}` },
+        query: {},
+        body: { provider: 'microsoft', nonce: 'page-nonce' },
+        protocol: 'https',
+        hostname: 'app.test',
       } as unknown as Request;
       const response = createResponse();
 
@@ -376,11 +454,13 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
   });
 
   describe('/auth/callback error paths', () => {
-    it('clears auth-flow cookies and shows an error when the callback is missing a code', async () => {
+    it('keeps an OAuth continuation and shows an error when the callback is missing a code', async () => {
       const { callback } = createCallbackProvider();
+      const redirectTo = '/oauth/authorize?client_id=mcp-client';
+      const paramsCookie = encodeURIComponent(JSON.stringify({ redirectTo }));
       const request = {
         path: `${AUTH_BASE_PATH}/callback`,
-        headers: { cookie: '' },
+        headers: { cookie: `idp-owox-params=${paramsCookie}` },
         query: {},
       } as unknown as Request;
       const response = createResponse();
@@ -388,15 +468,27 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       await callback(request, response);
 
       const clearedCookies = (response.clearCookie as jest.Mock).mock.calls.map(call => call[0]);
-      expect(clearedCookies).toEqual(expect.arrayContaining(['idp-owox-state', 'idp-owox-params']));
+      expect(clearedCookies).toContain('idp-owox-state');
+      expect(clearedCookies).not.toContain('idp-owox-params');
+      expect(response.cookie).toHaveBeenCalledWith(
+        'idp-owox-params',
+        expect.stringContaining(encodeURIComponent('/oauth/authorize')),
+        expect.anything()
+      );
       expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('error='));
     });
 
-    it('clears auth-flow cookies and shows an error when the token exchange throws (e.g. a dead state)', async () => {
+    it('drops a generated project redirect and shows an error when the token exchange throws', async () => {
       const { callback } = createCallbackProvider();
+      const paramsCookie = encodeURIComponent(
+        JSON.stringify({
+          projectId: 'project-1',
+          appRedirectTo: '/auth/idp-start?projectId=project-1',
+        })
+      );
       const request = {
         path: `${AUTH_BASE_PATH}/callback`,
-        headers: { cookie: '' },
+        headers: { cookie: `idp-owox-params=${paramsCookie}` },
         query: { code: 'code-1', state: 'state-1' },
       } as unknown as Request;
       const response = createResponse();

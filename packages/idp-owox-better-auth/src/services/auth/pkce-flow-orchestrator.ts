@@ -9,12 +9,13 @@ import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js
 import { clearCookie } from '../../utils/cookie-policy.js';
 import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
-  clearAllAuthCookies,
+  clearAuthFlowStateCookie,
   clearBetterAuthCookies,
   extractState,
   extractStateFromCookie,
   type AuthFlowParams,
 } from '../../utils/request-utils.js';
+import { clearVerifiedSocialIntent } from '../../utils/social-intent.js';
 import type { BetterAuthSessionService } from './better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
@@ -112,7 +113,8 @@ export class PkceFlowOrchestrator {
       return redirectUrl;
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearAllAuthCookies(res, req);
+        clearAuthFlowStateCookie(res, req);
+        clearBetterAuthCookies(res, req);
         return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       if (error instanceof AuthenticationException) {
@@ -153,7 +155,9 @@ export class PkceFlowOrchestrator {
     const state = extractStateFromCookie(req);
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
-      clearAllAuthCookies(res, req);
+      clearAuthFlowStateCookie(res, req);
+      clearBetterAuthCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
       return this.signInErrorUrl('Your sign-in session expired. Please try again.');
     }
     try {
@@ -178,7 +182,9 @@ export class PkceFlowOrchestrator {
       }
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearAllAuthCookies(res, req);
+        clearAuthFlowStateCookie(res, req);
+        clearBetterAuthCookies(res, req);
+        clearVerifiedSocialIntent(req, res);
         return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       this.logger.warn(
@@ -186,7 +192,9 @@ export class PkceFlowOrchestrator {
         undefined,
         error instanceof Error ? error : undefined
       );
-      clearAllAuthCookies(res, req);
+      clearAuthFlowStateCookie(res, req);
+      clearBetterAuthCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
       return null;
     }
     return null;

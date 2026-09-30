@@ -10,7 +10,6 @@ import {
   clearAuthFlowStateCookie,
   clearBetterAuthCookies,
   clearAllAuthCookies,
-  clearPendingAction,
   extractRefreshToken,
   extractAuthFlowParams,
   extractState,
@@ -20,6 +19,7 @@ import {
   parseSerializedAuthFlowParams,
   persistAuthFlowContext,
   readPendingActionFromQuery,
+  resetAuthFlowForRetry,
   serializeAuthFlowParams,
   setCookie,
 } from './request-utils.js';
@@ -341,7 +341,7 @@ describe('request-utils', () => {
         headers: { cookie: '' },
       } as unknown as Request;
       expect(readPendingActionFromQuery(req)).toBeUndefined();
-      expect(extractAuthFlowParams(req).pendingAction).toBeUndefined();
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
     });
 
     it('keeps the email fallback from the query string', () => {
@@ -354,42 +354,55 @@ describe('request-utils', () => {
       expect(readPendingActionFromQuery(req)).toBeUndefined();
     });
 
-    it('ignores a pendingAction persisted in the params cookie when deciding query-only intent', () => {
-      const payload = encodeURIComponent(JSON.stringify({ pendingAction: 'microsoft' }));
+    it('ignores a legacy social action persisted in the params cookie', () => {
+      const payload = encodeURIComponent(
+        JSON.stringify({ pendingAction: 'microsoft', socialIntentVerified: true })
+      );
       const req = {
         headers: { cookie: `idp-owox-params=${payload};` },
         query: {},
       } as unknown as Request;
 
       expect(readPendingActionFromQuery(req)).toBeUndefined();
-      // extractAuthFlowParams, unlike readPendingActionFromQuery, does fall
-      // back to the cookie - that's what lets the value survive the round
-      // trip through Platform and back.
-      expect(extractAuthFlowParams(req).pendingAction).toBe('microsoft');
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('socialIntentVerified');
     });
+  });
 
-    it('clears a pendingAction-only params cookie entirely instead of leaving a stale empty one', () => {
-      const payload = encodeURIComponent(JSON.stringify({ pendingAction: 'google' }));
+  describe('resetAuthFlowForRetry', () => {
+    it('preserves an OAuth continuation while clearing expired state', () => {
+      const redirectTo = '/oauth/authorize?client_id=mcp-client&state=client-state';
+      const payload = encodeURIComponent(JSON.stringify({ redirectTo, appRedirectTo: redirectTo }));
       const req = {
-        headers: { cookie: `idp-owox-params=${payload};` },
+        headers: { cookie: `idp-owox-state=old; idp-owox-params=${payload}` },
         query: {},
         protocol: 'https',
         hostname: 'app.test',
       } as unknown as Request;
       const res = createResponseMock();
 
-      clearPendingAction(req, res);
+      resetAuthFlowForRetry(req, res);
 
       expect(res.clearCookie).toHaveBeenCalledWith(
-        'idp-owox-params',
+        'idp-owox-state',
         expect.objectContaining({ path: '/' })
       );
-      expect(res.cookie).not.toHaveBeenCalled();
+      expect(res.clearCookie).not.toHaveBeenCalledWith('idp-owox-params', expect.anything());
+      const [, value] = (res.cookie as jest.Mock).mock.calls[0] as [string, string];
+      expect(JSON.parse(decodeURIComponent(value))).toMatchObject({
+        redirectTo,
+        appRedirectTo: redirectTo,
+      });
     });
 
-    it('clears only pendingAction while preserving the other persisted params', () => {
+    it('drops a generated project redirect that could loop after a failed callback', () => {
       const payload = encodeURIComponent(
-        JSON.stringify({ pendingAction: 'google', redirectTo: '/dashboard' })
+        JSON.stringify({
+          redirectTo: '/dashboard',
+          appRedirectTo: '/auth/idp-start?projectId=project-1',
+          projectId: 'project-1',
+          projectRedirectUserId: 'user-1',
+        })
       );
       const req = {
         headers: { cookie: `idp-owox-params=${payload};` },
@@ -399,23 +412,24 @@ describe('request-utils', () => {
       } as unknown as Request;
       const res = createResponseMock();
 
-      clearPendingAction(req, res);
+      resetAuthFlowForRetry(req, res);
 
-      expect(res.clearCookie).not.toHaveBeenCalled();
       const [, value] = (res.cookie as jest.Mock).mock.calls[0] as [string, string];
       const persisted = JSON.parse(decodeURIComponent(value)) as Record<string, unknown>;
-      expect(persisted.pendingAction).toBeUndefined();
       expect(persisted.redirectTo).toBe('/dashboard');
+      expect(persisted.appRedirectTo).toBeUndefined();
+      expect(persisted.projectId).toBeUndefined();
+      expect(persisted.projectRedirectUserId).toBeUndefined();
     });
 
-    it('does nothing when there is no pendingAction to clear', () => {
+    it('clears an empty params cookie on retry', () => {
       const req = { headers: { cookie: '' }, query: {} } as unknown as Request;
       const res = createResponseMock();
 
-      clearPendingAction(req, res);
+      resetAuthFlowForRetry(req, res);
 
       expect(res.cookie).not.toHaveBeenCalled();
-      expect(res.clearCookie).not.toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('idp-owox-params', expect.anything());
     });
   });
 });

@@ -37,16 +37,9 @@ const AUTH_FLOW_PARAMS_COOKIE = 'idp-owox-params';
 const AUTH_FLOW_ERROR_COOKIE = 'idp-owox-auth-error';
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-/**
- * Action to resume after a Platform PKCE state round trip. Social actions
- * are persisted only after a verified button POST; email is a fallback.
- */
+/** Only the legacy email fallback can be requested in a URL. */
 export const PENDING_ACTION_VALUES = ['google', 'microsoft', 'email'] as const;
 export type PendingAction = (typeof PENDING_ACTION_VALUES)[number];
-
-function isPendingAction(value: unknown): value is PendingAction {
-  return typeof value === 'string' && (PENDING_ACTION_VALUES as readonly string[]).includes(value);
-}
 
 const optionalStringParam = z.preprocess(
   value => (typeof value === 'string' ? value : undefined),
@@ -56,11 +49,6 @@ const optionalStringParam = z.preprocess(
 const optionalProjectIdParam = z.preprocess(
   value => (typeof value === 'string' && PROJECT_ID_PATTERN.test(value) ? value : undefined),
   z.string().optional()
-);
-
-const optionalPendingActionParam = z.preprocess(
-  value => (isPendingAction(value) ? value : undefined),
-  z.enum(PENDING_ACTION_VALUES).optional()
 );
 
 const optionalExtraParams = z.preprocess(value => {
@@ -86,8 +74,6 @@ export const AuthFlowParamsSchema = z.object({
   codeChallenge: optionalStringParam,
   projectId: optionalProjectIdParam,
   extraParams: optionalExtraParams,
-  pendingAction: optionalPendingActionParam,
-  socialIntentVerified: z.boolean().optional(),
 });
 
 export type AuthFlowParams = z.infer<typeof AuthFlowParamsSchema>;
@@ -246,6 +232,26 @@ export function clearAuthFlowStateCookie(res: Response, req?: Request): void {
   clearCookie(res, STATE_COOKIE, req);
 }
 
+/** Keep a continuation for another sign-in attempt after a failed callback. */
+export function resetAuthFlowForRetry(req: Request, res: Response): void {
+  clearAuthFlowStateCookie(res, req);
+  const params = extractAuthFlowParams(req);
+  const appRedirectTo = params.appRedirectTo?.startsWith('/auth/idp-start?projectId=')
+    ? undefined
+    : params.appRedirectTo;
+  const serialized = serializeAuthFlowParams({
+    ...params,
+    projectId: undefined,
+    appRedirectTo,
+    projectRedirectUserId: appRedirectTo ? params.projectRedirectUserId : undefined,
+  });
+  if (serialized) {
+    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, encodeURIComponent(serialized));
+  } else {
+    clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
+  }
+}
+
 /** Keep a one-time message across the Platform state round trip. */
 export function persistAuthFlowError(req: Request, res: Response, message: string): void {
   setCookie(res, req, AUTH_FLOW_ERROR_COOKIE, message.slice(0, 200), { maxAgeMs: 2 * 60 * 1000 });
@@ -351,10 +357,6 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const projectId = normalizeProjectId(
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
-  // A URL is never proof that a social button was clicked. Only the
-  // same-origin social-intent POST can persist a provider action.
-  const pendingAction = req.query?.pendingAction === 'email' ? 'email' : undefined;
-
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
     appRedirectTo: resolvedAppRedirectTo,
@@ -364,8 +366,6 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     codeChallenge: codeChallenge || cookieParams.codeChallenge,
     projectId: projectId || cookieParams.projectId,
     extraParams: resolvedExtraParams || cookieParams.extraParams,
-    pendingAction: pendingAction || cookieParams.pendingAction,
-    socialIntentVerified: cookieParams.socialIntentVerified,
   };
 }
 
@@ -375,15 +375,6 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
  */
 export function readPendingActionFromQuery(req: Request): PendingAction | undefined {
   return req.query?.pendingAction === 'email' ? 'email' : undefined;
-}
-
-/**
- * Reads a pending action from the params cookie, ignoring query strings.
- * Callers must also require `socialIntentVerified` before auto-submitting.
- */
-export function readPendingActionFromCookie(req: Request): PendingAction | undefined {
-  const cookieParams = parseSerializedAuthFlowParams(getCookie(req, AUTH_FLOW_PARAMS_COOKIE));
-  return cookieParams?.pendingAction;
 }
 
 /**
@@ -397,28 +388,6 @@ export function persistAuthFlowParams(req: Request, res: Response, params: AuthF
     setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, serialized);
   } catch {
     // ignore serialization issues
-  }
-}
-
-/**
- * Clears a previously persisted `pendingAction` so it is only ever consumed
- * once. Unlike `persistAuthFlowParams`, this always takes effect even when the
- * remaining params serialize to nothing, so a pendingAction-only cookie is
- * actually removed rather than left in place by the "skip empty" shortcut in
- * `persistAuthFlowParams`.
- */
-export function clearPendingAction(req: Request, res: Response): void {
-  const {
-    pendingAction: _pendingAction,
-    socialIntentVerified: _verified,
-    ...rest
-  } = extractAuthFlowParams(req);
-  if (!_pendingAction && !_verified) return;
-  const serialized = serializeAuthFlowParams(rest);
-  if (serialized) {
-    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, encodeURIComponent(serialized));
-  } else {
-    clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
   }
 }
 

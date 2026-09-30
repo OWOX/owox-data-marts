@@ -4,7 +4,9 @@ import { clearCookie, setCookie } from './cookie-policy.js';
 import { getCookie } from './request-utils.js';
 
 const SOCIAL_INTENT_COOKIE = 'idp-owox-social-intent';
+const VERIFIED_SOCIAL_INTENT_COOKIE = 'idp-owox-verified-social-intent';
 const SOCIAL_INTENT_TTL_MS = 2 * 60 * 1000;
+export type SocialProvider = 'google' | 'microsoft';
 
 type NonceRecord = { value: string; issuedAt: number };
 
@@ -50,4 +52,35 @@ export function consumeSocialIntentNonce(req: Request, res: Response, nonce: unk
     clearCookie(res, SOCIAL_INTENT_COOKIE, req);
   }
   return true;
+}
+
+/** Only the verified button POST can persist an action for the Platform round trip. */
+export function persistVerifiedSocialIntent(
+  req: Request,
+  res: Response,
+  provider: SocialProvider
+): void {
+  setCookie(res, req, VERIFIED_SOCIAL_INTENT_COOKIE, provider, {
+    maxAgeMs: SOCIAL_INTENT_TTL_MS,
+  });
+}
+
+export function readVerifiedSocialIntent(req: Request): SocialProvider | undefined {
+  const provider = getCookie(req, VERIFIED_SOCIAL_INTENT_COOKIE);
+  return provider === 'google' || provider === 'microsoft' ? provider : undefined;
+}
+
+export function clearVerifiedSocialIntent(req: Request, res: Response): void {
+  clearCookie(res, VERIFIED_SOCIAL_INTENT_COOKIE, req);
+}
+
+/** A rendered page consumes the action, whether or not it has a usable state. */
+export function consumeVerifiedSocialIntent(
+  req: Request,
+  res: Response
+): SocialProvider | undefined {
+  const raw = getCookie(req, VERIFIED_SOCIAL_INTENT_COOKIE);
+  if (!raw) return undefined;
+  clearVerifiedSocialIntent(req, res);
+  return readVerifiedSocialIntent(req);
 }

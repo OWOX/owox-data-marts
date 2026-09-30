@@ -27,6 +27,10 @@ function paramsCookieHeader(params: Record<string, unknown>): string {
   return `idp-owox-params=${encodeURIComponent(JSON.stringify(params))}`;
 }
 
+function socialIntentCookieHeader(provider: string): string {
+  return `idp-owox-verified-social-intent=${provider}`;
+}
+
 function lastParamsCookieValue(res: Response): Record<string, unknown> | undefined {
   const calls = (res.cookie as jest.Mock).mock.calls.filter(call => call[0] === 'idp-owox-params');
   if (calls.length === 0) return undefined;
@@ -71,15 +75,11 @@ describe('PageController.signInPage / signUpPage', () => {
     );
   });
 
-  it('auto-submits the pending Google action once state has come back, and clears pendingAction (single use)', async () => {
+  it('auto-submits the verified Google action once state has come back, and consumes the short-lived cookie', async () => {
     const controller = new PageController(providers);
     const req = createRequest(
       { state: 'fresh-state' },
-      paramsCookieHeader({
-        pendingAction: 'google',
-        socialIntentVerified: true,
-        redirectTo: '/dashboard',
-      })
+      `${socialIntentCookieHeader('google')}; ${paramsCookieHeader({ redirectTo: '/dashboard' })}`
     );
     const res = createResponse();
 
@@ -89,9 +89,11 @@ describe('PageController.signInPage / signUpPage', () => {
     expect(res.body).toContain('const autoSubmitProvider = "google";');
 
     const persisted = lastParamsCookieValue(res);
-    expect(persisted?.pendingAction).toBeUndefined();
-    expect(persisted?.socialIntentVerified).toBeUndefined();
     expect(persisted?.redirectTo).toBe('/dashboard');
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'idp-owox-verified-social-intent',
+      expect.objectContaining({ path: '/' })
+    );
   });
 
   it('does not auto-submit for a pending email action - the user must submit the form themselves', async () => {
@@ -108,11 +110,11 @@ describe('PageController.signInPage / signUpPage', () => {
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
-  it('never auto-submits when there is no query state, even if a stale state+pendingAction cookie exists', async () => {
+  it('never auto-submits when there is no query state, even with a verified action cookie', async () => {
     const controller = new PageController(providers);
     const req = createRequest(
       {},
-      `idp-owox-state=stale-state; ${paramsCookieHeader({ pendingAction: 'google' })}`
+      `idp-owox-state=stale-state; ${socialIntentCookieHeader('google')}`
     );
     const res = createResponse();
 
@@ -120,22 +122,25 @@ describe('PageController.signInPage / signUpPage', () => {
 
     expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'idp-owox-verified-social-intent',
+      expect.anything()
+    );
   });
 
-  it('does not auto-submit a query-only state with no matching pendingAction cookie (crafted-link check)', async () => {
+  it('does not auto-submit a query-only state with no verified action cookie (crafted-link check)', async () => {
     const controller = new PageController(providers);
     const req = createRequest({ state: 'attacker-supplied', pendingAction: 'google' });
     const res = createResponse();
 
     await controller.signInPage(req, res);
 
-    // hasState is true (query carries state), but pendingAction must come
-    // from the cookie only - a bare link can never supply that.
+    // A bare link cannot supply the short-lived cookie written by the button POST.
     expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
-  it('does not auto-submit a provider left in a cookie without a verified button POST', async () => {
+  it('does not auto-submit a provider left in the params cookie without a verified button POST', async () => {
     const controller = new PageController(providers);
     const req = createRequest(
       { state: 'fresh-state' },
@@ -149,11 +154,8 @@ describe('PageController.signInPage / signUpPage', () => {
   });
 
   it('does not auto-submit for a disabled provider even with a valid resume cookie', async () => {
-    const controller = new PageController({ google: false, microsoft: true, email: true });
-    const req = createRequest(
-      { state: 'fresh-state' },
-      paramsCookieHeader({ pendingAction: 'google' })
-    );
+    const controller = new PageController({ google: true, microsoft: false, email: true });
+    const req = createRequest({ state: 'fresh-state' }, socialIntentCookieHeader('microsoft'));
     const res = createResponse();
 
     await controller.signInPage(req, res);
@@ -163,10 +165,7 @@ describe('PageController.signInPage / signUpPage', () => {
 
   it('auto-submits the pending Microsoft action on the sign-up page the same way', async () => {
     const controller = new PageController(providers);
-    const req = createRequest(
-      { state: 'fresh-state' },
-      paramsCookieHeader({ pendingAction: 'microsoft', socialIntentVerified: true })
-    );
+    const req = createRequest({ state: 'fresh-state' }, socialIntentCookieHeader('microsoft'));
     const res = createResponse();
 
     await controller.signUpPage(req, res);

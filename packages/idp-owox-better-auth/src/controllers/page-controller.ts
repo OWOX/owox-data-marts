@@ -9,24 +9,19 @@ import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
 import {
-  clearPendingAction,
   consumeAuthFlowError,
   extractAuthFlowParams,
   persistAuthFlowContext,
-  readPendingActionFromCookie,
 } from '../utils/request-utils.js';
-
-type AutoSubmitProvider = 'google' | 'microsoft';
+import { consumeVerifiedSocialIntent, type SocialProvider } from '../utils/social-intent.js';
 
 function resolveAutoSubmitProvider(
   hasQueryState: boolean,
-  pendingAction: string | undefined,
-  socialIntentVerified: boolean | undefined,
+  pendingAction: SocialProvider | undefined,
   enabledProviders: UiAuthProviders
-): AutoSubmitProvider | undefined {
+): SocialProvider | undefined {
   if (!hasQueryState) return undefined;
-  if (!socialIntentVerified) return undefined;
-  if (pendingAction !== 'google' && pendingAction !== 'microsoft') return undefined;
+  if (!pendingAction) return undefined;
   return enabledProviders[pendingAction] ? pendingAction : undefined;
 }
 
@@ -54,13 +49,13 @@ export class PageController {
    * more importantly - this value gates auto-submitting a sign-in action
    * with no further click, so it must not be satisfiable by a query
    * parameter alone (a crafted `?state=x&pendingAction=google` link). The
-   * persisted action also needs proof from the one-time button POST.
+   * short-lived action cookie also needs proof from the one-time button POST.
    */
   private hasQueryState(req: ExpressRequest): boolean {
     return typeof req.query?.state === 'string' && req.query.state.length > 0;
   }
 
-  isSocialProviderEnabled(provider: AutoSubmitProvider): boolean {
+  isSocialProviderEnabled(provider: SocialProvider): boolean {
     return Boolean(this.providers[provider]);
   }
 
@@ -68,14 +63,10 @@ export class PageController {
     const hasState = this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
-      readPendingActionFromCookie(req),
-      extractAuthFlowParams(req).socialIntentVerified,
+      consumeVerifiedSocialIntent(req, res),
       this.providers
     );
     this.persistAuthFlowContext(req, res);
-    // pendingAction is single-use: once read for this render, drop it so a
-    // later reload of this same page does not silently replay a stale action.
-    clearPendingAction(req, res);
     const savedError = consumeAuthFlowError(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
@@ -96,12 +87,10 @@ export class PageController {
     const hasState = this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
-      readPendingActionFromCookie(req),
-      extractAuthFlowParams(req).socialIntentVerified,
+      consumeVerifiedSocialIntent(req, res),
       this.providers
     );
     this.persistAuthFlowContext(req, res);
-    clearPendingAction(req, res);
     const savedError = consumeAuthFlowError(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
