@@ -75,7 +75,7 @@ Leave all other fields as default, then click **Next** to continue.
 1. Choose one of the available endpoints.
 2. Select the required **fields**.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 > ⚠️ **Important Notice:**  
 > If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** must be an **ad account**, not your MCC. When you set a **Login Customer ID**, it must be **different** from the Customer ID; when querying the ad account directly, leave **Login Customer ID** empty.
@@ -101,7 +101,7 @@ OWOX sends one request per distinct link and remembers the answer for 30 days, i
 
 ## Run the Data Mart
 
-Now you have **two options** for importing data from Google Ads:
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:
 
 Option 1: Import Current Day's Data
 

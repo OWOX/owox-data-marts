@@ -39,7 +39,7 @@ Before you begin, please ensure that:
 1. Choose one of the available **endpoints**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![Reddit Ads Publish Data Mart](res/reddit_publish.png)
 
@@ -59,7 +59,7 @@ OWOX re-imports **Ads** on every run, so existing rows get the parsed field on t
 
 ## Run the Data Mart
 
-You now have two options for importing data from Reddit Ads:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 

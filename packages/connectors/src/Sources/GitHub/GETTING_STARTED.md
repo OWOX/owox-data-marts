@@ -34,13 +34,13 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 1. Choose one of the available **endpoints**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Save** and **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![GitHub Publish Data Mart](res/github_publish.png)
 
 ## Run the Data Mart
 
-You now have two options for importing data from GitHub source:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 

@@ -35,13 +35,13 @@ Before proceeding, please make sure that:
 1. Choose one of the available endpoints.
 2. Select the required **fields**.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![Button labeled Publish Data Mart is highlighted in blue at the top right of the Shopify Data Mart Data Setup screen. A red arrow points to the button, indicating the action to publish the data mart. The wider environment is a dark-themed application interface. The emotional tone is neutral and instructional.](res/shopify_publishdatamart.png)
 
 ## Run the Data Mart
 
-Now you have **two options** for importing data from Shopify:
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:
 
 Option 1: Import Current Day's Data
 

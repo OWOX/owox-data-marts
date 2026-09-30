@@ -31,7 +31,7 @@ Before you begin, please ensure that:
    - To import spend, clicks, and impressions from an ad account, select the `Microsoft Ads Campaigns` endpoint.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Publish Data Mart**.  
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.  
 
 ![Microsoft Publish Data Mart](res/microsoft_publishdatamart.png)
 
@@ -52,7 +52,7 @@ OWOX sends one request per distinct link and remembers the answer for 30 days, i
 
 ## Run the Data Mart
 
-You now have two options for importing data from Microsoft Ads:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 
