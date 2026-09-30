@@ -8,8 +8,8 @@ A Destination connects OWOX Data Marts to the tools your team already uses. Anal
 
 Destinations work in two modes:
 
-- **Push mode** — OWOX exports [Data Mart](../data-marts/) data into the tool on a manual or scheduled run. Google Sheets works this way.
-- **Pull mode** — the tool queries the [Storage](../storages/) when a user requests data. Data Studio, Excel, and OData work this way.
+- **Push mode** — OWOX delivers [Data Mart](../data-marts/) data to the tool on a manual or scheduled run. Google Sheets, Email, Slack, Microsoft Teams, and Google Chat work this way.
+- **Pull mode** — the tool asks OWOX for the data when a user opens or refreshes it, and OWOX reads the [Storage](../storages/). Data Studio and Excel work this way.
 
 ## How Destinations fit the workflow
 

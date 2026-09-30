@@ -54,7 +54,7 @@ Go to your **Data Mart** and open the **Destinations** tab.
 
 In the block labeled with the name of your Destination, click **New Report**.
 
-![Data Mart Destinations tab showing the Marketing Team destination block. The report table is empty with the message "No reports for this destination", and the New Report button is in the top right of the block](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/708f8681-1820-473e-11e8-d99b2a914600/public)
+![Data Mart Destinations tab showing the Marketing Team destination block. The report table is empty with the message "No reports for this destination", and the Add Report button is in the top right of the block](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/708f8681-1820-473e-11e8-d99b2a914600/public)
 
 #### 2.3. Configure general settings
 

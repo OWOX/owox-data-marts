@@ -14,7 +14,7 @@ Every member has one of three roles:
 | **Technical User** | Builds and maintains data resources |
 | **Business User** | Self-service reporting on shared Data Marts |
 
-Access to a specific resource combines the member's role, their ownership status, and the resource's sharing settings. [Contexts](./contexts.md) add business-domain labels, such as Marketing or Finance, to scope visibility per team.
+Access to a specific resource combines the member's role, their ownership status, and the resource's sharing settings. [Contexts](./contexts.md) add business-domain labels, such as Marketing or Finance. They limit visibility only for members whose **Role scope** is **Selected contexts only**.
 
 ## When to use Project Settings
 
@@ -27,7 +27,7 @@ Access to a specific resource combines the member's role, their ownership status
 
 1. Open **Project Settings → Members** and invite your team.
 2. Assign each member a [role](./roles-and-permissions.md).
-3. Add [Contexts](./contexts.md) if teams need scoped visibility.
+3. If teams need scoped visibility, add [Contexts](./contexts.md) and attach them to resources. Then set members' **Role scope** to **Selected contexts only**.
 
 ## Learn more
 

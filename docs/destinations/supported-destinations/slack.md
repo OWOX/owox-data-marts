@@ -42,7 +42,7 @@ Go to your **Data Mart** and open the **Destinations** tab.
 
 #### 2.2. Add a new report
 
-In the block labeled with the name of your Destination, click **+ Add report**.
+In the block labeled with the name of your Destination, click **+ New Report**.
 
 #### 2.3. Configure general settings
 
@@ -64,9 +64,9 @@ Decide when the report should be sent based on the Data Mart run result:
 
 OWOX automatically runs the Data Mart before sending the report and checks the result. Your selected condition determines whether the message is sent.
 
-#### 2.6. Save the report
+#### 2.6. Create the report
 
-Click **Save** to apply the report settings.
+Click **Create & Run report** to save the report and trigger an immediate run. To save without running, open the dropdown next to the button and select **Create new report**.
 
 #### 2.7. (Optional) Scheduling
 

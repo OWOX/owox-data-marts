@@ -55,11 +55,11 @@ Each destination will reuse the same Data Mart — no need to duplicate logic. Y
 
 To do this:
 
-1. Under the **Destinations** section, click **+ Add report**
+1. Under the **Destinations** section, click **+ New Report**
 2. Give your report a name, e.g. `Website Visitors`
 3. Select a destination
 4. Create a new Google Sheets document (or use an existing one) and share it (Edit permissions) with your **Google Sheets Service Account**
-5. Add a link to your document (and specify the tab) and click **Create new report**
+5. Add a link to your document (and specify the tab) and click **Create & Run report**. To save without running, open the dropdown next to the button and select **Create new report**
 
 ![View Based Data Mart - 4](../../res/screens/SQL-Based-DataMart-Report.png)
 

@@ -19,7 +19,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 - [**Source**](#source) is a platform like Meta Ads or TikTok Ads, Reddit Ads, from which raw data is collected via connectors.
 - [**Storage**](#storage) is a data warehouse (e.g., Google BigQuery, AWS Athena) where all data is stored & processed.
 - [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Data Studio).
-- [**Report**](#report) is a specific spreadsheet tab where data is exported to.
+- [**Report**](#report) delivers a Data Mart's output to a Destination, such as a specific spreadsheet tab.
 - [**Trigger**](#trigger) rules for automated data delivery on a schedule.
 - [**Run**](#run-types) is a single manual or an automated data load action.
 - [**Notification**](#notification) alerts your team when runs succeed or fail.
@@ -93,12 +93,12 @@ A [**Destination**](../destinations/) is an interface or application used by bus
 - [Google Sheets](../destinations/supported-destinations/google-sheets.md)
 - [Microsoft Excel](../destinations/supported-destinations/microsoft-excel.md)
 - [Data Studio](../destinations/supported-destinations/data-studio.md)
-- OData (compatible with Tableau, Power BI, etc)
+- [Email](../destinations/supported-destinations/email.md), [Slack](../destinations/supported-destinations/slack.md), [Microsoft Teams](../destinations/supported-destinations/microsoft-teams.md), and [Google Chat](../destinations/supported-destinations/google-chat.md)
 
 Each **Data Mart** can be linked to multiple **Destinations**.
 
-- All destinations except Google Sheets operate in **pull mode** — they query **Storage** when a user or tool requests the data.  
-- Google Sheets uses **push mode** — data is exported from the **Data Mart** into a **Report** in Google Sheets via manual or scheduled runs.
+- Google Sheets, Email, Slack, Microsoft Teams, and Google Chat use **push mode** — OWOX delivers **Data Mart** data through a **Report** on a manual or scheduled run.
+- Data Studio and Excel use **pull mode** — the tool asks OWOX for the data, and OWOX reads the **Storage**.
 
 > ☝️ **Destinations** allow Data Analysts to control and monitor which services business users consume data in.
 
@@ -106,8 +106,8 @@ Each Destination has **Owners** — the team members responsible for its configu
 
 ### Report
 
-A [**Report**](../reports/) defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
-Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
+A [**Report**](../reports/) delivers a Data Mart's output to a Destination — for example, a specific tab in a Google Sheets document.
+Different Reports of the same Data Mart may have different scheduled triggers.
 
 Each Report has **Owners** — the team members responsible for its configuration. The creator is automatically assigned as an owner.
 

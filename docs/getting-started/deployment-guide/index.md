@@ -22,5 +22,5 @@ To enable Report Runs and bill them to an OWOX Data Marts Cloud project, add a l
 ## After deployment
 
 1. Sign in and add a [Storage](../../storages/) for your data warehouse.
-2. Create your first [Data Mart](../../data-marts/).
-3. Invite your team in [Project Settings](../../project/).
+2. Create your first [Data Mart](../../data-marts/), or follow the end-to-end tutorial [Your First Data Mart](../first-data-mart.md).
+3. Invite your team in [Project Settings](../../project/). This needs `IDP_PROVIDER=better-auth` — see [Self-Managed Authentication](../setup-guide/members-management/better-auth.md).

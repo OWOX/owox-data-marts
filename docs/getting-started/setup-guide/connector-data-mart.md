@@ -107,11 +107,10 @@ The **table name** will be created automatically based on the selected node name
 
 Don’t forget to:
 
-- Click **Save** in the Data Setup tab
-- **Publish** the data mart
-- **Run** the Data Mart manually for the first time
+- Click **Save** at the end of the setup wizard
+- Click **Publish & Run Data Mart** in the page header — publishing starts the first import automatically
 
-The **Manual Run** button sits in the header of the **Input Source** card on the **Data Setup** tab. You can start a run while the card is collapsed.
+To load data again later, use the **Manual Run** button. It sits in the header of the **Input Source** card on the **Data Setup** tab. You can start a run while the card is collapsed.
 
 ![The Data Setup tab of a published connector Data Mart, with the Manual Run button in the Input Source card header](../../res/screens/Manual-run.png)
 

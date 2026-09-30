@@ -43,7 +43,8 @@ Each Data Mart links to exactly one Storage. One Data Mart can feed many Destina
 | --- | --- |
 | Combine Data Marts through relationships | [Joinable Data Marts](../getting-started/setup-guide/joinable-data-marts.md) |
 | Visualize Data Marts and relationships | [Models Canvas](../getting-started/setup-guide/models-canvas.md) |
-| Rename fields and hide sensitive columns | [Output Controls](../getting-started/setup-guide/output-controls.md) |
+| Rename fields with aliases | [Define Output Schema](../getting-started/setup-guide/sql-data-mart.md#step-3-define-output-schema) |
+| Filter, sort, and cap the rows a report delivers | [Report Output Controls](../getting-started/setup-guide/output-controls.md) |
 | Validate data with automated checks | [Data Quality Checks](../getting-started/setup-guide/data-quality-checks.md) |
 | Preview Data Mart output | [Data Preview](../getting-started/setup-guide/data-preview.md) |
 | Core terms and how entities relate | [Core Concepts](../getting-started/core-concepts.md) |
