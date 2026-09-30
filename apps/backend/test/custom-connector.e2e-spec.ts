@@ -473,5 +473,6 @@ describe('Custom Connector (e2e)', () => {
       .send({ manifest: { bad: true } });
     const res = await agent.post(`/api/connectors/custom/${id}/publish`).set(AUTH_HEADER);
     expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Invalid manifest');
   });
 });
