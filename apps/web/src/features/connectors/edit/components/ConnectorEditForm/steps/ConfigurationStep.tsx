@@ -16,6 +16,7 @@ import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRe
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 import { trackEvent } from '../../../../../../utils';
+import { connectorSetupProperties } from '../../../../shared/model/connector-setup-analytics';
 import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
 import {
   GOOGLE_SHEETS_CONNECTOR_NAME,
@@ -171,6 +172,7 @@ export function ConfigurationStep({
       category: connector.name,
       action: 'connector_selected',
       label: connector.displayName,
+      ...connectorSetupProperties(connector),
     });
   }, [connector]);
 

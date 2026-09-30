@@ -6,6 +6,7 @@ import { Button } from '@owox/ui/components/button';
 import toast from 'react-hot-toast';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { ConnectorBuilderApiService } from '../../../../connector-builder/shared/api/connector-builder-api.service';
+import { trackCustomConnectorEvent } from '../../../../connector-builder/shared/model/analytics';
 
 interface ConnectorVersionControlProps {
   info?: ConnectorListItem | null;
@@ -66,6 +67,15 @@ export function ConnectorVersionControl({
   const choose = (v?: number) => {
     setOpen(false);
     onChangeVersion(v);
+    trackCustomConnectorEvent(
+      'custom_connector_version_pinned',
+      { id: connectorId, name: info.name, title: info.displayName },
+      {
+        action: v === undefined ? 'FollowActive' : 'Pin',
+        version: v ?? null,
+        activeVersion: active,
+      }
+    );
   };
 
   return (

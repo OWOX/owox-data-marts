@@ -16,6 +16,7 @@ import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-a
 import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
 import { credentialParameterNames } from '../../shared/model/credentialParameters';
+import { describeFailure, trackCustomConnectorEvent } from '../../shared/model/analytics';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 
 /** Which representation of the test run the dock body shows. */
@@ -99,6 +100,7 @@ export function ResultsDock({
   const [settings, setSettings] = useState(false);
   const [view, setView] = useState<ResultView>('table');
   const [dockHeight, setDockHeight] = useState(300);
+  const testsRun = useRef(0);
 
   // Which parameters hold a credential: those marked SECRET and those the authentication
   // uses. Their test values are what the author typed to reach a live API, so they are kept
@@ -234,23 +236,39 @@ export function ResultsDock({
     setRunning(true);
     setResult(null);
     // Code mode may still hold a rename the effect above has not seen.
-    const sent = flushCodeEdits() ?? manifest;
-    const target = followNode(nodeNames, node, Object.keys(sent.nodes));
+    const tested = flushCodeEdits() ?? manifest;
+    const target = followNode(nodeNames, node, Object.keys(tested.nodes));
     if (target !== node) setNode(target);
+    const startedAt = Date.now();
+    let outcome: ConnectorTestResultDto;
     try {
-      const res = await new ConnectorBuilderApiService().test({
-        manifest: sent,
+      outcome = await new ConnectorBuilderApiService().test({
+        manifest: tested,
         node: target,
         configuration: values,
         maxRows,
       });
-      setResult(res);
-      setSample(target, res.sample ?? []);
+      setResult(outcome);
+      setSample(target, outcome.sample ?? []);
     } catch (e) {
-      setResult({ rows: [], logs: [], error: testFailureMessage(e) });
+      outcome = { rows: [], logs: [], error: testFailureMessage(e) };
+      setResult(outcome);
     } finally {
       setRunning(false);
     }
+    testsRun.current += 1;
+    trackCustomConnectorEvent(
+      'custom_connector_test_run',
+      { id: state.id, manifest: tested },
+      {
+        node: target,
+        result: outcome.error ? 'error' : outcome.rows.length ? 'success' : 'empty',
+        recordsCount: outcome.rows.length,
+        durationMs: Date.now() - startedAt,
+        testsInSession: testsRun.current,
+        ...(outcome.error ? describeFailure(outcome.error) : {}),
+      }
+    );
   };
 
   const hasNodes = nodeNames.length > 0;

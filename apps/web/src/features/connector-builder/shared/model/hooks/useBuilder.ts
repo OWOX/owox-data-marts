@@ -6,6 +6,7 @@ import { ConnectorBuilderApiService } from '../../api/connector-builder-api.serv
 import { createEmptyManifest, createEmptyNode, type BuilderManifest } from '../manifest.types';
 import { firstNonEmpty } from '../asText';
 import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
+import { describeFailure, trackCustomConnectorEvent } from '../analytics';
 
 /**
  * The draft version a save from here would destroy, or null when nothing is at risk.
@@ -240,6 +241,11 @@ export function useBuilder() {
         const msg = apiErrorMessage(e, 'Failed to save');
         dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
         toast.error(msg);
+        trackCustomConnectorEvent(
+          'custom_connector_error',
+          { id: state.id, manifest },
+          { action: state.id ? 'SaveError' : 'CreateError', ...describeFailure(msg) }
+        );
         return null;
       } finally {
         dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
@@ -272,7 +278,12 @@ export function useBuilder() {
           ? await persistDraft(typed ?? state.manifest)
           : state.id;
       if (!id) return false;
-      const { warnings } = await api.publish(id);
+      const { version, warnings } = await api.publish(id);
+      trackCustomConnectorEvent(
+        'custom_connector_published',
+        { id, manifest: typed ?? state.manifest },
+        { version, warningsCount: warnings.length }
+      );
       const detail = await api.getById(id);
       dispatch({
         type: BuilderActionType.SET_META,
@@ -293,6 +304,11 @@ export function useBuilder() {
       const msg = apiErrorMessage(e, 'Failed to publish');
       dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
       toast.error(msg);
+      trackCustomConnectorEvent(
+        'custom_connector_error',
+        { id: state.id, manifest: state.manifest },
+        { action: 'PublishError', ...describeFailure(msg) }
+      );
       return false;
     } finally {
       dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: false });
@@ -307,14 +323,23 @@ export function useBuilder() {
       // The edits went with the connector: nothing is left unsaved.
       dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
       toast.success('Connector deleted');
+      trackCustomConnectorEvent('custom_connector_deleted', {
+        id: state.id,
+        manifest: state.manifest,
+      });
       return true;
     } catch (e) {
       const msg = apiErrorMessage(e, 'Failed to delete connector');
       dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
       toast.error(msg);
+      trackCustomConnectorEvent(
+        'custom_connector_error',
+        { id: state.id, manifest: state.manifest },
+        { action: 'DeleteError', ...describeFailure(msg) }
+      );
       return false;
     }
-  }, [dispatch, state.id]);
+  }, [dispatch, state.id, state.manifest]);
 
   const loadVersion = useCallback(
     async (version: number) => {
@@ -344,13 +369,23 @@ export function useBuilder() {
           },
         });
         toast.success(`Version ${version} is now active`);
+        trackCustomConnectorEvent(
+          'custom_connector_version_activated',
+          { id: state.id, manifest: state.manifest },
+          { version, fromVersion: state.activeVersion }
+        );
       } catch (e) {
         const msg = apiErrorMessage(e, 'Failed to activate version');
         dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
         toast.error(msg);
+        trackCustomConnectorEvent(
+          'custom_connector_error',
+          { id: state.id, manifest: state.manifest },
+          { action: 'ActivateError', ...describeFailure(msg) }
+        );
       }
     },
-    [dispatch, state.id, state.versions, state.loadedVersion]
+    [dispatch, state.id, state.versions, state.loadedVersion, state.activeVersion, state.manifest]
   );
 
   // Discard unsaved edits and restore the last saved state without a page reload:

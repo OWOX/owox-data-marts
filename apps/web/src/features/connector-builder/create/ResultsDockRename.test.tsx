@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { trackEvent } from '../../../utils/data-layer';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 
 const runTest = vi.fn();
@@ -18,6 +19,7 @@ vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
+vi.mock('../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 // Dynamic import inside the factory: `vi.mock` is hoisted above every import.
 vi.mock('@owox/ui/components/select', async () =>
   (await import('./select-test-mock')).selectAsNativeElement()
@@ -103,6 +105,19 @@ describe('Test after renaming a node in Code mode', () => {
 
     await afterDebounce();
     expect(await runAndGetNode()).toBe('sales');
+  });
+
+  it('reports the node it tested, not the one picked before the rename', async () => {
+    addNode('orders');
+    fireEvent.click(screen.getByTestId('mode-code'));
+    renameInCode('orders', 'sales');
+    await runAndGetNode();
+
+    const testRuns = vi
+      .mocked(trackEvent)
+      .mock.calls.map(([payload]) => payload)
+      .filter(payload => payload.event === 'custom_connector_test_run');
+    expect(testRuns).toEqual([expect.objectContaining({ node: 'sales' })]);
   });
 
   // Code mode hides the nav rail, so the dock's own pick is the only choice the author has

@@ -19,6 +19,7 @@ import {
   AppWizardStepLoading,
 } from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../utils';
+import { connectorSetupProperties } from '../../../shared/model/connector-setup-analytics';
 import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-config';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
@@ -41,6 +42,9 @@ import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-conne
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
+
+/** Tells the builder, for analytics, that it was opened from the Data Mart wizard. */
+const BUILDER_STATE = { builderEntryPoint: 'data_mart_wizard' };
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -480,6 +484,7 @@ export function ConnectorEditForm({
         category: selectedConnector.name,
         action: `step`,
         label: step.title,
+        ...connectorSetupProperties(selectedConnector),
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -700,7 +705,7 @@ export function ConnectorEditForm({
             size='sm'
             variant='outline'
             onClick={() => {
-              navigate(builderPath);
+              navigate(builderPath, { state: BUILDER_STATE });
             }}
           >
             Open in builder
@@ -828,14 +833,16 @@ export function ConnectorEditForm({
             onCreateNew={
               canEdit
                 ? () => {
-                    navigate('/connectors/builder/new');
+                    navigate('/connectors/builder/new', { state: BUILDER_STATE });
                   }
                 : undefined
             }
             onEditConnector={
               canEdit
                 ? connector => {
-                    if (connector.id) navigate(`/connectors/builder/${connector.id}`);
+                    if (connector.id) {
+                      navigate(`/connectors/builder/${connector.id}`, { state: BUILDER_STATE });
+                    }
                   }
                 : undefined
             }
@@ -990,6 +997,7 @@ export function ConnectorEditForm({
                 category: selectedConnector.name,
                 action: 'created',
                 label: 'configuration-only',
+                ...connectorSetupProperties(selectedConnector),
               });
             } else if (mode === 'fields-only' && existingConnector) {
               onSubmit({
@@ -1015,6 +1023,7 @@ export function ConnectorEditForm({
                 category: existingConnector.source.name,
                 action: 'created',
                 label: 'fields-only',
+                ...connectorSetupProperties(selectedConnector),
               });
             } else if (selectedConnector && target) {
               onSubmit({
@@ -1045,6 +1054,7 @@ export function ConnectorEditForm({
                 category: selectedConnector.name,
                 action: 'created',
                 label: 'full',
+                ...connectorSetupProperties(selectedConnector),
               });
             }
             setIsDirty(false);

@@ -3,7 +3,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import type { Role, User } from '../../../features/idp/types';
+import { trackEvent } from '../../../utils/data-layer';
 import ConnectorBuilderRoutePage from './BuilderPage';
+
+vi.mock('../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 const authUser = vi.hoisted(() => ({ value: null as User | null }));
 const create = vi.hoisted(() => vi.fn());
@@ -40,14 +43,45 @@ function user(roles: Role[]): User {
 }
 
 /** The builder route as the app declares it, opened on a connector that does not exist yet. */
-function renderRoute() {
+function renderRoute(state?: unknown) {
   const router = createMemoryRouter(
     [{ path: '/connectors/builder/:id', element: <ConnectorBuilderRoutePage /> }],
-    { initialEntries: ['/connectors/builder/new'] }
+    { initialEntries: [{ pathname: '/connectors/builder/new', state }] }
   );
   render(<RouterProvider router={router} />);
   return router;
 }
+
+const openedEvents = () =>
+  vi
+    .mocked(trackEvent)
+    .mock.calls.map(([payload]) => payload)
+    .filter(payload => payload.event === 'custom_connector_builder_opened');
+
+describe('ConnectorBuilderRoutePage — where the author came from', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authUser.value = user(['editor']);
+  });
+
+  it('reports the entry point the navigation carried', async () => {
+    renderRoute({ builderEntryPoint: 'data_mart_wizard' });
+
+    await waitFor(() => {
+      expect(openedEvents()).toEqual([
+        expect.objectContaining({ mode: 'new', entryPoint: 'data_mart_wizard' }),
+      ]);
+    });
+  });
+
+  it('reports a direct visit when the navigation carried none, or an unknown one', async () => {
+    renderRoute({ builderEntryPoint: 'somewhere else' });
+
+    await waitFor(() => {
+      expect(openedEvents()).toEqual([expect.objectContaining({ entryPoint: 'direct' })]);
+    });
+  });
+});
 
 describe('ConnectorBuilderRoutePage — a new connector', () => {
   beforeEach(() => {

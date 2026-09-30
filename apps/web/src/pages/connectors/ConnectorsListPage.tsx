@@ -2,6 +2,9 @@ import { useProjectRoute } from '../../shared/hooks/useProjectRoute';
 import { useConnectorsList } from '../../features/connectors/list/model/useConnectorsList';
 import { ConnectorsTable } from '../../features/connectors/list/components/ConnectorsTable/ConnectorsTable';
 
+/** Tells the builder, for analytics, that it was opened from this list. */
+const BUILDER_STATE = { builderEntryPoint: 'connectors_list' };
+
 export const ConnectorsListPage = () => {
   // Project-scoped navigate: the builder routes live under /ui/:projectId, so a
   // raw useNavigate('/connectors/builder/...') would drop the project prefix and 404.
@@ -23,10 +26,10 @@ export const ConnectorsListPage = () => {
           <ConnectorsTable
             data={connectors}
             onOpen={id => {
-              navigate(`/connectors/builder/${id}`);
+              navigate(`/connectors/builder/${id}`, { state: BUILDER_STATE });
             }}
             onCreate={() => {
-              navigate('/connectors/builder/new');
+              navigate('/connectors/builder/new', { state: BUILDER_STATE });
             }}
             onDelete={id => void deleteConnector(id)}
           />

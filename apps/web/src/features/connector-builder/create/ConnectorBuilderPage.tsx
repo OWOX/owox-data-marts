@@ -15,6 +15,10 @@ import { ResultsDock } from './components/ResultsDock';
 import { CodeModeEditor } from './components/CodeModeEditor';
 import { useManifestImport } from './components/useManifestImport';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
+import { trackCustomConnectorEvent } from '../shared/model/analytics';
+
+/** Where the author came to the builder from, for analytics. */
+export type BuilderEntryPoint = 'connectors_list' | 'data_mart_wizard';
 
 function BuilderCenter({
   selection,
@@ -78,12 +82,14 @@ function BuilderCenter({
 
 function BuilderShell({
   id,
+  entryPoint,
   onBack,
   onDeleted,
   onCreated,
   onDirtyChange,
 }: {
   id?: string;
+  entryPoint?: BuilderEntryPoint;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -99,20 +105,58 @@ function BuilderShell({
   const [mode, setMode] = useState<'builder' | 'code'>('builder');
   const [confirmDropCode, setConfirmDropCode] = useState(false);
   const announcedCreate = useRef(false);
-  const manifestImport = useManifestImport();
+  const trackedOpen = useRef(false);
+  const trackedCreate = useRef(false);
+  const imported = useRef(false);
+  const manifestImport = useManifestImport({
+    onImported: () => {
+      imported.current = true;
+    },
+  });
+
+  const switchMode = (next: 'builder' | 'code') => {
+    if (next === mode) return;
+    setMode(next);
+    trackCustomConnectorEvent(
+      'custom_connector_mode_switched',
+      { id: state.id, manifest },
+      { to: next }
+    );
+  };
 
   // Leaving Code mode unmounts the editor, and its buffer with it. Anything that parsed is
   // pushed on the way out, so the only thing at stake is text that does not — which is
   // exactly what the author is in the middle of fixing. Ask rather than drop it silently.
   const requestMode = (next: 'builder' | 'code') => {
     if (next === 'builder' && state.codeInvalid) setConfirmDropCode(true);
-    else setMode(next);
+    else switchMode(next);
   };
 
   useEffect(() => {
     if (id) void loadConnector(id);
     else initNew();
   }, [id, initNew, loadConnector]);
+
+  // Once per visit, and for an existing connector only after it has loaded, so the event names it.
+  useEffect(() => {
+    if (trackedOpen.current || (id && state.id !== id)) return;
+    trackedOpen.current = true;
+    trackCustomConnectorEvent(
+      'custom_connector_builder_opened',
+      { id: state.id, manifest },
+      { mode: id ? 'edit' : 'new', entryPoint: entryPoint ?? 'direct' }
+    );
+  }, [id, state.id, manifest, entryPoint]);
+
+  useEffect(() => {
+    if (id || !state.id || trackedCreate.current) return;
+    trackedCreate.current = true;
+    trackCustomConnectorEvent(
+      'custom_connector_created',
+      { id: state.id, manifest },
+      { origin: imported.current ? 'import' : mode === 'code' ? 'code' : 'form' }
+    );
+  }, [id, state.id, manifest, mode]);
 
   // Report unsaved edits to the route, which is where navigation can be held back
   // (`useBlocker` needs a data router, and this component is also rendered standalone).
@@ -192,7 +236,9 @@ function BuilderShell({
         onToggleTest={() => {
           setDockOpen(v => !v);
         }}
-        onImportJson={manifestImport.openFilePicker}
+        onImportJson={() => {
+          manifestImport.openFilePicker('menu');
+        }}
         onBack={onBack}
         onDeleted={onDeleted}
       />
@@ -238,7 +284,9 @@ function BuilderShell({
                     variant='outline'
                     size='sm'
                     className='h-7 gap-1.5'
-                    onClick={manifestImport.openFilePicker}
+                    onClick={() => {
+                      manifestImport.openFilePicker('code_tab');
+                    }}
                     data-testid='codeImportJson'
                   >
                     <Upload className='h-3.5 w-3.5' />
@@ -282,7 +330,7 @@ function BuilderShell({
         onConfirm={() => {
           setConfirmDropCode(false);
           setCodeInvalid(false);
-          setMode('builder');
+          switchMode('builder');
         }}
       />
     </div>
@@ -291,12 +339,14 @@ function BuilderShell({
 
 export function ConnectorBuilderPage({
   id,
+  entryPoint,
   onBack,
   onDeleted,
   onCreated,
   onDirtyChange,
 }: {
   id?: string;
+  entryPoint?: BuilderEntryPoint;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -306,6 +356,7 @@ export function ConnectorBuilderPage({
     <BuilderProvider>
       <BuilderShell
         id={id}
+        entryPoint={entryPoint}
         onBack={onBack}
         onDeleted={onDeleted}
         onCreated={onCreated}

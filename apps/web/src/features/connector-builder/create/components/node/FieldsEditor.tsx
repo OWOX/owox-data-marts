@@ -33,6 +33,7 @@ import { useBuilder } from '../../../shared/model/hooks/useBuilder';
 import type { ManifestField, ManifestNode } from '../../../shared/model/manifest.types';
 import { inferFieldsFromSample } from '../../../shared/model/inferFields';
 import { flattenPaths } from '../../../shared/model/pathSuggest';
+import { trackCustomConnectorEvent } from '../../../shared/model/analytics';
 import { FieldInfo } from '../fields';
 
 const FIELD_TYPES = ['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'object'];
@@ -194,6 +195,11 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     const inferred = inferFieldsFromSample(state.sample.records[0]);
     // Existing fields win on name; the manifest write re-seeds the rows.
     setPath([...base, 'fields'], { ...inferred, ...fields });
+    trackCustomConnectorEvent(
+      'custom_connector_fields_discovered',
+      { id: state.id, manifest },
+      { fieldsCount: Object.keys(inferred).length }
+    );
   };
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));

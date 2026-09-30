@@ -1,7 +1,10 @@
 import { it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
+import { trackEvent } from '../../../../../utils/data-layer';
 import { ConnectorVersionControl } from './ConnectorVersionControl';
+
+vi.mock('../../../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 const getById = vi.fn();
 vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service', () => ({
@@ -101,6 +104,35 @@ it('clears the pin via Follow active', async () => {
   fireEvent.click(screen.getByTestId('connector-version-badge'));
   fireEvent.click(await screen.findByRole('button', { name: 'Follow active' }));
   expect(onChange).toHaveBeenCalledWith(undefined);
+});
+
+it('reports pinning a version and going back to following the active one', async () => {
+  vi.mocked(trackEvent).mockClear();
+  const { rerender } = render(
+    <ConnectorVersionControl info={custom(5)} version={undefined} onChangeVersion={vi.fn()} />
+  );
+  fireEvent.click(screen.getByTestId('connector-version-badge'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Pin to version 3' }));
+  rerender(<ConnectorVersionControl info={custom(5)} version={3} onChangeVersion={vi.fn()} />);
+  fireEvent.click(screen.getByTestId('connector-version-badge'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow active' }));
+
+  expect(vi.mocked(trackEvent).mock.calls.map(([payload]) => payload)).toEqual([
+    expect.objectContaining({
+      event: 'custom_connector_version_pinned',
+      action: 'Pin',
+      connectorId: 'c1',
+      connectorName: 'Acme',
+      version: 3,
+      activeVersion: 5,
+    }),
+    expect.objectContaining({
+      event: 'custom_connector_version_pinned',
+      action: 'FollowActive',
+      version: null,
+      activeVersion: 5,
+    }),
+  ]);
 });
 
 it('offers an explicit "Pin to active" on a stale pin', async () => {
