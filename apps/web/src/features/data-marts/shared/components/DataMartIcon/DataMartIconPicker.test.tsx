@@ -6,6 +6,7 @@ import { DATA_MART_ICON_KEYS } from '../../enums/data-mart-icon.enum';
 import { DataMartIconGlyph } from './DataMartIconGlyph';
 import { getLucideIcon, LUCIDE_ICON_OPTIONS } from './lucide-icon-catalog';
 import { RECOMMENDED_ICON_OPTIONS, searchIconOptions } from './data-mart-icon-search';
+import { waitForDataMartIcons } from './use-lucide-icon-catalog';
 
 describe('getDataMartIcon', () => {
   it('maps a known key to its icon and anything else to the default one', () => {
@@ -55,6 +56,15 @@ describe('lucide icon catalogue', () => {
     expect(getLucideIcon('lucide:map-pin-x-inside')).toBeDefined();
     expect(getLucideIcon('lucide:no-such-icon')).toBeUndefined();
   });
+
+  it('resolves a renamed icon under its old name, but lists only current names', () => {
+    // lucide renamed alert-triangle to triangle-alert; the old name survives as an alias export.
+    expect(getLucideIcon('lucide:alert-triangle')).toBeDefined();
+    expect(getLucideIcon('lucide:alert-triangle')).toBe(getLucideIcon('lucide:triangle-alert'));
+    const values = LUCIDE_ICON_OPTIONS.map(option => option.value);
+    expect(values).toContain('lucide:triangle-alert');
+    expect(values).not.toContain('lucide:alert-triangle');
+  });
 });
 
 describe('searchIconOptions', () => {
@@ -73,6 +83,19 @@ describe('searchIconOptions', () => {
 
   it('returns nothing for an empty query', () => {
     expect(searchIconOptions('  ', RECOMMENDED_ICON_OPTIONS, LUCIDE_ICON_OPTIONS)).toEqual([]);
+  });
+});
+
+describe('waitForDataMartIcons', () => {
+  it('resolves once library icons can be drawn on the first render', async () => {
+    await waitForDataMartIcons([null, 'purchases', 'lucide:anchor']);
+    const { container } = render(<DataMartIconGlyph icon='lucide:anchor' />);
+    // No waiting here: an image export captures the DOM right after the helper resolves.
+    expect(container.querySelector('svg.lucide-anchor')).not.toBeNull();
+  });
+
+  it('returns at once when no library icon is drawn', async () => {
+    await expect(waitForDataMartIcons(['purchases', null, undefined])).resolves.toBeUndefined();
   });
 });
 

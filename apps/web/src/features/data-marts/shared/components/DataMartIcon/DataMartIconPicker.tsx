@@ -36,7 +36,7 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
   const [query, setQuery] = useState('');
   const [libraryTiles, setLibraryTiles] = useState(INITIAL_LIBRARY_TILES);
 
-  const catalog = useLucideIconCatalog(open);
+  const { catalog, failed: catalogFailed } = useLucideIconCatalog(open);
   const libraryOptions = useMemo(
     () => (catalog ? withoutRecommendedGlyphs(catalog.LUCIDE_ICON_OPTIONS) : []),
     [catalog]
@@ -101,7 +101,13 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
     <p className='text-muted-foreground mt-3 mb-1.5 px-1 text-xs font-medium first:mt-0'>{title}</p>
   );
 
-  const loadingNote = <p className='text-muted-foreground px-1 py-2 text-sm'>Loading all icons…</p>;
+  const loadingNote = catalogFailed ? (
+    <p className='text-muted-foreground w-0 min-w-full px-1 py-2 text-sm' role='status'>
+      Couldn’t load all icons. Reopen the picker to try again.
+    </p>
+  ) : (
+    <p className='text-muted-foreground px-1 py-2 text-sm'>Loading all icons…</p>
+  );
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>

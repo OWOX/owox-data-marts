@@ -37,6 +37,7 @@ import {
 } from '../../shared/canvas/highlight';
 import { clampCanvasViewport, getCanvasGraphBounds } from '../../shared/canvas/viewport';
 import { DataMartStatus } from '../../shared/enums/data-mart-status.enum';
+import { waitForDataMartIcons } from '../../shared/components/DataMartIcon';
 import { parseCanvasDirection, type CanvasDirection } from '../../shared/canvas/canvas-direction';
 import {
   estimateEdgeLabelDimensions,
@@ -370,6 +371,8 @@ function ModelCanvasInner({
     exportApiRef,
     () => ({
       exportCanvas: async format => {
+        // Library (`lucide:`) icons load lazily; capture the cards only once they are drawn.
+        await waitForDataMartIcons(nodes.map(node => node.icon));
         const { exportModelCanvas } = await import('../export');
         return exportModelCanvas(format, {
           viewport: flowDomNode?.querySelector<HTMLElement>('.react-flow__viewport') ?? null,
