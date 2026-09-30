@@ -67,6 +67,9 @@ export interface DataMartPreviewColumn {
 
 export type PreviewCell = string | number | boolean | null;
 
+/** Same marker the data-quality result parser shows for a date the driver could not represent. */
+const INVALID_DATE_CELL = '[Invalid Date]';
+
 export interface DataMartPreviewResult {
   columns: DataMartPreviewColumn[];
   rows: PreviewCell[][];
@@ -353,7 +356,12 @@ export function toPreviewCell(value: unknown): PreviewCell {
   if (typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
   if (typeof value === 'bigint') return value.toString();
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) {
+    // Databricks and Snowflake build a Date from the warehouse value; a DATE or TIMESTAMP outside
+    // the JS Date range (years -271821..275760) becomes an Invalid Date that no longer carries the
+    // raw value. The cell is not NULL in the warehouse, so it gets a marker rather than `null`.
+    return Number.isNaN(value.getTime()) ? INVALID_DATE_CELL : value.toISOString();
+  }
   if (Buffer.isBuffer(value)) return value.toString('base64');
   if (typeof value === 'object') {
     // Decimal wrappers (Big.js, Decimal.js) serialise themselves to a string through toJSON.
