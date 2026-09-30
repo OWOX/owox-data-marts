@@ -53,8 +53,8 @@ A [Destination](../destinations/) is the tool where business users access the da
 A [Report](../reports/) delivers the Data Mart's output to your Destination.
 
 1. Open your Data Mart's **Destinations** tab and click **+ New Report** in your Destination's block.
-2. Name the report and paste the link to the target spreadsheet tab. The URL must include its `gid`.
-3. Share the spreadsheet with the email shown under **Share document with**, and give it **Editor** access. With OAuth, skip this if that Google account can already edit the sheet.
+2. Name the report. Paste the link to the target spreadsheet tab — the URL must include its `gid`. Or click **+ New Sheet** to create a spreadsheet.
+3. For an existing spreadsheet, share it with the email shown under **Share document with**, and give it **Editor** access. With OAuth, skip this if that Google account can already edit the sheet.
 4. Click **Create & Run report**, then open the document — your data is in the sheet.
 
 ## Step 6: Automate it with Triggers

@@ -56,13 +56,25 @@ Each destination will reuse the same Data Mart — no need to duplicate logic. Y
 
 To do this:
 
-1. Under the **Destinations** section, click **+ New Report**
-2. Give your report a name, e.g. `Website Visitors`
-3. Select a destination
-4. Create a new Google Sheets document (or use an existing one) and share it (Edit permissions) with your **Google Sheets Service Account**
-5. Add a link to your document (and specify the tab) and click **Create & Run report**. To save without running, open the dropdown next to the button and select **Create new report**
+First, make sure your project has a Destination. If it has none, create one under **Destinations** in the left sidebar — see [Adding a New Destination](../../destinations/manage-destinations.md#adding-a-new-destination). You can also click **Connect Google Sheets** on the Data Mart's empty **Destinations** tab.
 
-![Table Based Data Mart - 4](../../res/screens/SQL-Based-DataMart-Report.png)
+Open the **Destinations** tab of your Data Mart.
+
+![Data Mart page with the Destinations tab highlighted by a red arrow. A Google Sheets Destination block shows an empty report table with the message "Create your first report for this destination"](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/699f51fe-c6f1-46e7-4f5a-14c205163e00/public)
+
+In your Destination's block, click **+ New Report**.
+
+![Destinations tab of a Data Mart. A red arrow points to the New Report button inside the empty report table of a Destination block; a second New Report button sits in the block header](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d0f8bb3e-44e2-4b84-3634-7654ca9c8f00/public)
+
+Then fill in the report form:
+
+1. Give your report a name, e.g. `Website Visitors`
+2. Select a destination
+3. In **Document Link with Sheet ID (GID)**, paste a link to an existing tab. Or click **+ New Sheet** to create a spreadsheet
+4. For an existing spreadsheet, share it with the email shown under **Share document with**, and give it **Editor** access
+5. Click **Create & Run report**. To save without running, open the dropdown next to the button and select **Create new report**
+
+![Create new report form for a Google Sheets Destination with the Title, Destination, Share document with, and Document Link with Sheet ID (GID) fields. A New Sheet button sits next to the link field, and the Create & Run report button at the bottom has a dropdown arrow](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6131b226-2298-42da-8481-438a861b2f00/public)
 
 You can now:
 
