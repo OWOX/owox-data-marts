@@ -1564,6 +1564,72 @@ describe('rows_extracted analytics', () => {
     );
   });
 
+  const partitionedManifest = partitionRouter =>
+    JSON.stringify({
+      version: '1.0',
+      name: 'Partitioned',
+      baseUrl: 'https://api.example.com',
+      authentication: { type: 'apiKey', inject: { into: 'query', name: 'k', format: 'x' } },
+      parameters: {},
+      nodes: {
+        stats: {
+          destinationName: 'stats',
+          isTimeSeries: false,
+          uniqueKeys: ['id'],
+          fields: { id: { dataPath: 'id', type: 'string' } },
+          partitionRouter,
+          request: { method: 'GET', path: '/stats/{{ stream_slice.slice }}' },
+          recordSelector: { recordPath: ['rows'] },
+        },
+      },
+    });
+
+  const emptyNodeHint = async partitionRouter => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async json() {
+        return { data: [], rows: [] };
+      },
+    });
+    const context = makeSelectiveContext({ Fields: { value: 'stats id' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(
+      context,
+      new ManifestParser().parse(partitionedManifest(partitionRouter))
+    );
+    source._delay = () => Promise.resolve();
+    await source.fetchData({
+      nodeName: 'stats',
+      fields: ['id'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    source.onImportComplete(context);
+    return events.find(e => e.type === 'LOG' && /No records came back/.test(e.message))?.message;
+  };
+
+  // A substream node sends no request at all when its parent finds no keys, so the node's own
+  // record path and request are the wrong place to look.
+  it('points a substream node at its parent record path and key', async () => {
+    const hint = await emptyNodeHint({
+      type: 'substream',
+      parent: { request: { method: 'GET', path: '/campaigns' }, recordPath: ['data'], key: 'id' },
+      partitionField: 'slice',
+    });
+
+    assert.match(hint, /Parent record path and Parent key/);
+  });
+
+  it('points a list-partitioned node at its list of values', async () => {
+    const hint = await emptyNodeHint({ type: 'list', values: ['US'], partitionField: 'slice' });
+
+    assert.match(hint, /Values or Values from parameter/);
+  });
+
   it('adds nothing at the end for a node that got records on any request', async () => {
     let calls = 0;
     globalThis.fetch = async () => ({

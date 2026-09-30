@@ -288,9 +288,31 @@ export class DeclarativeSource extends AbstractSource {
       this.context.log(
         LOG_LEVEL.INFO,
         `No records came back for node "${nodeName}" in this run. If you expected data, check ` +
-          `the node's record path, and the parameters and dates its request uses.`
+          `the node's record path, and the parameters and dates its request uses.` +
+          DeclarativeSource._partitionHint(this.model.nodes[nodeName]?.partitionRouter)
       );
     }
+  }
+
+  /**
+   * A partitioned node sends one request per slice, and none when there are no slices, so
+   * its own request is not where an empty run starts. Named as the builder's Partition form
+   * names the fields.
+   */
+  static _partitionHint(partitionRouter) {
+    if (partitionRouter?.type === 'substream') {
+      return (
+        ' Its requests run once per parent record, so also check Parent record path and ' +
+        'Parent key: when they find nothing, the node sends no requests.'
+      );
+    }
+    if (partitionRouter?.type === 'list') {
+      return (
+        ' Its requests run once per value of its list, so also check Values or Values from ' +
+        'parameter: an empty list sends no requests.'
+      );
+    }
+    return '';
   }
 
   /**
