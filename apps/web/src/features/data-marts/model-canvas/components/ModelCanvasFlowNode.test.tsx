@@ -406,6 +406,8 @@ describe('ModelCanvasFlowNode', () => {
 
     const badge = screen.getByRole('button', { name: 'Show relationships of Orders' });
     expect(badge).toHaveAttribute('aria-expanded', 'false');
+    // Same link icon as the Joinable Data Marts section.
+    expect(badge.querySelector('svg.lucide-link2')).toBeInTheDocument();
     fireEvent.click(badge);
 
     const list = screen.getByRole('list', { name: 'Relationships of Orders' });

@@ -5,10 +5,10 @@ import {
   ExternalLink,
   FileText,
   Info,
+  Link2,
   PencilLine,
   Share2,
   Users,
-  Waypoints,
   type LucideIcon,
 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
@@ -84,7 +84,8 @@ const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {
   fields: Columns3,
   triggers: CalendarClock,
   reports: FileText,
-  relationships: Waypoints,
+  // The icon the Joinable Data Marts section uses, so relationships read the same everywhere.
+  relationships: Link2,
 };
 
 /**
