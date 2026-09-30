@@ -103,6 +103,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 },
               ],
             },
+            {
+              label: 'Best Practices',
+              items: [{ autogenerate: { directory: 'docs/getting-started/best-practices' } }],
+            },
           ],
         },
         {
