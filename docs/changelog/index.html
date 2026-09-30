@@ -125,10 +125,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d939c6713376c1138155abf9a2ba7689/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- Change **Limit** (1–1000) and click **Update** to fetch more rows; page through them without another query.
-- Click a column name to sort by it (ascending, descending, off); the sort runs in the warehouse, so you see the real top rows.
-- Filter a column from its header: the condition runs in the warehouse as a `WHERE` clause, and active filters show as chips above the table.
-- Each preview, including **Re-run** and each limit, sort or filter change, is a new warehouse query. It is not a Data Mart run: it does not appear in Run History and does not consume credits.
+<ul>
+<li>Change <strong>Limit</strong> (1–1000) and click <strong>Update</strong> to fetch more rows; page through them without another query.</li>
+<li>Click a column name to sort by it (ascending, descending, off); the sort runs in the warehouse, so you see the real top rows.</li>
+<li>Filter a column from its header: the condition runs in the warehouse as a <code dir="auto">WHERE</code> clause, and active filters show as chips above the table.</li>
+<li>Each preview, including <strong>Re-run</strong> and each limit, sort or filter change, is a new warehouse query. It is not a Data Mart run: it does not appear in Run History and does not consume credits.</li>
+</ul>
 <p>See <a href="/docs/getting-started/setup-guide/data-preview/">Data Preview</a>.</p>
 </li>
 <li>
@@ -138,9 +140,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/95d076f202becdecba2b0072d70f435f/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- The extension finds the published Data Mart that imports the open tab and shows its **Upload** card right away, with the date and status of the last import. No report is created, and no Data Mart has to be picked.
-- **Upload** starts an ordinary manual run: the storage table is fully replaced with the current sheet data, the run appears in the Data Mart's **Run History** and counts toward consumption. The button stays locked until the run finishes. If a run is already in progress, the extension says so instead of starting another one.
-- Upload needs the project **Editor** role and edit access to the Data Mart, the same as a manual run in the web app.
+<ul>
+<li>The extension finds the published Data Mart that imports the open tab and shows its <strong>Upload</strong> card right away, with the date and status of the last import. No report is created, and no Data Mart has to be picked.</li>
+<li><strong>Upload</strong> starts an ordinary manual run: the storage table is fully replaced with the current sheet data, the run appears in the Data Mart’s <strong>Run History</strong> and counts toward consumption. The button stays locked until the run finishes. If a run is already in progress, the extension says so instead of starting another one.</li>
+<li>Upload needs the project <strong>Editor</strong> role and edit access to the Data Mart, the same as a manual run in the web app.</li>
+</ul>
 <p>On other tabs and in other spreadsheets, the extension works as before, and the Upload card also offers <strong>Create a report on this sheet instead</strong>. The Excel add-in is not affected.</p>
 <p>See <a href="/packages/connectors/src/sources/google-sheets/getting-started/#upload-from-the-owox-extension">Upload from the OWOX Extension</a>.</p>
 <!-- markdownlint-disable-file MD041 MD036 -->
@@ -162,17 +166,19 @@ opens four such fields and shows that each still saves.</p>
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/0675e406f39aaebb4bea6d0b1ed83c0b/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- **A joined `COUNT` without `DISTINCT`** counts the rows of this Data Mart that found a match, not
-  the joined Data Mart's own rows. It comes out higher when one joined row matches several rows
-  here (`FORMULA_JOINED_MEASURE_MULTIPLIED`), and lower when several joined rows share one key — a
-  customer with three orders counts once (`FORMULA_JOINED_MEASURE_COLLAPSED`). The warning names
-  the join at fault and points at `COUNT(DISTINCT …)` over a column of the joined Data Mart, or at
-  its Unique Count as a report column when it offers one. Where no primary key is declared to
-  check against, it says the count cannot be checked either way
-  (`FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN`) — and a save that sets that key is judged against it.
-- **Any joined measure** leaves out the joined Data Mart's rows that match nothing here, so the
-  result may not reconcile with that Data Mart's own totals (`FORMULA_JOINED_ROWS_EXCLUDED`). You
-  see this when you write or change the formula, not again after every unrelated save.
+<ul>
+<li><strong>A joined <code dir="auto">COUNT</code> without <code dir="auto">DISTINCT</code></strong> counts the rows of this Data Mart that found a match, not
+the joined Data Mart’s own rows. It comes out higher when one joined row matches several rows
+here (<code dir="auto">FORMULA_JOINED_MEASURE_MULTIPLIED</code>), and lower when several joined rows share one key — a
+customer with three orders counts once (<code dir="auto">FORMULA_JOINED_MEASURE_COLLAPSED</code>). The warning names
+the join at fault and points at <code dir="auto">COUNT(DISTINCT …)</code> over a column of the joined Data Mart, or at
+its Unique Count as a report column when it offers one. Where no primary key is declared to
+check against, it says the count cannot be checked either way
+(<code dir="auto">FORMULA_JOINED_MEASURE_GRAIN_UNPROVEN</code>) — and a save that sets that key is judged against it.</li>
+<li><strong>Any joined measure</strong> leaves out the joined Data Mart’s rows that match nothing here, so the
+result may not reconcile with that Data Mart’s own totals (<code dir="auto">FORMULA_JOINED_ROWS_EXCLUDED</code>). You
+see this when you write or change the formula, not again after every unrelated save.</li>
+</ul>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/82f87930-6be3-4673-abef-7cd540449c00/public" alt="The formula editor of the orders_counted field, COUNT(orders.amount), with two amber warnings: the join on user_id can match several rows so COUNT counts matches — use COUNT(DISTINCT ...) or pick its Unique Count measure in a report — and the joined Orders rows that match nothing are dropped"></p>
 <p><code dir="auto">SUM</code>, <code dir="auto">AVG</code>, <code dir="auto">MIN</code>, <code dir="auto">MAX</code> and <code dir="auto">COUNT(DISTINCT …)</code> over a joined Data Mart are already computed
 set-based and are not flagged. See
@@ -312,8 +318,10 @@ edit access to each of those Data Marts; otherwise a project admin can do it.</p
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9adc9651c6f316f975710cee6e75604a/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- The button appears once the connector is configured.
-- It stays disabled, with the reason in a tooltip, while the Data Mart is a draft or a run is in progress, as before.
+<ul>
+<li>The button appears once the connector is configured.</li>
+<li>It stays disabled, with the reason in a tooltip, while the Data Mart is a draft or a run is in progress, as before.</li>
+</ul>
 <p>See <a href="/docs/getting-started/setup-guide/connector-data-mart/">Connector-based Data Mart</a> for running a connector manually.</p>
 </li>
 <li>
@@ -323,10 +331,12 @@ edit access to each of those Data Marts; otherwise a project admin can do it.</p
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/18c996a4099c5a7651bc9626d179bdb3/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- Click **N relationships** to list the Data Marts this one joins or is joined by, with the join fields. The count and the list cover the whole storage, whatever the canvas filters hide.
-- Click **N fields** in Compact mode to list the Output Schema fields under the card.
-- Only unpublished Data Marts carry a status badge, **Draft**, next to the title. Published ones no longer show a Published label.
-- The colored Data Quality bar on the left edge of the card is gone. The Data Quality shield in the footer shows the status, and hovering it explains the result.
+<ul>
+<li>Click <strong>N relationships</strong> to list the Data Marts this one joins or is joined by, with the join fields. The count and the list cover the whole storage, whatever the canvas filters hide.</li>
+<li>Click <strong>N fields</strong> in Compact mode to list the Output Schema fields under the card.</li>
+<li>Only unpublished Data Marts carry a status badge, <strong>Draft</strong>, next to the title. Published ones no longer show a Published label.</li>
+<li>The colored Data Quality bar on the left edge of the card is gone. The Data Quality shield in the footer shows the status, and hovering it explains the result.</li>
+</ul>
 <p>The canvas settings (the gear button) have a new design, and every checkbox hides exactly what it names:</p>
 <ul>
 <li><strong>View</strong> is picked from two cards with a small preview of each. <strong>Horizontal</strong> / <strong>Vertical</strong> and <strong>Show join fields</strong> sit on one row below them.</li>
@@ -347,8 +357,10 @@ edit access to each of those Data Marts; otherwise a project admin can do it.</p
 <div style="position: relative; padding-top: 56.25%;">
   <iframe src="https://customer-4geatlj66rtkaxtz.cloudflarestream.com/1447bf033f387f33bc1ee9f6157b24b1/iframe" loading="lazy" style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>
 </div>
-- Changing the icon needs edit access to the Data Mart.
-- The API returns the icon as `icon` on a Data Mart, in the Data Mart list and in `GET /api/model-canvas/data-marts`. Set it with `PUT /api/data-marts/{id}/icon` or when creating a Data Mart; an unknown icon key is rejected with `400`, and `null` resets it.
+<ul>
+<li>Changing the icon needs edit access to the Data Mart.</li>
+<li>The API returns the icon as <code dir="auto">icon</code> on a Data Mart, in the Data Mart list and in <code dir="auto">GET /api/model-canvas/data-marts</code>. Set it with <code dir="auto">PUT /api/data-marts/{id}/icon</code> or when creating a Data Mart; an unknown icon key is rejected with <code dir="auto">400</code>, and <code dir="auto">null</code> resets it.</li>
+</ul>
 <p>See <a href="/docs/getting-started/setup-guide/models-canvas/#data-mart-icons">Models Canvas</a>.</p>
 <!-- markdownlint-disable-file MD041 MD036 -->
 </li>
