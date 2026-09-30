@@ -46,7 +46,7 @@ export class UpdateDataMartOwnersService {
       );
       if (!canManage) {
         throw new ForbiddenException(
-          'You do not have permission to manage owners of this Data Mart. You must be the Technical Owner with the Technical User role, or a Project Admin.'
+          'You do not have permission to manage owners of this Data Mart. You must be a Data Owner of this Data Mart with the Data Owner role, or a Project Admin.'
         );
       }
     }

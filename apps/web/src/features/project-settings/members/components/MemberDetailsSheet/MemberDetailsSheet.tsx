@@ -230,14 +230,14 @@ export function MemberDetailsSheet({
                                   Triggers, or Storages.
                                 </p>
                                 <p className='mb-2'>
-                                  <strong>Technical User</strong> — everything a Business User may
-                                  do, plus: creates, edits, and deletes Data Marts, Data Mart
-                                  Triggers, and Storages; edits and deletes Reports project-wide;
-                                  changes Report owners; manages Report Triggers project-wide.
+                                  <strong>Data Owner</strong> — everything a Business User may do,
+                                  plus: creates, edits, and deletes Data Marts, Data Mart Triggers,
+                                  and Storages; edits and deletes Reports project-wide; changes
+                                  Report owners; manages Report Triggers project-wide.
                                 </p>
                                 <p>
-                                  <strong>Project Admin</strong> — everything a Technical User may
-                                  do, plus: manages Project Members, manages billing, and manages
+                                  <strong>Project Admin</strong> — everything a Data Owner may do,
+                                  plus: manages Project Members, manages billing, and manages
                                   general Project settings such as the Project title.
                                 </p>
                               </AccordionContent>

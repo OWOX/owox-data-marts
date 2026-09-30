@@ -348,11 +348,11 @@ export function DataStorageForm({
                     <AccordionTrigger>What is a Storage Owner?</AccordionTrigger>
                     <AccordionContent>
                       <p>
-                        Storage Owner is direct technical ownership of this Storage. When the
-                        owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Sharing, and copy credentials from this Storage —
-                        regardless of Sharing settings. Assigning Owner to a Business User stores
-                        the assignment but grants no maintenance permissions until the role changes.
+                        Storage Owner is direct ownership of this Storage. When the owner&apos;s
+                        project role is Data Owner or Project Admin, they may view, edit, delete,
+                        configure Sharing, and copy credentials from this Storage — regardless of
+                        Sharing settings. Assigning Owner to a Business User stores the assignment
+                        but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -406,7 +406,7 @@ export function DataStorageForm({
                   />
                 </div>
                 <p className='text-muted-foreground text-sm'>
-                  Technical users can use this storage when creating Data Marts
+                  Members with the Data Owner role can use this storage when creating Data Marts
                 </p>
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
@@ -416,9 +416,9 @@ export function DataStorageForm({
                       </AccordionTrigger>
                       <AccordionContent>
                         <p>
-                          When enabled, Technical Users who are not owners can select this storage
-                          when creating new Data Marts. Without this, only storage owners and admins
-                          can use it.
+                          When enabled, members with the Data Owner role who are not owners of this
+                          storage can select it when creating new Data Marts. Without this, only
+                          storage owners and admins can use it.
                         </p>
                       </AccordionContent>
                     </AccordionItem>

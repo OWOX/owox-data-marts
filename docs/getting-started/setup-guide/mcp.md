@@ -683,7 +683,7 @@ MCP works only with **published** data marts that your [project role](../../proj
 
 | Field                   | Description                                                                                                                                          |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `can_create_data_marts` | Whether your role may create data marts (Project Admin or Technical User)                                                                            |
+| `can_create_data_marts` | Whether your role may create data marts (Project Admin or Data Owner)                                                                                |
 | `create_data_mart_url`  | The page in OWOX Data Marts where a new data mart is created                                                                                         |
 | `data_marts_url`        | The Data Marts list of the connected project                                                                                                         |
 | `guides`                | Links to the [core concepts](../core-concepts.md), [connector-based](./connector-data-mart.md), and [SQL-based](./sql-data-mart.md) data mart guides |
@@ -692,8 +692,8 @@ MCP works only with **published** data marts that your [project role](../../proj
 
 A data mart cannot be created or published through MCP. To continue:
 
-- **Project Admin or Technical User:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
-- **Business User:** ask a Project Admin or a Technical User of the project to create and publish a data mart and share it with you for reporting.
+- **Project Admin or Data Owner:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
+- **Business User:** ask a Project Admin or a Data Owner of the project to create and publish a data mart and share it with you for reporting.
 
 Then ask the assistant again — no reconnection is needed.
 

@@ -262,7 +262,7 @@ export class UpdateDataMartDefinitionService {
     if (!canCopyCredentials) {
       throw new ForbiddenException(
         'You do not have permission to copy connector credentials from the source Data Mart. ' +
-          'Ask its owner to add you as a Technical Owner or to turn on "Shared for maintenance", ' +
+          'Ask its owner to add you as a Data Owner or to turn on "Shared for maintenance", ' +
           'or enter the credentials manually.'
       );
     }

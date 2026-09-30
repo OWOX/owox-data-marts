@@ -13,7 +13,7 @@ Before you set up a Data Studio destination:
 
 - An existing **Published** Data Mart.
 - Access to **Data Studio** with a Google Account.
-- A project role that can create **Destinations**. Project Admins and Technical Users can create Destinations; Business Users can create and manage Destinations they own. See [Roles and Permissions](../../project/roles-and-permissions.md).
+- A project role that can create **Destinations**. Project Admins and Data Owners can create Destinations; Business Users can create and manage Destinations they own. See [Roles and Permissions](../../project/roles-and-permissions.md).
 - Access to **use** the published Data Mart and the selected Data Studio Destination. To edit the Data Studio report later, you also need report access through Data Mart maintenance access or report ownership. See [Ownership and Sharing](../../project/ownership-and-sharing.md).
 
 ## Step 1. Create a Destination entity

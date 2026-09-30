@@ -43,7 +43,7 @@ export class UpdateAvailabilityService {
     );
     if (!canConfigure)
       throw new ForbiddenException(
-        'You do not have permission to configure sharing for this Data Mart. You must be the Technical Owner with the Technical User role, or a Project Admin.'
+        'You do not have permission to configure sharing for this Data Mart. You must be a Data Owner of this Data Mart with the Data Owner role, or a Project Admin.'
       );
 
     dm.availableForReporting = availableForReporting;
@@ -74,7 +74,7 @@ export class UpdateAvailabilityService {
     );
     if (!canConfigure)
       throw new ForbiddenException(
-        'You do not have permission to configure sharing for this Storage. You must be an owner with the Technical User role, or a Project Admin.'
+        'You do not have permission to configure sharing for this Storage. You must be an owner with the Data Owner role, or a Project Admin.'
       );
 
     storage.availableForUse = availableForUse;

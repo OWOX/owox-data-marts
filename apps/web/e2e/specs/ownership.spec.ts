@@ -109,7 +109,7 @@ test.describe('Destination Ownership', () => {
 // OWN-08: DataMart - Ownership section on Overview tab
 // ---------------------------------------------------------------------------
 test.describe('DataMart Ownership', () => {
-  test('overview tab shows Technical and Business Owner sections (OWN-08)', async ({
+  test('overview tab shows Data Owner and Business Owner sections (OWN-08)', async ({
     page,
     apiHelpers,
   }) => {
@@ -119,7 +119,7 @@ test.describe('DataMart Ownership', () => {
     await page.goto(`/ui/0/data-marts/${dm.id}/overview`);
     await expect(page.getByTestId(TESTIDS.datamartTabOverview)).toBeVisible();
 
-    await expect(page.getByText('Technical Owner', { exact: true })).toBeVisible();
+    await expect(page.getByText('Data Owner', { exact: true })).toBeVisible();
     await expect(page.getByText('Business Owner', { exact: true })).toBeVisible();
   });
 

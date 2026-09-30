@@ -66,8 +66,8 @@ The **Copy from…** option reuses a connector configuration from another Data M
 Copying credentials requires **Edit** access to the source Data Mart. You have it in one of these cases:
 
 - You are a Project Admin.
-- You are a Technical User and a Technical Owner of the source Data Mart.
-- You are a Technical User, and the source Data Mart is **Shared for maintenance**.
+- Your role is Data Owner, and you are a Data Owner of the source Data Mart.
+- Your role is Data Owner, and the source Data Mart is **Shared for maintenance**.
 
 Without this access, saving the Data Mart fails with this error:
 
@@ -75,9 +75,9 @@ Without this access, saving the Data Mart fails with this error:
 
 To resolve it, choose one of these options:
 
-- Ask an owner of the source Data Mart to add you as a Technical Owner.
+- Ask an owner of the source Data Mart to add you as a Data Owner.
 - Ask them to turn on **Shared for maintenance** on the source Data Mart.
-- If you are a Business User, ask a Project Admin to change your role to Technical User.
+- If you are a Business User, ask a Project Admin to change your role to Data Owner.
 - Enter your own credentials instead of copying.
 
 One more check applies when your role scope is **Selected contexts only**. You also need a context overlap with the source Data Mart. See [Ownership and Sharing](../../project/ownership-and-sharing.md) for the full access model.

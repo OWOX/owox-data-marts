@@ -164,7 +164,7 @@ export function UpdateDataMartContextsSpec() {
     ApiOperation({
       summary: 'Replace the contexts attached to a Data Mart',
       description:
-        'Editors may only attach contexts they themselves are bound to. Admins may attach any context.',
+        'Data Owners may only attach contexts they themselves are bound to. Project Admins may attach any context.',
     }),
     ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiBody({ type: UpdateEntityContextsRequestApiDto }),
@@ -190,7 +190,7 @@ export function RunDataMartSpec() {
     ApiOperation({
       summary: 'Start a manual Data Mart run',
       description:
-        'Starts a connector Data Mart run. Technical User access to the Data Mart is required.',
+        'Starts a connector Data Mart run. Data Owner access to the Data Mart is required.',
     }),
     ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiBody({ type: RunDataMartRequestApiDto, required: false }),
@@ -277,7 +277,7 @@ export function CancelDataMartRunSpec() {
     ApiOperation({
       summary: 'Cancel a Data Mart run',
       description:
-        'Cancels an active connector, standard report, or Data Quality run. Technical User access to the Data Mart is required.',
+        'Cancels an active connector, standard report, or Data Quality run. Data Owner access to the Data Mart is required.',
     }),
     ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
@@ -314,8 +314,7 @@ export function GetMemberOwnershipWarningsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'List member ownership warnings' }),
     ApiOkResponse({
-      description:
-        'Technical-owner warnings for project members whose role makes ownership ineffective',
+      description: 'Data Owner warnings for project members whose role makes ownership ineffective',
       schema: {
         type: 'array',
         items: {
@@ -328,7 +327,7 @@ export function GetMemberOwnershipWarningsSpec() {
             },
             warning: {
               type: 'string',
-              example: 'Technical Owner — requires Technical User role to be effective',
+              example: 'Data Owner — requires the Data Owner role to be effective',
             },
           },
         },

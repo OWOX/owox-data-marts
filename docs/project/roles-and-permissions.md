@@ -7,7 +7,7 @@ Each project member has one of three roles.
 | Role | Access level |
 |---|---|
 | **Project Admin** | Full access across all entities |
-| **Technical User** | Build and maintain data resources; can edit any Report they have access to |
+| **Data Owner** | Build and maintain data resources; can edit any Report they have access to |
 | **Business User** | Self-service reporting on Data Marts shared with them; manage own Reports and Destinations |
 
 ## Project Admin
@@ -29,7 +29,7 @@ Assigned to members who manage the project team and need full access to all reso
 
 ---
 
-## Technical User
+## Data Owner
 
 Assigned to members who build and maintain the data infrastructure — creating Data Marts, Storages, Destinations, and report pipelines.
 
@@ -50,7 +50,7 @@ Assigned to members who build and maintain the data infrastructure — creating 
 
 ## Business User
 
-Assigned to members who create and run reports on data prepared by Technical Users, without needing access to the underlying infrastructure.
+Assigned to members who create and run reports on data prepared by Data Owners, without needing access to the underlying infrastructure.
 
 **Data access:**
 
@@ -65,4 +65,4 @@ Assigned to members who create and run reports on data prepared by Technical Use
 **Notifications:**
 
 - Not included in default receivers
-- Removed from all notification receiver lists when downgraded from Technical User
+- Removed from all notification receiver lists when downgraded from Data Owner

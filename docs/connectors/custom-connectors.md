@@ -56,7 +56,7 @@ To keep a copy of a connector or move it to another project, export its manifest
 
 A custom connector belongs to a project, and every Data Mart in the project can use it.
 
-- Project Admins and Technical Users create, edit, publish and delete connectors.
+- Project Admins and Data Owners create, edit, publish and delete connectors.
 - Anyone who sets up a connector-based Data Mart can choose a published connector under **Custom Connectors** in the connector setup.
 
 See [Roles and Permissions](../project/roles-and-permissions.md).

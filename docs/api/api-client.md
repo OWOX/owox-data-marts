@@ -287,8 +287,8 @@ for (const dataMart of dataMarts) {
 }
 ```
 
-Start from a non-negative integer offset or keep only Data Marts with or without business or
-technical owners:
+Start from a non-negative integer offset or keep only Data Marts with or without Business Owners or
+Data Owners:
 
 ```ts
 const unownedDataMarts = await client.dataMarts.list({
@@ -323,7 +323,7 @@ authentication or any network request.
 ## Manage Data Mart runs
 
 Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
-starts a manual connector run and requires Technical User access to the Data Mart. Omit the options,
+starts a manual connector run and requires Data Owner access to the Data Mart. Omit the options,
 or set `runType` to `INCREMENTAL` without `data`, for an incremental run. To send connector-specific
 backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors without backfill fields can
 omit `data`. A connector that reads `StartDate` and `EndDate` accepts `YYYY-MM-DD`, or the date part
@@ -378,7 +378,7 @@ returned runs and stop when a page contains fewer runs than the requested limit.
 offset pages, so deduplicate by `run.id` while paging.
 
 Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
-run. Technical User access is required. The method resolves with no value after the API returns
+run. Data Owner access is required. The method resolves with no value after the API returns
 `204 No Content`. A cancellable run that is already terminal returns a conflict error; a run type
 that does not support cancellation returns a bad-request error.
 

@@ -93,11 +93,11 @@ Editing a resource's context attachments is more restricted than editing the res
 
 | Resource | Who can edit attached contexts |
 |---|---|
-| **Data Mart** | Project Admin, or Technical Owner with Technical User role |
-| **Storage** | Project Admin, or Owner with Technical User role |
+| **Data Mart** | Project Admin, or Data Owner with the Data Owner role |
+| **Storage** | Project Admin, or Owner with the Data Owner role |
 | **Destination** | Project Admin, or Owner (any role) |
 
-Members who can edit a resource for other reasons (for example, a non-owner Technical User editing a Data Mart that is *Shared for maintenance*) cannot change its contexts unless they meet the rules above.
+Members who can edit a resource for other reasons (for example, a non-owner with the Data Owner role editing a Data Mart that is *Shared for maintenance*) cannot change its contexts unless they meet the rules above.
 
 ---
 
@@ -127,7 +127,7 @@ Each non-admin member has a **Role scope**, set in **Project Settings → Member
 
 Project Admins always have project-wide access. The role-scope setting and context assignments are not applied for admins.
 
-> ☝️ **Ownership overrides context filtering.** A member always sees resources they own — Technical Owner of a Data Mart, Owner of a Storage or Destination — even if no context overlaps, and even if their scope is **Selected contexts only**.
+> ☝️ **Ownership overrides context filtering.** A member always sees resources they own — Data Owner of a Data Mart, Owner of a Storage or Destination — even if no context overlaps, and even if their scope is **Selected contexts only**.
 
 ### What "Selected Contexts Only" Applies To
 

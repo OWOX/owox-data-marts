@@ -12,7 +12,7 @@ import type { AuthorizationContext } from '../types';
 const PROJECT_ROLES: readonly Role[] = ['admin', 'editor', 'viewer'];
 const PROJECT_ROLE_LABELS: Record<Role, string> = {
   admin: 'Project Admin',
-  editor: 'Technical User',
+  editor: 'Data Owner',
   viewer: 'Business User',
 };
 

@@ -46,7 +46,7 @@ Unlike raw data inside your data warehouse, each Data Mart is:
 - **Reusable** across BI tools: Google Sheets, Data Studio, Excel, and more
 - **Trustworthy** - no more asking “Whose report is right?”
 - **Modeled** (optional) by setting up relationships with other data marts
-- **Owned** — each Data Mart has explicit **Technical Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
+- **Owned** — each Data Mart has explicit **Data Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
 
 > ☝️ Think of it as a **source of truth for a specific business question**, like:
 

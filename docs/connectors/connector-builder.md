@@ -2,7 +2,7 @@
 
 The Connector Builder creates a connector for any HTTP API that has no ready-made OWOX connector, without writing code. You describe the requests in a form, and the builder stores them as a manifest — the JSON format described in the [Connector Manifest Reference](manifest-reference.md). Once you publish the connector, it appears in every Data Mart of the project next to the built-in connectors.
 
-Project Admins and Technical Users can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
+Project Admins and Data Owners can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
 
 > Credentials never go into the connector itself. Declare a **Secret** parameter for an API key or a token: whoever sets up a Data Mart enters its value there, and you enter a value only to run a test.
 
@@ -106,7 +106,7 @@ Each **Publish** adds a version. Click the version badge to open **Version histo
 
 A Data Mart follows the active version by default, so a new version takes effect on its next run. To keep a Data Mart on one version, click the version control on its **Input Source** card (it reads, e.g., **Following active · v2**) and pin a version. A pinned version stays until you change it, and the control shows **update available** when a newer version is active.
 
-A Data Mart that follows the active version runs it with its own credentials. So a Technical User can publish a version, or make one active, only with edit access to every such Data Mart; the refusal names the Data Marts they are missing. Project Admins can always do both.
+A Data Mart that follows the active version runs it with its own credentials. So a member with the Data Owner role can publish a version, or make one active, only with edit access to every such Data Mart; the refusal names the Data Marts they are missing. Project Admins can always do both.
 
 ## Edit the connector as JSON
 

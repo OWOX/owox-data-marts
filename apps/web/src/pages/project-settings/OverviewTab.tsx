@@ -165,7 +165,7 @@ export function OverviewTab() {
   const viewerCount = members.filter(m => m.role === 'viewer').length;
   const memberRoleBreakdown = [
     adminCount > 0 ? `${String(adminCount)} Project Admin${adminCount === 1 ? '' : 's'}` : null,
-    editorCount > 0 ? `${String(editorCount)} Technical User${editorCount === 1 ? '' : 's'}` : null,
+    editorCount > 0 ? `${String(editorCount)} Data Owner${editorCount === 1 ? '' : 's'}` : null,
     viewerCount > 0 ? `${String(viewerCount)} Business User${viewerCount === 1 ? '' : 's'}` : null,
   ]
     .filter(Boolean)

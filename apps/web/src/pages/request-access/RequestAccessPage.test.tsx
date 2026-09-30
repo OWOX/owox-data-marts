@@ -122,7 +122,7 @@ describe('RequestAccessPage', () => {
     render(<RequestAccessPage />);
 
     expect(screen.getByText('Access request submitted')).toBeInTheDocument();
-    expect(screen.getByText('Requested role: Technical User')).toBeInTheDocument();
+    expect(screen.getByText('Requested role: Data Owner')).toBeInTheDocument();
     expect(screen.getByText('processing')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Request access/ })).not.toBeInTheDocument();
   });
