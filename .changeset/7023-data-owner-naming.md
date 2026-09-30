@@ -9,9 +9,9 @@ role formerly called **Technical User** is now also **Data Owner**. Both are nam
 person who is responsible for the data. Access and permissions do not change. Business Owner,
 Business User and Project Admin keep their names.
 
-The new name appears everywhere the old ones did: the Data Mart page and the Data Marts list
-column and filter, the member and access-request role pickers, sharing hints, error messages,
-invitation emails and the MCP guidance. The API keeps its field names, such as
+The new name is used on the Data Mart page, in the Data Marts list column and filter, in the
+member and access-request role pickers, and in sharing hints, error messages and the MCP guidance.
+Invitation emails in self-hosted deployments use it too. The API keeps its field names, such as
 `technicalOwnerIds` and `technicalOwnerUsers`, and the role value stays `editor`, so existing
 integrations keep working. See [Roles and Permissions](../../docs/project/roles-and-permissions.md)
 and [Ownership and Sharing](../../docs/project/ownership-and-sharing.md).

@@ -34,7 +34,7 @@ const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
   'not-owner': 'You are not an owner of this report. Only report owners can modify it.',
   'not-found': 'Report not found.',
   ineffective:
-    'The destination for this report is not accessible to you. Ask a Data Owner to share the destination or replace it.',
+    'The destination for this report is not accessible to you. Ask the destination owner or a Project Admin to share it, or replace the destination.',
   'dm-invisible': 'You do not have access to the DataMart for this report.',
 };
 

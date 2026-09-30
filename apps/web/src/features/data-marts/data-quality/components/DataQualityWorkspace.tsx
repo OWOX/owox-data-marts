@@ -421,7 +421,7 @@ export function DataQualityWorkspace({
           <AlertTitle>Read-only access</AlertTitle>
           <AlertDescription>
             You have view-only access. You can browse the configuration and reports, but editing and
-            running checks requires the Data Owner role.
+            running checks requires edit access to this Data Mart.
           </AlertDescription>
         </Alert>
       )}

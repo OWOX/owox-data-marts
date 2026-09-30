@@ -190,7 +190,7 @@ export function RunDataMartSpec() {
     ApiOperation({
       summary: 'Start a manual Data Mart run',
       description:
-        'Starts a connector Data Mart run. Data Owner access to the Data Mart is required.',
+        'Starts a connector Data Mart run. Requires the Data Owner role and edit access to the Data Mart.',
     }),
     ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiBody({ type: RunDataMartRequestApiDto, required: false }),
@@ -277,7 +277,7 @@ export function CancelDataMartRunSpec() {
     ApiOperation({
       summary: 'Cancel a Data Mart run',
       description:
-        'Cancels an active connector, standard report, or Data Quality run. Data Owner access to the Data Mart is required.',
+        'Cancels an active connector, standard report, or Data Quality run. Requires the Data Owner role and edit access to the Data Mart.',
     }),
     ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),

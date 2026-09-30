@@ -322,14 +322,14 @@ authentication or any network request.
 
 ## Manage Data Mart runs
 
-Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
-starts a manual connector run and requires Data Owner access to the Data Mart. Omit the options,
-or set `runType` to `INCREMENTAL` without `data`, for an incremental run. To send connector-specific
-backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors without backfill fields can
-omit `data`. A connector that reads `StartDate` and `EndDate` accepts `YYYY-MM-DD`, or the date part
-of an ISO-8601 timestamp. A missing or future `EndDate` counts as today. The resulting period may
-cover at most 31 days, and the backend rejects a longer one before it starts the run.
-The API client rejects `data` on implicit or explicit incremental runs before
+Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)`
+method starts a manual connector run and requires the Data Owner role and edit access to the Data
+Mart. Omit the options, or set `runType` to `INCREMENTAL` without `data`, for an incremental run. To
+send connector-specific backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors
+without backfill fields can omit `data`. A connector that reads `StartDate` and `EndDate` accepts
+`YYYY-MM-DD`, or the date part of an ISO-8601 timestamp. A missing or future `EndDate` counts as
+today. The resulting period may cover at most 31 days, and the backend rejects a longer one before
+it starts the run. The API client rejects `data` on implicit or explicit incremental runs before
 authentication or any network request. The backend HTTP endpoint separately tolerates retained
 object-valued `data` on incremental requests for compatibility with existing run forms. The method
 returns the new run ID. The serialized options must not exceed 1 MB.
@@ -377,10 +377,10 @@ network request. The response has no total or next-page marker. Increment `offse
 returned runs and stop when a page contains fewer runs than the requested limit. New runs can shift
 offset pages, so deduplicate by `run.id` while paging.
 
-Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
-run. Data Owner access is required. The method resolves with no value after the API returns
-`204 No Content`. A cancellable run that is already terminal returns a conflict error; a run type
-that does not support cancellation returns a bad-request error.
+Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data
+Quality run. It requires the Data Owner role and edit access to the Data Mart. The method resolves
+with no value after the API returns `204 No Content`. A cancellable run that is already terminal
+returns a conflict error; a run type that does not support cancellation returns a bad-request error.
 
 ```ts
 await dataMartRuns.cancel(runId);
