@@ -4,6 +4,10 @@ This guide is written for two readers: analysts who build a data model out of Da
 
 OWOX Data Marts writes the SQL for joins so that a joined row is not counted twice. What the SQL cannot know is whether the rows it connects belong together. That is decided by the model, and a query can be valid while its number means nothing (Vlad Flaks, [Why You Need a Model to Make Sense of Your Data](https://www.vladflaks.com/thoughts/why-you-need-a-model-to-make-sense-of-your-data-1/)). This page is the method for getting the model right. The settings themselves are described in [Joinable Data Marts](../setup-guide/joinable-data-marts.md) and [Calculated Fields](../setup-guide/calculated-fields.md).
 
+What you are building is a model you can take in at a glance: every Data Mart a card, every relationship an arrow from a row to the thing it belongs to — an order line to its order and product, an order to its session and customer, a session to its traffic source. The examples on this page come from this e-commerce model. You review your own the same way on the Models canvas, see [Step 7](#step-7-check-the-model-before-you-hand-it-over).
+
+![E-commerce data model: Purchases point to Products and Orders, Orders to Sessions and Customers, Sessions to Visitors, Unified Ad Spend, Traffic Sources and Countries; Product Category, Pages, Visitors, Traffic Sources and Countries are end points](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/12469f2c-9a55-41af-d2e7-7f369f9e2a00/public)
+
 ## How a Model Is Read
 
 Four facts decide what a model can answer:
@@ -12,10 +16,6 @@ Four facts decide what a model can answer:
 2. **A joined Data Mart is collapsed to one row per join key before the join**, by each field's [Dedup](../setup-guide/joinable-data-marts.md#dedup), so a report never has more rows than its base.
 3. **A joined measure is counted once per joined row.** A report's `Sum`, `Average`, `Min`, `Max` and `Count Unique` over a joined field — and `SUM`, `AVG`, `MIN`, `MAX` and `COUNT(DISTINCT …)` inside a calculated field — count a joined row once, however many base rows it reaches. A plain `COUNT` is [the exception](../setup-guide/joinable-data-marts.md#a-joined-count-counts-this-data-marts-rows-not-the-joined-ones).
 4. **A relationship runs one way.** It is defined on the Data Mart you report from, and the relationships of every Data Mart it reaches are followed too, so a path you never drew can appear in the column picker. See [Transitive Joins](../setup-guide/joinable-data-marts.md#transitive-joins).
-
-The SQL a report runs shows the third fact at work: a joined measure is summed over the distinct rows of the joined Data Mart — one per order here — however many base rows reach it.
-
-![Report SQL: a joined revenue sum is computed over SELECT DISTINCT rows keyed by order ID, so the join's fan-out cannot distort it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/df625606-dc7b-4e88-6579-74690eb93f00/public)
 
 So the arithmetic of a join is rarely what goes wrong. The questions a model has to get right are different: **does each path connect rows that belong together, and does the base keep every row the metric needs?** The steps below make both answers yes.
 
@@ -74,7 +74,7 @@ This path answers "leads from the countries these sessions came from", not "lead
 
 **One path per meaning.** Two paths to the same Data Mart are two groups of identical fields in the column picker, and a reader has to guess which is right. Keep both only when they mean different things — the customer who placed the order and the customer the session belonged to — and give each its own Output Alias and Description. A property of an object is a field, not a relationship.
 
-The example model used on this page: events in a row, each joined to the next by what links them, and references below them as end points.
+The path paid ROAS reads, drawn from the spend Data Mart it starts from: events in a row, each joined to the next by what links them, references below them as end points. Relationships run one way, so a base needs its own relationships in the direction it reads.
 
 ```text
 Ad Spend ─(date, source, medium, campaign)─▶ Sessions ─(session_id)─▶ Orders ─(order_id)─▶ Order Lines
@@ -160,19 +160,32 @@ An assistant knows only what the model tells it. Asked what a project can answer
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Data Mart description    | The grain first — "One row per day and campaign" — then the scope (what is excluded: test orders, organic traffic), which date a row belongs to, and caveats. Catalog summaries show only the beginning. |
 | Field description        | Unit or currency, what an empty value means, and which rows the value covers.                                                                                                                            |
-| Relationship description | The business sentence, plus the caveat that stops a wrong question: "Sessions this spend bought, matched on day and campaign — not the cost of any single session."                                      |
-| Output Alias             | A distinct name for every joined group, so two paths never look alike in the column picker.                                                                                                              |
+| Relationship description | One per join path: the business sentence, plus the caveat that stops a wrong question — "Sessions this spend bought, matched on day and campaign — not the cost of any single session."                  |
+| Output Alias             | What the joined group is, seen from here: _Order Session_, not _Sessions_.                                                                                                                               |
 | Project description      | Terminology and rules shared by all Data Marts.                                                                                                                                                          |
+
+**Name every join path for what it is, seen from the Data Mart the report starts from.** Business users and assistants choose joined fields by the name of the group they sit in, and read the path's description in the column picker's tooltip and through MCP. Two groups called _Sessions_ force a guess; _Order Session_ — the session the order was placed in — and _Session Visitor_ — the visitor behind that session — do not. Write a description for each path too, even where one is inherited: the inherited text says what the relationship is in general, the override says what it means on this path.
+
+![Joinable Data Marts list where each join path has its own name, such as Order Session, Session Visitor and Session Traffic Source, and the Session Visitor path overrides the inherited description with its own: The visitor behind the ordering session.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d64ee30a-1232-4dd0-8a79-b0c745111c00/public)
 
 Data Mart descriptions are written on the [Overview tab](../setup-guide/sql-data-mart.md#step-4-add-a-description-optional-but-recommended), field descriptions in the [Output Schema](../setup-guide/sql-data-mart.md#step-3-define-output-schema), and relationship descriptions and Output Aliases on the relationship itself — see [Joinable Data Marts](../setup-guide/joinable-data-marts.md#step-3-describe-the-relationship-optional).
 
 ## Step 7: Check the Model Before You Hand It Over
 
+- **Look at the whole model.** On the [Models canvas](../setup-guide/models-canvas.md) — **Data Marts → Models** — an arrow from a reference to an event, or a Data Mart nothing connects to, stands out at once. The canvas settings switch to an ERD with each Data Mart's fields, label every arrow with its join fields, and filter to the Data Marts nothing joins.
 - **Reconcile totals.** Each event's total, read from the base you will use, matches the total of its own Data Mart — or differs by exactly the rows you decided to leave out.
 - **Run the checks.** **Primary key uniqueness** proves the grain, **Relationship integrity** lists join values the target lacks, and **Reverse relationship** lists target values nothing points to. See [Data Quality Checks](../setup-guide/data-quality-checks.md).
 - **Read the warnings on calculated fields.** A warning that OWOX cannot tell whether a count is right means a Data Mart on the path declares no primary key.
 - **Read the SQL** a report runs — see [View Generated SQL](../setup-guide/joinable-data-marts.md#view-generated-sql).
 - **Ask the question the business will ask.** In your AI assistant, check that the answer names the Data Mart it used and selects your calculated field instead of dividing two columns itself.
+
+A subscription model on the canvas — the arrows run from what happened (usage, tickets, invoices) to the things it happened to (accounts, users, subscriptions, plans):
+
+![Models canvas of a SaaS demo model: Usage, Support Tickets, Subscription Events, Invoices, Trials and Marketing Spend point to Account, User and Subscription; Subscription points to Plan](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6c6a43dc-89a0-4c32-0490-dcd8b67c9500/public)
+
+In the SQL a report runs, a joined measure is summed over the distinct rows of the joined Data Mart — one per order here — however many base rows reach it:
+
+![Report SQL: a joined revenue sum is computed over SELECT DISTINCT rows keyed by order ID, so the join's fan-out cannot distort it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/df625606-dc7b-4e88-6579-74690eb93f00/public)
 
 A good answer says where its numbers come from, which rows they cover, and which figures the assistant computed itself:
 
@@ -180,18 +193,19 @@ A good answer says where its numbers come from, which rows they cover, and which
 
 ## Common Mistakes
 
-| Symptom                                                | Cause                                                                     | Fix                                                                          |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| A week of spend shows revenue from months ago          | Spend reaches revenue through a reference Data Mart, which has no date    | Join the two events on the date and the campaign                             |
-| Spend in a report is lower than in the ad platform     | The base is Sessions or Orders, so spend without a session is unreachable | Make spend the base of spend metrics                                         |
-| Revenue splits into `(null)` or duplicate channels     | A shared attribute derived differently in two Data Marts, or empty keys   | Derive it once; use one placeholder for empty keys                           |
-| A joined attribute shows a list or an unexpected value | The join covers only part of the target's primary key                     | Join on the full key                                                         |
-| A count across a join is too high or too low           | A plain `COUNT` over a joined field                                       | `COUNT(DISTINCT …)` over the joined Data Mart's own key, or its Unique Count |
-| Two answers to "what is our ROAS"                      | The metric is defined in two Data Marts                                   | Keep one; hide or delete the other                                           |
-| A Data Mart named after a metric                       | A metric modeled as an object                                             | Put the metric on the spend Data Mart, or on a Data Mart at the shared grain |
-| Per-keyword revenue adds up to more than the total     | Grouping finer than the join key                                          | Group at or above the join's grain                                           |
-| An assistant counts organic revenue in ROAS            | The scope rule lives in someone's prompt                                  | State the scope in the Data Mart description                                 |
-| Campaigns from different platforms merge               | Grouping by campaign name alone, while names repeat across platforms      | Group by source and campaign, or by campaign ID                              |
+| Symptom                                                | Cause                                                                     | Fix                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| A week of spend shows revenue from months ago          | Spend reaches revenue through a reference Data Mart, which has no date    | Join the two events on the date and the campaign                                  |
+| Spend in a report is lower than in the ad platform     | The base is Sessions or Orders, so spend without a session is unreachable | Make spend the base of spend metrics                                              |
+| Revenue splits into `(null)` or duplicate channels     | A shared attribute derived differently in two Data Marts, or empty keys   | Derive it once; use one placeholder for empty keys                                |
+| A joined attribute shows a list or an unexpected value | The join covers only part of the target's primary key                     | Join on the full key                                                              |
+| A count across a join is too high or too low           | A plain `COUNT` over a joined field                                       | `COUNT(DISTINCT …)` over the joined Data Mart's own key, or its Unique Count      |
+| Two answers to "what is our ROAS"                      | The metric is defined in two Data Marts                                   | Keep one; hide or delete the other                                                |
+| A Data Mart named after a metric                       | A metric modeled as an object                                             | Put the metric on the spend Data Mart, or on a Data Mart at the shared grain      |
+| Per-keyword revenue adds up to more than the total     | Grouping finer than the join key                                          | Group at or above the join's grain                                                |
+| An assistant counts organic revenue in ROAS            | The scope rule lives in someone's prompt                                  | State the scope in the Data Mart description                                      |
+| Campaigns from different platforms merge               | Grouping by campaign name alone, while names repeat across platforms      | Group by source and campaign, or by campaign ID                                   |
+| A user or an assistant picks the wrong joined group    | Two join paths show the same name, such as _Sessions_                     | Name each path by its role — _Order Session_, _Session Visitor_ — and describe it |
 
 ## Checklist
 
@@ -215,7 +229,7 @@ business, not by conformance to a modeling framework.
 8. No metric's path runs through a Data Mart that its rows can exist without.
 9. Each ratio of two events sits on the Data Mart whose total must be complete, or on a Data Mart at the grain both events share.
 10. A key or attribute shared by several Data Marts has the same values, type and empty-value placeholder in each.
-11. Each relationship has a description that states the business link, and no two joined groups share a name.
+11. Each join path has a name and a description that say what it is, seen from the Data Mart the report starts from — inherited descriptions included — and no two joined groups share a name.
 12. Each scope rule an answer depends on — paid channels only, test orders excluded — is written in a description.
 
 ## Related Links
