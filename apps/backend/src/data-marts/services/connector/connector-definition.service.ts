@@ -560,7 +560,7 @@ export class ConnectorDefinitionService {
         JSON.stringify(draft.manifest)
       ) as ParsedManifestAuthReport;
     } catch (e) {
-      throw new BadRequestException(`Invalid connector manifest: ${(e as Error).message}`);
+      throw new BadRequestException(`Invalid manifest: ${(e as Error).message}`);
     }
     this.assertNodesHavePrimaryKeys(draft.manifest);
     // Every Data Mart that opens or saves this connector builds these from the manifest, by

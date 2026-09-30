@@ -668,7 +668,10 @@ describe('ConnectorDefinitionService', () => {
       manifest: validManifest,
     });
     await service.saveDraft('proj-1', def.id, { not: 'a valid manifest' } as never);
-    await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(BadRequestException);
+    const error = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as Error).message).toMatch(/^Invalid manifest: /);
   });
 
   // Storage merges rows on the primary key and cannot be created without one, so such a
@@ -849,7 +852,7 @@ describe('ConnectorDefinitionService', () => {
       });
 
       expect(error).toBeInstanceOf(BadRequestException);
-      expect((error as Error).message).toContain('parameter "Token" requiredType');
+      expect((error as Error).message).toMatch(/^Invalid manifest: parameter "Token" requiredType/);
       expect(store.versions[0].status).toBe(ConnectorDefinitionVersionStatus.DRAFT);
     });
 
