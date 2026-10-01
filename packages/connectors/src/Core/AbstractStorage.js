@@ -303,6 +303,22 @@ export class AbstractStorage {
   }
   //----------------------------------------------------------------
 
+  //---- missingSelectedFieldError ----------------------------------
+  /**
+   * The error for a field the Data Mart selects that the connector's schema does not have.
+   * Its usual cause is a connector whose fields changed after the Data Mart was set up.
+   * @param {string} columnName
+   * @returns {Error}
+   */
+  missingSelectedFieldError(columnName) {
+    return new Error(
+      `Field "${columnName}" is selected for import, but the connector does not provide it. ` +
+        `If the connector's fields changed after this Data Mart was set up, open the Data Mart's ` +
+        `Input Source and update the selection with Edit Fields.`
+    );
+  }
+  //----------------------------------------------------------------
+
   //---- getColumnType -----------------------------------------------
   /**
    * Get column type for storage from schema
