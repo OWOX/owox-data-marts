@@ -405,8 +405,8 @@ async function _resolveShortLink(linkObj, allowedHosts = []) {
     // stdout, as on main: the host treats any raw stderr line as a run failure, and a
     // link that cannot be resolved only keeps its original URL.
     console.log(`Failed to resolve short link ${_describeUrl(originalUrl)}: ${error.message}`);
-    // A refused hop is decided by the URL alone and would be refused again, so it counts as
-    // answered (cached) instead of failed (retried on every run).
+    // A refused hop (here or in SsrfGuard) is decided by the URL and its DNS answer alone and
+    // would be refused again, so it counts as answered (cached) instead of failed (retried).
     return { originalUrl, resolvedUrl: originalUrl, ok: Boolean(error.isRefusal) };
   }
 }

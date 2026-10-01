@@ -254,6 +254,25 @@ describe('SsrfGuard', () => {
     );
   });
 
+  // Short link resolution remembers a refusal instead of asking again on every run
+  it('assertPublicHttps marks refusals, but not a lookup that did not answer', async () => {
+    const lookup = stubLookup({ 'cdn.evil.example': [{ address: '10.0.0.5', family: 4 }] });
+    const g = new SsrfGuard([], { lookup });
+    const refusals = ['http://cdn.example/r', 'https://192.0.0.8/r', 'https://cdn.evil.example/r'];
+    for (const url of refusals) {
+      await assert.rejects(
+        () => g.assertPublicHttps(url),
+        err => err.isRefusal === true
+      );
+    }
+
+    const flaky = new SsrfGuard([], { lookup: throwingLookup('EAI_AGAIN'), sleep: noWait });
+    await assert.rejects(
+      () => flaky.assertPublicHttps('https://cdn.example/r'),
+      err => err.isRefusal === undefined
+    );
+  });
+
   // The guard runs before the request, outside its retries, so one resolver hiccup failed
   // the account although the fetch itself would have asked again.
   it('asks a resolver that did not answer again before failing closed', async () => {

@@ -573,24 +573,65 @@ describe('failed and unanswered requests', () => {
     ]);
   });
 
-  // A refusal depends on the URL alone, so asking again on the next run cannot change it
-  it('remembers a redirect to a non-public address as answered, keeping the original link', async () => {
+  // A refusal depends on the URL and its DNS answer alone, so asking again on the next run
+  // cannot change it
+  it.each([
+    ['a non-public address', 'tel:+10000000000', PUBLIC_ADDRESS],
+    ['an http address on an allowlisted service', 'http://bit.ly/xyz', PUBLIC_ADDRESS],
+    ['an allowlisted service whose DNS answer is private', 'https://bit.ly/xyz', '10.0.0.5'],
+  ])('remembers a redirect to %s as answered, keeping the original link', async (_, to, dns) => {
+    // The short link answers from a public address; its redirect target then resolves to `dns`
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => redirectTo('tel:+10000000000'))
+      vi.fn(async () => {
+        dnsAnswer = dns;
+        return redirectTo(to);
+      })
     );
     const failedLinks = new Set();
     const cache = new Map();
 
-    const result = await globalThis.resolveShortLinkFields(
-      [{ click_url: 'https://short.example/call' }],
-      [{ field: 'click_url', target: 'click_url_parsed' }],
-      { allowedHosts: ALLOW, resolvedLinksCache: cache, failedLinks }
-    );
+    try {
+      const result = await globalThis.resolveShortLinkFields(
+        [{ click_url: 'https://short.example/call' }],
+        [{ field: 'click_url', target: 'click_url_parsed' }],
+        { allowedHosts: ALLOW, resolvedLinksCache: cache, failedLinks }
+      );
 
-    expect(failedLinks.size).toBe(0);
-    expect(cache.get('https://short.example/call')).toBe('https://short.example/call');
-    expect(result[0].click_url_parsed).toBe('https://short.example/call');
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(failedLinks.size).toBe(0);
+      expect(cache.get('https://short.example/call')).toBe('https://short.example/call');
+      expect(result[0].click_url_parsed).toBe('https://short.example/call');
+    } finally {
+      dnsAnswer = PUBLIC_ADDRESS;
+    }
+  });
+
+  it('retries a link whose DNS lookup did not answer', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const failedLinks = new Set();
+    const stubbedGuard = globalThis.SsrfGuard;
+    globalThis.SsrfGuard = class extends SsrfGuard {
+      constructor(hosts) {
+        const lookup = async () => {
+          throw Object.assign(new Error('timeout'), { code: 'EAI_AGAIN' });
+        };
+        super(hosts, { lookup, sleep: async () => {} });
+      }
+    };
+
+    try {
+      await globalThis.resolveShortLinkFields(
+        [{ click_url: 'https://short.example/call' }],
+        [{ field: 'click_url', target: 'click_url_parsed' }],
+        { allowedHosts: ALLOW, failedLinks }
+      );
+    } finally {
+      globalThis.SsrfGuard = stubbedGuard;
+    }
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(Array.from(failedLinks)).toEqual(['https://short.example/call']);
   });
 });
 
