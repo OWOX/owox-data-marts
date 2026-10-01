@@ -2,10 +2,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../support/loadGasClass.js';
+import { SsrfGuard } from '../../src/Core/Declarative/SsrfGuard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 loadGasClass(path.join(__dirname, '../../src/Core/Utils/ShortLinksUtils.js'));
+
+// The resolver vets each host's DNS answers through the bundle's SsrfGuard. Tests answer with
+// a public address, unless one sets `dnsAnswer` to a private one.
+const PUBLIC_ADDRESS = '93.184.216.34';
+let dnsAnswer = PUBLIC_ADDRESS;
+globalThis.SsrfGuard = class extends SsrfGuard {
+  constructor(hosts) {
+    super(hosts, { lookup: async () => [{ address: dnsAnswer, family: 4 }] });
+  }
+};
 
 const CONFIG = { shortLinkField: 'link_url_asset', urlFieldName: 'website_url' };
 // Test domains are not built-in services, so tests allowlist them explicitly
@@ -131,6 +142,22 @@ describe('processShortLinks', () => {
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(result[0].link_url_asset.parsed_url).toBe('http://any-host.example:8080/landing');
+  });
+
+  it('does not request an allowlisted host whose DNS answer is private', async () => {
+    dnsAnswer = '10.0.0.5';
+    vi.stubGlobal('fetch', vi.fn());
+
+    try {
+      const result = await globalThis.processShortLinks(buildData('https://bit.ly/abc123'), {
+        ...CONFIG,
+      });
+
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(result[0].link_url_asset.parsed_url).toBeUndefined();
+    } finally {
+      dnsAnswer = PUBLIC_ADDRESS;
+    }
   });
 
   it('keeps following redirects between allowlisted short link services', async () => {
@@ -413,6 +440,22 @@ describe('processShortLinks', () => {
     );
     for (const spy of stderr) expect(spy).not.toHaveBeenCalled();
   });
+
+  // stdout is the connector's message channel: credentials and line breaks must not reach it
+  it('logs only the origin and path of a link it could not resolve', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network down');
+    });
+
+    await globalThis.processShortLinks(
+      buildData('https://user:secret@short.example/abc123#%0A{"type":"x"}'),
+      { ...CONFIG, allowedHosts: ALLOW }
+    );
+
+    expect(vi.mocked(console.log)).toHaveBeenCalledWith(
+      'Failed to resolve short link https://short.example/abc123: network down'
+    );
+  });
 });
 
 describe('resolveShortLinkFields', () => {
@@ -529,6 +572,26 @@ describe('failed and unanswered requests', () => {
       'https://brand.example/sale',
     ]);
   });
+
+  // A refusal depends on the URL alone, so asking again on the next run cannot change it
+  it('remembers a redirect to a non-public address as answered, keeping the original link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => redirectTo('tel:+10000000000'))
+    );
+    const failedLinks = new Set();
+    const cache = new Map();
+
+    const result = await globalThis.resolveShortLinkFields(
+      [{ click_url: 'https://short.example/call' }],
+      [{ field: 'click_url', target: 'click_url_parsed' }],
+      { allowedHosts: ALLOW, resolvedLinksCache: cache, failedLinks }
+    );
+
+    expect(failedLinks.size).toBe(0);
+    expect(cache.get('https://short.example/call')).toBe('https://short.example/call');
+    expect(result[0].click_url_parsed).toBe('https://short.example/call');
+  });
 });
 
 describe('omitShortLinkTargets', () => {
@@ -579,6 +642,15 @@ describe('short link domains from the environment', () => {
           'https://Links.Example.com:8443/abc, short.example.; com localhost brand.example',
       })
     ).toEqual(['links.example.com', 'short.example', 'brand.example']);
+  });
+
+  it('stores Unicode domains in the punycode form URLs use, and ignores IP addresses', () => {
+    const hosts = globalThis.getShortLinkDomainsFromEnv({
+      CONNECTOR_SHORT_LINK_DOMAINS: 'bücher.example, 203.0.113.7',
+    });
+
+    expect(hosts).toEqual(['xn--bcher-kva.example']);
+    expect(hosts[0]).toBe(new URL('https://bücher.example/a').hostname);
   });
 });
 

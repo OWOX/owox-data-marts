@@ -67,7 +67,7 @@ For endpoint details, see [Endpoints and Fields](ENDPOINTS_AND_FIELDS.md).
 
 ### Resolve Short Links
 
-Facebook ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+Facebook ads often point to short links. OWOX can follow each short link and store its target next to it:
 
 - **Ad Account Insights by Link URL Asset**: `link_url_asset.website_url` resolves into `link_url_asset.parsed_url`.
 - **Ad Creatives**: `object_url` resolves into `object_url_parsed`, and `link_url` into `link_url_parsed`.

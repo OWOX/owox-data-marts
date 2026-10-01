@@ -41,7 +41,7 @@ Before you start, verify:
 
 ### Resolve Short Links
 
-Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+Ads often point to short links. OWOX can follow each short link and store its target next to it:
 
 - **All Cards**: `website_url` resolves into `website_url_parsed`, and `website_dest_url` into `website_dest_url_parsed`.
 

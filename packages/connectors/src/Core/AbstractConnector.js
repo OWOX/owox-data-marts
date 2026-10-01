@@ -840,8 +840,9 @@ export class AbstractConnector {
 
   /**
    * Resolves short links for the fields a schema node declares under `shortLinks`, writing
-   * each landing page next to its original. No-op when the node has no spec, Process Short
-   * Links is off, or no spec has its field (and its `_parsed` target) selected.
+   * the address each short link service points to next to the original. No-op when the node
+   * has no spec, Process Short Links is off, or no spec has its field (and its `_parsed`
+   * target) selected.
    *
    * The helpers are bare globals of Core/Utils/ShortLinksUtils.js, a script in the bundle's
    * scope; nothing here touches them for a node without a spec.
@@ -865,15 +866,10 @@ export class AbstractConnector {
 
     const cache = this._shortLinksCache();
     // Only allowlisted domains resolve: the built-in public shorteners in ShortLinksUtils
-    // plus the deployment's CONNECTOR_SHORT_LINK_DOMAINS.
+    // plus the deployment's CONNECTOR_SHORT_LINK_DOMAINS. Data Mart configuration never
+    // extends the list.
     return resolveShortLinkFields(data, activeSpecs, {
-      allowedHosts: [
-        ...getShortLinkDomainsFromEnv(),
-        // Compatibility fallback: domains saved by the former Facebook "Short Link Domains"
-        // setting stay allowlisted for that Data Mart. Once every environment that ran a build
-        // with the setting has CONNECTOR_SHORT_LINK_DOMAINS set, drop this line and its test.
-        ...parseShortLinkDomains(this.context.getParameter('ShortLinkDomains')?.value),
-      ],
+      allowedHosts: getShortLinkDomainsFromEnv(),
       resolvedLinksCache: cache.resolved,
       failedLinks: cache.failed,
     });

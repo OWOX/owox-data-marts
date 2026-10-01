@@ -122,7 +122,7 @@ export class FacebookMarketingSource extends AbstractSource {
         default: true,
         label: 'Process Short Links',
         description:
-          'Resolve short links to their landing page: link_url_asset.parsed_url on the Ad Insights by Link URL Asset endpoint, and link_url_parsed / object_url_parsed on Ad Creatives',
+          'Resolve short links to the address their short link service points to: link_url_asset.parsed_url on the Ad Insights by Link URL Asset endpoint, and link_url_parsed / object_url_parsed on Ad Creatives',
         attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CreateEmptyTables: {

@@ -4,11 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadGasClass } from '../support/loadGasClass.js';
 import { AbstractConnector } from '../../src/Core/AbstractConnector.js';
 import { RUN_CONFIG_TYPE } from '../../src/Constants/CommonConstants.js';
+import { SsrfGuard } from '../../src/Core/Declarative/SsrfGuard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The short link helpers are bare globals of the bundle's scope.
 loadGasClass(path.join(__dirname, '../../src/Core/Utils/ShortLinksUtils.js'));
+// Every test host resolves to a public address, so no test depends on real DNS
+globalThis.SsrfGuard = class extends SsrfGuard {
+  constructor(hosts) {
+    super(hosts, { lookup: async () => [{ address: '93.184.216.34', family: 4 }] });
+  }
+};
 
 // The date-range methods read only the run config and the logger, so they can be exercised
 // on the prototype without constructing a connector (which would want a source and a
@@ -87,8 +94,8 @@ describe('short link resolution hook', () => {
     vi.stubGlobal('fetch', vi.fn());
     const connector = buildConnector({
       shortLinks: { [SEEDED]: [LANDING, NOW] },
-      params: { ShortLinkDomains: 'short.example' },
     });
+    vi.stubEnv('CONNECTOR_SHORT_LINK_DOMAINS', 'short.example');
 
     const result = await connector.resolveShortLinks('ads', [{ click_url: SEEDED }], both);
 
@@ -96,11 +103,9 @@ describe('short link resolution hook', () => {
     expect(result[0].click_url_parsed).toBe(LANDING);
   });
 
-  it('still honors domains saved by the former Short Link Domains setting', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async url => (url === LANDING ? finalPage() : redirectTo(LANDING)))
-    );
+  // Data Mart configuration is editable by its users; only the deployment extends the list
+  it('ignores a ShortLinkDomains key in the Data Mart configuration', async () => {
+    vi.stubGlobal('fetch', vi.fn());
     const connector = buildConnector({ params: { ShortLinkDomains: 'short.example' } });
 
     const result = await connector.resolveShortLinks(
@@ -109,7 +114,8 @@ describe('short link resolution hook', () => {
       both
     );
 
-    expect(result[0].click_url_parsed).toBe(LANDING);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result[0].click_url_parsed).toBe('https://short.example/a/b');
   });
 
   it('allowlists the domains in CONNECTOR_SHORT_LINK_DOMAINS', async () => {
@@ -210,8 +216,8 @@ describe('short link resolution hook', () => {
     vi.stubGlobal('fetch', vi.fn());
     const connector = buildConnector({
       shortLinks: { 'https://brand.example/sale': [null, NOW] },
-      params: { ShortLinkDomains: 'brand.example' },
     });
+    vi.stubEnv('CONNECTOR_SHORT_LINK_DOMAINS', 'brand.example');
 
     const result = await connector.resolveShortLinks(
       'ads',
@@ -228,8 +234,8 @@ describe('short link resolution hook', () => {
   it('resolves each batch before the storage saves it', async () => {
     const connector = buildConnector({
       shortLinks: { [SEEDED]: [LANDING, NOW] },
-      params: { ShortLinkDomains: 'short.example' },
     });
+    vi.stubEnv('CONNECTOR_SHORT_LINK_DOMAINS', 'short.example');
     const saved = [];
     const writer = {
       nodeName: 'ads',

@@ -196,17 +196,38 @@ function getShortLinkDomainsFromEnv(env = typeof process !== 'undefined' ? proce
  * Parses a comma, semicolon or whitespace separated list of domains.
  * Accepts bare domains as well as full URLs; scheme, a leading `*.` or `.`, port, path and
  * trailing dot are stripped.
- * Entries without a dot (bare TLDs, localhost) are ignored.
+ * Entries without a dot (bare TLDs, localhost) and IPv4 addresses are ignored; Unicode
+ * domains are stored in punycode, the form URL.hostname uses.
  *
  * @param {string|undefined} value - Raw list
- * @return {Array<string>} Lower-cased domains
+ * @return {Array<string>} Lower-cased ASCII domains
  */
 function parseShortLinkDomains(value) {
   if (!value) return [];
   return String(value)
     .split(/[,;\s]+/)
     .map(entry => entry.replace(/^[a-z]+:\/\//i, '').replace(/^\*?\./, '').split('/')[0].split(':')[0].replace(/\.$/, '').trim().toLowerCase())
-    .filter(host => host.includes('.'));
+    .map(_toAsciiHost)
+    // Domains only: an IP literal is no short link service and would match by suffix
+    .filter(host => host.includes('.') && !/^\d+(\.\d+){3}$/.test(host));
+}
+
+//---- _toAsciiHost -------------------------------------------------------
+/**
+ * Converts a hostname to the ASCII (punycode) form that URL.hostname uses, so Unicode entries
+ * can match. Returns an empty string for a value that is not a valid hostname.
+ *
+ * @param {string} host - Hostname
+ * @return {string} ASCII hostname, or '' when invalid
+ * @private
+ */
+function _toAsciiHost(host) {
+  if (!host) return '';
+  try {
+    return new URL(`https://${host}`).hostname;
+  } catch (_error) {
+    return '';
+  }
 }
 
 //---- short links state (persisted per data mart across runs) ------------
@@ -383,8 +404,28 @@ async function _resolveShortLink(linkObj, allowedHosts = []) {
   } catch (error) {
     // stdout, as on main: the host treats any raw stderr line as a run failure, and a
     // link that cannot be resolved only keeps its original URL.
-    console.log(`Failed to resolve short link ${originalUrl}: ${error.message}`);
-    return { originalUrl, resolvedUrl: originalUrl, ok: false };
+    console.log(`Failed to resolve short link ${_describeUrl(originalUrl)}: ${error.message}`);
+    // A refused hop is decided by the URL alone and would be refused again, so it counts as
+    // answered (cached) instead of failed (retried on every run).
+    return { originalUrl, resolvedUrl: originalUrl, ok: Boolean(error.isRefusal) };
+  }
+}
+
+//---- _describeUrl -------------------------------------------------------
+/**
+ * Safe form of a URL for logs: origin and path only. stdout is the connector's message channel,
+ * so a raw value must never be printed: it may carry line breaks or credentials in userinfo.
+ *
+ * @param {string} url - URL to describe
+ * @return {string} `origin + pathname`, or a placeholder when the value does not parse
+ * @private
+ */
+function _describeUrl(url) {
+  try {
+    const { origin, pathname } = new URL(url);
+    return `${origin}${pathname}`;
+  } catch (_error) {
+    return '[unparseable URL]';
   }
 }
 
@@ -408,11 +449,16 @@ async function _followRedirects(startUrl, allowedHosts = []) {
   let currentUrl = startUrl;
   for (let hop = 0; hop <= SHORT_LINK_MAX_REDIRECTS; hop++) {
     if (!_isPublicHttpUrl(currentUrl)) {
-      throw new Error(`Refusing to request non-public URL ${currentUrl}`);
+      const refusal = new Error(`Refusing non-public URL ${_describeUrl(currentUrl)}`);
+      refusal.isRefusal = true;
+      throw refusal;
     }
     if (hop > 0 && !_isAllowedShortLinkHost(new URL(currentUrl).hostname, allowedHosts)) {
       return currentUrl;
     }
+    // Before every request: https only, and no allowlisted name may resolve to a private,
+    // loopback or link-local address. SsrfGuard is a bare global of the bundle's Core scope.
+    await new SsrfGuard([]).assertPublicHttps(currentUrl);
     // Native fetch: Node returns the 3xx itself under `redirect: 'manual'`, with a
     // readable status and Location, so each hop can be vetted before it is followed.
     const response = await fetch(currentUrl, {
@@ -420,6 +466,8 @@ async function _followRedirects(startUrl, allowedHosts = []) {
       redirect: 'manual',
       signal: AbortSignal.timeout(SHORT_LINK_FETCH_TIMEOUT_MS)
     });
+    // Only the status and Location are read; release the connection instead of waiting for GC
+    await response.body?.cancel().catch(() => {});
     if (SHORT_LINK_TRANSIENT_STATUS(response.status)) {
       throw new Error(`Short link service answered ${response.status}`);
     }

@@ -45,7 +45,7 @@ Before you begin, please ensure that:
 
 ### Resolve Short Links
 
-Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+Ads often point to short links. OWOX can follow each short link and store its target next to it:
 
 - **Ads**: `click_url` resolves into `click_url_parsed`.
 

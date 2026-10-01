@@ -123,7 +123,7 @@ endpoint, or the `audiences` endpoint. See [Troubleshooting](TROUBLESHOOTING.md#
 
 ### Resolve Short Links
 
-Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+Ads often point to short links. OWOX can follow each short link and store its target next to it:
 
 - **Ads**: `landing_page_url` resolves into `landing_page_url_parsed`, and `landing_page_urls` into `landing_page_urls_parsed`.
 

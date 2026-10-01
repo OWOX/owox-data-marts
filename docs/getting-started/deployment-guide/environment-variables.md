@@ -222,7 +222,7 @@ See also: mysql2 official SSL documentation — <https://sidorares.github.io/nod
 
 ## Connectors
 
-Ads connectors can resolve short links in landing URL fields to their final destination.
+Ads connectors can resolve short links in landing URL fields to the address their service points to.
 Resolution runs only for known short link services (`bit.ly`, `tinyurl.com`, `t.co`, `lnkd.in`,
 `youtu.be`, `amzn.to`, `ow.ly`, `buff.ly`, `cutt.ly`, `is.gd`, `rebrand.ly`) and for
 the domains you list here. Links on other domains stay unchanged. In OWOX Cloud, OWOX manages

@@ -90,7 +90,7 @@ export class RedditAdsSource extends AbstractSource {
         requiredType: "boolean",
         default: true,
         label: "Process Short Links",
-        description: "Resolve short links in landing URL fields to their landing page. The resolved value is written to the matching _parsed field (for example click_url_parsed)",
+        description: "Resolve short links in landing URL fields to the address their short link service points to. The resolved value is written to the matching _parsed field (for example click_url_parsed)",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
