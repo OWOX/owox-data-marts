@@ -277,10 +277,11 @@ API CORS configuration.
 </ul>
 <p>See also: mysql2 official SSL documentation — <a href="https://sidorares.github.io/node-mysql2/docs/documentation/ssl" rel="noopener noreferrer" target="_blank">https://sidorares.github.io/node-mysql2/docs/documentation/ssl</a></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="connectors">Connectors</h2><a class="sl-anchor-link" href="#connectors"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Connectors”</span></a></div>
-<p>Ads connectors can resolve short links in landing URL fields to their final destination.
-Single-part short links, such as <code dir="auto">https://bit.ly/abc123</code>, resolve on any domain. Links with
-several path parts resolve only on the domains you list here. In OWOX Cloud, OWOX manages this
-value; contact support to add a domain.</p>
+<p>Ads connectors can resolve short links in landing URL fields to the address their service points to.
+Resolution runs only for known short link services (<code dir="auto">bit.ly</code>, <code dir="auto">tinyurl.com</code>, <code dir="auto">t.co</code>, <code dir="auto">lnkd.in</code>,
+<code dir="auto">youtu.be</code>, <code dir="auto">amzn.to</code>, <code dir="auto">ow.ly</code>, <code dir="auto">buff.ly</code>, <code dir="auto">cutt.ly</code>, <code dir="auto">is.gd</code>, <code dir="auto">rebrand.ly</code>) and for
+the domains you list here. Links on other domains stay unchanged. In OWOX Cloud, OWOX manages
+this value; contact support to add a domain.</p>
 
 
 
@@ -294,7 +295,7 @@ value; contact support to add a domain.</p>
 
 
 
-<table><thead><tr><th>Variable</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">CONNECTOR_SHORT_LINK_DOMAINS</code></td><td>Comma-separated domains of custom short link services whose links have several path parts, for example <code dir="auto">links.example.com</code>. Subdomains match too. Empty by default.</td></tr></tbody></table>
+<table><thead><tr><th>Variable</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">CONNECTOR_SHORT_LINK_DOMAINS</code></td><td>Comma-separated domains of your own short link services, for example <code dir="auto">links.example.com</code>. Subdomains match too. Empty by default.</td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h2"><h2 id="plugins">Plugins</h2><a class="sl-anchor-link" href="#plugins"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Plugins”</span></a></div>
 <p>Plugins are third-party web apps embedded in a sandboxed iframe. These variables control
 who may publish them and how OWOX Data Marts reads their GitHub sources.</p>
