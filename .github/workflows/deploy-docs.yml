@@ -39,3 +39,5 @@ jobs:
         with:
           branch: gh-pages
           folder: apps/docs/dist
+          # every clone fetches gh-pages; its build history alone was ~200 MB
+          single-commit: true
