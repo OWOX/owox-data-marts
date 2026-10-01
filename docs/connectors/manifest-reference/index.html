@@ -530,7 +530,7 @@ connector builder (<strong>⋮</strong> → <strong>Import JSON…</strong>).</p
 
 
 <table><thead><tr><th>Action</th><th>Effect</th></tr></thead><tbody><tr><td><code dir="auto">RETRY</code></td><td>Retry the request, delayed by this filter’s <code dir="auto">backoff</code> (or the handler’s top-level <code dir="auto">backoff</code> if the filter has none).</td></tr><tr><td><code dir="auto">IGNORE</code></td><td>Treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are not imported. The run does not fail, and its log names the skipped request.</td></tr><tr><td><code dir="auto">FAIL</code></td><td>Do not retry; the error fails the run.</td></tr></tbody></table>
-<p>An error that matches no filter gets the default treatment: a <code dir="auto">5xx</code> or <code dir="auto">429</code> response is retried, any other error fails the run at once.</p>
+<p>An error that matches no filter gets the default treatment: a <code dir="auto">5xx</code> or <code dir="auto">429</code> response is retried, any other error fails the run at once. When no <code dir="auto">backoff</code> applies to a retry, it waits as long as the response’s <code dir="auto">Retry-After</code> header asks, if that is longer than the default backoff (a Test in the builder keeps its short retry).</p>
 <p><code dir="auto">backoff.type</code> is one of:</p>
 
 
