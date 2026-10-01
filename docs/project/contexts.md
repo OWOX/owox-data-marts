@@ -112,7 +112,7 @@ Both paths write to the same assignment, so changes made in one place are reflec
 
 > ☝️ Assigning a member to a context only takes effect when their **Role scope** is set to **Selected contexts only**. See the next section.
 
-![Member settings panel showing the Contexts multi-select field and Role scope set to Selected contexts only](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/cdabfe38-b5f1-4e0d-1620-c00aa860b000/public)
+![Configure member panel with the Data Owner role, Role scope set to Selected contexts only, and the Assigned contexts field](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/76120347-461f-4811-8dad-45fb3ad10c00/public)
 
 ---
 

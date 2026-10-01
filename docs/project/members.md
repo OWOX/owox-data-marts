@@ -56,7 +56,7 @@ When creating a Storage, Destination, or Report, you can assign owners directly 
 
 Scheduled Triggers do not have dedicated ownership. Access to them follows the same rules as their parent Data Mart or Report.
 
-![Resource creation form with an Owners field for assigning initial owners during setup](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/7b347212-b2a0-42c5-fa6e-788a32833700/public)
+![Data Mart Overview tab with the Data Owner in the Ownership section and the creator in Details → Created By](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64584a37-218a-41f9-aa30-e828cf9b1c00/public)
 
 ## Member Removal Impact
 

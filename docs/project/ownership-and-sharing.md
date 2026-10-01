@@ -44,7 +44,7 @@ Most resources have a single **Owner** role. Data Marts are the exception — th
 
 A Data Mart may have multiple Data Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the sharing toggle); it never reduces what the user could already do without the assignment.
 
-![Data Mart settings showing Data Owner and Business Owner fields with assigned project members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3a8505f3-9bfc-445f-8679-36853567e900/public)
+![Ownership section of a Data Mart Overview tab with the Data Owner and Business Owner fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9f05e842-3f4d-4677-6672-6dfb6852f600/public)
 
 **What an owner can do depends on their role.** For Destinations and Reports, owners have full control regardless of role. For Data Marts and Storages, full control requires the Data Owner or Project Admin role:
 
@@ -59,10 +59,6 @@ A Business User can be assigned as a Data Mart Data Owner or Storage Owner, but 
 
 - **Data Mart Data Owner (Business User role)** — can view and use the Data Mart, but cannot edit, delete, or manage it.
 - **Storage Owner (Business User)** — has no access to the Storage.
-
-A warning for Data Mart Data Owners with an insufficient role appears on the [**Notification Settings**](../notifications/notification-settings.md) page.
-
-![Notification Settings page displaying an ownership warning that a Business User is assigned as Data Owner or Storage Owner](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/dd506d9e-b7c7-4223-c0c9-d7da07224900/public)
 
 **Triggers do not have dedicated ownership.** Data Mart Triggers are managed under their parent Data Mart; [Report Triggers](../getting-started/setup-guide/report-triggers.md) are managed under their parent Report. Access to triggers follows the access rules of the parent entity.
 
@@ -98,7 +94,7 @@ A new Data Mart is shared for maintenance so that other members with the Data Ow
 
 > ☝️ Changing the default does not touch Data Marts that already exist. Resources created before the sharing model was introduced were migrated to both toggles on to preserve previous access patterns.
 
-![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8622cf6-8d75-46ee-e9e2-b869f987a500/public)
+![Sharing section of a Data Mart Overview tab with the Shared for maintenance and Shared for reporting toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/39afa474-1851-460e-e19e-c652a9974a00/public)
 
 **Who can configure sharing** depends on the entity type and the owner's role:
 
@@ -150,7 +146,7 @@ The following actions can be granted or restricted by the combination of ownersh
 | **Non-owner with the Data Owner role** | No access | See, Use [2] | See, Use, Copy Credentials, Edit, Delete [2] | See, Use, Copy Credentials, Edit, Delete [2] |
 | **Any Business User (non-owner)** | No access | No access | No access | No access |
 
-[1] A Business User assigned as Storage Owner has no access until their role changes to Data Owner. A warning appears on the [Notification Settings](../notifications/notification-settings.md) page.
+[1] A Business User assigned as Storage Owner has no access until their role changes to Data Owner.
 
 [2] Under `Selected contexts only` scope, these actions require a context overlap between the member and the Storage.
 
