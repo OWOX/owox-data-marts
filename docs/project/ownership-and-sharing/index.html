@@ -161,7 +161,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <table><thead><tr><th>Owner type</th><th>Responsibility</th><th>Access level</th></tr></thead><tbody><tr><td><strong>Data Owner</strong></td><td>Data definition, schema, and source connections</td><td>Full control</td></tr><tr><td><strong>Business Owner</strong></td><td>Business requirements and usage</td><td>Guaranteed See + Use; further actions inherit what the same user would have as a non-owner of their role</td></tr></tbody></table>
 <p>A Data Mart may have multiple Data Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the sharing toggle); it never reduces what the user could already do without the assignment.</p>
-<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3a8505f3-9bfc-445f-8679-36853567e900/public" alt="Data Mart settings showing Data Owner and Business Owner fields with assigned project members"></p>
+<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9f05e842-3f4d-4677-6672-6dfb6852f600/public" alt="Ownership section of a Data Mart Overview tab with the Data Owner and Business Owner fields"></p>
 <p><strong>What an owner can do depends on their role.</strong> For Destinations and Reports, owners have full control regardless of role. For Data Marts and Storages, full control requires the Data Owner or Project Admin role:</p>
 
 
@@ -199,8 +199,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li><strong>Data Mart Data Owner (Business User role)</strong> — can view and use the Data Mart, but cannot edit, delete, or manage it.</li>
 <li><strong>Storage Owner (Business User)</strong> — has no access to the Storage.</li>
 </ul>
-<p>A warning for Data Mart Data Owners with an insufficient role appears on the <a href="/docs/notifications/notification-settings/"><strong>Notification Settings</strong></a> page.</p>
-<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/dd506d9e-b7c7-4223-c0c9-d7da07224900/public" alt="Notification Settings page displaying an ownership warning that a Business User is assigned as Data Owner or Storage Owner"></p>
 <p><strong>Triggers do not have dedicated ownership.</strong> Data Mart Triggers are managed under their parent Data Mart; <a href="/docs/getting-started/setup-guide/report-triggers/">Report Triggers</a> are managed under their parent Report. Access to triggers follows the access rules of the parent entity.</p>
 <hr>
 <div class="sl-heading-wrapper level-h2"><h2 id="sharing">Sharing</h2><a class="sl-anchor-link" href="#sharing"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Sharing”</span></a></div>
@@ -268,7 +266,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <blockquote>
 <p>☝️ Changing the default does not touch Data Marts that already exist. Resources created before the sharing model was introduced were migrated to both toggles on to preserve previous access patterns.</p>
 </blockquote>
-<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8622cf6-8d75-46ee-e9e2-b869f987a500/public" alt="Resource settings page with the Shared for reporting and Shared for maintenance toggles"></p>
+<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/39afa474-1851-460e-e19e-c652a9974a00/public" alt="Sharing section of a Data Mart Overview tab with the Shared for maintenance and Shared for reporting toggles"></p>
 <p><strong>Who can configure sharing</strong> depends on the entity type and the owner’s role:</p>
 
 
@@ -413,7 +411,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 <table><thead><tr><th>Who</th><th>Not shared</th><th>Shared for use</th><th>Shared for maintenance</th><th>Shared for both</th></tr></thead><tbody><tr><td><strong>Owner (Data Owner role)</strong></td><td>All actions</td><td>All actions</td><td>All actions</td><td>All actions</td></tr><tr><td><strong>Owner (Business User)</strong></td><td>No access [1]</td><td>No access [1]</td><td>No access [1]</td><td>No access [1]</td></tr><tr><td><strong>Non-owner with the Data Owner role</strong></td><td>No access</td><td>See, Use [2]</td><td>See, Use, Copy Credentials, Edit, Delete [2]</td><td>See, Use, Copy Credentials, Edit, Delete [2]</td></tr><tr><td><strong>Any Business User (non-owner)</strong></td><td>No access</td><td>No access</td><td>No access</td><td>No access</td></tr></tbody></table>
-<p>[1] A Business User assigned as Storage Owner has no access until their role changes to Data Owner. A warning appears on the <a href="/docs/notifications/notification-settings/">Notification Settings</a> page.</p>
+<p>[1] A Business User assigned as Storage Owner has no access until their role changes to Data Owner.</p>
 <p>[2] Under <code dir="auto">Selected contexts only</code> scope, these actions require a context overlap between the member and the Storage.</p>
 <blockquote>
 <p>☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations shared with them.</p>
