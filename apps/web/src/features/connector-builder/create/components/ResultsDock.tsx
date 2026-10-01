@@ -16,7 +16,11 @@ import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-a
 import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
 import { credentialParameterNames } from '../../shared/model/credentialParameters';
-import { describeFailure, trackCustomConnectorEvent } from '../../shared/model/analytics';
+import {
+  describeApiFailure,
+  describeFailure,
+  trackCustomConnectorEvent,
+} from '../../shared/model/analytics';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 
 /** Which representation of the test run the dock body shows. */
@@ -240,6 +244,7 @@ export function ResultsDock({
     const target = followNode(nodeNames, node, Object.keys(tested.nodes));
     if (target !== node) setNode(target);
     const startedAt = Date.now();
+    const connector = { id: state.id, manifest: tested, version: state.loadedVersion };
     let outcome: ConnectorTestResultDto;
     try {
       outcome = await new ConnectorBuilderApiService().test({
@@ -251,24 +256,28 @@ export function ResultsDock({
       setResult(outcome);
       setSample(target, outcome.sample ?? []);
     } catch (e) {
-      outcome = { rows: [], logs: [], error: testFailureMessage(e) };
-      setResult(outcome);
+      setResult({ rows: [], logs: [], error: testFailureMessage(e) });
+      // OWOX refused to start the test (the concurrency limit, a blank manifest): no test ran.
+      trackCustomConnectorEvent('custom_connector_error', connector, {
+        action: 'TestError',
+        ...describeApiFailure(e),
+      });
+      return;
     } finally {
       setRunning(false);
     }
+    // A node without declared fields is tested sample-only: the records the dock shows are
+    // the raw sample, at most a few of them, so the count is a lower bound there.
+    const shown = displayRecords(outcome).length;
     testsRun.current += 1;
-    trackCustomConnectorEvent(
-      'custom_connector_test_run',
-      { id: state.id, manifest: tested },
-      {
-        node: target,
-        result: outcome.error ? 'error' : outcome.rows.length ? 'success' : 'empty',
-        recordsCount: outcome.rows.length,
-        durationMs: Date.now() - startedAt,
-        testsInSession: testsRun.current,
-        ...(outcome.error ? describeFailure(outcome.error) : {}),
-      }
-    );
+    trackCustomConnectorEvent('custom_connector_test_run', connector, {
+      result: outcome.error ? 'error' : shown ? 'success' : 'empty',
+      recordsCount: shown,
+      sampleOnly: outcome.rows.length === 0 && shown > 0,
+      durationMs: Date.now() - startedAt,
+      testsInSession: testsRun.current,
+      ...(outcome.error ? describeFailure(outcome.error) : { errorKind: null, httpStatus: null }),
+    });
   };
 
   const hasNodes = nodeNames.length > 0;

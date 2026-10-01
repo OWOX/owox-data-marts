@@ -133,3 +133,28 @@ describe('builderReducer', () => {
     ).toBe(true);
   });
 });
+
+// Where the manifest of a new connector came from: the strongest sign wins, and opening or
+// starting a connector clears it.
+describe('builderReducer — manifest origin', () => {
+  const after = (...origins: ('form' | 'code' | 'import')[]) =>
+    origins.reduce(
+      (state, payload) =>
+        builderReducer(state, { type: BuilderActionType.SET_MANIFEST_ORIGIN, payload }),
+      initialBuilderState
+    ).manifestOrigin;
+
+  it('starts as form', () => {
+    expect(initialBuilderState.manifestOrigin).toBe('form');
+  });
+
+  it('becomes code on a Code-mode edit, and stays import after an import', () => {
+    expect(after('code')).toBe('code');
+    expect(after('import', 'code')).toBe('import');
+    expect(after('code', 'import')).toBe('import');
+  });
+
+  it('goes back to form when a connector is started or opened', () => {
+    expect(after('import', 'form')).toBe('form');
+  });
+});

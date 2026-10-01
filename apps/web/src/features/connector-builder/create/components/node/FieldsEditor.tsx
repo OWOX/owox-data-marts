@@ -197,7 +197,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     setPath([...base, 'fields'], { ...inferred, ...fields });
     trackCustomConnectorEvent(
       'custom_connector_fields_discovered',
-      { id: state.id, manifest },
+      { id: state.id, manifest, version: state.loadedVersion },
       { fieldsCount: Object.keys(inferred).length }
     );
   };

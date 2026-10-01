@@ -172,8 +172,10 @@ export function ConfigurationStep({
       category: connector.name,
       action: 'connector_selected',
       label: connector.displayName,
-      ...connectorSetupProperties(connector),
+      ...connectorSetupProperties(connector, pinnedVersion),
     });
+    // Once per connector picked: a pin made afterwards is reported when the Data Mart is saved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connector]);
 
   useEffect(() => {

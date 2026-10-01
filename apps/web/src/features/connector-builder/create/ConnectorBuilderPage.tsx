@@ -107,19 +107,14 @@ function BuilderShell({
   const announcedCreate = useRef(false);
   const trackedOpen = useRef(false);
   const trackedCreate = useRef(false);
-  const imported = useRef(false);
-  const manifestImport = useManifestImport({
-    onImported: () => {
-      imported.current = true;
-    },
-  });
+  const manifestImport = useManifestImport();
 
   const switchMode = (next: 'builder' | 'code') => {
     if (next === mode) return;
     setMode(next);
     trackCustomConnectorEvent(
       'custom_connector_mode_switched',
-      { id: state.id, manifest },
+      { id: state.id, manifest, version: state.loadedVersion },
       { to: next }
     );
   };
@@ -143,20 +138,20 @@ function BuilderShell({
     trackedOpen.current = true;
     trackCustomConnectorEvent(
       'custom_connector_builder_opened',
-      { id: state.id, manifest },
+      { id: state.id, manifest, version: state.loadedVersion },
       { mode: id ? 'edit' : 'new', entryPoint: entryPoint ?? 'direct' }
     );
-  }, [id, state.id, manifest, entryPoint]);
+  }, [id, state.id, state.loadedVersion, manifest, entryPoint]);
 
   useEffect(() => {
     if (id || !state.id || trackedCreate.current) return;
     trackedCreate.current = true;
     trackCustomConnectorEvent(
       'custom_connector_created',
-      { id: state.id, manifest },
-      { origin: imported.current ? 'import' : mode === 'code' ? 'code' : 'form' }
+      { id: state.id, manifest, version: state.loadedVersion },
+      { origin: state.manifestOrigin }
     );
-  }, [id, state.id, manifest, mode]);
+  }, [id, state.id, state.loadedVersion, state.manifestOrigin, manifest]);
 
   // Report unsaved edits to the route, which is where navigation can be held back
   // (`useBlocker` needs a data router, and this component is also rendered standalone).

@@ -53,7 +53,11 @@ export function BuilderTopBar({
       new Blob([manifestToJson(exported)], { type: 'application/json' }),
       `${exported.name || 'connector'}.json`
     );
-    trackCustomConnectorEvent('custom_connector_exported', { id: state.id, manifest: exported });
+    trackCustomConnectorEvent('custom_connector_exported', {
+      id: state.id,
+      manifest: exported,
+      version: state.loadedVersion,
+    });
   };
 
   // Which write is waiting on the "this replaces a newer draft" confirmation, if any.
@@ -188,7 +192,7 @@ export function BuilderTopBar({
                 onClick={() => {
                   trackCustomConnectorEvent(
                     'custom_connector_guide_opened',
-                    { id: state.id, manifest },
+                    { id: state.id, manifest, version: state.loadedVersion },
                     { guide: 'connector_builder' }
                   );
                 }}

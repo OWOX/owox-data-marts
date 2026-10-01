@@ -106,33 +106,16 @@ it('clears the pin via Follow active', async () => {
   expect(onChange).toHaveBeenCalledWith(undefined);
 });
 
-it('reports pinning a version and going back to following the active one', async () => {
+// A pick here is not saved yet: the Data Mart save reports the pin it keeps.
+it('reports nothing for a pick in the popover', async () => {
   vi.mocked(trackEvent).mockClear();
-  const { rerender } = render(
+  render(
     <ConnectorVersionControl info={custom(5)} version={undefined} onChangeVersion={vi.fn()} />
   );
   fireEvent.click(screen.getByTestId('connector-version-badge'));
   fireEvent.click(await screen.findByRole('button', { name: 'Pin to version 3' }));
-  rerender(<ConnectorVersionControl info={custom(5)} version={3} onChangeVersion={vi.fn()} />);
-  fireEvent.click(screen.getByTestId('connector-version-badge'));
-  fireEvent.click(await screen.findByRole('button', { name: 'Follow active' }));
 
-  expect(vi.mocked(trackEvent).mock.calls.map(([payload]) => payload)).toEqual([
-    expect.objectContaining({
-      event: 'custom_connector_version_pinned',
-      action: 'Pin',
-      connectorId: 'c1',
-      connectorName: 'Acme',
-      version: 3,
-      activeVersion: 5,
-    }),
-    expect.objectContaining({
-      event: 'custom_connector_version_pinned',
-      action: 'FollowActive',
-      version: null,
-      activeVersion: 5,
-    }),
-  ]);
+  expect(trackEvent).not.toHaveBeenCalled();
 });
 
 it('offers an explicit "Pin to active" on a stale pin', async () => {

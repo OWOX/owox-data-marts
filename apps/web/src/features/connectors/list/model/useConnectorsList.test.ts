@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import { AxiosError, AxiosHeaders } from 'axios';
+import { trackEvent } from '../../../../utils/data-layer';
 import { useConnectorsList } from './useConnectorsList';
 
 const list = vi.fn();
@@ -11,6 +13,7 @@ vi.mock('../../../connector-builder/shared/api/connector-builder-api.service', (
   },
 }));
 vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('../../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 const item = {
   id: 'c1',
@@ -61,5 +64,70 @@ describe('useConnectorsList', () => {
     });
     expect(softDelete).toHaveBeenCalledWith('c1');
     expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  // The list is where most deletes happen: it needs no builder.
+  describe('reports a delete from the list', () => {
+    const sent = (event: string) =>
+      vi
+        .mocked(trackEvent)
+        .mock.calls.map(([payload]) => payload)
+        .filter(payload => payload.event === event);
+
+    const loaded = async () => {
+      list.mockResolvedValue([item]);
+      const hook = renderHook(() => useConnectorsList());
+      await waitFor(() => {
+        expect(hook.result.current.loading).toBe(false);
+      });
+      vi.mocked(trackEvent).mockClear();
+      return hook.result;
+    };
+
+    it('as deleted, naming the connector', async () => {
+      softDelete.mockResolvedValue(undefined);
+      const result = await loaded();
+      await act(async () => {
+        await result.current.deleteConnector('c1');
+      });
+
+      expect(sent('custom_connector_deleted')).toEqual([
+        expect.objectContaining({
+          connectorId: 'c1',
+          connectorName: 'acme',
+          connectorTitle: 'Acme',
+          where: 'connectors_list',
+        }),
+      ]);
+    });
+
+    it('as a DeleteError with the refusal it got', async () => {
+      softDelete.mockRejectedValue(
+        new AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+          status: 409,
+          statusText: '',
+          headers: {},
+          config: { headers: new AxiosHeaders() },
+          data: {
+            message: 'Cannot delete the connector because it is referenced by existing data marts.',
+          },
+        })
+      );
+      const result = await loaded();
+      await act(async () => {
+        await result.current.deleteConnector('c1');
+      });
+
+      expect(sent('custom_connector_deleted')).toEqual([]);
+      expect(sent('custom_connector_error')).toEqual([
+        expect.objectContaining({
+          action: 'DeleteError',
+          connectorId: 'c1',
+          errorKind: 'conflict',
+          httpStatus: 409,
+          where: 'connectors_list',
+        }),
+      ]);
+    });
   });
 });

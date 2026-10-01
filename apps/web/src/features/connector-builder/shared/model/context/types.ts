@@ -14,7 +14,11 @@ export enum BuilderActionType {
   SET_ERROR = 'SET_ERROR',
   SET_SAMPLE = 'SET_SAMPLE',
   SET_CODE_INVALID = 'SET_CODE_INVALID',
+  SET_MANIFEST_ORIGIN = 'SET_MANIFEST_ORIGIN',
 }
+
+/** Where the manifest of a new connector came from, for analytics. */
+export type ManifestOrigin = 'form' | 'code' | 'import';
 
 export type BuilderAction =
   | { type: BuilderActionType.SET_MANIFEST; payload: BuilderManifest }
@@ -40,7 +44,8 @@ export type BuilderAction =
       type: BuilderActionType.SET_SAMPLE;
       payload: { node: string; records: Record<string, unknown>[] };
     }
-  | { type: BuilderActionType.SET_CODE_INVALID; payload: boolean };
+  | { type: BuilderActionType.SET_CODE_INVALID; payload: boolean }
+  | { type: BuilderActionType.SET_MANIFEST_ORIGIN; payload: ManifestOrigin };
 
 export interface BuilderState {
   id: string | null;
@@ -63,6 +68,11 @@ export interface BuilderState {
    * mounted outside it.
    */
   codeInvalid: boolean;
+  /**
+   * Where the manifest came from: an import, Code mode or the form. The strongest sign wins,
+   * and starting or opening a connector resets it.
+   */
+  manifestOrigin: ManifestOrigin;
   /**
    * Counts whole-manifest replacements: an open, a Discard, a version open, an import or a
    * Code-mode edit. The form keys its panes on it, because several of their inputs read the

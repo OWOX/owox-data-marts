@@ -15,6 +15,7 @@ export const initialBuilderState: BuilderState = {
   error: null,
   sample: null,
   codeInvalid: false,
+  manifestOrigin: 'form',
   manifestRevision: 0,
 };
 
@@ -78,6 +79,14 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       return state.codeInvalid === action.payload
         ? state
         : { ...state, codeInvalid: action.payload };
+    case BuilderActionType.SET_MANIFEST_ORIGIN: {
+      // An import outranks Code mode, which outranks the form; 'form' is the reset.
+      const next =
+        action.payload === 'code' && state.manifestOrigin !== 'form'
+          ? state.manifestOrigin
+          : action.payload;
+      return next === state.manifestOrigin ? state : { ...state, manifestOrigin: next };
+    }
     default:
       return state;
   }

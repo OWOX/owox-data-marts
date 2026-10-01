@@ -14,8 +14,8 @@ export type ImportSource = 'menu' | 'code_tab';
  * `openFilePicker` to every place that offers the import, so they share one file input
  * and one confirmation.
  */
-export function useManifestImport({ onImported }: { onImported?: () => void } = {}) {
-  const { manifest, state, setManifest } = useBuilder();
+export function useManifestImport() {
+  const { manifest, state, setManifest, setManifestOrigin } = useBuilder();
   const inputRef = useRef<HTMLInputElement>(null);
   const source = useRef<ImportSource>('menu');
   const [pendingImport, setPendingImport] = useState<BuilderManifest | null>(null);
@@ -30,10 +30,10 @@ export function useManifestImport({ onImported }: { onImported?: () => void } = 
         ? `Manifest imported. The connector name stays "${manifest.name}".`
         : 'Manifest imported'
     );
-    onImported?.();
+    setManifestOrigin('import');
     trackCustomConnectorEvent(
       'custom_connector_imported',
-      { id: state.id, manifest: next },
+      { id: state.id, manifest: next, version: state.loadedVersion },
       { where: source.current, result: 'success' }
     );
   };
@@ -44,7 +44,7 @@ export function useManifestImport({ onImported }: { onImported?: () => void } = 
       toast.error(`Could not import ${file.name}: ${parsed.error}`);
       trackCustomConnectorEvent(
         'custom_connector_imported',
-        { id: state.id, manifest },
+        { id: state.id, manifest, version: state.loadedVersion },
         { where: source.current, result: 'invalid' }
       );
       return;

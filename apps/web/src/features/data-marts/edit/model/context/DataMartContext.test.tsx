@@ -8,6 +8,8 @@ import { dataMartService } from '../../../shared';
 import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import { getConnectorInfoByName } from '../../../../connectors/shared/utils';
 import type { ConnectorDefinitionConfig } from '../types';
+import { trackEvent as trackDataLayerEvent } from '../../../../../utils/data-layer';
+import { DataMartDefinitionType } from '../../../shared/enums';
 
 vi.mock('../../../../../hooks/useAutoRefresh', () => ({
   useAutoRefresh: vi.fn(),
@@ -21,6 +23,9 @@ vi.mock('../../../../../utils', () => ({
   pushToDataLayer: vi.fn(),
   trackEvent: vi.fn(),
 }));
+
+// Builder analytics pushes through the data layer module itself, not the utils barrel.
+vi.mock('../../../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -42,6 +47,7 @@ vi.mock('../../../shared', async () => {
       runDataMart: vi.fn(),
       getDataMartById: vi.fn(),
       updateDataMart: vi.fn(),
+      updateDataMartDefinition: vi.fn(),
     },
   };
 });
@@ -303,5 +309,131 @@ describe('DataMartProvider connector info', () => {
     await click('Load');
 
     expect(getConnectorInfoByName).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('DataMartProvider saved version pin', () => {
+  const dataMartWith = (version?: number) =>
+    ({
+      id: 'dm-1',
+      title: 'Items',
+      description: null,
+      status: 'DRAFT',
+      storage: { id: 'st-1', title: 'BigQuery', type: 'GOOGLE_BIGQUERY' },
+      definitionType: 'CONNECTOR',
+      definition: {
+        connector: {
+          source: {
+            name: 'MyCustomApi',
+            configuration: [],
+            node: 'items',
+            fields: ['id'],
+            version,
+          },
+          storage: { fullyQualifiedName: 'ds.items' },
+        },
+      },
+      schema: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      modifiedAt: '2026-01-01T00:00:00.000Z',
+    }) as unknown as DataMartResponseDto;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue(dataMartWith());
+    vi.mocked(getConnectorInfoByName).mockResolvedValue({
+      name: 'MyCustomApi',
+      displayName: 'My Custom API',
+      description: '',
+      logoBase64: null,
+      docUrl: null,
+      isCustom: true,
+      id: 'cdef-1',
+      version: 2,
+    });
+  });
+
+  function renderPage() {
+    let pending: Promise<unknown> | undefined;
+    function Consumer() {
+      const context = useContext(DataMartContext)!;
+      const save = (version?: number) => {
+        vi.mocked(dataMartService.updateDataMartDefinition).mockResolvedValue(
+          dataMartWith(version)
+        );
+        const definition = dataMartWith(version).definition as unknown as ConnectorDefinitionConfig;
+        pending = context.updateDataMartDefinition(
+          'dm-1',
+          DataMartDefinitionType.CONNECTOR,
+          definition
+        );
+      };
+      return (
+        <>
+          <button
+            type='button'
+            onClick={() => {
+              pending = context.getDataMart('dm-1');
+            }}
+          >
+            Load
+          </button>
+          <button
+            type='button'
+            onClick={() => {
+              save(1);
+            }}
+          >
+            Pin 1
+          </button>
+          <button
+            type='button'
+            onClick={() => {
+              save(undefined);
+            }}
+          >
+            Follow
+          </button>
+        </>
+      );
+    }
+    render(
+      <DataMartProvider>
+        <Consumer />
+      </DataMartProvider>
+    );
+    return async (button: string) => {
+      fireEvent.click(screen.getByRole('button', { name: button }));
+      await act(async () => {
+        await pending;
+      });
+    };
+  }
+
+  const pins = () =>
+    vi
+      .mocked(trackDataLayerEvent)
+      .mock.calls.map(([payload]) => payload)
+      .filter(payload => payload.event === 'custom_connector_version_pinned');
+
+  // A pick in the version popover is only kept once the Data Mart is saved with it.
+  it('reports a pin when the Data Mart is saved with a different version', async () => {
+    const click = renderPage();
+    await click('Load');
+    await click('Pin 1');
+    await click('Pin 1');
+    await click('Follow');
+
+    expect(pins()).toEqual([
+      expect.objectContaining({
+        action: 'Pin',
+        connectorId: 'cdef-1',
+        version: 1,
+        previousVersion: null,
+        activeVersion: 2,
+        dataMartId: 'dm-1',
+      }),
+      expect.objectContaining({ action: 'FollowActive', version: null, previousVersion: 1 }),
+    ]);
   });
 });

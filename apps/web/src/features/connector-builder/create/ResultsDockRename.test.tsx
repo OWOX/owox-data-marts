@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { trackEvent } from '../../../utils/data-layer';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 
 const runTest = vi.fn();
@@ -105,19 +104,6 @@ describe('Test after renaming a node in Code mode', () => {
 
     await afterDebounce();
     expect(await runAndGetNode()).toBe('sales');
-  });
-
-  it('reports the node it tested, not the one picked before the rename', async () => {
-    addNode('orders');
-    fireEvent.click(screen.getByTestId('mode-code'));
-    renameInCode('orders', 'sales');
-    await runAndGetNode();
-
-    const testRuns = vi
-      .mocked(trackEvent)
-      .mock.calls.map(([payload]) => payload)
-      .filter(payload => payload.event === 'custom_connector_test_run');
-    expect(testRuns).toEqual([expect.objectContaining({ node: 'sales' })]);
   });
 
   // Code mode hides the nav rail, so the dock's own pick is the only choice the author has

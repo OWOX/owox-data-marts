@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { trackEvent } from '../../../utils/data-layer';
 import { ConnectorBuilderPage } from './ConnectorBuilderPage';
 
@@ -28,9 +29,16 @@ vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 vi.mock('../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
+vi.mock('../../data-marts/model-canvas/export/download', () => ({ downloadBlob: vi.fn() }));
 vi.mock('@monaco-editor/react', () => ({
-  Editor: ({ value }: { value: string }) => (
-    <textarea data-testid='monaco' value={value} readOnly />
+  Editor: ({ value, onChange }: { value: string; onChange: (v: string | undefined) => void }) => (
+    <textarea
+      data-testid='monaco'
+      value={value}
+      onChange={e => {
+        onChange(e.target.value);
+      }}
+    />
   ),
 }));
 
@@ -66,6 +74,16 @@ const detail = (
     publishedAt: v.status === 'published' ? '2026-09-01' : null,
   })),
 });
+
+/** A refusal from OWOX itself, as the API client rejects with it. */
+const apiRefusal = (status: number, data: Record<string, unknown>) =>
+  new AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status,
+    statusText: '',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data,
+  });
 
 /** Every event this page sent, by name. */
 const sent = (event: string) =>
@@ -108,12 +126,9 @@ describe('Connector builder analytics', () => {
       publishedAt: '',
       warnings: ['w'],
     });
-    runTest.mockResolvedValue({
-      rows: [{ id: 1 }, { id: 2 }],
-      logs: [],
-      error: null,
-      sample: [{ id: 1 }],
-    });
+    // A node without declared fields is tested sample-only: no cast rows, the records in
+    // `sample` (connector-test.service.ts).
+    runTest.mockResolvedValue({ rows: [], logs: [], error: null, sample: [{ id: 1 }, { id: 2 }] });
   });
 
   it('reports a new connector opened from the Data Mart wizard', () => {
@@ -133,8 +148,9 @@ describe('Connector builder analytics', () => {
         entryPoint: 'connectors_list',
         connectorId: 'def-1',
         connectorName: 'MyApi',
-        apiHost: 'api.example.com',
+        apiHost: '*.example.com',
         nodesCount: 1,
+        version: 1,
       }),
     ]);
   });
@@ -146,6 +162,35 @@ describe('Connector builder analytics', () => {
     await waitFor(() => {
       expect(sent('custom_connector_created')).toEqual([
         expect.objectContaining({ connectorId: 'def-1', connectorName: 'MyApi', origin: 'form' }),
+      ]);
+    });
+  });
+
+  // Where the manifest came from, not which tab is open at the first save.
+  it('reports a connector written in Code mode as created from code', async () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.click(screen.getByTestId('mode-code'));
+    fireEvent.change(screen.getByTestId('monaco'), {
+      target: { value: JSON.stringify(MANIFEST, null, 2) },
+    });
+    fireEvent.click(screen.getByTestId('mode-builder'));
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(sent('custom_connector_created')).toEqual([
+        expect.objectContaining({ origin: 'code' }),
+      ]);
+    });
+  });
+
+  it('keeps form as the origin when Code mode is only looked at', async () => {
+    startNewConnector();
+    fireEvent.click(screen.getByTestId('mode-code'));
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(sent('custom_connector_created')).toEqual([
+        expect.objectContaining({ origin: 'form' }),
       ]);
     });
   });
@@ -181,16 +226,56 @@ describe('Connector builder analytics', () => {
     await renderExisting();
     fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'Mine' } });
     publish.mockRejectedValue(
-      new Error('Manifest is invalid: nodes.items.request.path is required')
+      apiRefusal(400, {
+        message: 'Invalid manifest: nodes.items.request.path is required',
+        code: 'BAD_REQUEST',
+      })
     );
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => {
       expect(sent('custom_connector_error')).toEqual([
-        expect.objectContaining({ action: 'PublishError', errorKind: 'invalid_manifest' }),
+        expect.objectContaining({
+          action: 'PublishError',
+          errorKind: 'invalid_manifest',
+          httpStatus: 400,
+          errorCode: 'BAD_REQUEST',
+        }),
       ]);
     });
     expect(JSON.stringify(sent('custom_connector_error'))).not.toContain('request.path');
+  });
+
+  // A first Publish creates the connector; its refusal must name that connector, not null.
+  it('reports a refused first publish against the connector it just created', async () => {
+    publish.mockRejectedValue(apiRefusal(400, { message: 'Node "items" has no primary key' }));
+    startNewConnector();
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
+
+    await waitFor(() => {
+      expect(sent('custom_connector_error')).toEqual([
+        expect.objectContaining({ action: 'PublishError', connectorId: 'def-1', httpStatus: 400 }),
+      ]);
+    });
+    expect(sent('custom_connector_created')).toEqual([
+      expect.objectContaining({ connectorId: 'def-1' }),
+    ]);
+  });
+
+  it('does not report a publish that landed as failed when the refresh after it fails', async () => {
+    await renderExisting();
+    fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'Mine' } });
+    publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: '', warnings: [] });
+    // The save before the publish reads the connector back too; only the read after it fails.
+    getById
+      .mockResolvedValueOnce(detail([{ version: 1, status: 'published' }], 1))
+      .mockRejectedValueOnce(apiRefusal(500, { message: 'Internal server error' }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
+
+    await waitFor(() => {
+      expect(sent('custom_connector_published')).toHaveLength(1);
+    });
+    expect(sent('custom_connector_error')).toEqual([]);
   });
 
   it('reports each test run with its result and how many ran before it', async () => {
@@ -207,12 +292,15 @@ describe('Connector builder analytics', () => {
         expect.objectContaining({
           result: 'success',
           recordsCount: 2,
+          sampleOnly: true,
           testsInSession: 1,
-          node: 'items',
+          errorKind: null,
+          httpStatus: null,
         }),
         expect.objectContaining({
           result: 'error',
           recordsCount: 0,
+          sampleOnly: false,
           errorKind: 'auth',
           httpStatus: 401,
           testsInSession: 2,
@@ -220,6 +308,37 @@ describe('Connector builder analytics', () => {
       ]);
     });
     expect(sent('custom_connector_test_run')[0]).toHaveProperty('durationMs');
+    // The node name is what the author typed.
+    for (const run of sent('custom_connector_test_run')) expect(run).not.toHaveProperty('node');
+  });
+
+  it('does not count a test OWOX refused to start as a test run', async () => {
+    runTest.mockRejectedValueOnce(
+      apiRefusal(429, {
+        message: 'This project already has 3 connector tests running.',
+        code: 'CONNECTOR_TEST_CONCURRENCY_LIMIT',
+      })
+    );
+    startNewConnector();
+    fireEvent.click(screen.getByTestId('run-test'));
+    await waitFor(() => {
+      expect(sent('custom_connector_error')).toEqual([
+        expect.objectContaining({
+          action: 'TestError',
+          errorKind: 'http_4xx',
+          httpStatus: 429,
+          errorCode: 'CONNECTOR_TEST_CONCURRENCY_LIMIT',
+        }),
+      ]);
+    });
+    expect(sent('custom_connector_test_run')).toEqual([]);
+
+    fireEvent.click(screen.getByTestId('run-test'));
+    await waitFor(() => {
+      expect(sent('custom_connector_test_run')).toEqual([
+        expect.objectContaining({ result: 'success', testsInSession: 1 }),
+      ]);
+    });
   });
 
   it('reports a test that returned no records as empty', async () => {
@@ -229,7 +348,7 @@ describe('Connector builder analytics', () => {
 
     await waitFor(() => {
       expect(sent('custom_connector_test_run')).toEqual([
-        expect.objectContaining({ result: 'empty', recordsCount: 0 }),
+        expect.objectContaining({ result: 'empty', recordsCount: 0, sampleOnly: false }),
       ]);
     });
   });
@@ -310,8 +429,6 @@ describe('Connector builder analytics', () => {
   });
 
   it('reports export and the guide link', async () => {
-    URL.createObjectURL = vi.fn(() => 'blob:x');
-    URL.revokeObjectURL = vi.fn();
     await renderExisting();
 
     openMoreActions();

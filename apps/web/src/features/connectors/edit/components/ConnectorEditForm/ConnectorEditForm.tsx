@@ -484,7 +484,7 @@ export function ConnectorEditForm({
         category: selectedConnector.name,
         action: `step`,
         label: step.title,
-        ...connectorSetupProperties(selectedConnector),
+        ...connectorSetupProperties(selectedConnector, pinnedVersion),
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -997,7 +997,7 @@ export function ConnectorEditForm({
                 category: selectedConnector.name,
                 action: 'created',
                 label: 'configuration-only',
-                ...connectorSetupProperties(selectedConnector),
+                ...connectorSetupProperties(selectedConnector, pinnedVersion),
               });
             } else if (mode === 'fields-only' && existingConnector) {
               onSubmit({
@@ -1023,7 +1023,7 @@ export function ConnectorEditForm({
                 category: existingConnector.source.name,
                 action: 'created',
                 label: 'fields-only',
-                ...connectorSetupProperties(selectedConnector),
+                ...connectorSetupProperties(selectedConnector, existingConnector.source.version),
               });
             } else if (selectedConnector && target) {
               onSubmit({
@@ -1054,7 +1054,7 @@ export function ConnectorEditForm({
                 category: selectedConnector.name,
                 action: 'created',
                 label: 'full',
-                ...connectorSetupProperties(selectedConnector),
+                ...connectorSetupProperties(selectedConnector, pinnedVersion),
               });
             }
             setIsDirty(false);

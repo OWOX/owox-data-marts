@@ -254,6 +254,8 @@ describe('ConnectorEditForm — custom connector', () => {
         label: 'full',
         isCustom: true,
         connectorId: CUSTOM_ID,
+        connectorVersion: 2,
+        versionPinned: false,
       })
     );
   });
@@ -320,6 +322,14 @@ describe('ConnectorEditForm — custom connector', () => {
     });
     const payload = onSubmit.mock.calls[0][0] as ConnectorConfig;
     expect(payload.source.version).toBe(1);
+    expect(window.dataLayer as unknown as Record<string, unknown>[]).toContainEqual(
+      expect.objectContaining({
+        event: 'connector_setup',
+        action: 'created',
+        connectorVersion: 1,
+        versionPinned: true,
+      })
+    );
   });
 
   it('shows the connector picked last after another one was picked in between', async () => {
