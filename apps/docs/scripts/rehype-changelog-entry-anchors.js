@@ -5,10 +5,15 @@ const RELEASE = /^\d+\.\d+\.\d+$/;
 const COMMIT_PREFIX = /^[0-9a-f]{7,40}: $/;
 const BLOCK_TAGS = new Set(['ul', 'ol', 'p', 'div', 'pre', 'blockquote', 'table']);
 
+// Starlight's `link-alt` icon, the one its heading anchors use.
+const LINK_ICON_PATH =
+  'm12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42';
+
 /**
- * Turns each changelog entry title, `- abc1234: **Title**`, into an h4 with a copyable anchor.
- * The id ends with the release (`#title-0360`), so a title repeated in a later release does not
- * move the anchor of an earlier one.
+ * Gives each changelog entry, `- abc1234: **Title**`, an id and a copy-link icon after its title,
+ * like Starlight's heading anchors. The entry stays a list item. The id ends with the release
+ * (`#title-0360`), so a title repeated in a later release does not move the anchor of an earlier
+ * one.
  * @returns {(tree: any, file: { path?: string }) => void}
  */
 export default function rehypeChangelogEntryAnchors() {
@@ -18,83 +23,49 @@ export default function rehypeChangelogEntryAnchors() {
     const usedIds = new Set();
     let release = null;
 
-    tree.children = tree.children.flatMap(node => {
-      if (node.type !== 'element') return [node];
+    for (const node of tree.children) {
+      if (node.type !== 'element') continue;
 
       if (node.tagName === 'h2' && RELEASE.test(textOf(node).trim())) {
         release = textOf(node).trim();
-        return [node];
+        continue;
       }
 
-      if (node.tagName !== 'ul' || !release) return [node];
+      if (node.tagName !== 'ul' || !release) continue;
 
-      return splitEntries(node, title =>
-        uniqueId(`${slugify(title)}-${slugify(release)}`, usedIds)
-      );
-    });
+      for (const item of node.children) {
+        const title = item.type === 'element' && item.tagName === 'li' ? entryTitle(item) : null;
+        if (!title) continue;
+
+        const titleText = textOf(title.strong);
+        const id = uniqueId(`${slugify(titleText)}-${slugify(release)}`, usedIds);
+        item.properties.id = id;
+        const index = title.parent.children.indexOf(title.strong);
+        title.parent.children.splice(index + 1, 0, anchorLink(id, titleText));
+      }
+    }
   };
 }
 
 /**
- * Replaces each entry item of a list with its heading and body; other items stay in a list.
- * @param {any} list - `ul` element
- * @param {(title: string) => string} idFor - Heading id for an entry title
- * @returns {any[]} Nodes replacing the list
- */
-function splitEntries(list, idFor) {
-  const nodes = [];
-  let otherItems = [];
-
-  const flushOtherItems = () => {
-    if (otherItems.some(item => item.type === 'element')) {
-      nodes.push({ ...list, children: otherItems });
-    }
-    otherItems = [];
-  };
-
-  for (const item of list.children) {
-    const entry = item.type === 'element' && item.tagName === 'li' ? entryOf(item) : null;
-    if (!entry) {
-      otherItems.push(item);
-      continue;
-    }
-    flushOtherItems();
-    nodes.push(
-      {
-        type: 'element',
-        tagName: 'h4',
-        properties: { id: idFor(textOf(entry.title)) },
-        children: entry.title.children,
-      },
-      ...entry.body
-    );
-  }
-  flushOtherItems();
-
-  return nodes;
-}
-
-/**
- * Reads an entry item: its bold title after the commit hash, and everything below the title.
+ * Finds the bold title of an entry item, after the commit hash.
  * @param {any} item - `li` element
- * @returns {{ title: any, body: any[] } | null} The entry, or null when the item is not one
+ * @returns {{ parent: any, strong: any } | null} The title and the node holding it, or null when
+ *   the item is not an entry
  */
-function entryOf(item) {
-  const firstIndex = item.children.findIndex(child => !isBlank(child));
-  const first = item.children[firstIndex];
+function entryTitle(item) {
+  const first = item.children.find(child => !isBlank(child));
 
   // Loose list: the title is a paragraph of its own.
   if (first?.type === 'element' && first.tagName === 'p') {
     const title = boldTitle(first.children);
-    return title && title.rest.length === 0
-      ? { title: title.strong, body: item.children.slice(firstIndex + 1) }
-      : null;
+    return title && title.rest.length === 0 ? { parent: first, strong: title.strong } : null;
   }
 
   // Tight list: the title is inline, followed only by block content such as a nested list.
   const title = boldTitle(item.children);
   return title && title.rest.every(child => BLOCK_TAGS.has(child.tagName))
-    ? { title: title.strong, body: title.rest }
+    ? { parent: item, strong: title.strong }
     : null;
 }
 
@@ -107,6 +78,43 @@ function boldTitle(nodes) {
   if (prefix?.type !== 'text' || !COMMIT_PREFIX.test(prefix.value)) return null;
   if (strong?.type !== 'element' || strong.tagName !== 'strong') return null;
   return { strong, rest };
+}
+
+/**
+ * Builds the same anchor link Starlight appends to headings.
+ * @param {string} id - Entry id
+ * @param {string} title - Entry title, for the screen-reader label
+ * @returns {any} `a` element
+ */
+function anchorLink(id, title) {
+  return {
+    type: 'element',
+    tagName: 'a',
+    properties: { className: ['sl-anchor-link', 'changelog-entry-anchor'], href: `#${id}` },
+    children: [
+      {
+        type: 'element',
+        tagName: 'span',
+        properties: { ariaHidden: 'true', className: ['sl-anchor-icon'] },
+        children: [
+          {
+            type: 'element',
+            tagName: 'svg',
+            properties: { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'currentColor' },
+            children: [
+              { type: 'element', tagName: 'path', properties: { d: LINK_ICON_PATH }, children: [] },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'element',
+        tagName: 'span',
+        properties: { className: ['sr-only'], dataPagefindIgnore: true },
+        children: [{ type: 'text', value: `Section titled “${title}”` }],
+      },
+    ],
+  };
 }
 
 /**

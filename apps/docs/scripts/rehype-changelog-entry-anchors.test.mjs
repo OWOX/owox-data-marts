@@ -22,67 +22,78 @@ function transform(children, path = CHANGELOG) {
   return tree.children;
 }
 
-test('turns an entry title into an h4 whose id ends with the release', () => {
-  const body = el('p', [text('Details')]);
-  const [, heading, details] = transform([
-    release('0.36.0'),
-    el('ul', [entry('42c797b', bold(text('Preview Data Mart rows')), body)]),
-  ]);
+const entryIds = nodes =>
+  nodes
+    .filter(node => node.tagName === 'ul')
+    .flatMap(list => list.children)
+    .map(item => item.properties?.id);
 
-  assert.equal(heading.tagName, 'h4');
-  assert.equal(heading.properties.id, 'preview-data-mart-rows-0360');
-  assert.deepEqual(heading.children, [text('Preview Data Mart rows')]);
+test('keeps the entry a list item and adds an anchor link after its title', () => {
+  const title = bold(text('Preview Data Mart rows'));
+  const body = el('p', [text('Details')]);
+  const [, list] = transform([release('0.36.0'), el('ul', [entry('42c797b', title, body)])]);
+
+  const [item] = list.children;
+  const [titleLine, details] = item.children;
+  const [prefix, strong, link] = titleLine.children;
+
+  assert.equal(item.tagName, 'li');
+  assert.equal(item.properties.id, 'preview-data-mart-rows-0360');
+  assert.deepEqual(prefix, text('42c797b: '));
+  assert.equal(strong, title);
+  assert.equal(link.tagName, 'a');
+  assert.equal(link.properties.href, '#preview-data-mart-rows-0360');
+  assert.deepEqual(link.properties.className, ['sl-anchor-link', 'changelog-entry-anchor']);
   assert.equal(details, body);
 });
 
 test('keeps the anchor of an earlier release when a later one repeats the title', () => {
-  const ids = transform([
-    release('0.36.0'),
-    el('ul', [entry('aaaaaaa', bold(text('Bug fixes and improvements')))]),
-    release('0.35.0'),
-    el('ul', [entry('bbbbbbb', bold(text('Bug fixes and improvements')))]),
-  ])
-    .filter(node => node.tagName === 'h4')
-    .map(node => node.properties.id);
+  const ids = entryIds(
+    transform([
+      release('0.36.0'),
+      el('ul', [entry('aaaaaaa', bold(text('Bug fixes and improvements')))]),
+      release('0.35.0'),
+      el('ul', [entry('bbbbbbb', bold(text('Bug fixes and improvements')))]),
+    ])
+  );
 
   assert.deepEqual(ids, ['bug-fixes-and-improvements-0360', 'bug-fixes-and-improvements-0350']);
 });
 
-test('takes the title from a tight list item and keeps its nested list', () => {
+test('anchors a tight list item and keeps its nested list', () => {
+  const title = bold(text('Use '), el('code', [text('x')]), text(' & y'));
   const nested = el('ul', [el('li', [text('Sub-item')])]);
-  const [, heading, rest] = transform([
+  const [, list] = transform([
     release('0.10.0'),
-    el('ul', [
-      el('li', [
-        text('dc9b5ab: '),
-        bold(text('Use '), el('code', [text('x')]), text(' & y')),
-        text('\n'),
-        nested,
-      ]),
-    ]),
+    el('ul', [el('li', [text('dc9b5ab: '), title, text('\n'), nested])]),
   ]);
 
-  assert.equal(heading.properties.id, 'use-x--y-0100');
-  assert.equal(rest, nested);
+  const [item] = list.children;
+  assert.equal(item.properties.id, 'use-x--y-0100');
+  assert.deepEqual(
+    item.children.map(node => node.tagName ?? node.value),
+    ['dc9b5ab: ', 'strong', 'a', '\n', 'ul']
+  );
+  assert.equal(item.children[4], nested);
 });
 
-test('leaves items without a bold title in a list', () => {
+test('leaves items without a bold title as they are', () => {
   const plain = el('li', [text('edb4478: Google Tag Manager integration')]);
-  const nodes = transform([
-    release('0.5.0'),
-    el('ul', [entry('25ab28e', bold(text('Viewer role fix'))), plain]),
-  ]);
-
-  assert.deepEqual(
-    nodes.map(node => node.tagName),
-    ['h2', 'h4', 'ul']
+  const ids = entryIds(
+    transform([
+      release('0.5.0'),
+      el('ul', [entry('25ab28e', bold(text('Viewer role fix'))), plain]),
+    ])
   );
-  assert.deepEqual(nodes[2].children, [plain]);
+
+  assert.deepEqual(ids, ['viewer-role-fix-050', undefined]);
+  assert.deepEqual(plain.children, [text('edb4478: Google Tag Manager integration')]);
 });
 
 test('changes no other page', () => {
-  const list = el('ul', [entry('42c797b', bold(text('Title')))]);
-  const nodes = transform([release('0.36.0'), list], '/site/src/content/docs/docs/api/index.md');
+  const item = entry('42c797b', bold(text('Title')));
+  transform([release('0.36.0'), el('ul', [item])], '/site/src/content/docs/docs/api/index.md');
 
-  assert.equal(nodes[1], list);
+  assert.deepEqual(item.properties, {});
+  assert.equal(item.children[0].children.length, 2);
 });
