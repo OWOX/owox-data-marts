@@ -1556,6 +1556,104 @@ describe('ManifestParser standard advanced params', () => {
     );
   });
 
+  // A node fetched without a date window renders `dateWindow` as nothing, and the request
+  // path and body render strictly: the run failed with `Template path "dateWindow.start" is
+  // unresolved`, which names neither the node nor the fix.
+  describe('dateWindow in a node that is never given a date window', () => {
+    const manifestWith = node => ({
+      version: '1.0',
+      name: 'X',
+      baseUrl: 'https://api.x.com',
+      parameters: {},
+      nodes: {
+        a: {
+          recordSelector: { recordPath: [] },
+          fields: { id: { type: 'integer' } },
+          ...node,
+        },
+      },
+    });
+    const parse = node => new ManifestParser().parse(JSON.stringify(manifestWith(node)));
+
+    it('rejects it in the request path, naming the node, the place and the fix', () => {
+      assert.throws(
+        () => parse({ request: { method: 'GET', path: '/report/{{ dateWindow.start }}' } }),
+        err =>
+          /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path/.test(err.message) &&
+          /Add an "incremental" block/.test(err.message)
+      );
+    });
+
+    it('rejects it in the body of a request that sends one', () => {
+      assert.throws(
+        () =>
+          parse({
+            request: {
+              method: 'POST',
+              path: '/report',
+              body: { range: { from: '{{dateWindow.end}}' } },
+            },
+          }),
+        /node "a" uses "\{\{ dateWindow\.end \}\}" in request\.body/
+      );
+    });
+
+    it('rejects it in the submit request of an async retriever', () => {
+      assert.throws(
+        () =>
+          parse({
+            recordSelector: undefined,
+            retriever: {
+              type: 'async',
+              submit: {
+                method: 'POST',
+                path: '/jobs',
+                body: { start: '{{ dateWindow.start }}' },
+                jobIdPath: ['id'],
+              },
+              poll: {
+                path: '/jobs/{{ job.id }}',
+                statusPath: ['status'],
+                readyValue: 'done',
+                resultUrlPath: ['url'],
+              },
+              download: { recordPath: [] },
+            },
+          }),
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in retriever\.submit\.body/
+      );
+    });
+
+    it('rejects it in a full-refresh node, which is never given a window either', () => {
+      assert.throws(
+        () =>
+          parse({
+            isTimeSeries: true,
+            isFullRefresh: true,
+            request: { method: 'GET', path: '/a/{{ dateWindow.start }}' },
+          }),
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path/
+      );
+    });
+
+    it('accepts it in a node that is fetched by date window', () => {
+      const path = '/a/{{ dateWindow.start }}';
+      assert.doesNotThrow(() =>
+        parse({
+          incremental: { strategy: 'day-by-day' },
+          request: { method: 'GET', path },
+        })
+      );
+      assert.doesNotThrow(() => parse({ isTimeSeries: true, request: { method: 'GET', path } }));
+    });
+
+    it('leaves alone a GET body, which is never sent', () => {
+      assert.doesNotThrow(() =>
+        parse({ request: { method: 'GET', path: '/a', body: { from: '{{ dateWindow.start }}' } } })
+      );
+    });
+  });
+
   it('still accepts a non-time-series node that declares no incremental block', () => {
     const m = new ManifestParser().parse(
       JSON.stringify({
