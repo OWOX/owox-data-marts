@@ -1,6 +1,6 @@
 # Design a Data Model
 
-This guide is written for two readers: analysts who build a data model out of Data Marts, and AI agents that check one. It ends with a [checklist](#checklist) your agent can run on your model. Give it the model as an OKF bundle or a JSON file — exported from the [Models canvas](../setup-guide/models-canvas-export.md) in OWOX Data Marts, from [OWOX Model Canvas](https://model.owox.com/), or from wherever you built it. The check is not conformance to a modeling framework. It is common sense about your business: it points out the weak spots in the model's ontology that are worth fixing.
+This guide is written for two readers: analysts who build a data model out of Data Marts, and AI agents that check one. It ends with a [checklist](#checklist) your agent can run on your model, reading it through the [OWOX MCP server](../setup-guide/mcp.md) or from an exported file. The check is not conformance to a modeling framework. It is common sense about your business: it points out the weak spots in the model's ontology that are worth fixing.
 
 OWOX Data Marts writes the SQL for joins so that a joined row is not counted twice. What the SQL cannot know is whether the rows it connects belong together. That is decided by the model, and a query can be valid while its number means nothing (Vlad Flaks, [Why You Need a Model to Make Sense of Your Data](https://www.vladflaks.com/thoughts/why-you-need-a-model-to-make-sense-of-your-data-1/)). This page is the method for getting the model right. The settings themselves are described in [Joinable Data Marts](../setup-guide/joinable-data-marts.md) and [Calculated Fields](../setup-guide/calculated-fields.md).
 
@@ -174,7 +174,7 @@ Data Mart descriptions are written on the [Overview tab](../setup-guide/sql-data
 
 - **Look at the whole model.** On the [Models canvas](../setup-guide/models-canvas.md) — **Data Marts → Models** — an arrow from a reference to an event, or a Data Mart nothing connects to, stands out at once. The canvas settings switch to an ERD with each Data Mart's fields, label every arrow with its join fields, and filter to the Data Marts nothing joins.
 - **Reconcile totals.** Each event's total, read from the base you will use, matches the total of its own Data Mart — or differs by exactly the rows you decided to leave out.
-- **Run the checks.** **Primary key uniqueness** proves the grain, **Relationship integrity** lists join values the target lacks, and **Reverse relationship** lists target values nothing points to. See [Data Quality Checks](../setup-guide/data-quality-checks.md).
+- **Run the checks.** **Primary key uniqueness** proves the grain, **Null rate** finds empty keys, **Relationship integrity** lists join values the target lacks, and **Reverse relationship** lists target values nothing points to. A Data Mart's default checks include all of them except Reverse relationship; turn that one on for each relationship between two events. **Actions → Check Quality** on the Models canvas runs the checks for every Data Mart at once. See [Data Quality Checks](../setup-guide/data-quality-checks.md).
 - **Read the warnings on calculated fields.** A warning that OWOX cannot tell whether a count is right means a Data Mart on the path declares no primary key.
 - **Read the SQL** a report runs — see [View Generated SQL](../setup-guide/joinable-data-marts.md#view-generated-sql).
 - **Ask the question the business will ask.** In your AI assistant, check that the answer names the Data Mart it used and selects your calculated field instead of dividing two columns itself.
@@ -209,15 +209,23 @@ A good answer says where its numbers come from, which rows they cover, and which
 
 ## Checklist
 
-Give your agent this page and the model as an OKF bundle or a JSON file ([export formats](../setup-guide/models-canvas-export.md#formats)), and ask for a review, not a verdict:
+### How to Run a Review
+
+1. **Run the Data Quality checks and reconcile the totals first**, as in [Step 7](#step-7-check-the-model-before-you-hand-it-over). They find the mechanical gaps: duplicated keys, empty keys, join values without a match. These are facts about the data, and no review of the model can see them. A join on campaign names spelled differently on its two sides looks right in the model and still loses most of one platform's revenue. Between two events some unmatched values are expected, such as orders no campaign paid for, so read a failed relationship check by its examples.
+2. **Give your agent the model.** The best way is the [OWOX MCP server](../setup-guide/mcp.md): the agent reads the live model, with every published Data Mart, every join path under the name users see, and the project description. An agent reads it with `get_project_context`, `list_data_marts` and, for each Data Mart, `get_data_mart_details_by_id` with `detail_level=with_joined_fields`. You can also give it a file: an OKF bundle or a JSON file ([export formats](../setup-guide/models-canvas-export.md#formats)) from the Models canvas, [OWOX Model Canvas](https://model.owox.com/) or wherever you built the model. The OKF bundle adds each Data Mart's SQL, where a description and its logic can disagree, and it covers drafts, which MCP does not inspect. Give both for the fullest review. Neither carries the Data Quality results, so paste them in.
+3. **Ask for a review, not a verdict.** Data Quality finds the mechanical gaps. This page and your agent find the logical and business ones:
 
 ```text
-Review the attached data model against the checklist on
+Review our data model against the checklist on
 https://docs.owox.com/docs/getting-started/best-practices/data-model-design/.
+Read the model from whatever is available: the OWOX MCP server, the attached export, or both.
+Data Quality results, if any, are pasted below.
 For each item that fails, name the Data Marts or relationships involved, the wrong number
 it can produce, and the smallest change that fixes it. Judge by common sense about this
 business, not by conformance to a modeling framework.
 ```
+
+### The Checks
 
 1. Each Data Mart is one object at one grain, and its description says what one row is.
 2. Each Data Mart declares a primary key made of the fields that define its grain, and those fields are never empty.
