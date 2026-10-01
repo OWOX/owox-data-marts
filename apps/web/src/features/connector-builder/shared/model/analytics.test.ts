@@ -70,6 +70,29 @@ describe('trackCustomConnectorEvent', () => {
       context: null,
       value: null,
       error: null,
+      details: expect.any(String),
+    });
+  });
+
+  // The PostHog tag in GTM forwards a fixed set of keys, `details` among them, so the
+  // properties travel there as JSON.
+  it('sends its properties as JSON in details, which the PostHog tag forwards', () => {
+    trackCustomConnectorEvent(
+      'custom_connector_published',
+      { id: 'c-1', manifest },
+      { version: 2, warningsCount: 0 }
+    );
+
+    expect(JSON.parse(String(lastEvent()?.details))).toEqual({
+      connectorId: 'c-1',
+      connectorName: 'ImpactPartnerCosts',
+      connectorTitle: 'Impact partner costs',
+      apiHost: '*.impact.com',
+      nodesCount: 3,
+      authType: 'basic',
+      dateStrategies: 'day-by-day,range',
+      version: 2,
+      warningsCount: 0,
     });
   });
 
@@ -105,6 +128,7 @@ describe('trackCustomConnectorEvent', () => {
       context: null,
       value: null,
       error: null,
+      details: expect.any(String),
     });
   });
 

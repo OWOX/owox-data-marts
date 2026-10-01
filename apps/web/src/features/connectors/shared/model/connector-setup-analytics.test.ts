@@ -21,11 +21,17 @@ describe('connectorSetupProperties', () => {
       connectorId: 'c1',
       connectorVersion: 3,
       versionPinned: true,
+      details: JSON.stringify({
+        isCustom: true,
+        connectorId: 'c1',
+        connectorVersion: 3,
+        versionPinned: true,
+      }),
     });
   });
 
   it('names the active version for a Data Mart that follows it', () => {
-    expect(connectorSetupProperties(custom, undefined)).toEqual({
+    expect(connectorSetupProperties(custom, undefined)).toMatchObject({
       isCustom: true,
       connectorId: 'c1',
       connectorVersion: 5,
@@ -35,7 +41,7 @@ describe('connectorSetupProperties', () => {
 
   // GTM keeps the last value pushed for a key a push leaves out.
   it('sends explicit nulls for a bundled connector', () => {
-    expect(connectorSetupProperties({ ...custom, isCustom: false }, undefined)).toEqual({
+    expect(connectorSetupProperties({ ...custom, isCustom: false }, undefined)).toMatchObject({
       isCustom: false,
       connectorId: null,
       connectorVersion: null,

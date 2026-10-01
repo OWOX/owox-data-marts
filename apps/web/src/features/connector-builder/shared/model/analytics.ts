@@ -151,7 +151,9 @@ function connectorProperties({ id, manifest, name, title, version }: CustomConne
 
 /**
  * Never throws: telemetry must not break the flow that reports it. The keys other events set
- * are sent as null, as GTM keeps the last value pushed for a key the push leaves out.
+ * are sent as null, as GTM keeps the last value pushed for a key the push leaves out. The
+ * PostHog tag in GTM forwards a fixed set of keys, so the properties also travel as JSON in
+ * `details`, one of them.
  */
 export function trackCustomConnectorEvent(
   event: CustomConnectorEvent,
@@ -161,6 +163,7 @@ export function trackCustomConnectorEvent(
   try {
     const { action, ...rest } = properties;
     const described = connectorProperties(connector);
+    const own = { ...described, ...rest };
     trackEvent({
       event,
       category: 'CustomConnector',
@@ -169,8 +172,8 @@ export function trackCustomConnectorEvent(
       context: null,
       value: null,
       error: null,
-      ...described,
-      ...rest,
+      ...own,
+      details: JSON.stringify(own),
     });
   } catch {
     // Nothing to do: an event lost is better than a user flow broken.

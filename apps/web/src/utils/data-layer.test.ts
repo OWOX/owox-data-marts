@@ -34,6 +34,16 @@ describe('data-layer analytics gate', () => {
     );
   });
 
+  // GTM keeps the last value pushed for a key. A push that leaves `details` out would hand the
+  // PostHog tag whatever an earlier event put there, so every event sets it.
+  it('always sends details, empty when the event has none', () => {
+    trackEvent({ event: 'test_event', category: 'Test' });
+
+    const pushed = vi.mocked(window.dataLayer!.push).mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(pushed)).toContain('details');
+    expect(pushed.details).toBeUndefined();
+  });
+
   it('does not push trackEvent / identify / logout when analytics are disabled', () => {
     setAnalyticsDisabled(true);
 
