@@ -26,7 +26,7 @@ type UpdateReportRunScheduleInput = z.infer<typeof inputSchema>;
 export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateReportRunScheduleInput> {
   readonly name = 'update_report_run_schedule';
   readonly description =
-    'Updates one existing report run schedule identified by trigger_id (get it from list_report_run_schedules). This changes cron_expression, and optionally time_zone and is_active; it does not change the report target and does not create another schedule. To add another schedule for the same report, call create_report_run_schedule instead. time_zone must be a valid IANA timezone (e.g. "Europe/Kyiv"); if omitted, the schedule keeps its current timezone. If is_active is omitted, the schedule keeps its current active state.';
+    'Updates one existing report run schedule identified by trigger_id (get it from list_report_run_schedules). This changes cron_expression, and optionally time_zone and is_active; it does not change the report target and does not create another schedule. Changing or disabling a schedule can skip report deliveries, and missed runs are not replayed when the schedule is restored. To add another schedule for the same report, call create_report_run_schedule instead. time_zone must be a valid IANA timezone (e.g. "Europe/Kyiv"); if omitted, the schedule keeps its current timezone. If is_active is omitted, the schedule keeps its current active state.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     trigger_id: z.string(),
@@ -40,7 +40,7 @@ export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateRepo
   readonly annotations = {
     title: 'Update Report Run Schedule',
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];

@@ -99,12 +99,13 @@ describe('UpdateReportRunScheduleTool', () => {
     expect(tool).toMatchObject({
       name: 'update_report_run_schedule',
       requiredScopes: ['mcp:read', 'mcp:write'],
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     });
     expect(tool.description).toContain('Updates one existing');
     expect(tool.description).toContain('trigger_id');
     expect(tool.description).toContain('keeps its current timezone');
     expect(tool.description).toContain('keeps its current active state');
+    expect(tool.description).toContain('missed runs are not replayed');
     expect(tool.description).not.toContain('upsert');
   });
 });
