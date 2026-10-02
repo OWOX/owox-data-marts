@@ -292,7 +292,7 @@ Casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean
 
 Remember the dot-string-vs-array distinction from [Common naming mistakes](#common-naming-mistakes): `dataPath` is `"a.b.c"`, never `["a", "b", "c"]`.
 
-A Data Mart stores the names of the fields it selected. Renaming or removing a field of a published connector leaves the Data Marts that selected it asking for a field the connector no longer provides: a Data Mart whose table doesn't exist yet fails its run with `Field "X" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. Its fields are chosen again under the Data Mart's **Input Source** → **Edit Fields**. To change what a published field holds, edit its `dataPath`; to rename it, add the new field and keep the old one until no Data Mart selects it.
+A Data Mart stores the names of the fields it selected. Renaming or removing a field of a published connector leaves the Data Marts that selected it asking for a field the connector no longer provides: a Data Mart whose table doesn't exist yet fails its run with `Field "X" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. Open **Edit Fields** in the Data Mart's **Input Source** and save: a field the connector no longer provides is dropped from the selection. To change what a published field holds, edit its `dataPath`; to rename it, add the new field and keep the old one until no Data Mart selects it.
 
 ## Pagination
 
@@ -394,7 +394,7 @@ One request per configured date range; use `startName` + `endName` (query) or `s
 
 Inside the node's own `request` (or `retriever.submit`), the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how [`transformations.add`](#transformations) stamps a `date` field onto records the API itself doesn't return dated.
 
-Only a node fetched by date window has a window: one with an `incremental` strategy (or `"isTimeSeries": true`) and without `isFullRefresh`. Any other node that puts `{{ dateWindow.start }}` or `{{ dateWindow.end }}` in its request `path`, or in the `body` of a request that sends one, is refused at publish with an error that names the node. In its `queryParameters` or `headers` such a parameter is never sent.
+Only a node with an `incremental` strategy, and without `isFullRefresh`, has a window: `"isTimeSeries": true` alone does not give one. Any other node that puts `{{ dateWindow.start }}` or `{{ dateWindow.end }}` in the `path`, or in the `body` of a request that sends one, of any request it makes (`request`, an async `retriever.submit`/`poll`, a substream's `partitionRouter.parent.request`) is refused by **Publish** and **Test** with an error that names the node. In its `queryParameters` or `headers` such a parameter is never sent.
 
 ### Which strategy to choose
 
@@ -612,7 +612,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 What happens to an unresolved path depends on where it is:
 
-- In the request `path`, the request `body` and the authentication fields, it throws and fails the run. A `dateWindow` placeholder there, in a node that is never given a date window, is refused at publish instead.
+- In the request `path`, the request `body` and the authentication fields, it throws and fails the run. A `dateWindow` placeholder there, in a node that is never given a date window, is refused by **Publish** and **Test** instead.
 - In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
 - Inside `transformations.add.value`, it renders as an empty string.
 

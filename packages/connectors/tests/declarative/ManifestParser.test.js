@@ -1556,9 +1556,11 @@ describe('ManifestParser standard advanced params', () => {
     );
   });
 
-  // A node fetched without a date window renders `dateWindow` as nothing, and the request
-  // path and body render strictly: the run failed with `Template path "dateWindow.start" is
-  // unresolved`, which names neither the node nor the fix.
+  // A node fetched without a date window renders `dateWindow` as nothing, and a request path
+  // and body render strictly: the run failed with `Template path "dateWindow.start" is
+  // unresolved`, which names neither the node nor the fix. Refused only while authoring
+  // (Publish, Test): a run parses the whole stored manifest, and refusing it there would fail
+  // every Data Mart on a published version instead of the one node that has the template.
   describe('dateWindow in a node that is never given a date window', () => {
     const manifestWith = node => ({
       version: '1.0',
@@ -1573,14 +1575,16 @@ describe('ManifestParser standard advanced params', () => {
         },
       },
     });
-    const parse = node => new ManifestParser().parse(JSON.stringify(manifestWith(node)));
+    const parse = node =>
+      new ManifestParser().parse(JSON.stringify(manifestWith(node)), { authoring: true });
 
     it('rejects it in the request path, naming the node, the place and the fix', () => {
       assert.throws(
         () => parse({ request: { method: 'GET', path: '/report/{{ dateWindow.start }}' } }),
         err =>
           /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path/.test(err.message) &&
-          /Add an "incremental" block/.test(err.message)
+          /Add an "incremental" block/.test(err.message) &&
+          !/isTimeSeries/.test(err.message)
       );
     });
 
@@ -1598,33 +1602,19 @@ describe('ManifestParser standard advanced params', () => {
       );
     });
 
-    it('rejects it in the submit request of an async retriever', () => {
+    // isTimeSeries without an incremental strategy is processed as an undated node.
+    it('rejects it in a node that is time-series but declares no strategy', () => {
       assert.throws(
         () =>
           parse({
-            recordSelector: undefined,
-            retriever: {
-              type: 'async',
-              submit: {
-                method: 'POST',
-                path: '/jobs',
-                body: { start: '{{ dateWindow.start }}' },
-                jobIdPath: ['id'],
-              },
-              poll: {
-                path: '/jobs/{{ job.id }}',
-                statusPath: ['status'],
-                readyValue: 'done',
-                resultUrlPath: ['url'],
-              },
-              download: { recordPath: [] },
-            },
+            isTimeSeries: true,
+            request: { method: 'GET', path: '/a/{{ dateWindow.start }}' },
           }),
-        /node "a" uses "\{\{ dateWindow\.start \}\}" in retriever\.submit\.body/
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path/
       );
     });
 
-    it('rejects it in a full-refresh node, which is never given a window either', () => {
+    it('rejects it in a full-refresh node, pointing past the isFullRefresh refusal', () => {
       assert.throws(
         () =>
           parse({
@@ -1632,24 +1622,84 @@ describe('ManifestParser standard advanced params', () => {
             isFullRefresh: true,
             request: { method: 'GET', path: '/a/{{ dateWindow.start }}' },
           }),
-        /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path/
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in request\.path.*Remove "isFullRefresh" and add an "incremental" block/
       );
     });
 
-    it('accepts it in a node that is fetched by date window', () => {
-      const path = '/a/{{ dateWindow.start }}';
+    const asyncRetriever = submitBody => ({
+      type: 'async',
+      submit: { method: 'POST', path: '/jobs', body: submitBody, jobIdPath: ['id'] },
+      poll: {
+        path: '/jobs/{{ job.id }}',
+        statusPath: ['status'],
+        readyValue: 'done',
+        resultUrlPath: ['url'],
+      },
+      download: { recordPath: [] },
+    });
+
+    it('rejects it in the submit request of an async retriever', () => {
+      assert.throws(
+        () =>
+          parse({
+            recordSelector: undefined,
+            retriever: asyncRetriever({ start: '{{ dateWindow.start }}' }),
+          }),
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in retriever\.submit\.body/
+      );
+    });
+
+    it('leaves alone the request of an async node, which is never sent', () => {
+      assert.doesNotThrow(() =>
+        parse({
+          recordSelector: undefined,
+          request: { method: 'GET', path: '/a/{{ dateWindow.start }}' },
+          retriever: asyncRetriever({ kind: 'report' }),
+        })
+      );
+    });
+
+    it("rejects it in a substream parent's request", () => {
+      assert.throws(
+        () =>
+          parse({
+            request: { method: 'GET', path: '/children/{{ stream_slice.parent_id }}' },
+            partitionRouter: {
+              type: 'substream',
+              parent: {
+                request: { method: 'GET', path: '/parents/{{ dateWindow.start }}' },
+                recordPath: [],
+                key: 'id',
+              },
+              partitionField: 'parent_id',
+            },
+          }),
+        /node "a" uses "\{\{ dateWindow\.start \}\}" in partitionRouter\.parent\.request\.path/
+      );
+    });
+
+    it('accepts it in a node with a date strategy', () => {
       assert.doesNotThrow(() =>
         parse({
           incremental: { strategy: 'day-by-day' },
-          request: { method: 'GET', path },
+          request: { method: 'GET', path: '/a/{{ dateWindow.start }}' },
         })
       );
-      assert.doesNotThrow(() => parse({ isTimeSeries: true, request: { method: 'GET', path } }));
     });
 
     it('leaves alone a GET body, which is never sent', () => {
       assert.doesNotThrow(() =>
         parse({ request: { method: 'GET', path: '/a', body: { from: '{{ dateWindow.start }}' } } })
+      );
+    });
+
+    it('accepts it when a run parses the stored manifest, so other nodes keep running', () => {
+      assert.doesNotThrow(() =>
+        new ManifestParser().parse(
+          JSON.stringify(
+            manifestWith({ request: { method: 'GET', path: '/a/{{ dateWindow.start }}' } })
+          )
+        )
       );
     });
   });

@@ -674,6 +674,31 @@ describe('ConnectorDefinitionService', () => {
     expect((error as Error).message).toMatch(/^Invalid manifest: /);
   });
 
+  // Such a node would publish and fail every run with "Template path ... is unresolved".
+  it('publish() refuses a node that templates dateWindow without a date strategy', async () => {
+    const { service } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: validManifest,
+    });
+    await service.saveDraft('proj-1', def.id, {
+      ...validManifest,
+      nodes: {
+        items: {
+          ...validManifest.nodes.items,
+          request: { method: 'GET', path: '/items/{{ dateWindow.start }}' },
+        },
+      },
+    });
+    const error = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as Error).message).toMatch(
+      /^Invalid manifest: .*node "items" uses "\{\{ dateWindow\.start \}\}" in request\.path/
+    );
+  });
+
   // Storage merges rows on the primary key and cannot be created without one, so such a
   // node would publish and then fail every run.
   it('publish() refuses a node without a primary key and leaves the draft unpublished', async () => {

@@ -66,7 +66,7 @@ In the node, fill in:
 
 The collapsed sections cover what some APIs need: **Incremental** (fetch by date window), **Pagination**, **Transformations**, **Partition** (run the node once for each record of a parent list, or for each value in a list), **Record filter** and **Error handling**. For an API that builds a report in the background, switch the **Retriever** to **Async**. The [Connector Manifest Reference](manifest-reference.md#contents) explains each of them.
 
-Only a node fetched by date window has `{{ dateWindow.start }}` and `{{ dateWindow.end }}`: one whose **Incremental** section sets a strategy, or a **Time-series node**. **Publish** refuses them in the **Path** or **Body** of any other node, and in its **Query parameters** they are never sent.
+Only a node whose **Incremental** section sets a strategy has `{{ dateWindow.start }}` and `{{ dateWindow.end }}`; **Time-series node** alone does not give it a date window. **Publish** refuses them in the **Path** or **Body** of any other node, and in its **Query parameters** they are never sent.
 
 The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a node by its name, so once you publish, a Data Mart that used the old name fails its runs until its fields are chosen again.
 
@@ -93,7 +93,7 @@ Then check each field:
 
 ![The Fields table of the daily node: day as a date and the primary key, downloads as an integer, both selected by default](../res/screens/Connector-Builder-Fields.png)
 
-Data Marts refer to a field by its name, as they do to a node. Once you publish, renaming or removing a field a Data Mart selected leaves that Data Mart without it: a run that creates its table fails with `Field "…" is selected for import, but the connector does not provide it`, and an existing table gets no new values in that column, until the fields are chosen again under the Data Mart's **Input Source** → **Edit Fields**. To change where a field's value comes from, edit its **Data path** instead.
+Data Marts refer to a field by its name, as they do to a node. Once you publish, renaming or removing a field a Data Mart selected leaves that Data Mart without it: a run that creates its table fails with `Field "…" is selected for import, but the connector does not provide it`, and an existing table gets no new values in that column, until you open **Edit Fields** in the Data Mart's **Input Source** and save, which drops a field the connector no longer provides. To change where a field's value comes from, edit its **Data path** instead.
 
 ## Step 7: Save and publish
 

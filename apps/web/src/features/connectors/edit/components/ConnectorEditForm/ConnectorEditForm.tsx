@@ -964,8 +964,11 @@ export function ConnectorEditForm({
           onBack={handleBack}
           onFinish={() => {
             const availableFields = availableSelectedNodeFields;
+            // A saved field the connector no longer has gets no checkbox, so nothing could
+            // unselect it. It is dropped once the node's fields have loaded; until then the
+            // selection is kept as saved, so a failed fetch cannot empty it.
             const activeSelectedFields =
-              selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME
+              selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME || availableFields.length > 0
                 ? getAvailableGoogleSheetsSelectedFields(selectedFields, availableFields)
                 : selectedFields;
 
