@@ -634,6 +634,21 @@ export class AbstractConnector {
   }
 
   /**
+   * Notes where `endLagDays` stopped a manual backfill short of its EndDate. The run completes
+   * either way, and nothing else on it names the days it left out.
+   * @private
+   */
+  _logLagCut(node, dateRange, end) {
+    if (this.context.runConfig?.type !== RUN_CONFIG_TYPE.MANUAL_BACKFILL) return;
+    if (end >= dateRange.endDate) return;
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Node "${node.name}" stops at ${end}, not at the EndDate ${dateRange.endDate}: ` +
+        `endLagDays ends its window that many days before today`
+    );
+  }
+
+  /**
    * Notes a node that has nothing to ask for this run because its lag ends its window
    * before the run's first day.
    * @private
@@ -1078,6 +1093,7 @@ export class AbstractConnector {
       this._logLaggedOut(node, dateRange, endDate);
       return null;
     }
+    this._logLagCut(node, dateRange, endDate);
 
     const writers = new Map();
     let completedBy = 0;
@@ -1153,6 +1169,7 @@ export class AbstractConnector {
     const endDates = new Map(nodes.map(node => [node, this._nodeWindowEnd(node, dateRange)]));
     for (const [node, end] of endDates) {
       if (end < dateRange.startDate) this._logLaggedOut(node, dateRange, end);
+      else this._logLagCut(node, dateRange, end);
     }
     const lastDay = [...endDates.values()].reduce((latest, date) => (date > latest ? date : latest));
 

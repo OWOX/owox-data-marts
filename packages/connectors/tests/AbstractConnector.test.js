@@ -3739,6 +3739,57 @@ describe('AbstractConnector', () => {
       }
     });
 
+    // A backfill that ends before today is cut too, and nothing else on the run says so.
+    it('stops a manual backfill endLagDays before today, and says where', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const ctx = createTestContext(
+          {},
+          {
+            type: 'MANUAL_BACKFILL',
+            data: [
+              { configField: 'StartDate', value: utcDay(-5) },
+              { configField: 'EndDate', value: utcDay(-1) },
+            ],
+          }
+        );
+        ctx.registerParameters({
+          StartDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+          EndDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+        });
+        const infos = [];
+        const log = ctx.log.bind(ctx);
+        ctx.log = (level, message) => {
+          if (level === 'info') infos.push(message);
+          return log(level, message);
+        };
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 2,
+          fetchData: async req => {
+            asked.push([req.startDate, req.endDate]);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [[utcDay(-5), utcDay(-2)]]);
+        assert.ok(
+          infos.some(
+            message =>
+              message.includes('endLagDays') &&
+              message.includes(utcDay(-2)) &&
+              message.includes(utcDay(-1))
+          ),
+          `no INFO line names the cut: ${infos.join(' | ')}`
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+
     it('asks nothing of a node whose lagged window ends before it starts, and claims nothing', async () => {
       const cap = captureEvents();
       try {

@@ -410,7 +410,7 @@ A node's window ends today. Some APIs refuse a window that does — the OpenAI A
 }
 ```
 
-`endLagDays` is a whole number from `0`, the default, to `30`, and needs a `day-by-day` or `range` strategy. With `1` the last day asked for is yesterday, and `{{ dateWindow.end }}` is yesterday too. The days it leaves out are asked for by a later run: the cursor never passes the last day a lagging node was asked for, even when another node of the connector runs to today. A manual backfill that ends today ends `endLagDays` earlier as well, and **Test** in the builder samples the last days a run would ask for.
+`endLagDays` is a whole number from `0`, the default, to `30`, and needs a `day-by-day` or `range` strategy. With `1` the last day asked for is yesterday, and `{{ dateWindow.end }}` is yesterday too. The days it leaves out are asked for by a later run: the cursor never passes the last day a lagging node was asked for, even when another node of the connector runs to today. A manual backfill never asks for a later day either: with `2`, one that ends yesterday or today stops the day before yesterday, and the run's log names the day it stopped at. **Test** in the builder samples the last days a run would ask for.
 
 An API may judge "completed" in the account's own time zone. If it is behind UTC, a run shortly after midnight UTC can still be refused with `1`: pass the API a UTC time zone if it takes one, or use `2`.
 

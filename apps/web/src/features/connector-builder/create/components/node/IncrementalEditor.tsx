@@ -14,6 +14,8 @@ const CHOICES: { key: IncChoice; label: string }[] = [
   { key: 'day-by-day', label: 'Day-by-day' },
   { key: 'range', label: 'Range' },
 ];
+// The engine's limit (ManifestParser), as the Reimport Lookback Window clamps to its own.
+const MAX_END_LAG_DAYS = 30;
 const INTO_CHOICES: { key: 'query' | 'body'; label: string }[] = [
   { key: 'query', label: 'query' },
   { key: 'body', label: 'body' },
@@ -92,7 +94,8 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
     // 0 is the engine's default, so it is stored as no key at all.
     const next: Record<string, unknown> = { ...incremental };
     delete next.endLagDays;
-    if (Number.isInteger(days) && days > 0) next.endLagDays = days;
+    // max on the input does not stop a keystroke, and Publish refuses anything above it.
+    if (Number.isInteger(days) && days > 0) next.endLagDays = Math.min(days, MAX_END_LAG_DAYS);
     setPath(base, next);
   };
 
@@ -192,7 +195,7 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
             <Input
               type='number'
               min={0}
-              max={30}
+              max={MAX_END_LAG_DAYS}
               step={1}
               aria-label='Skip the last days'
               value={incremental?.strategy === 'none' ? '' : (incremental?.endLagDays ?? '')}

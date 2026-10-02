@@ -11,7 +11,7 @@ days** under **Incremental** in the Connector Builder, or `incremental.endLagDay
 manifest, e.g. `1` to end the window yesterday.
 
 The left-out days are imported by a later run: the import never marks a day as done before
-every node has asked for it. A manual backfill that ends today and **Test** in the builder
-follow the same window.
+every node has asked for it. A manual backfill never asks for a later day either, and its log
+says where it stopped; **Test** in the builder samples the same window.
 
 <!-- markdownlint-disable-file MD041 MD036 -->

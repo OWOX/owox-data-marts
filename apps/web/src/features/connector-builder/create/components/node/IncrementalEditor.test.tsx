@@ -104,6 +104,10 @@ describe('IncrementalEditor', () => {
       fireEvent.change(lagInput(), { target: { value: '1' } });
       expect(storedIncremental()).toMatchObject({ strategy: 'range', endLagDays: 1 });
 
+      // max={30} does not stop a keystroke, and Publish refuses anything above 30.
+      fireEvent.change(lagInput(), { target: { value: '45' } });
+      expect(storedIncremental()).toMatchObject({ endLagDays: 30 });
+
       fireEvent.change(lagInput(), { target: { value: '0' } });
       expect(storedIncremental()).not.toHaveProperty('endLagDays');
     });
