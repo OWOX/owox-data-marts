@@ -292,6 +292,8 @@ Casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean
 
 Remember the dot-string-vs-array distinction from [Common naming mistakes](#common-naming-mistakes): `dataPath` is `"a.b.c"`, never `["a", "b", "c"]`.
 
+A Data Mart stores the names of the fields it selected. Renaming or removing a field of a published connector leaves the Data Marts that selected it asking for a field the connector no longer provides: a Data Mart whose table doesn't exist yet fails its run with `Field "X" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. Open **Edit Fields** in the Data Mart's **Input Source** and save: a field the connector no longer provides is dropped from the selection. To change what a published field holds, edit its `dataPath`; to rename it, add the new field and keep the old one until no Data Mart selects it.
+
 ## Pagination
 
 Optional, node-level, and only for sync nodes. `pagination.type` is one of `none`, `offset`, `page`, `cursor`.
@@ -391,6 +393,8 @@ One request per configured date range; use `startName` + `endName` (query) or `s
 `request.into` is `"query"` (adds `startName`/`endName` query parameters) or `"body"` (deep-sets `startPath`/`endPath`, arrays, into the request body). `request.format` uses **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are `00` for the start and `23:59:59` for the end, so a one-day window covers the whole day); `X`/`x` mean unix epoch seconds/milliseconds, read the same way. Omitted, or `YYYY-MM-DD`, means "pass the date through unchanged." Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (for example, don't put `mm` inside a literal word).
 
 Inside the node's own `request` (or `retriever.submit`), the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how [`transformations.add`](#transformations) stamps a `date` field onto records the API itself doesn't return dated.
+
+Only a node with an `incremental` strategy, and without `isFullRefresh`, has a window: `"isTimeSeries": true` alone does not give one. Any other node that puts `{{ dateWindow.start }}` or `{{ dateWindow.end }}` in the `path`, or in the `body` of a request that sends one, of any request it makes (`request`, an async `retriever.submit`/`poll`, a substream's `partitionRouter.parent.request`) is refused by **Publish** and **Test** with an error that names the node. In its `queryParameters` or `headers` such a parameter is never sent.
 
 ### Which strategy to choose
 
@@ -600,7 +604,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 | `{{ parameters.X }}` | Any declared parameter's resolved value. |
 | `{{ account.id }}` | The current account id, when the connector declares `accounts`. Without `accounts` there is no account id. |
 | `{{ auth.token }}` | The token issued by `tokenExchange`/`oauth2` — only meaningful inside that same authenticator's `inject.format`. |
-| `{{ dateWindow.start }}` / `{{ dateWindow.end }}` | The current incremental run's date window (`YYYY-MM-DD` strings). |
+| `{{ dateWindow.start }}` / `{{ dateWindow.end }}` | The current date window (`YYYY-MM-DD` strings), only in a node fetched by date window — see [Incremental](#incremental-date-windowed-extraction). |
 | `{{ node.selectedFields }}` | The names of the fields the Data Mart selected for this node, comma-separated, e.g. `date,rate` — for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s. |
 | `{{ stream_slice.<partitionField> }}` | The current partition value inside a partition-router child request. |
 | `{{ job.id }}` | The async job id, inside `retriever.async.poll`. |
@@ -608,7 +612,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 What happens to an unresolved path depends on where it is:
 
-- In the request `path`, the request `body` and the authentication fields, it throws and fails the run.
+- In the request `path`, the request `body` and the authentication fields, it throws and fails the run. A `dateWindow` placeholder there, in a node that is never given a date window, is refused by **Publish** and **Test** instead.
 - In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
 - Inside `transformations.add.value`, it renders as an empty string.
 
@@ -620,6 +624,7 @@ What happens to an unresolved path depends on where it is:
 4. Run **Test** on one node. Enter an API key or a token only into a parameter marked `SECRET` or used by the authentication: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then test again.
 6. Once it passes, **Publish** the connector.
+7. After that, keep the names of its nodes and fields: Data Marts refer to them by name (see [Fields](#fields)).
 
 Real credentials are connected separately, afterward: the person setting up the connector enters their API key/token on the Data Mart page, or in the connector's Test. Credentials are never typed into a manifest or into an AI assistant.
 

@@ -312,7 +312,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       let columnDescription = '';
 
       if (!(columnName in this.schema)) {
-        throw new Error(`Required field ${columnName} not found in schema`);
+        throw this.missingSelectedFieldError(columnName);
       }
 
       let columnType = this.getColumnType(columnName);

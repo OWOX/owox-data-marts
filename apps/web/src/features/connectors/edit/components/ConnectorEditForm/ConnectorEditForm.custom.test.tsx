@@ -453,6 +453,72 @@ describe('ConnectorEditForm — custom connector', () => {
       expect((onSubmit.mock.calls[0][0] as ConnectorConfig).source.version).toBe(2);
     });
 
+    // A saved field the connector no longer has gets no checkbox, so nothing could unselect
+    // it, and every run that creates the table failed on it.
+    describe('Edit Fields', () => {
+      const renderEditFields = (onSubmit: (c: ConnectorConfig) => void) =>
+        render(
+          <MemoryRouter>
+            <ConnectorContextProvider>
+              <ConnectorEditForm
+                onSubmit={onSubmit}
+                dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+                mode='fields-only'
+                existingConnector={{
+                  source: {
+                    ...savedSource(1, [{ _id: 'cfg-1', Token: 'secret-token' }]),
+                    fields: ['id', 'title', 'timezone'],
+                  },
+                  storage: { fullyQualifiedName: 'ds.items' },
+                }}
+              />
+            </ConnectorContextProvider>
+          </MemoryRouter>
+        );
+
+      const save = async () => {
+        const saveButton = await screen.findByRole('button', { name: /save/i });
+        await waitFor(() => {
+          expect(saveButton).not.toBeDisabled();
+        });
+        fireEvent.click(saveButton);
+      };
+
+      it('saves without a field the connector no longer has', async () => {
+        const onSubmit = vi.fn();
+        renderEditFields(onSubmit);
+        await screen.findByText('title');
+        await save();
+
+        await waitFor(() => {
+          expect(onSubmit).toHaveBeenCalledTimes(1);
+        });
+        expect((onSubmit.mock.calls[0][0] as ConnectorConfig).source.fields).toEqual([
+          'id',
+          'title',
+        ]);
+      });
+
+      it('keeps the selection as saved when the fields could not be loaded', async () => {
+        getCustomConnectorFields.mockRejectedValue(new Error('Network Error'));
+        const onSubmit = vi.fn();
+        renderEditFields(onSubmit);
+        await waitFor(() => {
+          expect(getCustomConnectorFields).toHaveBeenCalled();
+        });
+        await save();
+
+        await waitFor(() => {
+          expect(onSubmit).toHaveBeenCalledTimes(1);
+        });
+        expect((onSubmit.mock.calls[0][0] as ConnectorConfig).source.fields).toEqual([
+          'id',
+          'title',
+          'timezone',
+        ]);
+      });
+    });
+
     it('does not offer the version when adding another configuration', async () => {
       renderSaved(vi.fn(), savedSource(1, []));
 

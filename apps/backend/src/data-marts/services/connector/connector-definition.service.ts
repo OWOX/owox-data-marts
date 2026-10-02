@@ -556,9 +556,9 @@ export class ConnectorDefinitionService {
 
     let model: ParsedManifestAuthReport;
     try {
-      model = new Core.ManifestParser().parse(
-        JSON.stringify(draft.manifest)
-      ) as ParsedManifestAuthReport;
+      model = new Core.ManifestParser().parse(JSON.stringify(draft.manifest), {
+        authoring: true,
+      }) as ParsedManifestAuthReport;
     } catch (e) {
       throw new BadRequestException(`Invalid manifest: ${(e as Error).message}`);
     }

@@ -47,6 +47,55 @@ const PAGINATION_TYPES = new Set(['none', 'offset', 'page', 'cursor']);
 const INJECT_TARGETS = new Set(['query', 'header', 'body', 'path']);
 const RESPONSE_FORMATS = new Set(['json', 'csv', 'jsonl']);
 
+const DATE_WINDOW_PLACEHOLDER = /\{\{\s*(dateWindow(?:\.[a-zA-Z0-9_]+)*)\s*\}\}/;
+
+/** The first `dateWindow` path a template string, array or object refers to, or null. */
+function dateWindowTemplateIn(value) {
+  if (typeof value === 'string') return DATE_WINDOW_PLACEHOLDER.exec(value)?.[1] ?? null;
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      const path = dateWindowTemplateIn(item);
+      if (path) return path;
+    }
+  }
+  return null;
+}
+
+/**
+ * Refuses `{{ dateWindow.* }}` where a node that is never given a date window renders it
+ * strictly: the path and a sent body of every request the engine makes for the node. The run
+ * would otherwise fail there with `Template path "dateWindow.start" is unresolved`, which
+ * names neither the node nor the fix. Query parameters and headers drop an unresolved value
+ * instead, so they are left alone.
+ */
+function assertNoStrictDateWindowTemplate(nodeName, node) {
+  const isAsync = node.retriever?.type === 'async';
+  for (const [where, spec] of [
+    // An async node sends its retriever's requests, never `request`.
+    ['request', isAsync ? undefined : node.request],
+    ['retriever.submit', isAsync ? node.retriever.submit : undefined],
+    ['retriever.poll', isAsync ? node.retriever.poll : undefined],
+    ['partitionRouter.parent.request', node.partitionRouter?.parent?.request],
+  ]) {
+    if (!spec || typeof spec !== 'object') continue;
+    const sendsBody = String(spec.method || 'GET').toUpperCase() !== 'GET';
+    for (const [place, value] of [
+      [`${where}.path`, spec.path],
+      [`${where}.body`, sendsBody ? spec.body : undefined],
+    ]) {
+      const path = dateWindowTemplateIn(value);
+      if (path) {
+        const fix = node.isFullRefresh
+          ? 'Remove "isFullRefresh" and add an "incremental" block to fetch by date window, or remove the template.'
+          : 'Add an "incremental" block to the node, or remove the template.';
+        throw new Error(
+          `ManifestParser: node "${nodeName}" uses "{{ ${path} }}" in ${place}, but the node is never given a date window: only a node with an "incremental" strategy, and without "isFullRefresh", is fetched one window at a time. ${fix}`
+        );
+      }
+    }
+  }
+}
+
 // The pre-`inject` spelling of the query parameter each pagination type writes
 // its value into (Paginator._legacyParam). Still honoured at run time, so still
 // accepted here as the alternative to an `inject` block.
@@ -219,9 +268,11 @@ function validateBackoff(b, nodeName, where) {
 export class ManifestParser {
   /**
    * @param {string} json
+   * @param {{ authoring?: boolean }} [options] - `authoring` adds the checks for a manifest
+   *   being published or tested, which a stored version must not start failing on.
    * @returns {object} ManifestModel
    */
-  parse(json) {
+  parse(json, { authoring = false } = {}) {
     let raw;
     try {
       raw = JSON.parse(json);
@@ -515,6 +566,12 @@ export class ManifestParser {
         throw new Error(
           `ManifestParser: node "${nodeName}" declares both "incremental" and "isFullRefresh", which are mutually exclusive — a full-refresh node replaces the whole table and is never given a date window, so the incremental block would be silently ignored. Remove "isFullRefresh" to fetch by date window, or remove the "incremental" block.`
         );
+      }
+      // The pairing of a date strategy with isFullRefresh is refused above, so a node that
+      // declares one is the node that gets a window. Checked only while authoring: a run
+      // parses the whole stored manifest, where a refusal would fail every node, not this one.
+      if (authoring && !declaresDateWindow(node)) {
+        assertNoStrictDateWindowTemplate(nodeName, node);
       }
       if (node.transformations !== undefined) {
         if (!Array.isArray(node.transformations)) {

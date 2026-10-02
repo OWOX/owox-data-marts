@@ -174,7 +174,7 @@ export class ConnectorTestService {
    */
   private manifestParseError(manifest: Record<string, unknown>): string | null {
     try {
-      new Core.ManifestParser().parse(JSON.stringify(manifest));
+      new Core.ManifestParser().parse(JSON.stringify(manifest), { authoring: true });
       return null;
     } catch (e) {
       return castError(e).message;
