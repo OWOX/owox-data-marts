@@ -313,8 +313,8 @@ export class AbstractStorage {
   missingSelectedFieldError(columnName) {
     return new Error(
       `Field "${columnName}" is selected for import, but the connector does not provide it. ` +
-        `If the connector's fields changed after this Data Mart was set up, open the Data Mart's ` +
-        `Input Source and update the selection with Edit Fields.`
+        `If the connector's fields changed after this Data Mart was set up, open Edit Fields in ` +
+        `the Data Mart's Input Source and save: a field the connector no longer provides is dropped.`
     );
   }
   //----------------------------------------------------------------

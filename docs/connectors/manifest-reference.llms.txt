@@ -246,7 +246,7 @@ Gotcha: casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A 
 
 Remember the dot-string-vs-array distinction from §3: `dataPath` is `"a.b.c"`, never `["a","b","c"]`.
 
-A Data Mart stores the names of the fields it selected. When editing a connector that is already published, NEVER rename or remove a field to fix something: the Data Marts that selected it then ask for a field the connector no longer provides — one whose table doesn't exist yet fails its run with `Field "<name>" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. To change what a field holds, edit its `dataPath`; to rename it, add the new field and keep the old one. When the user brings you that error, the manifest is not wrong: tell them to choose the fields again under the Data Mart's Input Source → Edit Fields, or restore the field if it was removed by mistake.
+A Data Mart stores the names of the fields it selected. When editing a connector that is already published, NEVER rename or remove a field to fix something: the Data Marts that selected it then ask for a field the connector no longer provides — one whose table doesn't exist yet fails its run with `Field "<name>" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. To change what a field holds, edit its `dataPath`; to rename it, add the new field and keep the old one. When the user brings you that error, the manifest is not wrong: tell them to open Edit Fields in the Data Mart's Input Source and save, which drops a field the connector no longer provides, or restore the field if it was removed by mistake.
 
 ## 8. `pagination` — 4 types (sync nodes only)
 
@@ -316,7 +316,7 @@ Declaring a strategy other than `none` makes the node a time series on its own �
 
 Inside the node's own `request`/`retriever.submit`, the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how `transformations.add` (§13) stamps a `date` field onto records the API itself doesn't return dated.
 
-Only a node fetched by date window has a window: one with an `incremental` strategy (or `"isTimeSeries": true`) and without `isFullRefresh`. NEVER put `{{ dateWindow.start }}`/`{{ dateWindow.end }}` into the request `path`, or into the `body` of a non-GET request, of any other node: publish refuses it with `ManifestParser: node "<name>" uses "{{ dateWindow.start }}" in request.path, but the node is never given a date window…`. To fix that error, add an `incremental` block to the node if the API takes dates, or remove the template if it doesn't. In such a node's `queryParameters` or `headers` the parameter is silently never sent.
+Only a node with an `incremental` strategy, and without `isFullRefresh`, has a window. `"isTimeSeries": true` alone does NOT give a node a window, so never add it to fix the error below. NEVER put `{{ dateWindow.start }}`/`{{ dateWindow.end }}` into the `path`, or into the `body` of a non-GET request, of any request another node makes (`request`, an async `retriever.submit`/`poll`, a substream's `partitionRouter.parent.request`): publish refuses it with `ManifestParser: node "<name>" uses "{{ dateWindow.start }}" in request.path, but the node is never given a date window…`. To fix that error, add an `incremental` block to the node if the API takes dates (for a node with `isFullRefresh`, remove `isFullRefresh` first: the two are refused together), or remove the template if it doesn't. In such a node's `queryParameters` or `headers` the parameter is silently never sent.
 
 Which strategy to choose:
 
@@ -533,7 +533,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 What happens to an unresolved path depends on where it is:
 
-- In the request `path`, the request `body` and the authentication fields, it throws (fails the run). A `dateWindow` placeholder there, in a node that is never given a date window, is refused at publish instead (§9).
+- In the request `path`, the request `body` and the authentication fields, it throws (fails the run). A `dateWindow` placeholder there, in a node that is never given a date window, is refused by Publish and Test instead (§9).
 - In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
 - Inside `transformations.add.value` (§13), it renders as an empty string.
 

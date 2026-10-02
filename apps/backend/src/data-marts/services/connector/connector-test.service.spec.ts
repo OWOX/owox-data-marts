@@ -399,6 +399,27 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
         })
       ).rejects.toThrow(/^Invalid manifest:/);
     });
+
+    it('refuses a node that templates dateWindow without a date strategy, as publish() does', async () => {
+      const svc = makeService();
+
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest: {
+            ...manifest,
+            nodes: {
+              items: {
+                ...manifest.nodes.items,
+                request: { method: 'GET', path: '/x/{{ dateWindow.start }}' },
+              },
+            },
+          },
+          node: 'items',
+          configuration: {},
+        })
+      ).rejects.toThrow(/^Invalid manifest: .*node "items" uses "\{\{ dateWindow\.start \}\}"/);
+    });
   });
 
   it('reports error "Test process exited with code N" when the runner exits non-zero and emitted no rows', async () => {
