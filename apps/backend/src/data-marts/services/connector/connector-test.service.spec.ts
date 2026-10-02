@@ -622,6 +622,37 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       expect(joined).toContain(start);
       expect(joined).toContain(today);
     });
+
+    // The engine ends a lagging node's window endLagDays before today. A sample that still
+    // ended today would hold fewer days than it claims, or none at all.
+    it("moves the sample back by the node's endLagDays, and names the days it holds", async () => {
+      const svc = makeService();
+      capturedSpawnEnv = undefined;
+
+      const res = await svc.runTest(
+        {
+          projectId: 'p',
+          manifest: {
+            ...manifest,
+            nodes: {
+              items: {
+                ...manifest.nodes.items,
+                incremental: { strategy: 'day-by-day', endLagDays: 2 },
+              },
+            },
+          },
+          node: 'items',
+          configuration: {},
+          maxRows: 3,
+        },
+        { env: { FAKE_SAMPLE_NO_ROWS: '1' } }
+      );
+
+      const start = String(spawnedSourceConfig().LastRequestedDate?.value);
+      const lastDay = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+      expect(start <= lastDay).toBe(true);
+      expect(res.logs.join('\n')).toContain(`${start} to ${lastDay}`);
+    });
   });
 
   it('spawns the test child with an allow-listed env: no ambient secret leaks, but the runner-required keys are present', async () => {

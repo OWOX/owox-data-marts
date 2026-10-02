@@ -171,6 +171,12 @@ export class DeclarativeSource extends AbstractSource {
     return nodeDateStrategy(this.model.nodes[nodeName]);
   }
 
+  getEndLagDays(nodeName) {
+    const node = this.model.nodes[nodeName];
+    if (nodeDateStrategy(node) === DATE_STRATEGY.NONE) return 0;
+    return node.incremental.endLagDays ?? 0;
+  }
+
   async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
     const node = this.model.nodes[nodeName];
     if (!node) throw new Error(`DeclarativeSource: unknown node "${nodeName}"`);

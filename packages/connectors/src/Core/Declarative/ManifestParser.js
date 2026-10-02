@@ -46,6 +46,7 @@ const DATE_STRATEGIES = new Set(['day-by-day', 'range', 'none']);
 const PAGINATION_TYPES = new Set(['none', 'offset', 'page', 'cursor']);
 const INJECT_TARGETS = new Set(['query', 'header', 'body', 'path']);
 const RESPONSE_FORMATS = new Set(['json', 'csv', 'jsonl']);
+const MAX_END_LAG_DAYS = 30;
 
 // The pre-`inject` spelling of the query parameter each pagination type writes
 // its value into (Paginator._legacyParam). Still honoured at run time, so still
@@ -491,6 +492,19 @@ export class ManifestParser {
         throw new Error(
           `ManifestParser: node "${nodeName}" has unknown incremental.strategy "${strategy}"`
         );
+      }
+      const endLagDays = node.incremental?.endLagDays;
+      if (endLagDays !== undefined) {
+        if (!Number.isInteger(endLagDays) || endLagDays < 0 || endLagDays > MAX_END_LAG_DAYS) {
+          throw new Error(
+            `ManifestParser: node "${nodeName}" incremental.endLagDays must be a whole number of days from 0 to ${MAX_END_LAG_DAYS}, e.g. 1 to leave out today`
+          );
+        }
+        if (strategy === 'none') {
+          throw new Error(
+            `ManifestParser: node "${nodeName}" incremental.endLagDays needs a "day-by-day" or "range" strategy — a node with no date window has no window end to move`
+          );
+        }
       }
       // A missing `isTimeSeries` next to an `incremental` block is NOT refused:
       // isTimeSeriesManifestNode infers it, because declaring a date strategy is

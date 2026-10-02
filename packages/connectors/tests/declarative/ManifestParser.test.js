@@ -1556,6 +1556,39 @@ describe('ManifestParser standard advanced params', () => {
     );
   });
 
+  describe('incremental.endLagDays', () => {
+    const withLag = incremental =>
+      JSON.stringify({
+        ...valid,
+        nodes: { rates: { ...valid.nodes.rates, incremental } },
+      });
+    const parse = incremental => new ManifestParser().parse(withLag(incremental));
+
+    it('accepts a whole number of days from 0 to 30 on a date strategy', () => {
+      for (const strategy of ['day-by-day', 'range']) {
+        for (const endLagDays of [0, 1, 30]) {
+          assert.doesNotThrow(() => parse({ strategy, endLagDays }));
+        }
+      }
+    });
+
+    it('rejects anything else, naming the node', () => {
+      for (const endLagDays of [-1, 1.5, 31, '1', null]) {
+        assert.throws(
+          () => parse({ strategy: 'day-by-day', endLagDays }),
+          /node "rates" incremental\.endLagDays must be a whole number of days from 0 to 30/
+        );
+      }
+    });
+
+    it('rejects it on a node with no date strategy, where it would do nothing', () => {
+      assert.throws(
+        () => parse({ strategy: 'none', endLagDays: 1 }),
+        /node "rates" incremental\.endLagDays needs a "day-by-day" or "range" strategy/
+      );
+    });
+  });
+
   it('still accepts a non-time-series node that declares no incremental block', () => {
     const m = new ManifestParser().parse(
       JSON.stringify({

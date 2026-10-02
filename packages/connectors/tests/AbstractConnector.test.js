@@ -3643,4 +3643,122 @@ describe('AbstractConnector', () => {
       }
     });
   });
+
+  // An API that reports only completed days refuses a window ending today. A node's window
+  // then ends endLagDays before today, and the cursor never claims a day some node has not
+  // yet been asked for: the next run starts at the cursor, so a sibling that ran to today
+  // must not carry it past a lagging node's last day.
+  describe('endLagDays', () => {
+    const lagContext = days =>
+      createTestContext({
+        LastRequestedDate: { value: utcDay(-(days - 1)) },
+        ReimportLookbackWindow: { value: '0' },
+      });
+    const timeSeries = names =>
+      Object.fromEntries(
+        names.map(name => [
+          name,
+          { fields: [], uniqueKeys: ['id', 'date'], isTimeSeries: true, destinationName: name },
+        ])
+      );
+    const cursorsOf = cap =>
+      cap.events.filter(e => e.type === 'STATE').map(e => e.state.lastRequestedDate);
+
+    it('ends a day-by-day node endLagDays before today', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getEndLagDays: () => 1,
+          fetchData: async req => {
+            asked.push(req.startDate);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(3), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [utcDay(-2), utcDay(-1)]);
+        assert.deepStrictEqual(cursorsOf(cap), [utcDay(-2), utcDay(-1)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('ends a range node endLagDays before today and claims that day', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 1,
+          fetchData: async req => {
+            asked.push([req.startDate, req.endDate]);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(3), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [[utcDay(-2), utcDay(-1)]]);
+        assert.deepStrictEqual(cursorsOf(cap), [utcDay(-1)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('holds the cursor at the earliest window end when nodes lag differently', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['daily', 'report']),
+          parseFields: () => ({ daily: ['id', 'date'], report: ['id', 'date'] }),
+          getDateStrategy: name => (name === 'report' ? 'range' : 'day-by-day'),
+          getEndLagDays: name => (name === 'report' ? 2 : 0),
+          fetchData: async req => {
+            asked.push(`${req.nodeName}:${req.startDate}..${req.endDate}`);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(4), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [
+          `report:${utcDay(-3)}..${utcDay(-2)}`,
+          `daily:${utcDay(-3)}..${utcDay(-3)}`,
+          `daily:${utcDay(-2)}..${utcDay(-2)}`,
+          `daily:${utcDay(-1)}..${utcDay(-1)}`,
+          `daily:${utcDay(0)}..${utcDay(0)}`,
+        ]);
+        assert.ok(
+          cursorsOf(cap).every(date => date <= utcDay(-2)),
+          `the cursor passed the report's last day: ${cursorsOf(cap).join(', ')}`
+        );
+        assert.strictEqual(cursorsOf(cap).at(-1), utcDay(-2));
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('asks nothing of a node whose lagged window ends before it starts, and claims nothing', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 2,
+          fetchData: async req => {
+            asked.push(req.startDate);
+            return [];
+          },
+        });
+        await new AbstractConnector(lagContext(1), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, []);
+        assert.deepStrictEqual(cursorsOf(cap), []);
+      } finally {
+        cap.restore();
+      }
+    });
+  });
 });

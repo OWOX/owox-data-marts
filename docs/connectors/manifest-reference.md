@@ -398,6 +398,22 @@ Prefer `range` when the API takes a start and an end date and returns the date o
 
 Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
 
+### APIs that report only completed days
+
+A node's window ends today. Some APIs refuse a window that does — the OpenAI Ads insights endpoint answers `time_ranges.end cannot be in the future` — and some report today only partially. `endLagDays` ends the window that many days before today (UTC):
+
+```json
+{
+  "strategy": "range",
+  "endLagDays": 1,
+  "request": { "into": "query", "startName": "since", "endName": "until", "format": "YYYY-MM-DD" }
+}
+```
+
+`endLagDays` is a whole number from `0`, the default, to `30`, and needs a `day-by-day` or `range` strategy. With `1` the last day asked for is yesterday, and `{{ dateWindow.end }}` is yesterday too. The days it leaves out are asked for by a later run: the cursor never passes the last day a lagging node was asked for, even when another node of the connector runs to today. A manual backfill that ends today ends `endLagDays` earlier as well, and **Test** in the builder samples the last days a run would ask for.
+
+An API may judge "completed" in the account's own time zone. If it is behind UTC, a run shortly after midnight UTC can still be refused with `1`: pass the API a UTC time zone if it takes one, or use `2`.
+
 ## Partition router: substream and list
 
 Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. **Mutually exclusive with an async retriever.** The node's own `request` / `recordSelector` / `pagination` describe the child (per-slice) request.

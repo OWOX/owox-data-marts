@@ -106,6 +106,18 @@ describe('DeclarativeSource (integration)', () => {
     assert.deepStrictEqual(source.fieldsSchema.rates.uniqueKeys, ['date', 'currency']);
   });
 
+  it('hands the engine each node’s endLagDays, 0 when it declares none', () => {
+    const manifest = JSON.parse(MANIFEST);
+    manifest.nodes.rates.incremental.endLagDays = 1;
+    manifest.nodes.latest = { ...manifest.nodes.rates, incremental: undefined };
+    const source = new DeclarativeSource(
+      makeContext(),
+      new ManifestParser().parse(JSON.stringify(manifest))
+    );
+    assert.strictEqual(source.getEndLagDays('rates'), 1);
+    assert.strictEqual(source.getEndLagDays('latest'), 0);
+  });
+
   it('runs end-to-end through AbstractConnector and reaches storage', async () => {
     const model = new ManifestParser().parse(MANIFEST);
     const context = makeContext();

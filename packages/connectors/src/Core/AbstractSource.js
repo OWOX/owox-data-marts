@@ -154,6 +154,14 @@ export class AbstractSource {
   }
 
   /**
+   * How many days before today a time-series node's window ends, for an API that reports
+   * only completed days. 0: the window ends today.
+   */
+  getEndLagDays(nodeName) {
+    return 0;
+  }
+
+  /**
    * Called after all nodes for an account are processed.
    */
   onAccountComplete(account) {

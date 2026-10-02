@@ -266,15 +266,26 @@ export class ConnectorTestService {
   /**
    * The bounded window a live test samples, as the engine formats dates (UTC YYYY-MM-DD).
    *
-   * `end` is today because that is what `_getIncrementalDateRange` uses as its end and
-   * nothing can move it; `start` is the value fed to the engine as LastRequestedDate.
+   * `end` is where the engine ends the node's window: today, or `endLagDays` before it for a
+   * node whose API reports only completed days. `start` is the value fed to the engine as
+   * LastRequestedDate.
    */
-  private testDateWindow(): { start: string; end: string } {
-    const todayMs = Date.now();
+  private testDateWindow(endLagDays: number): { start: string; end: string } {
+    const endMs = Date.now() - endLagDays * 86400000;
     return {
-      start: new Date(todayMs - (TEST_DATE_WINDOW_DAYS - 1) * 86400000).toISOString().split('T')[0],
-      end: new Date(todayMs).toISOString().split('T')[0],
+      start: new Date(endMs - (TEST_DATE_WINDOW_DAYS - 1) * 86400000).toISOString().split('T')[0],
+      end: new Date(endMs).toISOString().split('T')[0],
     };
+  }
+
+  /** The node's `incremental.endLagDays`, or 0 when it sets none the engine would accept. */
+  private endLagDaysOf(manifest: Record<string, unknown>, node: string): number {
+    const nodes = (manifest.nodes ?? {}) as Record<
+      string,
+      { incremental?: { endLagDays?: unknown } }
+    >;
+    const lag = nodes[node]?.incremental?.endLagDays;
+    return typeof lag === 'number' && Number.isInteger(lag) && lag > 0 ? lag : 0;
   }
 
   /**
@@ -434,7 +445,7 @@ export class ConnectorTestService {
     // them ONLY on that path, and the predicate that decides it deliberately lives in
     // one place inside the engine (Core/Declarative/timeSeries.js) — copying it here is
     // exactly the drift that file exists to prevent.
-    const dateWindow = this.testDateWindow();
+    const dateWindow = this.testDateWindow(this.endLagDaysOf(args.manifest, args.node));
     sourceConfig.LastRequestedDate = { value: dateWindow.start };
     sourceConfig.ReimportLookbackWindow = { value: 0 };
 

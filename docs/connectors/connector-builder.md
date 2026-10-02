@@ -66,6 +66,8 @@ In the node, fill in:
 
 The collapsed sections cover what some APIs need: **Incremental** (fetch by date window), **Pagination**, **Transformations**, **Partition** (run the node once for each record of a parent list, or for each value in a list), **Record filter** and **Error handling**. For an API that builds a report in the background, switch the **Retriever** to **Async**. The [Connector Manifest Reference](manifest-reference.md#contents) explains each of them.
 
+A date window ends today. For an API that reports only completed days and refuses a window that ends today, set **Skip the last days** under **Incremental**, e.g. `1` to end the window yesterday. The left-out days are imported by a later run. See [APIs that report only completed days](manifest-reference.md#apis-that-report-only-completed-days).
+
 The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a node by its name, so once you publish, a Data Mart that used the old name fails its runs until its fields are chosen again.
 
 ## Step 5: Test on live data

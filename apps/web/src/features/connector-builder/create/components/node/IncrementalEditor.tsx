@@ -86,6 +86,16 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
     setPath([...base, 'request'], next);
   };
 
+  const setEndLagDays = (value: string) => {
+    if (!incremental || incremental.strategy === 'none') return;
+    const days = Number.parseInt(value, 10);
+    // 0 is the engine's default, so it is stored as no key at all.
+    const next: Record<string, unknown> = { ...incremental };
+    delete next.endLagDays;
+    if (Number.isInteger(days) && days > 0) next.endLagDays = days;
+    setPath(base, next);
+  };
+
   return (
     <div className='flex flex-col gap-4' data-testid='incremental-editor'>
       <div>
@@ -172,6 +182,24 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
                 setPath([...base, 'request', 'format'], e.target.value);
               }}
               placeholder='YYYY-MM-DD'
+            />
+          </label>
+
+          <label className='flex flex-col'>
+            <InfoLabel hint='For an API that reports only completed days: the window ends this many days before today (UTC). 1 leaves out today.'>
+              Skip the last days
+            </InfoLabel>
+            <Input
+              type='number'
+              min={0}
+              max={30}
+              step={1}
+              aria-label='Skip the last days'
+              value={incremental?.strategy === 'none' ? '' : (incremental?.endLagDays ?? '')}
+              onChange={e => {
+                setEndLagDays(e.target.value);
+              }}
+              placeholder='0'
             />
           </label>
 

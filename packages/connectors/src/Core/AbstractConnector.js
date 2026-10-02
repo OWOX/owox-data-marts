@@ -613,7 +613,37 @@ export class AbstractConnector {
    */
   _emitCursor(state, date) {
     if (state.cursorHalted) return;
-    this.context.emit(new StateEvent({ lastRequestedDate: date }));
+    // The next run starts at the cursor, so it may not pass a lagging node's last day.
+    const claimed = state.cursorCap && date > state.cursorCap ? state.cursorCap : date;
+    if (claimed !== date && claimed === state.lastClaimed) return;
+    state.lastClaimed = claimed;
+    this.context.emit(new StateEvent({ lastRequestedDate: claimed }));
+  }
+
+  /**
+   * The last day a node is asked for: the run's end, or `endLagDays` before today for an API
+   * that reports only completed days, whichever is earlier.
+   * @private
+   */
+  _nodeWindowEnd(node, dateRange) {
+    const lag = this.source.getEndLagDays?.(node.name) ?? 0;
+    if (!lag) return dateRange.endDate;
+    const today = this._parseDate(this._formatDate(new Date()));
+    const lagged = this._formatDate(new Date(today - lag * 86400000));
+    return lagged < dateRange.endDate ? lagged : dateRange.endDate;
+  }
+
+  /**
+   * Notes a node that has nothing to ask for this run because its lag ends its window
+   * before the run's first day.
+   * @private
+   */
+  _logLaggedOut(node, dateRange, end) {
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Node "${node.name}" asks for nothing this run: endLagDays ends its window on ${end}, ` +
+        `before the run's first day ${dateRange.startDate}`
+    );
   }
 
   /**
@@ -979,6 +1009,18 @@ export class AbstractConnector {
   async _processTimeSeriesNodes(nodes, accounts, state) {
     if (!nodes.length) return;
 
+    const lagging = nodes.filter(
+      node =>
+        this.source.getDateStrategy(node.name) !== DATE_STRATEGY.NONE &&
+        (this.source.getEndLagDays?.(node.name) ?? 0) > 0
+    );
+    const dateRange = lagging.length ? this.getDateRange() : null;
+    if (dateRange) {
+      state.cursorCap = lagging
+        .map(node => this._nodeWindowEnd(node, dateRange))
+        .reduce((earliest, date) => (date < earliest ? date : earliest));
+    }
+
     const dayByDayNodes = [];
     const windowEndDates = [];
     for (const node of nodes) {
@@ -1031,6 +1073,11 @@ export class AbstractConnector {
       this.context.log(LOG_LEVEL.WARN, `Could not determine date range for node "${node.name}"`);
       return null;
     }
+    const endDate = this._nodeWindowEnd(node, dateRange);
+    if (endDate < dateRange.startDate) {
+      this._logLaggedOut(node, dateRange, endDate);
+      return null;
+    }
 
     const writers = new Map();
     let completedBy = 0;
@@ -1044,7 +1091,7 @@ export class AbstractConnector {
           fields: node.fields,
           accountId: account?.id ?? null,
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
+          endDate,
         });
         await this._writeBatch(writer, data, node.fields);
       }, node.name);
@@ -1059,7 +1106,7 @@ export class AbstractConnector {
       state.cursorHalted = true;
       return null;
     }
-    return dateRange.endDate;
+    return endDate;
   }
 
   /**
@@ -1103,9 +1150,15 @@ export class AbstractConnector {
     }
 
     const writers = new Map();
+    const endDates = new Map(nodes.map(node => [node, this._nodeWindowEnd(node, dateRange)]));
+    for (const [node, end] of endDates) {
+      if (end < dateRange.startDate) this._logLaggedOut(node, dateRange, end);
+    }
+    const lastDay = [...endDates.values()].reduce((latest, date) => (date > latest ? date : latest));
 
-    for (const date of this._iterateDates(dateRange.startDate, dateRange.endDate)) {
+    for (const date of this._iterateDates(dateRange.startDate, lastDay)) {
       const formattedDate = this._formatDate(date);
+      const dayNodes = nodes.filter(node => endDates.get(node) >= formattedDate);
       let completedBy = 0;
       this._beginPass(state);
 
@@ -1124,7 +1177,7 @@ export class AbstractConnector {
         // date is then checkpointed is _advanceCursor's call, and it turns on the KIND of
         // failure, not on there having been one.
         const done = await this._runForAccount(state, account, async () => {
-          for (const node of nodes) {
+          for (const node of dayNodes) {
             const writer = this._nodeWriter(writers, node);
             const data = await this.source.fetchData({
               nodeName: node.name,

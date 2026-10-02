@@ -319,6 +319,14 @@ Which strategy to choose:
 - Prefer `range` when the API takes a start and an end date and returns the date on every record (for example, a report broken down by day). A `day-by-day` run sends one request per day and writes each day to the storage separately; a BigQuery write takes a few seconds even for a handful of rows, so a manual backfill of 31 days (the most one run covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
 - Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
 
+`endLagDays` — a whole number from `0` (the default) to `30` in a `day-by-day` or `range` `incremental` block: the window ends that many days before today (UTC) instead of today, and `{{ dateWindow.end }}` moves with it. The engine asks for the left-out days on a later run, so nothing is lost.
+
+```json
+{ "strategy": "range", "endLagDays": 1, "request": { "into": "query", "startName": "since", "endName": "until", "format": "YYYY-MM-DD" } }
+```
+
+Set `endLagDays: 1` when the API's docs say reports cover only completed days, or when a test or run fails with an error such as `end cannot be in the future` or `date must be before today` (the OpenAI Ads insights endpoint answers `time_ranges.end cannot be in the future`). If the API judges "completed" in the account's time zone and that zone is behind UTC, `1` can still be refused shortly after midnight UTC: pass the API a UTC time zone if it takes one (e.g. `"timezone": "UTC"`), or use `2`. Do not set it for an API that accepts today.
+
 ## 10. `partitionRouter` — substream & list
 
 Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. **Mutually exclusive with `retriever: { type: "async" }`.** The node's own `request` / `recordSelector` / `pagination` describe the CHILD (per-slice) request.
