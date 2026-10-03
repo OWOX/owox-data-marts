@@ -16,6 +16,7 @@ import {
   inlineAthenaPositionalParams,
   toAthenaExecutionParameters,
 } from './athena-execution-parameters.utils';
+import { athenaOutputLocation } from '../utils/athena-output-location.util';
 
 /**
  * Tuning for the execute-and-poll cycle of a single statement. Defaults preserve the historic
@@ -75,7 +76,7 @@ export class AthenaApiAdapter {
     const startQueryCommand = new StartQueryExecutionCommand({
       QueryString: query,
       ResultConfiguration: {
-        OutputLocation: `s3://${outputBucket}/${outputPrefix}`,
+        OutputLocation: athenaOutputLocation(outputBucket, outputPrefix).uri,
       },
       ExecutionParameters: toAthenaExecutionParameters(params),
     });

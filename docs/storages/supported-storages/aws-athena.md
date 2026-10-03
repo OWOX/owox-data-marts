@@ -76,7 +76,7 @@ Click **AWS Athena** on the **New Storage** modal window appeared to create a ne
 
 - **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse")
 - **Region**: Enter the AWS region hosting your Athena instance (e.g., us-east-1), available in the AWS Management Console
-- **Output Bucket**: Provide the S3 bucket name for query results
+- **Output Bucket**: Provide the S3 bucket for query results, e.g. `my-athena-results`, or a folder in it, e.g. `my-athena-results/owox/`. OWOX Data Marts deletes the results it writes there once it has read them
 - **Access Key ID**: Enter the Access Key ID for an IAM user with Athena and S3 access
 - **Secret Access Key**: Provide the matching Secret Access Key
 
