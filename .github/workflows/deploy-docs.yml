@@ -39,3 +39,4 @@ jobs:
         with:
           branch: gh-pages
           folder: apps/docs/dist
+          single-commit: true
