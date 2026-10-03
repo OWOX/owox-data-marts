@@ -223,3 +223,16 @@ export function getStorageResourceUrlFromFqn(
       return null;
   }
 }
+
+/**
+ * The S3 console page of an Athena storage's Output Bucket. The setting may carry a folder
+ * after the bucket name, which the console takes as a prefix rather than as part of the path.
+ */
+export function s3ConsoleLink(outputBucket: string, region: string): string {
+  const slash = outputBucket.indexOf('/');
+  const bucket = slash === -1 ? outputBucket : outputBucket.slice(0, slash);
+  const folder = slash === -1 ? '' : outputBucket.slice(slash + 1);
+  const params = new URLSearchParams({ region });
+  if (folder) params.set('prefix', folder.endsWith('/') ? folder : `${folder}/`);
+  return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?${params.toString()}`;
+}
