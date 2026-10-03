@@ -1,5 +1,189 @@
 # owox
 
+## 0.37.0
+
+### Minor Changes 0.37.0
+
+- 4444a95: **Google and Microsoft sign-in works after a page is left open**
+
+  You can choose Google or Microsoft on a sign-in or sign-up page left open for a while without an expired session interrupting the sign-in. If a sign-in session does expire, the page now shows "Your sign-in session expired. Please try again." so you know to retry.
+
+- 43d34ce: **Readable connector error messages in Run History**
+
+  When a connector's request to its API failed, Run History showed the raw response body, for
+  example `HTTP 400: Bad Request — {"error":{"message":"Error validating application…","type":…}}`.
+  It shows the provider's own message again: `HTTP 400: Error validating application. Application
+has been deleted.` A skipped account again names what was being imported —
+  `Importing ad-account: skipped account 123: …` — and so does the run error when every account
+  was skipped.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 43d34ce: **Run History shows when a run loaded nothing**
+
+  When a connector run loaded no rows and had no date to show — for example a Google Sheets
+  import, or a custom connector node that is not fetched by date — Run History showed no row
+  count at all, so the run looked like any other successful one. It now shows **Loaded 0 rows**.
+  For a custom connector the log also names each node whose requests got no records in the run,
+  and suggests what to check — the usual cause when a new connector returns nothing: the node's
+  record path and the parameters and dates its request uses, and for a partitioned node its
+  parent record path and key, or its list of values.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9656721: **The Connector Builder checks node and parameter names as you type**
+
+  A node or parameter name must start with a letter and contain only letters, digits and
+  underscores. The builder used to accept any name and the rule surfaced only when **Test** was
+  refused, so a node named after its endpoint, such as `v1/balance/history`, looked like a broken
+  API path. The **Node name** field now explains the rule under the field and suggests a name that
+  fits, such as `v1_balance_history`, and reminds you that the API path goes in the node's
+  **Request**. A rename to such a name keeps the old one and says why. In **Parameters**, a row
+  whose name breaks the rule is flagged with the same explanation and counted with the other
+  rows to fix.
+
+  **Test** also runs the right node after a rename in **Code**. Renaming a node in the JSON used to
+  leave **Test** asking for the old name, which the manifest no longer had, and the run failed with
+  `Unknown node`.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 17574ed: **Custom connectors wait as long as a rate-limited API asks**
+
+  When an API turned a request away and said when to try again in a `Retry-After` header, as a
+  rate limit (HTTP 429) usually does, a custom connector retried after about 5 and then 10
+  seconds regardless, used up its retries inside the limit and failed the run. It now waits as
+  long as the API asks, up to 5 minutes, unless the connector's error handling sets a backoff of
+  its own. **Test** in the Connector Builder keeps its short retry, so you see the refusal right
+  away.
+
+  Run errors from APIs whose error bodies follow JSON:API, Klaviyo among them, now show the API's
+  own explanation, for example `HTTP 429: Request was throttled. Expected available in 58
+seconds.`, instead of the raw response body.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9da680e: **Custom connectors can leave out today for APIs that report only completed days**
+
+  A custom connector's date window always ended today, so an API that refuses such a window, as
+  the OpenAI Ads insights endpoint does with `time_ranges.end cannot be in the future`, failed
+  every run. A node can now end its window a number of days before today: set **Skip the last
+  days** under **Incremental** in the Connector Builder, or `incremental.endLagDays` in the
+  manifest, e.g. `1` to end the window yesterday.
+
+  The left-out days are imported by a later run: the import never marks a day as done before
+  every node has asked for it. A manual backfill never asks for a later day either, and its log
+  says where it stopped; **Test** in the builder samples the same window.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4fd045a: **Short links resolve only on known short link services and domains you allow**
+
+  **Short links now resolve only on an allowlist of domains. In 0.36.0, Facebook Ads, Google Ads, Microsoft Ads, TikTok Ads, X Ads and Reddit Ads requested every one-part `https` link on any domain.** A branded shortener on your own domain needs an administrator to add it. Until then, a parsed field such as `ad_final_urls_parsed` holds the original link, and `link_url_asset` gets no `parsed_url`. The next run also changes existing rows: endpoints that every run re-imports, and daily rows inside the Reimport Lookback Window. Add the domain before you upgrade to keep their values.
+
+  The allowlist contains the services `bit.ly`, `tinyurl.com`, `t.co`, `lnkd.in`, `youtu.be`, `amzn.to`, `ow.ly`, `buff.ly`, `cutt.ly`, `is.gd` and `rebrand.ly`, plus the domains in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Entries in the `*.links.example.com` form are accepted. Links on any other domain stay unchanged and are never requested. In OWOX Cloud, contact support to add your short link domain.
+
+  OWOX now requests only short link services. It follows redirects between allowlisted services and stops at the first address outside the allowlist, without requesting it. A parsed field therefore holds the address the short link service points to, and redirects on the landing site itself are no longer followed. A typical short link now costs one request. OWOX requests only `https` addresses whose domains resolve to public IP addresses.
+
+  An answer saved by an earlier run is used only while its domain stays allowlisted. A `408`, `429` or `5xx` answer from a short link service is treated as a failed request and retried on the next run, instead of being remembered for 30 days. Answers that 0.36.0 saved for allowlisted links stay in use for up to 30 days. This version would not save some of them, such as a `5xx` answer.
+
+  See [Resolve Short Links](../../packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md#resolve-short-links) and [Environment Variables](../../docs/getting-started/deployment-guide/environment-variables.md#connectors).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- cb5a9c1: **Unchecking a column in the OWOX Extension no longer fails Save & Run**
+
+  Previously, unchecking a column in the Google Sheets Extension or the Excel add-in left its aggregation, date bucket and sort behind, and **Save & Run** failed with `Output controls validation failed. Sort column not selected: … Aggregation column not selected: …`. The report saved only after those rules were removed one by one in Output controls.
+
+  Now the Extension removes the rules that hang on an unchecked column:
+  - The aggregation and date bucket on the column go with it, together with a metric filter bound to that aggregation.
+  - The sort on the column goes too, whether or not the report still aggregates. A report sorted by a column it does not print skips the automatic collapse and delivers raw rows, so the Extension no longer offers such a sort either. One saved before stays and is not marked as broken, so such a report stays uncollapsed until you remove it.
+  - **Reset** above the column list returns the columns together with their aggregations, date buckets, metric filters and sorts to the last saved state. A saved sort the report can no longer sort by, for example after you add a Unique Count, stays removed.
+
+  This covers the row checkboxes, the checkbox that selects or clears all columns, and unchecking a disconnected column. See [Report Output Controls](../../docs/getting-started/setup-guide/output-controls.md#sort).
+
+  Also fixed in the Extension:
+  - Editing a metric filter, a filter on an aggregated value such as the Sum of Revenue, keeps it a metric filter. Before, the edit turned it into a filter on the rows. The filter lists now name the aggregate, for example `Sum greater than: 100`.
+  - Unchecking every column shows **Select at least one column** and does not save. Before, an empty selection delivered every column, or failed on the server when the report had slices, a sort or a filter on an aggregating calculated field. A Unique Count on its own still saves, as a metrics-only report.
+  - Saving from the Extension keeps the column list a report was saved with. A report made in the web app or through MCP with every native column selected used to lose its automatic duplicate collapse the first time it was saved from the Extension.
+  - Adding a slice to a report that lists no columns now shows the automatic aggregation that the report gets on delivery.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0afa9d1: **Technical Owner and Technical User are now called Data Owner**
+
+  The owner field on a Data Mart, formerly **Technical Owner**, is now **Data Owner**. The project
+  role formerly called **Technical User** is now also **Data Owner**. Both are named after the
+  person who is responsible for the data. Access and permissions do not change. Business Owner,
+  Business User and Project Admin keep their names.
+
+  ![Ownership section of a Data Mart Overview tab with the Data Owner and Business Owner fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9f05e842-3f4d-4677-6672-6dfb6852f600/public)
+
+  ![Configure member panel with the Data Owner role selected for a project member](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/76120347-461f-4811-8dad-45fb3ad10c00/public)
+
+  The new name is used on the Data Mart page, in the Data Marts list column and filter, in the
+  member and access-request role pickers, and in sharing hints, error messages and the MCP guidance.
+  Invitation emails in self-hosted deployments use it too. The API keeps its field names, such as
+  `technicalOwnerIds` and `technicalOwnerUsers`, and the role value stays `editor`, so existing
+  integrations keep working. See [Roles and Permissions](../../docs/project/roles-and-permissions.md)
+  and [Ownership and Sharing](../../docs/project/ownership-and-sharing.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 8a7ddfd: **Preview data no longer fails on out-of-range dates**
+
+  On a Databricks or Snowflake Data Mart, **Preview data** failed with a server error when a DATE or
+  TIMESTAMP column held a value outside the range the app can display (before year −271821 or after
+  275760), and one such cell broke the whole preview. The preview now loads and shows that cell as
+  `[Invalid Date]`, with the other rows and columns as usual.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- dbfb24c: **Filters with "contains" and "does not contain" can be applied**
+
+  In **Filters** on the Data Marts, Storages, Destinations, Reports, Insights and Triggers lists, switching a row's condition from **is** to **contains** or **does not contain** left **Apply filters** disabled whatever value you typed. The button now turns on as soon as the row has a value, and the filter applies.
+
+  The conditions that take several values are renamed from **is** and **is not** to **is any of** and **is none of**, as in report filters. They work as before.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- f344499: **Pick any Lucide icon for a Data Mart, with search**
+
+  The Data Mart icon picker now offers the whole [Lucide](https://lucide.dev/icons/) icon library, more than 1,500 icons, not only the recommended set. The recommended icons stay at the top. **All icons** lists the rest below them. See [Data Mart icons](../../docs/getting-started/setup-guide/models-canvas.md#data-mart-icons).
+
+  The video shows the picker, a search and the picked icon on the Models canvas:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/b2c4e98b7070ff732ac563da2231604a/iframe>
+  - A search box filters both lists by English name, for example `cart` or `arrow up`. A recommended icon also matches the name of its picture, so `cart` finds **Purchases**. Enter picks the first match.
+  - The picked icon shows on the Data Mart page, on the Models canvas card and in the PNG and SVG exports, like the recommended ones.
+  - In the API, `icon` on `POST /api/data-marts` and `PUT /api/data-marts/{id}/icon` also accepts `lucide:<icon-name>`, for example `lucide:rocket`. Detail, list and Models canvas responses return the same value. The recommended keys such as `purchases` are unchanged, so icons picked before keep working.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0cf0911: **Clearer MCP labels for external systems**
+
+  OWOX Data Marts MCP now identifies when queries, report schema checks, and report schedules can
+  interact with a connected data warehouse or report destination outside OWOX.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- a003a9c: **Clearer MCP report actions and confirmations**
+
+  OWOX Data Marts MCP now describes its report export options without directing assistants away
+  from other integrations. Report creation, delivery, and updates declare their possible
+  irreversible effects, and report schema lookup indicates when it may refresh a warehouse view.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes 0.37.0
+
+- @owox/internal-helpers@0.37.0
+- @owox/idp-protocol@0.37.0
+- @owox/idp-better-auth@0.37.0
+- @owox/idp-owox-better-auth@0.37.0
+- @owox/backend@0.37.0
+- @owox/web@0.37.0
+
 ## 0.36.0
 
 ### Minor Changes 0.36.0
