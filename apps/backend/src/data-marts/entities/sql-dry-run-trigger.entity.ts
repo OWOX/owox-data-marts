@@ -15,7 +15,13 @@ export class SqlDryRunTrigger extends UiTrigger<SqlDryRunResponseApiDto> {
   dataMartId: string;
 
   /**
-   * SQL query to validate
+   * SQL query to validate.
+   *
+   * Declared `text`, but on MySQL the real column is `mediumtext` (16 MB) -- widened by
+   * migration 1790830000000 after over-long SQL failed with ER_DATA_TOO_LONG. The entity
+   * keeps `text` because TypeORM's SQLite driver does not support `mediumtext` (declaring
+   * it crashes startup), and with `synchronize: false` the declared type is metadata-only.
+   * The request DTO caps input at the MySQL column's byte capacity.
    */
   @Column({ type: 'text' })
   sql: string;
