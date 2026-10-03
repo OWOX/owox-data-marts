@@ -22,3 +22,7 @@ export function buildDataMartsUiPath(projectId: string): string {
 export function buildCreateDataMartUiPath(projectId: string): string {
   return `/ui/${encodeURIComponent(projectId)}/data-marts/create`;
 }
+
+export function buildConnectorBuilderPath(projectId: string, connectorId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/connectors/builder/${encodeURIComponent(connectorId)}`;
+}

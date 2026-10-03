@@ -32,7 +32,7 @@ const latest: { state?: BuilderState } = {};
 /**
  * Seed the store straight from Code-mode JSON. `parseManifestJson` normalizes only the top
  * level (`parameters`/`nodes` defaults), so whatever node shape an author — or an
- * AI-authored manifest — pastes reaches this editor verbatim. `fields` is the clearest
+ * MCP-authored manifest — pastes reaches this editor verbatim. `fields` is the clearest
  * case: `ManifestParser` never inspects it at all, so a node with no `fields` is a shape
  * the engine happily runs.
  */
