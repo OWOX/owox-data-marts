@@ -9,6 +9,10 @@ role formerly called **Technical User** is now also **Data Owner**. Both are nam
 person who is responsible for the data. Access and permissions do not change. Business Owner,
 Business User and Project Admin keep their names.
 
+The video shows the new name in the app:
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/bf8bc0a1826a2b52ef94be6884c80807/iframe>
+
 ![Ownership section of a Data Mart Overview tab with the Data Owner and Business Owner fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9f05e842-3f4d-4677-6672-6dfb6852f600/public)
 
 ![Configure member panel with the Data Owner role selected for a project member](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/76120347-461f-4811-8dad-45fb3ad10c00/public)
