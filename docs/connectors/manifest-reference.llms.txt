@@ -215,7 +215,7 @@ Each node describes one data stream:
 - `overview` — optional one-line description (shown in the builder UI).
 - `uniqueKeys` — array of field names forming the row's unique key: later runs update the rows with these values instead of adding duplicates. **Required to publish**, and every name must be one of the node's `fields`; Test works without it.
 - `destinationName` — optional; the destination table name (defaults to the node name).
-- `isTimeSeries` — boolean; marks the node as date-windowed. You rarely need to set it: declaring an `incremental` block with a strategy other than `none` (§9) already implies it. Set it explicitly only for a node that should take the date-window path without declaring one. It cannot be combined with `isFullRefresh`.
+- `isTimeSeries` — optional boolean; never needed. An `incremental` block with a strategy other than `none` (§9) already makes the node fetched by date window. On its own, `"isTimeSeries": true` does NOT give the node a window, so never set it to make `{{ dateWindow.* }}` work (§9). Next to `isFullRefresh`, `isFullRefresh` wins.
 - `defaultFields` — optional array of field names pre-selected by default (defaults to all declared fields).
 - `request` — `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and **must start with `/`**. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`.
 - `recordSelector.recordPath` — array of keys locating the row(s) in the JSON response (see §18 for the exact extraction rule). `recordSelector.responseFormat` is optional — `json` (default), `csv`, or `jsonl`. A `204` response or an empty JSON body counts as no records.
@@ -245,6 +245,8 @@ An **async** node (§12) replaces `request` + `recordSelector` with a `retriever
 Gotcha: casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean` reads `true`, `1`, `yes`, `y`, `t` and `on` as true, their opposites as false, and any other text as empty. A `date` or `datetime` becomes a date, and one written without a time zone, in any format, is read as UTC. An `integer` reads any number notation (`1e5` is 100000) and drops a fraction; an id beyond 2^53 loses digits as a number, so declare it as `string`. `object`, `array`, and `string` all fall through to the same default branch, which `JSON.stringify`s object/array values instead of keeping them structured — so an `array`/`object`-typed field is written out as a JSON string, not a nested value.
 
 Remember the dot-string-vs-array distinction from §3: `dataPath` is `"a.b.c"`, never `["a","b","c"]`.
+
+A Data Mart stores the names of the fields it selected. When editing a connector that is already published, NEVER rename or remove a field to fix something: the Data Marts that selected it then ask for a field the connector no longer provides — one whose table doesn't exist yet fails its run with `Field "<name>" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. To change what a field holds, edit its `dataPath`; to rename it, add the new field and keep the old one. When the user brings you that error, the manifest is not wrong: tell them to open Edit Fields in the Data Mart's Input Source and save, which drops a field the connector no longer provides, or restore the field if it was removed by mistake.
 
 ## 8. `pagination` — 4 types (sync nodes only)
 
@@ -313,6 +315,8 @@ Declaring a strategy other than `none` makes the node a time series on its own �
 - `request.format` — **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are `00` for the start and `23:59:59` for the end, so a one-day window covers the whole day); `X`/`x` mean unix epoch seconds/milliseconds, read the same way. Omitted or `YYYY-MM-DD` means "pass the date through unchanged". Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (e.g. don't use `mm` inside a literal word).
 
 Inside the node's own `request`/`retriever.submit`, the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how `transformations.add` (§13) stamps a `date` field onto records the API itself doesn't return dated.
+
+Only a node with an `incremental` strategy, and without `isFullRefresh`, has a window. `"isTimeSeries": true` alone does NOT give a node a window, so never add it to fix the error below. NEVER put `{{ dateWindow.start }}`/`{{ dateWindow.end }}` into the `path`, or into the `body` of a non-GET request, of any request another node makes (`request`, an async `retriever.submit`/`poll`, a substream's `partitionRouter.parent.request`): publish refuses it with `ManifestParser: node "<name>" uses "{{ dateWindow.start }}" in request.path, but the node is never given a date window…`. To fix that error, add an `incremental` block to the node if the API takes dates (for a node with `isFullRefresh`, remove `isFullRefresh` first: the two are refused together), or remove the template if it doesn't. In such a node's `queryParameters` or `headers` the parameter is silently never sent.
 
 Which strategy to choose:
 
@@ -521,7 +525,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 - `{{ parameters.X }}` — any declared parameter's resolved value.
 - `{{ account.id }}` — the current account id, when the connector declares `accounts` (§11). Without `accounts` there is no account id.
 - `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (only meaningful inside that same authenticator's `inject.format`).
-- `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current incremental run's date window (`YYYY-MM-DD` strings).
+- `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current date window (`YYYY-MM-DD` strings), only in a node fetched by date window (§9).
 - `{{ node.selectedFields }}` — the names of the fields the Data Mart selected for this node, comma-separated (e.g. `date,rate`), for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s.
 - `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request (§10).
 - `{{ job.id }}` — the async job id, inside `retriever.async.poll` (§12).
@@ -529,7 +533,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 What happens to an unresolved path depends on where it is:
 
-- In the request `path`, the request `body` and the authentication fields, it throws (fails the run).
+- In the request `path`, the request `body` and the authentication fields, it throws (fails the run). A `dateWindow` placeholder there, in a node that is never given a date window, is refused by Publish and Test instead (§9).
 - In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
 - Inside `transformations.add.value` (§13), it renders as an empty string.
 
@@ -862,3 +866,4 @@ Expands the `partitionRouter: substream` shape (§10) into one complete node: fe
 4. The user runs Test on one node — this dry-runs that node against the live API. An API key or token goes only into a parameter marked `SECRET` or used by `authentication`: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, the user brings you the error. Make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API) and return the whole corrected manifest.
 6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user enters them in OWOX (on the Data Mart page, or in the connector's Test), never through the assistant.
+7. When asked to change a connector that is already published, keep the names of its nodes and fields: Data Marts refer to them by name (§7).
