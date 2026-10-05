@@ -44,15 +44,18 @@ export function googleSheetsApiCallMessage(
   const details = `Details: ${googleMessage.trim()}`;
 
   if (isUnfinishedUpdate(status)) {
+    // Remedies in order of safety. Iterative calculation comes last and only for
+    // intentional circular references: it turns circular-dependency errors into
+    // values, so suggesting it for any failure could hide unrelated formula errors.
     return (
       `Google Sheets couldn't finish updating the spreadsheet this report writes to. ` +
-      `This usually happens when the spreadsheet recalculates heavy formulas after every ` +
-      `change — for example, formulas on other sheets that read whole columns of the ` +
-      `report's sheet. To fix it, open the spreadsheet, go to File → Settings → ` +
-      `Calculation, turn on Iterative calculation, and run the report again. If it still ` +
-      `fails, limit those formulas to the rows they need or send the report to a separate ` +
-      `spreadsheet. A single failure can also be a temporary problem on Google's side; ` +
-      `then just run the report again. ${details}`
+      `A single failure can be a temporary problem on Google's side — run the report ` +
+      `again. If it fails on every run, the spreadsheet most likely recalculates heavy ` +
+      `formulas after every change, for example formulas on other sheets that read whole ` +
+      `columns of the report's sheet: limit them to the rows they need or send the report ` +
+      `to a separate spreadsheet. Circular references can cause this too: fix the formulas ` +
+      `that show a circular dependency error, and turn on Iterative calculation ` +
+      `(File → Settings → Calculation) only if a circular reference is intentional. ${details}`
     );
   }
 

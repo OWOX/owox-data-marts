@@ -1454,11 +1454,21 @@ describe('GoogleSheetsReportWriter — explains Google API failures in Run Histo
     expect(message).toMatch(
       /^Google Sheets couldn't finish updating the spreadsheet this report writes to\. /
     );
-    expect(message).toContain('heavy formulas');
-    expect(message).toContain(
-      'go to File → Settings → Calculation, turn on Iterative calculation, and run the report again'
+    // Safe remedies first: rerun, then lighter formulas or a separate spreadsheet.
+    const rerun = message.indexOf('run the report again');
+    const lighten = message.indexOf(
+      'limit them to the rows they need or send the report to a separate spreadsheet'
     );
-    expect(message).toContain('send the report to a separate spreadsheet');
+    const iterative = message.indexOf('turn on Iterative calculation');
+    expect(rerun).toBeGreaterThan(-1);
+    expect(lighten).toBeGreaterThan(rerun);
+    expect(iterative).toBeGreaterThan(lighten);
+    // Iterative calculation hides circular-dependency errors, so it is never advised
+    // unconditionally — only for a circular reference made on purpose.
+    expect(message).toContain(
+      'fix the formulas that show a circular dependency error, and turn on Iterative calculation ' +
+        '(File → Settings → Calculation) only if a circular reference is intentional.'
+    );
     // The user needs the cause and the fix, not the transport details.
     expect(message).not.toMatch(/HTTP|503/);
     expect(message).toMatch(/ Details: The service is currently unavailable\.$/);
@@ -1476,7 +1486,7 @@ describe('GoogleSheetsReportWriter — explains Google API failures in Run Histo
       const message = ((await writeFirstBatch(writer)) as Error).message;
 
       expect(message).toMatch(/^Google Sheets couldn't finish updating the spreadsheet/);
-      expect(message).toContain('turn on Iterative calculation');
+      expect(message).toContain('only if a circular reference is intentional');
       expect(message.endsWith(`Details: ${googleMessage}`)).toBe(true);
     }
   );

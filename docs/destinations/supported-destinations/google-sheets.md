@@ -184,15 +184,27 @@ changes. Run History then shows an error that starts with:
 
 > Google Sheets couldn't finish updating the spreadsheet this report writes to.
 
-This usually happens in a spreadsheet with heavy formulas. A refresh changes
-the report's sheet many times — headers, formatting, then the data in batches
-— and after every change Google Sheets recalculates all formulas that depend on
-that sheet. When formulas on other sheets read whole columns of the report's
-sheet, such as `COUNTIF('My report'!N:N, …)` or
-`MMULT(TRANSPOSE('My report'!H:H) …)` inside `ARRAYFORMULA`, each
-recalculation can take long enough for Google to give up on the change.
+A single failure like this can be a temporary problem on Google's side — run
+the report again. If it fails on every run, the spreadsheet most likely takes
+too long to recalculate. A refresh changes the report's sheet many times —
+headers, formatting, then the data in batches — and after every change Google
+Sheets recalculates all formulas that depend on that sheet. When formulas on
+other sheets read whole columns of the report's sheet, such as
+`COUNTIF('My report'!N:N, …)` or `MMULT(TRANSPOSE('My report'!H:H) …)` inside
+`ARRAYFORMULA`, each recalculation can take long enough for Google to give up
+on the change.
 
-Start by turning on iterative calculation (you need edit access to the
+Make the spreadsheet lighter:
+
+- limit the formulas to the rows they need — `N2:N100000` instead of `N:N`;
+- deliver the report to a separate spreadsheet and bring the values you need
+  into the working document with `IMPORTRANGE`;
+- or let the Data Mart return the aggregated numbers, so the spreadsheet
+  receives a few rows instead of every record.
+
+Circular references can cause this too. Look for cells that show `#REF!` with
+_Circular dependency detected_ and fix those formulas. If a circular reference
+is intentional, turn on iterative calculation (you need edit access to the
 spreadsheet):
 
 1. Open the spreadsheet in Google Sheets and go to **File → Settings**.
@@ -203,24 +215,13 @@ spreadsheet):
 
 ![Settings for this spreadsheet dialog in Google Sheets with the Calculation tab open. Iterative calculation is set to On, Max number of iterations is 50 and Threshold is 0.05; the Save settings button is at the bottom right](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/787ff874-286a-4d2b-4940-8ec13adda000/public)
 
-Iterative calculation lets Google Sheets settle formulas that depend on their
-own result — circular references — in a limited number of rounds instead of
-showing `#REF!` with _Circular dependency detected_. Such a formula then shows
-a value rather than an error, so an accidental circular reference becomes
-harder to notice.
+> **Note:** With iterative calculation on, a formula that depends on its own
+> result shows a value instead of the _Circular dependency detected_ error, so
+> an accidental circular reference goes unnoticed. Do not turn it on just to
+> make a failing refresh or formula errors go away.
 
-If the refresh still fails, make the spreadsheet lighter:
-
-- limit the formulas to the rows they need — `N2:N100000` instead of `N:N`;
-- deliver the report to a separate spreadsheet and bring the values you need
-  into the working document with `IMPORTRANGE`;
-- or let the Data Mart return the aggregated numbers, so the spreadsheet
-  receives a few rows instead of every record.
-
-A single failure like this can also be a temporary problem on Google's side —
-then running the report again is enough. If the failure happens after OWOX has
-started updating the sheet, the sheet can be left partly updated until the
-next successful run.
+If the failure happens after OWOX has started updating the sheet, the sheet can
+be left partly updated until the next successful run.
 
 ### Per-column header notes
 
