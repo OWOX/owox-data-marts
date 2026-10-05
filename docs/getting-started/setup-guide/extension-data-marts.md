@@ -72,7 +72,7 @@ To view only data marts created for the OWOX extension:
 1. Click **Filters** above the list.
 2. In the filter panel:
    - Select **Storage type**
-   - Choose the operator **is**
+   - Choose the operator **is any of**
    - Select **Google BigQuery (used in OWOX extension)**
 3. Click **Apply filter**
 
@@ -85,7 +85,7 @@ This helps you focus on data marts used in the extension, especially if you also
 You can filter data marts by the GCP project:
 
 - Use **Storage title** with the **contains** operator to search by project name  
-- Use **Storage title** with the **is** operator to select a specific project from the list
+- Use **Storage title** with the **is any of** operator to select a specific project from the list
 
 ### Combine Filters
 

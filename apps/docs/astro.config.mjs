@@ -5,6 +5,7 @@ import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 import starlightLinksValidator from 'starlight-links-validator';
 import { getConfig } from './scripts/env-config.js';
+import rehypeChangelogEntryAnchors from './scripts/rehype-changelog-entry-anchors.js';
 
 const { site, base, gtmId } = getConfig();
 
@@ -12,6 +13,10 @@ export default defineConfig({
   site,
   base,
   trailingSlash: 'always',
+  // The page was published under its old name, and links to it are already shared.
+  redirects: {
+    '/docs/connectors/declarative-connectors/': '/docs/connectors/custom-connectors/',
+  },
   integrations: [
     starlight({
       title: 'OWOX Data Marts',
@@ -65,6 +70,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             {
               label: 'Setup Guide',
               items: [
+                { label: 'Data Marts Overview', slug: 'docs/data-marts' },
+                'docs/getting-started/first-data-mart',
                 'docs/getting-started/setup-guide/insights',
                 'docs/getting-started/setup-guide/extension-data-marts',
                 'docs/getting-started/setup-guide/connector-data-mart',
@@ -97,11 +104,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 },
               ],
             },
+            {
+              label: 'Best Practices',
+              items: [{ autogenerate: { directory: 'docs/getting-started/best-practices' } }],
+            },
           ],
         },
         {
           label: 'Project Settings',
           items: [
+            { label: 'Overview', slug: 'docs/project' },
             'docs/project/license-keys',
             {
               label: 'Members Management',
@@ -123,8 +135,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Reports',
+          items: [{ label: 'Overview', slug: 'docs/reports' }],
+        },
+        {
           label: 'Destinations',
           items: [
+            { label: 'Overview', slug: 'docs/destinations' },
             'docs/destinations/manage-destinations',
             {
               label: 'Supported Destinations',
@@ -135,6 +152,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Storages',
           items: [
+            { label: 'Overview', slug: 'docs/storages' },
             'docs/storages/manage-storages',
             {
               label: 'Supported Storages',
@@ -145,12 +163,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Sources',
           items: [
+            { label: 'Overview', slug: 'docs/connectors' },
             {
-              label: 'Declarative Connectors',
+              label: 'Custom Connectors',
               items: [
                 {
-                  label: 'Declarative Connectors Source',
-                  slug: 'docs/connectors/declarative-connectors',
+                  label: 'Custom Connectors Source',
+                  slug: 'docs/connectors/custom-connectors',
                 },
                 { label: 'Connector Builder', slug: 'docs/connectors/connector-builder' },
                 {
@@ -165,7 +184,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'API',
           items: [
-            'docs/api',
+            { label: 'Overview', slug: 'docs/api' },
             'docs/api/api-keys',
             'docs/api/owox-ctl',
             'docs/api/api-client',
@@ -176,7 +195,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Plugins',
           items: [
-            'docs/plugins',
+            { label: 'Overview', slug: 'docs/plugins' },
             'docs/plugins/project-setup',
             'docs/plugins/authoring-guide',
             'docs/plugins/trusted-plugins',
@@ -255,6 +274,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   ],
   markdown: {
     rehypePlugins: [
+      rehypeChangelogEntryAnchors,
       [
         rehypeExternalLinks,
         {

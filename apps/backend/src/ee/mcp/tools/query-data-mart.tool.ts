@@ -192,7 +192,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     readOnlyHint: false, // costs credits and records a billable Run — not a silent read; clients should confirm
     destructiveHint: false,
     idempotentHint: false, // each call is a new billable Run
-    openWorldHint: false,
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];
 

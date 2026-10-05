@@ -556,11 +556,11 @@ export class ConnectorDefinitionService {
 
     let model: ParsedManifestAuthReport;
     try {
-      model = new Core.ManifestParser().parse(
-        JSON.stringify(draft.manifest)
-      ) as ParsedManifestAuthReport;
+      model = new Core.ManifestParser().parse(JSON.stringify(draft.manifest), {
+        authoring: true,
+      }) as ParsedManifestAuthReport;
     } catch (e) {
-      throw new BadRequestException(`Invalid connector manifest: ${(e as Error).message}`);
+      throw new BadRequestException(`Invalid manifest: ${(e as Error).message}`);
     }
     this.assertNodesHavePrimaryKeys(draft.manifest);
     // Every Data Mart that opens or saves this connector builds these from the manifest, by

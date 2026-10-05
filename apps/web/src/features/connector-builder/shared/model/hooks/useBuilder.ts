@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useBuilderContext } from '../context/useBuilderContext';
-import { BuilderActionType, type BuilderState } from '../context/types';
+import { BuilderActionType, type BuilderState, type ManifestOrigin } from '../context/types';
 import { ConnectorBuilderApiService } from '../../api/connector-builder-api.service';
 import { createEmptyManifest, createEmptyNode, type BuilderManifest } from '../manifest.types';
 import { firstNonEmpty } from '../asText';
 import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
+import { describeApiFailure, trackCustomConnectorEvent } from '../analytics';
 
 /**
  * The draft version a save from here would destroy, or null when nothing is at risk.
@@ -126,8 +127,16 @@ export function useBuilder() {
     [dispatch, state.manifest.nodes]
   );
 
+  const setManifestOrigin = useCallback(
+    (origin: ManifestOrigin) => {
+      dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: origin });
+    },
+    [dispatch]
+  );
+
   const initNew = useCallback(() => {
     dispatch({ type: BuilderActionType.SET_MANIFEST, payload: createEmptyManifest() });
+    dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
     dispatch({
       type: BuilderActionType.SET_META,
       payload: {
@@ -152,6 +161,7 @@ export function useBuilder() {
         const targetVersion = version ?? latest?.version ?? 1;
         const v = await api.getVersion(id, targetVersion);
         dispatch({ type: BuilderActionType.SET_MANIFEST, payload: v.manifest });
+        dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
         dispatch({
           type: BuilderActionType.SET_META,
           payload: {
@@ -177,6 +187,10 @@ export function useBuilder() {
       const api = new ConnectorBuilderApiService();
       dispatch({ type: BuilderActionType.SET_SAVING, payload: true });
       dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
+      // A failed read after the write is not a failed save, and a new connector has its id by
+      // then, so both are tracked here rather than read back from the click-time state.
+      let id = state.id;
+      let written = false;
       try {
         if (!state.id) {
           const created = await api.create({
@@ -186,6 +200,8 @@ export function useBuilder() {
             docUrl: manifest.docUrl,
             manifest,
           });
+          id = created.id;
+          written = true;
           // Commit the id before the read below, which only enriches it with version
           // metadata. create() has already taken the name, so a retry that re-POSTs it
           // 400s on the name check — dropping the id with a transient read failure leaves
@@ -220,6 +236,7 @@ export function useBuilder() {
           return created.id;
         }
         await api.saveDraft(state.id, manifest);
+        written = true;
         // The title, description and docs link reach the connector row, which every list and
         // picker reads, when a version is published: a draft is not theirs to show yet.
         const detail = await api.getById(state.id);
@@ -240,12 +257,19 @@ export function useBuilder() {
         const msg = apiErrorMessage(e, 'Failed to save');
         dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
         toast.error(msg);
+        if (!written) {
+          trackCustomConnectorEvent(
+            'custom_connector_error',
+            { id, manifest, version: state.loadedVersion },
+            { action: state.id ? 'SaveError' : 'CreateError', ...describeApiFailure(e) }
+          );
+        }
         return null;
       } finally {
         dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
       }
     },
-    [dispatch, state.id]
+    [dispatch, state.id, state.loadedVersion]
   );
 
   const saveDraft = useCallback(
@@ -262,17 +286,28 @@ export function useBuilder() {
     // instead of reloading the draft under a "Published" toast (see ConnectorBuilderPage).
     dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: true });
     dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
+    // Above the try: a first Publish creates the connector, and its failure belongs to that id.
+    let id = state.id;
+    let sent = state.manifest;
+    let published = false;
     try {
       const typed = flushCodeEdits();
+      sent = typed ?? state.manifest;
       // An older version open over a newer draft is saved over that draft first, edited or
       // not: that is what the "Replace & publish" confirmation said, and without the save the
       // publish releases the draft instead of the version on screen.
-      const id =
+      id =
         !state.id || state.dirty || typed !== null || draftVersionAtRisk(state) !== null
-          ? await persistDraft(typed ?? state.manifest)
+          ? await persistDraft(sent)
           : state.id;
       if (!id) return false;
-      const { warnings } = await api.publish(id);
+      const { version, warnings } = await api.publish(id);
+      published = true;
+      trackCustomConnectorEvent(
+        'custom_connector_published',
+        { id, manifest: sent },
+        { version, warningsCount: warnings.length }
+      );
       const detail = await api.getById(id);
       dispatch({
         type: BuilderActionType.SET_META,
@@ -293,6 +328,13 @@ export function useBuilder() {
       const msg = apiErrorMessage(e, 'Failed to publish');
       dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
       toast.error(msg);
+      if (!published) {
+        trackCustomConnectorEvent(
+          'custom_connector_error',
+          { id, manifest: sent, version: state.loadedVersion },
+          { action: 'PublishError', ...describeApiFailure(e) }
+        );
+      }
       return false;
     } finally {
       dispatch({ type: BuilderActionType.SET_PUBLISHING, payload: false });
@@ -307,14 +349,24 @@ export function useBuilder() {
       // The edits went with the connector: nothing is left unsaved.
       dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
       toast.success('Connector deleted');
+      trackCustomConnectorEvent(
+        'custom_connector_deleted',
+        { id: state.id, manifest: state.manifest, version: state.loadedVersion },
+        { where: 'builder' }
+      );
       return true;
     } catch (e) {
       const msg = apiErrorMessage(e, 'Failed to delete connector');
       dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
       toast.error(msg);
+      trackCustomConnectorEvent(
+        'custom_connector_error',
+        { id: state.id, manifest: state.manifest, version: state.loadedVersion },
+        { action: 'DeleteError', where: 'builder', ...describeApiFailure(e) }
+      );
       return false;
     }
-  }, [dispatch, state.id]);
+  }, [dispatch, state.id, state.manifest, state.loadedVersion]);
 
   const loadVersion = useCallback(
     async (version: number) => {
@@ -344,13 +396,23 @@ export function useBuilder() {
           },
         });
         toast.success(`Version ${version} is now active`);
+        trackCustomConnectorEvent(
+          'custom_connector_version_activated',
+          { id: state.id, manifest: state.manifest },
+          { version, fromVersion: state.activeVersion }
+        );
       } catch (e) {
         const msg = apiErrorMessage(e, 'Failed to activate version');
         dispatch({ type: BuilderActionType.SET_ERROR, payload: msg });
         toast.error(msg);
+        trackCustomConnectorEvent(
+          'custom_connector_error',
+          { id: state.id, manifest: state.manifest },
+          { action: 'ActivateError', version, ...describeApiFailure(e) }
+        );
       }
     },
-    [dispatch, state.id, state.versions, state.loadedVersion]
+    [dispatch, state.id, state.versions, state.loadedVersion, state.activeVersion, state.manifest]
   );
 
   // Discard unsaved edits and restore the last saved state without a page reload:
@@ -380,6 +442,7 @@ export function useBuilder() {
     renameNode,
     initNew,
     loadConnector,
+    setManifestOrigin,
     flushCodeEdits,
     loadVersion,
     activateVersion,

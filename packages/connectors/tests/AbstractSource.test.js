@@ -288,6 +288,142 @@ describe('AbstractSource', () => {
       }
     });
 
+    it("names the provider's own error message rather than the raw response body", async () => {
+      const restore = suppressStdout();
+      const body = JSON.stringify({
+        error: {
+          message: 'Error validating application. Application has been deleted.',
+          type: 'OAuthException',
+          code: 190,
+        },
+      });
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => body,
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        const error = await source.urlFetchWithRetry('https://example.com/api').catch(e => e);
+        assert.strictEqual(
+          error.message,
+          'HTTP 400: Error validating application. Application has been deleted.'
+        );
+        assert.strictEqual(error.statusCode, 400);
+        assert.strictEqual(error.responseBody, body);
+        assert.strictEqual(error.payload.error.code, 190);
+      } finally {
+        restore();
+      }
+    });
+
+    for (const [shape, body] of [
+      ['message', { message: 'Quota exceeded' }],
+      ['errorMessage', { errorMessage: 'Quota exceeded' }],
+      ['error_message', { error_message: 'Quota exceeded' }],
+      ['errors[0].message', { errors: [{ message: 'Quota exceeded' }, { message: 'other' }] }],
+      ['errors[0].detail', { errors: [{ detail: 'Quota exceeded' }] }],
+    ]) {
+      it(`reads the provider message from ${shape}`, async () => {
+        const restore = suppressStdout();
+        globalThis.fetch = async () => ({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          text: async () => JSON.stringify(body),
+        });
+        try {
+          const source = new AbstractSource(createContext());
+          await assert.rejects(() => source.urlFetchWithRetry('https://example.com/api'), {
+            message: 'HTTP 429: Quota exceeded',
+          });
+        } finally {
+          restore();
+        }
+      });
+    }
+
+    // JSON:API errors (Klaviyo among them) put the short summary in `title` and the
+    // explanation, here the wait the API asks for, in `detail`.
+    it('reads a JSON:API error from its detail rather than its title', async () => {
+      const restore = suppressStdout();
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        text: async () =>
+          JSON.stringify({
+            errors: [
+              {
+                id: 'e1',
+                status: 429,
+                code: 'throttled',
+                title: 'Request was throttled.',
+                detail: 'Request was throttled. Expected available in 58 seconds.',
+                source: { pointer: '/data' },
+                links: { type: 'https://developers.example.com/docs/rate_limits' },
+                meta: {},
+              },
+            ],
+          }),
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        await assert.rejects(() => source.urlFetchWithRetry('https://example.com/api'), {
+          message: 'HTTP 429: Request was throttled. Expected available in 58 seconds.',
+        });
+      } finally {
+        restore();
+      }
+    });
+
+    // A JSON:API title is the same summary for every occurrence ("Invalid Attribute"); the
+    // snippet is what names the field, in `source.pointer`.
+    it('keeps the body snippet for a JSON:API error that has only a title', async () => {
+      const restore = suppressStdout();
+      const body = JSON.stringify({
+        errors: [
+          {
+            status: '422',
+            title: 'Invalid Attribute',
+            source: { pointer: '/data/attributes/firstName' },
+          },
+        ],
+      });
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        text: async () => body,
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        const error = await source.urlFetchWithRetry('https://example.com/api').catch(e => e);
+        assert.strictEqual(error.message, `HTTP 422: Unprocessable Entity — ${body}`);
+      } finally {
+        restore();
+      }
+    });
+
+    it('keeps the body snippet when the response names no message', async () => {
+      const restore = suppressStdout();
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => '{"error":"invalid_token"}',
+      });
+      try {
+        const source = new AbstractSource(createContext());
+        await assert.rejects(() => source.urlFetchWithRetry('https://example.com/api'), {
+          message: 'HTTP 401: Unauthorized — {"error":"invalid_token"}',
+        });
+      } finally {
+        restore();
+      }
+    });
+
     it('retries when isValidToRetry returns true and eventually succeeds', async () => {
       const restore = suppressStdout();
       let calls = 0;

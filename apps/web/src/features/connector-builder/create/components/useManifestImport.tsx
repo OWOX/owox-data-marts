@@ -4,6 +4,10 @@ import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDi
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
 import { parseManifestJson } from '../../shared/model/manifestJson';
 import type { BuilderManifest } from '../../shared/model/manifest.types';
+import { trackCustomConnectorEvent } from '../../shared/model/analytics';
+
+/** Where the import was started, for analytics. */
+export type ImportSource = 'menu' | 'code_tab';
 
 /**
  * Importing a manifest from a JSON file. The builder renders `elements` once and hands
@@ -11,18 +15,26 @@ import type { BuilderManifest } from '../../shared/model/manifest.types';
  * and one confirmation.
  */
 export function useManifestImport() {
-  const { manifest, state, setManifest } = useBuilder();
+  const { manifest, state, setManifest, setManifestOrigin } = useBuilder();
   const inputRef = useRef<HTMLInputElement>(null);
+  const source = useRef<ImportSource>('menu');
   const [pendingImport, setPendingImport] = useState<BuilderManifest | null>(null);
 
   const applyImport = (imported: BuilderManifest) => {
     // Data marts reference an existing connector by its name, so an import cannot change it.
     const keepName = state.id !== null && imported.name !== manifest.name;
-    setManifest(keepName ? { ...imported, name: manifest.name } : imported);
+    const next = keepName ? { ...imported, name: manifest.name } : imported;
+    setManifest(next);
     toast.success(
       keepName
         ? `Manifest imported. The connector name stays "${manifest.name}".`
         : 'Manifest imported'
+    );
+    setManifestOrigin('import');
+    trackCustomConnectorEvent(
+      'custom_connector_imported',
+      { id: state.id, manifest: next, version: state.loadedVersion },
+      { where: source.current, result: 'success' }
     );
   };
 
@@ -30,6 +42,11 @@ export function useManifestImport() {
     const parsed = parseManifestJson(await file.text());
     if (!parsed.ok) {
       toast.error(`Could not import ${file.name}: ${parsed.error}`);
+      trackCustomConnectorEvent(
+        'custom_connector_imported',
+        { id: state.id, manifest, version: state.loadedVersion },
+        { where: source.current, result: 'invalid' }
+      );
       return;
     }
     if (state.dirty) setPendingImport(parsed.manifest);
@@ -75,7 +92,8 @@ export function useManifestImport() {
   );
 
   return {
-    openFilePicker: () => {
+    openFilePicker: (from: ImportSource) => {
+      source.current = from;
       inputRef.current?.click();
     },
     elements,

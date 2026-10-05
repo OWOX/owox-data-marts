@@ -14,7 +14,7 @@ import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataStorage } from './data-storage.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { DataMartIcon } from '../enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
@@ -74,7 +74,7 @@ export class DataMart implements CreatorAwareEntity {
 
   /** User-picked icon; null renders the default one. */
   @Column({ type: 'varchar', length: 64, nullable: true })
-  icon?: DataMartIcon | null;
+  icon?: DataMartIconValue | null;
 
   @Column()
   projectId: string;

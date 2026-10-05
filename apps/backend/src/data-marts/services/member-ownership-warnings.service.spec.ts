@@ -50,7 +50,7 @@ describe('MemberOwnershipWarningsService', () => {
     expect(warnings).toEqual([
       {
         userId: 'user-1',
-        warning: 'Technical Owner — requires Technical User role to be effective',
+        warning: 'Data Owner — requires the Data Owner role to be effective',
       },
     ]);
   });

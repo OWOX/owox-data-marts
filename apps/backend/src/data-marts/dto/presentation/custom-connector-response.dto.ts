@@ -96,7 +96,7 @@ export class CustomConnectorVersionResponseApiDto extends CustomConnectorVersion
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    description: 'The declarative manifest stored for this version.',
+    description: 'The manifest stored for this version.',
   })
   manifest: Record<string, unknown>;
 }

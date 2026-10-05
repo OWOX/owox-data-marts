@@ -1,4 +1,12 @@
-# Build a plugin with AI
+# Plugins
+
+A **Plugin** is a custom application that runs inside OWOX Data Marts. It adds your own experience — a dashboard, a workflow helper, or an analysis tool.
+
+Plugins build on the same entities as the rest of the platform. They can read data that [Data Marts](../data-marts/) prepare and present it the way your team needs. You install [trusted plugins](./trusted-plugins.md) or build your own, with or without an AI coding agent.
+
+Use a plugin when the built-in [Reports](../reports/) and [Destinations](../destinations/) do not cover a team-specific need.
+
+## Build a plugin with AI
 
 Turn an idea into a useful experience inside OWOX Data Marts—a dashboard, workflow helper,
 analysis tool, or something unique to your team. You can build a plugin with an AI coding agent

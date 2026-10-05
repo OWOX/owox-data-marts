@@ -399,6 +399,27 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
         })
       ).rejects.toThrow(/^Invalid manifest:/);
     });
+
+    it('refuses a node that templates dateWindow without a date strategy, as publish() does', async () => {
+      const svc = makeService();
+
+      await expect(
+        svc.runTest({
+          projectId: 'p',
+          manifest: {
+            ...manifest,
+            nodes: {
+              items: {
+                ...manifest.nodes.items,
+                request: { method: 'GET', path: '/x/{{ dateWindow.start }}' },
+              },
+            },
+          },
+          node: 'items',
+          configuration: {},
+        })
+      ).rejects.toThrow(/^Invalid manifest: .*node "items" uses "\{\{ dateWindow\.start \}\}"/);
+    });
   });
 
   it('reports error "Test process exited with code N" when the runner exits non-zero and emitted no rows', async () => {
@@ -621,6 +642,37 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       const today = new Date().toISOString().split('T')[0];
       expect(joined).toContain(start);
       expect(joined).toContain(today);
+    });
+
+    // The engine ends a lagging node's window endLagDays before today. A sample that still
+    // ended today would hold fewer days than it claims, or none at all.
+    it("moves the sample back by the node's endLagDays, and names the days it holds", async () => {
+      const svc = makeService();
+      capturedSpawnEnv = undefined;
+
+      const res = await svc.runTest(
+        {
+          projectId: 'p',
+          manifest: {
+            ...manifest,
+            nodes: {
+              items: {
+                ...manifest.nodes.items,
+                incremental: { strategy: 'day-by-day', endLagDays: 2 },
+              },
+            },
+          },
+          node: 'items',
+          configuration: {},
+          maxRows: 3,
+        },
+        { env: { FAKE_SAMPLE_NO_ROWS: '1' } }
+      );
+
+      const start = String(spawnedSourceConfig().LastRequestedDate?.value);
+      const lastDay = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+      expect(start <= lastDay).toBe(true);
+      expect(res.logs.join('\n')).toContain(`${start} to ${lastDay}`);
     });
   });
 

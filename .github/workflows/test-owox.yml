@@ -8,6 +8,7 @@ on:
       - 'apps/owox/**'
       - 'apps/web/**'
       - 'packages/**'
+      - '.github/workflows/test-owox.yml'
   push:
     branches: [main]
 
@@ -29,8 +30,16 @@ jobs:
         os:
           - ubuntu-latest
         test:
-          - name: 'Overall test @owox/backend'
-            command: 'npm run test -w @owox/backend'
+          # The backend suite outgrew the 10-minute budget on one runner, so
+          # jest --shard splits its files across jobs, as e2e-api.yml does.
+          - name: 'Overall test @owox/backend (shard 1/3)'
+            command: 'npm run test -w @owox/backend -- --shard=1/3'
+            timeout: 10
+          - name: 'Overall test @owox/backend (shard 2/3)'
+            command: 'npm run test -w @owox/backend -- --shard=2/3'
+            timeout: 10
+          - name: 'Overall test @owox/backend (shard 3/3)'
+            command: 'npm run test -w @owox/backend -- --shard=3/3'
             timeout: 10
           - name: 'Overall test @owox/web'
             command: 'npm run test -w @owox/web'
@@ -79,7 +88,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       - name: Build better-sqlite3 native binding
-        if: matrix.test.name == 'Overall test @owox/backend'
+        if: startsWith(matrix.test.name, 'Overall test @owox/backend')
         run: npm rebuild better-sqlite3 --foreground-scripts
 
       - name: Build publishable CLI packages

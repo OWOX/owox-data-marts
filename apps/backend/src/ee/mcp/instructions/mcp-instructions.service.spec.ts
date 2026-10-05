@@ -61,11 +61,10 @@ describe('MCP instructions', () => {
     );
   });
 
-  // The three behaviours the report tools were reworked for (#6847): an agent that
-  // exports through its own file integration, one that creates a second report
-  // for "add a filter", and one that scatters related exports over separate files.
+  // Keep the report workflow scoped to OWOX-managed exports and preserve the
+  // existing-report and spreadsheet grouping guidance.
   it('steers exporting, updating, and grouping reports toward the report tools', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never copy query_data_mart rows into a CSV');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('user-requested OWOX-managed export');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('One report per user request; then change it.');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('error_code similar_report_exists');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('allow_similar=true only when the user explicitly');

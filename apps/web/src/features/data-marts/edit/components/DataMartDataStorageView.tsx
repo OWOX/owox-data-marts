@@ -4,6 +4,7 @@ import {
   DataStorageType,
   isDataStorageConfigValid,
   RedshiftConnectionType,
+  s3ConsoleLink,
 } from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
@@ -127,12 +128,11 @@ export const DataMartDataStorageView = ({
       case DataStorageType.AWS_ATHENA: {
         const region = dataStorage.config.region;
         const outputBucket = dataStorage.config.outputBucket;
-        const s3ConsoleLink = `https://s3.console.aws.amazon.com/s3/buckets/${outputBucket}?region=${region}`;
         return (
           <div className='flex flex-wrap gap-2'>
             {formatParam('Region', region)}
             <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Bucket', outputBucket, s3ConsoleLink)}
+            {formatLinkParam('Bucket', outputBucket, s3ConsoleLink(outputBucket, region))}
           </div>
         );
       }

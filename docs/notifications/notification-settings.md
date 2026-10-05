@@ -35,21 +35,21 @@ Receivers are project members who will receive email notifications. Select one o
 
 #### Automatic Subscription
 
-When a new member joins the project with an **Admin** or **Technical User** role, they are automatically added as a receiver to all existing notification settings. This also applies to members who previously left the project and have been re-added.
+When a new member joins the project with an **Admin** or **Data Owner** role, they are automatically added as a receiver to all existing notification settings. This also applies to members who previously left the project and have been re-added.
 
 If a member manually removes themselves from the receivers list (via the UI), they will **not** be re-subscribed automatically — their choice is respected as long as they remain in the project.
 
 | Scenario | Result |
 |---|---|
-| New Admin/Technical User joins the project | Automatically subscribed |
-| Member leaves the project and returns as Admin/Technical User | Automatically subscribed (treated as new) |
-| Admin/Technical User manually unsubscribes via the UI | Stays unsubscribed |
-| Member's role changes from Business User to Technical User | Automatically subscribed |
-| Member's role changes from Technical User to Business User | Removed from receivers |
+| New Admin/Data Owner joins the project | Automatically subscribed |
+| Member leaves the project and returns as Admin/Data Owner | Automatically subscribed (treated as new) |
+| Admin/Data Owner manually unsubscribes via the UI | Stays unsubscribed |
+| Member's role changes from Business User to Data Owner | Automatically subscribed |
+| Member's role changes from Data Owner to Business User | Removed from receivers |
 
 #### Role-Based Cleanup
 
-Members whose role is downgraded to **Business User** are automatically removed from the receivers list, since only Admins and Technical Users are eligible to receive notifications. Similarly, members who are removed from the project entirely are cleaned up from the receivers list.
+Members whose role is downgraded to **Business User** are automatically removed from the receivers list, since only Admins and Data Owners are eligible to receive notifications. Similarly, members who are removed from the project entirely are cleaned up from the receivers list.
 
 ### Grouping Delay
 

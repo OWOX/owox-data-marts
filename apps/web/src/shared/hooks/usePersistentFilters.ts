@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, type SetURLSearchParams } from 'react-router';
 import { storageService } from '../../services/localstorage.service';
+import { trackEvent } from '../../utils/data-layer';
 import {
   DEFAULT_FILTERS_STATE,
   type AppliedFilter,
@@ -352,6 +353,14 @@ export function usePersistentFilters<K extends string>({
       if (urlParam) {
         writeToUrl(setSearchParams, urlParam, normalized);
       }
+
+      trackEvent({
+        event: 'table_filters_applied',
+        category: 'TableFilters',
+        action: 'Apply',
+        label: tableId,
+        details: normalized.filters.map(f => `${f.fieldId}:${f.operator}`).join(','),
+      });
     },
     [projectId, tableId, urlParam, setSearchParams]
   );

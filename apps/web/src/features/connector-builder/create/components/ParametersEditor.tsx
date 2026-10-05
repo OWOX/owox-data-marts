@@ -39,6 +39,7 @@ import {
 } from '../../../../shared/components/CollapsibleCard';
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
 import type { ManifestParameter } from '../../shared/model/manifest.types';
+import { parameterNameProblem } from '../../shared/model/manifestNames';
 import { FieldInfo } from './fields';
 import { AccountsEditor } from './AccountsEditor';
 import { AdvancedParametersEditor } from './AdvancedParametersEditor';
@@ -168,7 +169,7 @@ export function ParametersEditor() {
   );
   const invalidCount = rows.filter(r => {
     const name = r.name.trim();
-    return name === '' || duplicateNames.has(name);
+    return name === '' || duplicateNames.has(name) || parameterNameProblem(name) !== null;
   }).length;
 
   // Soft, non-blocking authoring warnings surfaced via the same row affordance as the
@@ -298,6 +299,7 @@ export function ParametersEditor() {
                       {visible.map(row => {
                         const blank = row.name.trim() === '';
                         const duplicate = !blank && duplicateNames.has(row.name.trim());
+                        const nameProblem = blank ? null : parameterNameProblem(row.name.trim());
                         const warning = blank ? null : rowWarning(row);
                         return (
                           <SortableTableRow key={row.id} id={row.id}>
@@ -315,6 +317,14 @@ export function ParametersEditor() {
                                   <CircleAlert
                                     className='mx-auto h-4 w-4 text-red-500'
                                     aria-label='Duplicate parameter name'
+                                  />
+                                </span>
+                              )}
+                              {nameProblem && (
+                                <span title={nameProblem}>
+                                  <CircleAlert
+                                    className='mx-auto h-4 w-4 text-red-500'
+                                    aria-label='Invalid parameter name'
                                   />
                                 </span>
                               )}

@@ -242,9 +242,10 @@ Returns field-level metadata for one data mart visible to you in the current pro
 | `fields`                 | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available. A field OWOX already computes for you also carries a `usage` note saying so; a calculated field whose number a join can distort carries a caveat there to pass on with the value |
 | `joined_fields_included` | Whether joined fields were requested and evaluated. When `false`, `joined_fields` was intentionally omitted rather than evaluated as empty.                                                                                                                                                                                        |
 | `joined_fields`          | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations                                                                                                                                                         |
+| `joins`                  | How each joined Data Mart relates to this one, one entry per join path: `aliasPath`, the source and target Data Mart titles, `joinConditions` (the field pairs rows are matched on), and `description` when set — the override for this join path, otherwise the relationship's own description                                    |
 | `operators_by_category`  | For each field-type category present in the data mart (`number`/`string`/`date`/`time`/`boolean`/`other`), the `query_data_mart` filter/slice operators its fields accept                                                                                                                                                          |
 
-Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. A field's `allowedAggregations` and its category's entry in `operators_by_category` tell the assistant which aggregations and operators the field supports. The assistant can build queries without trial and error. An empty `allowedAggregations` on a [calculated field](./calculated-fields.md) whose formula already aggregates means the value is **already computed**, not that the field is unusable — select it by name and read its `usage` note. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
+Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. Like `joined_fields`, `joins` is returned only with `with_joined_fields` and stays empty otherwise. A field's `allowedAggregations` and its category's entry in `operators_by_category` tell the assistant which aggregations and operators the field supports. The assistant can build queries without trial and error. An empty `allowedAggregations` on a [calculated field](./calculated-fields.md) whose formula already aggregates means the value is **already computed**, not that the field is unusable — select it by name and read its `usage` note. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
 ### `query_data_mart` (requires `mcp:read` and `mcp:write`)
 
@@ -683,7 +684,7 @@ MCP works only with **published** data marts that your [project role](../../proj
 
 | Field                   | Description                                                                                                                                          |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `can_create_data_marts` | Whether your role may create data marts (Project Admin or Technical User)                                                                            |
+| `can_create_data_marts` | Whether your role may create data marts (Project Admin or Data Owner)                                                                                |
 | `create_data_mart_url`  | The page in OWOX Data Marts where a new data mart is created                                                                                         |
 | `data_marts_url`        | The Data Marts list of the connected project                                                                                                         |
 | `guides`                | Links to the [core concepts](../core-concepts.md), [connector-based](./connector-data-mart.md), and [SQL-based](./sql-data-mart.md) data mart guides |
@@ -692,8 +693,8 @@ MCP works only with **published** data marts that your [project role](../../proj
 
 A data mart cannot be created or published through MCP. To continue:
 
-- **Project Admin or Technical User:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
-- **Business User:** ask a Project Admin or a Technical User of the project to create and publish a data mart and share it with you for reporting.
+- **Project Admin or Data Owner:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
+- **Business User:** ask a Project Admin or a Data Owner of the project to create and publish a data mart and share it with you for reporting.
 
 Then ask the assistant again — no reconnection is needed.
 

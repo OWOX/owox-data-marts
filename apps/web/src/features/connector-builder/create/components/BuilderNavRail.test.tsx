@@ -63,5 +63,31 @@ describe('BuilderNavRail', () => {
     fireEvent.change(screen.getByPlaceholderText('Node name'), { target: { value: 'users' } });
     fireEvent.click(screen.getByRole('button', { name: /add node/i }));
     expect(onAddNode).not.toHaveBeenCalled();
+    expect(screen.getByText('A node named "users" already exists')).toBeInTheDocument();
+  });
+
+  // Authors type the endpoint here; the engine refused such a name only when a test ran.
+  it('does not add a node named like an API path, and says what to type instead', () => {
+    const onAddNode = vi.fn();
+    render(
+      <BuilderNavRail
+        manifest={createEmptyManifest()}
+        selection={{ kind: 'global', section: 'general' }}
+        onSelect={vi.fn()}
+        onAddNode={onAddNode}
+      />
+    );
+    const input = screen.getByPlaceholderText('Node name');
+    fireEvent.change(input, { target: { value: 'v1/balance/history' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onAddNode).not.toHaveBeenCalled();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert').textContent).toContain('v1_balance_history');
+
+    fireEvent.change(input, { target: { value: 'v1_balance_history' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /add node/i }));
+    expect(onAddNode).toHaveBeenCalledWith('v1_balance_history');
   });
 });

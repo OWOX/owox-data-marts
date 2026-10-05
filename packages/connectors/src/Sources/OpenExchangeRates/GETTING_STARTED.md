@@ -34,13 +34,13 @@ Before you begin, please ensure that:
 You can find the list of supported currency symbols [Open Exchange Rates documentation](https://docs.openexchangerates.org/reference/supported-currencies).
 
 - Specify the **dataset** where the data will be stored (or leave the default).  
-- Click **Finish**, then **Publish Data Mart**.
+- Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![Open Exchange Rates Publish Data Mart](res/openrates_publishdatamart.png)
 
 ## Run the Data Mart
 
-You now have two options for importing data from Open Exchange Rates:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 

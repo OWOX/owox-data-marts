@@ -320,7 +320,7 @@ describe('UpdateReportTool', () => {
       annotations: {
         title: 'Update Report',
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         // The refresh run reaches Google Sheets / email / chat — same as run_report.
         openWorldHint: true,
       },

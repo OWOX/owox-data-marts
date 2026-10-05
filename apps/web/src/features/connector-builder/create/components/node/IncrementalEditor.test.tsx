@@ -94,4 +94,48 @@ describe('IncrementalEditor', () => {
       request: { into: 'query', startName: 'from', endName: 'end', format: 'YYYY-MM-DD' },
     });
   });
+  describe('Skip the last days', () => {
+    const lagInput = () => screen.getByRole('spinbutton', { name: 'Skip the last days' });
+
+    it('stores endLagDays for an API that reports only completed days, and drops it at 0', () => {
+      renderEditor('{"nodes":{"items":{"recordSelector":{}}}}');
+      fireEvent.click(screen.getByRole('button', { name: 'Range' }));
+
+      fireEvent.change(lagInput(), { target: { value: '1' } });
+      expect(storedIncremental()).toMatchObject({ strategy: 'range', endLagDays: 1 });
+
+      // max={30} does not stop a keystroke, and Publish refuses anything above 30.
+      fireEvent.change(lagInput(), { target: { value: '45' } });
+      expect(storedIncremental()).toMatchObject({ endLagDays: 30 });
+
+      fireEvent.change(lagInput(), { target: { value: '0' } });
+      expect(storedIncremental()).not.toHaveProperty('endLagDays');
+    });
+
+    it('shows a saved value and keeps it across a strategy switch', () => {
+      renderEditor(
+        JSON.stringify({
+          nodes: {
+            items: {
+              recordSelector: {},
+              incremental: {
+                strategy: 'day-by-day',
+                endLagDays: 2,
+                request: { into: 'query', startName: 'date', format: 'YYYY-MM-DD' },
+              },
+            },
+          },
+        })
+      );
+      expect(lagInput()).toHaveValue(2);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Range' }));
+      expect(storedIncremental()).toMatchObject({ strategy: 'range', endLagDays: 2 });
+    });
+
+    it('is not offered without a date strategy', () => {
+      renderEditor('{"nodes":{"items":{"recordSelector":{}}}}');
+      expect(screen.queryByRole('spinbutton', { name: 'Skip the last days' })).toBeNull();
+    });
+  });
 });

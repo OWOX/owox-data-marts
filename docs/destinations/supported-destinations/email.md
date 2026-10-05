@@ -50,11 +50,13 @@ For each Destination, you can create as many reports as needed and configure dif
 
 Go to your **Data Mart** and open the **Destinations** tab.
 
+![Data Mart page with the Destinations tab highlighted by a red arrow. A Google Sheets Destination block shows an empty report table with the message "Create your first report for this destination"](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/699f51fe-c6f1-46e7-4f5a-14c205163e00/public)
+
 #### 2.2. Add a new report
 
-In the block labeled with the name of your Destination, click **Add Report**.
+In the block labeled with the name of your Destination, click **New Report**.
 
-![Data Mart Destinations tab showing the Marketing Team destination block. The report table is empty with the message "No reports for this destination", and the Add Report button is in the top right of the block](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/708f8681-1820-473e-11e8-d99b2a914600/public)
+![Destinations tab of a Data Mart. A red arrow points to the New Report button inside the empty report table of a Destination block; a second New Report button sits in the block header](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d0f8bb3e-44e2-4b84-3634-7654ca9c8f00/public)
 
 #### 2.3. Configure general settings
 

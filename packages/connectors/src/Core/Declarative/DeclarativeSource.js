@@ -13,14 +13,14 @@ import { Requester } from './Requester.js';
 import { FieldCaster } from './FieldCaster.js';
 import { formatCursorDate } from './dateFormat.js';
 import { Transformer } from './Transformer.js';
-import { ErrorHandler } from './ErrorHandler.js';
+import { ErrorHandler, retryAfterDelayMs } from './ErrorHandler.js';
 import { AccountResolver } from './AccountResolver.js';
 import { RetrieverFactory } from './RetrieverFactory.js';
 import { createRateLimiter } from './rateLimiter.js';
 import { RecordFilter } from './RecordFilter.js';
 import { setPathSafe } from './pathUtils.js';
 import { isTimeSeriesManifestNode, nodeDateStrategy } from './timeSeries.js';
-import { PARAMETER_OWNER, DATE_STRATEGY } from '../../Constants/CommonConstants.js';
+import { PARAMETER_OWNER, DATE_STRATEGY, LOG_LEVEL } from '../../Constants/CommonConstants.js';
 import { SampleEvent } from '../Events/SampleEvent.js';
 import {
   GENERATED_REFRESH_TOKEN_CONFIG_FIELD,
@@ -114,6 +114,8 @@ export class DeclarativeSource extends AbstractSource {
     // with different credentials cannot see each other's tokens; one Map per
     // source instance additionally means it cannot outlive the run.
     this._tokenCache = new Map();
+    // nodeName -> { tag, count } of raw records over the run, for onImportComplete.
+    this._extractedByNode = new Map();
   }
 
   _compileNodes(nodes = {}) {
@@ -167,6 +169,12 @@ export class DeclarativeSource extends AbstractSource {
 
   getDateStrategy(nodeName) {
     return nodeDateStrategy(this.model.nodes[nodeName]);
+  }
+
+  getEndLagDays(nodeName) {
+    const node = this.model.nodes[nodeName];
+    if (nodeDateStrategy(node) === DATE_STRATEGY.NONE) return 0;
+    return node.incremental.endLagDays ?? 0;
   }
 
   async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
@@ -250,8 +258,12 @@ export class DeclarativeSource extends AbstractSource {
     );
 
     const rawRecords = await retriever.run(scope);
+    const nodeTag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
+    this._extractedByNode.set(nodeName, {
+      tag: nodeTag,
+      count: (this._extractedByNode.get(nodeName)?.count ?? 0) + rawRecords.length,
+    });
     if (rawRecords.length > 0) {
-      const nodeTag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
       this.context.emitAnalytics('rows_extracted', rawRecords.length, { node: nodeTag });
     }
     const recordFilter = node.recordFilter ? new RecordFilter(node.recordFilter) : null;
@@ -267,6 +279,46 @@ export class DeclarativeSource extends AbstractSource {
       this.context.emit(new SampleEvent(records.slice(0, this.sampleSize)));
     }
     return this._selectFields(new FieldCaster(node.fields || {}).cast(records), node, fields);
+  }
+
+  /**
+   * Names each node whose requests got no records in the whole run. A record path that
+   * misses the data or a wrong parameter value completes like a run with nothing new, so this
+   * is the only hint the run leaves. INFO, not WARN: an API with nothing for the window is
+   * also a normal outcome.
+   */
+  onImportComplete() {
+    for (const [nodeName, { tag, count }] of this._extractedByNode) {
+      if (count > 0) continue;
+      this.context.emitAnalytics('rows_extracted', 0, { node: tag });
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `No records came back for node "${nodeName}" in this run. If you expected data, check ` +
+          `the node's record path, and the parameters and dates its request uses.` +
+          DeclarativeSource._partitionHint(this.model.nodes[nodeName]?.partitionRouter)
+      );
+    }
+  }
+
+  /**
+   * A partitioned node sends one request per slice, and none when there are no slices, so
+   * its own request is not where an empty run starts. Named as the builder's Partition form
+   * names the fields.
+   */
+  static _partitionHint(partitionRouter) {
+    if (partitionRouter?.type === 'substream') {
+      return (
+        ' Its requests run once per parent record, so also check Parent record path and ' +
+        'Parent key: when they find nothing, the node sends no requests.'
+      );
+    }
+    if (partitionRouter?.type === 'list') {
+      return (
+        ' Its requests run once per value of its list, so also check Values or Values from ' +
+        'parameter: an empty list sends no requests.'
+      );
+    }
+    return '';
   }
 
   /**
@@ -301,9 +353,10 @@ export class DeclarativeSource extends AbstractSource {
   async isValidToRetry(error) {
     const handler = this._activeErrorHandler;
     if (!handler) {
-      this._pendingBackoff = null;
       error._declAction = null;
-      return this._defaultRetryable(error);
+      const retry = this._defaultRetryable(error);
+      this._pendingBackoff = retry ? { filter: null, response: error.response } : null;
+      return retry;
     }
     let bodyText = '';
     let bodyJson = null;
@@ -323,13 +376,28 @@ export class DeclarativeSource extends AbstractSource {
   }
 
   calculateBackoff(attempt, initialDelay) {
-    if (this._pendingBackoff && this._activeErrorHandler) {
-      const { filter, response } = this._pendingBackoff;
-      this._pendingBackoff = null;
-      const ms = this._activeErrorHandler.delayMs(filter, response, attempt, initialDelay);
+    const pending = this._pendingBackoff;
+    this._pendingBackoff = null;
+    if (pending && this._activeErrorHandler) {
+      const ms = this._activeErrorHandler.delayMs(
+        pending.filter,
+        pending.response,
+        attempt,
+        initialDelay
+      );
       if (ms != null) return ms;
     }
-    return super.calculateBackoff(attempt, initialDelay);
+    // An API that says when to come back knows better than the default backoff, which spent
+    // its retries seconds into a minute-long rate limit. It is a floor, not a replacement: a
+    // `Retry-After: 0`, or a date already past on our clock, must not retry sooner than before.
+    // A builder Test keeps its short retry, so the author reads the refusal instead of waiting
+    // out a timeout.
+    const fallback = super.calculateBackoff(attempt, initialDelay);
+    if (pending && !process.env.OW_TEST) {
+      const ms = retryAfterDelayMs(pending.response);
+      if (ms != null) return Math.max(ms, fallback);
+    }
+    return fallback;
   }
 
   /**

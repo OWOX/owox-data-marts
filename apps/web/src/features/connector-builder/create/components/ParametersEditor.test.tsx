@@ -197,6 +197,25 @@ describe('ParametersEditor — duplicate names', () => {
   });
 });
 
+describe('ParametersEditor — names the engine refuses', () => {
+  // The engine accepts only letters, digits and underscores, starting with a letter; until
+  // the table said so, such a name surfaced only as a refused test run.
+  it('flags the row with the rule and a fixed name, and counts it', () => {
+    renderWithParameters({});
+    addParameter('Api Key');
+    addParameter('Days');
+
+    const flag = screen.getByLabelText('Invalid parameter name');
+    expect(flag.closest('[title]')?.getAttribute('title')).toContain('Api_Key');
+    expect(within(screen.getByTestId('parameters-editor')).getByText('1')).toBeInTheDocument();
+  });
+
+  it('does not flag a valid name', () => {
+    renderWithParameters({ ApiKey: { requiredType: 'string', isRequired: false } });
+    expect(screen.queryByLabelText('Invalid parameter name')).toBeNull();
+  });
+});
+
 // A parameter is a template token: {{ parameters.X }} may be referenced from request URLs,
 // headers, query params and the auth block, and nothing rewrites or flags those references
 // when it disappears. The old control was a bare trash icon that deleted on one click.

@@ -29,7 +29,7 @@ Before you can join two Data Marts:
 
 - Both Data Marts must live on the **same storage**. Cross-storage joins are not supported.
 - The source Data Mart needs an **Output Schema** (created automatically once it's saved with a valid input source).
-- You need **maintenance** access to both the source and the target Data Mart. See [Ownership and Sharing](../../project/ownership-and-sharing.md) for details on sharing levels.
+- To add a relationship, you need **maintenance** access to both the source and the target Data Mart. To edit or delete it later, maintenance access to the source Data Mart is enough. See [Ownership and Sharing](../../project/ownership-and-sharing.md#joinable-data-mart) for who has maintenance access.
 
 Supported storages: **Google BigQuery, Snowflake, AWS Redshift, AWS Athena, Databricks**.
 
@@ -249,7 +249,7 @@ Independently of any key and of the aggregate, every join runs outwards from the
 
 ### When you need a ratio of two facts, conform the grain first
 
-A join can't express what a cross-fact ratio needs: one row per grain shared by both facts, with neither side's rows dropped. Aggregate the two measures to the grain they share — day and traffic source, say — in a **separate Data Mart** built with `UNION ALL`, and calculate the ratio there instead of across the join.
+A join can't express what a cross-fact ratio needs: one row per grain shared by both facts, with neither side's rows dropped. Aggregate the two measures to the grain they share — day and traffic source, say — in a **separate Data Mart** built with `UNION ALL`, and calculate the ratio there instead of across the join. When only one side has to be complete — all spend, for the ROAS of paid campaigns — the ratio can stay on that side's Data Mart; see [Design a Data Model](../best-practices/data-model-design.md#step-5-put-each-metric-where-its-rows-are).
 
 ## Limitations and Considerations
 
@@ -275,6 +275,7 @@ A Data Mart further upstream in the chain is in Draft status or has a relationsh
 
 ## Related Links
 
+- [Design a Data Model →](../best-practices/data-model-design.md)
 - [Create SQL-based Data Mart →](sql-data-mart.md)
 - [Create Connector-based Data Mart →](connector-data-mart.md)
 - [Adding a Report Destination →](../../destinations/manage-destinations.md)

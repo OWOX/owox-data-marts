@@ -40,13 +40,13 @@ Before proceeding, please make sure that:
     - **transactions** – transaction-level data with individual order details attributed to Criteo ads. Returns rows only for periods with attributed conversions.
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![Criteo Ads Publish Data Mart](res/criteo_publish.png)
 
 ## Run the Data Mart
 
-You now have two options for importing data from Criteo Ads:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 

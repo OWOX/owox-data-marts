@@ -94,7 +94,7 @@ describe('CreateReportRunScheduleTool', () => {
     expect(tool).toMatchObject({
       name: 'create_report_run_schedule',
       requiredScopes: ['mcp:read', 'mcp:write'],
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     });
     expect(tool.description).toContain('Creates a new');
     expect(tool.description).toContain('does not replace');

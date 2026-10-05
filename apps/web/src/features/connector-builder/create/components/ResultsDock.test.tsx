@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { displayRecords, deriveColumns, testFailureMessage } from './ResultsDock';
+import { displayRecords, deriveColumns, followNode, testFailureMessage } from './ResultsDock';
 
 describe('displayRecords', () => {
   it('returns the cast rows when present', () => {
@@ -58,5 +58,23 @@ describe('deriveColumns', () => {
       columns: ['value'],
       primitive: true,
     });
+  });
+});
+
+describe('followNode', () => {
+  it('keeps a node that is still there', () => {
+    expect(followNode(['a', 'b'], 'b', ['a', 'b', 'c'])).toBe('b');
+  });
+
+  it('follows a renamed node to the name at its position', () => {
+    expect(followNode(['a', 'b', 'c'], 'b', ['a', 'renamed', 'c'])).toBe('renamed');
+  });
+
+  it('falls back to the first node when the node was removed from the end', () => {
+    expect(followNode(['a', 'b'], 'b', ['a'])).toBe('a');
+  });
+
+  it('is empty when no node is left', () => {
+    expect(followNode(['a'], 'a', [])).toBe('');
   });
 });

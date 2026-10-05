@@ -16,9 +16,9 @@ describe('MembershipRequestRow', () => {
     render(<MembershipRequestRow request={baseRequest} onClick={vi.fn()} />);
     expect(screen.getByText('Alice Example')).toBeInTheDocument();
     expect(screen.getByText(/alice@example\.com/i)).toBeInTheDocument();
-    // `getRoleDisplayName('editor')` maps to 'Technical User' in this codebase
+    // `getRoleDisplayName('editor')` maps to 'Data Owner' in this codebase
     // (see apps/web/src/features/idp/utils/role-display-name.ts).
-    expect(screen.getByText(/Requested role: Technical User/i)).toBeInTheDocument();
+    expect(screen.getByText(/Requested role: Data Owner/i)).toBeInTheDocument();
     // formatDateShort uses the browser TZ. The fixture is '2026-05-01T10:00:00Z'
     // which renders with year 2026 in every IANA timezone. Anchoring on the
     // year only keeps the assertion TZ-independent.

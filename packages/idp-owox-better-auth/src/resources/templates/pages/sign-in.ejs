@@ -49,6 +49,7 @@
         <span id="microsoft-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
       </button>
     <% } %>
+    <p id="social-auth-status" class="text-sm text-red-600" aria-live="polite"></p>
   </div>
 
   <% if (enabledProviders.email) { %>
@@ -125,6 +126,68 @@
 
 <%- include('../partials/social-auth') %>
 <script>
+  const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
+  const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+
+  /**
+   * Ensures a PKCE state exists before running a sign-in action, falling
+   * back to a full-page bounce (`pendingAction` round trip through Platform)
+   * if one isn't already there. In practice `hasAuthState` is true by the
+   * time this page ever renders - the server always mints one before
+   * showing the form, specifically so the email/password fields have a
+   * ready state to submit against without a client-side priming step of
+   * their own - so this fallback exists mainly as a defensive path, not the
+   * common case.
+   */
+  function ensureStateThenRun(pendingAction, run) {
+    if (hasAuthState) {
+      run();
+      return;
+    }
+    setSocialButtonsDisabled(true);
+    if (submitBtn) submitBtn.disabled = true;
+    const params = new URLSearchParams(window.location.search);
+    params.set('pendingAction', pendingAction);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  }
+
+  /**
+   * Obtain a short-lived token at click time, then POST the chosen provider
+   * to start a fresh Platform state round trip.
+   */
+  async function alwaysGetFreshStateThenRun(provider) {
+    setSocialButtonsDisabled(true);
+    if (submitBtn) submitBtn.disabled = true;
+    document.getElementById('social-auth-status').textContent = '';
+    let nonce;
+    try {
+      nonce = await requestSocialIntentNonce();
+    } catch (error) {
+      console.error('Unable to start social sign-in', error);
+      document.getElementById('social-auth-status').textContent =
+        'Unable to start sign-in. Please try again.';
+      setSocialButtonsDisabled(false);
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.delete('state');
+    params.delete('pendingAction');
+    params.delete('error');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/auth/sign-in/social-intent?${params.toString()}`;
+    for (const [name, value] of Object.entries({ provider, nonce })) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const redirect =
     urlParams.get('redirect') ||
@@ -241,9 +304,24 @@
     }
   }
 
-  googleButton?.addEventListener('click', () => submitSocial('google'));
-  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
-  emailForm?.addEventListener('submit', submitEmailSignIn);
+  googleButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('google'));
+  microsoftButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('microsoft'));
+  emailForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    // Validate before doing anything else, so an empty submit shows the
+    // message immediately instead of first running a pointless bounce.
+    if (!emailForm.email?.value?.trim() || !emailForm.password?.value) {
+      setStatus('Enter your email and password.');
+      return;
+    }
+    ensureStateThenRun('email', () => submitEmailSignIn(event));
+  });
+
+  // Resume the action the user originally clicked, now that a fresh PKCE
+  // state has come back from the Platform round trip.
+  if (autoSubmitProvider) {
+    submitSocial(autoSubmitProvider);
+  }
 
   // Password visibility toggle
   const passwordInput = document.getElementById('password');

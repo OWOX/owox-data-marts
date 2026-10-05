@@ -4,7 +4,7 @@ Project members are people who have access to your project. Each member has a ro
 
 In OWOX projects, only **Project Admins** manage the member list (invite, role change, remove) from **Project Settings → Members**.
 
-> ☝️ Notification receivers are synchronized with the current member list and role eligibility. If a member is removed, or downgraded from **Technical User** to **Business User**, they are removed from receiver lists.
+> ☝️ Notification receivers are synchronized with the current member list and role eligibility. If a member is removed, or downgraded from **Data Owner** to **Business User**, they are removed from receiver lists.
 
 ![Project Settings Members page showing the list of project members with their names and roles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9449c7c1-6010-4211-e4da-f88f0b413900/public)
 
@@ -47,7 +47,7 @@ This applies to Data Marts, Storages, Destinations, Reports, Scheduled Triggers,
 
 By default, creator and initial owner are the same:
 
-- Data Mart → creator becomes **Technical Owner**
+- Data Mart → creator becomes **Data Owner**
 - Storage → creator becomes **Owner**
 - Destination → creator becomes **Owner**
 - Report → creator becomes **Owner**
@@ -56,7 +56,7 @@ When creating a Storage, Destination, or Report, you can assign owners directly 
 
 Scheduled Triggers do not have dedicated ownership. Access to them follows the same rules as their parent Data Mart or Report.
 
-![Resource creation form with an Owners field for assigning initial owners during setup](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/7b347212-b2a0-42c5-fa6e-788a32833700/public)
+![Data Mart Overview tab with the Data Owner in the Ownership section and the creator in Details → Created By](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64584a37-218a-41f9-aa30-e828cf9b1c00/public)
 
 ## Member Removal Impact
 

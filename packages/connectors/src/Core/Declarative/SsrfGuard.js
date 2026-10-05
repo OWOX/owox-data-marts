@@ -108,6 +108,12 @@ const CONCLUSIVE_DNS_FAILURES = new Set(['ENOTFOUND', 'ENODATA']);
 // failed the account although the fetch would have asked again.
 const INCONCLUSIVE_LOOKUP_ATTEMPTS = 3;
 
+// A refusal decided by the URL and its DNS answer alone: asking again gives the same answer, so a
+// caller may remember it (`isRefusal`). A lookup that did not answer stays a plain error.
+function refusal(message) {
+  return Object.assign(new Error(message), { isRefusal: true });
+}
+
 export class SsrfGuard {
   /**
    * True if `ip` is a private/loopback/link-local address. Accepts both the
@@ -241,11 +247,11 @@ export class SsrfGuard {
     }
     if (SsrfGuard._allowLocalEgress()) return;
     if (url.protocol !== 'https:') {
-      throw new Error(`SsrfGuard: URL must use https, got "${url.protocol}"`);
+      throw refusal(`SsrfGuard: URL must use https, got "${url.protocol}"`);
     }
     const host = url.hostname.toLowerCase().replace(/\.$/, '');
     if (this._isBlockedLiteralHost(host)) {
-      throw new Error(`SsrfGuard: blocked IP/host "${host}"`);
+      throw refusal(`SsrfGuard: blocked IP/host "${host}"`);
     }
     await this._assertResolvesToPublic(host);
   }
@@ -302,7 +308,7 @@ export class SsrfGuard {
     for (const a of list) {
       const address = a && typeof a === 'object' ? a.address : a;
       if (SsrfGuard.isBlockedIp(address)) {
-        throw new Error(`SsrfGuard: host "${host}" resolves to blocked address "${address}"`);
+        throw refusal(`SsrfGuard: host "${host}" resolves to blocked address "${address}"`);
       }
     }
   }

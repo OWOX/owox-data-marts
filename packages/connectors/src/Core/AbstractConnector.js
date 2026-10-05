@@ -221,6 +221,7 @@ export class AbstractConnector {
    */
   async run() {
     this.context.emit(new ControlEvent(CONTROL_ACTION.STARTED));
+    this._rowsByNode = new Map();
 
     try {
       this.context.validate();
@@ -257,6 +258,7 @@ export class AbstractConnector {
       }
 
       this._reportAccountOutcomes(state);
+      this._reportEmptyNodes([...plainNodes, ...timeSeriesNodes]);
 
       this.source.onImportComplete(this.context);
       this.context.emit(new ControlEvent(CONTROL_ACTION.COMPLETED));
@@ -433,10 +435,11 @@ export class AbstractConnector {
    * @param {object} state run state from _createRunState
    * @param {object|null} account the account this unit belongs to
    * @param {Function} work async thunk performing the fetch + write
+   * @param {string} subject what the unit imports -- a node name, or the day for day-by-day
    * @returns {Promise<boolean>} true when the unit completed
    * @private
    */
-  async _runForAccount(state, account, work) {
+  async _runForAccount(state, account, work, subject) {
     try {
       await work();
       state.succeeded.add(this._accountKey(account));
@@ -452,7 +455,7 @@ export class AbstractConnector {
       // there -- and the ERROR arrived first, paging someone for a failure the engine
       // had already decided not to page for. _recordAccountFailure now owns the whole
       // report and emits exactly one line at the severity classification chose.
-      this._recordAccountFailure(state, account, error);
+      this._recordAccountFailure(state, account, error, subject);
       return false;
     }
   }
@@ -492,9 +495,10 @@ export class AbstractConnector {
    * @param {object} state run state from _createRunState
    * @param {object|null} account the account that failed
    * @param {Error} error the failure to classify
+   * @param {string} [subject] what was being imported, named in the report as main did
    * @private
    */
-  _recordAccountFailure(state, account, error) {
+  _recordAccountFailure(state, account, error, subject) {
     const accountId = this._accountKey(account);
     const isSkip = error?.isWarning === true;
 
@@ -502,10 +506,11 @@ export class AbstractConnector {
 
     let entry = state.issues.get(accountId);
     if (!entry) {
-      entry = { errors: [], reported: new Set() };
+      entry = { errors: [], reported: new Set(), subjects: new Set() };
       state.issues.set(accountId, entry);
     }
     entry.errors.push(error);
+    if (subject) entry.subjects.add(subject);
 
     // Severity follows the classification, and the failure is reported here exactly once --
     // by the classifier, not by the caller before it. Reporting it earlier meant a skipped
@@ -530,7 +535,11 @@ export class AbstractConnector {
           ? 'Skipped'
           : 'Import failed'
         : `${isSkip ? 'Skipped account' : 'Error processing account'} ${accountId}`;
-    this.context.log(level, `${what}: ${error.message}`);
+    const line = `${what}: ${error.message}`;
+    this.context.log(
+      level,
+      subject ? `Importing ${subject}: ${line[0].toLowerCase()}${line.slice(1)}` : line
+    );
   }
 
   /**
@@ -604,7 +613,52 @@ export class AbstractConnector {
    */
   _emitCursor(state, date) {
     if (state.cursorHalted) return;
-    this.context.emit(new StateEvent({ lastRequestedDate: date }));
+    // The next run starts at the cursor, so it may not pass a lagging node's last day.
+    const claimed = state.cursorCap && date > state.cursorCap ? state.cursorCap : date;
+    if (claimed !== date && claimed === state.lastClaimed) return;
+    state.lastClaimed = claimed;
+    this.context.emit(new StateEvent({ lastRequestedDate: claimed }));
+  }
+
+  /**
+   * The last day a node is asked for: the run's end, or `endLagDays` before today for an API
+   * that reports only completed days, whichever is earlier.
+   * @private
+   */
+  _nodeWindowEnd(node, dateRange) {
+    const lag = this.source.getEndLagDays?.(node.name) ?? 0;
+    if (!lag) return dateRange.endDate;
+    const today = this._parseDate(this._formatDate(new Date()));
+    const lagged = this._formatDate(new Date(today - lag * 86400000));
+    return lagged < dateRange.endDate ? lagged : dateRange.endDate;
+  }
+
+  /**
+   * Notes where `endLagDays` stopped a manual backfill short of its EndDate. The run completes
+   * either way, and nothing else on it names the days it left out.
+   * @private
+   */
+  _logLagCut(node, dateRange, end) {
+    if (this.context.runConfig?.type !== RUN_CONFIG_TYPE.MANUAL_BACKFILL) return;
+    if (end >= dateRange.endDate) return;
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Node "${node.name}" stops at ${end}, not at the EndDate ${dateRange.endDate}: ` +
+        `endLagDays ends its window that many days before today`
+    );
+  }
+
+  /**
+   * Notes a node that has nothing to ask for this run because its lag ends its window
+   * before the run's first day.
+   * @private
+   */
+  _logLaggedOut(node, dateRange, end) {
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Node "${node.name}" asks for nothing this run: endLagDays ends its window on ${end}, ` +
+        `before the run's first day ${dateRange.startDate}`
+    );
   }
 
   /**
@@ -715,8 +769,10 @@ export class AbstractConnector {
       } else if (state.accountless) {
         message = `Nothing was imported because access was refused: ${describe(entries)}`;
       } else {
+        const subjects = new Set(entries.flatMap(([, entry]) => [...entry.subjects]));
+        const where = subjects.size === 1 ? ` while importing ${[...subjects][0]}` : '';
         message =
-          `All ${state.attemptedCount} accounts were skipped, so nothing was imported. This points ` +
+          `All ${state.attemptedCount} accounts were skipped${where}, so nothing was imported. This points ` +
           `to a global failure, such as an expired access token, rather than individual accounts ` +
           `being inaccessible. Errors: ${describe(entries)}`;
       }
@@ -824,12 +880,14 @@ export class AbstractConnector {
     } catch (error) {
       throw asStorageFailure(error);
     }
+    this._countRows(writer.nodeName, rows.length);
   }
 
   /**
    * Resolves short links for the fields a schema node declares under `shortLinks`, writing
-   * each landing page next to its original. No-op when the node has no spec, Process Short
-   * Links is off, or no spec has its field (and its `_parsed` target) selected.
+   * the address each short link service points to next to the original. No-op when the node
+   * has no spec, Process Short Links is off, or no spec has its field (and its `_parsed`
+   * target) selected.
    *
    * The helpers are bare globals of Core/Utils/ShortLinksUtils.js, a script in the bundle's
    * scope; nothing here touches them for a node without a spec.
@@ -852,13 +910,11 @@ export class AbstractConnector {
     if (activeSpecs.length === 0) return data;
 
     const cache = this._shortLinksCache();
+    // Only allowlisted domains resolve: the built-in public shorteners in ShortLinksUtils
+    // plus the deployment's CONNECTOR_SHORT_LINK_DOMAINS. Data Mart configuration never
+    // extends the list.
     return resolveShortLinkFields(data, activeSpecs, {
-      nestedPathHosts: [
-        ...getShortLinkDomainsFromEnv(),
-        // Domains saved by the former Facebook "Short Link Domains" setting keep working
-        // until every environment sets CONNECTOR_SHORT_LINK_DOMAINS.
-        ...parseShortLinkDomains(this.context.getParameter('ShortLinkDomains')?.value),
-      ],
+      allowedHosts: getShortLinkDomainsFromEnv(),
       resolvedLinksCache: cache.resolved,
       failedLinks: cache.failed,
     });
@@ -940,7 +996,7 @@ export class AbstractConnector {
           onBatch: batch => this._writeBatch(writer, batch, fields),
         });
         await this._writeBatch(writer, data, fields);
-      });
+      }, nodeName);
     }
     // Catalog nodes are full snapshots; no incremental state to persist.
   }
@@ -967,6 +1023,18 @@ export class AbstractConnector {
    */
   async _processTimeSeriesNodes(nodes, accounts, state) {
     if (!nodes.length) return;
+
+    const lagging = nodes.filter(
+      node =>
+        this.source.getDateStrategy(node.name) !== DATE_STRATEGY.NONE &&
+        (this.source.getEndLagDays?.(node.name) ?? 0) > 0
+    );
+    const dateRange = lagging.length ? this.getDateRange() : null;
+    if (dateRange) {
+      state.cursorCap = lagging
+        .map(node => this._nodeWindowEnd(node, dateRange))
+        .reduce((earliest, date) => (date < earliest ? date : earliest));
+    }
 
     const dayByDayNodes = [];
     const windowEndDates = [];
@@ -1020,6 +1088,12 @@ export class AbstractConnector {
       this.context.log(LOG_LEVEL.WARN, `Could not determine date range for node "${node.name}"`);
       return null;
     }
+    const endDate = this._nodeWindowEnd(node, dateRange);
+    if (endDate < dateRange.startDate) {
+      this._logLaggedOut(node, dateRange, endDate);
+      return null;
+    }
+    this._logLagCut(node, dateRange, endDate);
 
     const writers = new Map();
     let completedBy = 0;
@@ -1033,10 +1107,10 @@ export class AbstractConnector {
           fields: node.fields,
           accountId: account?.id ?? null,
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
+          endDate,
         });
         await this._writeBatch(writer, data, node.fields);
-      });
+      }, node.name);
       if (done) completedBy += 1;
     }
 
@@ -1048,7 +1122,7 @@ export class AbstractConnector {
       state.cursorHalted = true;
       return null;
     }
-    return dateRange.endDate;
+    return endDate;
   }
 
   /**
@@ -1092,9 +1166,16 @@ export class AbstractConnector {
     }
 
     const writers = new Map();
+    const endDates = new Map(nodes.map(node => [node, this._nodeWindowEnd(node, dateRange)]));
+    for (const [node, end] of endDates) {
+      if (end < dateRange.startDate) this._logLaggedOut(node, dateRange, end);
+      else this._logLagCut(node, dateRange, end);
+    }
+    const lastDay = [...endDates.values()].reduce((latest, date) => (date > latest ? date : latest));
 
-    for (const date of this._iterateDates(dateRange.startDate, dateRange.endDate)) {
+    for (const date of this._iterateDates(dateRange.startDate, lastDay)) {
       const formattedDate = this._formatDate(date);
+      const dayNodes = nodes.filter(node => endDates.get(node) >= formattedDate);
       let completedBy = 0;
       this._beginPass(state);
 
@@ -1113,7 +1194,7 @@ export class AbstractConnector {
         // date is then checkpointed is _advanceCursor's call, and it turns on the KIND of
         // failure, not on there having been one.
         const done = await this._runForAccount(state, account, async () => {
-          for (const node of nodes) {
+          for (const node of dayNodes) {
             const writer = this._nodeWriter(writers, node);
             const data = await this.source.fetchData({
               nodeName: node.name,
@@ -1124,7 +1205,7 @@ export class AbstractConnector {
             });
             await this._writeBatch(writer, data, node.fields);
           }
-        });
+        }, formattedDate);
         if (done) completedBy += 1;
       }
 
@@ -1196,7 +1277,7 @@ export class AbstractConnector {
           endDate: null,
         });
         if (data && data.length) batches.push(data);
-      });
+      }, nodeName);
       if (!done) missing.add(this._accountKey(account));
     }
 
@@ -1298,6 +1379,30 @@ export class AbstractConnector {
       );
     }
     await storage.replaceData(snapshot);
+    this._countRows(nodeName, snapshot.length);
+  }
+
+  /** @private */
+  _countRows(nodeName, count) {
+    if (!this._rowsByNode) return;
+    this._rowsByNode.set(nodeName, (this._rowsByNode.get(nodeName) ?? 0) + count);
+  }
+
+  /**
+   * Reports 0 rows written for every node that loaded nothing in a completed run. The
+   * storages report only the rows they write, so without this Run History showed such a run
+   * as a plain success with no count at all.
+   *
+   * @param {object[]} nodes the run's planned nodes
+   * @private
+   */
+  _reportEmptyNodes(nodes) {
+    for (const node of nodes) {
+      if (this._rowsByNode?.get(node.name) > 0) continue;
+      this.context.emitAnalytics('rows_written', 0, {
+        node: this.source.getDestinationName(node.name, node.schema),
+      });
+    }
   }
 
   /**

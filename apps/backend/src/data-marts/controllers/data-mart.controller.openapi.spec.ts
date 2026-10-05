@@ -143,7 +143,7 @@ describe('DataMartController list OpenAPI', () => {
         enum: ['has_owners', 'no_owners'],
       },
     });
-    expect(parameters.ownerFilter.description).toMatch(/business or technical owners/i);
+    expect(parameters.ownerFilter.description).toMatch(/business owners or data owners/i);
   });
 
   it('publishes the paginated response through named component schemas', () => {
@@ -338,7 +338,7 @@ describe('DataMartController list OpenAPI', () => {
       summary: 'Start a manual Data Mart run',
       tags: ['DataMarts'],
     });
-    expect(manualRun?.description).toMatch(/technical user/i);
+    expect(manualRun?.description).toMatch(/data owner role and edit access/i);
     expect(manualRun?.requestBody).toMatchObject({
       required: false,
       content: {
@@ -426,7 +426,7 @@ describe('DataMartController list OpenAPI', () => {
       summary: 'Cancel a Data Mart run',
       tags: ['DataMarts'],
     });
-    expect(cancelRun?.description).toMatch(/technical user/i);
+    expect(cancelRun?.description).toMatch(/data owner role and edit access/i);
     expect(cancelRun?.responses['204']).toEqual({ description: 'Data Mart run cancelled' });
   });
 

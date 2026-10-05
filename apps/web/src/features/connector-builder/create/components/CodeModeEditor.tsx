@@ -18,7 +18,7 @@ import { manifestToJson, parseManifestJson } from '../../shared/model/manifestJs
 const APPLY_DEBOUNCE_MS = 250;
 
 export function CodeModeEditor() {
-  const { manifest, setManifest, setCodeInvalid } = useBuilder();
+  const { manifest, setManifest, setCodeInvalid, setManifestOrigin } = useBuilder();
   const { codeEdits } = useBuilderContext();
   const { resolvedTheme } = useTheme();
   const [text, setText] = useState<string>(() => manifestToJson(manifest));
@@ -47,8 +47,9 @@ export function CodeModeEditor() {
     if (!res.ok) return null;
     pushedRef.current = res.manifest;
     setManifest(res.manifest);
+    setManifestOrigin('code');
     return res.manifest;
-  }, [cancelPending, setManifest]);
+  }, [cancelPending, setManifest, setManifestOrigin]);
 
   // Unmounting is the switch to Builder mode, and it takes the buffer with it. Push
   // whatever the debounce still owes before that happens, or the last quarter second of

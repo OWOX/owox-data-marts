@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { CirclePlay, Play, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -16,6 +16,11 @@ import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-a
 import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
 import { credentialParameterNames } from '../../shared/model/credentialParameters';
+import {
+  describeApiFailure,
+  describeFailure,
+  trackCustomConnectorEvent,
+} from '../../shared/model/analytics';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 
 /** Which representation of the test run the dock body shows. */
@@ -59,6 +64,18 @@ export function deriveColumns(records: (Record<string, unknown> | null)[]): {
 }
 
 /**
+ * The node to test once the node names change. A rename, in Code mode especially, keeps the
+ * key where it was, so the node at the same position is the renamed one; testing the old name
+ * would be refused as an unknown node.
+ */
+export function followNode(previous: string[], current: string, next: string[]): string {
+  if (current && next.includes(current)) return current;
+  const index = previous.indexOf(current);
+  if (index >= 0 && index < next.length) return next[index];
+  return next.length > 0 ? next[0] : '';
+}
+
+/**
  * Full-width, collapsible "Test results" dock pinned to the bottom of the work area
  * (the centerpiece of the Dense Pro redesign). The test inputs that used to live in
  * the old vertical Testing panel — node, parameter values, max rows — now live in a
@@ -87,6 +104,7 @@ export function ResultsDock({
   const [settings, setSettings] = useState(false);
   const [view, setView] = useState<ResultView>('table');
   const [dockHeight, setDockHeight] = useState(300);
+  const testsRun = useRef(0);
 
   // Which parameters hold a credential: those marked SECRET and those the authentication
   // uses. Their test values are what the author typed to reach a live API, so they are kept
@@ -170,16 +188,25 @@ export function ResultsDock({
     window.addEventListener('mouseup', cleanup);
   };
 
+  const namesKey = nodeNames.join('\n');
+  const previousNames = useRef(nodeNames);
+  const previousSelected = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (selectedNode && selectedNode in manifest.nodes) {
+    const previous = previousNames.current;
+    previousNames.current = nodeNames;
+    const selectionChanged = previousSelected.current !== selectedNode;
+    previousSelected.current = selectedNode;
+    // Only a new nav-rail pick moves the dock. Code mode hides the rail, so a rename there
+    // leaves `selectedNode` on the last Builder pick while the dock holds the author's own.
+    if (selectionChanged && selectedNode && selectedNode in manifest.nodes) {
       setNode(selectedNode);
     } else {
-      setNode(prev => (prev && prev in manifest.nodes ? prev : (nodeNames[0] ?? '')));
+      setNode(prev => followNode(previous, prev, nodeNames));
     }
-    // Re-sync only when the nav-rail selection or the set of nodes changes, so a manual
+    // Re-sync only when the nav-rail selection or the node names change, so a manual
     // pick in the Select below is not overridden on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNode, nodeNames.length]);
+  }, [selectedNode, namesKey]);
 
   // Restore the saved test inputs for this connector (once per connector id). Saving
   // happens in the updateValue/updateMaxRows handlers, so this never clobbers fresh edits.
@@ -212,20 +239,45 @@ export function ResultsDock({
     if (!open) onToggleOpen();
     setRunning(true);
     setResult(null);
+    // Code mode may still hold a rename the effect above has not seen.
+    const tested = flushCodeEdits() ?? manifest;
+    const target = followNode(nodeNames, node, Object.keys(tested.nodes));
+    if (target !== node) setNode(target);
+    const startedAt = Date.now();
+    const connector = { id: state.id, manifest: tested, version: state.loadedVersion };
+    let outcome: ConnectorTestResultDto;
     try {
-      const res = await new ConnectorBuilderApiService().test({
-        manifest: flushCodeEdits() ?? manifest,
-        node,
+      outcome = await new ConnectorBuilderApiService().test({
+        manifest: tested,
+        node: target,
         configuration: values,
         maxRows,
       });
-      setResult(res);
-      setSample(node, res.sample ?? []);
+      setResult(outcome);
+      setSample(target, outcome.sample ?? []);
     } catch (e) {
       setResult({ rows: [], logs: [], error: testFailureMessage(e) });
+      // OWOX refused to start the test (the concurrency limit, a blank manifest): no test ran.
+      trackCustomConnectorEvent('custom_connector_error', connector, {
+        action: 'TestError',
+        ...describeApiFailure(e),
+      });
+      return;
     } finally {
       setRunning(false);
     }
+    // A node without declared fields is tested sample-only: the records the dock shows are
+    // the raw sample, at most a few of them, so the count is a lower bound there.
+    const shown = displayRecords(outcome).length;
+    testsRun.current += 1;
+    trackCustomConnectorEvent('custom_connector_test_run', connector, {
+      result: outcome.error ? 'error' : shown ? 'success' : 'empty',
+      recordsCount: shown,
+      sampleOnly: outcome.rows.length === 0 && shown > 0,
+      durationMs: Date.now() - startedAt,
+      testsInSession: testsRun.current,
+      ...(outcome.error ? describeFailure(outcome.error) : { errorKind: null, httpStatus: null }),
+    });
   };
 
   const hasNodes = nodeNames.length > 0;
@@ -324,7 +376,7 @@ export function ResultsDock({
         <div className='ml-auto flex items-center gap-2.5'>
           {hasNodes && (
             <Select value={node} onValueChange={setNode}>
-              <SelectTrigger className='h-8 w-[120px] text-xs'>
+              <SelectTrigger className='h-8 w-[120px] text-xs' aria-label='Node to test'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

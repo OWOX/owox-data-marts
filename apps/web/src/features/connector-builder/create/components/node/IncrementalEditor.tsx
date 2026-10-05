@@ -14,6 +14,8 @@ const CHOICES: { key: IncChoice; label: string }[] = [
   { key: 'day-by-day', label: 'Day-by-day' },
   { key: 'range', label: 'Range' },
 ];
+// The engine's limit (ManifestParser), as the Reimport Lookback Window clamps to its own.
+const MAX_END_LAG_DAYS = 30;
 const INTO_CHOICES: { key: 'query' | 'body'; label: string }[] = [
   { key: 'query', label: 'query' },
   { key: 'body', label: 'body' },
@@ -84,6 +86,17 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
             ...(endPath ? { endPath } : {}),
           };
     setPath([...base, 'request'], next);
+  };
+
+  const setEndLagDays = (value: string) => {
+    if (!incremental || incremental.strategy === 'none') return;
+    const days = Number.parseInt(value, 10);
+    // 0 is the engine's default, so it is stored as no key at all.
+    const next: Record<string, unknown> = { ...incremental };
+    delete next.endLagDays;
+    // max on the input does not stop a keystroke, and Publish refuses anything above it.
+    if (Number.isInteger(days) && days > 0) next.endLagDays = Math.min(days, MAX_END_LAG_DAYS);
+    setPath(base, next);
   };
 
   return (
@@ -172,6 +185,24 @@ export function IncrementalEditor({ nodeName }: { nodeName: string }) {
                 setPath([...base, 'request', 'format'], e.target.value);
               }}
               placeholder='YYYY-MM-DD'
+            />
+          </label>
+
+          <label className='flex flex-col'>
+            <InfoLabel hint='For an API that reports only completed days: the window ends this many days before today (UTC). 1 leaves out today.'>
+              Skip the last days
+            </InfoLabel>
+            <Input
+              type='number'
+              min={0}
+              max={MAX_END_LAG_DAYS}
+              step={1}
+              aria-label='Skip the last days'
+              value={incremental?.strategy === 'none' ? '' : (incremental?.endLagDays ?? '')}
+              onChange={e => {
+                setEndLagDays(e.target.value);
+              }}
+              placeholder='0'
             />
           </label>
 

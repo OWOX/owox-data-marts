@@ -119,7 +119,9 @@ describe('ConnectorEditForm — preselecting a never-published custom connector'
 
     fireEvent.click(await screen.findByRole('button', { name: /open in builder/i }));
 
-    expect(navigate).toHaveBeenCalledWith(`/connectors/builder/${DRAFT_ID}`);
+    expect(navigate).toHaveBeenCalledWith(`/connectors/builder/${DRAFT_ID}`, {
+      state: { builderEntryPoint: 'data_mart_wizard' },
+    });
   });
 
   it('keeps the wizard from advancing past an unpublished connector', async () => {

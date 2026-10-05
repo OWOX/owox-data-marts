@@ -1,12 +1,12 @@
-# Declarative Connectors
+# Custom Connectors
 
-A declarative connector loads data from an HTTP API into your storage without any code. Instead of a program, it is a description of the API — a JSON document called a manifest: where to send requests, how to authorize them, how to page through the results, and which fields to keep. The OWOX connector engine reads the manifest and does the work.
+A custom connector loads data from an HTTP API into your storage without any code. Instead of a program, it is a description of the API — a JSON document called a manifest: where to send requests, how to authorize them, how to page through the results, and which fields to keep. The OWOX connector engine reads the manifest and does the work.
 
-Your team can build a declarative connector for any API that has no built-in OWOX connector. Once published, it is used in Data Marts like any other connector: it runs on a schedule or manually, supports backfills, and loads rows into the Data Mart's table.
+Your team can build a custom connector for any API that has no built-in OWOX connector. Once published, it is used in Data Marts like any other connector: it runs on a schedule or manually, supports backfills, and loads rows into the Data Mart's table.
 
 ## When to use one
 
-A declarative connector fits when:
+A custom connector fits when:
 
 - the data you need comes from an API that has no built-in OWOX connector;
 - the API is served over HTTPS and answers in JSON, CSV or JSONL;
@@ -54,10 +54,10 @@ To keep a copy of a connector or move it to another project, export its manifest
 
 ## Who can use them
 
-A declarative connector belongs to a project, and every Data Mart in the project can use it.
+A custom connector belongs to a project, and every Data Mart in the project can use it.
 
-- Project Admins and Technical Users create, edit, publish and delete connectors.
-- Anyone who sets up a connector-based Data Mart can choose a published connector. Custom connectors are listed under **Custom Connectors** in the connector setup.
+- Project Admins and Data Owners create, edit, publish and delete connectors.
+- Anyone who sets up a connector-based Data Mart can choose a published connector under **Custom Connectors** in the connector setup.
 
 See [Roles and Permissions](../project/roles-and-permissions.md).
 
@@ -65,7 +65,7 @@ See [Roles and Permissions](../project/roles-and-permissions.md).
 
 Credentials should never be part of a manifest. The engine does not stop one from being typed into a header, a template or a parameter default, and one that is stays in the manifest: **Export JSON** downloads it as it is, and anyone who can edit the connector can read it. A key or a token goes into a Secret parameter instead: its value is masked in the UI and in API responses and stored apart from the Data Mart's definition (it is not encrypted), and it is entered only on the Data Mart page, or in the builder to run a test.
 
-A declarative connector sends requests only over HTTPS, only to the hosts named in its manifest — the base URL and the authentication URLs. The one exception is the download link that an asynchronous report API returns, which may point to any public HTTPS address. A declarative connector never connects to private or local network addresses, so an API inside your own network cannot be reached this way.
+A custom connector sends requests only over HTTPS, only to the hosts named in its manifest — the base URL and the authentication URLs. The one exception is the download link that an asynchronous report API returns, which may point to any public HTTPS address. A custom connector never connects to private or local network addresses, so an API inside your own network cannot be reached this way.
 
 ## Related Links
 

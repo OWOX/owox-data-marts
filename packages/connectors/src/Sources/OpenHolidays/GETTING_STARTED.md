@@ -30,13 +30,13 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 1. Choose available **endpoint**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 ![Open Holidays Publish Data Mart](res/holidays_publish.png)
 
 ## Run the Data Mart
 
-You now have two options for importing data from Open Holidays:  
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:  
 
 Option 1: Import Current Day's Data
 

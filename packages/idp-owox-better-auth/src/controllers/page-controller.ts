@@ -8,7 +8,22 @@ import {
 import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
-import { extractAuthFlowParams, persistAuthFlowContext } from '../utils/request-utils.js';
+import {
+  consumeAuthFlowError,
+  extractAuthFlowParams,
+  persistAuthFlowContext,
+} from '../utils/request-utils.js';
+import { consumeVerifiedSocialIntent, type SocialProvider } from '../utils/social-intent.js';
+
+function resolveAutoSubmitProvider(
+  hasQueryState: boolean,
+  pendingAction: SocialProvider | undefined,
+  enabledProviders: UiAuthProviders
+): SocialProvider | undefined {
+  if (!hasQueryState) return undefined;
+  if (!pendingAction) return undefined;
+  return enabledProviders[pendingAction] ? pendingAction : undefined;
+}
 
 /**
  * Renders static auth pages and persists auth-flow context.
@@ -25,9 +40,35 @@ export class PageController {
     persistAuthFlowContext(req, res, { state, params });
   }
 
+  /**
+   * Whether *this exact request* is a genuine return leg from the Platform
+   * round trip (state literally present in its own query), never merely
+   * "some state cookie happens to still be around". Deliberately not
+   * cookie-inclusive: a stale leftover cookie (abandoned attempt, an error
+   * path that didn't clear it, etc.) must not be trusted as fresh, and -
+   * more importantly - this value gates auto-submitting a sign-in action
+   * with no further click, so it must not be satisfiable by a query
+   * parameter alone (a crafted `?state=x&pendingAction=google` link). The
+   * short-lived action cookie also needs proof from the one-time button POST.
+   */
+  private hasQueryState(req: ExpressRequest): boolean {
+    return typeof req.query?.state === 'string' && req.query.state.length > 0;
+  }
+
+  isSocialProviderEnabled(provider: SocialProvider): boolean {
+    return Boolean(this.providers[provider]);
+  }
+
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    const hasState = this.hasQueryState(req);
+    const autoSubmitProvider = resolveAutoSubmitProvider(
+      hasState,
+      consumeVerifiedSocialIntent(req, res),
+      this.providers
+    );
     this.persistAuthFlowContext(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
+    const savedError = consumeAuthFlowError(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -36,13 +77,22 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
+        hasState,
+        autoSubmitProvider,
       })
     );
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    const hasState = this.hasQueryState(req);
+    const autoSubmitProvider = resolveAutoSubmitProvider(
+      hasState,
+      consumeVerifiedSocialIntent(req, res),
+      this.providers
+    );
     this.persistAuthFlowContext(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
+    const savedError = consumeAuthFlowError(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -51,6 +101,7 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
+        autoSubmitProvider,
       })
     );
   }

@@ -29,7 +29,7 @@ export class RunReportTool implements McpToolDefinition<RunReportInput> {
   readonly annotations = {
     title: 'Run Report',
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: true,
   };

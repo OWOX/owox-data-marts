@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router';
 import { ShieldAlert } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { usePermissions } from '../../../app/permissions';
-import { ConnectorBuilderPage } from '../../../features/connector-builder/create/ConnectorBuilderPage';
+import {
+  ConnectorBuilderPage,
+  type BuilderEntryPoint,
+} from '../../../features/connector-builder/create/ConnectorBuilderPage';
 import { useUnsavedChangesGuard } from '../../../features/connector-builder/shared/model/hooks/useUnsavedChangesGuard';
 import { UnsavedChangesConfirmationDialog } from '../../../shared/components/UnsavedChangesConfirmationDialog';
 
 interface ConnectorBuilderRouteProps {
   id?: string;
+  entryPoint?: BuilderEntryPoint;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -50,7 +54,13 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
 }
 
 /** The builder plus the guard that holds back navigation while it has unsaved edits. */
-function GuardedBuilder({ id, onBack, onDeleted, onCreated }: ConnectorBuilderRouteProps) {
+function GuardedBuilder({
+  id,
+  entryPoint,
+  onBack,
+  onDeleted,
+  onCreated,
+}: ConnectorBuilderRouteProps) {
   // A ref rather than state: nothing here re-renders on dirtiness, and the guard has to
   // read the flag at the instant a navigation is requested (see useUnsavedChangesGuard).
   const dirtyRef = useRef(false);
@@ -70,6 +80,7 @@ function GuardedBuilder({ id, onBack, onDeleted, onCreated }: ConnectorBuilderRo
     <>
       <ConnectorBuilderPage
         id={id}
+        entryPoint={entryPoint}
         onBack={onBack}
         onDeleted={handleDeleted}
         onCreated={onCreated}

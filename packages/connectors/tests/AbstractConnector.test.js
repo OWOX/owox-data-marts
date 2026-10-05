@@ -476,11 +476,67 @@ describe('AbstractConnector', () => {
         const connector = new AbstractConnector(ctx, source, createMockStorageClass());
         await connector.run();
 
-        assert.ok(warnings.some(w => w.includes('Skipped account revoked')));
+        assert.ok(warnings.some(w => w.includes('skipped account revoked')));
         assert.ok(
           warnings.some(w => w.includes('1 out of 2 accounts were skipped')),
           'the run must carry a summary warning, not just a per-account one'
         );
+      } finally {
+        restore();
+      }
+    });
+
+    it('names the node being imported when an account is skipped', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = createTestContext();
+        const warnings = captureWarnings(ctx);
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'revoked' }, { id: 'working' }],
+          fetchData: async req => {
+            if (req.accountId === 'revoked') {
+              throw Object.assign(new Error('Application has been deleted.'), { isWarning: true });
+            }
+            return [];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+
+        assert.ok(
+          warnings.includes(
+            'Importing campaigns: skipped account revoked: Application has been deleted.'
+          ),
+          warnings.join(' | ')
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it('names the node when every account was skipped while importing it', async () => {
+      const restore = suppressStdout();
+      try {
+        const source = createMockSource({
+          getAccounts: () => [{ id: 'revoked' }],
+          fetchData: async () => {
+            throw Object.assign(new Error('Application has been deleted.'), { isWarning: true });
+          },
+        });
+        const connector = new AbstractConnector(
+          createTestContext(),
+          source,
+          createMockStorageClass()
+        );
+        const error = await connector.run().then(
+          () => null,
+          e => e
+        );
+
+        assert.match(
+          error?.message ?? '',
+          /^All 1 accounts were skipped while importing campaigns, so nothing was imported\. .*Errors: revoked: Application has been deleted\.$/
+        );
+        assert.strictEqual(error.isWarning, true);
       } finally {
         restore();
       }
@@ -2289,7 +2345,7 @@ describe('AbstractConnector', () => {
           .filter(e => e.type === 'LOG' && e.level === 'warn')
           .map(e => e.message);
         assert.ok(
-          warnings.some(w => w.includes('Skipped account revoked')),
+          warnings.some(w => w.includes('skipped account revoked')),
           `the skip must still be reported; got: ${warnings.join(' | ')}`
         );
       } finally {
@@ -3097,6 +3153,32 @@ describe('AbstractConnector', () => {
       }
     });
 
+    it('names the day being imported when an account is skipped day by day', async () => {
+      const restore = suppressStdout();
+      try {
+        const ctx = incrementalWindow(3);
+        const warnings = captureWarnings(ctx);
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getAccounts: () => [{ id: 'revoked' }, { id: 'working' }],
+          fetchData: async req => {
+            if (req.accountId === 'revoked') {
+              throw Object.assign(new Error('HTTP 403: Forbidden'), { isWarning: true });
+            }
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+
+        const skips = warnings.filter(w => w.includes('skipped account revoked'));
+        assert.deepStrictEqual(skips, [
+          `Importing ${utcDay(-2)}: skipped account revoked: HTTP 403: Forbidden`,
+        ]);
+      } finally {
+        restore();
+      }
+    });
+
     it('requests each day as a one-day range', async () => {
       const restore = suppressStdout();
       try {
@@ -3476,6 +3558,255 @@ describe('AbstractConnector', () => {
           !loggedMessages(cap).some(m => m.includes('account null')),
           loggedMessages(cap).join('; ')
         );
+      } finally {
+        cap.restore();
+      }
+    });
+  });
+
+  // Run History shows "Loaded N rows" only when the run reports rows_written, so a run that
+  // loaded nothing looked like a plain success with no count at all.
+  describe('a node that loaded nothing', () => {
+    const zeroWrites = cap =>
+      cap.events
+        .filter(e => e.type === 'ANALYTICS' && e.metric === 'rows_written' && e.value === 0)
+        .map(e => e.tags.node);
+
+    it('reports 0 rows written for it', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({ fetchData: async () => [] });
+        await new AbstractConnector(createTestContext(), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['campaigns']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports nothing extra for a node that loaded rows', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          parseFields: () => ({ campaigns: ['id'], stats: ['id', 'date'] }),
+          fetchData: async req => (req.nodeName === 'campaigns' ? [{ id: 1 }] : []),
+        });
+        await new AbstractConnector(
+          createTestContext({
+            LastRequestedDate: { value: utcDay(-1) },
+            ReimportLookbackWindow: { value: '0' },
+          }),
+          source,
+          createMockStorageClass()
+        ).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['stats']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports 0 rows written for an empty full-refresh snapshot', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fieldsSchema: {
+            people: {
+              fields: { id: { type: 'INTEGER' } },
+              uniqueKeys: ['id'],
+              isFullRefresh: true,
+              destinationName: 'people',
+            },
+          },
+          parseFields: () => ({ people: ['id'] }),
+          fetchData: async () => [],
+        });
+        await new AbstractConnector(createTestContext(), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(zeroWrites(cap), ['people']);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('reports nothing when the run fails', async () => {
+      const cap = captureEvents();
+      try {
+        const source = createMockSource({
+          fetchData: async () => {
+            throw new Error('HTTP 500');
+          },
+        });
+        await assert.rejects(() =>
+          new AbstractConnector(createTestContext(), source, createMockStorageClass()).run()
+        );
+        assert.deepStrictEqual(zeroWrites(cap), []);
+      } finally {
+        cap.restore();
+      }
+    });
+  });
+
+  // An API that reports only completed days refuses a window ending today. A node's window
+  // then ends endLagDays before today, and the cursor never claims a day some node has not
+  // yet been asked for: the next run starts at the cursor, so a sibling that ran to today
+  // must not carry it past a lagging node's last day.
+  describe('endLagDays', () => {
+    const lagContext = days =>
+      createTestContext({
+        LastRequestedDate: { value: utcDay(-(days - 1)) },
+        ReimportLookbackWindow: { value: '0' },
+      });
+    const timeSeries = names =>
+      Object.fromEntries(
+        names.map(name => [
+          name,
+          { fields: [], uniqueKeys: ['id', 'date'], isTimeSeries: true, destinationName: name },
+        ])
+      );
+    const cursorsOf = cap =>
+      cap.events.filter(e => e.type === 'STATE').map(e => e.state.lastRequestedDate);
+
+    it('ends a day-by-day node endLagDays before today', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getEndLagDays: () => 1,
+          fetchData: async req => {
+            asked.push(req.startDate);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(3), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [utcDay(-2), utcDay(-1)]);
+        assert.deepStrictEqual(cursorsOf(cap), [utcDay(-2), utcDay(-1)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('ends a range node endLagDays before today and claims that day', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 1,
+          fetchData: async req => {
+            asked.push([req.startDate, req.endDate]);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(3), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [[utcDay(-2), utcDay(-1)]]);
+        assert.deepStrictEqual(cursorsOf(cap), [utcDay(-1)]);
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('holds the cursor at the earliest window end when nodes lag differently', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['daily', 'report']),
+          parseFields: () => ({ daily: ['id', 'date'], report: ['id', 'date'] }),
+          getDateStrategy: name => (name === 'report' ? 'range' : 'day-by-day'),
+          getEndLagDays: name => (name === 'report' ? 2 : 0),
+          fetchData: async req => {
+            asked.push(`${req.nodeName}:${req.startDate}..${req.endDate}`);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(lagContext(4), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [
+          `report:${utcDay(-3)}..${utcDay(-2)}`,
+          `daily:${utcDay(-3)}..${utcDay(-3)}`,
+          `daily:${utcDay(-2)}..${utcDay(-2)}`,
+          `daily:${utcDay(-1)}..${utcDay(-1)}`,
+          `daily:${utcDay(0)}..${utcDay(0)}`,
+        ]);
+        assert.ok(
+          cursorsOf(cap).every(date => date <= utcDay(-2)),
+          `the cursor passed the report's last day: ${cursorsOf(cap).join(', ')}`
+        );
+        assert.strictEqual(cursorsOf(cap).at(-1), utcDay(-2));
+      } finally {
+        cap.restore();
+      }
+    });
+
+    // A backfill that ends before today is cut too, and nothing else on the run says so.
+    it('stops a manual backfill endLagDays before today, and says where', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const ctx = createTestContext(
+          {},
+          {
+            type: 'MANUAL_BACKFILL',
+            data: [
+              { configField: 'StartDate', value: utcDay(-5) },
+              { configField: 'EndDate', value: utcDay(-1) },
+            ],
+          }
+        );
+        ctx.registerParameters({
+          StartDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+          EndDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+        });
+        const infos = [];
+        const log = ctx.log.bind(ctx);
+        ctx.log = (level, message) => {
+          if (level === 'info') infos.push(message);
+          return log(level, message);
+        };
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 2,
+          fetchData: async req => {
+            asked.push([req.startDate, req.endDate]);
+            return [{ id: 1, date: req.startDate }];
+          },
+        });
+        await new AbstractConnector(ctx, source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, [[utcDay(-5), utcDay(-2)]]);
+        assert.ok(
+          infos.some(
+            message =>
+              message.includes('endLagDays') &&
+              message.includes(utcDay(-2)) &&
+              message.includes(utcDay(-1))
+          ),
+          `no INFO line names the cut: ${infos.join(' | ')}`
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('asks nothing of a node whose lagged window ends before it starts, and claims nothing', async () => {
+      const cap = captureEvents();
+      try {
+        const asked = [];
+        const source = createMockSource({
+          fieldsSchema: timeSeries(['stats']),
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          getEndLagDays: () => 2,
+          fetchData: async req => {
+            asked.push(req.startDate);
+            return [];
+          },
+        });
+        await new AbstractConnector(lagContext(1), source, createMockStorageClass()).run();
+        assert.deepStrictEqual(asked, []);
+        assert.deepStrictEqual(cursorsOf(cap), []);
       } finally {
         cap.restore();
       }

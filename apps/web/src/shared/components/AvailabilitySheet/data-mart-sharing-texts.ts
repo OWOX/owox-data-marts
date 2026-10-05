@@ -10,6 +10,7 @@ export const DATA_MART_SHARING_TEXTS = {
   },
   availableForMaintenance: {
     label: 'Shared for maintenance',
-    description: 'Technical users can edit, delete, and manage triggers for this Data Mart',
+    description:
+      'Members with the Data Owner role can edit, delete, and manage triggers for this Data Mart',
   },
 } as const;

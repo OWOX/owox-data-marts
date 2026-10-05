@@ -1,4 +1,5 @@
 import { type Request, type Response } from 'express';
+import ms from 'ms';
 import { z } from 'zod';
 import {
   BETTER_AUTH_CSRF_COOKIE,
@@ -27,11 +28,18 @@ const AUTH_PARAMS = new Set([
   'token',
   'callbackURL',
   'intent',
+  'pendingAction',
+  'socialIntentVerified',
 ]);
 
 const STATE_COOKIE = 'idp-owox-state';
 const AUTH_FLOW_PARAMS_COOKIE = 'idp-owox-params';
+const AUTH_FLOW_ERROR_COOKIE = 'idp-owox-auth-error';
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/** Only the legacy email fallback can be requested in a URL. */
+export const PENDING_ACTION_VALUES = ['google', 'microsoft', 'email'] as const;
+export type PendingAction = (typeof PENDING_ACTION_VALUES)[number];
 
 const optionalStringParam = z.preprocess(
   value => (typeof value === 'string' ? value : undefined),
@@ -152,7 +160,11 @@ export class StateManager {
 
   persist(res: Response, state: string): void {
     if (!state) return;
-    setCookie(res, this.req, STATE_COOKIE, state);
+    // IB's own state record lives for 2 minutes (idp.authFlow.stateLifetime);
+    // capping the cookie at the same window means a stale cookie left behind
+    // by an abandoned or failed attempt self-corrects instead of silently
+    // being trusted as "state exists" long after IB would reject it.
+    setCookie(res, this.req, STATE_COOKIE, state, { maxAgeMs: ms('2m') });
   }
 }
 
@@ -218,6 +230,37 @@ export function clearAuthFlowCookies(res: Response, req?: Request): void {
  */
 export function clearAuthFlowStateCookie(res: Response, req?: Request): void {
   clearCookie(res, STATE_COOKIE, req);
+}
+
+/** Keep a continuation for another sign-in attempt after a failed callback. */
+export function resetAuthFlowForRetry(req: Request, res: Response): void {
+  clearAuthFlowStateCookie(res, req);
+  const params = extractAuthFlowParams(req);
+  const appRedirectTo = params.appRedirectTo?.startsWith('/auth/idp-start?projectId=')
+    ? undefined
+    : params.appRedirectTo;
+  const serialized = serializeAuthFlowParams({
+    ...params,
+    projectId: undefined,
+    appRedirectTo,
+    projectRedirectUserId: appRedirectTo ? params.projectRedirectUserId : undefined,
+  });
+  if (serialized) {
+    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, encodeURIComponent(serialized));
+  } else {
+    clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
+  }
+}
+
+/** Keep a one-time message across the Platform state round trip. */
+export function persistAuthFlowError(req: Request, res: Response, message: string): void {
+  setCookie(res, req, AUTH_FLOW_ERROR_COOKIE, message.slice(0, 200), { maxAgeMs: 2 * 60 * 1000 });
+}
+
+export function consumeAuthFlowError(req: Request, res: Response): string | undefined {
+  const message = getCookie(req, AUTH_FLOW_ERROR_COOKIE);
+  if (message) clearCookie(res, AUTH_FLOW_ERROR_COOKIE, req);
+  return message;
 }
 
 /**
@@ -314,7 +357,6 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const projectId = normalizeProjectId(
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
-
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
     appRedirectTo: resolvedAppRedirectTo,
@@ -325,6 +367,14 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     projectId: projectId || cookieParams.projectId,
     extraParams: resolvedExtraParams || cookieParams.extraParams,
   };
+}
+
+/**
+ * Only the legacy email fallback may be requested by URL. A social provider
+ * named in a link is never treated as a button click.
+ */
+export function readPendingActionFromQuery(req: Request): PendingAction | undefined {
+  return req.query?.pendingAction === 'email' ? 'email' : undefined;
 }
 
 /**

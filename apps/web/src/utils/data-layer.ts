@@ -4,10 +4,11 @@ export interface DataLayerEvent {
   category?: string;
   action?: string;
   label?: string;
-  context?: string;
-  value?: string;
+  // Null clears what an earlier push set: GTM keeps the last value pushed for a key.
+  context?: string | null;
+  value?: string | null;
   details?: string;
-  error?: string;
+  error?: string | null;
   timestamp?: number;
   [key: string]: unknown;
 }
@@ -68,7 +69,9 @@ export const trackEvent = (eventData: AnalyticsEvent): void => {
   }
   eventData.timestamp = eventData.timestamp ?? Date.now();
   eventData.eventType = eventData.eventType ?? 'app';
-  pushToDataLayer(eventData);
+  // Always present, if only as undefined: GTM keeps the last value pushed for a key, and the
+  // PostHog tag forwards `details`, so an event without it would carry an earlier event's.
+  pushToDataLayer({ ...eventData, details: eventData.details });
 };
 
 export const trackUserIdentified = (identifiedEvent: Omit<UserIdentifiedEvent, 'event'>): void => {

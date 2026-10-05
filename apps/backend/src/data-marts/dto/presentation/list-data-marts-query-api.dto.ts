@@ -23,7 +23,7 @@ export class ListDataMartsQueryApiDto {
 
   @ApiPropertyOptional({
     enum: OwnerFilter,
-    description: 'Filter by whether a Data Mart has business or technical owners',
+    description: 'Filter by whether a Data Mart has Business Owners or Data Owners',
   })
   @IsOptional()
   @IsEnum(OwnerFilter)

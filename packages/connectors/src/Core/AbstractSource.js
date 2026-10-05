@@ -154,6 +154,14 @@ export class AbstractSource {
   }
 
   /**
+   * How many days before today a time-series node's window ends, for an API that reports
+   * only completed days. 0: the window ends today.
+   */
+  getEndLagDays(nodeName) {
+    return 0;
+  }
+
+  /**
    * Called after all nodes for an account are processed.
    */
   onAccountComplete(account) {
@@ -366,19 +374,28 @@ export class AbstractSource {
           const bodyText =
             typeof response.text === 'function' ? await response.text().catch(() => '') : '';
           const snippet = bodyText ? ` — ${bodyText.slice(0, 300)}` : '';
-          const error = new Error(`HTTP ${response.status}: ${response.statusText}${snippet}`);
+          // Best-effort: parse the JSON error body as `.payload`, restoring main's contract
+          // that Source.isValidToRetry() overrides (e.g. FacebookMarketing) rely on to
+          // inspect provider-specific error codes. A non-JSON body leaves it unset --
+          // `.responseBody` (raw text) already covers that case.
+          let payload;
+          try {
+            payload = JSON.parse(bodyText);
+          } catch {
+            // non-JSON body -- leave payload unset
+          }
+          // The run history shows this message, so it names the provider's own reason as
+          // main did, not the JSON around it.
+          const providerMessage = AbstractSource._providerErrorMessage(payload);
+          const error = new Error(
+            providerMessage
+              ? `HTTP ${response.status}: ${providerMessage}`
+              : `HTTP ${response.status}: ${response.statusText}${snippet}`
+          );
           error.response = response;
           error.statusCode = response.status;
           error.responseBody = bodyText;
-          // Best-effort: attach the parsed JSON error body as `.payload`, restoring
-          // main's contract that Source.isValidToRetry() overrides (e.g. FacebookMarketing)
-          // rely on to inspect provider-specific error codes. A non-JSON body is left
-          // unset -- `.responseBody` (raw text) already covers that case.
-          try {
-            error.payload = JSON.parse(bodyText);
-          } catch {
-            // non-JSON body -- leave error.payload unset
-          }
+          if (payload !== undefined) error.payload = payload;
 
           if ((await this.isValidToRetry(error)) && attempt < totalAttempts - 1) {
             const delay = this.calculateBackoff(attempt, initialDelay);
@@ -441,6 +458,28 @@ export class AbstractSource {
         }
       }
     }
+  }
+
+  /**
+   * The reason a provider gave in its JSON error body, looked up where main's
+   * _extractErrorInfo looked for it, and in a JSON:API error's `detail`. Not its `title`: that
+   * is the same summary for every occurrence, and the body snippet it would replace names the
+   * field in `source.pointer`.
+   *
+   * @param {*} payload - the parsed error body
+   * @returns {string|null} null when the body names no message
+   */
+  static _providerErrorMessage(payload) {
+    const firstError = Array.isArray(payload?.errors) ? payload.errors[0] : undefined;
+    const candidates = [
+      payload?.error?.message,
+      payload?.message,
+      payload?.errorMessage,
+      payload?.error_message,
+      firstError?.message,
+      firstError?.detail,
+    ];
+    return candidates.find(message => typeof message === 'string' && message.trim()) ?? null;
   }
 
   /**

@@ -436,7 +436,14 @@ function processGithubVideoLinks(fileContent) {
     return line;
   });
 
-  return processedLines.join('\n');
+  // An HTML block runs to the next blank line, so content right after an embed must be separated
+  return processedLines
+    .map((processedLine, index) => {
+      const isEmbed = processedLine !== lines[index];
+      const nextLine = lines[index + 1] ?? '';
+      return isEmbed && nextLine.trim() !== '' ? `${processedLine}\n` : processedLine;
+    })
+    .join('\n');
 }
 
 /**
@@ -522,6 +529,9 @@ function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
     '//',
     '/'
   );
+
+  // index pages are served at their folder path, e.g. /docs/api/index/ -> /docs/api/
+  pagePath = pagePath.replace(/\/index\/$/, '/');
 
   // handle custom page path cases
   if (pagePath === '/readme/') {

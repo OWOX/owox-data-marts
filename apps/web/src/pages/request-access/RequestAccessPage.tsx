@@ -23,7 +23,7 @@ import { buildProjectPath } from '../../utils/path';
 
 const ROLE_LABELS: Record<Role, string> = {
   viewer: 'Business User',
-  editor: 'Technical User',
+  editor: 'Data Owner',
   admin: 'Project Admin',
 };
 

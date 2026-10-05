@@ -1,7 +1,10 @@
 import { it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
+import { trackEvent } from '../../../../../utils/data-layer';
 import { ConnectorVersionControl } from './ConnectorVersionControl';
+
+vi.mock('../../../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 const getById = vi.fn();
 vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service', () => ({
@@ -101,6 +104,18 @@ it('clears the pin via Follow active', async () => {
   fireEvent.click(screen.getByTestId('connector-version-badge'));
   fireEvent.click(await screen.findByRole('button', { name: 'Follow active' }));
   expect(onChange).toHaveBeenCalledWith(undefined);
+});
+
+// A pick here is not saved yet: the Data Mart save reports the pin it keeps.
+it('reports nothing for a pick in the popover', async () => {
+  vi.mocked(trackEvent).mockClear();
+  render(
+    <ConnectorVersionControl info={custom(5)} version={undefined} onChangeVersion={vi.fn()} />
+  );
+  fireEvent.click(screen.getByTestId('connector-version-badge'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Pin to version 3' }));
+
+  expect(trackEvent).not.toHaveBeenCalled();
 });
 
 it('offers an explicit "Pin to active" on a stale pin', async () => {

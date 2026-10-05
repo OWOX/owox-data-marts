@@ -9,6 +9,7 @@ import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
 import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
 import { extractAuthFlowParams, persistAuthFlowParams } from '../../utils/request-utils.js';
+import { readVerifiedSocialIntent } from '../../utils/social-intent.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
@@ -71,7 +72,7 @@ export class AuthFlowMiddleware {
     _next: NextFunction
   ): Promise<void | Response> {
     const context = buildAuthRequestContext(req);
-    if (context.state && context.refreshToken) {
+    if (context.state && context.refreshToken && !readVerifiedSocialIntent(req)) {
       const fastRedirect = await this.pkceFlowOrchestrator.completeWithIdentityRefreshToken(
         context.refreshToken,
         context.authFlowParams,

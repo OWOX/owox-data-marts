@@ -66,7 +66,7 @@ describe('MCP getting-started guidance', () => {
 
     expect(guidance.can_create_data_marts).toBe(false);
     expect(guidance.instructions).toContain('cannot create Data Marts');
-    expect(guidance.instructions).toContain('Project Admin or a Technical User');
+    expect(guidance.instructions).toContain('Project Admin or a Data Owner');
     expect(guidance.instructions).not.toContain('open create_data_mart_url');
   });
 
@@ -132,7 +132,7 @@ describe('MCP getting-started guidance', () => {
       { ...baseContext, roles: ['viewer'] }
     );
 
-    expect(guidance.instructions).toContain('published by a Project Admin or a Technical User');
+    expect(guidance.instructions).toContain('published by a Project Admin or a Data Owner');
   });
 
   it('keeps the links and steps when the draft lookup fails', async () => {

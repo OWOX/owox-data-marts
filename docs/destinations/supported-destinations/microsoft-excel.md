@@ -38,7 +38,7 @@ The store lives inside Excel. It is not the Windows **Microsoft Store** app.
 
 > 💡 Older desktop builds show the store under **Insert** → **Get Add-ins** instead.
 
-![Office Add-ins dialog in Excel with the Store tab open, OWOX Data Marts in the search results, and the Add button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/728b8894-403e-4d10-9661-510227c4d600/w=800)
+![Office Add-ins dialog in Excel with the Store tab open, OWOX Data Marts in the search results, and the Add button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/728b8894-403e-4d10-9661-510227c4d600/public)
 
 The **OWOX Data Marts** tab appears on the ribbon. Select **Launch sidebar** to open the task pane. Excel may ask you to trust the add-in on first launch. That prompt is expected.
 
@@ -46,7 +46,7 @@ The **OWOX Data Marts** tab appears on the ribbon. Select **Launch sidebar** to 
 
 The add-in installs per Microsoft account. It follows you to every device where you sign in with the same account.
 
-![OWOX Data Marts listing on Microsoft Marketplace with the Get it now button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1c6cf455-867a-4ece-9f0f-2a0f38603300/w=800)
+![OWOX Data Marts listing on Microsoft Marketplace with the Get it now button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1c6cf455-867a-4ece-9f0f-2a0f38603300/public)
 
 ### For your organization
 
@@ -69,7 +69,7 @@ Excel on the web signs you in silently for workbooks in OneDrive for Business or
 
 If Excel is not signed in, or uses the wrong account, sign in to Excel first. On desktop, go to **File** → **Account**. On the web, use the profile icon in the top-right corner. Then open the task pane again.
 
-![Excel with the OWOX Data Marts ribbon tab active and the task pane showing the Sign in button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/61dc2d2c-edc1-428b-acbe-f006f78b6400/w=800)
+![Excel with the OWOX Data Marts ribbon tab active and the task pane showing the Sign in button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/61dc2d2c-edc1-428b-acbe-f006f78b6400/public)
 
 ---
 
@@ -86,7 +86,7 @@ The rows land in the sheet. Column names and descriptions come from the Data Mar
 
 The add-in binds the report to that worksheet. Later refreshes write into the same sheet.
 
-![Excel with the New report ribbon button and the Add report button in the OWOX Data Marts task pane highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9d5f35b0-7f40-4120-596c-333802385c00/w=800)
+![Excel with the New report ribbon button and the Add report button in the OWOX Data Marts task pane highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9d5f35b0-7f40-4120-596c-333802385c00/public)
 
 ### Refresh a report
 

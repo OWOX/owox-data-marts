@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { DeclarativeSource } from '../../src/Core/Declarative/DeclarativeSource.js';
 import { ManifestParser } from '../../src/Core/Declarative/ManifestParser.js';
+import { MAX_HEADER_RETRY_DELAY_MS } from '../../src/Core/Declarative/ErrorHandler.js';
 import { AbstractContext } from '../../src/Core/AbstractContext.js';
 import { AbstractConnector } from '../../src/Core/AbstractConnector.js';
 import {
@@ -103,6 +104,18 @@ describe('DeclarativeSource (integration)', () => {
     const source = new DeclarativeSource(makeContext(), model);
     assert.strictEqual(source.fieldsSchema.rates.isTimeSeries, true);
     assert.deepStrictEqual(source.fieldsSchema.rates.uniqueKeys, ['date', 'currency']);
+  });
+
+  it('hands the engine each node’s endLagDays, 0 when it declares none', () => {
+    const manifest = JSON.parse(MANIFEST);
+    manifest.nodes.rates.incremental.endLagDays = 1;
+    manifest.nodes.latest = { ...manifest.nodes.rates, incremental: undefined };
+    const source = new DeclarativeSource(
+      makeContext(),
+      new ManifestParser().parse(JSON.stringify(manifest))
+    );
+    assert.strictEqual(source.getEndLagDays('rates'), 1);
+    assert.strictEqual(source.getEndLagDays('latest'), 0);
   });
 
   it('runs end-to-end through AbstractConnector and reaches storage', async () => {
@@ -432,6 +445,111 @@ describe('DeclarativeSource (integration)', () => {
     assert.strictEqual(calls, 2);
     assert.deepStrictEqual(delays, [1000]); // Retry-After 1s honoured, not exponential
     assert.strictEqual(out[0].id, '1');
+  });
+
+  // A rate-limited API says when to come back, often a minute away. The default backoff
+  // (5s, then 10s) spent the whole retry budget before that, and the run failed on the 429.
+  const retryAfterRun = async ({ errorHandler, retryAfter }) => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: n => (n === 'Retry-After' ? retryAfter : null) },
+          async json() {
+            return {};
+          },
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        async json() {
+          return { data: [{ id: '1' }] };
+        },
+      };
+    };
+    const source = new DeclarativeSource(
+      makeContext(),
+      new ManifestParser().parse(errorManifest(errorHandler))
+    );
+    const delays = [];
+    source._delay = ms => {
+      delays.push(ms);
+      return Promise.resolve();
+    };
+    await source.fetchData({
+      nodeName: 'events',
+      fields: ['id'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    return delays;
+  };
+
+  it('waits as long as Retry-After asks on a 429 the manifest sets no errorHandler for', async () => {
+    assert.deepStrictEqual(await retryAfterRun({ retryAfter: '30' }), [30000]);
+  });
+
+  it('waits as long as Retry-After asks when the matching filter sets no backoff', async () => {
+    const delays = await retryAfterRun({
+      errorHandler: { responseFilters: [{ httpCodes: [429], action: 'RETRY' }] },
+      retryAfter: '30',
+    });
+
+    assert.deepStrictEqual(delays, [30000]);
+  });
+
+  it('keeps the default backoff when the 429 carries no Retry-After', async () => {
+    const [delay] = await retryAfterRun({ retryAfter: null });
+
+    assert.ok(delay >= 2500 && delay <= 7500, `expected the 5s default with jitter, got ${delay}`);
+  });
+
+  // `Retry-After: 0`, or a date already past on our clock, must not retry sooner than the
+  // default backoff did: both retries would land inside the same limit.
+  it('never waits less than the default backoff for a Retry-After', async () => {
+    const [delay] = await retryAfterRun({ retryAfter: '0' });
+
+    assert.ok(delay >= 2500, `expected at least the 5s default with jitter, got ${delay}`);
+  });
+
+  it('caps a Retry-After at the header delay ceiling', async () => {
+    assert.deepStrictEqual(await retryAfterRun({ retryAfter: '100000' }), [
+      MAX_HEADER_RETRY_DELAY_MS,
+    ]);
+  });
+
+  it("keeps the manifest author's backoff over Retry-After", async () => {
+    const delays = await retryAfterRun({
+      errorHandler: {
+        responseFilters: [{ httpCodes: [429], action: 'RETRY' }],
+        backoff: { type: 'constant', delayMs: 10 },
+      },
+      retryAfter: '30',
+    });
+
+    assert.deepStrictEqual(delays, [10]);
+  });
+
+  // A builder Test keeps its retries short so the author sees the refusal rather than a
+  // timed-out test.
+  it('keeps the short Test-run retry in a builder Test', async () => {
+    const previous = process.env.OW_TEST;
+    process.env.OW_TEST = '1';
+    try {
+      const [delay] = await retryAfterRun({ retryAfter: '30' });
+
+      assert.ok(delay < 1000, `expected the short Test-run retry, got ${delay}`);
+    } finally {
+      if (previous === undefined) delete process.env.OW_TEST;
+      else process.env.OW_TEST = previous;
+    }
   });
 
   it('IGNORE-filters a status and returns zero records without failing', async () => {
@@ -1517,6 +1635,141 @@ describe('rows_extracted analytics', () => {
     });
 
     assert.ok(!events.some(e => e.type === 'ANALYTICS' && e.metric === 'rows_extracted'));
+  });
+
+  const fetchCoins = source =>
+    source.fetchData({
+      nodeName: 'coins',
+      fields: ['id', 'cur'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+
+  it('reports 0 extracted at the end of a run in which the node got no records', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { rows: [] };
+      },
+    });
+    const model = new ManifestParser().parse(FILTER_MANIFEST);
+    const context = makeSelectiveContext({ Fields: { value: 'coins id, coins cur' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(context, model);
+
+    await fetchCoins(source);
+    await fetchCoins(source);
+    source.onImportComplete(context);
+
+    const extracted = events.filter(e => e.type === 'ANALYTICS' && e.metric === 'rows_extracted');
+    assert.deepStrictEqual(
+      extracted.map(e => [e.value, e.tags.node]),
+      [[0, 'coins']]
+    );
+    const hints = events.filter(e => e.type === 'LOG' && /No records came back/.test(e.message));
+    assert.deepStrictEqual(
+      hints.map(e => [e.level, e.message]),
+      [
+        [
+          'info',
+          'No records came back for node "coins" in this run. If you expected data, check the ' +
+            "node's record path, and the parameters and dates its request uses.",
+        ],
+      ]
+    );
+  });
+
+  const partitionedManifest = partitionRouter =>
+    JSON.stringify({
+      version: '1.0',
+      name: 'Partitioned',
+      baseUrl: 'https://api.example.com',
+      authentication: { type: 'apiKey', inject: { into: 'query', name: 'k', format: 'x' } },
+      parameters: {},
+      nodes: {
+        stats: {
+          destinationName: 'stats',
+          isTimeSeries: false,
+          uniqueKeys: ['id'],
+          fields: { id: { dataPath: 'id', type: 'string' } },
+          partitionRouter,
+          request: { method: 'GET', path: '/stats/{{ stream_slice.slice }}' },
+          recordSelector: { recordPath: ['rows'] },
+        },
+      },
+    });
+
+  const emptyNodeHint = async partitionRouter => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async json() {
+        return { data: [], rows: [] };
+      },
+    });
+    const context = makeSelectiveContext({ Fields: { value: 'stats id' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(
+      context,
+      new ManifestParser().parse(partitionedManifest(partitionRouter))
+    );
+    source._delay = () => Promise.resolve();
+    await source.fetchData({
+      nodeName: 'stats',
+      fields: ['id'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    source.onImportComplete(context);
+    return events.find(e => e.type === 'LOG' && /No records came back/.test(e.message))?.message;
+  };
+
+  // A substream node sends no request at all when its parent finds no keys, so the node's own
+  // record path and request are the wrong place to look.
+  it('points a substream node at its parent record path and key', async () => {
+    const hint = await emptyNodeHint({
+      type: 'substream',
+      parent: { request: { method: 'GET', path: '/campaigns' }, recordPath: ['data'], key: 'id' },
+      partitionField: 'slice',
+    });
+
+    assert.match(hint, /Parent record path and Parent key/);
+  });
+
+  it('points a list-partitioned node at its list of values', async () => {
+    const hint = await emptyNodeHint({ type: 'list', values: ['US'], partitionField: 'slice' });
+
+    assert.match(hint, /Values or Values from parameter/);
+  });
+
+  it('adds nothing at the end for a node that got records on any request', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        calls += 1;
+        return { rows: calls === 1 ? [] : [{ id: 'a', cur: 'USD' }] };
+      },
+    });
+    const model = new ManifestParser().parse(FILTER_MANIFEST);
+    const context = makeSelectiveContext({ Fields: { value: 'coins id, coins cur' } });
+    const events = [];
+    context.emit = e => events.push(e.toJSON ? e.toJSON() : e);
+    const source = new DeclarativeSource(context, model);
+
+    await fetchCoins(source);
+    await fetchCoins(source);
+    const before = events.length;
+    source.onImportComplete(context);
+
+    assert.deepStrictEqual(events.slice(before), []);
   });
 });
 

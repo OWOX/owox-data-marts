@@ -165,6 +165,28 @@ describe('PreviewDataMartService', () => {
     });
   });
 
+  it('keeps the other rows when a driver hands back an Invalid Date', async () => {
+    const { service } = createService({
+      batches: [
+        new ReportDataBatch(
+          [
+            ['fb', new Date(Number.NaN)],
+            ['org', 8],
+          ],
+          null
+        ),
+      ],
+    });
+
+    await expect(service.run(command())).resolves.toMatchObject({
+      rows: [
+        ['fb', '[Invalid Date]'],
+        ['org', 8],
+      ],
+      rowCount: 2,
+    });
+  });
+
   it('checks the project operation gate like HTTP Data, without consuming anything', async () => {
     const { service, projectBilling } = createService();
 
@@ -439,6 +461,8 @@ describe('toPreviewCell', () => {
     [true, true],
     [BigInt('9007199254740993'), '9007199254740993'],
     [new Date('2026-01-02T03:04:05.000Z'), '2026-01-02T03:04:05.000Z'],
+    // A DATE past JS Date's range, as Databricks builds it from Arrow: new Date(days * 86_400_000).
+    [new Date(108_840_000 * 86_400_000), '[Invalid Date]'],
     [{ value: '2026-01-02' }, '2026-01-02'],
     [{ toJSON: () => '12.50' }, '12.50'],
     [{ a: 1, b: [2] }, '{"a":1,"b":[2]}'],

@@ -299,9 +299,9 @@ export function DataDestinationForm({
                     <AccordionContent>
                       <p>
                         Destination Owner is direct ownership of this Destination. When the
-                        owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Sharing, and copy credentials from this Destination —
-                        regardless of Sharing settings. Assigning Owner to a Business User stores
+                        owner&apos;s project role is Data Owner or Project Admin, they may view,
+                        edit, delete, configure Sharing, and copy credentials from this Destination
+                        — regardless of Sharing settings. Assigning Owner to a Business User stores
                         the assignment but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>

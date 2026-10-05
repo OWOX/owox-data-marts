@@ -75,7 +75,9 @@ describe('ConnectorsListPage', () => {
     render(<ConnectorsListPage />);
     await screen.findByText('Acme');
     fireEvent.click(screen.getByRole('button', { name: 'New connector' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/connectors/builder/new');
+    expect(mockNavigate).toHaveBeenCalledWith('/connectors/builder/new', {
+      state: { builderEntryPoint: 'connectors_list' },
+    });
   });
 
   it('opening a connector navigates to its project-scoped builder route', async () => {
@@ -94,7 +96,9 @@ describe('ConnectorsListPage', () => {
     render(<ConnectorsListPage />);
     // Clicking the row opens the connector (row click → onOpen → scoped navigate).
     fireEvent.click(await screen.findByText('Acme'));
-    expect(mockNavigate).toHaveBeenCalledWith('/connectors/builder/c1');
+    expect(mockNavigate).toHaveBeenCalledWith('/connectors/builder/c1', {
+      state: { builderEntryPoint: 'connectors_list' },
+    });
   });
 
   it('shows the empty state when there are none', async () => {

@@ -18,6 +18,8 @@ import {
   parseAuthFlowParams,
   parseSerializedAuthFlowParams,
   persistAuthFlowContext,
+  readPendingActionFromQuery,
+  resetAuthFlowForRetry,
   serializeAuthFlowParams,
   setCookie,
 } from './request-utils.js';
@@ -330,5 +332,104 @@ describe('request-utils', () => {
     } as unknown as Request;
 
     expect(extractRefreshToken(req)).toBe('refresh123');
+  });
+
+  describe('pendingAction', () => {
+    it('ignores a social provider named in the query string', () => {
+      const req = {
+        query: { pendingAction: 'google' },
+        headers: { cookie: '' },
+      } as unknown as Request;
+      expect(readPendingActionFromQuery(req)).toBeUndefined();
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
+    });
+
+    it('keeps the email fallback from the query string', () => {
+      const req = { query: { pendingAction: 'email' } } as unknown as Request;
+      expect(readPendingActionFromQuery(req)).toBe('email');
+    });
+
+    it('rejects a pendingAction value outside the known allowlist', () => {
+      const req = { query: { pendingAction: 'not-a-real-action' } } as unknown as Request;
+      expect(readPendingActionFromQuery(req)).toBeUndefined();
+    });
+
+    it('ignores a legacy social action persisted in the params cookie', () => {
+      const payload = encodeURIComponent(
+        JSON.stringify({ pendingAction: 'microsoft', socialIntentVerified: true })
+      );
+      const req = {
+        headers: { cookie: `idp-owox-params=${payload};` },
+        query: {},
+      } as unknown as Request;
+
+      expect(readPendingActionFromQuery(req)).toBeUndefined();
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
+      expect(extractAuthFlowParams(req)).not.toHaveProperty('socialIntentVerified');
+    });
+  });
+
+  describe('resetAuthFlowForRetry', () => {
+    it('preserves an OAuth continuation while clearing expired state', () => {
+      const redirectTo = '/oauth/authorize?client_id=mcp-client&state=client-state';
+      const payload = encodeURIComponent(JSON.stringify({ redirectTo, appRedirectTo: redirectTo }));
+      const req = {
+        headers: { cookie: `idp-owox-state=old; idp-owox-params=${payload}` },
+        query: {},
+        protocol: 'https',
+        hostname: 'app.test',
+      } as unknown as Request;
+      const res = createResponseMock();
+
+      resetAuthFlowForRetry(req, res);
+
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        'idp-owox-state',
+        expect.objectContaining({ path: '/' })
+      );
+      expect(res.clearCookie).not.toHaveBeenCalledWith('idp-owox-params', expect.anything());
+      const [, value] = (res.cookie as jest.Mock).mock.calls[0] as [string, string];
+      expect(JSON.parse(decodeURIComponent(value))).toMatchObject({
+        redirectTo,
+        appRedirectTo: redirectTo,
+      });
+    });
+
+    it('drops a generated project redirect that could loop after a failed callback', () => {
+      const payload = encodeURIComponent(
+        JSON.stringify({
+          redirectTo: '/dashboard',
+          appRedirectTo: '/auth/idp-start?projectId=project-1',
+          projectId: 'project-1',
+          projectRedirectUserId: 'user-1',
+        })
+      );
+      const req = {
+        headers: { cookie: `idp-owox-params=${payload};` },
+        query: {},
+        protocol: 'https',
+        hostname: 'app.test',
+      } as unknown as Request;
+      const res = createResponseMock();
+
+      resetAuthFlowForRetry(req, res);
+
+      const [, value] = (res.cookie as jest.Mock).mock.calls[0] as [string, string];
+      const persisted = JSON.parse(decodeURIComponent(value)) as Record<string, unknown>;
+      expect(persisted.redirectTo).toBe('/dashboard');
+      expect(persisted.appRedirectTo).toBeUndefined();
+      expect(persisted.projectId).toBeUndefined();
+      expect(persisted.projectRedirectUserId).toBeUndefined();
+    });
+
+    it('clears an empty params cookie on retry', () => {
+      const req = { headers: { cookie: '' }, query: {} } as unknown as Request;
+      const res = createResponseMock();
+
+      resetAuthFlowForRetry(req, res);
+
+      expect(res.cookie).not.toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('idp-owox-params', expect.anything());
+    });
   });
 });

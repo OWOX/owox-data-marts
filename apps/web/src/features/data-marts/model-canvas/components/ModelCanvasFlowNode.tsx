@@ -5,10 +5,10 @@ import {
   ExternalLink,
   FileText,
   Info,
+  Link2,
   PencilLine,
   Share2,
   Users,
-  Waypoints,
   type LucideIcon,
 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
@@ -44,7 +44,7 @@ import { DATA_MART_SHARING_TEXTS } from '../../../../shared/components/Availabil
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-import type { DataMartIconKey } from '../../shared/enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../shared/enums/data-mart-icon.enum';
 import { DataMartIconGlyph } from '../../shared/components/DataMartIcon/DataMartIconGlyph';
 
 export interface ModelCanvasFlowNodeData {
@@ -60,7 +60,7 @@ export interface ModelCanvasFlowNodeData {
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   description: string | null;
-  icon: DataMartIconKey | null;
+  icon: DataMartIconValue | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
@@ -84,7 +84,8 @@ const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {
   fields: Columns3,
   triggers: CalendarClock,
   reports: FileText,
-  relationships: Waypoints,
+  // The icon the Joinable Data Marts section uses, so relationships read the same everywhere.
+  relationships: Link2,
 };
 
 /**

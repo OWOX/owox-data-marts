@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useCallback, useReducer, useRef } from 'react';
+import { type ReactNode, type RefObject, useCallback, useEffect, useReducer, useRef } from 'react';
 import { DataMartContext } from './context.ts';
 import { initialState, reducer } from './reducer.ts';
 import {
@@ -40,6 +40,7 @@ import { extractApiError, type ApiError, type AxiosRequestConfig } from '../../.
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
 import { pushToDataLayer, trackEvent } from '../../../../../utils';
+import { trackSavedVersionPin } from '../../../../connectors/shared/model/connector-setup-analytics';
 import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
@@ -48,7 +49,7 @@ import {
   describeSchemaFieldSummary,
   summarizeSchemaFields,
 } from '../../../shared/utils/schema-field-summary';
-import type { DataMartIconKey } from '../../../shared/enums/data-mart-icon.enum';
+import type { DataMartIconValue } from '../../../shared/enums/data-mart-icon.enum';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -87,6 +88,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const refreshSetupProgress = useRefreshSetupProgress();
   const connectorInfo = useRef<ConnectorListItem | null>(null);
+  // The definition as last saved, for what a save changed: the callbacks below are not rebuilt
+  // on every state change, so `state` inside them can be stale.
+  const savedDataMart = useRef<DataMart | null>(null);
+  useEffect(() => {
+    savedDataMart.current = state.dataMart;
+  }, [state.dataMart]);
 
   // Get a data mart by ID
   const getDataMart = useCallback(async (id: string) => {
@@ -287,7 +294,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Update data mart icon
-  const updateDataMartIcon = useCallback(async (id: string, icon: DataMartIconKey | null) => {
+  const updateDataMartIcon = useCallback(async (id: string, icon: DataMartIconValue | null) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_ICON_START' });
       await dataMartService.updateDataMartIcon(id, icon);
@@ -347,6 +354,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       definitionType: DataMartDefinitionType,
       definition: DataMartDefinitionConfig
     ) => {
+      const previous = savedDataMart.current;
       try {
         dispatch({ type: 'UPDATE_DATA_MART_DEFINITION_START' });
 
@@ -416,6 +424,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
 
         const response = await dataMartService.updateDataMartDefinition(id, requestData);
         const dataMart = await mapKeepingConnector(response, connectorInfo);
+        if (definitionType === DataMartDefinitionType.CONNECTOR) {
+          trackSavedVersionPin(
+            id,
+            previous?.definitionType === DataMartDefinitionType.CONNECTOR
+              ? (previous.definition as ConnectorDefinitionConfig).connector.source
+              : undefined,
+            (definition as ConnectorDefinitionConfig).connector.source,
+            connectorInfo.current
+          );
+        }
         dispatch({
           type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
           payload: { definitionType, definition },

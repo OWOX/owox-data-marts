@@ -27,7 +27,7 @@ const logger = new Logger('McpGettingStarted');
  * (CreateDataMartService), so a role the access matrix lets use a storage in at least one
  * ownership/sharing state qualifies. Derived from the matrix instead of listed by hand so the
  * assistant's role advice cannot drift from what the backend enforces — today Project Admin
- * and Technical User; a Business User (`viewer`) is denied on every state.
+ * and Data Owner; a Business User (`viewer`) is denied on every state.
  */
 const DATA_MART_CREATOR_ROLES: ReadonlySet<string> = new Set(
   ACCESS_MATRIX.filter(
@@ -163,7 +163,7 @@ function buildInstructions(canCreate: boolean, draftCount: number): string {
       `The user can see ${draftCount} draft Data Mart(s) listed in draft_data_marts; name them with their url. Drafts are not available through MCP until they are ${
         canCreate
           ? 'opened in the OWOX Data Marts web app, finished, and published.'
-          : 'published by a Project Admin or a Technical User.'
+          : 'published by a Project Admin or a Data Owner.'
       }`
     );
   }
@@ -171,7 +171,7 @@ function buildInstructions(canCreate: boolean, draftCount: number): string {
   parts.push(
     canCreate
       ? 'The user can create Data Marts. Walk them through the steps: 1) open create_data_mart_url in the OWOX Data Marts web app; 2) connect a data source or define the Data Mart from SQL, a table, or a view on a connected storage; 3) save and publish it. Share create_data_mart_url and the matching guide from guides.'
-      : 'The user role (Business User) cannot create Data Marts. Advise them to ask a Project Admin or a Technical User of this project to create and publish a Data Mart and share it with them for reporting. Share data_marts_url and guides.core_concepts so they can pass them on.',
+      : 'The user role (Business User) cannot create Data Marts. Advise them to ask a Project Admin or a Data Owner of this project to create and publish a Data Mart and share it with them for reporting. Share data_marts_url and guides.core_concepts so they can pass them on.',
     'Once a published Data Mart is available, the user can simply ask again. Do not retry discovery tools with different wording, and do not call query_data_mart or any report or schedule tool until then.'
   );
 

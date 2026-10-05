@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { S3Client, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { AthenaConfig } from '../schemas/athena-config.schema';
 import { AthenaCredentials } from '../schemas/athena-credentials.schema';
+import { athenaOutputLocation } from '../utils/athena-output-location.util';
 
 /**
  * Adapter for S3 API operations related to Athena query results
@@ -40,11 +41,14 @@ export class S3ApiAdapter {
       return;
     }
 
+    // Where Athena wrote them: the setting may carry a folder after the bucket name.
+    const { bucket, keyPrefix } = athenaOutputLocation(outputBucket, outputPrefix);
+
     try {
       // List objects in the output location
       const listCommand = new ListObjectsV2Command({
-        Bucket: outputBucket,
-        Prefix: outputPrefix,
+        Bucket: bucket,
+        Prefix: keyPrefix,
       });
 
       const listedObjects = await this.s3Client.send(listCommand);
@@ -59,7 +63,7 @@ export class S3ApiAdapter {
         if (!object.Key) continue;
 
         const deleteCommand = new DeleteObjectCommand({
-          Bucket: outputBucket,
+          Bucket: bucket,
           Key: object.Key,
         });
 

@@ -1,8 +1,8 @@
 # Connector Builder
 
-The Connector Builder creates a connector for any HTTP API that has no ready-made OWOX connector, without writing code. You describe the requests in a form, and the builder stores them as a declarative manifest — the JSON format described in the [Connector Manifest Reference](manifest-reference.md). Once you publish the connector, it appears in every Data Mart of the project next to the built-in connectors.
+The Connector Builder creates a connector for any HTTP API that has no ready-made OWOX connector, without writing code. You describe the requests in a form, and the builder stores them as a manifest — the JSON format described in the [Connector Manifest Reference](manifest-reference.md). Once you publish the connector, it appears in every Data Mart of the project next to the built-in connectors.
 
-Project Admins and Technical Users can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
+Project Admins and Data Owners can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
 
 > Credentials never go into the connector itself. Declare a **Secret** parameter for an API key or a token: whoever sets up a Data Mart enters its value there, and you enter a value only to run a test.
 
@@ -66,6 +66,10 @@ In the node, fill in:
 
 The collapsed sections cover what some APIs need: **Incremental** (fetch by date window), **Pagination**, **Transformations**, **Partition** (run the node once for each record of a parent list, or for each value in a list), **Record filter** and **Error handling**. For an API that builds a report in the background, switch the **Retriever** to **Async**. The [Connector Manifest Reference](manifest-reference.md#contents) explains each of them.
 
+Only a node whose **Incremental** section sets a strategy has `{{ dateWindow.start }}` and `{{ dateWindow.end }}`; **Time-series node** alone does not give it a date window. **Publish** refuses them in the **Path** or **Body** of any other node, and in its **Query parameters** they are never sent.
+
+A date window ends today. For an API that reports only completed days and refuses a window that ends today, set **Skip the last days** under **Incremental**, e.g. `1` to end the window yesterday. The left-out days are imported by a later run. See [APIs that report only completed days](manifest-reference.md#apis-that-report-only-completed-days).
+
 The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a node by its name, so once you publish, a Data Mart that used the old name fails its runs until its fields are chosen again.
 
 ## Step 5: Test on live data
@@ -91,6 +95,8 @@ Then check each field:
 
 ![The Fields table of the daily node: day as a date and the primary key, downloads as an integer, both selected by default](../res/screens/Connector-Builder-Fields.png)
 
+Data Marts refer to a field by its name, as they do to a node. Once you publish, renaming or removing a field a Data Mart selected leaves that Data Mart without it: a run that creates its table fails with `Field "…" is selected for import, but the connector does not provide it`, and an existing table gets no new values in that column, until you open **Edit Fields** in the Data Mart's **Input Source** and save, which drops a field the connector no longer provides. To change where a field's value comes from, edit its **Data path** instead.
+
 ## Step 7: Save and publish
 
 **Save draft** keeps your work without making it available. Data Marts never run a draft, and a connector that has never been published appears in the connector list with a **Publish to use** badge.
@@ -106,7 +112,7 @@ Each **Publish** adds a version. Click the version badge to open **Version histo
 
 A Data Mart follows the active version by default, so a new version takes effect on its next run. To keep a Data Mart on one version, click the version control on its **Input Source** card (it reads, e.g., **Following active · v2**) and pin a version. A pinned version stays until you change it, and the control shows **update available** when a newer version is active.
 
-A Data Mart that follows the active version runs it with its own credentials. So a Technical User can publish a version, or make one active, only with edit access to every such Data Mart; the refusal names the Data Marts they are missing. Project Admins can always do both.
+A Data Mart that follows the active version runs it with its own credentials. So a member with the Data Owner role can publish a version, or make one active, only with edit access to every such Data Mart; the refusal names the Data Marts they are missing. Project Admins can always do both.
 
 ## Edit the connector as JSON
 
@@ -127,7 +133,7 @@ In the builder, choose **⋮** → **Delete connector**, or choose **Delete** in
 
 ## Related Links
 
-- [Declarative Connectors →](declarative-connectors.md)
+- [Custom Connectors →](custom-connectors.md)
 - [Connector Manifest Reference →](manifest-reference.md)
 - [Connector-based Data Mart →](../getting-started/setup-guide/connector-data-mart.md)
 - [Roles and Permissions →](../project/roles-and-permissions.md)

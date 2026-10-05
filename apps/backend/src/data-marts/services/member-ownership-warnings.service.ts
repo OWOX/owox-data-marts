@@ -20,7 +20,7 @@ export class MemberOwnershipWarningsService {
   ) {}
 
   /**
-   * Find project members who are Technical Owners of DataMarts but have Business User (viewer) role.
+   * Find project members who are Data Owners of DataMarts but have Business User (viewer) role.
    * These owners have stored but ineffective ownership — their TU-level permissions don't activate.
    */
   async getWarnings(projectId: string): Promise<MemberOwnershipWarning[]> {
@@ -44,7 +44,7 @@ export class MemberOwnershipWarningsService {
 
     return techOwners.map(({ userId }) => ({
       userId,
-      warning: 'Technical Owner — requires Technical User role to be effective',
+      warning: 'Data Owner — requires the Data Owner role to be effective',
     }));
   }
 }

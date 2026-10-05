@@ -46,7 +46,7 @@ function declarativeSourceFromManifest(manifest: Record<string, unknown>) {
   try {
     model = new Core.ManifestParser().parse(JSON.stringify(manifest));
   } catch (e) {
-    throw new BadRequestException(`Invalid declarative manifest: ${(e as Error).message}`);
+    throw new BadRequestException(`Invalid manifest: ${(e as Error).message}`);
   }
   return new Core.DeclarativeSource(context, model);
 }
@@ -72,5 +72,5 @@ function parseOrExplain<T>(
     const where = path.map(key => MANIFEST_KEYS[key] ?? key).join('.');
     return `${kind} "${String(name)}" ${where}: ${issue.message}`;
   });
-  throw new BadRequestException(`Invalid declarative manifest: ${problems.join('; ')}`);
+  throw new BadRequestException(`Invalid manifest: ${problems.join('; ')}`);
 }

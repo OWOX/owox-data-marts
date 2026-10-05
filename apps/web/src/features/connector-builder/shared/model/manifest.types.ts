@@ -91,10 +91,13 @@ export interface IncrementalNone {
 export interface IncrementalDayByDay {
   strategy: 'day-by-day';
   request: IncrementalRequest;
+  /** Days before today the window ends, for an API that reports only completed days. */
+  endLagDays?: number;
 }
 export interface IncrementalRange {
   strategy: 'range';
   request: IncrementalRequest;
+  endLagDays?: number;
 }
 export type ManifestNodeIncremental = IncrementalNone | IncrementalDayByDay | IncrementalRange;
 

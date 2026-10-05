@@ -212,4 +212,26 @@ describe('PkceFlowOrchestrator', () => {
     expect(url?.pathname).toBe(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
     expect(res.clearCookie).toHaveBeenCalled();
   });
+
+  it('keeps an OAuth continuation when the state cookie is missing after social sign-in', async () => {
+    const redirectTo = '/oauth/authorize?client_id=mcp-client';
+    const paramsCookie = encodeURIComponent(JSON.stringify({ redirectTo }));
+    const req = createReq({
+      cookies: { 'idp-owox-params': paramsCookie },
+    });
+    const res = createRes();
+
+    const url = await service.completeWithSocialSessionToken(
+      'session-token',
+      { redirectTo },
+      req,
+      res
+    );
+
+    expect(url?.pathname).toBe(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+    const cleared = (res.clearCookie as jest.Mock).mock.calls.map(call => call[0]);
+    expect(cleared).toContain('idp-owox-state');
+    expect(cleared).not.toContain('idp-owox-params');
+    expect(betterAuthSessionService.completeAuthFlowWithSessionToken).not.toHaveBeenCalled();
+  });
 });

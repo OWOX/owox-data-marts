@@ -75,7 +75,7 @@ Leave all other fields as default, then click **Next** to continue.
 1. Choose one of the available endpoints.
 2. Select the required **fields**.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
-4. Click **Finish**, then **Publish Data Mart**.
+4. Click **Save**, then **Publish & Run Data Mart**. Publishing starts the first import automatically.
 
 > ⚠️ **Important Notice:**  
 > If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** must be an **ad account**, not your MCC. When you set a **Login Customer ID**, it must be **different** from the Customer ID; when querying the ad account directly, leave **Login Customer ID** empty.
@@ -86,14 +86,14 @@ Leave all other fields as default, then click **Next** to continue.
 
 ### Resolve Short Links
 
-Ads often point to short links. OWOX can follow each short link and store the landing page next to it:
+Ads often point to short links. OWOX can follow each short link and store its target next to it:
 
 - **Ad Group Ads Stats**: `ad_final_urls` resolves into `ad_final_urls_parsed`.
 - **Criterion**: `final_urls` resolves into `final_urls_parsed`.
 
-Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects `ad_final_urls` and `ad_final_urls_parsed` by default. A parsed field holds the landing page for short links and the original value for other links.
+Keep the source field and its parsed field selected and enable **Process Short Links** under **Advanced** settings. OWOX selects `ad_final_urls` and `ad_final_urls_parsed` by default. A parsed field holds the address the short link service points to, and the original value for other links. OWOX does not request that address, so redirects on the landing site itself are not followed.
 
-OWOX resolves standard short links, such as `https://bit.ly/abc123`, on any domain. Links with several path parts resolve only on domains listed in the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. Your administrator sets this variable for the whole deployment. In OWOX Cloud, contact support to add your domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
+OWOX resolves links from known short link services, such as Bitly (`bit.ly`) and TinyURL (`tinyurl.com`). Links on other domains stay unchanged. Your administrator adds your own short link domains to the `CONNECTOR_SHORT_LINK_DOMAINS` environment variable. In OWOX Cloud, contact support to add a domain. See [Environment Variables](https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#connectors).
 
 OWOX sends one request per distinct link and remembers the answer for 30 days, including links that do not redirect. Later runs skip remembered links. If a Data Mart has more distinct links than the memory holds, OWOX requests the extra ones on each run.
 
@@ -101,7 +101,7 @@ OWOX sends one request per distinct link and remembers the answer for 30 days, i
 
 ## Run the Data Mart
 
-Now you have **two options** for importing data from Google Ads:
+**Publish & Run Data Mart** already started the first import. To import data again, you have two options:
 
 Option 1: Import Current Day's Data
 

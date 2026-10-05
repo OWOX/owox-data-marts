@@ -53,7 +53,7 @@ function getAvailabilityFields(
         ...DATA_MART_SHARING_TEXTS.availableForReporting,
         helpTitle: 'What does "Shared for reporting" mean?',
         helpContent:
-          'When enabled, all project members (both Technical and Business Users) can see this Data Mart in the catalog and use it to create reports. Owners always have access regardless of this setting. Disable this to restrict visibility to owners only.',
+          'When enabled, all project members (both Data Owners and Business Users) can see this Data Mart in the catalog and use it to create reports. Owners always have access regardless of this setting. Disable this to restrict visibility to owners only.',
       },
       {
         key: 'availableForMaintenance',
@@ -61,7 +61,7 @@ function getAvailabilityFields(
         ...DATA_MART_SHARING_TEXTS.availableForMaintenance,
         helpTitle: 'What does "Shared for maintenance" mean?',
         helpContent:
-          'When enabled, Technical Users who are not owners can edit the Data Mart definition, delete it, and manage its scheduled triggers. Business Users are not affected by this setting — they cannot perform maintenance actions regardless. Use this when you want other Technical Users on your team to help manage this Data Mart.',
+          'When enabled, members with the Data Owner role who are not owners of this Data Mart can edit the Data Mart definition, delete it, and manage its scheduled triggers. Business Users are not affected by this setting — they cannot perform maintenance actions regardless. Use this when you want other Data Owners on your team to help manage this Data Mart.',
       },
     ];
   }
@@ -75,12 +75,12 @@ function getAvailabilityFields(
       label: 'Shared for use',
       description:
         entityType === 'storage'
-          ? 'Technical users can use this storage when creating Data Marts'
+          ? 'Members with the Data Owner role can use this storage when creating Data Marts'
           : 'Project members can use this destination in their reports',
       helpTitle: `What does "Shared for use" mean?`,
       helpContent:
         entityType === 'storage'
-          ? 'When enabled, Technical Users who are not owners can select this storage when creating new Data Marts. Without this, only storage owners and admins can use it. Enable this when multiple team members need to build Data Marts on the same storage.'
+          ? 'When enabled, members with the Data Owner role who are not owners of this storage can select it when creating new Data Marts. Without this, only storage owners and admins can use it. Enable this when multiple team members need to build Data Marts on the same storage.'
           : 'When enabled, project members can select this destination when configuring reports. Without this, only destination owners and admins can use it. Enable this when your team shares a common reporting destination.',
     },
     {

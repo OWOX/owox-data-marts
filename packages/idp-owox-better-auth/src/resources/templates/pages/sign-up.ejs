@@ -47,6 +47,7 @@
         <span>Continue with Microsoft</span>
       </button>
     <% } %>
+    <p id="social-auth-status" class="text-sm text-red-600" aria-live="polite"></p>
   </div>
 
   <% if (enabledProviders.email) { %>
@@ -92,6 +93,45 @@
 
 <%- include('../partials/social-auth') %>
 <script>
+  const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
+
+  /**
+   * Obtain a short-lived token at click time, then submit the selected
+   * provider so the server can request a new state from Platform.
+   */
+  async function alwaysGetFreshStateThenRun(provider) {
+    setSocialButtonsDisabled(true);
+    if (signupSubmit) signupSubmit.disabled = true;
+    document.getElementById('social-auth-status').textContent = '';
+    let nonce;
+    try {
+      nonce = await requestSocialIntentNonce();
+    } catch (error) {
+      console.error('Unable to start social sign-up', error);
+      document.getElementById('social-auth-status').textContent =
+        'Unable to start sign-up. Please try again.';
+      setSocialButtonsDisabled(false);
+      if (signupSubmit) signupSubmit.disabled = false;
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.delete('state');
+    params.delete('pendingAction');
+    params.delete('error');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/auth/sign-up/social-intent?${params.toString()}`;
+    for (const [name, value] of Object.entries({ provider, nonce })) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get('redirect');
   const magicLinkSignupIntent = '<%= magicLinkSignupIntent %>';
@@ -200,7 +240,13 @@
 
   const googleButton = document.getElementById('google-signup');
   const microsoftButton = document.getElementById('microsoft-signup');
-  googleButton?.addEventListener('click', () => submitSocial('google'));
-  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
+  googleButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('google'));
+  microsoftButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('microsoft'));
   signupForm?.addEventListener('submit', handleSignUp);
+
+  // Resume the action the user originally clicked, now that a fresh PKCE
+  // state has come back from the Platform round trip.
+  if (autoSubmitProvider) {
+    submitSocial(autoSubmitProvider);
+  }
 </script>

@@ -1,6 +1,6 @@
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
   admin: 'Project Admin',
-  editor: 'Technical User',
+  editor: 'Data Owner',
   viewer: 'Business User',
 };
 

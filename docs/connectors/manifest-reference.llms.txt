@@ -1,8 +1,8 @@
-# OWOX Declarative Connector — Manifest Authoring Reference
+# OWOX Custom Connector — Manifest Authoring Reference
 
 ## 1. Role, task, and output contract
 
-You are authoring an OWOX no-code **declarative connector manifest** (a single JSON object) that pulls data from a third-party HTTP API into OWOX Data Marts. Below is the **complete grammar** the engine (`ManifestParser` + `DeclarativeSource`) accepts — every key, every enum value, every gotcha. Paste the target API's documentation (or a description of it) after this text and author ONE manifest against it.
+You are authoring an OWOX no-code **custom connector manifest** (a single JSON object) that pulls data from a third-party HTTP API into OWOX Data Marts. Below is the **complete grammar** the engine (`ManifestParser` + `DeclarativeSource`) accepts — every key, every enum value, every gotcha. Paste the target API's documentation (or a description of it) after this text and author ONE manifest against it.
 
 Output contract: produce exactly ONE JSON object — the manifest itself. No prose, no Markdown code fences, nothing before or after it, unless the tool or conversation you are operating in explicitly asks for a different envelope (e.g. a `{ "message": ..., "manifest": ... }` wrapper). Never invent secret values (API keys, client secrets, tokens) — leave the corresponding `parameters` entries for a human to fill in.
 
@@ -20,7 +20,7 @@ Required:
 
 Optional:
 
-- `title` — a human-friendly display name, e.g. `"Frankfurter FX (Declarative)"`.
+- `title` — a human-friendly display name, e.g. `"Frankfurter FX"`.
 - `description` — a longer description shown in the UI.
 - `docUrl` — a link to the API's own documentation.
 - `authentication` — how requests are authenticated. See §5.
@@ -215,7 +215,7 @@ Each node describes one data stream:
 - `overview` — optional one-line description (shown in the builder UI).
 - `uniqueKeys` — array of field names forming the row's unique key: later runs update the rows with these values instead of adding duplicates. **Required to publish**, and every name must be one of the node's `fields`; Test works without it.
 - `destinationName` — optional; the destination table name (defaults to the node name).
-- `isTimeSeries` — boolean; marks the node as date-windowed. You rarely need to set it: declaring an `incremental` block with a strategy other than `none` (§9) already implies it. Set it explicitly only for a node that should take the date-window path without declaring one. It cannot be combined with `isFullRefresh`.
+- `isTimeSeries` — optional boolean; never needed. An `incremental` block with a strategy other than `none` (§9) already makes the node fetched by date window. On its own, `"isTimeSeries": true` does NOT give the node a window, so never set it to make `{{ dateWindow.* }}` work (§9). Next to `isFullRefresh`, `isFullRefresh` wins.
 - `defaultFields` — optional array of field names pre-selected by default (defaults to all declared fields).
 - `request` — `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and **must start with `/`**. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`.
 - `recordSelector.recordPath` — array of keys locating the row(s) in the JSON response (see §18 for the exact extraction rule). `recordSelector.responseFormat` is optional — `json` (default), `csv`, or `jsonl`. A `204` response or an empty JSON body counts as no records.
@@ -245,6 +245,8 @@ An **async** node (§12) replaces `request` + `recordSelector` with a `retriever
 Gotcha: casting special-cases `number`/`integer`/`boolean`/`date`/`datetime`. A `boolean` reads `true`, `1`, `yes`, `y`, `t` and `on` as true, their opposites as false, and any other text as empty. A `date` or `datetime` becomes a date, and one written without a time zone, in any format, is read as UTC. An `integer` reads any number notation (`1e5` is 100000) and drops a fraction; an id beyond 2^53 loses digits as a number, so declare it as `string`. `object`, `array`, and `string` all fall through to the same default branch, which `JSON.stringify`s object/array values instead of keeping them structured — so an `array`/`object`-typed field is written out as a JSON string, not a nested value.
 
 Remember the dot-string-vs-array distinction from §3: `dataPath` is `"a.b.c"`, never `["a","b","c"]`.
+
+A Data Mart stores the names of the fields it selected. When editing a connector that is already published, NEVER rename or remove a field to fix something: the Data Marts that selected it then ask for a field the connector no longer provides — one whose table doesn't exist yet fails its run with `Field "<name>" is selected for import, but the connector does not provide it`, and one whose table exists gets no new values in that column. To change what a field holds, edit its `dataPath`; to rename it, add the new field and keep the old one. When the user brings you that error, the manifest is not wrong: tell them to open Edit Fields in the Data Mart's Input Source and save, which drops a field the connector no longer provides, or restore the field if it was removed by mistake.
 
 ## 8. `pagination` — 4 types (sync nodes only)
 
@@ -313,6 +315,21 @@ Declaring a strategy other than `none` makes the node a time series on its own �
 - `request.format` — **UPPERCASE** date-format tokens: `YYYY`, `MM`, `DD` (time components, if present, are `00` for the start and `23:59:59` for the end, so a one-day window covers the whole day); `X`/`x` mean unix epoch seconds/milliseconds, read the same way. Omitted or `YYYY-MM-DD` means "pass the date through unchanged". Non-token characters pass through literally, so avoid formats containing a token's letters as ordinary text (e.g. don't use `mm` inside a literal word).
 
 Inside the node's own `request`/`retriever.submit`, the current window is also available directly as `{{ dateWindow.start }}` / `{{ dateWindow.end }}` (both `YYYY-MM-DD` strings) — this is how `transformations.add` (§13) stamps a `date` field onto records the API itself doesn't return dated.
+
+Only a node with an `incremental` strategy, and without `isFullRefresh`, has a window. `"isTimeSeries": true` alone does NOT give a node a window, so never add it to fix the error below. NEVER put `{{ dateWindow.start }}`/`{{ dateWindow.end }}` into the `path`, or into the `body` of a non-GET request, of any request another node makes (`request`, an async `retriever.submit`/`poll`, a substream's `partitionRouter.parent.request`): publish refuses it with `ManifestParser: node "<name>" uses "{{ dateWindow.start }}" in request.path, but the node is never given a date window…`. To fix that error, add an `incremental` block to the node if the API takes dates (for a node with `isFullRefresh`, remove `isFullRefresh` first: the two are refused together), or remove the template if it doesn't. In such a node's `queryParameters` or `headers` the parameter is silently never sent.
+
+Which strategy to choose:
+
+- Prefer `range` when the API takes a start and an end date and returns the date on every record (for example, a report broken down by day). A `day-by-day` run sends one request per day and writes each day to the storage separately; a BigQuery write takes a few seconds even for a handful of rows, so a manual backfill of 31 days (the most one run covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
+- Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
+
+`endLagDays` — a whole number from `0` (the default) to `30` in a `day-by-day` or `range` `incremental` block: the window ends that many days before today (UTC) instead of today, and `{{ dateWindow.end }}` moves with it. The engine asks for the left-out days on a later run, so nothing is lost. A manual backfill never asks for a day later than that either, whatever its end date.
+
+```json
+{ "strategy": "range", "endLagDays": 1, "request": { "into": "query", "startName": "since", "endName": "until", "format": "YYYY-MM-DD" } }
+```
+
+Set `endLagDays: 1` when the API's docs say reports cover only completed days, or when a test or run fails with an error such as `end cannot be in the future` or `date must be before today` (the OpenAI Ads insights endpoint answers `time_ranges.end cannot be in the future`). If the API judges "completed" in the account's time zone and that zone is behind UTC, `1` can still be refused shortly after midnight UTC: pass the API a UTC time zone if it takes one (e.g. `"timezone": "UTC"`), or use `2`. Do not set it for an API that accepts today.
 
 ## 10. `partitionRouter` — substream & list
 
@@ -478,7 +495,7 @@ Each filter needs at least one of `httpCodes` (an array of HTTP status codes, 10
 - `IGNORE` — treat the failed request as if it returned zero records and stop paginating there: records on this and any later page are NOT imported. The run does not fail, and its log names the skipped request.
 - `FAIL` — do not retry; the error fails the run.
 
-An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once.
+An error that matches no filter gets the default treatment: a `5xx` or `429` response is retried, any other error fails the run at once. When no `backoff` applies to a retry, it waits as long as the response's `Retry-After` header asks, if that is longer than the default backoff (a Test in the builder keeps its short retry).
 
 `backoff.type` is one of `constant`, `exponential`, `waitTimeFromHeader`, `waitUntilTimeFromHeader`:
 
@@ -508,7 +525,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 - `{{ parameters.X }}` — any declared parameter's resolved value.
 - `{{ account.id }}` — the current account id, when the connector declares `accounts` (§11). Without `accounts` there is no account id.
 - `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (only meaningful inside that same authenticator's `inject.format`).
-- `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current incremental run's date window (`YYYY-MM-DD` strings).
+- `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current date window (`YYYY-MM-DD` strings), only in a node fetched by date window (§9).
 - `{{ node.selectedFields }}` — the names of the fields the Data Mart selected for this node, comma-separated (e.g. `date,rate`), for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s.
 - `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request (§10).
 - `{{ job.id }}` — the async job id, inside `retriever.async.poll` (§12).
@@ -516,7 +533,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 What happens to an unresolved path depends on where it is:
 
-- In the request `path`, the request `body` and the authentication fields, it throws (fails the run).
+- In the request `path`, the request `body` and the authentication fields, it throws (fails the run). A `dateWindow` placeholder there, in a node that is never given a date window, is refused by Publish and Test instead (§9).
 - In `queryParameters` and `headers`, the parameter is not sent at all, the same as when its value is empty. An optional parameter the user left blank simply drops out of the request.
 - Inside `transformations.add.value` (§13), it renders as an empty string.
 
@@ -540,8 +557,8 @@ All five examples below are complete, parser-valid manifests (or, for the `parti
 ```json
 {
   "version": "1.0",
-  "name": "RatesDeclarative",
-  "title": "Frankfurter FX (Declarative)",
+  "name": "FrankfurterRates",
+  "title": "Frankfurter FX",
   "baseUrl": "https://api.frankfurter.dev",
   "parameters": {
     "Base": { "requiredType": "string", "isRequired": true, "default": "EUR", "label": "Base Currency" }
@@ -677,7 +694,7 @@ A minimal manifest built directly from the `oauth2` shape in §5 — swap `baseU
 
 ```json
 {
-  "title": "Cốc Cốc Ads (Declarative, v2)",
+  "title": "Cốc Cốc Ads (v2)",
   "name": "CocCocAds",
   "version": "1.0",
   "docUrl": "https://api.qc.coccoc.com/docs/v2/",
@@ -849,3 +866,4 @@ Expands the `partitionRouter: substream` shape (§10) into one complete node: fe
 4. The user runs Test on one node — this dry-runs that node against the live API. An API key or token goes only into a parameter marked `SECRET` or used by `authentication`: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
 5. If the test fails, the user brings you the error. Make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API) and return the whole corrected manifest.
 6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user enters them in OWOX (on the Data Mart page, or in the connector's Test), never through the assistant.
+7. When asked to change a connector that is already published, keep the names of its nodes and fields: Data Marts refer to them by name (§7).

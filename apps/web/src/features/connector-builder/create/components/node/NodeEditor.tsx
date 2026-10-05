@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { useBuilder } from '../../../shared/model/hooks/useBuilder';
+import { nodeNameProblem } from '../../../shared/model/manifestNames';
 import { NodeSections } from './NodeSections';
 
 export function NodeEditor({
@@ -47,8 +48,9 @@ export function NodeEditor({
     setEditing(false);
     const next = draft.trim();
     if (!next || next === nodeName) return;
-    if (next in manifest.nodes) {
-      toast.error(`A node named "${next}" already exists`);
+    const problem = nodeNameProblem(next, Object.keys(manifest.nodes));
+    if (problem) {
+      toast.error(problem);
       return;
     }
     const renamed = renameNode(nodeName, next);

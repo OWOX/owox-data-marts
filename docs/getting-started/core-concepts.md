@@ -19,7 +19,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 - [**Source**](#source) is a platform like Meta Ads or TikTok Ads, Reddit Ads, from which raw data is collected via connectors.
 - [**Storage**](#storage) is a data warehouse (e.g., Google BigQuery, AWS Athena) where all data is stored & processed.
 - [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Data Studio).
-- [**Report**](#report) is a specific spreadsheet tab where data is exported to.
+- [**Report**](#report) delivers a Data Mart's output to a Destination, such as a specific spreadsheet tab.
 - [**Trigger**](#trigger) rules for automated data delivery on a schedule.
 - [**Run**](#run-types) is a single manual or an automated data load action.
 - [**Notification**](#notification) alerts your team when runs succeed or fail.
@@ -28,7 +28,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 
 ![Data Marts](../res/screens/data-marts-table.png)
 
-An OWOX Data Mart is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting.
+An OWOX [Data Mart](../data-marts/) is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting.
 
 It’s crafted by data analysts and can be defined using:
 
@@ -46,7 +46,7 @@ Unlike raw data inside your data warehouse, each Data Mart is:
 - **Reusable** across BI tools: Google Sheets, Data Studio, Excel, and more
 - **Trustworthy** - no more asking “Whose report is right?”
 - **Modeled** (optional) by setting up relationships with other data marts
-- **Owned** — each Data Mart has explicit **Technical Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
+- **Owned** — each Data Mart has explicit **Data Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
 
 > ☝️ Think of it as a **source of truth for a specific business question**, like:
 
@@ -61,7 +61,7 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ### Source
 
-**Source** is a service that holds data you want to manipulate—for example, Facebook Ads, TikTok Ads, Google Analytics, Salesforce, Google Sheets, etc. You can find [the available connectors here](https://docs.owox.com/#data-sources).
+[**Source**](../connectors/) is a service that holds data you want to manipulate—for example, Facebook Ads, TikTok Ads, Google Analytics, Salesforce, Google Sheets, etc. You can find [the available connectors here](https://docs.owox.com/#data-sources).
 
 > ☝️ By managing a Data Mart’s **Sources**, a Data Analyst controls the origin of the data.
 
@@ -69,7 +69,7 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ![Storages](../res/screens/storages-table.png)
 
-[**Storage**](../storages/manage-storages.md) is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
+[**Storage**](../storages/) is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
 
 - [Google BigQuery](../storages/supported-storages/google-bigquery.md)
 - [AWS Athena](../storages/supported-storages/aws-athena.md)
@@ -88,17 +88,17 @@ Each Storage has **Owners** — the team members responsible for its configurati
 
 ![Destinations](../res/screens/destinations-table.png)
 
-A [**Destination**](../destinations/manage-destinations.md) is an interface or application used by business users to access the data. Supported destinations include:
+A [**Destination**](../destinations/) is an interface or application used by business users to access the data. Supported destinations include:
 
 - [Google Sheets](../destinations/supported-destinations/google-sheets.md)
 - [Microsoft Excel](../destinations/supported-destinations/microsoft-excel.md)
 - [Data Studio](../destinations/supported-destinations/data-studio.md)
-- OData (compatible with Tableau, Power BI, etc)
+- [Email](../destinations/supported-destinations/email.md), [Slack](../destinations/supported-destinations/slack.md), [Microsoft Teams](../destinations/supported-destinations/microsoft-teams.md), and [Google Chat](../destinations/supported-destinations/google-chat.md)
 
 Each **Data Mart** can be linked to multiple **Destinations**.
 
-- All destinations except Google Sheets operate in **pull mode** — they query **Storage** when a user or tool requests the data.  
-- Google Sheets uses **push mode** — data is exported from the **Data Mart** into a **Report** in Google Sheets via manual or scheduled runs.
+- Google Sheets, Email, Slack, Microsoft Teams, and Google Chat use **push mode** — OWOX delivers **Data Mart** data through a **Report** on a manual or scheduled run.
+- Data Studio and Excel use **pull mode** — the tool asks OWOX for the data, and OWOX reads the **Storage**.
 
 > ☝️ **Destinations** allow Data Analysts to control and monitor which services business users consume data in.
 
@@ -106,8 +106,8 @@ Each Destination has **Owners** — the team members responsible for its configu
 
 ### Report
 
-A **Report** defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
-Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
+A [**Report**](../reports/) delivers a Data Mart's output to a Destination — for example, a specific tab in a Google Sheets document.
+Different Reports of the same Data Mart may have different scheduled triggers.
 
 Each Report has **Owners** — the team members responsible for its configuration. The creator is automatically assigned as an owner.
 

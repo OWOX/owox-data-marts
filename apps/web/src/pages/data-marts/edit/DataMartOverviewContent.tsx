@@ -190,7 +190,7 @@ export default function DataMartOverviewContent() {
           <div className='flex gap-4'>
             <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
               <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
-                <span>Technical Owner</span>
+                <span>Data Owner</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -223,17 +223,17 @@ export default function DataMartOverviewContent() {
               />
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='technical-owner-help'>
-                  <AccordionTrigger>What is a Technical Owner?</AccordionTrigger>
+                  <AccordionTrigger>What is a Data Owner?</AccordionTrigger>
                   <AccordionContent>
-                    <p>Technical Owner is direct maintenance ownership of this Data Mart.</p>
+                    <p>Data Owner is direct maintenance ownership of this Data Mart.</p>
                     <p>
-                      When the owner&apos;s role is Technical User or Project Admin, they may edit
-                      and delete the Data Mart, configure its Sharing, and maintain its Triggers,
-                      Reports and nested Report Triggers — regardless of Sharing settings.
+                      When the owner&apos;s project role is Data Owner or Project Admin, they may
+                      edit and delete the Data Mart, configure its Sharing, and maintain its
+                      Triggers, Reports and nested Report Triggers — regardless of Sharing settings.
                     </p>
                     <p>
-                      Assigning Technical Owner to a Business User stores the assignment but grants
-                      no maintenance permissions until the role changes.
+                      Assigning a Business User as Data Owner stores the assignment but grants no
+                      maintenance permissions until the role changes.
                     </p>
                   </AccordionContent>
                 </AccordionItem>
@@ -324,7 +324,8 @@ export default function DataMartOverviewContent() {
                 </label>
               </div>
               <p className='text-muted-foreground text-xs'>
-                Technical users can edit, delete, and manage triggers for this Data Mart
+                Members with the Data Owner role can edit, delete, and manage triggers for this Data
+                Mart
               </p>
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='maintenance-help'>
@@ -333,8 +334,9 @@ export default function DataMartOverviewContent() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>
-                      When enabled, Technical Users who are not owners can edit the Data Mart
-                      definition, delete it, and manage its scheduled triggers.
+                      When enabled, members with the Data Owner role who are not owners of this Data
+                      Mart can edit the Data Mart definition, delete it, and manage its scheduled
+                      triggers.
                     </p>
                     <p>Business Users are not affected by this setting.</p>
                   </AccordionContent>
@@ -368,8 +370,8 @@ export default function DataMartOverviewContent() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>
-                      When enabled, all project members (both Technical and Business Users) can see
-                      this Data Mart in the catalog and use it to create reports.
+                      When enabled, all project members (both Data Owners and Business Users) can
+                      see this Data Mart in the catalog and use it to create reports.
                     </p>
                     <p>Owners always have access regardless of this setting.</p>
                   </AccordionContent>

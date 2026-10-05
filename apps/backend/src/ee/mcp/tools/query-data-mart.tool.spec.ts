@@ -40,7 +40,7 @@ describe('QueryDataMartTool', () => {
   it('exposes the MCP contract', () => {
     expect(tool.name).toBe('query_data_mart');
     expect(tool.requiredScopes).toEqual(['mcp:read', 'mcp:write']);
-    expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: false });
+    expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: true });
   });
 
   it('embeds the generated field-type matrix in the description', () => {

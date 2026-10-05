@@ -9,12 +9,13 @@ import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js
 import { clearCookie } from '../../utils/cookie-policy.js';
 import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
-  clearAllAuthCookies,
+  clearAuthFlowStateCookie,
   clearBetterAuthCookies,
   extractState,
   extractStateFromCookie,
   type AuthFlowParams,
 } from '../../utils/request-utils.js';
+import { clearVerifiedSocialIntent } from '../../utils/social-intent.js';
 import type { BetterAuthSessionService } from './better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
@@ -32,6 +33,17 @@ export class PkceFlowOrchestrator {
     private readonly platformAuthFlowClient: PlatformAuthFlowClient,
     private readonly betterAuthSessionService: BetterAuthSessionService
   ) {}
+
+  /**
+   * A bare `/auth/sign-in` redirect after a failure mid-flow renders
+   * identically to a fresh, never-touched page - the user has no way to
+   * tell a real failure apart from their click having done nothing at all.
+   */
+  private signInErrorUrl(reason: string): URL {
+    const url = new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+    url.searchParams.set('error', reason);
+    return url;
+  }
 
   /**
    * Revokes refresh token and clears auth cookies before redirecting to sign-in.
@@ -101,8 +113,9 @@ export class PkceFlowOrchestrator {
       return redirectUrl;
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearAllAuthCookies(res, req);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        clearAuthFlowStateCookie(res, req);
+        clearBetterAuthCookies(res, req);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       if (error instanceof AuthenticationException) {
         this.logger.warn(
@@ -113,7 +126,7 @@ export class PkceFlowOrchestrator {
           error
         );
         await this.revokeRefreshTokenAndClearCookies(refreshToken, req, res);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       this.logger.warn(
         'Platform fast-path failed, will fallback to UI',
@@ -142,8 +155,10 @@ export class PkceFlowOrchestrator {
     const state = extractStateFromCookie(req);
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
-      clearAllAuthCookies(res, req);
-      return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+      clearAuthFlowStateCookie(res, req);
+      clearBetterAuthCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
+      return this.signInErrorUrl('Your sign-in session expired. Please try again.');
     }
     try {
       const { code, payload } =
@@ -167,15 +182,19 @@ export class PkceFlowOrchestrator {
       }
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearAllAuthCookies(res, req);
-        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+        clearAuthFlowStateCookie(res, req);
+        clearBetterAuthCookies(res, req);
+        clearVerifiedSocialIntent(req, res);
+        return this.signInErrorUrl('Your sign-in session expired. Please try again.');
       }
       this.logger.warn(
         'Auto-complete auth flow on callback failed',
         undefined,
         error instanceof Error ? error : undefined
       );
-      clearAllAuthCookies(res, req);
+      clearAuthFlowStateCookie(res, req);
+      clearBetterAuthCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
       return null;
     }
     return null;

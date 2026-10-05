@@ -556,8 +556,9 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     });
     await runAndWait(reportId);
 
-    expect(await readRow1()).toEqual(['country', 'cost']);
-    expect((await readOwoxColumnsMetadata()).map(c => c.name)).toEqual(['country', 'cost']);
+    // A selection with a metric and no aggregation auto-collapses on a stored run, relabelling it.
+    expect(await readRow1()).toEqual(['country', 'cost | SUM']);
+    expect((await readOwoxColumnsMetadata()).map(c => c.name)).toEqual(['country', 'cost | SUM']);
   }, 90_000);
 
   // -------------------------------------------------------------------------

@@ -74,9 +74,19 @@ import {
   extractAuthFlowParams,
   extractRefreshToken,
   getStateManager,
+  persistAuthFlowError,
   persistAuthFlowParams,
+  readPendingActionFromQuery,
+  resetAuthFlowForRetry,
   type AuthFlowParams,
 } from './utils/request-utils.js';
+import {
+  clearVerifiedSocialIntent,
+  consumeSocialIntentNonce,
+  issueSocialIntentNonce,
+  persistVerifiedSocialIntent,
+  readVerifiedSocialIntent,
+} from './utils/social-intent.js';
 
 const MCP_PROJECT_ID_PATTERN = /^[a-f0-9]{32}$/;
 
@@ -359,6 +369,20 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.authErrorController.registerRoutes(app);
     this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
+    app.post(`${AUTH_BASE_PATH}/social-intent/nonce`, (req, res) => {
+      const host = req.get('host');
+      if (!host || req.get('origin') !== `${req.protocol}://${host}`) {
+        return res.sendStatus(403);
+      }
+      res.set('Cache-Control', 'no-store');
+      return res.json({ nonce: issueSocialIntentNonce(req, res) });
+    });
+    app.post(`${AUTH_BASE_PATH}/sign-in/social-intent`, (req, res) =>
+      this.handleSocialIntent(req, res, this.config.idpOwox.idpConfig.platformSignInUrl)
+    );
+    app.post(`${AUTH_BASE_PATH}/sign-up/social-intent`, (req, res) =>
+      this.handleSocialIntent(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl)
+    );
     this.passwordFlowController.registerRoutes(app);
     this.googleSheetsAuthController.registerRoutes(app);
     this.extensionAuthController?.registerRoutes(app);
@@ -373,13 +397,20 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const state = req.query.state as string | undefined;
       if (!code) {
         this.logger.warn('Redirect url should contain code param', { path: req.path });
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        resetAuthFlowForRetry(req, res);
+        clearVerifiedSocialIntent(req, res);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
 
       if (!state) {
         this.logger.warn('Redirect url should contain state param', { path: req.path });
-        clearAuthFlowCookies(res, req);
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        resetAuthFlowForRetry(req, res);
+        clearVerifiedSocialIntent(req, res);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
 
       try {
@@ -412,6 +443,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         });
 
         clearAuthFlowCookies(res, req);
+        clearVerifiedSocialIntent(req, res);
 
         // Check if onboarding questionnaire should be shown
         if (payload) {
@@ -464,7 +496,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
             error instanceof Error ? error : undefined
           );
         }
-        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
+        resetAuthFlowForRetry(req, res);
+        clearVerifiedSocialIntent(req, res);
+        return res.redirect(
+          this.signInErrorRedirect('Your sign-in session expired. Please try again.')
+        );
       }
     });
   }
@@ -480,6 +516,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-in', { path: req.path, queryState });
       clearAuthFlowCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
 
@@ -493,13 +530,21 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   /**
    * Handles sign-in when no query state is present.
-   * Attempts fast-path IDP start or refresh token reuse, otherwise redirects to platform.
+   * Attempts fast-path IDP start or refresh token reuse, otherwise redirects
+   * to Platform to mint a state - the email/password form needs one ready as
+   * soon as the page renders (a client-side deferral was tried and dropped:
+   * it either lost an in-progress password to a full-page bounce, or left a
+   * window where the state could still expire mid-form-fill). A separate
+   * verified button POST starts a fresh social state round trip before the
+   * refresh-token fast paths run.
    */
   private async handleNoState(req: e.Request, res: e.Response): Promise<void | e.Response> {
     const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
     const refreshToken = extractRefreshToken(req);
     const authFlowParams = extractAuthFlowParams(req);
     const hasOAuthAuthorizeContinuation = this.hasOAuthAuthorizeContinuation(authFlowParams);
+    const pendingAction = readPendingActionFromQuery(req);
+    const error = typeof req.query?.error === 'string' ? req.query.error : undefined;
 
     this.logger.info('Sign-in request without state', {
       path: req.path,
@@ -508,7 +553,19 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       redirectTo: authFlowParams.redirectTo,
       appRedirectTo: authFlowParams.appRedirectTo,
       hasOAuthAuthorizeContinuation,
+      pendingAction,
     });
+
+    if (error) {
+      persistAuthFlowError(req, res, error);
+      clearAuthFlowStateCookie(res, req);
+      return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+    }
+
+    if (readVerifiedSocialIntent(req)) {
+      clearAuthFlowStateCookie(res, req);
+      return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+    }
 
     if (!refreshToken && hasOAuthAuthorizeContinuation) {
       this.logger.info(
@@ -533,6 +590,27 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
 
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+  }
+
+  private async handleSocialIntent(
+    req: e.Request,
+    res: e.Response,
+    platformUrl: string
+  ): Promise<void | e.Response> {
+    const provider = req.body?.provider;
+    if (
+      (provider !== 'google' && provider !== 'microsoft') ||
+      !this.pageController.isSocialProviderEnabled(provider) ||
+      !consumeSocialIntentNonce(req, res, req.body?.nonce)
+    ) {
+      return res.status(403).send('Sign-in page expired. Please reload and try again.');
+    }
+
+    // The POST and its return leg both skip refresh-token fast paths while
+    // the short-lived intent is pending.
+    clearAuthFlowStateCookie(res, req);
+    persistVerifiedSocialIntent(req, res, provider);
+    return this.redirectToPlatform(req, res, platformUrl);
   }
 
   private hasOAuthAuthorizeContinuation(params: AuthFlowParams): boolean {
@@ -585,6 +663,16 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
   }
 
+  /**
+   * A bare `/auth/sign-in` redirect after a failure mid-flow renders
+   * identically to a fresh, never-touched page - the user has no way to
+   * tell a real failure apart from their click having done nothing at all.
+   */
+  private signInErrorRedirect(reason: string): string {
+    const params = new URLSearchParams({ error: reason });
+    return `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}?${params.toString()}`;
+  }
+
   private resolveExistingRefreshRedirect(params: AuthFlowParams): string {
     const allowedRedirectOrigins = this.config.idpOwox.idpConfig.allowedRedirectOrigins;
     return (
@@ -625,9 +713,28 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-up', { path: req.path });
       clearAuthFlowCookies(res, req);
+      clearVerifiedSocialIntent(req, res);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     if (!queryState) {
+      // projectId/appRedirectTo are read from the query only, not the
+      // cookie-inclusive extractAuthFlowParams: a project invite/bind link
+      // is a signal carried by *this* request, not by whatever the params
+      // cookie happens to still hold from an earlier, unrelated visit.
+      const hasQueryProjectId =
+        typeof req.query?.projectId === 'string' && req.query.projectId.length > 0;
+      const hasQueryAppRedirectTo =
+        typeof req.query?.['app-redirect-to'] === 'string' &&
+        req.query['app-redirect-to'].length > 0;
+      const pendingAction = readPendingActionFromQuery(req);
+      const hasEstablishedIntent =
+        Boolean(pendingAction) ||
+        hasQueryProjectId ||
+        hasQueryAppRedirectTo ||
+        Boolean(extractRefreshToken(req));
+      if (!hasEstablishedIntent) {
+        return this.pageController.signUpPage(req, res);
+      }
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     stateManager.persist(res, queryState);
@@ -645,6 +752,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
     clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
     clearBetterAuthCookies(res, req);
+    // A later sign-in must not reuse the previous state or social choice.
+    clearAuthFlowCookies(res, req);
+    clearVerifiedSocialIntent(req, res);
     const redirectUrl =
       this.config.idpOwox.idpConfig.signOutRedirectUrl ??
       `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`;

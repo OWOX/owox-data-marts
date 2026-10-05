@@ -1,15 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, ValidateIf } from 'class-validator';
-import { DataMartIcon } from '../../enums/data-mart-icon.enum';
+import { IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
+import {
+  DATA_MART_ICON_API_DESCRIPTION,
+  DATA_MART_ICON_MAX_LENGTH,
+  DATA_MART_ICON_PATTERN,
+  type DataMartIconValue,
+} from '../../enums/data-mart-icon.enum';
 
 export class UpdateDataMartIconApiDto {
   @ApiProperty({
-    enum: DataMartIcon,
+    type: String,
     nullable: true,
-    description: 'Icon key from the fixed set; null resets the Data Mart to the default icon.',
+    example: 'purchases',
+    description: `${DATA_MART_ICON_API_DESCRIPTION} null resets the Data Mart to the default icon.`,
   })
   // Required: a body without `icon` is a client mistake, not a reset — only an explicit null resets.
   @ValidateIf(obj => obj.icon !== null)
-  @IsEnum(DataMartIcon)
-  icon: DataMartIcon | null;
+  @IsString()
+  @MaxLength(DATA_MART_ICON_MAX_LENGTH)
+  @Matches(DATA_MART_ICON_PATTERN)
+  icon: DataMartIconValue | null;
 }

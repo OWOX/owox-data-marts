@@ -29,7 +29,9 @@ Click the badge again to close the list.
 
 Every card leads with an icon, so you can tell purchases from sessions at a glance. A Data Mart shows a plain box until someone picks an icon for it.
 
-To pick one, open the Data Mart and click the icon next to its title. Choose from icons for common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. Data-stack icons cover data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
+To pick one, open the Data Mart and click the icon next to its title. **Recommended** icons come first. They cover common subjects: purchases, orders, products, sessions, customers, countries, ad spend and traffic sources. They also cover the data stack: data sources, pipelines, SQL, reports, dashboards, joins, metrics, UTM tags, attribution and more. **All icons** below them lists the rest of the [Lucide](https://lucide.dev/icons/) icon library, more than 1,500 icons in all.
+
+Type in the search box to filter both lists by English name, for example `cart`, `rocket` or `arrow up`. A recommended icon also matches the name of its picture, so `cart` finds **Purchases**. Press Enter to pick the first match. **Reset to default** brings back the box. You need edit access to the Data Mart to change its icon.
 
 The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG [exports](models-canvas-export.md).
 
@@ -40,7 +42,7 @@ The icon shows on the Data Mart page, on the canvas card and in the PNG and SVG 
 - **Status filter** shows all Data Marts, published ones only, or drafts only.
 - **Actions** runs bulk operations on the Data Marts the canvas currently shows. Those are publish, delete, [Data Quality](data-quality-checks.md) and [Data Last Updated](data-last-updated.md) checks. It also holds the [Export](models-canvas-export.md) submenu.
 
-![The Models canvas relationships filter open with All Data Marts, With relationships only and Without relationships only, the last one selected and a single unconnected Data Mart left on the canvas](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ff20092f-b242-4ad6-2ce5-c8e196db5100/w=800)
+![The Models canvas relationships filter open with All Data Marts, With relationships only and Without relationships only, the last one selected and a single unconnected Data Mart left on the canvas](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ff20092f-b242-4ad6-2ce5-c8e196db5100/public)
 
 The page URL carries the filters and the search (`rel`, `status`, `search`). Share the link to share the filtered canvas.
 
@@ -66,7 +68,7 @@ The gear button on the canvas opens the view settings. They are preferences stor
 
 **Title only** unticks every checkbox in both columns, Field rows included, and leaves only the titles. **Show all** ticks every checkbox back on. Hover an option, or tab to it, to see an info icon with a tooltip that explains the option. Changing what cards show keeps your zoom and position on the canvas. Picking another view or layout algorithm fits the whole graph again. When the window is short, the settings scroll.
 
-![The Models canvas in the ERD view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/w=800)
+![The Models canvas in the ERD view with the canvas settings open: Field aliases and Field descriptions are ticked under Field rows, and the Orders card lists each field by its alias with its description underneath](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ce4e911b-1290-4ae2-9efd-29dc24fbae00/public)
 
 ## Notes
 

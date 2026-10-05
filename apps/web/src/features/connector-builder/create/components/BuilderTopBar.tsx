@@ -24,6 +24,7 @@ import { draftVersionAtRisk, useBuilder } from '../../shared/model/hooks/useBuil
 import { firstNonEmpty } from '../../shared/model/asText';
 import { manifestToJson } from '../../shared/model/manifestJson';
 import { downloadBlob } from '../../../data-marts/model-canvas/export/download';
+import { trackCustomConnectorEvent } from '../../shared/model/analytics';
 import { VersionHistoryPopover } from './VersionHistoryPopover';
 
 const BUILDER_GUIDE_URL = 'https://docs.owox.com/docs/connectors/connector-builder/';
@@ -52,6 +53,11 @@ export function BuilderTopBar({
       new Blob([manifestToJson(exported)], { type: 'application/json' }),
       `${exported.name || 'connector'}.json`
     );
+    trackCustomConnectorEvent('custom_connector_exported', {
+      id: state.id,
+      manifest: exported,
+      version: state.loadedVersion,
+    });
   };
 
   // Which write is waiting on the "this replaces a newer draft" confirmation, if any.
@@ -183,6 +189,13 @@ export function BuilderTopBar({
                 rel='noopener noreferrer'
                 className='flex items-center gap-2'
                 data-testid='builderGuide'
+                onClick={() => {
+                  trackCustomConnectorEvent(
+                    'custom_connector_guide_opened',
+                    { id: state.id, manifest, version: state.loadedVersion },
+                    { guide: 'connector_builder' }
+                  );
+                }}
               >
                 <BookOpen className='h-4 w-4' />
                 Guide for Connector Builder

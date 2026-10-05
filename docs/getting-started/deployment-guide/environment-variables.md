@@ -222,14 +222,15 @@ See also: mysql2 official SSL documentation — <https://sidorares.github.io/nod
 
 ## Connectors
 
-Ads connectors can resolve short links in landing URL fields to their final destination.
-Single-part short links, such as `https://bit.ly/abc123`, resolve on any domain. Links with
-several path parts resolve only on the domains you list here. In OWOX Cloud, OWOX manages this
-value; contact support to add a domain.
+Ads connectors can resolve short links in landing URL fields to the address their service points to.
+Resolution runs only for known short link services (`bit.ly`, `tinyurl.com`, `t.co`, `lnkd.in`,
+`youtu.be`, `amzn.to`, `ow.ly`, `buff.ly`, `cutt.ly`, `is.gd`, `rebrand.ly`) and for
+the domains you list here. Links on other domains stay unchanged. In OWOX Cloud, OWOX manages
+this value; contact support to add a domain.
 
 | Variable                       | Purpose                                                                                                                                                                     |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONNECTOR_SHORT_LINK_DOMAINS` | Comma-separated domains of custom short link services whose links have several path parts, for example `links.example.com`. Subdomains match too. Empty by default. |
+| `CONNECTOR_SHORT_LINK_DOMAINS` | Comma-separated domains of your own short link services, for example `links.example.com`. Subdomains match too. Empty by default. |
 
 ## Plugins
 

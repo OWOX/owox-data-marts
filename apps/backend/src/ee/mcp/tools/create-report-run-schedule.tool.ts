@@ -43,7 +43,7 @@ export class CreateReportRunScheduleTool implements McpToolDefinition<CreateRepo
     title: 'Create Report Run Schedule',
     readOnlyHint: false,
     destructiveHint: false,
-    openWorldHint: false,
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];
 

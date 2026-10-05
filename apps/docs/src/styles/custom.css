@@ -3,6 +3,20 @@ th > img {
   display: inline-block;
 }
 
+/* Changelog entry anchors, added by scripts/rehype-changelog-entry-anchors.js */
+.sl-markdown-content .changelog-entry-anchor {
+  --sl-anchor-icon-size: 0.8275em;
+  --sl-line-height-headings: var(--sl-line-height);
+  margin-inline-start: 0.25em;
+}
+
+@media (hover: hover) {
+  .sl-markdown-content strong:hover + .changelog-entry-anchor,
+  .sl-markdown-content .changelog-entry-anchor:hover {
+    opacity: 1;
+  }
+}
+
 @media (min-width: 90rem) {
   :root {
     --sl-content-width: 54rem;
