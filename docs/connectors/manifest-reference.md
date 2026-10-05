@@ -261,7 +261,7 @@ Each node describes one data stream:
 | `overview` | Optional one-line description, shown in the builder UI. |
 | `uniqueKeys` | Field names forming the row's unique key: later runs update the rows with these values instead of adding duplicates. Required to publish, and every name must be one of the node's `fields`. |
 | `destinationName` | Optional; the destination table name (defaults to the node name). |
-| `isTimeSeries` | Boolean; enables date-window incremental processing for this node. A node with an `incremental` strategy other than `none` is treated as time-series even without it. |
+| `isTimeSeries` | Optional boolean; not needed. An `incremental` strategy other than `none` makes the node fetched by date window without it. On its own, `"isTimeSeries": true` does not give the node a window: see [Incremental](#incremental-date-windowed-extraction). |
 | `defaultFields` | Optional field names pre-selected by default (defaults to all declared fields). |
 | `request` | `{ method, path, queryParameters?, headers?, body? }`. `method` is `GET` or `POST`. `path` is relative to `baseUrl` and must start with `/`. `headers` is an object of extra request headers; its values can be templates, like `queryParameters`. |
 | `recordSelector.recordPath` | Array of keys locating the row(s) — see [How the engine turns responses into rows](#how-the-engine-turns-responses-into-rows). `recordSelector.responseFormat` is optional: `json` (default), `csv`, or `jsonl`. A `204` response or an empty JSON body counts as no records. |
