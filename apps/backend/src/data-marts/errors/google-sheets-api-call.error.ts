@@ -1,9 +1,9 @@
 /**
  * A Google Sheets API call failed while a report was being written. Replaces the
  * bare Google text ("Internal error encountered.", "The service is currently
- * unavailable.") with the step that failed, the HTTP status, how many attempts
- * were made and what the user can do — the user sees this message verbatim in
- * Run History and in the report's last-run error.
+ * unavailable.") with the step that failed, the HTTP status and, for server
+ * errors, the most likely cause on the spreadsheet's side — the user sees this
+ * message verbatim in Run History and in the report's last-run error.
  *
  * Not a BusinessViolationException: Google-side failures stay at ERROR level so
  * they remain visible in production logs.
@@ -23,35 +23,27 @@ export class GoogleSheetsApiCallError extends Error {
  * @param step - what the writer was doing, e.g. "Writing and formatting column headers"
  * @param status - HTTP status Google returned
  * @param googleMessage - Google's own error text
- * @param attempts - how many times the call was sent (1 when it was not retried)
  */
 export function googleSheetsApiCallMessage(
   step: string,
   status: number,
-  googleMessage: string,
-  attempts: number
+  googleMessage: string
 ): string {
   const whileStep = `while ${step.charAt(0).toLowerCase()}${step.slice(1)}`;
   const googleSays = `Google responded with HTTP ${status}: ${googleMessage.trim()}`;
-  const retried = attempts > 1 ? ` OWOX tried ${attempts} times.` : '';
-
-  if (status === 429) {
-    return (
-      `Google Sheets quota was exceeded ${whileStep}. ${googleSays}${retried} ` +
-      `Too many reports may be writing with the same Google account at the same time — ` +
-      `spread their schedules apart or run the report again later.`
-    );
-  }
 
   if (status >= 500) {
+    // Google answers 500/503 when it cannot apply a write in time. A one-off is a
+    // Google-side hiccup; a failure on every run points at a spreadsheet that
+    // recalculates too slowly after each of the run's writes.
     return (
-      `Google Sheets did not complete the request ${whileStep}. ${googleSays}${retried} ` +
-      `This is a temporary error on Google's side. It happens more often in spreadsheets ` +
-      `that are slow to update — for example when formulas on other sheets read whole ` +
-      `columns of the report's sheet. Run the report again, or deliver it to a separate ` +
-      `spreadsheet and reference it from there.`
+      `Google Sheets could not complete the request ${whileStep}. ${googleSays} ` +
+      `If this happens on every run, the spreadsheet most likely takes too long to ` +
+      `recalculate after each change: check formulas that read whole columns of the ` +
+      `report's sheet, and if the spreadsheet has circular references, turn on ` +
+      `Iterative calculation in File → Settings → Calculation.`
     );
   }
 
-  return `Google Sheets rejected the request ${whileStep}. ${googleSays}${retried}`;
+  return `Google Sheets rejected the request ${whileStep}. ${googleSays}`;
 }

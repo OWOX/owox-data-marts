@@ -17,11 +17,7 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { SheetHeaderFormatter } from './sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-formatter';
 import { ColumnPlanBuilder } from './column-plan-builder';
-import {
-  GoogleApiRetriesExhaustedError,
-  GoogleSheetsApiAdapter,
-  quoteA1SheetTitle,
-} from '../adapters/google-sheets-api.adapter';
+import { GoogleSheetsApiAdapter, quoteA1SheetTitle } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
@@ -1235,10 +1231,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     if (status === undefined || status < 400) {
       return undefined;
     }
-    const attempts = error instanceof GoogleApiRetriesExhaustedError ? error.attempts : 1;
     const googleMessage = error instanceof Error ? error.message : String(error);
     return new GoogleSheetsApiCallError(
-      googleSheetsApiCallMessage(operationName, status, googleMessage, attempts),
+      googleSheetsApiCallMessage(operationName, status, googleMessage),
       status,
       error
     );

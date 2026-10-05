@@ -12,7 +12,6 @@ import {
   sheetNotFoundMessage,
 } from '../../../errors/google-sheet-not-found.error';
 import { GoogleSheetsApiCallError } from '../../../errors/google-sheets-api-call.error';
-import { GoogleApiRetriesExhaustedError } from '../adapters/google-sheets-api.adapter';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s pre-clear
@@ -1438,12 +1437,9 @@ describe('GoogleSheetsReportWriter — explains Google API failures in Run Histo
     return built;
   };
 
-  it('names the failed step, the status and the attempts when Google keeps answering 503', async () => {
+  it('names the failed step, the status and the likely cause when Google answers 503', async () => {
     const { writer, adapter } = await prepare();
-    const cause = new GoogleApiRetriesExhaustedError(
-      googleError(503, 'The service is currently unavailable.'),
-      4
-    );
+    const cause = googleError(503, 'The service is currently unavailable.');
     // The header-format batch is the first batchUpdate of the deferred mutations.
     adapter.batchUpdate.mockRejectedValueOnce(cause);
 
@@ -1455,14 +1451,30 @@ describe('GoogleSheetsReportWriter — explains Google API failures in Run Histo
     expect(error).toMatchObject({ status: 503, cause });
     const message = (error as Error).message;
     // The innermost step wins — the outer "Writing data batch" step must not re-wrap it.
-    expect(message).toContain('while writing and formatting column headers');
+    expect(message).toMatch(
+      /^Google Sheets could not complete the request while writing and formatting column headers\. /
+    );
     expect(message).not.toContain('data batch');
     expect(message).toContain('HTTP 503: The service is currently unavailable.');
-    expect(message).toContain('OWOX tried 4 times.');
-    expect(message).toContain('separate spreadsheet');
+    expect(message).toContain('If this happens on every run');
+    expect(message).toContain('Iterative calculation in File → Settings → Calculation');
   });
 
-  it('does not claim retries for a call that was sent once', async () => {
+  it('gives the same guidance for HTTP 500', async () => {
+    const { writer, adapter } = await prepare();
+    adapter.clearValuesInRange.mockRejectedValueOnce(
+      googleError(500, 'Internal error encountered.')
+    );
+
+    const error = await writer
+      .writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]))
+      .catch((e: unknown) => e);
+
+    expect((error as Error).message).toContain('HTTP 500: Internal error encountered.');
+    expect((error as Error).message).toContain('If this happens on every run');
+  });
+
+  it('reports a client error with its step and status only', async () => {
     const { writer, adapter } = await prepare();
     adapter.updateValues
       .mockResolvedValueOnce(undefined) // headers
@@ -1473,8 +1485,7 @@ describe('GoogleSheetsReportWriter — explains Google API failures in Run Histo
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(GoogleSheetsApiCallError);
-    const message = (error as Error).message;
-    expect(message).toBe(
+    expect((error as Error).message).toBe(
       'Google Sheets rejected the request while writing data batch to Google Sheets. ' +
         'Google responded with HTTP 404: Requested entity was not found.'
     );
