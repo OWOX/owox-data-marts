@@ -1,5 +1,4 @@
-import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
-import { getTable } from './migration-utils';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Widens `sql_dry_run_triggers.sql` from `text` (65535 bytes on MySQL) to `mediumtext`
@@ -8,9 +7,12 @@ import { getTable } from './migration-utils';
  *
  * MySQL only: on SQLite a `text` column is already unbounded, and TypeORM's SQLite
  * driver does not support `mediumtext` at all.
+ *
+ * Raw `ALTER TABLE ... MODIFY` on purpose. On MySQL, `queryRunner.changeColumn` drops and
+ * re-adds the column whenever the type changes: it empties every row, moves the column, and
+ * leaves the table without `sql` between the two statements.
  */
 export class WidenSqlDryRunTriggerSqlColumn1790830000000 implements MigrationInterface {
-  private readonly TABLE_NAME = 'sql_dry_run_triggers';
   public readonly name = 'WidenSqlDryRunTriggerSqlColumn1790830000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -18,17 +20,7 @@ export class WidenSqlDryRunTriggerSqlColumn1790830000000 implements MigrationInt
       return;
     }
 
-    const table = await getTable(queryRunner, this.TABLE_NAME);
-
-    await queryRunner.changeColumn(
-      table,
-      'sql',
-      new TableColumn({
-        name: 'sql',
-        type: 'mediumtext',
-        isNullable: false,
-      })
-    );
+    await queryRunner.query('ALTER TABLE `sql_dry_run_triggers` MODIFY `sql` MEDIUMTEXT NOT NULL');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -38,18 +30,7 @@ export class WidenSqlDryRunTriggerSqlColumn1790830000000 implements MigrationInt
 
     // Rows wider than `text` can hold would fail the narrowing ALTER in strict mode.
     // Dry-run triggers are ephemeral validation requests, so dropping them is safe.
-    await queryRunner.query(`DELETE FROM ${this.TABLE_NAME} WHERE LENGTH(\`sql\`) > 65535`);
-
-    const table = await getTable(queryRunner, this.TABLE_NAME);
-
-    await queryRunner.changeColumn(
-      table,
-      'sql',
-      new TableColumn({
-        name: 'sql',
-        type: 'text',
-        isNullable: false,
-      })
-    );
+    await queryRunner.query('DELETE FROM `sql_dry_run_triggers` WHERE LENGTH(`sql`) > 65535');
+    await queryRunner.query('ALTER TABLE `sql_dry_run_triggers` MODIFY `sql` TEXT NOT NULL');
   }
 }
