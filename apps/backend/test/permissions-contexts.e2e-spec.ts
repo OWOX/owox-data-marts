@@ -15,6 +15,16 @@ import { DataDestinationType } from '../src/data-marts/data-destination-types/en
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
 import { ProjectMemberDto } from '../src/idp/dto/domain/project-member.dto';
 import { ContextAccessService } from '../src/data-marts/services/context/context-access.service';
+import {
+  MCP_DATA_MARTS_FACADE,
+  type McpDataMartsFacade,
+} from '../src/data-marts/facades/mcp-data-marts.facade';
+import {
+  MCP_CONTEXTS_FACADE,
+  type McpContextsFacade,
+} from '../src/data-marts/facades/mcp-contexts.facade';
+import { DataMart } from '../src/data-marts/entities/data-mart.entity';
+import { DataMartStatus } from '../src/data-marts/enums/data-mart-status.enum';
 import { ProjectRole } from '../src/data-marts/enums/project-role.enum';
 import { RoleScope } from '../src/data-marts/enums/role-scope.enum';
 import type { IdpProvider, Payload } from '@owox/idp-protocol';
@@ -1532,6 +1542,67 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(['email-sent', 'magic-link']).toContain(res.body.kind);
       // Response shape intentionally drops contextIds — they are not applied server-side.
       expect(res.body.contextIds).toBeUndefined();
+    });
+  });
+
+  describe('MCP context discovery', () => {
+    it('lists complete project descriptions, validates project ownership and filters with OR while preserving visibility', async () => {
+      const description = '# Goal\n' + 'MQL '.repeat(3000);
+      const marketing = await createContext('MCP-marketing', description);
+      const sales = await createContext('MCP-sales');
+      const missing = await createContext('MCP-no-marts');
+      const first = await createStorageAndDataMart();
+      const second = await createStorageAndDataMart();
+      const outside = await createStorageAndDataMart();
+      await attachDataMartContexts(first.dataMartId, [marketing.body.id, sales.body.id]);
+      await attachDataMartContexts(second.dataMartId, [sales.body.id]);
+      await dataSource
+        .getRepository(DataMart)
+        .update([first.dataMartId, second.dataMartId, outside.dataMartId], {
+          status: DataMartStatus.PUBLISHED,
+          availableForReporting: true,
+        });
+      const marts = app.get<McpDataMartsFacade>(MCP_DATA_MARTS_FACADE);
+      const contexts = app.get<McpContextsFacade>(MCP_CONTEXTS_FACADE);
+      expect(await contexts.listContexts(PROJECT_ID)).toEqual(
+        expect.arrayContaining([
+          { id: marketing.body.id, name: 'MCP-marketing', description },
+          { id: sales.body.id, name: 'MCP-sales', description: null },
+        ])
+      );
+      await expect(
+        contexts.validateContextIds('other-project', [marketing.body.id])
+      ).rejects.toThrow();
+      await contexts.validateContextIds(PROJECT_ID, [sales.body.id, sales.body.id]);
+      const admin = { projectId: PROJECT_ID, userId: '0', roles: ['admin'] };
+      const both = await marts.listDataMarts({
+        ...admin,
+        contextIds: [marketing.body.id, sales.body.id],
+      });
+      expect(both.dataMarts.map(m => m.id).sort()).toEqual(
+        [first.dataMartId, second.dataMartId].sort()
+      );
+      expect(both.dataMarts.find(m => m.id === first.dataMartId)?.contexts).toEqual(
+        expect.arrayContaining([
+          { id: marketing.body.id, name: 'MCP-marketing' },
+          { id: sales.body.id, name: 'MCP-sales' },
+        ])
+      );
+      expect(
+        (await marts.listDataMarts({ ...admin, contextIds: [missing.body.id] })).dataMarts
+      ).toEqual([]);
+      await contextAccess.updateMemberRoleScope('2', PROJECT_ID, RoleScope.SELECTED_CONTEXTS);
+      await contextAccess.updateMemberContexts('2', PROJECT_ID, [marketing.body.id]);
+      const viewer = { projectId: PROJECT_ID, userId: '2', roles: ['viewer'] };
+      expect(
+        (await marts.listDataMarts({ ...viewer, contextIds: [sales.body.id] })).dataMarts.map(
+          m => m.id
+        )
+      ).toEqual([first.dataMartId]);
+      expect(
+        (await marts.listDataMarts({ ...viewer, contextIds: [missing.body.id] })).dataMarts
+      ).toEqual([]);
+      expect(await contexts.getDataMartContexts('other-project', [first.dataMartId])).toEqual({});
     });
   });
 

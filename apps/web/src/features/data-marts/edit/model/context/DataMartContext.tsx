@@ -290,6 +290,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: id,
         error: apiError.message,
       });
+      throw error;
     }
   }, []);
 

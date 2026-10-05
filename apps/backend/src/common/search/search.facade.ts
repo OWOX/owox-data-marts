@@ -35,6 +35,7 @@ export interface SearchOptions {
   topK?: number;
   entityTypes?: SearchableEntityType[];
   excludeDrafts?: boolean;
+  contextIds?: string[];
 }
 
 export interface SearchEngine {

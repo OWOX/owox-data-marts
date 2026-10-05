@@ -1,3 +1,4 @@
+import { MCP_CONTEXTS_FACADE } from '../../../data-marts/facades/mcp-contexts.facade';
 jest.mock(
   '../../../common/producer/producer.module.js',
   () => ({
@@ -48,6 +49,7 @@ describe('MCP tool providers', () => {
     );
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, DataMartsModule)).toEqual(
       expect.arrayContaining([
+        MCP_CONTEXTS_FACADE,
         MCP_DATA_MARTS_FACADE,
         MCP_DATA_DESTINATIONS_FACADE,
         MCP_REPORTS_FACADE,
@@ -68,6 +70,7 @@ describe('MCP tool providers', () => {
       providers: [
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
+        { provide: MCP_CONTEXTS_FACADE, useValue: {} },
         { provide: MCP_DATA_MARTS_FACADE, useValue: {} },
         { provide: MCP_DATA_DESTINATIONS_FACADE, useValue: {} },
         { provide: MCP_REPORTS_FACADE, useValue: {} },

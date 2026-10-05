@@ -1370,6 +1370,61 @@ describe('SearchIndexRepository — multi-type isolation', () => {
     return rows.map(row => row.name);
   }
 
+  it('filters SQL candidates by any selected context before applying candidate limits', async () => {
+    const storage = await dataSource.getRepository(DataStorage).save({
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      projectId: 'proj-1',
+      createdById: 'user-1',
+    });
+    const contexts = await dataSource.getRepository(Context).save([
+      { name: 'Marketing', projectId: 'proj-1' },
+      { name: 'Sales', projectId: 'proj-1' },
+    ]);
+    const ids = ['context-a-outside', 'context-b-marketing', 'context-c-sales'];
+    for (const id of ids) {
+      await dataSource.getRepository(DataMart).save({
+        id,
+        title: 'Revenue',
+        projectId: 'proj-1',
+        createdById: 'user-1',
+        status: DataMartStatus.PUBLISHED,
+        storage,
+      });
+      await repo.upsert(
+        DATA_MART,
+        makeRow({
+          entityId: id,
+          document: JSON.stringify({
+            title: 'Revenue',
+            description: null,
+            embeddingText: 'Revenue',
+            richTextSlots: [{ kind: 'title', text: 'Revenue' }],
+            atomicTokenSlots: [],
+          }),
+        })
+      );
+    }
+    await dataSource.getRepository(DataMartContext).save([
+      { dataMartId: ids[1], contextId: contexts[0].id },
+      { dataMartId: ids[2], contextId: contexts[1].id },
+    ]);
+    const options = { topK: 10, minRelevance: 0, candidateLimit: 10 };
+    const all = await search.search(DATA_MART, 'proj-1', 'revenue', null, options);
+    expect(all.map(row => row.entityId).sort()).toEqual(ids);
+    const both = await search.search(DATA_MART, 'proj-1', 'revenue', null, {
+      ...options,
+      contextIds: contexts.map(context => context.id),
+    });
+    expect(both.map(row => row.entityId).sort()).toEqual(ids.slice(1));
+    const limited = await search.search(DATA_MART, 'proj-1', 'revenue', null, {
+      ...options,
+      candidateLimit: 1,
+      topK: 1,
+      contextIds: [contexts[1].id],
+    });
+    expect(limited.map(row => row.entityId)).toEqual([ids[2]]);
+  });
+
   it('preserves report in DATA_MART candidate selection and the final search result', async () => {
     for (const [entityId, title, fieldCount] of [
       ['dm-reports', 'Revenue reports', 0],

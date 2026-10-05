@@ -59,6 +59,8 @@ import { PreviewDataMartService } from './use-cases/preview-data-mart.service';
 import { DataMartPreviewController } from './controllers/data-mart-preview.controller';
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
+import { MCP_CONTEXTS_FACADE } from './facades/mcp-contexts.facade';
+import { McpContextsFacadeImpl } from './facades/mcp-contexts.facade.impl';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
 import { McpDataDestinationsFacadeImpl } from './facades/mcp-data-destinations.facade.impl';
@@ -640,6 +642,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataQualityApiService,
     DataQualitySummaryService,
     McpDataCatalogSummaryService,
+    { provide: MCP_CONTEXTS_FACADE, useClass: McpContextsFacadeImpl },
     CreateDataMartService,
     ListDataMartsService,
     GetModelCanvasDataMartsService,
@@ -996,6 +999,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConsentCredentialDefinitionService,
   ],
   exports: [
+    MCP_CONTEXTS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
     CredentialFetchService,
     CredentialAiService,

@@ -1,6 +1,6 @@
 # Contexts
 
-A **Context** is a business-domain label — for example *Marketing*, *Finance*, or *Sales* — that you attach to Data Marts, Storages, and Destinations to group them by domain and to control which members can see them.
+A **Context** is a business-domain label — for example _Marketing_, _Finance_, or _Sales_ — that you attach to Data Marts, Storages, and Destinations to group them by domain and to control which members can see them.
 
 Contexts are managed by **Project Admins** from **Project Settings → Contexts**. Once a context exists, it can be:
 
@@ -28,13 +28,13 @@ Only Project Admins can create, rename, or delete contexts. Other roles can view
 
 Open **Project Settings → Contexts** to see all contexts in the project. Each row shows:
 
-| Column | Description |
-|---|---|
-| **Name** | The context label shown on resources |
-| **Members** | Members assigned to this context |
-| **Description** | Optional free-text description |
-| **Created by** | The Project Admin who created the context |
-| **Created at** | Creation date |
+| Column          | Description                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| **Name**        | The context label shown on resources                                  |
+| **Members**     | Members assigned to this context                                      |
+| **Description** | Optional Markdown description with business goals and Data Mart links |
+| **Created by**  | The Project Admin who created the context                             |
+| **Created at**  | Creation date                                                         |
 
 ![Project Settings → Contexts table listing three example contexts with their names, member counts, descriptions, and creation details](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64e04505-faa3-4121-96b4-1092d57c2800/public)
 
@@ -54,14 +54,28 @@ You can also create a context inline from the **Contexts** field on a Data Mart,
 
 In the contexts list, click a row (or use the row actions) to open the **Configure context** panel. From there you can change the name, description, and the set of assigned members. Changes apply immediately to all resources tagged with this context — the context's identity is preserved, so attachments remain intact.
 
+### Business descriptions and Data Mart links
+
+The description editor supports Markdown and a **Preview** tab. Type `@`, search by title, and select an accessible published Data Mart to insert a readable link. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+
+When editing a Data Mart's description, the current Data Mart is omitted from `@` suggestions. Project and Context descriptions can reference any accessible published Data Mart.
+
+The link stores the Data Mart's project and resource IDs in its URL. Renaming the Data Mart keeps the link working; its written label stays as it was when inserted. Deleted or inaccessible Data Marts remain subject to the normal resource access checks.
+
+**A mention is a reference, not a context assignment.** To attach a Data Mart, use its **Contexts** picker. Inserting a link never changes attachments, membership, or access permissions. Metric selection is not part of this editor.
+
+Use descriptions to explain goals, terminology, and which Data Marts supply relevant measurements. Connected AI assistants receive the complete Markdown through MCP: `get_project_context` for Project, `list_contexts` for Context, and the Data Mart discovery/details tools for Data Mart descriptions. All project members can view context descriptions; only Project Admins can edit them.
+
+In the Project and Data Mart descriptions, click **Edit description**, then **Save** to persist changes or **Cancel** to discard them. Selecting a suggestion or switching to Preview does not save the description. Context descriptions are saved with their existing Create/Save form.
+
 ### Deleting a Context
 
 A context can only be deleted when it is **detached from every resource and member**. If a context is still attached, the delete is blocked and the dialog lists the attachments that need to be removed first:
 
-- *N* Data Marts
-- *N* Storages
-- *N* Destinations
-- *N* Members
+- _N_ Data Marts
+- _N_ Storages
+- _N_ Destinations
+- _N_ Members
 
 Each entry links to the corresponding list, pre-filtered by the context, so you can detach attachments quickly.
 
@@ -91,13 +105,13 @@ Resource lists (Data Marts, Storages, Destinations) display attached contexts as
 
 Editing a resource's context attachments is more restricted than editing the resource itself. The rules follow the same ownership model as other resource actions (see [Ownership and Sharing](ownership-and-sharing.md)):
 
-| Resource | Who can edit attached contexts |
-|---|---|
-| **Data Mart** | Project Admin, or Data Owner with the Data Owner role |
-| **Storage** | Project Admin, or Owner with the Data Owner role |
-| **Destination** | Project Admin, or Owner (any role) |
+| Resource        | Who can edit attached contexts                        |
+| --------------- | ----------------------------------------------------- |
+| **Data Mart**   | Project Admin, or Data Owner with the Data Owner role |
+| **Storage**     | Project Admin, or Owner with the Data Owner role      |
+| **Destination** | Project Admin, or Owner (any role)                    |
 
-Members who can edit a resource for other reasons (for example, a non-owner with the Data Owner role editing a Data Mart that is *Shared for maintenance*) cannot change its contexts unless they meet the rules above.
+Members who can edit a resource for other reasons (for example, a non-owner with the Data Owner role editing a Data Mart that is _Shared for maintenance_) cannot change its contexts unless they meet the rules above.
 
 ---
 
@@ -120,9 +134,9 @@ Both paths write to the same assignment, so changes made in one place are reflec
 
 Each non-admin member has a **Role scope**, set in **Project Settings → Members**:
 
-| Role scope | Effect |
-|---|---|
-| **Entire project** | The member sees every shared resource in the project, regardless of context assignments. This is the default. |
+| Role scope                 | Effect                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Entire project**         | The member sees every shared resource in the project, regardless of context assignments. This is the default.                     |
 | **Selected contexts only** | The member sees a shared resource only if the resource is attached to **at least one** of the contexts the member is assigned to. |
 
 Project Admins always have project-wide access. The role-scope setting and context assignments are not applied for admins.

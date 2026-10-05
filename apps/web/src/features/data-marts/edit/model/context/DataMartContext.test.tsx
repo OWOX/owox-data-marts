@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useContext } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartProvider } from './DataMartContext';
@@ -10,6 +10,29 @@ import { getConnectorInfoByName } from '../../../../connectors/shared/utils';
 import type { ConnectorDefinitionConfig } from '../types';
 import { trackEvent as trackDataLayerEvent } from '../../../../../utils/data-layer';
 import { DataMartDefinitionType } from '../../../shared/enums';
+import { InlineMarkdownDescription } from '../../../../../shared/components/DescriptionEditor/InlineMarkdownDescription';
+
+vi.mock('../../../../../shared/components/DescriptionEditor/DescriptionEditor', () => ({
+  DescriptionEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+  }) => (
+    <textarea
+      aria-label='Description'
+      value={value}
+      onChange={event => {
+        onChange(event.target.value);
+      }}
+    />
+  ),
+}));
+vi.mock('../../../../../shared/components/MarkdownEditor', () => ({
+  useMarkdownPreview: () => ({ html: '', loading: true, error: null }),
+  MarkdownEditorPreview: () => <div>preview</div>,
+}));
 
 vi.mock('../../../../../hooks/useAutoRefresh', () => ({
   useAutoRefresh: vi.fn(),
@@ -48,8 +71,90 @@ vi.mock('../../../shared', async () => {
       getDataMartById: vi.fn(),
       updateDataMart: vi.fn(),
       updateDataMartDefinition: vi.fn(),
+      updateDataMartDescription: vi.fn(),
     },
   };
+});
+
+describe('DataMartProvider description editor', () => {
+  it('preserves a Markdown draft after an API failure and saves it on retry', async () => {
+    const response = {
+      id: 'dm-1',
+      title: 'Revenue',
+      description: 'Original',
+      definitionType: DataMartDefinitionType.SQL,
+      definition: { sqlQuery: 'SELECT 1' },
+      status: 'DRAFT',
+      storage: {
+        id: 'st-1',
+        title: 'BigQuery',
+        type: 'GOOGLE_BIGQUERY',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        modifiedAt: '2026-01-01T00:00:00.000Z',
+        config: null,
+        credentials: null,
+        availableForUse: true,
+        availableForMaintenance: true,
+      },
+      schema: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      modifiedAt: '2026-01-01T00:00:00.000Z',
+      availableForReporting: true,
+      availableForMaintenance: true,
+    } as unknown as DataMartResponseDto;
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue(response);
+    vi.mocked(dataMartService.updateDataMartDescription)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(response);
+    let loading: Promise<unknown> | undefined;
+    function Consumer() {
+      const context = useContext(DataMartContext)!;
+      return (
+        <>
+          <button
+            type='button'
+            onClick={() => {
+              loading = context.getDataMart('dm-1');
+            }}
+          >
+            Load
+          </button>
+          {context.dataMart && (
+            <InlineMarkdownDescription
+              projectId='project'
+              description={context.dataMart.description}
+              onUpdate={description => context.updateDataMartDescription('dm-1', description)}
+            />
+          )}
+        </>
+      );
+    }
+    render(
+      <DataMartProvider>
+        <Consumer />
+      </DataMartProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Load' }));
+    await act(async () => {
+      await loading;
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
+    const draft = '[Revenue](https://app.example/ui/project/data-marts/revenue/data-setup)';
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: draft } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('textbox')).toHaveValue(draft);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(draft)).toBeInTheDocument();
+    expect(vi.mocked(dataMartService.updateDataMartDescription).mock.calls.slice(-2)).toEqual([
+      ['dm-1', draft],
+      ['dm-1', draft],
+    ]);
+  });
 });
 
 vi.mock('../../../../connectors/shared/utils', async () => ({

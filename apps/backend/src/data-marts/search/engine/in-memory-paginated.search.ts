@@ -119,11 +119,29 @@ export class InMemoryPaginatedSearch implements VectorSearchPort {
 
     const promptTokens = tokenizePrompt(prompt, entityType);
 
-    const predicate = await source.accessPredicateProvider.build(
+    const accessPredicate = await source.accessPredicateProvider.build(
       'idx',
       projectId,
       options.accessScope
     );
+
+    const predicate = { ...accessPredicate, parameters: { ...accessPredicate.parameters } };
+    if (entityType === SearchableEntityType.DATA_MART && options.contextIds?.length) {
+      const contextParameters = Object.fromEntries(
+        options.contextIds.map((id, i) => [`filterContext${String(i)}`, id])
+      );
+      const placeholders = Object.keys(contextParameters)
+        .map(key => `:${key}`)
+        .join(', ');
+      predicate.whereSql = [
+        predicate.whereSql,
+        `EXISTS (SELECT 1 FROM data_mart_contexts filteredContext WHERE filteredContext.data_mart_id = idx.entity_id AND filteredContext.context_id IN (${placeholders}))`,
+      ]
+        .filter(Boolean)
+        .map(sql => `(${sql})`)
+        .join(' AND ');
+      Object.assign(predicate.parameters, contextParameters);
+    }
 
     const buffer = new TopKBuffer<ScoredEntity>(options.topK);
     const page = await this.repository.searchCandidates(entityType, projectId, predicate, prompt, {

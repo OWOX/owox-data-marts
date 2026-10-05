@@ -146,6 +146,7 @@ describe('McpDataMartsFacadeImpl', () => {
           title: 'Orders',
           description: 'Mock Description',
           status: DataMartStatus.PUBLISHED,
+          contexts: [],
           updatedAt: '2026-06-10T10:00:00.000Z',
         },
       ],
@@ -203,6 +204,7 @@ describe('McpDataMartsFacadeImpl', () => {
           title: 'Draft Orders',
           description: 'Draft data mart',
           status: DataMartStatus.DRAFT,
+          contexts: [],
           updatedAt: '2026-06-11T10:00:00.000Z',
         },
       ],
@@ -313,6 +315,7 @@ describe('McpDataMartsFacadeImpl', () => {
         dataMartId: 'dm_1',
       })
     ).resolves.toEqual({
+      contexts: [],
       id: 'dm_1',
       name: 'Orders',
       description: 'Orders data mart',
@@ -448,6 +451,7 @@ describe('McpDataMartsFacadeImpl', () => {
         dataMartId: 'dm_1',
       })
     ).resolves.toEqual({
+      contexts: [],
       id: 'dm_1',
       name: 'Orders',
       description: '',

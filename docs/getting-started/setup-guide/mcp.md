@@ -99,9 +99,9 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 ## Available tools
 
-Once connected, the MCP server exposes twenty tools across two scopes:
+Once connected, the MCP server exposes twenty-one tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
 - **`mcp:write`**: tools that create, change, run, or bill something — `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 ### `summarize_data_catalog`
@@ -140,15 +140,26 @@ Returns information about the OWOX project that this MCP connection is authorize
 
 The assistant should use this tool before its first project-specific operation so it has the project's business context. You can also use it to confirm which project is active or selected. Call it again after an admin changes the project description to get the latest value.
 
+### `list_contexts`
+
+Lists the connected project's business contexts. Returns `contexts`, with `id`, `name`, and the complete Markdown `description` for each context; missing descriptions are `null`. This tool is read-only and accepts no project override.
+
+For an overview of business goals, use `get_project_context` → `list_contexts` → `list_data_marts` or `get_relevant_data_marts_by_prompt` with `context_ids`. For example, ask: "Go through all contexts, read their goals and Data Marts, and produce an overview."
+
+Context descriptions can contain links to specific Data Marts. The assistant can identify the Data Mart from its OWOX URL, then verify access and field names with `get_data_mart_details_by_id`. A link does not attach the Data Mart to the context or grant access to it.
+
+MCP instructions tell assistants to follow description links only when needed for the question, ignore self-references and cycles, and reuse details already obtained for the same project, Data Mart, and detail level. They still allow refreshed details or joined-field details when needed. MCP tools return description text without recursively loading linked descriptions; adherence to the instructions depends on the connected AI client.
+
 ### `list_data_marts`
 
 Lists data marts visible to you in the current project. By default, it returns published data marts. You can explicitly request draft data mart metadata, but drafts cannot be inspected or queried through other MCP data mart tools.
 
 **Input:**
 
-| Field    | Description                                                                                                             |
-| -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `status` | Optional: `published` (default) returns queryable data marts; `draft` returns draft metadata for catalog browsing only. |
+| Field         | Description                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `context_ids` | Optional array of IDs from `list_contexts`. Matches any selected context. Omit or pass `[]` for no context filter.      |
+| `status`      | Optional: `published` (default) returns queryable data marts; `draft` returns draft metadata for catalog browsing only. |
 
 **Returns** an array of data mart objects:
 
@@ -159,13 +170,14 @@ Lists data marts visible to you in the current project. By default, it returns p
 | `description` | Data mart description                                                                                                    |
 | `url`         | Link to open the data mart in OWOX Data Marts                                                                            |
 | `status`      | Current status: `PUBLISHED` or `DRAFT`. Response values are uppercase and differ from the lowercase input filter values. |
+| `contexts`    | All attached context IDs and names (`[{"id": "...", "name": "..."}]`); `[]` when none.                                   |
 | `updated_at`  | Last update timestamp                                                                                                    |
 
 Use this tool to discover available data marts before running queries or building reports.
 
 The response also includes `project.id` and `project.title`, so the assistant can state which project its discovery results belong to.
 
-When you see no published data mart, the response also includes `getting_started` — links and next steps for creating the first one (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)).
+An empty context-filtered list does not mean the project is empty. `getting_started` appears only when you have no accessible published Data Mart anywhere in the connected project. When you see no published data mart, the response also includes `getting_started` — links and next steps for creating the first one (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)).
 
 The list reflects your access: it includes only the data marts your [project role](../../project/roles-and-permissions.md) permits you to see. If a data mart you expect is missing, check your role in that project.
 
@@ -175,24 +187,28 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 
 **Input:**
 
-| Field    | Description                        |
-| -------- | ---------------------------------- |
-| `prompt` | Natural-language search prompt     |
-| `limit`  | Optional maximum number of results |
+| Field         | Description                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| `context_ids` | Optional array of IDs from `list_contexts`; match any. Omit or pass `[]` for no context filter. |
+| `prompt`      | Natural-language search prompt                                                                  |
+| `limit`       | Optional maximum number of results                                                              |
 
 **Returns** an array of matching data mart objects:
 
-| Field             | Description                                     |
-| ----------------- | ----------------------------------------------- |
-| `id`              | Data mart identifier                            |
-| `title`           | Data mart name                                  |
-| `description`     | Data mart description                           |
-| `url`             | Link to open the data mart in OWOX Data Marts   |
-| `relevance_score` | How closely the data mart matches your question |
+| Field             | Description                                         |
+| ----------------- | --------------------------------------------------- |
+| `id`              | Data mart identifier                                |
+| `title`           | Data mart name                                      |
+| `description`     | Data mart description                               |
+| `url`             | Link to open the data mart in OWOX Data Marts       |
+| `contexts`        | All attached context IDs and names; `[]` when none. |
+| `relevance_score` | How closely the data mart matches your question     |
 
 The response also includes `project.id` and `project.title`.
 
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned. An empty result usually means nothing matched the prompt; when you see no published data mart at all, the response also includes `getting_started` (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)) so the assistant explains what to do instead of rephrasing the search.
+
+Context filtering happens before search candidate limits and ranking. Unknown, deleted, or other-project context IDs are rejected. Filters never expand your existing Data Mart access. An empty filtered result does not trigger onboarding when accessible published Data Marts exist elsewhere in the project.
 
 ### `get_relevant_reports_by_prompt`
 
@@ -223,6 +239,8 @@ A report is returned when both its data mart and destination are visible to you 
 ### `get_data_mart_details_by_id`
 
 Returns field-level metadata for one data mart visible to you in the current project.
+
+The response also includes all attached `contexts` as IDs and names (`[]` when none), linking the selected Data Mart back to the business descriptions returned by `list_contexts`.
 
 **Input:**
 

@@ -11,7 +11,9 @@ import {
 } from '@owox/ui/components/sheet';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
+import { DescriptionEditor } from '../../../../shared/components/DescriptionEditor/DescriptionEditor';
+import { preventSheetDismissWhileSuggesting } from '../../../../shared/components/DescriptionEditor/description-editor-escape';
+import { useUser } from '../../../idp/hooks/useAuthState';
 import {
   AppForm,
   Form,
@@ -59,6 +61,7 @@ interface AddContextSheetProps {
 }
 
 export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddContextSheetProps) {
+  const user = useUser();
   const form = useForm<AddContextFormValues>({
     resolver: zodResolver(addContextSchema),
     defaultValues: DEFAULT_VALUES,
@@ -123,7 +126,7 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
         if (!open) handleClose();
       }}
     >
-      <SheetContent>
+      <SheetContent onEscapeKeyDown={preventSheetDismissWhileSuggesting}>
         <SheetHeader>
           <SheetTitle>Add context</SheetTitle>
           <SheetDescription>
@@ -162,9 +165,13 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
                         Description (optional)
                       </FormLabel>
                       <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={3}
+                        <DescriptionEditor
+                          ref={field.ref}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          projectId={user?.projectId ?? ''}
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
                           disabled={saving}
                           placeholder='What this context represents'
                         />

@@ -1,3 +1,8 @@
+import { contextIdsSchema, makeContextSummariesSchema } from './context-input';
+import {
+  MCP_CONTEXTS_FACADE,
+  type McpContextsFacade,
+} from '../../../data-marts/facades/mcp-contexts.facade';
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
@@ -27,6 +32,7 @@ const MAX_LIMIT = 25;
 
 const inputSchema = z
   .object({
+    context_ids: contextIdsSchema,
     prompt: z.string().trim().min(2).max(256),
     limit: z.number().int().min(1).max(MAX_LIMIT).optional(),
   })
@@ -38,7 +44,7 @@ type SearchDataMartsInput = z.infer<typeof inputSchema>;
 export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInput> {
   readonly name = 'get_relevant_data_marts_by_prompt';
   readonly description =
-    'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. This is the default discovery step for a concrete analytical question when the data mart has not already been confirmed. Use it when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts.';
+    'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. This is the default discovery step for a concrete analytical question when the data mart has not already been confirmed. Use it when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts. Use get_project_context → list_contexts to discover business goals, then pass context_ids to restrict discovery to any selected context; omission preserves project-wide discovery within your existing access. Responses include all attached context IDs and names.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     project: z.object({ id: z.string(), title: z.string() }).optional(),
@@ -47,6 +53,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
         id: z.string(),
         title: z.string(),
         description: z.string(),
+        contexts: makeContextSummariesSchema(),
         url: z.string(),
         relevance_score: z.number(),
       })
@@ -72,7 +79,8 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     @Inject(MCP_PROJECT_CONTEXT_FACADE)
     private readonly projectContext: McpProjectContextFacade,
     @Inject(MCP_DATA_MARTS_FACADE)
-    private readonly dataMarts: McpDataMartsFacade
+    private readonly dataMarts: McpDataMartsFacade,
+    @Inject(MCP_CONTEXTS_FACADE) private readonly contexts: McpContextsFacade
   ) {}
 
   parseInput(input: unknown): SearchDataMartsInput {
@@ -81,11 +89,14 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
 
   async handler(input: SearchDataMartsInput, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = this.parseInput(input);
+    if (parsed.context_ids)
+      await this.contexts.validateContextIds(context.projectId, parsed.context_ids);
     const [results, projectContext] = await Promise.all([
       this.searchFacade.search(context.projectId, parsed.prompt, {
         topK: parsed.limit ?? DEFAULT_LIMIT,
         entityTypes: [SearchableEntityType.DATA_MART],
         excludeDrafts: true,
+        ...(parsed.context_ids ? { contextIds: parsed.context_ids } : {}),
         accessScope: {
           userId: context.userId,
           roles: context.roles,
@@ -94,6 +105,12 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
       tryGetMcpProjectSummary(this.projectContext, context),
     ]);
 
+    const attachedContexts = await this.contexts.getDataMartContexts(
+      context.projectId,
+      results
+        .filter(result => result.entityType === SearchableEntityType.DATA_MART)
+        .map(result => result.entityId)
+    );
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const dataMarts = results
       .filter(result => result.entityType === SearchableEntityType.DATA_MART)
@@ -105,6 +122,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
           publicOrigin,
           buildDataMartUiPath(context.projectId, result.entityId)
         ),
+        contexts: attachedContexts[result.entityId] ?? [],
         relevance_score: result.finalScore,
       }));
     // An empty search result is ambiguous: nothing matched, or there is nothing to match. Only

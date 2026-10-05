@@ -5,6 +5,7 @@ export interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
+  onMount?: OnMount;
   height?: number | string;
   theme?: string;
   options?: monaco.editor.IStandaloneEditorConstructionOptions;
@@ -16,13 +17,15 @@ export function MarkdownEditor({
   value,
   onChange,
   onBlur,
+  onMount,
   height = 240,
   theme = 'light',
   options,
   className,
   placeholder = 'Start writing your message…',
 }: MarkdownEditorProps) {
-  const handleMount: OnMount = editor => {
+  const handleMount: OnMount = (editor, monaco) => {
+    onMount?.(editor, monaco);
     if (onBlur) editor.onDidBlurEditorText(onBlur);
   };
 

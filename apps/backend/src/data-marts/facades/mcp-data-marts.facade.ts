@@ -25,6 +25,7 @@ export interface McpListDataMartsRequest {
    * explicitly requested; all other MCP Data Mart operations still require published state.
    */
   status?: McpDataMartCatalogStatus;
+  contextIds?: string[];
 }
 
 export interface McpSummarizeDataCatalogRequest {
@@ -53,6 +54,7 @@ export interface McpDataMartListItem {
   description: string | null;
   status: string;
   updatedAt: string;
+  contexts: Array<{ id: string; name: string }>;
 }
 
 export interface McpListDataMartsResponse {
@@ -103,6 +105,7 @@ export interface McpJoinDto {
 }
 
 export interface McpDataMartDetailsResponse {
+  contexts: Array<{ id: string; name: string }>;
   id: string;
   name: string;
   description: string;

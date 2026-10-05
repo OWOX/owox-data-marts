@@ -77,6 +77,7 @@ export class DataMartService {
       roles?: string[];
       roleScope?: RoleScope;
       status?: DataMartStatus;
+      contextIds?: string[];
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const DM_ALIAS = 'dm';
@@ -124,6 +125,12 @@ export class DataMartService {
       qb.andWhere('dm.status = :status', { status: options.status });
     }
 
+    if (options?.contextIds?.length) {
+      qb.andWhere(
+        'EXISTS (SELECT 1 FROM data_mart_contexts filteredContext WHERE filteredContext.data_mart_id = dm.id AND filteredContext.context_id IN (:...filterContextIds))',
+        { filterContextIds: options.contextIds }
+      );
+    }
     this.applyNonAdminVisibilityGate(qb, projectId, options);
 
     if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {

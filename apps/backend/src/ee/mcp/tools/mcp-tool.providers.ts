@@ -1,3 +1,4 @@
+import { ListContextsTool } from './list-contexts.tool';
 import type { Provider, Type } from '@nestjs/common';
 import { CreateReportRunScheduleTool } from './create-report-run-schedule.tool';
 import { AddReportTool } from './add-report.tool';
@@ -22,6 +23,7 @@ import { UpdateReportTool } from './update-report.tool';
 import { AddDestinationTool } from './add-destination.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
+  ListContextsTool,
   SummarizeDataCatalogTool,
   ListDataMartsTool,
   SearchDataMartsTool,

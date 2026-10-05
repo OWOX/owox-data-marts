@@ -92,7 +92,7 @@ export interface DataMartContextType extends DataMartState {
   updateDataMart: (id: string, data: UpdateDataMartRequestDto) => Promise<void>;
   deleteDataMart: (id: string) => Promise<void>;
   updateDataMartTitle: (id: string, title: string) => Promise<void>;
-  updateDataMartDescription: (id: string, description: string) => Promise<void>;
+  updateDataMartDescription: (id: string, description: string | null) => Promise<void>;
   updateDataMartIcon: (id: string, icon: DataMartIconValue | null) => Promise<void>;
   updateDataMartStorage: (storage: DataMart['storage']) => void;
   updateDataMartDefinition: (

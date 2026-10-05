@@ -55,6 +55,7 @@ export class AdvancedSearchService implements SearchEngine {
       vectorCandidateLimit: this.config.vectorCandidateMultiplier * topK,
       accessScope: options.accessScope,
       excludeDrafts: options.excludeDrafts,
+      ...(options.contextIds?.length ? { contextIds: options.contextIds } : {}),
     };
 
     const perTypeResults = await Promise.all(

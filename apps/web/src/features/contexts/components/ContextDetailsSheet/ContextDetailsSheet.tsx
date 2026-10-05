@@ -11,7 +11,9 @@ import {
 } from '@owox/ui/components/sheet';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
+import { DescriptionEditor } from '../../../../shared/components/DescriptionEditor/DescriptionEditor';
+import { preventSheetDismissWhileSuggesting } from '../../../../shared/components/DescriptionEditor/description-editor-escape';
+import { useUser } from '../../../idp/hooks/useAuthState';
 import {
   AppForm,
   Form,
@@ -80,6 +82,7 @@ export function ContextDetailsSheet({
   onClose,
   onSaved,
 }: ContextDetailsSheetProps) {
+  const user = useUser();
   const form = useForm<ContextDetailsFormValues>({
     resolver: zodResolver(contextDetailsSchema),
     defaultValues: { name: '', description: '' },
@@ -151,7 +154,7 @@ export function ContextDetailsSheet({
           if (!open && !saving) onClose();
         }}
       >
-        <SheetContent>
+        <SheetContent onEscapeKeyDown={preventSheetDismissWhileSuggesting}>
           <SheetHeader>
             <SheetTitle>Configure context</SheetTitle>
             <SheetDescription>Customize settings for this context</SheetDescription>
@@ -190,9 +193,13 @@ export function ContextDetailsSheet({
                           Description
                         </FormLabel>
                         <FormControl>
-                          <Textarea
-                            {...field}
-                            rows={3}
+                          <DescriptionEditor
+                            ref={field.ref}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            projectId={user?.projectId ?? ''}
+                            value={field.value ?? ''}
+                            onChange={field.onChange}
                             disabled={saving}
                             placeholder='What this context represents'
                           />

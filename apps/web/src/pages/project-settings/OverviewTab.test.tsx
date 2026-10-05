@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
@@ -37,6 +38,20 @@ const projectSettings = vi.hoisted(() => ({
     error: null as string | null,
     updateDescription: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+vi.mock('@monaco-editor/react', () => ({
+  Editor: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+    <textarea
+      value={value}
+      onChange={event => {
+        onChange(event.target.value);
+      }}
+    />
+  ),
+}));
+vi.mock('../../shared/services/markdown.service', () => ({
+  parseMarkdownToHtml: vi.fn().mockResolvedValue(''),
 }));
 
 vi.mock('../../features/idp/hooks/useAuthState', () => ({
@@ -211,10 +226,10 @@ describe('OverviewTab project status', () => {
   it('saves the project description with the same inline editor flow as a data mart', async () => {
     renderOverview();
 
-    fireEvent.click(screen.getByText('Revenue means net revenue.'));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: '  Revenue excludes taxes.  ' } });
-    fireEvent.blur(textarea);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(projectSettings.value.updateDescription).toHaveBeenCalledWith(
@@ -232,8 +247,7 @@ describe('OverviewTab project status', () => {
     };
     renderOverview();
 
-    fireEvent.click(screen.getByText('Revenue means net revenue.'));
-
+    expect(screen.queryByRole('button', { name: 'Edit description' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
@@ -258,8 +272,10 @@ function projectContext(overrides: Partial<ProjectsContextType> = {}): ProjectsC
 
 function renderOverview() {
   return render(
-    <MemoryRouter>
-      <OverviewTab />
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <OverviewTab />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }

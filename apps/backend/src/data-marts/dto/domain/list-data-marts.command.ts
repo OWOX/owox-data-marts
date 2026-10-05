@@ -8,6 +8,7 @@ export class ListDataMartsCommand {
     public readonly roles: string[],
     public readonly offset?: number,
     public readonly ownerFilter?: OwnerFilter,
-    public readonly status?: DataMartStatus
+    public readonly status?: DataMartStatus,
+    public readonly contextIds?: string[]
   ) {}
 }

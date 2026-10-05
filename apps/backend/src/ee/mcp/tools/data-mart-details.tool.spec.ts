@@ -22,6 +22,7 @@ describe('GetDataMartDetailsTool', () => {
       id: 'dm_1',
       name: 'Orders',
       description: 'Orders data mart',
+      contexts: [{ id: 'marketing', name: 'Marketing' }],
       fields: [
         {
           name: 'order_date',
@@ -73,6 +74,7 @@ describe('GetDataMartDetailsTool', () => {
     };
 
     expect(sc.id).toBe('dm_1');
+    expect(result.structuredContent?.contexts).toEqual([{ id: 'marketing', name: 'Marketing' }]);
     // Join edges pass through untouched — the relationship description IS the payload (#6780).
     expect(sc.joins).toEqual([
       {

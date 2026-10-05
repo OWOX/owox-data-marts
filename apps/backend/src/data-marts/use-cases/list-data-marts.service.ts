@@ -43,6 +43,7 @@ export class ListDataMartsService {
         userId: command.userId,
         roles: command.roles,
         roleScope,
+        ...(command.contextIds?.length ? { contextIds: command.contextIds } : {}),
         ...(command.status ? { status: command.status } : {}),
       }
     );

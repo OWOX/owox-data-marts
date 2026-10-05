@@ -1,3 +1,8 @@
+import { contextIdsSchema, makeContextSummariesSchema } from './context-input';
+import {
+  MCP_CONTEXTS_FACADE,
+  type McpContextsFacade,
+} from '../../../data-marts/facades/mcp-contexts.facade';
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
@@ -23,6 +28,7 @@ import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z
   .object({
+    context_ids: contextIdsSchema,
     status: z
       .enum(['published', 'draft'])
       .optional()
@@ -38,7 +44,7 @@ type ListDataMartsInput = z.infer<typeof inputSchema>;
 export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> {
   readonly name = 'list_data_marts';
   readonly description =
-    'List data marts available to the current OWOX project member. Defaults to published data marts; use status=draft only to browse draft metadata, because other MCP data-mart tools accept published data marts only. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
+    'List data marts available to the current OWOX project member. Defaults to published data marts; use status=draft only to browse draft metadata, because other MCP data-mart tools accept published data marts only. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog. Use get_project_context → list_contexts to discover business goals, then pass context_ids to restrict discovery to any selected context; omission preserves project-wide discovery within your existing access. Responses include all attached context IDs and names.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     project: z.object({ id: z.string(), title: z.string() }).optional(),
@@ -47,6 +53,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         id: z.string(),
         title: z.string(),
         description: z.string(),
+        contexts: makeContextSummariesSchema(),
         url: z.string(),
         status: z.string(),
         updated_at: z.string(),
@@ -71,7 +78,8 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
     private readonly dataMarts: McpDataMartsFacade,
     private readonly publicOriginService: PublicOriginService,
     @Inject(MCP_PROJECT_CONTEXT_FACADE)
-    private readonly projectContext: McpProjectContextFacade
+    private readonly projectContext: McpProjectContextFacade,
+    @Inject(MCP_CONTEXTS_FACADE) private readonly contexts: McpContextsFacade
   ) {}
 
   parseInput(input: unknown): ListDataMartsInput {
@@ -80,6 +88,8 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
 
   async handler(input: ListDataMartsInput, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = this.parseInput(input);
+    if (parsed.context_ids)
+      await this.contexts.validateContextIds(context.projectId, parsed.context_ids);
     const status = parsed.status ?? 'published';
 
     const [result, projectContext] = await Promise.all([
@@ -88,6 +98,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         userId: context.userId,
         roles: context.roles,
         status,
+        ...(parsed.context_ids ? { contextIds: parsed.context_ids } : {}),
       }),
       tryGetMcpProjectSummary(this.projectContext, context),
     ]);
@@ -96,6 +107,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
     const gettingStarted = await this.gettingStartedFor(result.dataMarts.length, status, {
       publicOrigin,
       context,
+      filtered: !!parsed.context_ids,
     });
     const structuredContent = {
       ...(projectContext ? { project: projectContext } : {}),
@@ -105,6 +117,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         description: dataMart.description ?? '',
         url: joinPublicOrigin(publicOrigin, buildDataMartUiPath(context.projectId, dataMart.id)),
         status: dataMart.status,
+        contexts: dataMart.contexts ?? [],
         updated_at: dataMart.updatedAt,
       })),
       ...(gettingStarted ? { getting_started: gettingStarted } : {}),
@@ -120,11 +133,15 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
   private async gettingStartedFor(
     listedCount: number,
     status: 'published' | 'draft',
-    { publicOrigin, context }: { publicOrigin: string; context: McpAuthContext }
+    {
+      publicOrigin,
+      context,
+      filtered,
+    }: { publicOrigin: string; context: McpAuthContext; filtered: boolean }
   ) {
     if (listedCount > 0) return undefined;
     const deps = { dataMarts: this.dataMarts, publicOrigin };
-    return status === 'published'
+    return status === 'published' && !filtered
       ? buildGettingStarted(deps, context)
       : resolveGettingStarted(deps, context);
   }

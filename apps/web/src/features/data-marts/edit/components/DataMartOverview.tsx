@@ -1,3 +1,4 @@
+import { useUser } from '../../../idp/hooks/useAuthState';
 import { useOutletContext } from 'react-router';
 import { InlineEditDescription } from '../../../../shared/components/InlineEditDescription';
 import { DataMartDefinitionType, DataMartMetadataScope } from '../../shared';
@@ -14,6 +15,7 @@ interface DataMartContextType {
 }
 
 export function DataMartOverview() {
+  const user = useUser();
   const { dataMart, updateDataMartDescription } = useOutletContext<DataMartContextType>();
   const handleDescriptionUpdate = async (newDescription: string | null) => {
     await updateDataMartDescription(dataMart.id, newDescription);
@@ -29,6 +31,8 @@ export function DataMartOverview() {
   return (
     <div>
       <InlineEditDescription
+        projectId={user?.projectId}
+        currentDataMartId={dataMart.id}
         description={dataMart.description}
         onUpdate={handleDescriptionUpdate}
         placeholder='Add a description for this Data Mart...'

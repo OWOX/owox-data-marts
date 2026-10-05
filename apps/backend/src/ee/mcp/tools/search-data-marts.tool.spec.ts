@@ -6,6 +6,10 @@ import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { SearchDataMartsTool } from './search-data-marts.tool';
 
 describe('SearchDataMartsTool', () => {
+  const contexts = {
+    validateContextIds: jest.fn().mockResolvedValue(undefined),
+    getDataMartContexts: jest.fn().mockResolvedValue({}),
+  };
   const context: McpAuthContext = {
     clientId: 'mcp-client-1',
     userId: 'user-1',
@@ -53,7 +57,13 @@ describe('SearchDataMartsTool', () => {
         },
       ]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never, catalog);
+    const tool = new SearchDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      catalog,
+      contexts
+    );
 
     await expect(tool.handler({ prompt: 'orders revenue', limit: 5 }, context)).resolves.toEqual({
       structuredContent: {
@@ -64,6 +74,7 @@ describe('SearchDataMartsTool', () => {
             title: 'Orders',
             description: '',
             url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
+            contexts: [],
             relevance_score: 91,
           },
         ],
@@ -80,6 +91,7 @@ describe('SearchDataMartsTool', () => {
                   title: 'Orders',
                   description: '',
                   url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
+                  contexts: [],
                   relevance_score: 91,
                 },
               ],
@@ -105,7 +117,13 @@ describe('SearchDataMartsTool', () => {
     const facade = {
       search: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never, catalog);
+    const tool = new SearchDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      catalog,
+      contexts
+    );
 
     await tool.handler({ prompt: 'orders' }, context);
 
@@ -127,7 +145,8 @@ describe('SearchDataMartsTool', () => {
       facade,
       publicOrigin,
       unavailableProjectContext as never,
-      catalog
+      catalog,
+      contexts
     );
 
     const result = await tool.handler({ prompt: 'orders' }, context);
@@ -139,7 +158,13 @@ describe('SearchDataMartsTool', () => {
     const facade = {
       search: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never, catalog);
+    const tool = new SearchDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      catalog,
+      contexts
+    );
 
     const result = await tool.handler({ prompt: 'orders' }, context);
 
@@ -164,7 +189,13 @@ describe('SearchDataMartsTool', () => {
       ]),
     } as unknown as jest.Mocked<SearchFacade>;
     const untouched = catalogWith([]);
-    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never, untouched);
+    const tool = new SearchDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      untouched,
+      contexts
+    );
 
     await tool.handler({ prompt: 'orders' }, context);
 
@@ -176,7 +207,13 @@ describe('SearchDataMartsTool', () => {
       search: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<SearchFacade>;
     const empty = catalogWith([]);
-    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never, empty);
+    const tool = new SearchDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      empty,
+      contexts
+    );
 
     const result = await tool.handler({ prompt: 'orders' }, context);
 
@@ -198,7 +235,8 @@ describe('SearchDataMartsTool', () => {
       {} as SearchFacade,
       publicOrigin,
       projectContext as never,
-      catalog
+      catalog,
+      contexts
     );
 
     expect(() => tool.parseInput({ prompt: 'orders', project_id: 'another-project' })).toThrow();
@@ -211,7 +249,8 @@ describe('SearchDataMartsTool', () => {
       {} as SearchFacade,
       publicOrigin,
       projectContext as never,
-      catalog
+      catalog,
+      contexts
     );
 
     expect(tool).toMatchObject({
@@ -232,5 +271,50 @@ describe('SearchDataMartsTool', () => {
     expect(tool.description).toContain('non-draft data marts');
     expect(tool.description).toContain('current OWOX project');
     expect(tool.description).toContain('not data storages or destinations');
+  });
+
+  it('propagates context filters before search and returns ALL attached context summaries', async () => {
+    const search = {
+      search: jest.fn().mockResolvedValue([
+        {
+          entityType: SearchableEntityType.DATA_MART,
+          entityId: 'dm_1',
+          title: 'Orders',
+          finalScore: 90,
+        },
+      ]),
+    } as unknown as jest.Mocked<SearchFacade>;
+    const attached = [
+      { id: 'one', name: 'Marketing' },
+      { id: 'two', name: 'Sales' },
+    ];
+    const scoped = {
+      validateContextIds: jest.fn().mockResolvedValue(undefined),
+      getDataMartContexts: jest.fn().mockResolvedValue({ dm_1: attached }),
+    };
+    const tool = new SearchDataMartsTool(
+      search,
+      publicOrigin,
+      projectContext as never,
+      catalog,
+      scoped
+    );
+    const result = await tool.handler({ prompt: 'orders', context_ids: ['one'] }, context);
+    expect(search.search).toHaveBeenCalledWith(
+      context.projectId,
+      'orders',
+      expect.objectContaining({
+        contextIds: ['one'],
+        excludeDrafts: true,
+        accessScope: { userId: context.userId, roles: context.roles },
+      })
+    );
+    expect(scoped.getDataMartContexts).toHaveBeenCalledWith(context.projectId, ['dm_1']);
+    expect(result.structuredContent).toMatchObject({ data_marts: [{ contexts: attached }] });
+    scoped.validateContextIds.mockRejectedValueOnce(new Error('foreign project'));
+    await expect(
+      tool.handler({ prompt: 'orders', context_ids: ['foreign'] }, context)
+    ).rejects.toThrow('foreign project');
+    expect(search.search).toHaveBeenCalledTimes(1);
   });
 });

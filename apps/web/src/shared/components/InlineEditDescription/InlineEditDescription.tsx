@@ -1,3 +1,4 @@
+import { InlineMarkdownDescription } from '../DescriptionEditor/InlineMarkdownDescription';
 import { useState, useEffect, type KeyboardEvent, type ReactNode, useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Textarea } from '@owox/ui/components/textarea';
@@ -11,7 +12,9 @@ export type InlineEditDescriptionAi =
   | ReactNode
   | ((ctx: InlineEditDescriptionAiContext) => ReactNode);
 
-interface InlineEditDescriptionProps {
+export interface InlineEditDescriptionProps {
+  projectId?: string;
+  currentDataMartId?: string;
   description: string | null;
   onUpdate: (newDescription: string | null) => Promise<void>;
   className?: string;
@@ -27,7 +30,15 @@ interface InlineEditDescriptionProps {
   aiButton?: InlineEditDescriptionAi;
 }
 
-export function InlineEditDescription({
+export function InlineEditDescription(props: InlineEditDescriptionProps) {
+  return props.projectId ? (
+    <InlineMarkdownDescription {...props} projectId={props.projectId} />
+  ) : (
+    <PlainInlineEditDescription {...props} />
+  );
+}
+
+function PlainInlineEditDescription({
   description,
   onUpdate,
   className,

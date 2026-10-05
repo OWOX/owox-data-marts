@@ -1127,4 +1127,28 @@ describe('InMemoryPaginatedSearch', () => {
       expect(r.relevance).toBe(r.finalScore - r.extendability);
     });
   });
+
+  it('adds match-any context selection to the ACL predicate before candidate limits without mutating it', async () => {
+    const original = {
+      joinSql: 'JOIN data_mart dm ON dm.id = idx.entity_id',
+      whereSql: 'dm.availableForReporting = :shared',
+      parameters: { shared: 1 },
+    };
+    mockSource.accessPredicateProvider.build.mockResolvedValue(original);
+    await search.search(SearchableEntityType.DATA_MART, 'proj-1', 'revenue', null, {
+      ...DEFAULT_OPTIONS,
+      contextIds: ['marketing', 'sales'],
+      topK: 1,
+    });
+    const predicate = repository.searchCandidates.mock.calls[0][2];
+    expect(predicate.whereSql).toContain('(dm.availableForReporting = :shared) AND (EXISTS');
+    expect(predicate.whereSql).toContain('IN (:filterContext0, :filterContext1)');
+    expect(predicate.parameters).toEqual({
+      shared: 1,
+      filterContext0: 'marketing',
+      filterContext1: 'sales',
+    });
+    expect(original.whereSql).toBe('dm.availableForReporting = :shared');
+    expect(original.parameters).toEqual({ shared: 1 });
+  });
 });

@@ -290,6 +290,7 @@ export function OverviewTab() {
               <Skeleton className='h-64 w-full' />
             ) : (
               <InlineEditDescription
+                projectId={projectId}
                 description={projectSettings.description}
                 onUpdate={updateDescription}
                 placeholder='Add a description for this project...'

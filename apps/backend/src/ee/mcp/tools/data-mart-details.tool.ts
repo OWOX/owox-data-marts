@@ -1,3 +1,4 @@
+import { makeContextSummariesSchema } from './context-input';
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod-v4';
 import type { McpScope } from '@owox/idp-protocol';
@@ -212,9 +213,10 @@ function isAggregateLevelCalculatedField(field: RawField): boolean {
 export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDetailsInput> {
   readonly name = 'get_data_mart_details_by_id';
   readonly description =
-    'Get available details for a specific published OWOX Data Mart by data_mart_id, including its URL, native output fields, and (only on explicit request) joined_fields contributed by blended/joined data marts. Use detail_level=native by default: it avoids exposing irrelevant joined fields and keeps the response fast. Request detail_level=with_joined_fields only when the question truly needs a joined Data Mart. Use displayName for user-facing wording and copy name verbatim into query_data_mart. Each controllable field carries its type "category", and every field carries the effective "allowedAggregations" query_data_mart may apply to it; "operators_by_category" maps each category to the filter/slice operators its fields accept — build queries from these instead of guessing. An empty allowedAggregations on a field whose "calculated" level is "metric" means the value is ALREADY computed, not that the field is unusable: select it by name in query_data_mart instead of recomputing it from other fields, and read the "usage" note carried on that field — it may also warn that a join distorts the number. Array fields are the exception: when mode is REPEATED or type or sliceType is ARRAY, the field omits category and has empty allowedAggregations. It may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. This tool is optional in the discovery flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
+    'Get available details for a specific published OWOX Data Mart by data_mart_id, including its URL, attached context IDs and names, native output fields, and (only on explicit request) joined_fields contributed by blended/joined data marts. Use detail_level=native by default: it avoids exposing irrelevant joined fields and keeps the response fast. Request detail_level=with_joined_fields only when the question truly needs a joined Data Mart. Use displayName for user-facing wording and copy name verbatim into query_data_mart. Each controllable field carries its type "category", and every field carries the effective "allowedAggregations" query_data_mart may apply to it; "operators_by_category" maps each category to the filter/slice operators its fields accept — build queries from these instead of guessing. An empty allowedAggregations on a field whose "calculated" level is "metric" means the value is ALREADY computed, not that the field is unusable: select it by name in query_data_mart instead of recomputing it from other fields, and read the "usage" note carried on that field — it may also warn that a join distorts the number. Array fields are the exception: when mode is REPEATED or type or sliceType is ARRAY, the field omits category and has empty allowedAggregations. It may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. Follow get_project_context → list_contexts → context-filtered Data Mart discovery. This tool is optional in that flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
+    contexts: makeContextSummariesSchema(),
     id: z.string().describe('Data mart identifier.'),
     name: z.string().describe('Data mart display name.'),
     url: z.string().describe('Open this Data Mart in OWOX.'),
@@ -297,6 +299,7 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
     }
 
     const structuredContent = {
+      contexts: result.contexts ?? [],
       id: result.id,
       name: result.name,
       url: joinPublicOrigin(

@@ -97,6 +97,28 @@ export class ContextService {
     return this.contextMapper.toDomainDto(saved, userProjections);
   }
 
+  async listForMcp(projectId: string) {
+    const entities = await this.contextRepository.find({
+      where: { projectId },
+      order: { name: 'ASC' },
+    });
+    return entities.map(entity => this.contextMapper.toMcpContext(entity));
+  }
+
+  async getDataMartContextSummaries(projectId: string, dataMartIds: string[]) {
+    if (dataMartIds.length === 0) return {};
+    const rows = await this.dataMartContextRepository.find({
+      where: {
+        dataMartId: In([...new Set(dataMartIds)]),
+        context: { projectId },
+        dataMart: { projectId },
+      },
+      relations: ['context'],
+      order: { context: { name: 'ASC' } },
+    });
+    return this.contextMapper.toDataMartContextSummaries(rows);
+  }
+
   async list(projectId: string): Promise<ContextDto[]> {
     const entities = await this.contextRepository.find({
       where: { projectId },

@@ -23,6 +23,7 @@ export interface VectorSearchOptions {
   vectorCandidateLimit?: number;
   accessScope?: SourceAccessScope;
   excludeDrafts?: boolean;
+  contextIds?: string[];
 }
 
 export interface VectorSearchPort {
