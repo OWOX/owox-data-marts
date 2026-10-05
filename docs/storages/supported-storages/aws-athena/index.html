@@ -202,7 +202,7 @@ Note that <strong>Data Mart</strong> cannot be validated or published until the 
 <ul>
 <li><strong>Title</strong>: Provide a unique name for this Storage (e.g., “Analytics Warehouse”)</li>
 <li><strong>Region</strong>: Enter the AWS region hosting your Athena instance (e.g., us-east-1), available in the AWS Management Console</li>
-<li><strong>Output Bucket</strong>: Provide the S3 bucket name for query results</li>
+<li><strong>Output Bucket</strong>: Provide the S3 bucket for query results, e.g. <code dir="auto">my-athena-results</code>, or a folder in it, e.g. <code dir="auto">my-athena-results/owox/</code>. OWOX Data Marts deletes the results of the queries that read your data, for reports, previews and Insights, once it has read them. The small results of the queries that check access, validate SQL and look up when the data was last updated stay there, under <code dir="auto">athena-check-access/</code>, <code dir="auto">athena-dry-run/</code> and <code dir="auto">athena-data-last-updated/</code>; an S3 lifecycle rule can remove them</li>
 <li><strong>Access Key ID</strong>: Enter the Access Key ID for an IAM user with Athena and S3 access</li>
 <li><strong>Secret Access Key</strong>: Provide the matching Secret Access Key</li>
 </ul>
