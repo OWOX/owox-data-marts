@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.37.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/77d9cbdf49fcf47c5576b6b73b51143f/iframe>
+
 - 4444a95: **Google and Microsoft sign-in works after a page is left open**
 
   You can choose Google or Microsoft on a sign-in or sign-up page left open for a while without an expired session interrupting the sign-in. If a sign-in session does expire, the page now shows "Your sign-in session expired. Please try again." so you know to retry.
