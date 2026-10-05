@@ -44,6 +44,26 @@ export function quoteA1SheetTitle(title: string): string {
   return `'${title.replace(/'/g, "''")}'`;
 }
 
+/**
+ * Thrown when a Google API call still fails after the adapter retried it. Keeps
+ * the original error as `cause` and mirrors its HTTP `status`/`code` so callers
+ * that classify Google errors by status keep working.
+ */
+export class GoogleApiRetriesExhaustedError extends Error {
+  readonly status?: number;
+  readonly code?: number;
+
+  constructor(
+    readonly cause: unknown,
+    readonly attempts: number
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'GoogleApiRetriesExhaustedError';
+    this.status = GoogleSheetsApiAdapter.httpStatusOf(cause);
+    this.code = this.status;
+  }
+}
+
 export class GoogleSheetsApiAdapter {
   private static readonly SHEETS_SCOPE = ['https://www.googleapis.com/auth/spreadsheets'];
 
@@ -785,11 +805,13 @@ export class GoogleSheetsApiAdapter {
    * Clears all content from a sheet
    */
   public async clearSheet(spreadsheetId: string, sheetTitle: string): Promise<void> {
-    await this.executeWithRetry(() =>
-      this.service.spreadsheets.values.clear({
-        spreadsheetId,
-        range: quoteA1SheetTitle(sheetTitle),
-      })
+    await this.executeWithRetry(
+      () =>
+        this.service.spreadsheets.values.clear({
+          spreadsheetId,
+          range: quoteA1SheetTitle(sheetTitle),
+        }),
+      { retryServerErrors: true }
     );
   }
 
@@ -801,8 +823,9 @@ export class GoogleSheetsApiAdapter {
    * value-only clear scoped to a rectangle.
    */
   public async clearValuesInRange(spreadsheetId: string, range: string): Promise<void> {
-    await this.executeWithRetry(() =>
-      this.service.spreadsheets.values.clear({ spreadsheetId, range })
+    await this.executeWithRetry(
+      () => this.service.spreadsheets.values.clear({ spreadsheetId, range }),
+      { retryServerErrors: true }
     );
   }
 
@@ -888,11 +911,13 @@ export class GoogleSheetsApiAdapter {
     spreadsheetId: string,
     requests: sheets_v4.Schema$Request[]
   ): Promise<void> {
-    await this.executeWithRetry(() =>
-      this.service.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests },
-      })
+    await this.executeWithRetry(
+      () =>
+        this.service.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: { requests },
+        }),
+      { retryServerErrors: GoogleSheetsApiAdapter.isIdempotentBatch(requests) }
     );
   }
 
@@ -1055,33 +1080,105 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
-   * Executes an API call with exponential backoff retry for quota-exceeded errors
+   * Executes an API call, retrying the failures Google documents as transient:
+   *
+   * - quota (HTTP 429 / "Quota exceeded") — always safe to retry, Google rejected
+   *   the request before applying it;
+   * - server errors (HTTP 500/502/503/504) — only when `retryServerErrors` is set.
+   *   Google may have applied the request before failing, so the caller opts in
+   *   only for calls that land on the same state when repeated.
+   *
+   * `googleapis` already retries server errors for GET and PUT on its own, so the
+   * read and `values.update` paths leave `retryServerErrors` off rather than
+   * multiply the attempts. A call that still fails after a retry is rethrown as
+   * {@link GoogleApiRetriesExhaustedError}, which keeps the HTTP status and says
+   * how many attempts were made.
    */
-  private async executeWithRetry<T>(apiCallFn: () => Promise<T>): Promise<T> {
-    const maxRetries = 5;
-    const maxDelayMs = 30000; // 30 seconds
-    const baseDelayMs = 1000; // 1 second
-
-    let retryCount = 0;
-    while (retryCount < maxRetries) {
+  private async executeWithRetry<T>(
+    apiCallFn: () => Promise<T>,
+    options: { retryServerErrors?: boolean } = {}
+  ): Promise<T> {
+    let attempt = 0;
+    for (;;) {
+      attempt++;
       try {
         return await apiCallFn();
       } catch (error) {
-        if (!error.message.includes('Quota exceeded')) {
-          throw error;
+        const policy = GoogleSheetsApiAdapter.retryPolicyFor(
+          error,
+          options.retryServerErrors ?? false
+        );
+        if (!policy) {
+          throw attempt > 1 ? new GoogleApiRetriesExhaustedError(error, attempt) : error;
+        }
+        if (attempt > policy.maxRetries) {
+          throw new GoogleApiRetriesExhaustedError(error, attempt);
         }
 
-        const delayMs = Math.min(Math.pow(2, retryCount) * baseDelayMs, maxDelayMs);
-        GoogleSheetsApiAdapter.LOGGER.warn(
-          `Google API quota exceeded. Retrying in ${delayMs / 1000} seconds. ` +
-            `Retry ${retryCount + 1}/${maxRetries}`
+        const delayMs = Math.min(
+          Math.pow(2, attempt - 1) * policy.baseDelayMs,
+          GoogleSheetsApiAdapter.MAX_RETRY_DELAY_MS
         );
-
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        retryCount++;
+        GoogleSheetsApiAdapter.LOGGER.warn(
+          `Google API ${policy.label} (${GoogleSheetsApiAdapter.httpStatusOf(error) ?? 'no status'}). ` +
+            `Retrying in ${delayMs / 1000} seconds. Retry ${attempt}/${policy.maxRetries}`
+        );
+        await this.sleep(delayMs);
       }
     }
+  }
 
-    throw new Error('Maximum retry attempts exceeded');
+  private static readonly MAX_RETRY_DELAY_MS = 30_000;
+
+  /** Status codes Google documents as transient server-side failures. */
+  private static readonly RETRYABLE_SERVER_STATUSES = new Set([500, 502, 503, 504]);
+
+  /**
+   * `batchUpdate` request kinds that land on the same sheet state when applied
+   * twice. Anything that adds, removes or shifts rows, columns, sheets or
+   * metadata entries is left out: a repeat after Google already applied it would
+   * duplicate or shift content.
+   */
+  private static readonly IDEMPOTENT_REQUEST_KINDS = new Set<keyof sheets_v4.Schema$Request>([
+    'repeatCell',
+    'updateCells',
+    'updateBorders',
+    'updateSheetProperties',
+    'updateDimensionProperties',
+    'updateDeveloperMetadata',
+    'copyPaste',
+  ]);
+
+  /** True when every request in the batch can safely be sent again. */
+  static isIdempotentBatch(requests: sheets_v4.Schema$Request[]): boolean {
+    return requests.every(request =>
+      Object.keys(request).every(kind =>
+        GoogleSheetsApiAdapter.IDEMPOTENT_REQUEST_KINDS.has(kind as keyof sheets_v4.Schema$Request)
+      )
+    );
+  }
+
+  private static retryPolicyFor(
+    error: unknown,
+    retryServerErrors: boolean
+  ): { label: string; maxRetries: number; baseDelayMs: number } | undefined {
+    const status = GoogleSheetsApiAdapter.httpStatusOf(error);
+    const message = error instanceof Error ? error.message : '';
+    if (status === 429 || message.includes('Quota exceeded')) {
+      return { label: 'quota exceeded', maxRetries: 5, baseDelayMs: 1000 };
+    }
+    if (
+      retryServerErrors &&
+      status !== undefined &&
+      GoogleSheetsApiAdapter.RETRYABLE_SERVER_STATUSES.has(status)
+    ) {
+      return { label: 'server error', maxRetries: 3, baseDelayMs: 2000 };
+    }
+    return undefined;
+  }
+
+  /** Overridable in tests so retries do not wait for real. */
+  protected sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

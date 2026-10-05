@@ -177,6 +177,34 @@ is left exactly as it was before the run. No headers are rewritten, no rows
 are cleared, and your last successful refresh stays visible until the next
 successful run replaces it.
 
+### When Google Sheets is temporarily unavailable
+
+Google Sheets sometimes answers a write with a temporary error — HTTP 500
+`Internal error encountered.` or HTTP 503 `The service is currently
+unavailable.` OWOX sends such a request again, up to three more times with a
+growing pause, whenever repeating it cannot change the result: formatting the
+header row, clearing the imported range, writing values. A request that adds
+or removes rows or columns is not repeated, because Google may have applied it
+before failing.
+
+If the error persists, the run fails and Run History names the step that
+failed, Google's HTTP status and message, and how many times OWOX tried — for
+example, _"Google Sheets did not complete the request while writing and
+formatting column headers. Google responded with HTTP 503 … OWOX tried 4
+times."_
+
+These errors come from Google, but they are much more frequent in spreadsheets
+that take long to update after every change. A common cause is formulas on
+other sheets that read whole columns of the report's sheet (`A:A`, `MMULT`,
+`ARRAYFORMULA`, `COUNTIF` over the full column), because each write OWOX makes
+recalculates them. To make refreshes reliable:
+
+- deliver the report to a separate spreadsheet and bring the values you need
+  into the working document with `IMPORTRANGE`;
+- or let the Data Mart return the aggregated numbers those formulas compute,
+  so the spreadsheet receives a few rows instead of every record;
+- limit formula ranges to the rows they need (`A2:A100000` instead of `A:A`).
+
 ### Per-column header notes
 
 Each imported column header carries a note (hover the cell in Google Sheets

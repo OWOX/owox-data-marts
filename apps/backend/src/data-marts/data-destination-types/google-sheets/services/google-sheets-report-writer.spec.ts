@@ -11,6 +11,8 @@ import {
   GoogleSheetNotFound,
   sheetNotFoundMessage,
 } from '../../../errors/google-sheet-not-found.error';
+import { GoogleSheetsApiCallError } from '../../../errors/google-sheets-api-call.error';
+import { GoogleApiRetriesExhaustedError } from '../adapters/google-sheets-api.adapter';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s pre-clear
@@ -1420,5 +1422,71 @@ describe('GoogleSheetsReportWriter — record JSON reaches the adapter (real for
     expect(adapter.updateValues).toHaveBeenCalledWith(SPREADSHEET_ID, `'${SHEET_TITLE}'!A2:D2`, [
       ['Kyiv', '[["a","b"],["c"]]', '{"country":"UA","city":"Kyiv"}', 1],
     ]);
+  });
+});
+
+describe('GoogleSheetsReportWriter — explains Google API failures in Run History', () => {
+  const googleError = (status: number, message: string) =>
+    Object.assign(new Error(message), { status, code: status, response: { status } });
+
+  const prepare = async (opts: BuildOpts = { availableRowsCount: 11 }) => {
+    const built = buildWriter(opts);
+    await built.writer.prepareToWriteReport(
+      built.report as never,
+      new ReportDataDescription(makeHeaders(...built.finalImportedNames), 1)
+    );
+    return built;
+  };
+
+  it('names the failed step, the status and the attempts when Google keeps answering 503', async () => {
+    const { writer, adapter } = await prepare();
+    const cause = new GoogleApiRetriesExhaustedError(
+      googleError(503, 'The service is currently unavailable.'),
+      4
+    );
+    // The header-format batch is the first batchUpdate of the deferred mutations.
+    adapter.batchUpdate.mockRejectedValueOnce(cause);
+
+    const error = await writer
+      .writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GoogleSheetsApiCallError);
+    expect(error).toMatchObject({ status: 503, cause });
+    const message = (error as Error).message;
+    // The innermost step wins — the outer "Writing data batch" step must not re-wrap it.
+    expect(message).toContain('while writing and formatting column headers');
+    expect(message).not.toContain('data batch');
+    expect(message).toContain('HTTP 503: The service is currently unavailable.');
+    expect(message).toContain('OWOX tried 4 times.');
+    expect(message).toContain('separate spreadsheet');
+  });
+
+  it('does not claim retries for a call that was sent once', async () => {
+    const { writer, adapter } = await prepare();
+    adapter.updateValues
+      .mockResolvedValueOnce(undefined) // headers
+      .mockRejectedValueOnce(googleError(404, 'Requested entity was not found.'));
+
+    const error = await writer
+      .writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GoogleSheetsApiCallError);
+    const message = (error as Error).message;
+    expect(message).toBe(
+      'Google Sheets rejected the request while writing data batch to Google Sheets. ' +
+        'Google responded with HTTP 404: Requested entity was not found.'
+    );
+  });
+
+  it('passes errors without an HTTP status through unchanged', async () => {
+    const { writer, adapter } = await prepare();
+    const original = new Error('socket hang up');
+    adapter.clearValuesInRange.mockRejectedValueOnce(original);
+
+    await expect(writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]))).rejects.toBe(
+      original
+    );
   });
 });

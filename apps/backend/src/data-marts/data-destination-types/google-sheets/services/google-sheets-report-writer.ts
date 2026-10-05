@@ -17,7 +17,11 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { SheetHeaderFormatter } from './sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-formatter';
 import { ColumnPlanBuilder } from './column-plan-builder';
-import { GoogleSheetsApiAdapter, quoteA1SheetTitle } from '../adapters/google-sheets-api.adapter';
+import {
+  GoogleApiRetriesExhaustedError,
+  GoogleSheetsApiAdapter,
+  quoteA1SheetTitle,
+} from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
@@ -28,6 +32,10 @@ import {
   spreadsheetNotAccessibleMessage,
 } from '../../../errors/google-sheet-not-found.error';
 import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
+import {
+  GoogleSheetsApiCallError,
+  googleSheetsApiCallMessage,
+} from '../../../errors/google-sheets-api-call.error';
 import { AppEditionConfig } from '../../../../common/config/app-edition-config.service';
 import { PublicOriginService } from '../../../../common/config/public-origin.service';
 import { buildReportUrl } from '../../../../common/helpers/data-mart-url.helper';
@@ -1205,7 +1213,34 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       } else {
         this.logger.error(`${operationName} failed: ${error.message}`, error.stack);
       }
-      throw error;
+      throw this.describeGoogleApiError(error, operationName) ?? error;
     }
+  }
+
+  /**
+   * Turns a raw Google API failure into a {@link GoogleSheetsApiCallError} that
+   * names the failed step, so Run History says more than Google's bare
+   * "Internal error encountered.". Only the innermost step wraps: nested
+   * `executeWithErrorHandling` calls see an already-described error and pass it
+   * through, as do errors the writer raised itself (no HTTP status).
+   */
+  private describeGoogleApiError(
+    error: unknown,
+    operationName: string
+  ): GoogleSheetsApiCallError | undefined {
+    if (error instanceof GoogleSheetsApiCallError || error instanceof BusinessViolationException) {
+      return undefined;
+    }
+    const status = GoogleSheetsApiAdapter.httpStatusOf(error);
+    if (status === undefined || status < 400) {
+      return undefined;
+    }
+    const attempts = error instanceof GoogleApiRetriesExhaustedError ? error.attempts : 1;
+    const googleMessage = error instanceof Error ? error.message : String(error);
+    return new GoogleSheetsApiCallError(
+      googleSheetsApiCallMessage(operationName, status, googleMessage, attempts),
+      status,
+      error
+    );
   }
 }
