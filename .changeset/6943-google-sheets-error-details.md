@@ -2,16 +2,17 @@
 'owox': minor
 ---
 
-**Google Sheets errors in Run History name the failed step and the likely cause**
+**Google Sheets errors in Run History explain the cause and the fix**
 
-Previously, when the Google Sheets API failed during a refresh, Run History showed only Google's
-text, such as `Internal error encountered.` or `The service is currently unavailable.`, and the
-same report could fail with a different message every day. The error now names the step that
-failed and quotes Google's HTTP status and message.
+Previously, when Google Sheets failed to apply a report's changes, Run History showed only Google's
+text — `Internal error encountered.`, `The service is currently unavailable.` or `Requested entity
+was not found.` — and the same report could fail with a different message every day. These
+failures now show one message in plain words: Google Sheets couldn't finish updating the
+spreadsheet, which usually means heavy formulas recalculate after every change. It says how to
+fix it — turn on **Iterative calculation** in the spreadsheet's settings, limit formulas that read
+whole columns of the report's sheet, or send the report to a separate spreadsheet — and keeps
+Google's text at the end as details. See [When Google Sheets can't finish updating the spreadsheet](../../docs/destinations/supported-destinations/google-sheets.md#when-google-sheets-cant-finish-updating-the-spreadsheet).
 
-For HTTP 500 and 503 it also says what to check when the failure repeats on every run: a
-spreadsheet that takes too long to recalculate after each change, typically because of formulas
-over whole columns of the report's sheet or circular references while **Iterative calculation** is
-off — see [When Google Sheets fails with HTTP 500 or 503](../../docs/destinations/supported-destinations/google-sheets.md#when-google-sheets-fails-with-http-500-or-503).
+Other errors from Google Sheets now name the step that failed and Google's reason.
 
 <!-- markdownlint-disable-file MD041 MD036 -->
