@@ -2,7 +2,7 @@
 
 ## 0.37.0
 
-### Minor Changes
+### Minor Changes 0.37.0
 
 - 4444a95: **Google and Microsoft sign-in works after a page is left open**
 
@@ -123,7 +123,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.37.0
 
 - @owox/internal-helpers@0.37.0
 - @owox/idp-protocol@0.37.0
