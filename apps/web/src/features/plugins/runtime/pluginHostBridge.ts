@@ -370,27 +370,6 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       requestControllers.set(request.id, requestController);
       const signal = AbortSignal.any([teardown.signal, requestController.signal]);
 
-      if (request.kind === 'openExternal') {
-        options.onOpenExternal(request.url);
-        return;
-      }
-
-      if (request.kind === 'navigate') {
-        options.onNavigate(request.path);
-        return;
-      }
-
-      if (request.kind === 'route') {
-        options.onRouteChange(request.path);
-        return;
-      }
-
-      if (request.kind === 'copyLink') {
-        await options.onCopyLink(request.path);
-        reply({ id, ok: true, status: 200, headers: {}, body: null });
-        return;
-      }
-
       if (request.kind === 'credentialFetch') {
         reply(await forwardCredential(request, signal));
         return;
@@ -400,6 +379,11 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         const response = await forwardCredentialAi(request, signal);
         await replyAndHoldStream(response, signal);
         return;
+      }
+
+      // Host-only kinds were answered before admission; this narrows the rest to an API request.
+      if (request.kind !== 'api') {
+        throw protocolError('The request kind is not recognized');
       }
 
       // Serialize once, before currentToken, and reuse the immutable string for a 401
