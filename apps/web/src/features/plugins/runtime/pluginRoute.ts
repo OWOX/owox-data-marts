@@ -1,40 +1,47 @@
 export const MAX_PLUGIN_ROUTE_LENGTH = 2048;
 
 // eslint-disable-next-line no-control-regex
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
-const INVISIBLE_CHARACTER = /[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
+/** Bidi controls, zero-width and other invisible formatting characters. */
+const FORMAT_CHARACTER = /[\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 const CAMPAIGN_TAG = /^utm_/i;
 /** `.` and `..`, literal or percent-encoded in any case: the URL parser collapses all of them. */
 const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;
-/** Cheap bound before resolving: worst case is 9 encoded chars per raw UTF-8 byte-heavy character. */
+/** Caps parser work only: percent-encoding lengthens a route, so the encoded limit below decides. */
 const MAX_RAW_PLUGIN_ROUTE_LENGTH = MAX_PLUGIN_ROUTE_LENGTH * 9;
 const PROBE_ORIGIN = 'https://route.invalid';
 const PROBE_BASE = '/open';
 
 export function normalizePluginRoute(route: unknown): string | null {
-  if (typeof route !== 'string' || !route.startsWith('/') || route.startsWith('//')) {
-    return null;
-  }
-  // The URL parser trims a trailing space off the whole input, which can unmask a '..' segment.
   if (
-    route.endsWith(' ') ||
+    typeof route !== 'string' ||
+    !route.startsWith('/') ||
     route.length > MAX_RAW_PLUGIN_ROUTE_LENGTH ||
     CONTROL_CHARACTER.test(route) ||
-    INVISIBLE_CHARACTER.test(route)
+    FORMAT_CHARACTER.test(route)
   ) {
-    return null;
-  }
-  if (route.includes('\\') || /%5c/i.test(route)) {
     return null;
   }
 
   const path = route.split(/[?#]/, 1)[0];
-  if (path.split('/').some(segment => DOT_SEGMENT.test(segment))) {
+  // A trailing space would be trimmed off, unmasking a '..'; React Router collapses an empty segment.
+  if (
+    path.endsWith(' ') ||
+    path.includes('//') ||
+    path.includes('\\') ||
+    /%5c/i.test(path) ||
+    path.split('/').some(segment => DOT_SEGMENT.test(segment))
+  ) {
     return null;
   }
+  // The parser keeps a backslash and trims trailing spaces in a query or hash; encode both instead.
+  const rest = route
+    .slice(path.length)
+    .replace(/\\/g, '%5C')
+    .replace(/ +$/, spaces => '%20'.repeat(spaces.length));
 
   try {
-    const resolved = new URL(`${PROBE_BASE}${route}`, PROBE_ORIGIN);
+    const resolved = new URL(`${PROBE_BASE}${path}${rest}`, PROBE_ORIGIN);
     if (resolved.pathname !== PROBE_BASE && !resolved.pathname.startsWith(`${PROBE_BASE}/`)) {
       return null;
     }

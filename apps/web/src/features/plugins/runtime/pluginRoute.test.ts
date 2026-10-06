@@ -8,7 +8,18 @@ import {
 } from './pluginRoute';
 
 describe('isValidPluginRoute', () => {
-  it.each(['/', '/d/123', '/d/123?x=1#y', '/a%2Fb', '/d/звіт'])('accepts %s', route => {
+  it.each([
+    '/',
+    '/d/123',
+    '/d/123?x=1#y',
+    '/a%2Fb',
+    '/d/звіт',
+    '/a/',
+    '/x?next=//elsewhere',
+    // Not dot segments to the URL parser, so they stay inside the plugin's base.
+    '/..%2F..%2F',
+    '/%252e%252e',
+  ])('accepts %s', route => {
     expect(isValidPluginRoute(route)).toBe(true);
   });
 
@@ -32,6 +43,21 @@ describe('isValidPluginRoute', () => {
     ['a zero-width space', '/a\u200bb'],
     ['a right-to-left mark', '/a\u200fb'],
     ['a byte-order mark', '/a\ufeffb'],
+    ['a C1 control', '/a\u0085b'],
+    ['the last C1 control', '/a\u009fb'],
+    ['an Arabic letter mark', '/a\u061cb'],
+    ['a left-to-right mark', '/a\u200eb'],
+    ['a Mongolian vowel separator', '/a\u180eb'],
+    ['a zero-width joiner', '/a\u200db'],
+    ['a word joiner', '/a\u2060b'],
+    ['an invisible plus', '/a\u2064b'],
+    ['a bidi control in the query', '/a?q=\u2067'],
+    ['an empty segment inside the path', '/a//b'],
+    ['an empty segment at the end of the path', '/a//'],
+    ['a trailing space in the path before a query', '/a ?q=1'],
+    ['a trailing space in the path before a hash', '/a #h'],
+    ['a backslash in the path before a query', '/a\\b?q=1'],
+    ['an upper-case encoded backslash in the path', '/a%5Cb'],
     ['an over-long route', `/${'a'.repeat(2048)}`],
     ['a non-string', 7],
   ])('rejects %s', (_label, route) => {
@@ -52,9 +78,18 @@ describe('normalizePluginRoute', () => {
     ['a space', '/a b', '/a%20b'],
     ['non-ASCII', '/d/звіт', '/d/%D0%B7%D0%B2%D1%96%D1%82'],
     ['link-breaking characters', '/a"<>`', '/a%22%3C%3E%60'],
-    ['a C1 control', '/a\u0085b', '/a%C2%85b'],
     ['a query and a hash', '/d/1?q=a b#h c', '/d/1?q=a%20b#h%20c'],
     ['an already encoded route', '/a%20b?x=1#y', '/a%20b?x=1#y'],
+    [
+      'an encoded backslash in the query',
+      `/search?q=${encodeURIComponent('C:\\data')}`,
+      '/search?q=C%3A%5Cdata',
+    ],
+    ['an encoded backslash in the hash', '/x#a%5cb', '/x#a%5cb'],
+    ['a backslash in the query', '/x?q=a\\b', '/x?q=a%5Cb'],
+    ['a backslash in the hash', '/x#a\\b', '/x#a%5Cb'],
+    ['a trailing space in the query', '/x?q=a ', '/x?q=a%20'],
+    ['a trailing space in the hash', '/x#a  ', '/x#a%20%20'],
   ])('encodes %s', (_label, route, canonical) => {
     expect(normalizePluginRoute(route)).toBe(canonical);
   });
