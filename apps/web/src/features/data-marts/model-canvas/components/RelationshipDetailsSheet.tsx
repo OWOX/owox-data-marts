@@ -30,6 +30,10 @@ import { DataMartIconGlyph } from '../../shared/components/DataMartIcon';
 import type { DataMartIconValue } from '../../shared/enums/data-mart-icon.enum';
 import { RELATIONSHIP_SHEET_WIDTH_CLASS } from '../model/relationship-sheet-layout';
 import { useRelationshipDetails } from '../model/use-relationship-details';
+import {
+  useRelationshipSourceConfig,
+  type RelationshipConfigEditor,
+} from '../model/use-relationship-source-config';
 
 export interface RelationshipSheetDataMart {
   id: string;
@@ -126,8 +130,8 @@ export default function RelationshipDetailsSheet({
           )}
         </SheetHeader>
         <div className='flex-1 overflow-y-auto'>
-          <RelationshipDetailsBody
-            key={active.id}
+          <RelationshipSourceScope
+            key={active.source.id}
             option={active}
             storageId={storageId}
             onDeleted={onClose}
@@ -138,7 +142,22 @@ export default function RelationshipDetailsSheet({
   );
 }
 
-function RelationshipDetailsBody({
+function DetailsSkeleton() {
+  return (
+    <div className='flex flex-col gap-3 p-4' aria-busy='true'>
+      <Skeleton className='h-8 w-full' />
+      <Skeleton className='h-40 w-full' />
+    </div>
+  );
+}
+
+/**
+ * One per source Data Mart. Its relationships write to the same blended fields config, so they
+ * share one editor and save queue: switching between two of them never sends two whole-config
+ * saves side by side. Nothing is editable before the source has loaded, because a save that
+ * starts from an empty config would drop the settings of the source's other joins.
+ */
+function RelationshipSourceScope({
   option,
   storageId,
   onDeleted,
@@ -147,11 +166,50 @@ function RelationshipDetailsBody({
   storageId: string;
   onDeleted: () => void;
 }) {
+  const source = useRelationshipSourceConfig(option.source.id);
+
+  if (!source.sourceDataMart) {
+    if (source.isLoading) return <DetailsSkeleton />;
+    return (
+      <div role='alert' className='flex flex-col items-start gap-3 p-4 text-sm'>
+        <p className='text-muted-foreground'>
+          {option.source.title} could not be loaded, so this relationship cannot be edited.
+        </p>
+        <Button type='button' variant='outline' size='sm' onClick={source.retry}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <RelationshipDetailsBody
+      key={option.id}
+      option={option}
+      storageId={storageId}
+      configEditor={source.configEditor}
+      onDeleted={onDeleted}
+    />
+  );
+}
+
+function RelationshipDetailsBody({
+  option,
+  storageId,
+  configEditor,
+  onDeleted,
+}: {
+  option: RelationshipSheetOption;
+  storageId: string;
+  configEditor: RelationshipConfigEditor;
+  onDeleted: () => void;
+}) {
   const { scope } = useProjectRoute();
   const details = useRelationshipDetails({
     relationshipId: option.id,
     sourceDataMartId: option.source.id,
     storageId,
+    configEditor,
   });
   const { relationship, source } = details;
   const [activeTab, setActiveTab] = useState<RelationshipDetailsTab>('join-settings');
@@ -163,14 +221,7 @@ function RelationshipDetailsBody({
     details.onAliasChange
   );
 
-  if (details.isLoading) {
-    return (
-      <div className='flex flex-col gap-3 p-4' aria-busy='true'>
-        <Skeleton className='h-8 w-full' />
-        <Skeleton className='h-40 w-full' />
-      </div>
-    );
-  }
+  if (details.isLoading) return <DetailsSkeleton />;
 
   if (!relationship) {
     return (
@@ -192,22 +243,30 @@ function RelationshipDetailsBody({
     <>
       <div className='flex flex-wrap items-center gap-2 border-b px-4 py-2.5'>
         {!relationship.targetDataMart.userHasAccess && <NoAccessIndicator />}
-        <RelationshipWarningBadges relationship={relationship} isBlocked={details.isBlocked} />
+        <RelationshipWarningBadges
+          relationship={relationship}
+          isBlocked={details.isBlocked}
+          isCycleStub={details.isCycleStub}
+        />
         <div className='ml-auto flex shrink-0 items-center gap-1.5'>
-          <span className='text-muted-foreground text-xs'>Allow for reporting</span>
-          <Switch
-            aria-label='Allow for reporting'
-            checked={source?.isIncluded ?? true}
-            onCheckedChange={checked => {
-              // A join without conditions has no source entry yet. The preference is still
-              // stored by alias path and takes effect once the join is configured.
-              details.onHideForReportingChange(
-                source?.aliasPath ?? details.aliasPath ?? relationship.targetAlias,
-                source?.alias ?? relationship.targetAlias,
-                !checked
-              );
-            }}
-          />
+          {!details.isCycleStub && (
+            <>
+              <span className='text-muted-foreground text-xs'>Allow for reporting</span>
+              <Switch
+                aria-label='Allow for reporting'
+                checked={source?.isIncluded ?? true}
+                onCheckedChange={checked => {
+                  // A join without conditions has no source entry yet. The preference is still
+                  // stored by alias path and takes effect once the join is configured.
+                  details.onHideForReportingChange(
+                    source?.aliasPath ?? details.aliasPath ?? relationship.targetAlias,
+                    source?.alias ?? relationship.targetAlias,
+                    !checked
+                  );
+                }}
+              />
+            </>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -247,21 +306,29 @@ function RelationshipDetailsBody({
         </div>
       </div>
 
-      <RelationshipDetailsTabs
-        relationship={relationship}
-        source={source}
-        dataMartId={option.source.id}
-        siblingAliases={details.siblingAliases}
-        readOnly={false}
-        inheritedFrom={null}
-        activeTab={activeTab}
-        onActiveTabChange={setActiveTab}
-        outputAlias={outputAlias}
-        onRelationshipUpdated={details.onRelationshipUpdated}
-        onRelationshipDescriptionSaved={details.onRelationshipDescriptionSaved}
-        onFieldOverrideChange={details.onFieldOverrideChange}
-        onDescriptionOverrideChange={details.onDescriptionOverrideChange}
-      />
+      {details.isCycleStub ? (
+        // As in the Joinable Data Marts block, a loop has no settings to edit.
+        <p className='text-muted-foreground p-4 text-sm'>
+          {relationship.targetDataMart.title} is already on this join path, so the join stops here
+          to avoid a loop and has no settings to edit.
+        </p>
+      ) : (
+        <RelationshipDetailsTabs
+          relationship={relationship}
+          source={source}
+          dataMartId={option.source.id}
+          siblingAliases={details.siblingAliases}
+          readOnly={false}
+          inheritedFrom={null}
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          outputAlias={outputAlias}
+          onRelationshipUpdated={details.onRelationshipUpdated}
+          onRelationshipDescriptionSaved={details.onRelationshipDescriptionSaved}
+          onFieldOverrideChange={details.onFieldOverrideChange}
+          onDescriptionOverrideChange={details.onDescriptionOverrideChange}
+        />
+      )}
 
       <ConfirmationDialog
         open={isConfirmDeleteOpen}

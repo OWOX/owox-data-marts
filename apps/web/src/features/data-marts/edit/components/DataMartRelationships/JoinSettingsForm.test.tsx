@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { JoinSettingsForm } from './JoinSettingsForm';
+import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 
 vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
@@ -96,6 +97,65 @@ describe('JoinSettingsForm', () => {
       />
     );
     expect(getAliasInput().value).toBe('cust');
+  });
+
+  it('keeps what was typed while its own save was on the wire', async () => {
+    const relationship = buildRelationship();
+    let resolveSave: (saved: DataMartRelationship) => void = () => undefined;
+    vi.mocked(dataMartRelationshipService.updateRelationship).mockImplementationOnce(
+      () =>
+        new Promise<DataMartRelationship>(resolve => {
+          resolveSave = resolve;
+        })
+    );
+    const renderWith = (
+      current: DataMartRelationship,
+      onSaved: (u: DataMartRelationship) => void
+    ) => (
+      <JoinSettingsForm
+        relationship={current}
+        dataMartId='source-dm-1'
+        siblingAliases={[]}
+        inheritedFrom={null}
+        onSaved={onSaved}
+      />
+    );
+    const onSaved = vi.fn();
+    const { rerender } = render(renderWith(relationship, onSaved));
+    await waitFor(() => {
+      expect(getAliasInput().value).toBe('customers');
+    });
+
+    fireEvent.change(getAliasInput(), { target: { value: 'cust' } });
+    await waitFor(
+      () => {
+        expect(dataMartRelationshipService.updateRelationship).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 2000 }
+    );
+    // Typed on while the save is on the wire.
+    fireEvent.change(getAliasInput(), { target: { value: 'custo' } });
+
+    // The parent hands back the saved relationship, as the Models canvas sheet does.
+    const saved = { ...relationship, targetAlias: 'cust' };
+    resolveSave(saved);
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledWith(saved);
+    });
+    rerender(renderWith(saved, onSaved));
+
+    expect(getAliasInput().value).toBe('custo');
+    await waitFor(
+      () => {
+        expect(dataMartRelationshipService.updateRelationship).toHaveBeenLastCalledWith(
+          'source-dm-1',
+          'rel-1',
+          { targetAlias: 'custo' },
+          expect.anything()
+        );
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('resets to the saved settings when they change on the server', async () => {

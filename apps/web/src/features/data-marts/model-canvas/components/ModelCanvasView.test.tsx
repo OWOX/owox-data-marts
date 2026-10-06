@@ -48,6 +48,8 @@ const viewState = vi.hoisted(() => ({
   // When set, the mocked ModelCanvas registers it as the export handle —
   // mirroring the real lazy canvas having mounted.
   exportHandle: null as { exportCanvas: (format: string) => Promise<boolean> } | null,
+  // A relationship a card's relationships list offers, drawn as an arrow or not.
+  cardRelationshipId: null as string | null,
   qualitySummariesHook: {
     data: {} as Record<string, ReturnType<typeof buildQualitySummary>>,
     isLoading: false,
@@ -178,6 +180,16 @@ vi.mock('./ModelCanvas', () => ({
           Run Quality Orders
         </button>
         <span data-testid='canvas-selected-relationship'>{selectedRelationshipId ?? ''}</span>
+        {viewState.cardRelationshipId && (
+          <button
+            type='button'
+            onClick={() => {
+              onSelectRelationship?.(viewState.cardRelationshipId);
+            }}
+          >
+            Open card relationship
+          </button>
+        )}
         {edges.map(edge => (
           <button
             key={edge.id}
@@ -254,6 +266,7 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.refetch.mockResolvedValue(undefined);
     viewState.canvasHook.isEnriching = false;
     viewState.exportHandle = null;
+    viewState.cardRelationshipId = null;
     viewState.qualitySummariesHook.data = {};
     viewState.qualitySummariesHook.isLoading = false;
     viewState.qualitySummariesHook.error = null;
@@ -366,6 +379,43 @@ describe('ModelCanvasView', () => {
       expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
     });
     expect(screen.getByTestId('canvas-selected-relationship')).toBeEmptyDOMElement();
+  });
+
+  it("opens a card list's relationship whose other end the filters hide", async () => {
+    viewState.canvasHook.data = {
+      ...buildCanvasData(),
+      nodes: [
+        ...buildCanvasData().nodes,
+        {
+          id: 'mart-3',
+          title: 'Refunds draft',
+          status: DataMartStatus.DRAFT,
+          description: null,
+          fieldCount: 1,
+          dataLastUpdated: null,
+        },
+      ],
+      edges: [
+        ...buildCanvasData().edges,
+        {
+          id: 'rel-draft',
+          sourceDataMartId: 'mart-1',
+          targetDataMartId: 'mart-3',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'order_id' }],
+        },
+      ],
+    };
+    // The status filter shows published Data Marts only, so no arrow leads to the draft.
+    viewState.cardRelationshipId = 'rel-draft';
+
+    render(<ModelCanvasView />);
+    expect(await screen.findByTestId('canvas-edge-ids')).toHaveTextContent('edge-1');
+    expect(screen.getByTestId('canvas-edge-ids')).not.toHaveTextContent('rel-draft');
+    fireEvent.click(screen.getByRole('button', { name: 'Open card relationship' }));
+
+    expect(await screen.findByTestId('sheet-options')).toHaveTextContent(
+      'rel-draft:Orders->Refunds draft'
+    );
   });
 
   it('opens the Data Mart Quality tab in the current project route', async () => {

@@ -38,10 +38,6 @@ export function useBlendedFieldsConfigEditor({
     localConfigRef.current = localConfig;
   }, [localConfig]);
 
-  useEffect(() => {
-    setLocalConfig(confirmedConfig);
-  }, [confirmedConfig]);
-
   // Config saves are whole-document PUTs fired from debounced editors (alias, description,
   // field overrides), so two of them can otherwise be in flight at once and land out of
   // order — an older config would then win. One request at a time: while one is in flight the
@@ -51,6 +47,14 @@ export function useBlendedFieldsConfigEditor({
   const queuedConfigRef = useRef<BlendedFieldsConfig | null>(null);
   const savedConfigRef = useRef(confirmedConfig);
   savedConfigRef.current = confirmedConfig;
+
+  // A config that arrives while a save is still on the wire, from a refetch, predates that save.
+  // Taking it would drop the edit locally, and the next whole-document save would drop it on the
+  // server too. The save's own response brings the config up to date instead.
+  useEffect(() => {
+    if (isSavingConfigRef.current || queuedConfigRef.current) return;
+    setLocalConfig(confirmedConfig);
+  }, [confirmedConfig]);
 
   const runConfigSaveRef = useRef<(config: BlendedFieldsConfig) => void>(() => {
     /* replaced each render below */
@@ -62,6 +66,8 @@ export function useBlendedFieldsConfigEditor({
       .then(response => {
         // A newer config is already queued — only the last response describes the saved state.
         if (queuedConfigRef.current) return;
+        // Settled before the parent hears of it, so the config it passes back is taken.
+        isSavingConfigRef.current = false;
         onSaved(response);
       })
       .catch(() => {

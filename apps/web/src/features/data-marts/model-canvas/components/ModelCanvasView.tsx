@@ -151,25 +151,31 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
     [filtered]
   );
 
-  // The relationship open in the details sheet, picked by clicking its arrow.
+  // The relationship open in the details sheet, picked by a click on its arrow or on a row of a
+  // card's relationships list. That list covers the storage's whole model, filters aside, so the
+  // sheet looks the relationship up there: one hidden by a filter opens too, with no arrow lit.
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
-  const selectedEdge = useMemo(
+  const modelEdges = useMemo(
+    () => (topology ? mergeBidirectionalEdges(topology.edges) : []),
+    [topology]
+  );
+  const selectedModelEdge = useMemo(
     () =>
       selectedRelationshipId
-        ? (renderEdges.find(edge => edge.relationshipIds.includes(selectedRelationshipId)) ?? null)
+        ? (modelEdges.find(edge => edge.relationshipIds.includes(selectedRelationshipId)) ?? null)
         : null,
-    [renderEdges, selectedRelationshipId]
+    [modelEdges, selectedRelationshipId]
   );
-  // A relationship that leaves the canvas — deleted, or hidden by a filter or another storage —
-  // closes its sheet for good, instead of reopening it when it comes back.
+  // A relationship that leaves the model — deleted, or another storage picked — closes its sheet
+  // for good, instead of reopening it should the relationship come back.
   useEffect(() => {
-    if (selectedRelationshipId && filtered && !selectedEdge) setSelectedRelationshipId(null);
-  }, [selectedRelationshipId, filtered, selectedEdge]);
+    if (selectedRelationshipId && topology && !selectedModelEdge) setSelectedRelationshipId(null);
+  }, [selectedRelationshipId, topology, selectedModelEdge]);
   const relationshipOptions = useMemo((): RelationshipSheetOption[] => {
-    if (!selectedEdge || !filtered) return [];
-    const edgesById = new Map(filtered.edges.map(edge => [edge.id, edge]));
-    const nodesById = new Map(filtered.nodes.map(node => [node.id, node]));
-    return selectedEdge.relationshipIds.flatMap(id => {
+    if (!selectedModelEdge || !topology) return [];
+    const edgesById = new Map(topology.edges.map(edge => [edge.id, edge]));
+    const nodesById = new Map(topology.nodes.map(node => [node.id, node]));
+    return selectedModelEdge.relationshipIds.flatMap(id => {
       const edge = edgesById.get(id);
       const source = edge && nodesById.get(edge.sourceDataMartId);
       const target = edge && nodesById.get(edge.targetDataMartId);
@@ -182,7 +188,8 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
         },
       ];
     });
-  }, [selectedEdge, filtered]);
+  }, [selectedModelEdge, topology]);
+  const isRelationshipSheetOpen = selectedRelationshipId !== null && relationshipOptions.length > 0;
   const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
   const bulkActionDataMarts = useMemo(
     () =>
@@ -407,17 +414,17 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
-            selectedRelationshipId={selectedEdge ? selectedRelationshipId : null}
+            selectedRelationshipId={selectedRelationshipId}
             onSelectRelationship={setSelectedRelationshipId}
             isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
             storageTitle={dataStorages.find(storage => storage.id === filters.storageId)?.title}
             exportApiRef={canvasExportRef}
-            className={selectedEdge ? RELATIONSHIP_SHEET_RESERVE_CLASS : undefined}
+            className={isRelationshipSheetOpen ? RELATIONSHIP_SHEET_RESERVE_CLASS : undefined}
             style={canvasStyle}
           />
         </Suspense>
       )}
-      {selectedRelationshipId && relationshipOptions.length > 0 && filters.storageId && (
+      {isRelationshipSheetOpen && filters.storageId && (
         <Suspense fallback={null}>
           <RelationshipDetailsSheet
             options={relationshipOptions}

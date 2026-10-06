@@ -9,6 +9,7 @@ import type {
   RelationshipGraph,
 } from '../../shared/types/relationship.types';
 import { dataMartRelationshipService } from '../../shared/services/data-mart-relationship.service';
+import { dataMartService } from '../../shared/services/data-mart.service';
 import RelationshipDetailsSheet, { type RelationshipSheetOption } from './RelationshipDetailsSheet';
 
 interface JoinSettingsStubProps {
@@ -102,6 +103,15 @@ function graphOf(...relationships: DataMartRelationship[]): RelationshipGraph {
 
 const EMPTY_SCHEMA: BlendableSchema = { nativeFields: [], blendedFields: [], availableSources: [] };
 
+type UpdateConfigResult = Awaited<
+  ReturnType<typeof dataMartRelationshipService.updateBlendedFieldsConfig>
+>;
+type DataMartDetail = Awaited<ReturnType<typeof dataMartService.getDataMartById>>;
+
+function sourceDataMart(sources: object[] = []): DataMartDetail {
+  return { id: 'orders', blendedFieldsConfig: { sources } } as unknown as DataMartDetail;
+}
+
 function renderSheet(
   options: RelationshipSheetOption[],
   props: { relationshipId?: string; onClose?: () => void; onRelationshipChange?: () => void } = {}
@@ -118,17 +128,27 @@ function renderSheet(
       </MemoryRouter>
     </QueryClientProvider>
   );
-  render(
+  const sheetFor = (current: RelationshipSheetOption[], relationshipId: string) => (
     <RelationshipDetailsSheet
-      options={options}
-      relationshipId={props.relationshipId ?? options[0].id}
+      options={current}
+      relationshipId={relationshipId}
       storageId='storage-1'
       onRelationshipChange={onRelationshipChange}
       onClose={onClose}
-    />,
-    { wrapper }
+    />
   );
-  return { queryClient, onClose, onRelationshipChange };
+  const { rerender } = render(sheetFor(options, props.relationshipId ?? options[0].id), {
+    wrapper,
+  });
+  return {
+    queryClient,
+    onClose,
+    onRelationshipChange,
+    /** Another arrow picked while the sheet is open. */
+    showRelationship: (next: RelationshipSheetOption[], relationshipId: string) => {
+      rerender(sheetFor(next, relationshipId));
+    },
+  };
 }
 
 describe('RelationshipDetailsSheet', () => {
@@ -136,6 +156,7 @@ describe('RelationshipDetailsSheet', () => {
     vi.clearAllMocks();
     harness.joinSettingsProps.current = null;
     vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(EMPTY_SCHEMA);
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue(sourceDataMart());
   });
 
   it("opens on the join settings of the relationship, edited through its source's relationships", async () => {
@@ -224,6 +245,124 @@ describe('RelationshipDetailsSheet', () => {
         expect.anything()
       );
     });
+  });
+
+  it('lets nothing be edited until the source Data Mart has loaded, and offers a retry', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS))
+    );
+    vi.mocked(dataMartService.getDataMartById).mockRejectedValueOnce(new Error('offline'));
+
+    renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
+
+    // Saving from an empty config would replace the settings of the source's other joins.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Orders could not be loaded, so this relationship cannot be edited.'
+    );
+    expect(screen.queryByRole('switch', { name: 'Allow for reporting' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('join-settings')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByTestId('join-settings')).toBeInTheDocument();
+  });
+
+  it("keeps the source's other join settings in the config it saves", async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS))
+    );
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue(
+      sourceDataMart([{ path: 'products', alias: 'prod', fields: { sku: { isHidden: true } } }])
+    );
+    vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig).mockResolvedValue(
+      {} as UpdateConfigResult
+    );
+    renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
+    await screen.findByTestId('join-settings');
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow for reporting' }));
+
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledWith(
+        'orders',
+        {
+          sources: [
+            { path: 'products', alias: 'prod', fields: { sku: { isHidden: true } } },
+            { path: 'customers', alias: 'customers', isExcluded: true },
+          ],
+        },
+        expect.anything()
+      );
+    });
+  });
+
+  it('queues the saves of two relationships of one source instead of sending them side by side', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(
+        buildRelationship('r-customers', ORDERS, CUSTOMERS),
+        buildRelationship('r-products', ORDERS, PRODUCTS)
+      )
+    );
+    let resolveFirstSave: (value: UpdateConfigResult) => void = () => undefined;
+    vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig)
+      .mockImplementationOnce(
+        () =>
+          new Promise<UpdateConfigResult>(resolve => {
+            resolveFirstSave = resolve;
+          })
+      )
+      .mockResolvedValue({} as UpdateConfigResult);
+    const { showRelationship } = renderSheet([
+      { id: 'r-customers', source: ORDERS, target: CUSTOMERS },
+    ]);
+    await screen.findByTestId('join-settings');
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow for reporting' }));
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+    });
+
+    // Another arrow of the same source, picked while that save is on the wire.
+    showRelationship([{ id: 'r-products', source: ORDERS, target: PRODUCTS }], 'r-products');
+    await waitFor(() => {
+      expect(harness.joinSettingsProps.current?.relationship.id).toBe('r-products');
+    });
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow for reporting' }));
+    expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+
+    resolveFirstSave(
+      sourceDataMart([
+        { path: 'customers', alias: 'customers', isExcluded: true },
+      ]) as unknown as UpdateConfigResult
+    );
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenLastCalledWith(
+      'orders',
+      {
+        sources: [
+          { path: 'customers', alias: 'customers', isExcluded: true },
+          { path: 'products', alias: 'products', isExcluded: true },
+        ],
+      },
+      expect.anything()
+    );
+  });
+
+  it('shows a join back to its own source as a loop, with nothing to edit', async () => {
+    const loop = buildRelationship('r-self', ORDERS, ORDERS);
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue({
+      rootDataMartId: 'orders',
+      nodes: [
+        { relationship: loop, aliasPath: 'orders', depth: 1, isCycleStub: true, isBlocked: false },
+      ],
+    });
+
+    renderSheet([{ id: 'r-self', source: ORDERS, target: ORDERS }]);
+
+    expect(await screen.findByText('Loop')).toBeInTheDocument();
+    expect(screen.getByText(/already on this join path/)).toBeInTheDocument();
+    expect(screen.queryByTestId('join-settings')).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Allow for reporting' })).not.toBeInTheDocument();
   });
 
   it('deletes the relationship from its source and closes', async () => {

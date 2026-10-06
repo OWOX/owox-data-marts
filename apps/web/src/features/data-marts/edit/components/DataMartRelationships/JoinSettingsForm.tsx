@@ -172,13 +172,22 @@ export function JoinSettingsForm({
   const relationshipRef = useRef(relationship);
   relationshipRef.current = relationship;
   const savedJoinConditionsKey = JSON.stringify(relationship.joinConditions);
+  const resetRelationshipIdRef = useRef<string | null>(null);
   useEffect(() => {
     const current = relationshipRef.current;
-    form.reset(getInitialDefaults(current));
     const snapshot = {
       targetAlias: current.targetAlias,
       joinConditionsKey: JSON.stringify(current.joinConditions),
     };
+    // The parent passing back what this form just saved: the form holds those values already,
+    // or newer ones typed while the save was on the wire, which a reset would wipe.
+    const isOwnSave =
+      resetRelationshipIdRef.current === current.id &&
+      snapshot.targetAlias === lastSavedRef.current.targetAlias &&
+      snapshot.joinConditionsKey === lastSavedRef.current.joinConditionsKey;
+    resetRelationshipIdRef.current = current.id;
+    if (isOwnSave) return;
+    form.reset(getInitialDefaults(current));
     lastSavedRef.current = snapshot;
     lastAttemptedRef.current = snapshot;
   }, [relationship.id, relationship.targetAlias, savedJoinConditionsKey, form]);

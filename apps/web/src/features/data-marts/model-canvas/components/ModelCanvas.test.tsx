@@ -566,6 +566,73 @@ describe('ModelCanvas', () => {
     expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the viewport when a two-headed arrow splits, and refits once other cards connect', async () => {
+    const nodes = ['orders', 'customers', 'sessions'].map(id => ({
+      id,
+      title: id,
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      fieldCount: 1,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    }));
+    const arrow = (
+      id: string,
+      relationshipIds: string[],
+      sourceId: string,
+      targetId: string,
+      bidirectional = false
+    ) => ({
+      id,
+      relationshipIds,
+      sourceId,
+      targetId,
+      bidirectional,
+      joinNotConfigured: false,
+      joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'id' }],
+    });
+    const renderCanvas = (edges: ReturnType<typeof arrow>[]) => (
+      <ModelCanvas
+        nodes={nodes}
+        edges={edges}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    const { rerender } = render(
+      renderCanvas([arrow('r1+r2', ['r1', 'r2'], 'orders', 'customers', true)])
+    );
+    await waitFor(() => {
+      expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+    });
+
+    // A join fields edit broke the mirror: the same two cards, now joined by two arrows.
+    rerender(
+      renderCanvas([
+        arrow('r1', ['r1'], 'orders', 'customers'),
+        arrow('r2', ['r2'], 'customers', 'orders'),
+      ])
+    );
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.edges).toHaveLength(2);
+    });
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+
+    rerender(
+      renderCanvas([
+        arrow('r1', ['r1'], 'orders', 'customers'),
+        arrow('r2', ['r2'], 'customers', 'orders'),
+        arrow('r3', ['r3'], 'sessions', 'customers'),
+      ])
+    );
+    await waitFor(() => {
+      expect(reactFlow.fitView).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it('re-flows the layout when the active algorithm is picked again, dropping saved positions', async () => {
     render(
       <ModelCanvas

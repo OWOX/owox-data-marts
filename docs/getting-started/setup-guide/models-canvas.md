@@ -37,7 +37,11 @@ Changes save as you type. The canvas redraws the arrow with the new join fields 
 
 A two-headed arrow stands for two relationships that mirror each other. Pick the direction to edit at the top of the panel.
 
-Click another arrow to switch the panel to it. Click a card, the empty canvas or the close button to close the panel. To edit a relationship, you need maintenance access to its source Data Mart.
+Click another arrow to switch the panel to it. Click a card, the empty canvas or the close button to close the panel. Filters and search leave it open.
+
+A card's **N relationships** list also opens relationships whose other Data Mart the filters hide. The panel then has no arrow to highlight. A relationship that joins a Data Mart to itself shows as **Loop** and has no settings to edit, as in Joinable Data Marts.
+
+To edit a relationship, you need maintenance access to its source Data Mart.
 
 ## Data Mart icons
 

@@ -7,15 +7,17 @@ import {
   patchBlendableSchemaJoinDescription,
 } from '../../edit/components/DataMartRelationships/relationship-description-patches';
 import { buildSourceList } from '../../edit/components/DataMartRelationships/source-entries';
-import { useBlendedFieldsConfigEditor } from '../../edit/components/DataMartRelationships/useBlendedFieldsConfigEditor';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../shared/hooks/blendable-schema-query-key';
 import { useBlendableSchema } from '../../shared/hooks/useBlendableSchema';
-import { dataMartService } from '../../shared/services/data-mart.service';
 import { dataMartRelationshipService } from '../../shared/services/data-mart-relationship.service';
 import type {
   DataMartRelationship,
   RelationshipGraph,
 } from '../../shared/types/relationship.types';
+import {
+  relationshipSourceQueryKey,
+  type RelationshipConfigEditor,
+} from './use-relationship-source-config';
 
 const SILENT_REQUEST_OPTIONS = {
   skipLoadingIndicator: true,
@@ -49,17 +51,20 @@ interface UseRelationshipDetailsOptions {
   sourceDataMartId: string;
   /** The storage the Models canvas shows — refreshed after a change to an arrow. */
   storageId: string;
+  /** The editor of the source's blended fields config, shared by all of its relationships. */
+  configEditor: RelationshipConfigEditor;
 }
 
 /**
  * Everything the Models canvas relationship sheet shows and edits about one relationship,
  * loaded the way the source Data Mart's Joinable Data Marts block loads it: the relationship
- * graph rooted at the source, its blendable schema and its blended fields config.
+ * graph rooted at the source and its blendable schema, next to the source's config editor.
  */
 export function useRelationshipDetails({
   relationshipId,
   sourceDataMartId,
   storageId,
+  configEditor,
 }: UseRelationshipDetailsOptions) {
   const queryClient = useQueryClient();
   const { projectId = '' } = useParams<{ projectId: string }>();
@@ -69,7 +74,7 @@ export function useRelationshipDetails({
     [sourceDataMartId]
   );
   const sourceQueryKey = useMemo(
-    () => ['model-canvas-relationship-source', sourceDataMartId],
+    () => relationshipSourceQueryKey(sourceDataMartId),
     [sourceDataMartId]
   );
 
@@ -80,11 +85,6 @@ export function useRelationshipDetails({
         signal,
         ...SILENT_REQUEST_OPTIONS,
       }),
-  });
-  const sourceQuery = useQuery({
-    queryKey: sourceQueryKey,
-    queryFn: ({ signal }) =>
-      dataMartService.getDataMartById(sourceDataMartId, { signal, ...SILENT_REQUEST_OPTIONS }),
   });
   // Draft targets included, as in the Joinable Data Marts block: their saved output schemas stay
   // configurable before publish.
@@ -117,14 +117,6 @@ export function useRelationshipDetails({
     void queryClient.invalidateQueries({ queryKey: ['model-canvas', projectId, storageId] });
   }, [queryClient, projectId, storageId]);
 
-  const configEditor = useBlendedFieldsConfigEditor({
-    dataMartId: sourceDataMartId,
-    savedConfig: sourceQuery.data?.blendedFieldsConfig,
-    onSaved: response => {
-      queryClient.setQueryData(sourceQueryKey, response);
-      invalidateBlendableSchema();
-    },
-  });
   const { localConfig, localConfigRef } = configEditor;
 
   const sourceEntry = useMemo(() => {
@@ -137,8 +129,9 @@ export function useRelationshipDetails({
     return entries.find(entry => entry.aliasPath === graphNode.aliasPath) ?? null;
   }, [blendableSchema, graphNode, localConfig]);
 
-  // The graph is patched with the saved relationship rather than refetched: a refetch that lands
-  // after the user typed on would reset the form to the older saved values.
+  // The graph is patched with the saved relationship rather than refetched. The Join Settings
+  // form recognises the values it saved and keeps what was typed since; a refetch could still
+  // be answered with an older state and reset the form to it.
   const onRelationshipUpdated = useCallback(
     (updated: DataMartRelationship) => {
       toast.success('Relationship updated');
@@ -205,6 +198,8 @@ export function useRelationshipDetails({
     /** The join's path in the source Data Mart's blended fields config. */
     aliasPath: graphNode?.aliasPath ?? null,
     isBlocked: graphNode?.isBlocked ?? false,
+    /** A join back to a Data Mart already on the path, such as the source itself: reports skip it. */
+    isCycleStub: graphNode?.isCycleStub ?? false,
     isLoading: graphQuery.isPending,
     /** The graph failed to load, or no longer holds the relationship. */
     isUnavailable: graphQuery.isError || (graphQuery.isSuccess && !graphNode),

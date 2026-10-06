@@ -173,8 +173,11 @@ function getNodeFitSignature(nodes: readonly ModelCanvasNode[]): string {
   return getNodeTopologySignature(nodes.map(node => ({ ...node, relationships: undefined })));
 }
 
+// Which cards are connected, not by which arrows: new join fields can split a two-headed arrow
+// into two (its relationships no longer mirror each other), and the same cards stay connected.
 function getEdgeFitSignature(edges: readonly CanvasRenderEdge[]): string {
-  return JSON.stringify(edges.map(edge => [edge.id, edge.sourceId, edge.targetId]));
+  const pairs = new Set(edges.map(edge => JSON.stringify([edge.sourceId, edge.targetId].sort())));
+  return JSON.stringify([...pairs].sort());
 }
 
 function useStableValue<T>(value: T, getSignature: (value: T) => string): T {
