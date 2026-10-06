@@ -53,7 +53,7 @@ export interface PluginUi {
   /** Tells the host which of your pages is showing, e.g. `/dashboards/42`, for its address bar. */
   setRoute(path: string): void;
 
-  /** Asks the host to copy a link to `path`, or the current page; rejects on older hosts. */
+  /** Asks the host to copy a link to `path`, or the current page; call it from a click handler — the host refuses outside a member's interaction, while another copy is pending, and on older hosts. */
   copyLink(path?: string): Promise<void>;
 }
 
