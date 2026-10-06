@@ -88,8 +88,9 @@ the project id; OWOX opens them in the reader's current project after sign-in:
   available here".
 - `…/open<route>` after either form — a page inside the plugin.
 
-An `…/open` link offers the install first to a reader who has not installed the plugin; the plugin
-page alone does not.
+An `…/open` link offers the install first to a reader who has not installed the plugin: a dialog when
+the plugin is listed for them, a banner with an Install button when it is not. The plugin page alone
+offers neither.
 
 ## Withdraw or suspend
 
