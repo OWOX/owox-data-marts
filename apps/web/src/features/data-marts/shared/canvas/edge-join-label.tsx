@@ -7,6 +7,11 @@ interface EdgeJoinLabelProps {
   lines: string[];
   selected: boolean;
   dimmed: boolean;
+  /**
+   * Lets the label take clicks, which then reach the edge's own click handler. Off by default:
+   * a label that nothing listens to must not swallow a click meant for the canvas behind it.
+   */
+  interactive?: boolean;
 }
 
 /**
@@ -14,7 +19,14 @@ interface EdgeJoinLabelProps {
  * canvas and the Joinable Data Marts diagram so the two cannot drift apart.
  * Rendered inside the edge's SVG via a zero-size foreignObject.
  */
-export function EdgeJoinLabel({ x, y, lines, selected, dimmed }: EdgeJoinLabelProps) {
+export function EdgeJoinLabel({
+  x,
+  y,
+  lines,
+  selected,
+  dimmed,
+  interactive = false,
+}: EdgeJoinLabelProps) {
   if (lines.length === 0) return null;
   return (
     <foreignObject x={x} y={y} width={1} height={1} style={{ overflow: 'visible' }}>
@@ -30,7 +42,8 @@ export function EdgeJoinLabel({ x, y, lines, selected, dimmed }: EdgeJoinLabelPr
           fontWeight: 600,
           lineHeight: 1.5,
           color: 'var(--foreground)',
-          pointerEvents: 'none',
+          pointerEvents: interactive ? 'all' : 'none',
+          cursor: interactive ? 'pointer' : undefined,
           opacity: dimmed ? DIMMED_OPACITY : 1,
           transition: 'opacity 0.2s',
           boxShadow: '0 1px 3px 0 rgba(0,0,0,0.08)',

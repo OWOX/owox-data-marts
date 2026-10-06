@@ -43,6 +43,8 @@ Click **Join Data Mart** and pick the target Data Mart from the dropdown. Only D
 
 The new relationship appears as an accordion row.
 
+> 💡 The [Models canvas](models-canvas.md#edit-a-relationship) edits the same settings. Click the relationship's arrow there to open them in a panel.
+
 ## Step 2: Configure Join Settings
 
 Expand the relationship row and open the **Join Settings** tab.

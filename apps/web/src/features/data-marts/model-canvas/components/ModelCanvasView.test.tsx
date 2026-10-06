@@ -142,13 +142,17 @@ vi.mock('./ModelCanvas', () => ({
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
+    selectedRelationshipId,
+    onSelectRelationship,
     exportApiRef,
   }: {
     nodes: { id: string }[];
-    edges: { id: string }[];
+    edges: { id: string; relationshipIds: string[] }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
+    selectedRelationshipId?: string | null;
+    onSelectRelationship?: (relationshipId: string | null) => void;
     exportApiRef?: { current: unknown };
   }) => (
     (() => {
@@ -173,8 +177,44 @@ vi.mock('./ModelCanvas', () => ({
         <button type='button' onClick={() => void onRunQuality?.('mart-1')}>
           Run Quality Orders
         </button>
+        <span data-testid='canvas-selected-relationship'>{selectedRelationshipId ?? ''}</span>
+        {edges.map(edge => (
+          <button
+            key={edge.id}
+            type='button'
+            onClick={() => {
+              onSelectRelationship?.(edge.relationshipIds[0] ?? null);
+            }}
+          >
+            {`Click arrow ${edge.id}`}
+          </button>
+        ))}
       </>
     )
+  ),
+}));
+
+vi.mock('./RelationshipDetailsSheet', () => ({
+  default: ({
+    options,
+    relationshipId,
+    onClose,
+  }: {
+    options: { id: string; source: { title: string }; target: { title: string } }[];
+    relationshipId: string;
+    onClose: () => void;
+  }) => (
+    <div role='dialog' aria-label='Relationship'>
+      <span data-testid='sheet-relationship'>{relationshipId}</span>
+      <span data-testid='sheet-options'>
+        {options
+          .map(option => `${option.id}:${option.source.title}->${option.target.title}`)
+          .join(',')}
+      </span>
+      <button type='button' onClick={onClose}>
+        Close sheet
+      </button>
+    </div>
   ),
 }));
 
@@ -290,6 +330,42 @@ describe('ModelCanvasView', () => {
       '_blank',
       'noopener,noreferrer'
     );
+  });
+
+  it('opens the relationship sheet for a clicked arrow and closes it once the arrow is gone', async () => {
+    const mirrored = (id: string, sourceDataMartId: string, targetDataMartId: string) => ({
+      id,
+      sourceDataMartId,
+      targetDataMartId,
+      joinConditions: [
+        sourceDataMartId === 'mart-1'
+          ? { sourceFieldName: 'customer_id', targetFieldName: 'id' }
+          : { sourceFieldName: 'id', targetFieldName: 'customer_id' },
+      ],
+    });
+    viewState.canvasHook.data = {
+      ...buildCanvasData(),
+      edges: [mirrored('rel-1', 'mart-1', 'mart-2'), mirrored('rel-2', 'mart-2', 'mart-1')],
+    };
+
+    const { rerender } = render(<ModelCanvasView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Click arrow rel-1+rel-2' }));
+
+    // A two-headed arrow offers both of its relationships.
+    expect(await screen.findByTestId('sheet-options')).toHaveTextContent(
+      'rel-1:Orders->Customers,rel-2:Customers->Orders'
+    );
+    expect(screen.getByTestId('sheet-relationship')).toHaveTextContent('rel-1');
+    expect(screen.getByTestId('canvas-selected-relationship')).toHaveTextContent('rel-1');
+
+    // The relationships were deleted: the next model has another arrow, none for them.
+    viewState.canvasHook.data = buildCanvasData();
+    rerender(<ModelCanvasView />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('canvas-selected-relationship')).toBeEmptyDOMElement();
   });
 
   it('opens the Data Mart Quality tab in the current project route', async () => {

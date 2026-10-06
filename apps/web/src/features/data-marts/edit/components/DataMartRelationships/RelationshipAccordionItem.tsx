@@ -7,92 +7,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Input } from '@owox/ui/components/input';
 import { Switch } from '@owox/ui/components/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import {
-  Columns3,
-  ExternalLink,
-  GitMerge,
-  Info,
-  MoreHorizontal,
-  Text,
-  Trash2,
-  TriangleAlert,
-} from 'lucide-react';
-import type { ComponentProps } from 'react';
+import { ExternalLink, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
-import { useDebounce } from '../../../../../hooks/useDebounce';
 import type {
-  BlendedField,
   BlendedFieldOverride,
   DataMartRelationship,
   TransientRelationshipRow,
 } from '../../../shared/types/relationship.types';
-import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
-import { JoinDescriptionForm } from './JoinDescriptionForm';
-import { JoinSettingsForm } from './JoinSettingsForm';
 import { NoAccessIndicator } from './NoAccessIndicator';
-import {
-  CYCLE_STUB_TOOLTIP,
-  isMissingPrimaryKeyWarning,
-  MISSING_PRIMARY_KEY_TOOLTIP,
-} from './relationship-warning-state';
-
-function WarningBadge({
-  className,
-  children,
-  ...props
-}: Omit<ComponentProps<typeof Badge>, 'variant'>) {
-  return (
-    <Badge
-      {...props}
-      variant='outline'
-      className={cn('shrink-0 border-orange-400 text-[10px] text-orange-500', className)}
-    >
-      {children}
-    </Badge>
-  );
-}
-
-/** Lower-severity than WarningBadge: "works — heads up" rather than "non-functional". */
-function AttentionBadge({
-  className,
-  children,
-  ...props
-}: Omit<ComponentProps<typeof Badge>, 'variant'>) {
-  return (
-    <Badge
-      {...props}
-      variant='outline'
-      className={cn('shrink-0 border-amber-400 text-[10px] text-amber-500', className)}
-    >
-      <TriangleAlert size={12} className='mr-1' />
-      {children}
-    </Badge>
-  );
-}
-
-export interface SourceEntry {
-  aliasPath: string;
-  title: string;
-  alias: string;
-  depth: number;
-  fieldCount: number;
-  overrideCount: number;
-  isIncluded: boolean;
-  fields: BlendedField[];
-  dataMartId: string;
-  /** Per-join description override stored for this node; absent → inherits the relationship's. */
-  descriptionOverride?: string;
-}
-
-type AccordionTab = 'fields' | 'join-settings' | 'description';
+import { RelationshipDetailsTabs, type RelationshipDetailsTab } from './RelationshipDetailsTabs';
+import { RelationshipWarningBadges } from './RelationshipWarningBadges';
+import type { SourceEntry } from './source-entries';
+import { useOutputAliasDraft } from './useOutputAliasDraft';
 
 interface RelationshipAccordionItemProps {
   row: TransientRelationshipRow;
@@ -102,7 +34,7 @@ interface RelationshipAccordionItemProps {
   /** Aliases used by other relationships that share the same source data mart. */
   siblingAliases: string[];
   /** Open this accordion on Join Settings tab on mount */
-  defaultOpenTab?: AccordionTab;
+  defaultOpenTab?: RelationshipDetailsTab;
   readOnly?: boolean;
   onDelete: (id: string) => Promise<void>;
   onRelationshipUpdated: (updated: DataMartRelationship) => void;
@@ -142,7 +74,7 @@ export function RelationshipAccordionItem({
   const isTransient = row.depth >= 2;
 
   const [isOpen, setIsOpen] = useState(defaultOpenTab !== undefined && !row.isCycleStub);
-  const [activeTab, setActiveTab] = useState<AccordionTab>(defaultOpenTab ?? 'fields');
+  const [activeTab, setActiveTab] = useState<RelationshipDetailsTab>(defaultOpenTab ?? 'fields');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -150,41 +82,8 @@ export function RelationshipAccordionItem({
   // Output alias doubles as the accordion's display label. Falls back to the
   // DM title when `source` is null (join conditions not configured yet) —
   // matches the value persisted by the creator.
-  const displayAlias = source?.alias ?? rel.targetDataMart.title;
-  const [localAlias, setLocalAlias] = useState(displayAlias);
-  const debouncedAlias = useDebounce(localAlias, 500);
-  const lastSavedAlias = useRef(displayAlias);
-  const isDirtyRef = useRef(false);
-
-  useEffect(() => {
-    setLocalAlias(displayAlias);
-    lastSavedAlias.current = displayAlias;
-    isDirtyRef.current = false;
-  }, [displayAlias]);
-
-  useEffect(() => {
-    if (!source) return;
-    if (!isDirtyRef.current) return;
-    if (debouncedAlias !== lastSavedAlias.current) {
-      onAliasChange(source, debouncedAlias);
-      lastSavedAlias.current = debouncedAlias;
-      isDirtyRef.current = false;
-    }
-  }, [debouncedAlias, source, onAliasChange]);
-
-  const handleAliasInput = (next: string) => {
-    setLocalAlias(next);
-    isDirtyRef.current = true;
-  };
-
-  const handleAliasBlur = () => {
-    if (!source) return;
-    if (localAlias !== lastSavedAlias.current) {
-      onAliasChange(source, localAlias);
-      lastSavedAlias.current = localAlias;
-      isDirtyRef.current = false;
-    }
-  };
+  const outputAlias = useOutputAliasDraft(source, rel.targetDataMart.title, onAliasChange);
+  const displayAlias = outputAlias.savedValue;
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -293,39 +192,11 @@ export function RelationshipAccordionItem({
                   </Badge>
                 )}
 
-                {rel.targetDataMart.status === 'DRAFT' && <WarningBadge>Draft</WarningBadge>}
-                {rel.joinConditions.length === 0 && (
-                  <WarningBadge>Join not configured</WarningBadge>
-                )}
-                {row.isBlocked && rel.targetDataMart.status !== 'DRAFT' && (
-                  <WarningBadge>Blocked</WarningBadge>
-                )}
-                {isMissingPrimaryKeyWarning(
-                  rel.targetDataMart.hasPrimaryKey,
-                  rel.joinConditions.length
-                ) &&
-                  rel.targetDataMart.status !== 'DRAFT' &&
-                  !row.isBlocked &&
-                  !row.isCycleStub && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <AttentionBadge>No primary key</AttentionBadge>
-                      </TooltipTrigger>
-                      <TooltipContent side='top' className='max-w-xs'>
-                        {MISSING_PRIMARY_KEY_TOOLTIP}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                {row.isCycleStub && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <WarningBadge>Loop</WarningBadge>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs'>
-                      {CYCLE_STUB_TOOLTIP}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
+                <RelationshipWarningBadges
+                  relationship={rel}
+                  isBlocked={row.isBlocked}
+                  isCycleStub={row.isCycleStub}
+                />
               </div>
 
               {/* Allow for reporting — rendered for both direct and transient rows */}
@@ -428,121 +299,23 @@ export function RelationshipAccordionItem({
             {!row.isCycleStub && (
               <CollapsibleContent>
                 <div className='border-border rounded-b-md border border-t-0 bg-white shadow-xs dark:bg-white/5 dark:shadow-none'>
-                  <Tabs
-                    value={activeTab}
-                    onValueChange={v => {
-                      setActiveTab(v as AccordionTab);
-                    }}
-                  >
-                    <div className='flex items-center gap-3 px-4 pt-3'>
-                      <TabsList className='shrink-0'>
-                        <TabsTrigger value='fields'>
-                          <Columns3 className='h-4 w-4' />
-                          Report Fields
-                        </TabsTrigger>
-                        <TabsTrigger value='join-settings'>
-                          <GitMerge className='h-4 w-4' />
-                          Join Settings
-                        </TabsTrigger>
-                        <TabsTrigger value='description'>
-                          <Text className='h-4 w-4' />
-                          Description
-                        </TabsTrigger>
-                      </TabsList>
-                    </div>
-
-                    <TabsContent value='fields' className='px-4 pt-2 pb-2'>
-                      {source ? (
-                        <SourceFieldsTable
-                          fields={source.fields}
-                          onFieldOverrideChange={(fieldName, override) => {
-                            onFieldOverrideChange(source, fieldName, override);
-                          }}
-                          leadingToolbar={
-                            <div
-                              className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-                              onClick={e => {
-                                e.stopPropagation();
-                              }}
-                            >
-                              <label className='flex items-center gap-1.5 text-sm font-medium'>
-                                Output Alias
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                                      <Info className='size-4 shrink-0' />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side='top' className='max-w-xs'>
-                                    Short name that appears in the output data schema for fields
-                                    from this data mart.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </label>
-                              <Input
-                                value={localAlias}
-                                onChange={e => {
-                                  handleAliasInput(e.target.value);
-                                }}
-                                onBlur={handleAliasBlur}
-                                placeholder='e.g. campaign_performance'
-                                className='bg-background h-8 text-sm dark:bg-white/5'
-                              />
-                            </div>
-                          }
-                        />
-                      ) : (
-                        <p className='text-muted-foreground py-4 text-sm'>
-                          Fields will appear after configuring join conditions.
-                        </p>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value='join-settings'>
-                      <JoinSettingsForm
-                        relationship={rel}
-                        dataMartId={dataMartId}
-                        readOnly={readOnly || isTransient}
-                        siblingAliases={siblingAliases}
-                        inheritedFrom={
-                          isTransient
-                            ? { id: row.sourceDmId, title: row.parentDataMartTitle }
-                            : null
-                        }
-                        onSaved={updated => {
-                          onRelationshipUpdated(updated);
-                        }}
-                      />
-                    </TabsContent>
-
-                    <TabsContent value='description'>
-                      <JoinDescriptionForm
-                        relationship={rel}
-                        dataMartId={dataMartId}
-                        // A transient join without a source entry (join conditions not configured
-                        // yet) has nowhere to store an override, so it stays read-only.
-                        readOnly={readOnly || (isTransient && !source)}
-                        inheritedFrom={
-                          isTransient
-                            ? { id: row.sourceDmId, title: row.parentDataMartTitle }
-                            : null
-                        }
-                        override={
-                          isTransient && source
-                            ? {
-                                value: source.descriptionOverride ?? '',
-                                onChange: description => {
-                                  onDescriptionOverrideChange(source, description);
-                                },
-                              }
-                            : undefined
-                        }
-                        onSaved={updated => {
-                          onRelationshipDescriptionSaved(updated);
-                        }}
-                      />
-                    </TabsContent>
-                  </Tabs>
+                  <RelationshipDetailsTabs
+                    relationship={rel}
+                    source={source}
+                    dataMartId={dataMartId}
+                    siblingAliases={siblingAliases}
+                    readOnly={readOnly}
+                    inheritedFrom={
+                      isTransient ? { id: row.sourceDmId, title: row.parentDataMartTitle } : null
+                    }
+                    activeTab={activeTab}
+                    onActiveTabChange={setActiveTab}
+                    outputAlias={outputAlias}
+                    onRelationshipUpdated={onRelationshipUpdated}
+                    onRelationshipDescriptionSaved={onRelationshipDescriptionSaved}
+                    onFieldOverrideChange={onFieldOverrideChange}
+                    onDescriptionOverrideChange={onDescriptionOverrideChange}
+                  />
                 </div>
               </CollapsibleContent>
             )}

@@ -9,6 +9,7 @@ const edge = (
   bidirectional = false
 ): CanvasRenderEdge => ({
   id,
+  relationshipIds: [id],
   sourceId,
   targetId,
   bidirectional,

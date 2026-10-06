@@ -15,6 +15,8 @@ import { edgeMarkerId } from '../../shared/canvas/edge-marker-id';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 
 export interface ModelCanvasFlowEdgeData {
+  /** The relationships this arrow draws; see `CanvasRenderEdge.relationshipIds`. */
+  relationshipIds: string[];
   bowOffset: number;
   warning: boolean;
   joinLabel: string[];
@@ -130,6 +132,8 @@ export default function ModelCanvasFlowEdge({
         lines={joinLabel}
         selected={selected ?? false}
         dimmed={dimmed}
+        // A click on the label opens the relationship, like a click on the line.
+        interactive
       />
     </>
   );

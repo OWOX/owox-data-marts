@@ -2,6 +2,11 @@ import type { ModelCanvasEdge, ModelCanvasJoinCondition } from '../types';
 
 export interface CanvasRenderEdge {
   id: string;
+  /**
+   * The relationships the arrow draws: one, or two when a mirrored pair is merged into a
+   * two-headed arrow. The first one runs from `sourceId` to `targetId`.
+   */
+  relationshipIds: string[];
   sourceId: string;
   targetId: string;
   bidirectional: boolean;
@@ -56,6 +61,7 @@ export function mergeBidirectionalEdges(edges: ModelCanvasEdge[]): CanvasRenderE
       consumed.add(mirror.id);
       result.push({
         id: [edge.id, mirror.id].sort().join('+'),
+        relationshipIds: [edge.id, mirror.id],
         sourceId: edge.sourceDataMartId,
         targetId: edge.targetDataMartId,
         bidirectional: true,
@@ -65,6 +71,7 @@ export function mergeBidirectionalEdges(edges: ModelCanvasEdge[]): CanvasRenderE
     } else {
       result.push({
         id: edge.id,
+        relationshipIds: [edge.id],
         sourceId: edge.sourceDataMartId,
         targetId: edge.targetDataMartId,
         bidirectional: false,

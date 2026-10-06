@@ -18,6 +18,7 @@ describe('mergeBidirectionalEdges', () => {
     expect(result).toEqual([
       {
         id: 'e1+e2',
+        relationshipIds: ['e1', 'e2'],
         sourceId: 'a',
         targetId: 'b',
         bidirectional: true,
@@ -26,6 +27,20 @@ describe('mergeBidirectionalEdges', () => {
       },
     ]);
     expect(result[0].joinConditions).toEqual([{ sourceFieldName: 'x', targetFieldName: 'y' }]);
+  });
+
+  it('lists the relationship drawn source-to-target first in a merged pair', () => {
+    const result = mergeBidirectionalEdges([
+      edge('e2', 'b', 'a', [{ sourceFieldName: 'y', targetFieldName: 'x' }]),
+      edge('e1', 'a', 'b', [{ sourceFieldName: 'x', targetFieldName: 'y' }]),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 'e1+e2',
+      relationshipIds: ['e2', 'e1'],
+      sourceId: 'b',
+      targetId: 'a',
+    });
   });
 
   it('keeps non-mirrored reverse edges separate', () => {
@@ -57,6 +72,7 @@ describe('mergeBidirectionalEdges', () => {
     expect(result).toEqual([
       {
         id: 'e1',
+        relationshipIds: ['e1'],
         sourceId: 'a',
         targetId: 'a',
         bidirectional: false,

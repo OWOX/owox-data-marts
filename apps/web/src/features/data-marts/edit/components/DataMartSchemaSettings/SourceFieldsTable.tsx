@@ -208,7 +208,9 @@ export function SourceFieldsTable({
       )}
 
       <div className='relative max-h-[400px] w-full overflow-auto'>
-        <table className='w-full table-auto caption-bottom text-sm'>
+        {/* Narrower than this (the relationship sheet on the Models canvas), the table scrolls
+            sideways rather than squeezing the Alias inputs to a few characters. */}
+        <table className='w-full min-w-[680px] table-auto caption-bottom text-sm'>
           <TableHeader className='bg-transparent'>
             <TableRow className='hover:bg-transparent'>
               <TableHead className={`${headCellClass} w-[24%]`}>

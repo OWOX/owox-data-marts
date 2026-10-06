@@ -9,14 +9,12 @@ import {
   type Ref,
 } from 'react';
 import {
-  applyEdgeChanges,
   applyNodeChanges,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
   useStore,
-  type EdgeChange,
   type NodeChange,
   type Viewport,
 } from '@xyflow/react';
@@ -73,6 +71,13 @@ interface ModelCanvasProps {
   onOpenDataMart: (dataMartId: string) => void;
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
+  /** The relationship whose details are open; its arrow stays highlighted. */
+  selectedRelationshipId?: string | null;
+  /**
+   * A click on an arrow, or on its join fields label, picks the arrow's relationship. A click
+   * on a card or on the empty canvas passes null.
+   */
+  onSelectRelationship?: (relationshipId: string | null) => void;
   /** True while the Actions → Check Data Last Updated sweep is in flight — spins the node icons. */
   isCheckingDataLastUpdated?: boolean;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
@@ -119,14 +124,8 @@ const CANVAS_PAN_PADDING = 150;
 const nodeTypes = { modelCanvasNode: ModelCanvasFlowNode };
 const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
 
-/** What the viewport is fitted to: the stable topology snapshots plus the layout choices. */
-type FitKey = readonly [
-  readonly ModelCanvasNode[],
-  readonly unknown[],
-  CanvasDirection,
-  number,
-  CanvasViewMode,
-];
+/** What the viewport is fitted to: the topology fit signatures plus the layout choices. */
+type FitKey = readonly [string, string, CanvasDirection, number, CanvasViewMode];
 
 function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
   return JSON.stringify(
@@ -168,6 +167,16 @@ function getEdgeTopologySignature(edges: readonly CanvasRenderEdge[]): string {
   return JSON.stringify(edges);
 }
 
+// The fit signatures leave the join fields out. Editing a relationship from its details panel
+// refetches the model, and the new join fields must not move the viewport under the user.
+function getNodeFitSignature(nodes: readonly ModelCanvasNode[]): string {
+  return getNodeTopologySignature(nodes.map(node => ({ ...node, relationships: undefined })));
+}
+
+function getEdgeFitSignature(edges: readonly CanvasRenderEdge[]): string {
+  return JSON.stringify(edges.map(edge => [edge.id, edge.sourceId, edge.targetId]));
+}
+
 function useStableValue<T>(value: T, getSignature: (value: T) => string): T {
   const signature = getSignature(value);
   const stableRef = useRef({ signature, value });
@@ -193,6 +202,7 @@ interface FlowNodeParams {
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
   onRaisedChange: (raised: boolean) => void;
+  onOpenRelationship: (relationshipId: string) => void;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
@@ -238,6 +248,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       onOpenQuality: params.onOpenQuality,
       onRaisedChange: params.onRaisedChange,
       onRunQuality: params.onRunQuality,
+      onOpenRelationship: params.onOpenRelationship,
     },
   };
 }
@@ -264,10 +275,12 @@ function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
     source: edge.sourceId,
     target: edge.targetId,
     focusable: false,
-    // Clicking an edge selects it; selection is what turns it brand-blue.
+    // Selectable for the pointer cursor only: whether an edge shows as selected (brand-blue) is
+    // derived from the open relationship and the selected card, see `displayEdges`.
     selectable: true,
     deletable: false,
     data: {
+      relationshipIds: edge.relationshipIds,
       bowOffset: params.bowOffset,
       warning,
       joinLabel: params.joinLabel,
@@ -285,6 +298,8 @@ interface ModelCanvasInnerProps {
   onOpenDataMart: (dataMartId: string) => void;
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
+  selectedRelationshipId?: string | null;
+  onSelectRelationship?: (relationshipId: string | null) => void;
   isCheckingDataLastUpdated?: boolean;
   storageId?: string;
   storageTitle?: string;
@@ -298,6 +313,8 @@ function ModelCanvasInner({
   onOpenDataMart,
   onOpenQuality,
   onRunQuality,
+  selectedRelationshipId = null,
+  onSelectRelationship,
   isCheckingDataLastUpdated = false,
   storageId,
   storageTitle,
@@ -314,6 +331,10 @@ function ModelCanvasInner({
   onOpenQualityRef.current = onOpenQuality;
   const onRunQualityRef = useRef(onRunQuality);
   onRunQualityRef.current = onRunQuality;
+  const onSelectRelationshipRef = useRef(onSelectRelationship);
+  onSelectRelationshipRef.current = onSelectRelationship;
+  const selectedRelationshipIdRef = useRef(selectedRelationshipId);
+  selectedRelationshipIdRef.current = selectedRelationshipId;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const searchQueryRef = useRef(searchQuery);
@@ -360,6 +381,15 @@ function ModelCanvasInner({
       else next.delete(nodeId);
       return next;
     });
+  }, []);
+  // Clicking a data mart highlights every edge connected to it, so all of its
+  // relationships are visible at once. Click the card again (or the pane) to clear.
+  // A card selection and an open relationship supersede each other.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // A row of a card's relationships list opens that relationship, as a click on its arrow does.
+  const openRelationship = useCallback((relationshipId: string) => {
+    setSelectedNodeId(null);
+    onSelectRelationshipRef.current?.(relationshipId);
   }, []);
   const graphBounds = useMemo(() => getCanvasGraphBounds(flowNodes), [flowNodes]);
   const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
@@ -472,6 +502,7 @@ function ModelCanvasInner({
           onRaisedChange: raised => {
             setNodeRaised(topologyNode.id, raised);
           },
+          onOpenRelationship: openRelationship,
           isCheckingDataLastUpdated: isCheckingDataLastUpdatedRef.current,
         })
       )
@@ -500,7 +531,13 @@ function ModelCanvasInner({
     // Refit only when the picture itself changes — the graph or its data, the
     // layout algorithm or the view density. Toggling what a card or an arrow
     // shows re-runs the layout too, but keeps the user's zoom and pan.
-    const fitKey: FitKey = [topologyNodes, topologyEdges, direction, layoutEpoch, viewMode];
+    const fitKey: FitKey = [
+      getNodeFitSignature(topologyNodes),
+      getEdgeFitSignature(topologyEdges),
+      direction,
+      layoutEpoch,
+      viewMode,
+    ];
     const lastFitKey = lastFitKeyRef.current;
     if (lastFitKey?.every((part, index) => part === fitKey[index])) return;
 
@@ -534,37 +571,32 @@ function ModelCanvasInner({
     objectLabels,
     reactFlow,
     setNodeRaised,
+    openRelationship,
   ]);
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
     setFlowNodes(prev => applyNodeChanges(changes, prev));
   }, []);
 
-  const onEdgesChange = useCallback((changes: EdgeChange<ModelCanvasFlowEdgeType>[]) => {
-    setFlowEdges(prev => applyEdgeChanges(changes, prev));
-  }, []);
-
-  // Clicking a data mart highlights every edge connected to it, so all of its
-  // relationships are visible at once. Click the card again (or the pane) to clear.
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
     setSelectedNodeId(current => (current === node.id ? null : node.id));
-    // Node selection supersedes any single-edge selection.
-    setFlowEdges(prev =>
-      prev.some(edge => edge.selected)
-        ? prev.map(edge => (edge.selected ? { ...edge, selected: false } : edge))
-        : prev
-    );
+    onSelectRelationshipRef.current?.(null);
   }, []);
 
   const handlePaneClick = useCallback(() => {
     setSelectedNodeId(null);
+    onSelectRelationshipRef.current?.(null);
   }, []);
 
-  // Selecting a single edge supersedes any card selection (and vice versa).
-  const handleEdgeClick = useCallback(() => {
+  // A two-headed arrow draws two relationships. A click on it opens the one drawn from the
+  // arrow's source, unless one of the two is open already — then that one stays.
+  const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: ModelCanvasFlowEdgeType) => {
     setSelectedNodeId(null);
+    const { relationshipIds } = edge.data;
+    const current = selectedRelationshipIdRef.current;
+    onSelectRelationshipRef.current?.(
+      current && relationshipIds.includes(current) ? current : (relationshipIds[0] ?? null)
+    );
   }, []);
 
   // Selection and lift are view state, derived here on every render rather than
@@ -583,14 +615,15 @@ function ModelCanvasInner({
 
   const displayEdges = useMemo(
     () =>
-      selectedNodeId
-        ? flowEdges.map(edge =>
-            edge.source === selectedNodeId || edge.target === selectedNodeId
-              ? { ...edge, selected: true }
-              : edge
-          )
-        : flowEdges,
-    [flowEdges, selectedNodeId]
+      flowEdges.map(edge => {
+        const selected =
+          (selectedNodeId !== null &&
+            (edge.source === selectedNodeId || edge.target === selectedNodeId)) ||
+          (selectedRelationshipId !== null &&
+            edge.data.relationshipIds.includes(selectedRelationshipId));
+        return Boolean(edge.selected) === selected ? edge : { ...edge, selected };
+      }),
+    [flowEdges, selectedNodeId, selectedRelationshipId]
   );
 
   const onNodeDragStop = useCallback(
@@ -712,6 +745,28 @@ function ModelCanvasInner({
     storageService.set(JOIN_LABELS_LS_KEY, checked);
   }, []);
 
+  // The relationship sheet takes the right part of the screen and the canvas shrinks for it, so
+  // the picked arrow may end up off screen. Pan it back into view, at the same zoom.
+  useEffect(() => {
+    if (!selectedRelationshipId || paneWidth === 0 || paneHeight === 0) return;
+    const edge = reactFlow
+      .getEdges()
+      .find(candidate => candidate.data.relationshipIds.includes(selectedRelationshipId));
+    if (!edge) return;
+    const bounds = reactFlow.getNodesBounds([edge.source, edge.target]);
+    const { x, y, zoom } = reactFlow.getViewport();
+    const isInView =
+      bounds.x * zoom + x >= 0 &&
+      bounds.y * zoom + y >= 0 &&
+      (bounds.x + bounds.width) * zoom + x <= paneWidth &&
+      (bounds.y + bounds.height) * zoom + y <= paneHeight;
+    if (isInView) return;
+    void reactFlow.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
+      zoom,
+      duration: 300,
+    });
+  }, [selectedRelationshipId, paneWidth, paneHeight, reactFlow]);
+
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
       if (paneWidth === 0 || paneHeight === 0) return;
@@ -785,7 +840,6 @@ function ModelCanvasInner({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
           onNodeClick={handleNodeClick}
           onEdgeClick={handleEdgeClick}
@@ -822,6 +876,8 @@ export default function ModelCanvas({
   onOpenDataMart,
   onOpenQuality,
   onRunQuality,
+  selectedRelationshipId,
+  onSelectRelationship,
   isCheckingDataLastUpdated,
   storageId,
   storageTitle,
@@ -842,6 +898,8 @@ export default function ModelCanvas({
           onOpenDataMart={onOpenDataMart}
           onOpenQuality={onOpenQuality}
           onRunQuality={onRunQuality}
+          selectedRelationshipId={selectedRelationshipId}
+          onSelectRelationship={onSelectRelationship}
           isCheckingDataLastUpdated={isCheckingDataLastUpdated}
           storageId={storageId}
           storageTitle={storageTitle}

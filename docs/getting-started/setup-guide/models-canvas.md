@@ -6,7 +6,7 @@ The **Models** canvas draws the Data Marts of one storage as an entity-relations
 
 Open **Data Marts → Models** and pick a storage. The canvas remembers the storage you looked at last. It also keeps the card positions you arranged by dragging, per storage, in your browser.
 
-Click a card to highlight every relationship it takes part in. Click it again, or the empty canvas, to clear the highlight. The arrow icon on a card opens that Data Mart in a new tab.
+Click a card to highlight every relationship it takes part in. Click it again, or the empty canvas, to clear the highlight. The arrow icon on a card opens that Data Mart in a new tab. Click an arrow between two cards to open its relationship, see [Edit a relationship](#edit-a-relationship).
 
 ## What a card shows
 
@@ -21,9 +21,23 @@ The badges share a line while they fit the card. A count of zero shows no badge.
 Click a badge to see what is behind it:
 
 - **N fields** lists the Output Schema fields under the card, in Compact mode. The ERD view lists them already.
-- **N relationships** lists the Data Marts this one joins or is joined by, with the join fields, for example `customer_id = id`.
+- **N relationships** lists the Data Marts this one joins or is joined by, with the join fields, for example `customer_id = id`. Click a row to open that relationship.
 
 Click the badge again to close the list.
+
+## Edit a relationship
+
+Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The arrow stays highlighted while the panel is open. The panel edits the same settings as the relationship's row in the source Data Mart's [Joinable Data Marts](joinable-data-marts.md) block:
+
+- **Report Fields**: the Output Alias, and the alias, Dedup and Σ available of each joined field.
+- **Join Settings**: the SQL Alias and the join fields.
+- **Description**: what the join means in business terms, for AI assistants.
+
+Changes save as you type. The canvas redraws the arrow with the new join fields and keeps your zoom and position. **Allow for reporting** hides every joined field from the reports of the source Data Mart. The **⋯** menu opens the relationship in Data Setup or deletes it. The two Data Mart names at the top open those Data Marts in a new tab.
+
+A two-headed arrow stands for two relationships that mirror each other. Pick the direction to edit at the top of the panel.
+
+Click another arrow to switch the panel to it. Click a card, the empty canvas or the close button to close the panel. To edit a relationship, you need maintenance access to its source Data Mart.
 
 ## Data Mart icons
 

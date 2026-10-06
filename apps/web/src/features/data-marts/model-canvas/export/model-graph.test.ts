@@ -34,6 +34,7 @@ function buildNode(overrides: Partial<ModelCanvasNode> & { id: string }): ModelC
 
 function buildEdge(overrides: Partial<CanvasRenderEdge> & { id: string }): CanvasRenderEdge {
   return {
+    relationshipIds: [overrides.id],
     sourceId: 'a',
     targetId: 'b',
     bidirectional: false,

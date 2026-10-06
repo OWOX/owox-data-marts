@@ -34,12 +34,6 @@ import {
 } from '../../../../../shared/components/CollapsibleCard';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
-  AvailableSource,
-  BlendableSchema,
-  BlendedField,
-  BlendedFieldOverride,
-  BlendedFieldsConfig,
-  BlendedSource,
   DataMartRelationship,
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
@@ -62,10 +56,14 @@ import {
   RELATIONSHIP_STATUS_FILTER_OPTIONS,
   type RelationshipStatusFilter,
 } from './relationship-filters';
-import { cleanBlendedFieldOverride } from './blended-field-override.utils';
-import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
+import {
+  applyRelationshipDescriptionToGraph,
+  patchBlendableSchemaJoinDescription,
+} from './relationship-description-patches';
+import { buildSourceList } from './source-entries';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
+import { useBlendedFieldsConfigEditor } from './useBlendedFieldsConfigEditor';
 import { useRelationshipDefinitionTypes } from './useRelationshipDefinitionTypes';
 import { useTransientRelationships } from './useTransientRelationships';
 
@@ -91,75 +89,10 @@ const CANVAS_LAYOUT_KEY = 'relationship-canvas-layout';
 const CANVAS_JOIN_FIELDS_KEY = 'relationship-canvas-show-join-fields';
 const CANVAS_OBJECT_LABELS_KEY = 'relationship-canvas-object-labels';
 
-const DEFAULT_BLENDED_FIELDS_CONFIG: BlendedFieldsConfig = { sources: [] };
 const EMPTY_STRING_ARRAY: string[] = [];
 
 interface DataMartRelationshipsContentProps {
   onRelationshipsChanged?: () => void;
-}
-
-function buildSourceList(
-  availableSources: AvailableSource[],
-  blendedFields: BlendedField[],
-  config: BlendedFieldsConfig
-): SourceEntry[] {
-  const fieldsByPath = new Map<string, BlendedField[]>();
-  for (const field of blendedFields) {
-    const existing = fieldsByPath.get(field.aliasPath);
-    if (existing) {
-      existing.push(field);
-    } else {
-      fieldsByPath.set(field.aliasPath, [field]);
-    }
-  }
-
-  return availableSources.map(src => {
-    const configSource = config.sources.find(s => s.path === src.aliasPath);
-    const overrideCount = configSource?.fields
-      ? Object.values(configSource.fields).filter(
-          v =>
-            v.isHidden !== undefined ||
-            v.aggregateFunction !== undefined ||
-            v.alias !== undefined ||
-            v.postJoinAggregations !== undefined
-        ).length
-      : 0;
-
-    return {
-      aliasPath: src.aliasPath,
-      title: src.title,
-      alias: configSource?.alias ?? src.defaultAlias,
-      depth: src.depth - 1,
-      fieldCount: src.fieldCount,
-      overrideCount,
-      isIncluded: src.isIncluded,
-      fields: fieldsByPath.get(src.aliasPath) ?? [],
-      dataMartId: src.dataMartId,
-      descriptionOverride: configSource?.description,
-    };
-  });
-}
-
-/**
- * Applies a saved description to the loaded graph without replacing the graph: every node of
- * that relationship (a direct join and its transient reuses share one id) gets the new text.
- * Only the description is taken from the response — it is the one field the PATCH sent, and a
- * response that overtook a Join Settings save would otherwise drag an older alias or join
- * conditions back into the UI. Returns the same graph instance when nothing matched.
- */
-function applyRelationshipDescriptionToGraph(
-  graph: RelationshipGraph,
-  updated: DataMartRelationship
-): RelationshipGraph {
-  if (!graph.nodes.some(node => node.relationship.id === updated.id)) return graph;
-  return {
-    ...graph,
-    nodes: graph.nodes.map(node =>
-      node.relationship.id === updated.id
-        ? { ...node, relationship: { ...node.relationship, description: updated.description } }
-        : node
-    ),
-  };
 }
 
 export function DataMartRelationshipsContent({
@@ -194,17 +127,21 @@ export function DataMartRelationshipsContent({
   const dataMartId = dataMart?.id ?? '';
   const storageId = dataMart?.storage.id ?? '';
 
-  const localBlendedFieldsConfig: BlendedFieldsConfig =
-    dataMart?.blendedFieldsConfig ?? DEFAULT_BLENDED_FIELDS_CONFIG;
-  const [localConfig, setLocalConfig] = useState<BlendedFieldsConfig>(localBlendedFieldsConfig);
-  const localConfigRef = useRef(localConfig);
-  useEffect(() => {
-    localConfigRef.current = localConfig;
-  }, [localConfig]);
-
-  useEffect(() => {
-    setLocalConfig(dataMart?.blendedFieldsConfig ?? DEFAULT_BLENDED_FIELDS_CONFIG);
-  }, [dataMart?.blendedFieldsConfig]);
+  const {
+    localConfig,
+    localConfigRef,
+    onAliasChange: handleSourceAliasChange,
+    onHideForReportingChange: handleSourceHideChange,
+    onDescriptionOverrideChange: handleSourceDescriptionChange,
+    onFieldOverrideChange: handleFieldOverrideChange,
+  } = useBlendedFieldsConfigEditor({
+    dataMartId,
+    savedConfig: dataMart?.blendedFieldsConfig,
+    onSaved: response => {
+      void syncDataMartFromResponse(response);
+      invalidateBlendableSchema();
+    },
+  });
 
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
@@ -454,45 +391,6 @@ export function DataMartRelationshipsContent({
     ]
   );
 
-  // The blendable schema publishes the effective description of every join node (the per-join
-  // override when set, otherwise the relationship's text) for MCP and the report column picker.
-  // A description save only moves that one field, so the cached schema is patched instead of
-  // refetched — a full schema round trip after every typing pause is wasted work. Two cases
-  // still need the network: nothing cached yet (the initial load is on the wire or failed), and
-  // a fetch already in flight, whose response predates the save and would overwrite the patch.
-  // Invalidation covers both — it cancels the in-flight refetch and starts one that sees the
-  // committed description.
-  const patchBlendableSchemaJoinDescription = useCallback(
-    (updated: DataMartRelationship) => {
-      const queryKey = [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId];
-      const overrides = new Map<string, string>();
-      for (const source of localConfigRef.current.sources) {
-        if (source.description) overrides.set(source.path, source.description);
-      }
-      queryClient.setQueriesData<BlendableSchema>({ queryKey }, cached => {
-        if (!cached) return cached;
-        return {
-          ...cached,
-          availableSources: cached.availableSources.map(source => {
-            if (source.relationshipId !== updated.id) return source;
-            const joinDescription = overrides.get(source.aliasPath) ?? updated.description;
-            const next: AvailableSource = { ...source };
-            if (joinDescription) next.joinDescription = joinDescription;
-            else delete next.joinDescription;
-            return next;
-          }),
-        };
-      });
-      const hasCachedData = queryClient
-        .getQueriesData<BlendableSchema>({ queryKey })
-        .some(([, data]) => data !== undefined);
-      if (!hasCachedData || queryClient.isFetching({ queryKey }) > 0) {
-        invalidateBlendableSchema();
-      }
-    },
-    [queryClient, dataMartId, invalidateBlendableSchema]
-  );
-
   // The relationship description autosaves after every typing pause, so its save path must not
   // go through `handleRelationshipUpdated`: reloading the graph swaps the list for a skeleton,
   // which unmounts the expanded row, its Description tab and the focused textarea mid-sentence.
@@ -506,64 +404,10 @@ export function DataMartRelationshipsContent({
       setRelationshipGraph(graph =>
         graph ? applyRelationshipDescriptionToGraph(graph, updated) : graph
       );
-      patchBlendableSchemaJoinDescription(updated);
+      patchBlendableSchemaJoinDescription(queryClient, dataMartId, localConfigRef.current, updated);
     },
-    [patchBlendableSchemaJoinDescription]
+    [queryClient, dataMartId, localConfigRef]
   );
-
-  // Config saves are whole-document PUTs fired from debounced editors (alias, description,
-  // field overrides), so two of them can otherwise be in flight at once and land out of
-  // order — an older config would then win. One request at a time: while one is in flight the
-  // newest config waits its turn, and intermediate ones are dropped because each PUT already
-  // carries the complete config.
-  const isSavingConfigRef = useRef(false);
-  const queuedConfigRef = useRef<BlendedFieldsConfig | null>(null);
-  const savedConfigRef = useRef(localBlendedFieldsConfig);
-  savedConfigRef.current = localBlendedFieldsConfig;
-
-  const runConfigSaveRef = useRef<(config: BlendedFieldsConfig) => void>(() => {
-    /* replaced each render below */
-  });
-  runConfigSaveRef.current = (config: BlendedFieldsConfig) => {
-    isSavingConfigRef.current = true;
-    void dataMartRelationshipService
-      .updateBlendedFieldsConfig(dataMartId, config, { skipLoadingIndicator: true })
-      .then(response => {
-        // A newer config is already queued — only the last response describes the saved state.
-        if (queuedConfigRef.current) return;
-        void syncDataMartFromResponse(response);
-        invalidateBlendableSchema();
-      })
-      .catch(() => {
-        toast.error('Failed to save changes');
-        // The optimistic value must not keep looking saved: fall back to the last state the
-        // server confirmed, unless a newer edit is already on its way.
-        if (!queuedConfigRef.current) {
-          setLocalConfig(savedConfigRef.current);
-          localConfigRef.current = savedConfigRef.current;
-        }
-      })
-      .finally(() => {
-        isSavingConfigRef.current = false;
-        const queued = queuedConfigRef.current;
-        if (queued) {
-          queuedConfigRef.current = null;
-          runConfigSaveRef.current(queued);
-        }
-      });
-  };
-
-  const saveConfigAndRefresh = useCallback((newConfig: BlendedFieldsConfig) => {
-    setLocalConfig(newConfig);
-    // Kept in step synchronously: back-to-back edits read this ref to build the next config,
-    // and the effect that mirrors state into it runs only after the re-render.
-    localConfigRef.current = newConfig;
-    if (isSavingConfigRef.current) {
-      queuedConfigRef.current = newConfig;
-      return;
-    }
-    runConfigSaveRef.current(newConfig);
-  }, []);
 
   const handleCreated = useCallback(
     (newRelationship: DataMartRelationship) => {
@@ -575,91 +419,6 @@ export function DataMartRelationshipsContent({
       onRelationshipsChanged?.();
     },
     [loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
-  );
-
-  const updateSourceConfig = useCallback(
-    (path: string, updater: (current: BlendedSource | undefined) => BlendedSource) => {
-      const currentConfig = localConfigRef.current;
-      const existingSources = currentConfig.sources.filter(s => s.path !== path);
-      const currentSource = currentConfig.sources.find(s => s.path === path);
-      saveConfigAndRefresh({
-        ...currentConfig,
-        sources: [...existingSources, updater(currentSource)],
-      });
-    },
-    [saveConfigAndRefresh]
-  );
-
-  const handleSourceAliasChange = useCallback(
-    (source: SourceEntry, alias: string) => {
-      updateSourceConfig(source.aliasPath, current => ({
-        path: source.aliasPath,
-        alias,
-        ...(current?.isExcluded ? { isExcluded: true } : {}),
-        ...(current?.description ? { description: current.description } : {}),
-        ...(current?.fields ? { fields: current.fields } : {}),
-      }));
-    },
-    [updateSourceConfig]
-  );
-
-  const handleSourceHideChange = useCallback(
-    (aliasPath: string, alias: string, isHidden: boolean) => {
-      updateSourceConfig(aliasPath, current => ({
-        path: aliasPath,
-        alias,
-        ...(isHidden && { isExcluded: true }),
-        ...(current?.description ? { description: current.description } : {}),
-        ...(current?.fields && { fields: current.fields }),
-      }));
-    },
-    [updateSourceConfig]
-  );
-
-  // An all-whitespace override is a cleared one: the key is removed so the join falls back
-  // to the inherited relationship-level description.
-  const handleSourceDescriptionChange = useCallback(
-    (source: SourceEntry, description: string) => {
-      updateSourceConfig(source.aliasPath, current => ({
-        path: source.aliasPath,
-        alias: current?.alias ?? source.alias,
-        ...(current?.isExcluded ? { isExcluded: true } : {}),
-        ...(description.trim() !== '' ? { description } : {}),
-        ...(current?.fields ? { fields: current.fields } : {}),
-      }));
-    },
-    [updateSourceConfig]
-  );
-
-  const handleFieldOverrideChange = useCallback(
-    (source: SourceEntry, fieldName: string, override: Partial<BlendedFieldOverride>) => {
-      updateSourceConfig(source.aliasPath, current => {
-        const currentFields = current?.fields ?? {};
-        const merged: BlendedFieldOverride = {
-          ...(currentFields[fieldName] ?? {}),
-          ...override,
-        };
-
-        const cleanOverride = cleanBlendedFieldOverride(merged);
-
-        const newFields: Record<string, BlendedFieldOverride> = {};
-        for (const [key, val] of Object.entries(currentFields)) {
-          if (key !== fieldName) newFields[key] = val;
-        }
-        if (Object.keys(cleanOverride).length > 0) {
-          newFields[fieldName] = cleanOverride;
-        }
-
-        return {
-          path: source.aliasPath,
-          alias: current?.alias ?? source.alias,
-          ...(current?.isExcluded ? { isExcluded: true } : {}),
-          ...(current?.description ? { description: current.description } : {}),
-          ...(Object.keys(newFields).length > 0 ? { fields: newFields } : {}),
-        };
-      });
-    },
-    [updateSourceConfig]
   );
 
   if (!dataMart) return null;

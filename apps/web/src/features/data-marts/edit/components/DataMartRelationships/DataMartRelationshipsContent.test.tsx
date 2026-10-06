@@ -9,7 +9,7 @@ import type {
   DataMartRelationship,
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
-import type { SourceEntry } from './RelationshipAccordionItem';
+import type { SourceEntry } from './source-entries';
 import { DataMartRelationshipsContent } from './DataMartRelationshipsContent';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';

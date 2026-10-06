@@ -19,9 +19,12 @@ import type { ModelCanvasExportHandle } from '../export';
 import { trackEvent } from '../../../../utils/data-layer';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
+import { RELATIONSHIP_SHEET_RESERVE_CLASS } from '../model/relationship-sheet-layout';
 import type { ModelCanvasData } from '../model/types';
+import type { RelationshipSheetOption } from './RelationshipDetailsSheet';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
+const RelationshipDetailsSheet = lazy(() => import('./RelationshipDetailsSheet'));
 
 function CanvasMessage({
   children,
@@ -147,6 +150,39 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
     () => (filtered ? mergeBidirectionalEdges(filtered.edges) : []),
     [filtered]
   );
+
+  // The relationship open in the details sheet, picked by clicking its arrow.
+  const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
+  const selectedEdge = useMemo(
+    () =>
+      selectedRelationshipId
+        ? (renderEdges.find(edge => edge.relationshipIds.includes(selectedRelationshipId)) ?? null)
+        : null,
+    [renderEdges, selectedRelationshipId]
+  );
+  // A relationship that leaves the canvas — deleted, or hidden by a filter or another storage —
+  // closes its sheet for good, instead of reopening it when it comes back.
+  useEffect(() => {
+    if (selectedRelationshipId && filtered && !selectedEdge) setSelectedRelationshipId(null);
+  }, [selectedRelationshipId, filtered, selectedEdge]);
+  const relationshipOptions = useMemo((): RelationshipSheetOption[] => {
+    if (!selectedEdge || !filtered) return [];
+    const edgesById = new Map(filtered.edges.map(edge => [edge.id, edge]));
+    const nodesById = new Map(filtered.nodes.map(node => [node.id, node]));
+    return selectedEdge.relationshipIds.flatMap(id => {
+      const edge = edgesById.get(id);
+      const source = edge && nodesById.get(edge.sourceDataMartId);
+      const target = edge && nodesById.get(edge.targetDataMartId);
+      if (!source || !target) return [];
+      return [
+        {
+          id,
+          source: { id: source.id, title: source.title, icon: source.icon },
+          target: { id: target.id, title: target.title, icon: target.icon },
+        },
+      ];
+    });
+  }, [selectedEdge, filtered]);
   const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
   const bulkActionDataMarts = useMemo(
     () =>
@@ -371,10 +407,26 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
+            selectedRelationshipId={selectedEdge ? selectedRelationshipId : null}
+            onSelectRelationship={setSelectedRelationshipId}
             isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
             storageTitle={dataStorages.find(storage => storage.id === filters.storageId)?.title}
             exportApiRef={canvasExportRef}
+            className={selectedEdge ? RELATIONSHIP_SHEET_RESERVE_CLASS : undefined}
             style={canvasStyle}
+          />
+        </Suspense>
+      )}
+      {selectedRelationshipId && relationshipOptions.length > 0 && filters.storageId && (
+        <Suspense fallback={null}>
+          <RelationshipDetailsSheet
+            options={relationshipOptions}
+            relationshipId={selectedRelationshipId}
+            storageId={filters.storageId}
+            onRelationshipChange={setSelectedRelationshipId}
+            onClose={() => {
+              setSelectedRelationshipId(null);
+            }}
           />
         </Suspense>
       )}
