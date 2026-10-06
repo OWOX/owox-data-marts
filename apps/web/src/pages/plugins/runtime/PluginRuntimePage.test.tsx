@@ -279,8 +279,9 @@ describe('PluginRuntimePage', () => {
       bridgeOptions.onRouteChange?.('/d/1');
       bridgeOptions.onRouteChange?.('/d/2');
     });
+    vi.advanceTimersByTime(349);
     expect(navigate).not.toHaveBeenCalled();
-    vi.runOnlyPendingTimers();
+    vi.advanceTimersByTime(1);
 
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith(`${OPEN_BASE}/d/2`, { replace: true });
