@@ -136,18 +136,26 @@ A plugin's pages are reachable at `/ui/<project>/plugins/<pluginId>/open<route>`
 your own route. Read `ctx.route` after `connect()` and show that page; call `ctx.ui.setRoute(route)`
 whenever the member moves to another page, and `ctx.ui.copyLink()` from your own Share button.
 
-- A route starts with `/`, may carry `?query` and `#hash`, and must not contain `.` or `..`
-  segments or backslashes; the host refuses such a route and opens your plugin at `/`. `ctx.route`
-  is percent-encoded, as in the address, and never carries a `utm_*` parameter — one you report
-  through `setRoute` or `copyLink` is dropped the same way. Percent-encode any user text you put
-  in a route yourself: a raw bidi or zero-width character is refused, but its encoded form is
-  accepted.
+- `ctx.route` is `undefined` on a host without page links — that is how you detect support; hide
+  your Share button then. A host that supports page links always sends a route, at least `/`.
+- Treat `ctx.route` as untrusted, link-supplied input: use it only to choose what to show. Never
+  start a write, a run, or a credential use from it without the member's own click, and never put
+  secrets or personal data in a route — it appears in the address bar, history, and analytics. It
+  may still carry percent-encoded sequences (e.g. `%2F`); decode deliberately.
+- A route starts with `/`, may carry `?query` and `#hash`. Its path must not contain `.` or `..`
+  segments, `\`, an empty segment, or a trailing space; control, bidi, and invisible characters are
+  refused anywhere in the route — the host refuses such a route and opens your plugin at `/`.
+  `ctx.route` is percent-encoded, as in the address, and never carries a `utm_*` parameter — one you
+  report through `setRoute` or `copyLink` is dropped the same way. A query or hash may carry a
+  backslash or a trailing space; percent-encode a bidi or zero-width character you put in a route
+  yourself, or it is refused.
+- Use `ctx.ui.setRoute` for the plugin's own pages; `ctx.ui.navigate` is for host pages.
+- Call `ctx.ui.copyLink()` from a click handler: the host copies only during the member's own
+  interaction, one link at a time.
 - The host replaces the address rather than adding history entries, so the browser's Back button
   leaves the plugin instead of stepping through its pages.
-- A member without the plugin who opens such a link is offered the install first, then lands on the
-  page.
-- On an OWOX Data Marts deployment older than this SDK, `ctx.route` is always `/`, `setRoute` does
-  nothing and `copyLink` rejects — hide your Share button when it does.
+- A member without the plugin who opens such a link is offered the install: automatically if a
+  publication lists the plugin for them, otherwise via a banner on the page.
 
 ### Use project Credentials
 

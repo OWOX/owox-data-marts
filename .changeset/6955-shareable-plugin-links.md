@@ -13,7 +13,7 @@ first. A member's earlier `/plugins/run/<installationId>` links redirect to the 
 
 A link written for people outside a project, such as a website or an email, can use `none` in
 place of the project id — OWOX opens it in the reader's current project after sign-in.
-`/ui/none/plugins/github/<owner>/<repo>` finds a public plugin that the deployment publishes to
+`/ui/none/plugins/github/<owner>/<repo>` finds a public plugin published at deployment scope for
 the reader's project, case-insensitively; anything else answers "This plugin isn't available
 here".
 
