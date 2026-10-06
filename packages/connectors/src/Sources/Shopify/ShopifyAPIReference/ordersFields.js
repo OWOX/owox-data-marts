@@ -239,9 +239,9 @@ var ordersFields = {
     'graphqlPath': 'currentTotalTaxSet { shopMoney { amount } }'
   },
   'lineItems': {
-    'description': 'The line items in the order as JSON array.',
+    'description': 'The line items in the order as JSON array. Includes unit prices after line-level discounts (discountedUnitPriceSet) and after all discounts including order-level (discountedUnitPriceAfterAllDiscountsSet), the total line-targeted discount (totalDiscountSet, excludes order-level discounts), and per-application discountAllocations with allocated amounts.',
     'type': DATA_TYPES.STRING,
-    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } }'
+    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } totalDiscountSet { shopMoney { amount } } discountAllocations { allocatedAmountSet { shopMoney { amount } } } } }'
   },
   'shippingLines': {
     'description': 'Shipping lines as JSON array.',

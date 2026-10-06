@@ -42,3 +42,49 @@ describe('orders checkoutToken and cartToken', () => {
     ).toEqual({ checkoutToken: null });
   });
 });
+
+describe('orders lineItems discount fields', () => {
+  it('requests the discount money sets and allocations in the lineItems sub-selection', () => {
+    const queryFields = proto._buildQueryFields.call(proto, schema, ['lineItems']);
+    expect(queryFields).toContain(
+      'discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } }'
+    );
+    expect(queryFields).toContain('totalDiscountSet { shopMoney { amount } }');
+    expect(queryFields).toContain(
+      'discountAllocations { allocatedAmountSet { shopMoney { amount } } }'
+    );
+  });
+
+  it('serializes line items with discount fields and nested allocations to JSON', () => {
+    const lineItem = {
+      id: 'gid://shopify/LineItem/111',
+      quantity: 2,
+      originalUnitPriceSet: { shopMoney: { amount: '25.0' } },
+      discountedUnitPriceSet: { shopMoney: { amount: '22.5' } },
+      discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: '20.25' } },
+      totalDiscountSet: { shopMoney: { amount: '5.0' } },
+      discountAllocations: [
+        { allocatedAmountSet: { shopMoney: { amount: '5.0' } } },
+        { allocatedAmountSet: { shopMoney: { amount: '4.5' } } },
+      ],
+    };
+    const node = { lineItems: { nodes: [lineItem] } };
+
+    const result = proto._normalizeFromSchema.call(proto, { node, schema, fields: ['lineItems'] });
+    const parsed = JSON.parse(result.lineItems);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].discountedUnitPriceAfterAllDiscountsSet.shopMoney.amount).toBe('20.25');
+    expect(parsed[0].totalDiscountSet.shopMoney.amount).toBe('5.0');
+    expect(parsed[0].discountAllocations).toHaveLength(2);
+    expect(parsed[0].discountAllocations[1].allocatedAmountSet.shopMoney.amount).toBe('4.5');
+  });
+
+  it('keeps discountAllocations as an empty array when the line has no discounts', () => {
+    const node = {
+      lineItems: { nodes: [{ id: 'gid://shopify/LineItem/222', discountAllocations: [] }] },
+    };
+    const result = proto._normalizeFromSchema.call(proto, { node, schema, fields: ['lineItems'] });
+    expect(JSON.parse(result.lineItems)[0].discountAllocations).toEqual([]);
+  });
+});
