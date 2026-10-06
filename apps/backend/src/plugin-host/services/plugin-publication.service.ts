@@ -96,7 +96,7 @@ export class PluginPublicationService {
       .andWhere(
         new Brackets(scopes => {
           scopes
-            .where(this.deploymentVisibleToProject())
+            .where(this.deploymentVisibleToProject(projectId))
             .orWhere(
               new Brackets(project => {
                 project
@@ -131,11 +131,10 @@ export class PluginPublicationService {
       .createQueryBuilder('publication')
       .innerJoin(Plugin, 'plugin', 'plugin.id = publication.pluginId')
       .where('publication.isActive = :isActive', { isActive: true })
-      .andWhere(this.deploymentVisibleToProject())
+      .andWhere(this.deploymentVisibleToProject(projectId))
       .andWhere('LOWER(plugin.repoOwner) = :owner', { owner: owner.toLowerCase() })
       .andWhere('LOWER(plugin.repoName) = :name', { name: name.toLowerCase() })
       .andWhere('plugin.isPrivateRepo = :isPrivate', { isPrivate: false })
-      .setParameters({ projectId })
       // Until the next sync, a renamed repository and a new one can share a cached owner/name.
       .orderBy('plugin.modifiedAt', 'DESC')
       .addOrderBy('plugin.id', 'ASC')
@@ -154,8 +153,8 @@ export class PluginPublicationService {
     });
   }
 
-  /** findVisibleTo's deployment branch; the caller binds :projectId and requires isActive. */
-  private deploymentVisibleToProject(): Brackets {
+  /** findVisibleTo's deployment branch. Binds its own parameters; the caller still requires isActive. */
+  private deploymentVisibleToProject(projectId: string): Brackets {
     return new Brackets(deployment => {
       deployment
         .where('publication.scope = :deploymentScope', {
@@ -163,14 +162,19 @@ export class PluginPublicationService {
         })
         .andWhere(
           new Brackets(audience => {
-            audience.where('publication.allProjects = :isActive', { isActive: true }).orWhere(
-              `EXISTS (
+            audience
+              .where('publication.allProjects = :deploymentAllProjects', {
+                deploymentAllProjects: true,
+              })
+              .orWhere(
+                `EXISTS (
                 SELECT 1 FROM plugin_publication_project audience_row
                 WHERE audience_row.publicationId = publication.id
-                  AND audience_row.projectId = :projectId
-                  AND audience_row.isActive = :isActive
-              )`
-            );
+                  AND audience_row.projectId = :deploymentProjectId
+                  AND audience_row.isActive = :deploymentAudienceActive
+              )`,
+                { deploymentProjectId: projectId, deploymentAudienceActive: true }
+              );
           })
         );
     });

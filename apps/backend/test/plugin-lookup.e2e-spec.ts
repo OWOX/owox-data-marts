@@ -131,10 +131,17 @@ describe('Plugin lookup by repository (e2e, SQLite)', () => {
 
     const found = await lookupOverHttp('OWOX/inside');
     const hidden = await lookupOverHttp('OWOX/outside');
+    const unknown = await lookupOverHttp('OWOX/unknown');
 
     expect(found.status).toBe(200);
     expect(found.body).toEqual({ pluginId: inside.id });
     expect(hidden.status).toBe(404);
+    // Same shape as an unknown repository; `path` and `timestamp` vary per request, not per plugin.
+    expect({ ...hidden.body, path: undefined, timestamp: undefined }).toEqual({
+      ...unknown.body,
+      path: undefined,
+      timestamp: undefined,
+    });
   });
 
   it('resolves to the most recently updated plugin when two share a cached repository name', async () => {
