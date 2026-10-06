@@ -3,7 +3,9 @@ import { LayoutErrorBoundary } from '../../components/errors';
 import PluginDetailsPage from '../../pages/plugins/detail/PluginDetailsPage';
 import PluginsGalleryPage from '../../pages/plugins/gallery/PluginsGalleryPage';
 import PluginHistoryPage from '../../pages/plugins/history/PluginHistoryPage';
-import PluginRuntimePage from '../../pages/plugins/runtime/PluginRuntimePage';
+import PluginOpenPage from '../../pages/plugins/open/PluginOpenPage';
+import PluginRepoRedirect from '../../pages/plugins/repository/PluginRepoRedirect';
+import LegacyPluginRunRedirect from '../../pages/plugins/runtime/LegacyPluginRunRedirect';
 
 /**
  * Project-scoped plugin routes.
@@ -24,8 +26,19 @@ export const pluginsRoutes: RouteObject[] = [
     errorElement: <LayoutErrorBoundary />,
   },
   {
+    // Before :pluginId, so "github" is never read as a plugin id.
+    path: 'plugins/github/:owner/:repo/*',
+    element: <PluginRepoRedirect />,
+    errorElement: <LayoutErrorBoundary />,
+  },
+  {
     path: 'plugins/run/:installationId',
-    element: <PluginRuntimePage />,
+    element: <LegacyPluginRunRedirect />,
+    errorElement: <LayoutErrorBoundary />,
+  },
+  {
+    path: 'plugins/:pluginId/open/*',
+    element: <PluginOpenPage />,
     errorElement: <LayoutErrorBoundary />,
   },
   {

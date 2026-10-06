@@ -264,4 +264,80 @@ describe('connect', () => {
     const { owox: _owox, signal: _signal, ui: _ui, ...ambient } = context;
     expect(JSON.stringify(ambient)).not.toContain('token');
   });
+
+  it('exposes the route the host opened it on, and / when the host sends none', async () => {
+    const parent = pretendToBeFramed();
+    const withRoute = new MessageChannel();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    const init = hostInit();
+    deliverFromParent(parent, { ...init, context: { ...init.context, route: '/d/42?tab=2' } }, [
+      withRoute.port2,
+    ]);
+    expect((await pending).route).toBe('/d/42?tab=2');
+
+    __resetForTests();
+    const parent2 = pretendToBeFramed();
+    const bare = new MessageChannel();
+    const second = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent2, hostInit(), [bare.port2]);
+    expect((await second).route).toBe('/');
+  });
+
+  it('reports its route to the host without waiting for an answer', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const hostSide: unknown[] = [];
+    channel.port1.onmessage = event => hostSide.push(event.data);
+    channel.port1.start();
+
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+    const context = await pending;
+
+    context.ui.setRoute('/d/7');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(hostSide).toContainEqual(expect.objectContaining({ kind: 'route', path: '/d/7' }));
+  });
+
+  it('asks the host to copy a link and settles on its answer', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const answers: Record<string, unknown> = {
+      '/ok': { ok: true, status: 200, headers: {}, body: null },
+      '/no': {
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'The request kind is not recognized' },
+      },
+    };
+    channel.port1.onmessage = event => {
+      const request = event.data as { id: string; kind: string; path?: string };
+      if (request.kind === 'copyLink') {
+        channel.port1.postMessage({
+          id: request.id,
+          ...(answers[request.path ?? '/ok'] as object),
+        });
+      }
+    };
+    channel.port1.start();
+
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+    const context = await pending;
+
+    const copied = context.ui.copyLink('/ok');
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(copied).resolves.toBeUndefined();
+
+    // Attach `.rejects` before advancing timers, or the rejection is briefly unhandled.
+    const refused = expect(context.ui.copyLink('/no')).rejects.toThrow(
+      'The request kind is not recognized'
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    await refused;
+  });
 });

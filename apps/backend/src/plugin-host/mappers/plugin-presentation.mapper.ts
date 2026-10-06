@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthorizationContext } from '../../idp';
+import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repository.command';
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
@@ -33,6 +34,7 @@ import {
   PluginUpdateResultApiDto,
 } from '../dto/presentation/plugin-installation-api.dto';
 import { PluginGalleryEntryApiDto } from '../dto/presentation/plugin-gallery-api.dto';
+import { PluginLookupApiDto } from '../dto/presentation/plugin-lookup-api.dto';
 import {
   PluginSuspensionResponseApiDto,
   SuspendPluginApiDto,
@@ -109,6 +111,10 @@ export class PluginPresentationMapper {
     return new ListInstallationsCommand(context, includeUninstalled);
   }
 
+  toFindPluginByRepositoryCommand(repository: string): FindPluginByRepositoryCommand {
+    return new FindPluginByRepositoryCommand(repository);
+  }
+
   toGetPluginInstallationEntryCommand(
     installationId: string,
     context: AuthorizationContext
@@ -180,6 +186,10 @@ export class PluginPresentationMapper {
   }
 
   // --- domain → presentation ---
+
+  toLookupResponse(result: { pluginId: string }): PluginLookupApiDto {
+    return { pluginId: result.pluginId };
+  }
 
   toGalleryEntryResponse(dto: PluginGalleryEntryDto): PluginGalleryEntryApiDto {
     return {

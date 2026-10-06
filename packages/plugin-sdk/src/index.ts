@@ -1,6 +1,10 @@
 import { OWOXApiClient } from '@owox/api-client';
 import { createPluginCollection, type PluginCollection } from './collections.js';
-import { createIframeRequester, createIframeTransport } from './iframe-transport.js';
+import {
+  createIframeRequester,
+  createIframeTransport,
+  PluginTransportError,
+} from './iframe-transport.js';
 import { createPluginCredentials, type PluginCredentials } from './credentials.js';
 import {
   isHostInit,
@@ -45,9 +49,18 @@ export interface PluginUi {
    * out of the app -- and your frame is unmounted when it does navigate.
    */
   navigate(path: string): void;
+
+  /** Tells the host which of your pages is showing, e.g. `/dashboards/42`, for its address bar. */
+  setRoute(path: string): void;
+
+  /** Asks the host to copy a link to `path`, or the current page; rejects on older hosts. */
+  copyLink(path?: string): Promise<void>;
 }
 
 export interface PluginContext extends PluginHostContext {
+  /** The route the host opened this plugin at; `/` when it named none. */
+  readonly route: string;
+
   /**
    * A real OWOX API client whose transport is owned by this SDK.
    *
@@ -189,6 +202,7 @@ function bind(
 
   return {
     ...init.context,
+    route: init.context.route ?? '/',
     owox,
     credentials: createPluginCredentials(requester, init.context.credentialHandles ?? []),
     collections: <T>(name: string) => createPluginCollection<T>(owox, name),
@@ -199,6 +213,15 @@ function bind(
       },
       navigate: (path: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'navigate', path });
+      },
+      setRoute: (path: string) => {
+        port.postMessage({ id: crypto.randomUUID(), kind: 'route', path });
+      },
+      copyLink: async (path?: string) => {
+        const response = await requester.send(
+          path === undefined ? { kind: 'copyLink' } : { kind: 'copyLink', path }
+        );
+        if (!response.ok) throw new PluginTransportError(response.error);
       },
     },
     signal: teardown.signal,

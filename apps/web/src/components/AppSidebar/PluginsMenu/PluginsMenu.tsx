@@ -21,9 +21,9 @@ import { getActiveMenuItemClassName, isSameOrNestedPath } from '../menu-item-act
  * installation. Threading a hook through the shared renderer would put a network
  * dependency in the render path of every other menu item.
  *
- * Hidden until the project has at least one Gallery plugin a member can install (or
- * reinstall). Until then the entry would only advertise an empty page, so it stays out
- * of the way; first publications arrive via the control plane (owox-ctl).
+ * Hidden until the member has an active installation or the project has a Gallery plugin
+ * a member can install (or reinstall). Until then the entry would only advertise an empty
+ * page, so it stays out of the way; first publications arrive via the control plane (owox-ctl).
  */
 export function PluginsMenu() {
   const { scope } = useProjectRoute();
@@ -44,17 +44,19 @@ export function PluginsMenu() {
     return null;
   }
 
-  if (!hasInstallablePlugin) {
+  if (!hasInstallablePlugin && active.length === 0) {
     return null;
   }
 
   const rootHref = scope('/plugins');
 
-  // Nested paths still light up the parent -- History and a plugin's own page have no
-  // entry of their own -- except the run pages, which do. Two highlighted rows would
-  // otherwise claim the reader is in two places at once.
-  const isOnRunPage = isSameOrNestedPath(location.pathname, scope('/plugins/run'));
-  const isRootActive = isSameOrNestedPath(location.pathname, rootHref) && !isOnRunPage;
+  const openHref = (pluginId: string) => scope(`/plugins/${pluginId}/open`);
+
+  // An installed plugin's open address has its own entry, so the parent steps back there.
+  const isOnInstalledPluginPage = active.some(installation =>
+    isSameOrNestedPath(location.pathname, openHref(installation.pluginId))
+  );
+  const isRootActive = isSameOrNestedPath(location.pathname, rootHref) && !isOnInstalledPluginPage;
 
   return (
     <SidebarMenu>
@@ -73,7 +75,7 @@ export function PluginsMenu() {
 
         <SidebarMenuSub>
           {active.map(installation => {
-            const href = scope(`/plugins/run/${installation.installationId}`);
+            const href = openHref(installation.pluginId);
             const isActive = isSameOrNestedPath(location.pathname, href);
 
             return (

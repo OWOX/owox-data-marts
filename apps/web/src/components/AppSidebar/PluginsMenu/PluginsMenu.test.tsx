@@ -62,8 +62,50 @@ describe('PluginsMenu', () => {
     expect(screen.queryByText('Plugins')).not.toBeInTheDocument();
   });
 
+  it('stays while the member has an installed plugin, even with an empty gallery', () => {
+    gallery.mockReturnValue({ plugins: [], isLoading: false });
+    installations.mockReturnValue({ installations: [installation()], isLoading: false });
+
+    renderMenu();
+
+    expect(screen.getByRole('link', { name: 'Plugins' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Example Plugin' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/p1/open'
+    );
+  });
+
+  it('hides with an empty gallery when the only installation was removed', () => {
+    gallery.mockReturnValue({ plugins: [], isLoading: false });
+    installations.mockReturnValue({
+      installations: [installation({ uninstalledAt: '2026-07-01T00:00:00Z' })],
+      isLoading: false,
+    });
+
+    renderMenu();
+
+    expect(screen.queryByText('Plugins')).not.toBeInTheDocument();
+  });
+
   it('hides while gallery data is still loading', () => {
     gallery.mockReturnValue({ plugins: [], isLoading: true });
+
+    renderMenu();
+
+    expect(screen.queryByText('Plugins')).not.toBeInTheDocument();
+  });
+
+  it('hides while the gallery is loading, even with an installed plugin', () => {
+    gallery.mockReturnValue({ plugins: [], isLoading: true });
+    installations.mockReturnValue({ installations: [installation()], isLoading: false });
+
+    renderMenu();
+
+    expect(screen.queryByText('Plugins')).not.toBeInTheDocument();
+  });
+
+  it('hides while installations are loading, even with an installable plugin', () => {
+    installations.mockReturnValue({ installations: [], isLoading: true });
 
     renderMenu();
 
@@ -100,7 +142,7 @@ describe('PluginsMenu', () => {
 
     expect(screen.getByRole('link', { name: 'Example Plugin' })).toHaveAttribute(
       'href',
-      '/ui/project-1/plugins/run/i1'
+      '/ui/project-1/plugins/p1/open'
     );
     expect(screen.getByRole('link', { name: 'Second Plugin' })).toBeInTheDocument();
   });
@@ -112,25 +154,35 @@ describe('PluginsMenu', () => {
 
     // Two highlighted rows would claim the reader is in two places at once.
     it('highlights only the plugin while its page is open', () => {
-      renderMenu('/ui/project-1/plugins/run/i1');
+      renderMenu('/ui/project-1/plugins/p1/open/d/42');
+
+      expect(isHighlighted('Example Plugin')).toBe(true);
+      expect(isHighlighted('Plugins')).toBe(false);
+    });
+
+    it('highlights the plugin at its bare open address', () => {
+      renderMenu('/ui/project-1/plugins/p1/open');
 
       expect(isHighlighted('Example Plugin')).toBe(true);
       expect(isHighlighted('Plugins')).toBe(false);
     });
 
     /**
-     * History and a plugin's own page have no entry of their own, so the parent still
-     * has to answer "where am I" for them.
+     * History, a plugin's own page and the open address of a plugin the member has not
+     * installed have no entry of their own, so the parent still has to answer "where am I".
      */
-    it.each(['/ui/project-1/plugins', '/ui/project-1/plugins/history', '/ui/project-1/plugins/p1'])(
-      'highlights Plugins on %s',
-      path => {
-        renderMenu(path);
+    it.each([
+      '/ui/project-1/plugins',
+      '/ui/project-1/plugins/history',
+      '/ui/project-1/plugins/p1',
+      '/ui/project-1/plugins/p2/open',
+      '/ui/project-1/plugins/p2/open/d/42',
+    ])('highlights Plugins on %s', path => {
+      renderMenu(path);
 
-        expect(isHighlighted('Plugins')).toBe(true);
-        expect(isHighlighted('Example Plugin')).toBe(false);
-      }
-    );
+      expect(isHighlighted('Plugins')).toBe(true);
+      expect(isHighlighted('Example Plugin')).toBe(false);
+    });
   });
 
   // Uninstalling removes the shortcut but keeps the plugin restorable from history.

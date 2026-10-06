@@ -117,8 +117,8 @@ function setupSpaFallback(app: Express, distPath: string, options: StaticAssetsO
       return next();
     }
 
-    // Skip static files (with extensions)
-    if (req.path.includes('.')) {
+    // Skip static files (with extensions), except under /ui/: shareable plugin links may put a dotted route or repo name there.
+    if (req.path.includes('.') && !req.path.startsWith('/ui/')) {
       return next();
     }
 

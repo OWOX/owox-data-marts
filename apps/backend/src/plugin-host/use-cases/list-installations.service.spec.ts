@@ -1,7 +1,9 @@
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { ListInstallationsCommand } from '../dto/domain/list-installations.command';
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
+import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { PluginInstallationService } from '../services/plugin-installation.service';
+import { PluginPublicationService } from '../services/plugin-publication.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { ListInstallationsService } from './list-installations.service';
@@ -18,6 +20,18 @@ const installation = (overrides = {}) => ({
   ...overrides,
 });
 
+const plugin = (overrides = {}) => ({
+  id: 'p1',
+  repoOwner: 'OWOX',
+  repoName: 'example',
+  repoHtmlUrl: 'https://github.com/OWOX/example',
+  createdAt: new Date('2026-07-01T00:00:00.000Z'),
+  isPrivateRepo: false,
+  currentVersionId: 'v1',
+  suspendedAt: null,
+  ...overrides,
+});
+
 function setup(rows: unknown[] = [installation()], pluginOverrides = {}) {
   const installations = {
     findByMember: jest.fn().mockResolvedValue(rows),
@@ -25,19 +39,7 @@ function setup(rows: unknown[] = [installation()], pluginOverrides = {}) {
   } as unknown as jest.Mocked<PluginInstallationService>;
 
   const pluginService = {
-    findByIds: jest.fn().mockResolvedValue([
-      {
-        id: 'p1',
-        repoOwner: 'OWOX',
-        repoName: 'example',
-        repoHtmlUrl: 'https://github.com/OWOX/example',
-        createdAt: new Date('2026-07-01T00:00:00.000Z'),
-        isPrivateRepo: false,
-        currentVersionId: 'v1',
-        suspendedAt: null,
-        ...pluginOverrides,
-      },
-    ]),
+    findByIds: jest.fn().mockResolvedValue([plugin(pluginOverrides)]),
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
@@ -52,14 +54,21 @@ function setup(rows: unknown[] = [installation()], pluginOverrides = {}) {
     ]),
   } as unknown as jest.Mocked<PluginVersionService>;
 
+  const publications = {
+    findVisibleTo: jest.fn().mockResolvedValue([]),
+  } as unknown as jest.Mocked<PluginPublicationService>;
+
   return {
     service: new ListInstallationsService(
       installations,
       pluginService,
       versionService,
-      new PluginPresentationMapper()
+      new PluginPresentationMapper(),
+      publications
     ),
     installations,
+    pluginService,
+    publications,
   };
 }
 
@@ -99,10 +108,32 @@ describe('ListInstallationsService', () => {
         s.installations,
         { findByIds: jest.fn().mockResolvedValue([]) } as unknown as PluginService,
         { findByIds: jest.fn().mockResolvedValue([]) } as unknown as PluginVersionService,
-        new PluginPresentationMapper()
+        new PluginPresentationMapper(),
+        s.publications
       );
 
       await expect(list(service, true)).resolves.toEqual([]);
     });
+  });
+
+  it('reports why each installed plugin is listed for the member, and nothing for an unlisted one', async () => {
+    const s = setup([
+      installation(),
+      installation({ id: 'i2', pluginId: 'p2', uninstalledAt: new Date('2026-07-02') }),
+    ]);
+    (s.pluginService.findByIds as jest.Mock).mockResolvedValue([plugin(), plugin({ id: 'p2' })]);
+    (s.publications.findVisibleTo as jest.Mock).mockResolvedValue([
+      { pluginId: 'p1', scope: PluginPublicationScope.DEPLOYMENT },
+      { pluginId: 'p1', scope: PluginPublicationScope.MEMBER },
+      { pluginId: 'p3', scope: PluginPublicationScope.PROJECT },
+    ]);
+
+    const [listed, unlisted] = await list(s.service, true);
+
+    expect(s.publications.findVisibleTo).toHaveBeenCalledTimes(1);
+    expect(s.publications.findVisibleTo).toHaveBeenCalledWith('j1', 'u1');
+    expect([...listed.visibleViaScopes].sort()).toEqual(['deployment', 'member']);
+    expect(unlisted.pluginId).toBe('p2');
+    expect(unlisted.visibleViaScopes).toEqual([]);
   });
 });

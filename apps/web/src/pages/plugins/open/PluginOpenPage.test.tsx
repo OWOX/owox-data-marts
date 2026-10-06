@@ -1,0 +1,133 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+let installations: { installationId: string; pluginId: string; uninstalledAt: string | null }[] =
+  [];
+let detailsMounts = 0;
+let runtimeMounts = 0;
+vi.mock('../../../features/plugins', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../features/plugins/runtime/pluginRoute')
+  >('../../../features/plugins/runtime/pluginRoute');
+  return {
+    usePluginInstallations: () => ({ installations, isLoading: false }),
+    routeFromLocation: actual.routeFromLocation,
+  };
+});
+vi.mock('../../../shared/hooks', () => ({
+  useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
+}));
+vi.mock('../runtime/PluginRuntimePage', async () => {
+  const { useState } = await vi.importActual<typeof import('react')>('react');
+  function PluginRuntime(props: {
+    installationId: string;
+    initialRoute: string;
+    openBase: string;
+  }) {
+    const [mount] = useState(() => ++runtimeMounts);
+    return (
+      <>
+        <p>
+          runtime {props.installationId} at {props.initialRoute} under {props.openBase}
+        </p>
+        <p>runtime mount {mount}</p>
+      </>
+    );
+  }
+  return { PluginRuntime };
+});
+vi.mock('../detail/PluginDetailsPage', async () => {
+  const { useState } = await vi.importActual<typeof import('react')>('react');
+  function PluginDetailsPage({ installOnOpen }: { installOnOpen?: boolean }) {
+    const [mount] = useState(() => ++detailsMounts);
+    return (
+      <>
+        <p>details{installOnOpen ? ' with install' : ''}</p>
+        <p>details mount {mount}</p>
+      </>
+    );
+  }
+  return { default: PluginDetailsPage };
+});
+
+import PluginOpenPage from './PluginOpenPage';
+
+const renderAt = (path: string) =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path='/ui/:projectId/plugins/:pluginId/open/*' element={<PluginOpenPage />} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+describe('PluginOpenPage', () => {
+  beforeEach(() => {
+    installations = [];
+    detailsMounts = 0;
+    runtimeMounts = 0;
+  });
+
+  it('renders the runtime for an installed plugin, suspended or not, at the route', () => {
+    installations = [{ installationId: 'i1', pluginId: 'p1', uninstalledAt: null }];
+    renderAt('/ui/project-1/plugins/p1/open/d/42?tab=2');
+    expect(
+      screen.getByText('runtime i1 at /d/42?tab=2 under /ui/project-1/plugins/p1/open')
+    ).toBeInTheDocument();
+  });
+
+  it('opens at the root when the address names no route', () => {
+    installations = [{ installationId: 'i1', pluginId: 'p1', uninstalledAt: null }];
+    renderAt('/ui/project-1/plugins/p1/open');
+    expect(screen.getByText(/runtime i1 at \/ under/)).toBeInTheDocument();
+  });
+
+  it('starts a fresh runtime on moving to another installed plugin', async () => {
+    installations = [
+      { installationId: 'i1', pluginId: 'p1', uninstalledAt: null },
+      { installationId: 'i2', pluginId: 'p2', uninstalledAt: null },
+    ];
+    render(
+      <MemoryRouter initialEntries={['/ui/project-1/plugins/p1/open']}>
+        <Link to='/ui/project-1/plugins/p2/open'>Next plugin</Link>
+        <Routes>
+          <Route path='/ui/:projectId/plugins/:pluginId/open/*' element={<PluginOpenPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByText('runtime mount 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Next plugin' }));
+
+    expect(await screen.findByText(/runtime i2 at/)).toBeInTheDocument();
+    expect(screen.getByText('runtime mount 2')).toBeInTheDocument();
+  });
+
+  it('offers the install to a member without the plugin', () => {
+    renderAt('/ui/project-1/plugins/p1/open/d/42');
+    expect(screen.getByText('details with install')).toBeInTheDocument();
+  });
+
+  it("ignores another plugin's installation", () => {
+    installations = [{ installationId: 'i9', pluginId: 'p9', uninstalledAt: null }];
+    renderAt('/ui/project-1/plugins/p1/open');
+    expect(screen.getByText('details with install')).toBeInTheDocument();
+  });
+
+  it('offers the install afresh on moving to another plugin the member lacks', async () => {
+    render(
+      <MemoryRouter initialEntries={['/ui/project-1/plugins/p1/open']}>
+        <Link to='/ui/project-1/plugins/p2/open'>Next plugin</Link>
+        <Routes>
+          <Route path='/ui/:projectId/plugins/:pluginId/open/*' element={<PluginOpenPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByText('details mount 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Next plugin' }));
+
+    expect(await screen.findByText('details mount 2')).toBeInTheDocument();
+  });
+});

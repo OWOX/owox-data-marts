@@ -204,4 +204,49 @@ describe('setupWebStaticAssets', () => {
       });
     }
   });
+
+  describe('dotted paths under /ui/ (shareable plugin links)', () => {
+    beforeEach(() => {
+      // /api/* is registered BEFORE static so the SPA fallback won't catch it.
+      app.get('/api/something.json', (_req, res) => {
+        res.json({});
+      });
+
+      const configured = setupWebStaticAssets(app);
+      expect(configured, '@owox/web must be built for these tests').to.be.true;
+    });
+
+    it('serves the SPA shell for a dotted plugin open route under /ui/', async () => {
+      const response = await request(app).get('/ui/0/plugins/abc/open/files/report.csv');
+
+      expect(response.status).to.equal(200);
+      expect(response.headers['content-type']).to.match(/text\/html/);
+      expect(response.text).to.contain('<div id="root"></div>');
+      for (const [name, value] of EXPECTED_SECURITY_HEADERS) {
+        expect(response.headers[name], `missing ${name}`).to.equal(value);
+      }
+    });
+
+    it('serves the SPA shell for a dotted GitHub repository name under /ui/', async () => {
+      const response = await request(app).get('/ui/none/plugins/github/owner/my.plugin');
+
+      expect(response.status).to.equal(200);
+      expect(response.headers['content-type']).to.match(/text\/html/);
+      expect(response.text).to.contain('<div id="root"></div>');
+    });
+
+    it('still falls through for a dotted path outside /ui/', async () => {
+      const response = await request(app).get('/assets/missing.js');
+
+      expect(response.status).to.equal(404);
+      expect(response.text).not.to.contain('<div id="root"></div>');
+    });
+
+    it('still excludes API routes even when the path is dotted', async () => {
+      const response = await request(app).get('/api/something.json');
+
+      expect(response.status).to.equal(200);
+      expect(response.text).not.to.contain('<div id="root"></div>');
+    });
+  });
 });

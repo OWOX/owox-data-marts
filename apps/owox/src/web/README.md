@@ -81,7 +81,7 @@ Configuration options for static assets setup.
 
 1. **Package Discovery**: Uses `require.resolve()` to find the specified web package (default: `@owox/web`)
 2. **Static Files**: Serves files from the `dist` directory with optimized caching headers
-3. **SPA Fallback**: Configures middleware to serve `index.html` for non-API routes without file extensions
+3. **SPA Fallback**: Configures middleware to serve `index.html` for non-API routes without file extensions, except under `/ui/`, where a dotted path is still served the shell
 4. **Route Exclusion**: Skips SPA fallback for configured excluded routes (API endpoints, health checks, etc.)
 
 ## Testing

@@ -11,6 +11,7 @@ import {
   isViewOnlySession,
 } from '../services';
 import { getProjectIdFromPath } from '../utils/project-id';
+import { requestAccessRedirectTarget, storedRedirectTarget } from '../utils/post-auth-redirect';
 import {
   setTokenProvider,
   clearTokenProvider,
@@ -219,13 +220,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (storedRedirect) {
               RedirectStorageService.clear();
             }
-            const storedProjectId = storedRedirect ? getProjectIdFromPath(storedRedirect) : null;
-            let redirectTo = currentUrl;
-            if (storedRedirect && (!storedProjectId || storedProjectId === user.projectId)) {
-              redirectTo = storedRedirect;
-            } else if (currentPath === '/') {
-              redirectTo = buildProjectPath(user.projectId, '/data-marts');
-            }
+            const redirectTo = requestAccessRedirectTarget({
+              storedRedirect,
+              currentUrl,
+              currentPath,
+              projectId: user.projectId,
+            });
             window.location.replace(buildProjectRequestAccessPath(user.projectId, redirectTo));
           }
           return;
@@ -245,19 +245,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const storedRedirect = RedirectStorageService.retrieve();
         if (storedRedirect) {
           RedirectStorageService.clear();
-          const currentPath =
-            window.location.pathname + window.location.search + window.location.hash;
-          if (currentPath !== storedRedirect) {
-            const storedProjectId = getProjectIdFromPath(storedRedirect);
-            const currentUrlProjectId = getProjectIdFromPath(currentPath);
-
-            if (!storedProjectId || storedProjectId === user.projectId) {
-              window.location.replace(storedRedirect);
-              return;
-            } else if (currentUrlProjectId === storedProjectId) {
-              window.location.replace(`/ui/${user.projectId}`);
-              return;
-            }
+          const target = storedRedirectTarget({
+            storedRedirect,
+            currentUrl: window.location.pathname + window.location.search + window.location.hash,
+            projectId: user.projectId,
+          });
+          if (target) {
+            window.location.replace(target);
+            return;
           }
         }
       } catch (error) {

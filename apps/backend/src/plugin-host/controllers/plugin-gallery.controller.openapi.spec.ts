@@ -11,6 +11,7 @@ jest.mock('../../idp', () => ({
 }));
 
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
+import { FindPluginByRepositoryService } from '../use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from '../use-cases/get-plugin-details.service';
 import { GetPluginGalleryService } from '../use-cases/get-plugin-gallery.service';
 import { PluginGalleryController } from './plugin-gallery.controller';
@@ -21,10 +22,12 @@ describe('PluginGalleryController OpenAPI', () => {
 
   beforeAll(async () => {
     const providers = [
-      ...[GetPluginGalleryService, GetPluginDetailsService].map(provide => ({
-        provide,
-        useValue: {},
-      })),
+      ...[GetPluginGalleryService, GetPluginDetailsService, FindPluginByRepositoryService].map(
+        provide => ({
+          provide,
+          useValue: {},
+        })
+      ),
       PluginPresentationMapper,
     ];
 
@@ -97,6 +100,20 @@ describe('PluginGalleryController OpenAPI', () => {
 
     expect(source.required).toEqual(['ownerName', 'ownerUrl']);
     expect(source.properties).toHaveProperty('repositoryUrl');
+  });
+
+  it('documents the repository lookup', () => {
+    const operation = document.paths['/api/plugins/lookup']?.get;
+
+    expect(operation?.summary).toBe('A public plugin by its GitHub repository');
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'repository', in: 'query', required: true }),
+      ])
+    );
+    expect(Object.keys(resolveRef('#/components/schemas/PluginLookupApiDto').properties)).toEqual([
+      'pluginId',
+    ]);
   });
 
   it('documents the direct plugin route', () => {

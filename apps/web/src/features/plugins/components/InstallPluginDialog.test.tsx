@@ -197,6 +197,58 @@ describe('InstallPluginDialog', () => {
     expect(screen.getByTestId('install-version')).toHaveTextContent('v1.2.3');
   });
 
+  describe('a plugin that is not listed for the member', () => {
+    const renderDialog = (
+      over: Partial<PluginGalleryEntry>,
+      mode: 'install' | 'configure' = 'install'
+    ) =>
+      render(
+        <InstallPluginDialog
+          plugin={plugin(over)}
+          open
+          onOpenChange={vi.fn()}
+          onConfirm={vi.fn()}
+          isInstalling={false}
+          mode={mode}
+        />
+      );
+
+    it('adds no warning for a listed plugin', () => {
+      renderDialog({ visibleViaScopes: ['member'] });
+
+      expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent(
+        "isn't listed for you"
+      );
+    });
+
+    it('names the repository to trust for a public plugin', () => {
+      renderDialog({ visibleViaScopes: [] });
+
+      expect(screen.getByTestId('install-data-notice')).toHaveTextContent(
+        "This plugin isn't listed for you. Install it only if you trust acme/example-plugin."
+      );
+    });
+
+    it('points at the sender when the repository is withheld', () => {
+      renderDialog({
+        visibleViaScopes: [],
+        source: { ownerName: 'acme', ownerUrl: 'https://github.com/acme' },
+      });
+
+      expect(screen.getByTestId('install-data-notice')).toHaveTextContent(
+        "This plugin isn't listed for you. Install it only if you trust whoever sent you the link."
+      );
+    });
+
+    it('adds no install warning while configuring an installed plugin', () => {
+      renderDialog({ visibleViaScopes: [] }, 'configure');
+
+      expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent(
+        "isn't listed for you"
+      );
+    });
+  });
+
   /**
    * Publisher-controlled name is React text, never markup. A raw HTML sink here would run
    * third-party code at the moment a member is about to grant their authority.

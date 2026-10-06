@@ -1,3 +1,5 @@
+import { PROJECT_PLACEHOLDER } from '../../../utils/path';
+
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export function isValidProjectId(value?: string | null): value is string {
@@ -10,5 +12,7 @@ export function normalizeProjectId(value?: string | null): string | null {
 
 export function getProjectIdFromPath(path: string): string | null {
   const match = /^\/ui\/([^/]+)/.exec(path);
-  return normalizeProjectId(match?.[1] ?? null);
+  const projectId = normalizeProjectId(match?.[1] ?? null);
+  // A placeholder link names no project; sign-in must not ask for one called "none".
+  return projectId === PROJECT_PLACEHOLDER ? null : projectId;
 }

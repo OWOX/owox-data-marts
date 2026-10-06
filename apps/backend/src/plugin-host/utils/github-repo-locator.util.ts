@@ -19,7 +19,7 @@ const SCP_SYNTAX = /^git@([^:]+):(.+)$/;
  * @throws {InvalidRepoLocatorError}
  */
 export function parseGithubRepoLocator(locator: string): GithubRepoRef {
-  const trimmed = locator?.trim() ?? '';
+  const trimmed = typeof locator === 'string' ? locator.trim() : '';
   if (!trimmed) {
     throw new InvalidRepoLocatorError(locator);
   }

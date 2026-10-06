@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from '../../../app/api';
 import { ApiService } from '../../../services';
 import type {
   InstalledPlugin,
@@ -94,6 +95,12 @@ class PluginsService extends ApiService {
 
   async unpublish(payload: PublishPluginRequest): Promise<PluginPublication> {
     return this.post<PluginPublication>('/publications/unpublish', payload);
+  }
+
+  async lookupByRepository(repository: string): Promise<{ pluginId: string }> {
+    return this.get<{ pluginId: string }>('/lookup', { repository }, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 }
 

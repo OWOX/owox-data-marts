@@ -1,11 +1,15 @@
-import { Button } from '@owox/ui/components/button';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, type NavigateFunction } from 'react-router';
 import {
+  appendRoute,
+  canonicalPluginRoute,
   createPluginHostBridge,
   fetchRuntimeToken,
+  PluginPageMessage,
   pluginsService,
+  routeFromLocation,
+  useCopyLink,
 } from '../../../features/plugins';
 import { useAuth } from '../../../features/idp';
 import { useProjectId, useProjectRoute } from '../../../shared/hooks';
@@ -19,25 +23,83 @@ import { useProjectId, useProjectRoute } from '../../../shared/hooks';
  * left to review.
  */
 const SANDBOX = 'allow-scripts allow-downloads';
+/** Address updates trail a burst of route reports; WebKit allows only ~100 replaceState calls per 30 s. */
+const ADDRESS_SYNC_DELAY_MS = 350;
 
-export default function PluginRuntimePage() {
-  const { installationId } = useParams<{ installationId: string }>();
+export function PluginRuntime({
+  installationId,
+  initialRoute,
+  openBase,
+}: {
+  installationId: string;
+  initialRoute: string;
+  openBase: string;
+}) {
   const projectId = useProjectId();
   const { scope } = useProjectRoute();
   const { user } = useAuth();
+  // A token refresh hands out a new user object; only the id may restart the plugin.
+  const userId = user?.id;
   const navigate = useNavigate();
+  // A non-data router hands out a new navigate on every location change; a ref keeps the bridge.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const { copyLink, fallbackDialog } = useCopyLink();
+  const copyLinkRef = useRef(copyLink);
+  copyLinkRef.current = copyLink;
   const frameRef = useRef<HTMLIFrameElement>(null);
   /** Set when the bridge closes the channel itself, e.g. a failed handshake. */
   const [broken, setBroken] = useState(false);
 
-  // Narrowed to a string here so the query function needs no assertion; the route
-  // cannot match without it, so this branch is defensive rather than expected.
-  const resolvedId = installationId ?? '';
+  const lastRouteRef = useRef(initialRoute);
+  const routeInstallationRef = useRef(installationId);
+  if (routeInstallationRef.current !== installationId) {
+    routeInstallationRef.current = installationId;
+    lastRouteRef.current = initialRoute;
+  }
+  const addressTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      clearTimeout(addressTimerRef.current);
+      addressTimerRef.current = undefined;
+    },
+    [installationId]
+  );
+
+  const onRouteChange = useCallback(
+    (reported: string) => {
+      const route = canonicalPluginRoute(reported);
+      if (route === null) {
+        return;
+      }
+      lastRouteRef.current = route;
+      if (addressTimerRef.current !== undefined) {
+        return;
+      }
+      addressTimerRef.current = setTimeout(() => {
+        addressTimerRef.current = undefined;
+        void syncAddress(navigateRef.current, openBase, lastRouteRef.current);
+      }, ADDRESS_SYNC_DELAY_MS);
+    },
+    [openBase]
+  );
+
+  const onCopyLink = useCallback(
+    (named: string | undefined) => {
+      const route = named === undefined ? lastRouteRef.current : canonicalPluginRoute(named);
+      if (route === null) {
+        throw new Error('The plugin route is invalid');
+      }
+      return copyLinkRef.current(`${window.location.origin}${appendRoute(openBase, route)}`);
+    },
+    [openBase]
+  );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['plugin-entry', projectId, resolvedId],
-    queryFn: () => pluginsService.getEntryPoint(resolvedId),
-    enabled: Boolean(projectId) && resolvedId.length > 0,
+    queryKey: ['plugin-entry', projectId, installationId],
+    queryFn: () => pluginsService.getEntryPoint(installationId),
+    enabled: Boolean(projectId) && installationId.length > 0,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -50,41 +112,38 @@ export default function PluginRuntimePage() {
     }
   }, []);
 
-  const navigateInApp = useCallback(
-    (path: string) => {
-      // The leading slash is the only shape check worth making: a relative path resolves
-      // against this origin and would pass the comparison below. Everything that reaches
-      // for another host -- "//evil.example/x", "/\evil.example/x" -- resolves to that
-      // host and is caught by comparing origins, so no second shape check earns its place.
-      if (!path.startsWith('/')) {
-        return;
-      }
+  const navigateInApp = useCallback((path: string) => {
+    // The leading slash is the only shape check worth making: a relative path resolves
+    // against this origin and would pass the comparison below. Everything that reaches
+    // for another host -- "//evil.example/x", "/\evil.example/x" -- resolves to that
+    // host and is caught by comparing origins, so no second shape check earns its place.
+    if (!path.startsWith('/')) {
+      return;
+    }
 
-      let target: URL;
-      try {
-        target = new URL(path, window.location.origin);
-      } catch {
-        return;
-      }
+    let target: URL;
+    try {
+      target = new URL(path, window.location.origin);
+    } catch {
+      return;
+    }
 
-      if (target.origin !== window.location.origin) {
-        return;
-      }
+    if (target.origin !== window.location.origin) {
+      return;
+    }
 
-      void navigate(`${target.pathname}${target.search}${target.hash}`);
-    },
-    [navigate]
-  );
+    void navigateRef.current(`${target.pathname}${target.search}${target.hash}`);
+  }, []);
 
   // One plugin's failed handshake says nothing about the next one, and this component
   // survives the switch between two installations.
   useEffect(() => {
     setBroken(false);
-  }, [resolvedId]);
+  }, [installationId]);
 
   useEffect(() => {
     const iframe = frameRef.current;
-    if (!iframe || !data || !projectId || !user) {
+    if (!iframe || !data || !projectId || !userId) {
       return;
     }
 
@@ -96,15 +155,19 @@ export default function PluginRuntimePage() {
       apiOrigin: window.location.origin,
       context: {
         pluginId: data.pluginId,
-        installationId: resolvedId,
+        installationId,
         projectId,
-        userId: user.id,
+        userId,
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
         credentialHandles: data.credentialHandles,
+        // A rebuilt bridge resumes where the address bar already points.
+        route: lastRouteRef.current,
       },
-      fetchRuntimeToken: fetchRuntimeToken(resolvedId),
+      fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
+      onRouteChange,
+      onCopyLink,
       onBroken: () => {
         setBroken(true);
       },
@@ -115,15 +178,25 @@ export default function PluginRuntimePage() {
     };
     // `broken` is a dependency because it unmounts the frame: without it, clearing the
     // flag for the next installation would leave the remounted frame with no bridge.
-  }, [data, projectId, resolvedId, user, openExternal, navigateInApp, broken]);
+  }, [
+    data,
+    projectId,
+    installationId,
+    userId,
+    openExternal,
+    navigateInApp,
+    onRouteChange,
+    onCopyLink,
+    broken,
+  ]);
 
   if (isLoading) {
-    return <PluginRuntimeMessage title='Loading…' />;
+    return <PluginPageMessage title='Loading…' />;
   }
 
   if (error || !data) {
     return (
-      <PluginRuntimeMessage
+      <PluginPageMessage
         title={isSuspended(error) ? 'Temporarily unavailable' : 'This plugin could not be opened'}
         description={
           isSuspended(error)
@@ -139,7 +212,7 @@ export default function PluginRuntimePage() {
   // painted shows a plugin that answers nothing and reads as merely slow.
   if (broken) {
     return (
-      <PluginRuntimeMessage
+      <PluginPageMessage
         title='This plugin could not be opened'
         description='It did not complete the handshake with OWOX. Reload the page to try again, and tell the publisher if it keeps happening.'
         backHref={scope('/plugins')}
@@ -148,37 +221,33 @@ export default function PluginRuntimePage() {
   }
 
   return (
-    <iframe
-      ref={frameRef}
-      sandbox={SANDBOX}
-      allow=''
-      referrerPolicy='no-referrer'
-      title={data.displayName}
-      className='h-full w-full border-0'
-    />
+    <>
+      <iframe
+        ref={frameRef}
+        sandbox={SANDBOX}
+        allow=''
+        referrerPolicy='no-referrer'
+        title={data.displayName}
+        className='h-full w-full border-0'
+      />
+      {fallbackDialog}
+    </>
   );
 }
 
-function PluginRuntimeMessage({
-  title,
-  description,
-  backHref,
-}: {
-  title: string;
-  description?: string;
-  backHref?: string;
-}) {
-  return (
-    <div className='flex h-full flex-col items-center justify-center gap-3 p-8 text-center'>
-      <h1 className='text-lg font-medium'>{title}</h1>
-      {description && <p className='text-muted-foreground max-w-prose text-sm'>{description}</p>}
-      {backHref && (
-        <Button asChild variant='outline'>
-          <Link to={backHref}>Back to plugins</Link>
-        </Button>
-      )}
-    </div>
-  );
+async function syncAddress(navigate: NavigateFunction, openBase: string, route: string) {
+  const { pathname } = window.location;
+  if (pathname !== openBase && !pathname.startsWith(`${openBase}/`)) {
+    return;
+  }
+  if (routeFromLocation(window.location, openBase) === route) {
+    return;
+  }
+  try {
+    await navigate(appendRoute(openBase, route), { replace: true });
+  } catch {
+    // Safari throws a SecurityError past its history rate limit; the next report retries.
+  }
 }
 
 /**

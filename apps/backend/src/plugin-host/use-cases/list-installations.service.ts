@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ListInstallationsCommand } from '../dto/domain/list-installations.command';
 import { InstalledPluginDto } from '../dto/domain/plugin-installation.dto';
+import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
 import { PluginInstallationService } from '../services/plugin-installation.service';
+import { PluginPublicationService } from '../services/plugin-publication.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 
@@ -19,7 +21,8 @@ export class ListInstallationsService {
     private readonly installations: PluginInstallationService,
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
-    private readonly mapper: PluginPresentationMapper
+    private readonly mapper: PluginPresentationMapper,
+    private readonly publications: PluginPublicationService
   ) {}
 
   async run(command: ListInstallationsCommand): Promise<InstalledPluginDto[]> {
@@ -39,6 +42,18 @@ export class ListInstallationsService {
     );
     const versionById = new Map(versions.map(version => [version.id, version]));
 
+    // Restore reopens the install dialog, which needs to know why the plugin is listed, if at all.
+    const listed = await this.publications.findVisibleTo(
+      command.context.projectId,
+      command.context.userId
+    );
+    const scopesByPlugin = new Map<string, Set<PluginPublicationScope>>();
+    for (const publication of listed) {
+      const scopes = scopesByPlugin.get(publication.pluginId) ?? new Set();
+      scopes.add(publication.scope);
+      scopesByPlugin.set(publication.pluginId, scopes);
+    }
+
     const entries: InstalledPluginDto[] = [];
     for (const row of visible) {
       const plugin = pluginById.get(row.pluginId);
@@ -51,7 +66,7 @@ export class ListInstallationsService {
           plugin,
           plugin.currentVersionId ? (versionById.get(plugin.currentVersionId) ?? null) : null,
           {
-            scopes: [],
+            scopes: [...(scopesByPlugin.get(plugin.id) ?? [])],
             installationState: row.uninstalledAt === null ? 'installed' : 'uninstalled',
           }
         ),

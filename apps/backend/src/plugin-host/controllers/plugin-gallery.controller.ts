@@ -1,10 +1,12 @@
-import { Controller, Get, Param, UseFilters } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Query, UseFilters } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, type AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { PluginGalleryEntryApiDto } from '../dto/presentation/plugin-gallery-api.dto';
+import { PluginLookupApiDto } from '../dto/presentation/plugin-lookup-api.dto';
 import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
+import { FindPluginByRepositoryService } from '../use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from '../use-cases/get-plugin-details.service';
 import { GetPluginGalleryService } from '../use-cases/get-plugin-gallery.service';
 
@@ -22,6 +24,7 @@ export class PluginGalleryController {
   constructor(
     private readonly getPluginGalleryService: GetPluginGalleryService,
     private readonly getPluginDetailsService: GetPluginDetailsService,
+    private readonly findPluginByRepositoryService: FindPluginByRepositoryService,
     private readonly mapper: PluginPresentationMapper
   ) {}
 
@@ -38,6 +41,22 @@ export class PluginGalleryController {
       this.mapper.toGetPluginGalleryCommand(context)
     );
     return this.mapper.toGalleryEntryResponseList(result);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('lookup')
+  @ApiOperation({
+    summary: 'A public plugin by its GitHub repository',
+    description:
+      'Resolves owner/name or a GitHub URL to the id of a public plugin published at deployment scope. Any other repository, private or unknown, answers 404 alike.',
+  })
+  @ApiQuery({ name: 'repository', required: true, example: 'OWOX/odm-usage-stat' })
+  @ApiOkResponse({ type: PluginLookupApiDto })
+  async lookup(@Query('repository') repository: string): Promise<PluginLookupApiDto> {
+    const result = await this.findPluginByRepositoryService.run(
+      this.mapper.toFindPluginByRepositoryCommand(repository ?? '')
+    );
+    return this.mapper.toLookupResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

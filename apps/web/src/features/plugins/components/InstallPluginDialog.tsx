@@ -1,5 +1,5 @@
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Blocks, KeyRound, Plus, RotateCcw, Share2 } from 'lucide-react';
+import { Blocks, KeyRound, Plus, RotateCcw, Share2, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CredentialConfigSheet,
@@ -38,6 +38,7 @@ const ADD_CREDENTIAL_VALUE = '__add_credential__';
  * came from live on the plugin's own page; this dialog only restates the three things a
  * member must accept before the plugin can act: it uses their access, data it reads can
  * leave OWOX, and reinstalling restores nothing the plugin kept on its own side.
+ * A plugin nothing lists for the member adds a fourth: they are trusting its source alone.
  *
  * The name and current SemVer stay because §13 requires the installation screen to show
  * display metadata and the current version.
@@ -90,6 +91,7 @@ export function InstallPluginDialog({
   const repositoryHref = safeHttpsUrl(plugin.source.repositoryUrl);
   const repoPath = repositoryHref ? repositoryPath(repositoryHref) : null;
   const isConfiguring = mode === 'configure';
+  const isUnlisted = !isConfiguring && plugin.visibleViaScopes.length === 0;
 
   return (
     <>
@@ -189,12 +191,23 @@ export function InstallPluginDialog({
 
           {/*
           Authoring guide / §14 trust boundary: sandbox protects credentials, not data the
-          plugin is authorised to read. All three must be plain before Install.
+          plugin is authorised to read. Every line here must be plain before Install.
         */}
           <div
             className='flex flex-col gap-3 rounded-md border p-3'
             data-testid='install-data-notice'
           >
+            {isUnlisted && (
+              <Fact icon={<ShieldAlert className='size-4 shrink-0' aria-hidden />}>
+                This plugin isn't listed for you. Install it only if you trust{' '}
+                {repoPath ? (
+                  <span className='break-words'>{repoPath}</span>
+                ) : (
+                  'whoever sent you the link'
+                )}
+                .
+              </Fact>
+            )}
             <Fact icon={<KeyRound className='size-4 shrink-0' aria-hidden />}>
               Acts with your access to OWOX Data Marts.
             </Fact>

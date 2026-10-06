@@ -15,9 +15,11 @@ import { PluginReleaseIssuesCard as ActualPluginReleaseIssuesCard } from '../../
 const publish = vi.fn();
 const unpublish = vi.fn();
 let publishableScopes: string[] = ['member'];
+const install = vi.fn();
 const uninstall = vi.fn();
 const checkNow = vi.fn();
 const navigate = vi.fn();
+const copyLink = vi.fn(() => Promise.resolve());
 
 let publications: PluginPublication[] = [];
 let installations: InstalledPlugin[] = [];
@@ -30,7 +32,7 @@ vi.mock('react-router', async () => {
 vi.mock('../../../features/plugins', () => ({
   usePlugin: () => ({ plugin, isLoading: false }),
   usePluginActions: () => ({
-    install: vi.fn(),
+    install,
     uninstall,
     checkNow,
     isInstalling: false,
@@ -40,13 +42,40 @@ vi.mock('../../../features/plugins', () => ({
   usePluginManageablePublications: () => publications,
   usePluginPublishing: () => ({ publish, unpublish, isPublishing: false, isUnpublishing: false }),
   usePublishableScopes: () => publishableScopes,
+  useCopyLink: () => ({ copyLink, fallbackDialog: null }),
   describeVisibility: actualDescribeVisibility,
   repositoryPath: actualRepositoryPath,
   safeHttpsUrl: actualSafeHttpsUrl,
   findReleaseIssues: actualFindReleaseIssues,
   PluginReleaseIssuesCard: ActualPluginReleaseIssuesCard,
   AudienceIcon: () => null,
-  InstallPluginDialog: () => null,
+  InstallPluginDialog: ({
+    open,
+    onOpenChange,
+    onConfirm,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onConfirm: (selections: Record<string, string | null>) => void;
+  }) =>
+    open ? (
+      <div role='dialog' aria-label='Install this plugin?'>
+        <button
+          onClick={() => {
+            onConfirm({});
+          }}
+        >
+          Confirm install
+        </button>
+        <button
+          onClick={() => {
+            onOpenChange(false);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }));
 vi.mock('../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
@@ -105,6 +134,7 @@ describe('PluginDetailsPage', () => {
     installations = [];
     publishableScopes = ['member'];
     publish.mockResolvedValue(null);
+    install.mockResolvedValue(null);
     unpublish.mockResolvedValue(undefined);
     plugin = entry();
   });
@@ -231,6 +261,15 @@ describe('PluginDetailsPage', () => {
       'href',
       repositoryUrl
     );
+  });
+
+  it('copies a link to the plugin page for every member', async () => {
+    renderPage();
+    openMenu();
+
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
+
+    expect(copyLink).toHaveBeenCalledWith(`${window.location.origin}/ui/project-1/plugins/p1`);
   });
 
   it('offers nothing to withdraw when the caller manages no publication', () => {
@@ -386,5 +425,61 @@ describe('PluginDetailsPage', () => {
     publications = [publication()];
     renderPage();
     expect(screen.queryByText('Release issues')).toBeNull();
+  });
+
+  describe('install on open', () => {
+    const renderOpen = () =>
+      render(
+        <MemoryRouter>
+          <PluginDetailsPage installOnOpen />
+        </MemoryRouter>
+      );
+
+    it('opens the install dialog by itself for a plugin the member lacks', () => {
+      renderOpen();
+      expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
+    });
+
+    it('confirms the install for an uninstalled plugin and closes the dialog', async () => {
+      plugin = entry({ installationState: 'uninstalled' });
+      renderOpen();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalledWith('p1', 'v1', {});
+      });
+      expect(navigate).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('does not open the dialog for an already installed plugin', () => {
+      plugin = entry({ installationState: 'installed' });
+      renderOpen();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('does not open the dialog when there is no eligible version to install', () => {
+      plugin = entry({ currentVersionId: null });
+      renderOpen();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('replaces the deep link with the plugin page on cancel', () => {
+      renderOpen();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1', { replace: true });
+    });
+
+    it('does not open the dialog for a suspended plugin', () => {
+      plugin = entry({ suspended: true });
+      renderOpen();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('does not open the dialog on the ordinary plugin page', () => {
+      renderPage();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 });

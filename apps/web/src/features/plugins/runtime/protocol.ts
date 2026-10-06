@@ -8,9 +8,8 @@
  * module -- which is exactly the contract a plugin built against an older SDK has to
  * satisfy anyway.
  *
- * Change one side and the version must move with it. The handshake guards check the
- * version on every message, so a mismatch fails the handshake instead of being read
- * against the wrong rules.
+ * Change one side and the other must match. Bump the version only for a change an older
+ * peer cannot ignore, not for an optional context field or a new request kind.
  */
 
 export const PLUGIN_PROTOCOL_VERSION = 1;
@@ -66,6 +65,7 @@ export interface PluginHostContext {
    */
   readonly userId: string;
   readonly theme: 'light' | 'dark';
+  readonly route?: string;
   readonly credentialHandles?: readonly PluginCredentialHandleDescriptor[];
 }
 
@@ -172,7 +172,9 @@ export type PluginRequest =
    * leaves the app in a new tab, the other replaces the page the plugin is running on,
    * and the host validates them by different rules.
    */
-  | { id: string; kind: 'navigate'; path: string };
+  | { id: string; kind: 'navigate'; path: string }
+  | { id: string; kind: 'route'; path: string }
+  | { id: string; kind: 'copyLink'; path?: string };
 
 /**
  * A request before the transport stamps its correlation id.

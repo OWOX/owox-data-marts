@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { useParams } from 'react-router';
+import { Navigate, useLocation, useParams } from 'react-router';
+import { PROJECT_PLACEHOLDER, resolveProjectPlaceholder } from '../../../utils/path';
 import { useAuthState, useUser } from '../hooks';
 import { signIn } from '../services';
 import { normalizeProjectId } from '../utils/project-id';
@@ -18,18 +19,36 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
   const { isLoading } = useAuthState();
   const user = useUser();
   const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
+  const location = useLocation();
 
   const userProjectId = user?.projectId;
   const safeUrlProjectId = normalizeProjectId(urlProjectId);
 
+  const isPlaceholder = urlProjectId === PROJECT_PLACEHOLDER;
   const hasMismatch =
-    !isLoading && !!safeUrlProjectId && !!userProjectId && userProjectId !== safeUrlProjectId;
+    !isLoading &&
+    !isPlaceholder &&
+    !!safeUrlProjectId &&
+    !!userProjectId &&
+    userProjectId !== safeUrlProjectId;
 
   useEffect(() => {
     if (hasMismatch) {
       signIn({ projectId: safeUrlProjectId });
     }
   }, [hasMismatch, safeUrlProjectId]);
+
+  if (!isLoading && isPlaceholder && userProjectId) {
+    return (
+      <Navigate
+        replace
+        to={resolveProjectPlaceholder(
+          `${location.pathname}${location.search}${location.hash}`,
+          userProjectId
+        )}
+      />
+    );
+  }
 
   if (isLoading || hasMismatch) return <FullScreenLoader />;
 

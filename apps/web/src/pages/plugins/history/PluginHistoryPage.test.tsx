@@ -7,10 +7,21 @@ let installations: InstalledPlugin[] = [];
 const navigate = vi.fn();
 const install = vi.fn();
 
-vi.mock('../../../features/plugins', () => ({
+vi.mock('../../../features/plugins', async () => ({
   usePluginInstallations: () => ({ installations, isLoading: false }),
   usePluginActions: () => ({ install, isInstalling: false }),
-  InstallPluginDialog: ({ open }: { open: boolean }) => (open ? <div>confirm dialog</div> : null),
+  InstallPluginDialog: (
+    await vi.importActual<
+      typeof import('../../../features/plugins/components/InstallPluginDialog')
+    >('../../../features/plugins/components/InstallPluginDialog')
+  ).InstallPluginDialog,
+}));
+vi.mock('../../../features/credentials', () => ({
+  CredentialConfigSheet: () => null,
+  useCredentials: () => ({ credentials: [], isLoading: false }),
+  useCredentialDefinitions: () => ({ definitions: [], isLoading: false }),
+  normalizePluginCredentialRequirement: vi.fn(),
+  isCredentialEligible: () => false,
 }));
 vi.mock('../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
@@ -120,7 +131,20 @@ describe('PluginHistoryPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
 
-    expect(await screen.findByText('confirm dialog')).toBeTruthy();
+    expect(await screen.findByText('Install this plugin?')).toBeTruthy();
     expect(install).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no warning for a plugin still listed for the member', ['deployment' as const], false],
+    ['the unlisted warning for a plugin nothing lists any more', [], true],
+  ])('shows %s on Restore', async (_, visibleViaScopes, warns) => {
+    installations = [installation({ visibleViaScopes })];
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+
+    expect(await screen.findByTestId('install-data-notice')).toBeTruthy();
+    expect(screen.queryByText(/isn't listed for you/) !== null).toBe(warns);
   });
 });

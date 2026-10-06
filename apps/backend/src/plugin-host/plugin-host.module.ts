@@ -34,6 +34,7 @@ import { PublicationAuthorizationService } from './services/publication-authoriz
 import { PluginRuntimeAuthorizerService } from './services/plugin-runtime-authorizer.service';
 import { RemoteUrlValidatorService } from './services/remote-url-validator.service';
 import { PluginPresentationMapper } from './mappers/plugin-presentation.mapper';
+import { FindPluginByRepositoryService } from './use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from './use-cases/get-plugin-details.service';
 import { GetPluginInstallationEntryService } from './use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from './use-cases/install-plugin.service';
@@ -136,6 +137,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginPresentationMapper,
     GetPluginGalleryService,
     GetPluginDetailsService,
+    FindPluginByRepositoryService,
     SuspendPluginService,
     ResumePluginService,
     PluginInstallationService,

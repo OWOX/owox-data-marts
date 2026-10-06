@@ -55,6 +55,8 @@ export interface PluginHostContext {
    */
   readonly userId: string;
   readonly theme: 'light' | 'dark';
+  /** The plugin's own route the page was opened at; older hosts omit it. */
+  readonly route?: string;
   /** Exact/logical handles that are both declared and configured for this installation. */
   readonly credentialHandles?: readonly PluginCredentialHandleDescriptor[];
 }
@@ -162,7 +164,9 @@ export type PluginRequest =
    * leaves the app in a new tab, the other replaces the page the plugin is running on,
    * and the host validates them by different rules.
    */
-  | { id: string; kind: 'navigate'; path: string };
+  | { id: string; kind: 'navigate'; path: string }
+  | { id: string; kind: 'route'; path: string }
+  | { id: string; kind: 'copyLink'; path?: string };
 
 /**
  * A request before the transport stamps its correlation id.

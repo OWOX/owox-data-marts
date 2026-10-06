@@ -36,4 +36,15 @@ describe('Plugin route registration (e2e)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
+
+  it('/api/plugins/lookup reaches its own handler, not the plugin lookup', async () => {
+    const res = await agent
+      .get('/api/plugins/lookup?repository=OWOX/nothing-here')
+      .set(AUTH_HEADER);
+
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(res.body)).toContain(
+      'No public plugin is published from this repository'
+    );
+  });
 });

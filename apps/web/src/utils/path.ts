@@ -27,3 +27,12 @@ export const buildProjectPath = (projectId: string, path: string): string => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${prefix}/${projectId}${normalizedPath}`;
 };
+
+export const PROJECT_PLACEHOLDER = 'none';
+
+export const resolveProjectPlaceholder = (path: string, projectId: string): string => {
+  const placeholderRoot = `${getPathPrefix()}/${PROJECT_PLACEHOLDER}`;
+  const rest = path.slice(placeholderRoot.length);
+  const isPlaceholder = path.startsWith(placeholderRoot) && (rest === '' || /^[/?#]/.test(rest));
+  return isPlaceholder ? `${getPathPrefix()}/${projectId}${rest}` : path;
+};

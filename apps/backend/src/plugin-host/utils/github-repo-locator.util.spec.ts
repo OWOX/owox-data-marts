@@ -40,6 +40,13 @@ describe('parseGithubRepoLocator', () => {
     expect(() => parseGithubRepoLocator(locator)).toThrow(InvalidRepoLocatorError);
   });
 
+  // A repeated or nested query parameter arrives as an array or an object, not a string.
+  it.each([[['OWOX/a', 'OWOX/b']], [{ x: '1' }]])('rejects the non-string %j', locator => {
+    expect(() => parseGithubRepoLocator(locator as unknown as string)).toThrow(
+      InvalidRepoLocatorError
+    );
+  });
+
   it('reports the offending locator without leaking anything else', () => {
     try {
       parseGithubRepoLocator('https://gitlab.com/a/b');

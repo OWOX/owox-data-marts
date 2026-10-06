@@ -2,8 +2,10 @@ export {
   AudienceIcon,
   InstallPluginDialog,
   PluginCard,
+  PluginPageMessage,
   PluginReleaseIssuesCard,
   PublishPluginSheet,
+  useCopyLink,
 } from './components';
 export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './rejections';
 export { pluginsService } from './services/plugins.service';
@@ -12,6 +14,14 @@ export { safeHttpsUrl } from './safeHttpsUrl';
 export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';
 export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
 export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
+export {
+  appendRoute,
+  canonicalPluginRoute,
+  isValidPluginRoute,
+  MAX_PLUGIN_ROUTE_LENGTH,
+  normalizePluginRoute,
+  routeFromLocation,
+} from './runtime/pluginRoute';
 export {
   useGalleryView,
   type GalleryView,

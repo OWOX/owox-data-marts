@@ -3,7 +3,7 @@ import apiClient from '../../../app/api/apiClient';
 import { pluginsService } from './plugins.service';
 
 vi.mock('../../../app/api/apiClient', () => ({
-  default: { post: vi.fn() },
+  default: { post: vi.fn(), get: vi.fn() },
 }));
 
 describe('PluginsService.install', () => {
@@ -35,5 +35,21 @@ describe('PluginsService.install', () => {
       },
       undefined
     );
+  });
+});
+
+describe('PluginsService.lookupByRepository', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { pluginId: 'p1' } });
+  });
+
+  it("skips the global error toast, so a failed lookup shows only the page's own message", async () => {
+    await pluginsService.lookupByRepository('OWOX/odm-usage-stat');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/plugins/lookup', {
+      params: { repository: 'OWOX/odm-usage-stat' },
+      skipErrorToast: true,
+    });
   });
 });

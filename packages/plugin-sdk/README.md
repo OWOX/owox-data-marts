@@ -46,17 +46,35 @@ redirecting paths are refused.
 
 ## Context
 
-|                                            |                                                                     |
-| ------------------------------------------ | ------------------------------------------------------------------- |
-| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it. |
-| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.    |
-| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                  |
-| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.            |
-| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.   |
-| `ctx.signal`                               | Aborts when the host tears your plugin down.                        |
-| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                         |
+|                                            |                                                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                            |
+| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                               |
+| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                             |
+| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                       |
+| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                              |
+| `ctx.route`                                | The plugin's own route the member opened, e.g. `/dashboards/42`; `/` when the link named none. |
+| `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.  |
+| `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it. |
+| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                   |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                                                    |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
+
+## Shareable pages
+
+A plugin's pages are reachable at `/ui/<project>/plugins/<pluginId>/open<route>`, where `<route>` is
+your own route. Read `ctx.route` after `connect()` and show that page; call `ctx.ui.setRoute(route)`
+whenever the member moves to another page, and `ctx.ui.copyLink()` from your own Share button.
+
+- A route starts with `/`, may carry `?query` and `#hash`, and must not contain `.` or `..`
+  segments or backslashes; the host refuses such a route and opens your plugin at `/`. `ctx.route`
+  is percent-encoded, as in the address, and never carries a `utm_*` parameter — one you report
+  through `setRoute` or `copyLink` is dropped the same way. Percent-encode any user text you put
+  in a route yourself: a raw bidi or zero-width character is refused, but its encoded form is
+  accepted.
+- The host replaces the address rather than adding history entries, so the browser's Back button
+  leaves the plugin instead of stepping through its pages.
 
 ## Credentials
 

@@ -19,7 +19,7 @@ import {
   RefreshCw,
   Tag,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../../features/idp';
 import {
@@ -33,6 +33,7 @@ import {
   usePluginManageablePublications,
   usePluginPublishing,
   usePublishableScopes,
+  useCopyLink,
   repositoryPath,
   safeHttpsUrl,
   type PluginGalleryEntry,
@@ -65,7 +66,9 @@ const UNPUBLISH_LABELS: Record<string, string> = {
  * plugin does not read as a different product. Overview is the only tab this iteration
  * has: permissions, logs and per-plugin collections are explicit non-goals.
  */
-export default function PluginDetailsPage() {
+export default function PluginDetailsPage({
+  installOnOpen = false,
+}: { installOnOpen?: boolean } = {}) {
   const { pluginId } = useParams<{ pluginId: string }>();
   const { plugin, isLoading } = usePlugin(pluginId);
   const { install, uninstall, checkNow, isInstalling, isUpdating } = usePluginActions();
@@ -73,11 +76,24 @@ export default function PluginDetailsPage() {
   const publications = usePluginManageablePublications(pluginId ?? '');
   const { publish, unpublish, isPublishing, isUnpublishing } = usePluginPublishing();
   const publishableScopes = usePublishableScopes();
+  const { copyLink, fallbackDialog } = useCopyLink();
   const { scope } = useProjectRoute();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [confirming, setConfirming] = useState<PluginGalleryEntry | null>(null);
+
+  // A shared deep link opens the dialog once; closing it is the member's answer.
+  const offeredInstall = useRef(false);
+  useEffect(() => {
+    if (!installOnOpen || offeredInstall.current || !plugin) {
+      return;
+    }
+    offeredInstall.current = true;
+    if (plugin.installationState !== 'installed' && !plugin.suspended && plugin.currentVersionId) {
+      setConfirming(plugin);
+    }
+  }, [installOnOpen, plugin]);
 
   if (isLoading || !plugin) {
     return (
@@ -197,6 +213,18 @@ export default function PluginDetailsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void copyLink(
+                      `${window.location.origin}${scope(`/plugins/${plugin.pluginId}`)}`
+                    )
+                  }
+                >
+                  Copy link
+                </DropdownMenuItem>
+                {(canShareWithProject || publications.length > 0 || isInstalled) && (
+                  <DropdownMenuSeparator />
+                )}
                 {canShareWithProject && (
                   <DropdownMenuItem
                     disabled={isPublishing || isUnpublishing}
@@ -454,6 +482,9 @@ export default function PluginDetailsPage() {
           onOpenChange={open => {
             if (!open) {
               setConfirming(null);
+              if (installOnOpen) {
+                void navigate(scope(`/plugins/${confirming.pluginId}`), { replace: true });
+              }
             }
           }}
           onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
@@ -461,6 +492,7 @@ export default function PluginDetailsPage() {
           mode={isConfiguringCredentials ? 'configure' : 'install'}
         />
       )}
+      {fallbackDialog}
     </div>
   );
 }

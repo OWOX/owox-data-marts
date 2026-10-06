@@ -6,6 +6,7 @@ import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.ut
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { SyncReport } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
+import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 
 export interface PluginSyncSlotState {
   readonly pluginId: string;
@@ -55,6 +56,24 @@ export class PluginService {
    */
   findByRepoName(owner: string, name: string): Promise<Plugin | null> {
     return this.repository.findOneBy({ repoOwner: owner, repoName: name });
+  }
+
+  findDeploymentPublishedByRepoName(owner: string, name: string): Promise<Plugin | null> {
+    return this.repository
+      .createQueryBuilder('plugin')
+      .where('LOWER(plugin.repoOwner) = :owner', { owner: owner.toLowerCase() })
+      .andWhere('LOWER(plugin.repoName) = :name', { name: name.toLowerCase() })
+      .andWhere('plugin.isPrivateRepo = :isPrivate', { isPrivate: false })
+      .andWhere(
+        `EXISTS (
+          SELECT 1 FROM plugin_publication publication
+          WHERE publication.pluginId = plugin.id
+            AND publication.scope = :deploymentScope
+            AND publication.isActive = :isActive
+        )`,
+        { deploymentScope: PluginPublicationScope.DEPLOYMENT, isActive: true }
+      )
+      .getOne();
   }
 
   async setSuspension(

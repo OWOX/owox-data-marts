@@ -65,6 +65,8 @@ interface Harness {
   fetchRuntimeToken: ReturnType<typeof vi.fn>;
   onOpenExternal: ReturnType<typeof vi.fn>;
   onNavigate: ReturnType<typeof vi.fn>;
+  onRouteChange: ReturnType<typeof vi.fn>;
+  onCopyLink: ReturnType<typeof vi.fn>;
   onBroken: ReturnType<typeof vi.fn>;
 }
 
@@ -81,6 +83,8 @@ async function harness(
 
   const onOpenExternal = vi.fn();
   const onNavigate = vi.fn();
+  const onRouteChange = vi.fn();
+  const onCopyLink = vi.fn(() => Promise.resolve());
   const onBroken = vi.fn();
   const fetchRuntimeToken = vi.fn(() =>
     Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 })
@@ -94,6 +98,8 @@ async function harness(
     fetchRuntimeToken,
     onOpenExternal,
     onNavigate,
+    onRouteChange,
+    onCopyLink,
     onBroken,
   });
 
@@ -145,6 +151,8 @@ async function harness(
     fetchRuntimeToken,
     onOpenExternal,
     onNavigate,
+    onRouteChange,
+    onCopyLink,
     onBroken,
   };
 }
@@ -558,6 +566,8 @@ describe('plugin host bridge', () => {
         fetchRuntimeToken,
         onOpenExternal: vi.fn(),
         onNavigate: vi.fn(),
+        onRouteChange: vi.fn(),
+        onCopyLink: vi.fn(),
       });
 
       announceRaw(frame.contentWindow, data);
@@ -582,6 +592,8 @@ describe('plugin host bridge', () => {
         fetchRuntimeToken: () => Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 }),
         onOpenExternal: vi.fn(),
         onNavigate: vi.fn(),
+        onRouteChange: vi.fn(),
+        onCopyLink: vi.fn(),
       });
 
       // A declarative src would already have loaded by now, and a fast plugin's single
@@ -602,6 +614,8 @@ describe('plugin host bridge', () => {
         fetchRuntimeToken: () => Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 }),
         onOpenExternal: vi.fn(),
         onNavigate: vi.fn(),
+        onRouteChange: vi.fn(),
+        onCopyLink: vi.fn(),
       });
 
       announceReady({ nowhere: true });
@@ -804,6 +818,24 @@ describe('plugin host bridge', () => {
       await flush();
 
       expect(h.onNavigate).toHaveBeenCalledWith('/ui/j1/data-marts/dm-1');
+      expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      h.bridge.dispose();
+    });
+
+    it('keeps route reports available while API admission is full', async () => {
+      const h = await harness(() => new Promise<Response>(() => undefined));
+
+      for (let index = 0; index < 32; index += 1) {
+        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
+      }
+      await vi.waitFor(() => {
+        expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      });
+
+      h.tell({ kind: 'route', path: '/d/1' });
+      await flush();
+
+      expect(h.onRouteChange).toHaveBeenCalledWith('/d/1');
       expect(h.fetchMock).toHaveBeenCalledTimes(32);
       h.bridge.dispose();
     });
@@ -1084,6 +1116,78 @@ describe('plugin host bridge', () => {
       expect(h.onNavigate).toHaveBeenCalledWith('/ui/j1/data-marts/dm-1');
       expect(h.onOpenExternal).not.toHaveBeenCalled();
       expect(h.fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('hands a valid route to the host and answers nothing', async () => {
+      const h = await harness();
+
+      h.tell({ kind: 'route', path: '/d/42?tab=2' });
+      await flush();
+
+      expect(h.onRouteChange).toHaveBeenCalledWith('/d/42?tab=2');
+      expect(h.onNavigate).not.toHaveBeenCalled();
+      expect(h.fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      '//external.example',
+      '/../../settings',
+      '/a/./b',
+      '/%2e%2e/x',
+      '/.%2E/x',
+      '/foo\\bar',
+      '/foo%5cbar',
+      '/a\u0000b',
+      `/${'a'.repeat(2048)}`,
+    ])('refuses the route %j without touching the address', async path => {
+      const h = await harness();
+
+      const response = await h.send({ kind: 'route', path });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'The plugin route is invalid' },
+      });
+      expect(h.onRouteChange).not.toHaveBeenCalled();
+    });
+
+    it('copies a link through the host and answers ok', async () => {
+      const h = await harness();
+
+      const response = await h.send({ kind: 'copyLink', path: '/d/42' });
+
+      expect(h.onCopyLink).toHaveBeenCalledWith('/d/42');
+      expect(response).toMatchObject({ ok: true, status: 200 });
+    });
+
+    it('copies the current page when the plugin names none', async () => {
+      const h = await harness();
+
+      await h.send({ kind: 'copyLink' });
+
+      expect(h.onCopyLink).toHaveBeenCalledWith(undefined);
+    });
+
+    it('refuses to copy a link to an invalid route', async () => {
+      const h = await harness();
+
+      const response = await h.send({ kind: 'copyLink', path: '/../x' });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'The plugin route is invalid' },
+      });
+      expect(h.onCopyLink).not.toHaveBeenCalled();
+    });
+
+    it('does not echo a rejected onCopyLink error to the plugin', async () => {
+      const h = await harness();
+      h.onCopyLink.mockRejectedValueOnce(new Error(`clipboard denied for ${RUNTIME_TOKEN}`));
+
+      const response = await h.send({ kind: 'copyLink', path: '/d/42' });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'NETWORK_ERROR' } });
+      expect(JSON.stringify(response)).not.toContain(RUNTIME_TOKEN);
     });
   });
 
