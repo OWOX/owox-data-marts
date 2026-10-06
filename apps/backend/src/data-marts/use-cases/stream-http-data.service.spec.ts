@@ -813,6 +813,53 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    'records the executed SQL for a Data Mart HTTP read (blended: %s)',
+    async needsBlending => {
+      const sql = 'SELECT date, revenue FROM t WHERE revenue > @p0 LIMIT 5';
+      const params = [{ name: 'p0', value: 10 }];
+      const executedSql = 'SELECT date, revenue FROM t WHERE revenue > 10 LIMIT 5';
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({ storage: { type: DataStorageType.GOOGLE_BIGQUERY } } as Partial<DataMart>)
+      );
+      if (needsBlending) {
+        blended.resolveBlendingDecision.mockResolvedValueOnce({
+          needsBlending: true,
+          blendedSql: sql,
+          params,
+        } as never);
+      } else {
+        requestValidator.validate.mockReturnValueOnce({
+          columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+          filter: [{ column: 'revenue', operator: 'gt', value: 10 }],
+          limit: 5,
+        } as never);
+        sqlComposer.compose.mockResolvedValueOnce({ sql, params, needsBlending: false } as never);
+      }
+      sqlComposer.inlineStaticSql.mockImplementationOnce(
+        ReportSqlComposerService.prototype.inlineStaticSql
+      );
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ sqlOverride: sql, sqlOverrideParams: params })
+      );
+      expect(sqlComposer.inlineStaticSql).toHaveBeenCalledWith(
+        DataStorageType.GOOGLE_BIGQUERY,
+        sql,
+        params
+      );
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.SUCCESS,
+          metadata: expect.objectContaining({ executionSqlQuery: executedSql }),
+        })
+      );
+    }
+  );
+
   it('records decoded filter/sort/limit in the run metadata', async () => {
     const filter = [{ column: 'date', operator: 'gte', value: '2026-05-01' }];
     const sort = [{ column: 'date', direction: 'desc' }];
@@ -2002,7 +2049,6 @@ describe('deriveStreamPlanContext', () => {
     expect(context).toMatchObject({
       reportId: 'report-1',
       metadataColumns: ['date'],
-      captureExecutionSql: true,
       degradesStaleSort: true,
     });
   });
@@ -2015,7 +2061,6 @@ describe('deriveStreamPlanContext', () => {
     });
 
     expect(context.reportId).toBeUndefined();
-    expect(context.captureExecutionSql).toBe(false);
     expect(context.degradesStaleSort).toBe(false);
   });
 });

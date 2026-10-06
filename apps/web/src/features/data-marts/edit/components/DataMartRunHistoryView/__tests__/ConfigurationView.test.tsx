@@ -15,6 +15,30 @@ const reportDefinition = {
 } as never;
 
 describe('ConfigurationView', () => {
+  it.each([
+    { label: 'HTTP metadata alone', definition: null, report: null },
+    { label: 'Data Mart snapshot', definition: definitionRun, report: null },
+    { label: 'report snapshot', definition: definitionRun, report: reportDefinition },
+  ])('renders HTTP executed SQL once with $label', ({ definition, report }) => {
+    const executionSqlQuery = 'SELECT date,\n  revenue\nFROM t\nLIMIT 5';
+    const { container } = render(
+      <ConfigurationView
+        definitionRun={definition}
+        reportDefinition={report}
+        insightDefinition={null}
+        insightTemplateDefinition={null}
+        additionalParams={{ httpData: { columns: ['date', 'revenue'], executionSqlQuery } }}
+      />
+    );
+
+    expect(screen.getAllByText('Executed SQL:')).toHaveLength(1);
+    const pres = Array.from(container.querySelectorAll('pre'));
+    expect(pres.filter(p => p.textContent === executionSqlQuery)).toHaveLength(1);
+    const paramsPre = pres.find(p => p.textContent.includes('"columns"'));
+    expect(paramsPre?.textContent).not.toContain('executionSqlQuery');
+    expect(paramsPre?.textContent).toContain('"date"');
+  });
+
   it('renders executionSqlQuery in a dedicated Executed SQL block, not inside Configuration', () => {
     const { container } = render(
       <ConfigurationView
@@ -72,6 +96,26 @@ describe('ConfigurationView', () => {
     expect(mcpPre).toBeDefined();
     expect(mcpPre?.textContent).toContain('"channel"');
     expect(mcpPre?.textContent).toContain('"limit": 100');
+  });
+
+  it('shows a report run executed SQL even without a Data Mart definition snapshot', () => {
+    const { container } = render(
+      <ConfigurationView
+        definitionRun={null}
+        reportDefinition={reportDefinition}
+        insightDefinition={null}
+        insightTemplateDefinition={null}
+        additionalParams={null}
+      />
+    );
+
+    expect(screen.getByText('Executed SQL:')).toBeInTheDocument();
+    expect(container.querySelector('pre')?.textContent).toBe(
+      "SELECT * FROM (SELECT * FROM `t`) WHERE report_date >= DATE '2026-01-01'"
+    );
+    expect(
+      screen.queryByText('No configuration data available for this run')
+    ).not.toBeInTheDocument();
   });
 
   it('renders the MCP executionSqlQuery in a dedicated Executed SQL block, not inside MCP query', () => {

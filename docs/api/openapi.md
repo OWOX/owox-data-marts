@@ -83,6 +83,11 @@ X-OWOX-Api-Key-Id: <apiKeyId>
 Both endpoints return an `x-owox-run-id` response header identifying the created run; use it to look up
 the run (and its executed query) through the run history endpoint.
 
+When output controls or joined fields produce a SQL query, both HTTP Data endpoints save it in
+`additionalParams.httpData.executionSqlQuery`, with parameter values inlined. The web UI shows
+this query in the run's **Executed SQL** block, where it can be copied. Reads that do not produce
+a SQL override omit this field.
+
 ## Compatibility
 
 The same client and OWOX Data Marts server version is supported. Different versions are best effort.

@@ -111,8 +111,7 @@ function toStreamFailureOutcome(error: unknown): {
   return { runStatus: DataMartRunStatus.FAILED, reportStatus: ReportRunStatus.ERROR };
 }
 
-// Discriminates the two executeStream callers instead of a loose bag of co-varying fields
-// (projectionColumns: null sentinel, optional reportId/captureExecutionSql).
+// Distinguishes Data Mart reads from saved-report reads and their projection metadata.
 export type ExecuteStreamPlan =
   | { kind: 'data-mart'; readPlan: ReportLikeReadPlan; columns: string[] }
   | {
@@ -135,7 +134,6 @@ function assertNever(value: never): never {
 interface StreamPlanContext {
   metadataColumns: string[];
   reportId: string | undefined;
-  captureExecutionSql: boolean;
   projectsByResolvedHeaders: boolean;
   /**
    * Whether the blending decision may drop a stored sort on a column the schema no longer
@@ -178,7 +176,6 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
       return {
         metadataColumns: plan.columns,
         reportId: undefined,
-        captureExecutionSql: false,
         projectsByResolvedHeaders: false,
         degradesStaleSort: false,
         autoApplied: undefined,
@@ -187,7 +184,6 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
       return {
         metadataColumns: plan.savedColumns,
         reportId: plan.reportId,
-        captureExecutionSql: true,
         projectsByResolvedHeaders: true,
         degradesStaleSort: true,
         autoApplied: plan.autoApplied,
@@ -440,8 +436,7 @@ export class StreamHttpDataService {
       const plan = await buildPlan(dataMart);
       const { readPlan } = plan;
       const planContext = deriveStreamPlanContext(plan);
-      const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders, degradesStaleSort } =
-        planContext;
+      const { metadataColumns, projectsByResolvedHeaders, degradesStaleSort } = planContext;
       autoApplied = planContext.autoApplied;
       reportId = planContext.reportId ?? reportId;
 
@@ -503,9 +498,7 @@ export class StreamHttpDataService {
         calculatedFields
       );
 
-      const executionSqlQuery = captureExecutionSql
-        ? this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams)
-        : undefined;
+      const executionSqlQuery = this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams);
 
       if (executionSqlQuery) {
         baseMetadata.executionSqlQuery = executionSqlQuery;

@@ -37,17 +37,23 @@ export function ConfigurationView({
     !Array.isArray(additionalParams.mcpQuery)
       ? (additionalParams.mcpQuery as Record<string, unknown>)
       : null;
+  const httpExecutedSql =
+    typeof httpDataParams?.executionSqlQuery === 'string' ? httpDataParams.executionSqlQuery : null;
   const mcpExecutedSql =
-    mcpQueryParams != null && typeof mcpQueryParams.executionSqlQuery === 'string'
-      ? mcpQueryParams.executionSqlQuery
-      : null;
+    typeof mcpQueryParams?.executionSqlQuery === 'string' ? mcpQueryParams.executionSqlQuery : null;
+  const executedSql = httpExecutedSql ?? reportDefinition?.executionSqlQuery ?? mcpExecutedSql;
   const { copiedSection, handleCopy } = useClipboard();
 
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
-  if (definitionRun == null && httpDataParams == null && mcpQueryParams == null) {
+  if (
+    definitionRun == null &&
+    httpDataParams == null &&
+    mcpQueryParams == null &&
+    executedSql == null
+  ) {
     return (
       <div className='border-border rounded-lg border' onClick={handleStopPropagation}>
         <div className='text-muted-foreground p-8 text-center'>
@@ -77,12 +83,12 @@ export function ConfigurationView({
             </pre>
           </>
         )}
-        {reportDefinition?.executionSqlQuery != null && (
+        {executedSql != null && (
           <>
             <div className='mt-3 mb-3 flex items-center justify-between'>
               <h4 className='text-foreground text-sm font-medium'>Executed SQL:</h4>
               <CopyButton
-                text={reportDefinition.executionSqlQuery}
+                text={executedSql}
                 section='executionSql'
                 variant={CopyButtonVariant.DEFAULT}
                 copiedSection={copiedSection}
@@ -90,7 +96,7 @@ export function ConfigurationView({
               />
             </div>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-              {reportDefinition.executionSqlQuery}
+              {executedSql}
             </pre>
           </>
         )}
@@ -142,24 +148,13 @@ export function ConfigurationView({
           <>
             <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Data parameters:</h4>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-              {JSON.stringify(httpDataParams, null, 2)}
-            </pre>
-          </>
-        )}
-        {mcpExecutedSql != null && (
-          <>
-            <div className='mt-3 mb-3 flex items-center justify-between'>
-              <h4 className='text-foreground text-sm font-medium'>Executed SQL:</h4>
-              <CopyButton
-                text={mcpExecutedSql}
-                section='mcpExecutionSql'
-                variant={CopyButtonVariant.DEFAULT}
-                copiedSection={copiedSection}
-                onCopy={handleCopy}
-              />
-            </div>
-            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-              {mcpExecutedSql}
+              {JSON.stringify(
+                Object.fromEntries(
+                  Object.entries(httpDataParams).filter(([key]) => key !== 'executionSqlQuery')
+                ),
+                null,
+                2
+              )}
             </pre>
           </>
         )}

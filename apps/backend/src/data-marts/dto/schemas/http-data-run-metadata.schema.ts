@@ -58,8 +58,9 @@ export const HttpDataRunMetadataSchema = z.object({
   // indistinguishable from a report that has no totals — and this is the only record of the run
   // anyone can inspect afterwards.
   totalsError: z.string().optional(),
-  // Fully-composed executed SQL (output controls inlined as literals). Present only for the
-  // report-level HTTP Data endpoint, and only when output controls / blending produced an override.
+  // Executed SQL with runtime parameter values inlined, shown in Run History.
+  // HTTP reads record it here when output controls / blending produce a SQL override.
+  // Report and MCP query runs store it in reportDefinition and additionalParams.mcpQuery.
   executionSqlQuery: z.string().optional(),
   /**
    * Snapshot of when the source tables had last changed at the moment this run executed.
