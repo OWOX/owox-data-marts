@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
@@ -90,7 +91,8 @@ export default function PluginDetailsPage({
       return;
     }
     offeredInstall.current = true;
-    if (plugin.installationState !== 'installed' && !plugin.suspended && plugin.currentVersionId) {
+    // An unlisted plugin waits for the member to choose Install on the banner instead.
+    if (isInstallableFromLink(plugin) && plugin.visibleViaScopes.length > 0) {
       setConfirming(plugin);
     }
   }, [installOnOpen, plugin]);
@@ -126,6 +128,8 @@ export default function PluginDetailsPage({
     setConfirming(null);
   };
 
+  const offersInstallBanner =
+    installOnOpen && isInstallableFromLink(plugin) && plugin.visibleViaScopes.length === 0;
   const isInstalled = plugin.installationState === 'installed';
   const isConfiguringCredentials = isInstalled && (plugin.credentialRequirements?.length ?? 0) > 0;
   // Label / confirm path: only a live install says "Reinstall". Uninstalled looks like
@@ -276,6 +280,27 @@ export default function PluginDetailsPage({
         </nav>
 
         <div className='flex flex-col gap-4 pt-4'>
+          {offersInstallBanner && (
+            <Alert>
+              <Info />
+              <AlertTitle>Install to open this page</AlertTitle>
+              <AlertDescription>
+                <p>The link you opened points to a page inside this plugin.</p>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='mt-2'
+                  disabled={isInstalling}
+                  onClick={() => {
+                    setConfirming(plugin);
+                  }}
+                >
+                  Install
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <CollapsibleCard collapsible name='plugin-description'>
             <CollapsibleCardHeader>
               <CollapsibleCardHeaderTitle
@@ -495,6 +520,14 @@ export default function PluginDetailsPage({
       )}
       {fallbackDialog}
     </div>
+  );
+}
+
+function isInstallableFromLink(plugin: PluginGalleryEntry): boolean {
+  return (
+    plugin.installationState !== 'installed' &&
+    !plugin.suspended &&
+    Boolean(plugin.currentVersionId)
   );
 }
 

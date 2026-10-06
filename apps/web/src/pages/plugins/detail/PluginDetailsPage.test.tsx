@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -463,6 +463,55 @@ describe('PluginDetailsPage', () => {
     it('opens the install dialog by itself for a plugin the member lacks', () => {
       renderOpen();
       expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
+      expect(screen.queryByText('Install to open this page')).toBeNull();
+    });
+
+    it('offers an unlisted plugin with a banner instead of opening the dialog', () => {
+      plugin = entry({ visibleViaScopes: [] });
+      renderOpen();
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      const banner = screen.getByRole('alert');
+      expect(within(banner).getByText('Install to open this page')).toBeInTheDocument();
+      expect(
+        within(banner).getByText('The link you opened points to a page inside this plugin.')
+      ).toBeInTheDocument();
+
+      fireEvent.click(within(banner).getByRole('button', { name: 'Install' }));
+
+      expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
+    });
+
+    it('installs an unlisted plugin from the banner', async () => {
+      plugin = entry({ visibleViaScopes: [] });
+      renderOpen();
+
+      fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Install' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalledWith('p1', 'v1', {});
+      });
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['already installed', { installationState: 'installed' as const }],
+      ['suspended', { suspended: true }],
+      ['without an eligible version', { currentVersionId: null }],
+    ])('shows no banner for an unlisted plugin %s', (_label, over) => {
+      plugin = entry({ visibleViaScopes: [], ...over });
+      renderOpen();
+
+      expect(screen.queryByText('Install to open this page')).toBeNull();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('shows no banner on the ordinary plugin page', () => {
+      plugin = entry({ visibleViaScopes: [] });
+      renderPage();
+
+      expect(screen.queryByText('Install to open this page')).toBeNull();
     });
 
     it('confirms the install for an uninstalled plugin and closes the dialog', async () => {
