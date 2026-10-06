@@ -88,3 +88,39 @@ describe('orders lineItems discount fields', () => {
     expect(JSON.parse(result.lineItems)[0].discountAllocations).toEqual([]);
   });
 });
+
+describe('orders order-level scalar and MoneyBag additions', () => {
+  it('requests bare scalars and shopMoney sub-selections', () => {
+    const queryFields = proto._buildQueryFields.call(proto, schema, [
+      'number',
+      'currentTotalPrice',
+      'paymentGatewayNames',
+    ]);
+    expect(queryFields).toBe(
+      'number currentTotalPriceSet { shopMoney { amount } } paymentGatewayNames'
+    );
+  });
+
+  it('normalizes the new fields from an order node', () => {
+    const node = {
+      number: 1042,
+      test: false,
+      unpaid: true,
+      paymentGatewayNames: ['shopify_payments', 'manual'],
+      currentTotalPriceSet: { shopMoney: { amount: '99.00' } },
+    };
+    expect(
+      proto._normalizeFromSchema.call(proto, {
+        node,
+        schema,
+        fields: ['number', 'test', 'unpaid', 'paymentGatewayNames', 'currentTotalPrice'],
+      })
+    ).toEqual({
+      number: 1042,
+      test: false,
+      unpaid: true,
+      paymentGatewayNames: 'shopify_payments, manual',
+      currentTotalPrice: '99.00',
+    });
+  });
+});
