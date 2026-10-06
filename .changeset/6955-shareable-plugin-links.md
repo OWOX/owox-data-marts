@@ -16,6 +16,8 @@ place of the project id — OWOX opens it in the reader's current project after 
 `/ui/none/plugins/github/<owner>/<repo>` finds a public plugin published for the whole
 deployment, case-insensitively; anything else answers "This plugin isn't available here".
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/b9e66bb963f6b3559f1c2f1249a62856/iframe>
+
 See [Link to a plugin](../../docs/plugins/trusted-plugins.md#link-to-a-plugin).
 
 <!-- markdownlint-disable-file MD041 MD036 -->
