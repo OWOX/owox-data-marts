@@ -9,6 +9,13 @@ export interface StorageResourceLeafDto {
   groupId: string;
   type: 'TABLE' | 'VIEW';
   fullyQualifiedName: string;
+  /** Where the resource's data lives (BigQuery dataset location, e.g. `US`, `europe-west1`). */
+  location?: string;
+  /**
+   * True when the resource lives outside the location the storage runs queries in, so a
+   * data mart on this storage cannot read it. Absent when either location is unknown.
+   */
+  locationMismatch?: boolean;
 }
 
 /**

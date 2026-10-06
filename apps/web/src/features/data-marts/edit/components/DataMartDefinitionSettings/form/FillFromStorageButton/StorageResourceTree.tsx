@@ -422,6 +422,9 @@ const GroupedResources = memo(function GroupedResources({
     return Array.from(grouped.entries())
       .map(([groupId, groupResources]) => ({
         groupId,
+        // Every resource in a group (dataset) shares the group's location.
+        location: groupResources.find(resource => resource.location)?.location,
+        locationMismatch: groupResources.some(resource => resource.locationMismatch === true),
         resources: groupResources.slice().sort((a, b) => collator.compare(a.id, b.id)),
       }))
       .sort((a, b) => collator.compare(a.groupId, b.groupId));
@@ -437,7 +440,7 @@ const GroupedResources = memo(function GroupedResources({
 
   return (
     <>
-      {groupedResources.map(({ groupId, resources: groupItems }) => {
+      {groupedResources.map(({ groupId, location, locationMismatch, resources: groupItems }) => {
         // Auto-expand while filtering so matches are always visible. Otherwise honour the
         // manual toggle — groups start collapsed.
         const groupExpanded =
@@ -458,21 +461,38 @@ const GroupedResources = memo(function GroupedResources({
                 <ChevronRight className='text-muted-foreground size-4 shrink-0' />
               )}
               <FolderOpen className='text-muted-foreground size-4 shrink-0' />
-              <span className='truncate' title={groupId}>
+              <span
+                className={`truncate ${locationMismatch ? 'text-muted-foreground' : ''}`}
+                title={groupId}
+              >
                 {groupId}
               </span>
-              <span className='text-muted-foreground ml-auto shrink-0 text-xs tabular-nums'>
-                {groupItems.length}
+              <span className='ml-auto flex shrink-0 items-center gap-2 text-xs'>
+                {location && (
+                  <span
+                    className='text-muted-foreground'
+                    title={
+                      locationMismatch
+                        ? describeLocationMismatch(location)
+                        : `Data location: ${location}`
+                    }
+                  >
+                    {location}
+                    {locationMismatch && ' · different location'}
+                  </span>
+                )}
+                <span className='text-muted-foreground tabular-nums'>{groupItems.length}</span>
               </span>
             </button>
             {groupExpanded &&
               groupItems.map(resource => {
                 const isSelected = selectedFqns?.has(resource.fullyQualifiedName) ?? false;
                 const isMulti = selectionMode === 'multi';
-                const disabled = isMulti && !isSelected && isSelectionFull;
+                const isBlockedByLocation = resource.locationMismatch === true && !isSelected;
+                const disabled = isBlockedByLocation || (isMulti && !isSelected && isSelectionFull);
                 const handleClick = () => {
+                  if (disabled) return;
                   if (isMulti) {
-                    if (disabled) return;
                     onToggleResource?.(resource);
                     return;
                   }
@@ -491,8 +511,14 @@ const GroupedResources = memo(function GroupedResources({
                       disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : ''
                     }`}
                     onClick={handleClick}
-                    disabled={disabled}
-                    title={resource.fullyQualifiedName}
+                    // A natively disabled button swallows hover, so a location mismatch stays
+                    // enabled (click is a no-op) to keep its explanation visible on hover.
+                    disabled={disabled && !isBlockedByLocation}
+                    title={
+                      isBlockedByLocation
+                        ? `${resource.fullyQualifiedName}\n${describeLocationMismatch(resource.location)}`
+                        : resource.fullyQualifiedName
+                    }
                   >
                     {isMulti && (
                       <TableSelectionCheckbox
@@ -522,4 +548,9 @@ const GroupedResources = memo(function GroupedResources({
 
 function makeGroupKey(namespaceId: string, groupId: string): string {
   return `${namespaceId}\0${groupId}`;
+}
+
+/** Explains why a resource outside the storage location cannot be picked. */
+function describeLocationMismatch(location: string | undefined): string {
+  return `Stored in ${location ?? 'another location'}. This storage runs queries in a different location and can't read it.`;
 }

@@ -32,6 +32,20 @@ export class StorageResourceLeafDto {
     example: 'my-gcp-project.analytics_prod.orders',
   })
   fullyQualifiedName: string;
+
+  @ApiPropertyOptional({
+    description: "Where the resource's data lives (BigQuery dataset location)",
+    example: 'EU',
+  })
+  location?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the resource lives in a different location than the one the storage runs ' +
+      'queries in, so a data mart on this storage cannot read it. Omitted when either ' +
+      'location is unknown.',
+  })
+  locationMismatch?: boolean;
 }
 
 export class ListStorageResourcesResponseDto {

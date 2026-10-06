@@ -127,6 +127,23 @@ describe('applyResourceFilter', () => {
     expect(ids).toEqual(['my_view']);
   });
 
+  it('carries the dataset location onto tables, views and wildcard rollups', () => {
+    const located = RAW.map(t => ({ ...t, location: 'US' }));
+    const result = applyResourceFilter(located, PROJECT);
+    expect(result.map(r => [r.id, r.location])).toEqual(
+      expect.arrayContaining([
+        ['my_view', 'US'],
+        ['plain_table', 'US'],
+        ['test_sharded_table_*', 'US'],
+      ])
+    );
+  });
+
+  it('omits the location when the dataset location is unknown', () => {
+    const result = applyResourceFilter(RAW, PROJECT);
+    expect(result.every(r => !('location' in r))).toBe(true);
+  });
+
   it('handles an SDK that returned a fully-qualified id (project:dataset.table form)', () => {
     // Defensive case: if a table.id ever comes through with the colon-prefixed form,
     // the regex would still match the trailing digits but the `prefix` would carry the

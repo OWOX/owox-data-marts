@@ -12,6 +12,8 @@ export interface RawTableListing {
   datasetId: string;
   type: 'TABLE' | 'VIEW';
   fullyQualifiedName: string;
+  /** Location of the parent dataset; every table in a dataset shares it. */
+  location?: string;
 }
 
 /**
@@ -50,7 +52,10 @@ export function buildWildcardRollups(
   rawTables: ReadonlyArray<RawTableListing>,
   projectId: string
 ): { leaf: StorageResourceLeaf; shardIds: string[] }[] {
-  const groups = new Map<string, { datasetId: string; prefix: string; shardIds: string[] }>();
+  const groups = new Map<
+    string,
+    { datasetId: string; prefix: string; location?: string; shardIds: string[] }
+  >();
   for (const t of rawTables) {
     if (t.type !== 'TABLE') continue;
     const match = GBQ_SHARDED_TABLE_SUFFIX_RE.exec(t.id);
@@ -66,13 +71,14 @@ export function buildWildcardRollups(
       groups.set(key, {
         datasetId: t.datasetId,
         prefix,
+        location: t.location,
         shardIds: [shardKey],
       });
     }
   }
 
   const rollups: { leaf: StorageResourceLeaf; shardIds: string[] }[] = [];
-  for (const { datasetId, prefix, shardIds } of groups.values()) {
+  for (const { datasetId, prefix, location, shardIds } of groups.values()) {
     if (shardIds.length < GBQ_MIN_SHARDS_FOR_WILDCARD) continue;
     const wildcardId = `${prefix}_*`;
     rollups.push({
@@ -81,6 +87,7 @@ export function buildWildcardRollups(
         groupId: datasetId,
         type: 'TABLE',
         fullyQualifiedName: `${projectId}.${datasetId}.${wildcardId}`,
+        ...(location ? { location } : {}),
       },
       shardIds,
     });
@@ -120,6 +127,7 @@ export function applyResourceFilter(
       groupId: t.datasetId,
       type: t.type,
       fullyQualifiedName: t.fullyQualifiedName,
+      ...(t.location ? { location: t.location } : {}),
     };
     if (t.type === 'VIEW') {
       viewLeaves.push(leaf);

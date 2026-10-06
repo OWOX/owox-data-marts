@@ -25,6 +25,14 @@ export interface StorageResourceLeaf extends StorageResourceNode {
   type: 'TABLE' | 'VIEW';
   /** Fully qualified reference ready to be pasted into the Data Mart definition field. */
   fullyQualifiedName: string;
+  /** Where the resource's data lives (e.g. BigQuery dataset location `US`, `europe-west1`). */
+  location?: string;
+  /**
+   * True when {@link location} differs from the location the storage runs queries in, so a
+   * data mart on this storage cannot read the resource. Omitted when either location is
+   * unknown — for example, when the storage auto-detects its location.
+   */
+  locationMismatch?: boolean;
 }
 
 /**
