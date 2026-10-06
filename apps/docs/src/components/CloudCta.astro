@@ -1,0 +1,138 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+import { CLOUD_CTA_URL } from '../cloud-cta.mjs';
+
+interface Props {
+  placement: 'title' | 'end';
+}
+
+const { placement } = Astro.props;
+---
+
+{
+  placement === 'title' ? (
+    <a
+      class="cloud-cta cloud-cta-button"
+      href={CLOUD_CTA_URL}
+      target="_blank"
+      rel="noopener"
+      data-cloud-cta="title"
+      data-pagefind-ignore
+    >
+      Try it free
+      <Icon name="right-arrow" size="1rem" />
+    </a>
+  ) : (
+    <aside class="cloud-cta cloud-cta-panel" aria-label="OWOX Cloud" data-pagefind-ignore>
+      <div class="cloud-cta-text">
+        <p class="cloud-cta-heading">Use it in OWOX Cloud</p>
+        <p>Nothing to deploy: connect your warehouse and build your first Data Mart.</p>
+      </div>
+      <a
+        class="cloud-cta-button"
+        href={CLOUD_CTA_URL}
+        target="_blank"
+        rel="noopener"
+        data-cloud-cta="end"
+      >
+        Try it free
+        <Icon name="right-arrow" size="1rem" />
+      </a>
+    </aside>
+  )
+}
+
+<style>
+  /*
+   * Docs sit outside the product UI, so the button takes the OWOX brand blue
+   * (--owox-blue-600 in the owox-factory design system) and the product Button's
+   * default shape: 36px high, 8px radius, 14px medium text, 16px icon.
+   */
+  .cloud-cta-button {
+    --owox-blue-600: #4286de;
+
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    align-items: center;
+    height: 2.25rem;
+    padding: 0 0.75rem 0 1rem;
+    border-radius: 0.5rem;
+    background-color: var(--owox-blue-600);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 5%);
+    color: #fafafa;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+  }
+
+  .cloud-cta-button:hover {
+    background-color: color-mix(in srgb, var(--owox-blue-600) 90%, transparent);
+    color: #fafafa;
+  }
+
+  .cloud-cta-button:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--owox-blue-600) 50%, transparent);
+    outline-offset: 0;
+  }
+
+  .cloud-cta-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 3rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background-color: var(--sl-color-gray-6);
+  }
+
+  .cloud-cta-text {
+    flex: 1 1 18rem;
+    min-width: 0;
+  }
+
+  .cloud-cta-text p {
+    margin: 0;
+    color: var(--sl-color-gray-2);
+  }
+
+  .cloud-cta-text .cloud-cta-heading {
+    margin-bottom: 0.25rem;
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-lg);
+    font-weight: 600;
+  }
+
+  /* Existing customers arrive from the app; see the head script in astro.config.mjs. */
+  :global(html.owox-app-user) .cloud-cta {
+    display: none;
+  }
+
+  @media print {
+    .cloud-cta {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener('click', event => {
+    if (!(event.target instanceof Element)) return;
+    const link = event.target.closest('[data-cloud-cta]');
+    if (!(link instanceof HTMLElement)) return;
+
+    const gtmWindow = window as Window & { dataLayer?: object[] };
+    gtmWindow.dataLayer = gtmWindow.dataLayer || [];
+    gtmWindow.dataLayer.push({
+      event: 'docs_cloud_cta_click',
+      cta_placement: link.dataset.cloudCta,
+      page_path: window.location.pathname,
+    });
+  });
+</script>

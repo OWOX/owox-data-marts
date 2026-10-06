@@ -1,0 +1,10 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { shouldShowCloudCta } from '../../cloud-cta.mjs';
+import CloudCta from '../CloudCta.astro';
+
+const showCloudCta = shouldShowCloudCta(Astro.locals.starlightRoute.id);
+---
+
+{showCloudCta && <CloudCta placement="end" />}
+<Default {...Astro.props} />

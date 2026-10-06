@@ -1,0 +1,33 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import { shouldShowCloudCta } from '../../cloud-cta.mjs';
+import CloudCta from '../CloudCta.astro';
+
+const showCloudCta = shouldShowCloudCta(Astro.locals.starlightRoute.id);
+---
+
+{
+  showCloudCta ? (
+    <div class="page-title-row">
+      <Default />
+      <CloudCta placement="title" />
+    </div>
+  ) : (
+    <Default />
+  )
+}
+
+<style>
+  .page-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+  }
+
+  .page-title-row > :global(h1) {
+    margin-top: 0;
+  }
+</style>
