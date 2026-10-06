@@ -111,8 +111,11 @@ export class PluginPresentationMapper {
     return new ListInstallationsCommand(context, includeUninstalled);
   }
 
-  toFindPluginByRepositoryCommand(repository: string): FindPluginByRepositoryCommand {
-    return new FindPluginByRepositoryCommand(repository);
+  toFindPluginByRepositoryCommand(
+    repository: string,
+    context: AuthorizationContext
+  ): FindPluginByRepositoryCommand {
+    return new FindPluginByRepositoryCommand(repository, context);
   }
 
   toGetPluginInstallationEntryCommand(

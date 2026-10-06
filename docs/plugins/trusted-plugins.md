@@ -83,8 +83,9 @@ the project id; OWOX opens them in the reader's current project after sign-in:
 
 - `https://app.owox.com/ui/none/plugins/<pluginId>` — the plugin page.
 - `https://app.owox.com/ui/none/plugins/github/<owner>/<repo>` — the same page found by a public
-  repository published for the whole deployment (deployment scope), case-insensitive; anything
-  else answers "This plugin isn't available here".
+  repository published at deployment scope to the reader's project (all projects, or a selected
+  audience that includes it), case-insensitive; anything else answers "This plugin isn't
+  available here".
 - `…/open<route>` after either form — a page inside the plugin.
 
 An `…/open` link offers the install first to a reader who has not installed the plugin; the plugin

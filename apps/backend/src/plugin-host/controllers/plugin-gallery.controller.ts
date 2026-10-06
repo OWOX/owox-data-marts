@@ -48,13 +48,16 @@ export class PluginGalleryController {
   @ApiOperation({
     summary: 'A public plugin by its GitHub repository',
     description:
-      'Resolves owner/name or a GitHub URL to the id of a public plugin published at deployment scope. Any other repository, private or unknown, answers 404 alike.',
+      "Resolves owner/name or a GitHub URL to the id of a public plugin whose deployment publication reaches the caller's project: all projects, or a selected audience that includes it. Any other repository, private, unknown or outside the audience, answers 404 alike.",
   })
   @ApiQuery({ name: 'repository', required: true, example: 'OWOX/odm-usage-stat' })
   @ApiOkResponse({ type: PluginLookupApiDto })
-  async lookup(@Query('repository') repository: string): Promise<PluginLookupApiDto> {
+  async lookup(
+    @AuthContext() context: AuthorizationContext,
+    @Query('repository') repository: string
+  ): Promise<PluginLookupApiDto> {
     const result = await this.findPluginByRepositoryService.run(
-      this.mapper.toFindPluginByRepositoryCommand(repository ?? '')
+      this.mapper.toFindPluginByRepositoryCommand(repository ?? '', context)
     );
     return this.mapper.toLookupResponse(result);
   }

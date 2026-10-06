@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { PluginPublicationProject } from '../entities/plugin-publication-project.entity';
 import { PluginPublication } from '../entities/plugin-publication.entity';
+import { Plugin } from '../entities/plugin.entity';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 
 export interface CreatePublicationInput {
@@ -95,28 +96,7 @@ export class PluginPublicationService {
       .andWhere(
         new Brackets(scopes => {
           scopes
-            .where(
-              new Brackets(deployment => {
-                deployment
-                  .where('publication.scope = :deploymentScope', {
-                    deploymentScope: PluginPublicationScope.DEPLOYMENT,
-                  })
-                  .andWhere(
-                    new Brackets(audience => {
-                      audience
-                        .where('publication.allProjects = :isActive', { isActive: true })
-                        .orWhere(
-                          `EXISTS (
-                            SELECT 1 FROM plugin_publication_project audience_row
-                            WHERE audience_row.publicationId = publication.id
-                              AND audience_row.projectId = :projectId
-                              AND audience_row.isActive = :isActive
-                          )`
-                        );
-                    })
-                  );
-              })
-            )
+            .where(this.deploymentVisibleToProject())
             .orWhere(
               new Brackets(project => {
                 project
@@ -142,6 +122,27 @@ export class PluginPublicationService {
       .getMany();
   }
 
+  async findDeploymentPluginIdByRepo(
+    projectId: string,
+    owner: string,
+    name: string
+  ): Promise<string | null> {
+    const publication = await this.publications
+      .createQueryBuilder('publication')
+      .innerJoin(Plugin, 'plugin', 'plugin.id = publication.pluginId')
+      .where('publication.isActive = :isActive', { isActive: true })
+      .andWhere(this.deploymentVisibleToProject())
+      .andWhere('LOWER(plugin.repoOwner) = :owner', { owner: owner.toLowerCase() })
+      .andWhere('LOWER(plugin.repoName) = :name', { name: name.toLowerCase() })
+      .andWhere('plugin.isPrivateRepo = :isPrivate', { isPrivate: false })
+      .setParameters({ projectId })
+      // Until the next sync, a renamed repository and a new one can share a cached owner/name.
+      .orderBy('plugin.modifiedAt', 'DESC')
+      .addOrderBy('plugin.id', 'ASC')
+      .getOne();
+    return publication?.pluginId ?? null;
+  }
+
   listManageable(
     scope: PluginPublicationScope,
     filters: { projectId?: string; userId?: string }
@@ -150,6 +151,28 @@ export class PluginPublicationService {
       scope,
       ...(filters.projectId ? { projectId: filters.projectId } : {}),
       ...(filters.userId ? { userId: filters.userId } : {}),
+    });
+  }
+
+  /** findVisibleTo's deployment branch; the caller binds :projectId and requires isActive. */
+  private deploymentVisibleToProject(): Brackets {
+    return new Brackets(deployment => {
+      deployment
+        .where('publication.scope = :deploymentScope', {
+          deploymentScope: PluginPublicationScope.DEPLOYMENT,
+        })
+        .andWhere(
+          new Brackets(audience => {
+            audience.where('publication.allProjects = :isActive', { isActive: true }).orWhere(
+              `EXISTS (
+                SELECT 1 FROM plugin_publication_project audience_row
+                WHERE audience_row.publicationId = publication.id
+                  AND audience_row.projectId = :projectId
+                  AND audience_row.isActive = :isActive
+              )`
+            );
+          })
+        );
     });
   }
 }

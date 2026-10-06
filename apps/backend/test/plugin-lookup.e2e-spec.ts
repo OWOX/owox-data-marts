@@ -70,7 +70,15 @@ describe('Plugin lookup by repository (e2e, SQLite)', () => {
     return plugin;
   };
 
-  const resolve = (repository: string) => lookup.run(new FindPluginByRepositoryCommand(repository));
+  const resolve = (repository: string, projectId = 'project-1') =>
+    lookup.run(new FindPluginByRepositoryCommand(repository, { projectId, userId: 'user-1' }));
+
+  const givenAudience = (publication: PluginPublication, projectId: string, isActive = true) =>
+    audiences.save(audiences.create({ publicationId: publication.id, projectId, isActive }));
+
+  // The test IdP signs every request in as project '0'.
+  const lookupOverHttp = (repository: string) =>
+    agent.get(`/api/plugins/lookup?repository=${encodeURIComponent(repository)}`).set(AUTH_HEADER);
 
   it('finds a plugin published to the deployment whatever the case of the link', async () => {
     const plugin = await givenDeploymentPlugin('owox', 'example');
@@ -78,14 +86,64 @@ describe('Plugin lookup by repository (e2e, SQLite)', () => {
     await expect(resolve('OWOX/Example')).resolves.toEqual({ pluginId: plugin.id });
   });
 
-  it('finds a plugin published to selected projects of the deployment', async () => {
+  it('answers 200 with the plugin id over HTTP for a plugin published to all projects', async () => {
+    const plugin = await givenDeploymentPlugin('OWOX', 'everywhere');
+
+    const res = await lookupOverHttp('https://github.com/owox/Everywhere');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ pluginId: plugin.id });
+  });
+
+  it('finds a plugin for a project in the selected audience of the deployment', async () => {
     const plugin = await givenPlugin('OWOX', 'selected');
     const publication = await givenPublication(plugin, PluginPublicationScope.DEPLOYMENT);
-    await audiences.save(
-      audiences.create({ publicationId: publication.id, projectId: 'project-9', isActive: true })
+    await givenAudience(publication, 'project-9');
+
+    await expect(resolve('OWOX/selected', 'project-9')).resolves.toEqual({ pluginId: plugin.id });
+  });
+
+  it('answers 404 for a project outside the selected audience', async () => {
+    const plugin = await givenPlugin('OWOX', 'beta');
+    const publication = await givenPublication(plugin, PluginPublicationScope.DEPLOYMENT);
+    await givenAudience(publication, 'project-9');
+
+    await expect(resolve('OWOX/beta', 'project-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('answers 404 once the project is removed from the selected audience', async () => {
+    const plugin = await givenPlugin('OWOX', 'removed');
+    const publication = await givenPublication(plugin, PluginPublicationScope.DEPLOYMENT);
+    await givenAudience(publication, 'project-1', false);
+    await givenAudience(publication, 'project-9');
+
+    await expect(resolve('OWOX/removed', 'project-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("answers over HTTP within the caller's audience only", async () => {
+    const inside = await givenPlugin('OWOX', 'inside');
+    await givenAudience(await givenPublication(inside, PluginPublicationScope.DEPLOYMENT), '0');
+    const outside = await givenPlugin('OWOX', 'outside');
+    await givenAudience(
+      await givenPublication(outside, PluginPublicationScope.DEPLOYMENT),
+      'project-9'
     );
 
-    await expect(resolve('OWOX/selected')).resolves.toEqual({ pluginId: plugin.id });
+    const found = await lookupOverHttp('OWOX/inside');
+    const hidden = await lookupOverHttp('OWOX/outside');
+
+    expect(found.status).toBe(200);
+    expect(found.body).toEqual({ pluginId: inside.id });
+    expect(hidden.status).toBe(404);
+  });
+
+  it('resolves to the most recently updated plugin when two share a cached repository name', async () => {
+    const stale = await givenDeploymentPlugin('OWOX', 'renamed');
+    const current = await givenDeploymentPlugin('OWOX', 'renamed');
+    await plugins.update(stale.id, { modifiedAt: new Date('2026-01-01T00:00:00Z') });
+    await plugins.update(current.id, { modifiedAt: new Date('2026-02-01T00:00:00Z') });
+
+    await expect(resolve('OWOX/renamed')).resolves.toEqual({ pluginId: current.id });
   });
 
   it('answers a private repository like an unknown one', async () => {
