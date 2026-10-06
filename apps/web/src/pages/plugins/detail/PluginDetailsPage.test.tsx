@@ -482,6 +482,29 @@ describe('PluginDetailsPage', () => {
       expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
     });
 
+    it.each([
+      [
+        'the banner',
+        () => within(screen.getByRole('alert')).getByRole('button', { name: 'Install' }),
+      ],
+      ['the header', () => screen.getAllByRole('button', { name: 'Install' })[0]],
+    ])(
+      'keeps the link and the banner when a dialog opened from %s is cancelled',
+      (_label, button) => {
+        plugin = entry({ visibleViaScopes: [] });
+        renderOpen();
+
+        fireEvent.click(button());
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(navigate).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(
+          within(screen.getByRole('alert')).getByText('Install to open this page')
+        ).toBeInTheDocument();
+      }
+    );
+
     it('installs an unlisted plugin from the banner', async () => {
       plugin = entry({ visibleViaScopes: [] });
       renderOpen();
@@ -543,6 +566,15 @@ describe('PluginDetailsPage', () => {
       renderOpen();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1', { replace: true });
+    });
+
+    it('leaves the link only once, for the dialog it opened by itself', () => {
+      renderOpen();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(navigate).toHaveBeenCalledTimes(1);
     });
 
     it('does not open the dialog for a suspended plugin', () => {

@@ -86,6 +86,8 @@ export default function PluginDetailsPage({
 
   // A shared deep link opens the dialog once; closing it is the member's answer.
   const offeredInstall = useRef(false);
+  /** True only while the dialog the link opened by itself shows; cancelling it leaves the link. */
+  const leaveLinkOnCancel = useRef(false);
   useEffect(() => {
     if (!installOnOpen || offeredInstall.current || !plugin) {
       return;
@@ -93,6 +95,7 @@ export default function PluginDetailsPage({
     offeredInstall.current = true;
     // An unlisted plugin waits for the member to choose Install on the banner instead.
     if (isInstallableFromLink(plugin) && plugin.visibleViaScopes.length > 0) {
+      leaveLinkOnCancel.current = true;
       setConfirming(plugin);
     }
   }, [installOnOpen, plugin]);
@@ -125,6 +128,7 @@ export default function PluginDetailsPage({
       return;
     }
 
+    leaveLinkOnCancel.current = false;
     setConfirming(null);
   };
 
@@ -508,7 +512,8 @@ export default function PluginDetailsPage({
           onOpenChange={open => {
             if (!open) {
               setConfirming(null);
-              if (installOnOpen) {
+              if (leaveLinkOnCancel.current) {
+                leaveLinkOnCancel.current = false;
                 void navigate(scope(`/plugins/${confirming.pluginId}`), { replace: true });
               }
             }
