@@ -79,14 +79,17 @@ describe('useCopyLink', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('refuses a second copy while the first is still in progress', async () => {
+  it('refuses a second copy while the first is in progress, and copies again once it is done', async () => {
     let finish: () => void = () => undefined;
-    const writeText = vi.fn(
-      () =>
-        new Promise<void>(resolve => {
-          finish = resolve;
-        })
-    );
+    const writeText = vi
+      .fn<(url: string) => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>(resolve => {
+            finish = resolve;
+          })
+      )
+      .mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText }, userActivation: { isActive: true } });
     render(<Probe />);
 
@@ -98,6 +101,11 @@ describe('useCopyLink', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith('https://app.owox.test/first');
     expect(success).toHaveBeenCalledTimes(1);
+
+    await act(() => copy('https://app.owox.test/third'));
+
+    expect(writeText).toHaveBeenLastCalledWith('https://app.owox.test/third');
+    expect(success).toHaveBeenCalledTimes(2);
   });
 
   it('refuses to copy while the fallback dialog is open, and copies again once it closes', async () => {
