@@ -10,7 +10,8 @@ function isMarkdownText(prefix: string): boolean {
   let codeDelimiter = 0;
   let brackets = 0;
   let destination = 0;
-  for (const line of prefix.split('\n')) {
+  const lines = prefix.split('\n');
+  for (const [lineIndex, line] of lines.entries()) {
     const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (fence) {
       if (
@@ -19,6 +20,13 @@ function isMarkdownText(prefix: string): boolean {
         !marker[2].trim()
       )
         fence = null;
+      continue;
+    }
+    // Inline links and code spans cannot continue across a paragraph boundary.
+    if (lineIndex < lines.length - 1 && /^[ \t\r]*$/.test(line)) {
+      codeDelimiter = 0;
+      brackets = 0;
+      destination = 0;
       continue;
     }
     if (marker && !codeDelimiter) {

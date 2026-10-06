@@ -91,6 +91,39 @@ describe('Data Mart mentions', () => {
         ),
     };
   }
+  it('allows mentions in a new paragraph after unmatched inline Markdown', () => {
+    for (const text of [
+      'range [0, 100)\n\nGoal: @Revenue',
+      'a lone ` delimiter\n\nGoal: @Revenue',
+      'an unmatched `` span\n \t\nGoal: @Revenue',
+      '[See](https://example.com/\r\n\t\r\nGoal: @Revenue',
+    ])
+      expect(mentionAtCursor(text)).toEqual({
+        query: 'Revenue',
+        start: text.lastIndexOf('@'),
+      });
+
+    for (const text of [
+      '[See\nGoal: @Revenue',
+      '` code\nGoal: @Revenue',
+      '[See](https://example.com/\nGoal: @Revenue',
+      '```markdown\nrange [0, 100)\n\n@Revenue',
+      '~~~\n\n@Revenue',
+    ])
+      expect(mentionAtCursor(text)).toBeNull();
+  });
+  it('offers and replaces a mention after a paragraph boundary', async () => {
+    const h = harness('range [0, 100)\n\nGoal: @Revenue');
+    const load = vi.fn().mockResolvedValue([{ id: 'revenue', title: 'Revenue' }]);
+    registerDataMartMentions(h.monaco, h.editor, 'project', load, vi.fn());
+    const result = await h.invoke();
+    expect(load).toHaveBeenCalledOnce();
+    expect(result?.suggestions).toHaveLength(1);
+    expect(result?.suggestions[0]).toMatchObject({
+      label: 'Revenue',
+      range: { startLineNumber: 3, endLineNumber: 3, startColumn: 7, endColumn: 15 },
+    });
+  });
   it('searches titles, replaces the whole @query, and stays scoped to its own editor model', async () => {
     const h = harness();
     const load = vi.fn().mockResolvedValue([
