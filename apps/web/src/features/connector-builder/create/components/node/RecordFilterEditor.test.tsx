@@ -22,7 +22,7 @@ const latest: { state?: BuilderState } = {};
 /**
  * Seed the store straight from Code-mode JSON. `parseManifestJson` normalizes only the top
  * level (`parameters`/`nodes` defaults), so whatever node shape an author — or an
- * AI-authored manifest — pastes reaches this editor verbatim. A `recordFilter` with no
+ * MCP-authored manifest — pastes reaches this editor verbatim. A `recordFilter` with no
  * `path` is a shape the engine ultimately rejects (`ManifestParser` demands a non-empty
  * string path), but it is exactly what a half-finished Code-mode paste looks like, and the
  * pane has to survive long enough for the author to finish it.

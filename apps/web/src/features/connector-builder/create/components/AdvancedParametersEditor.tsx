@@ -24,8 +24,8 @@ const CREATE_EMPTY = 'CreateEmptyTables';
  * quota. Enforced by clamping the written value, because a bare `max` on a number input
  * only fails form validation — it does not stop the keystroke.
  *
- * A soft cap by design: it guards the form. Code mode writes the manifest directly and is
- * not bound by it — the engine itself has no limit.
+ * A soft cap by design: it guards the form. Code mode and MCP write the manifest directly
+ * and are not bound by it — the engine itself has no limit.
  */
 const REIMPORT_MAX_DAYS = 180;
 

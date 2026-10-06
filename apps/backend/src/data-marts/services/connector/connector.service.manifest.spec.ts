@@ -41,8 +41,8 @@ describe('ConnectorService manifest helpers', () => {
 });
 
 /**
- * GET /connectors/custom/:id/specification is @Auth(Role.viewer()), while the manifest it is
- * derived from is editor-only. That split
+ * GET /connectors/custom/:id/specification is @Auth(Role.viewer()) and MCP `connector_details`
+ * needs only `mcp:read`, while the manifest they are derived from is editor-only. That split
  * only holds while the derived spec carries nothing the manifest was restricted for, and a
  * SECRET parameter's `default` is exactly such a thing: the config form ASSIGNS it as the
  * parameter's value, so an author who pre-fills a shared token there has published it to
