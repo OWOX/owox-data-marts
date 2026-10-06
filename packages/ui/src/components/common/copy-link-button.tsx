@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { Check, Link } from 'lucide-react';
+import {
+  SheetHeaderAction,
+  SheetHeaderActionButton,
+} from '@owox/ui/components/common/sheet-header-action';
 
 interface CopyLinkButtonProps {
   link: string;
@@ -22,14 +26,8 @@ export function CopyLinkButton({ link, ariaLabel }: CopyLinkButtonProps) {
   };
 
   return (
-    <div className='border-border border-l pl-2'>
-      <button
-        tabIndex={-1}
-        type='button'
-        onClick={handleCopy}
-        className='text-muted-foreground hover:bg-muted hover:text-foreground -my-1.5 flex items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors'
-        aria-label={ariaLabel}
-      >
+    <SheetHeaderAction>
+      <SheetHeaderActionButton tabIndex={-1} onClick={handleCopy} aria-label={ariaLabel}>
         {copied ? (
           <>
             <Check className='h-3.5 w-3.5' /> Copied!
@@ -39,8 +37,8 @@ export function CopyLinkButton({ link, ariaLabel }: CopyLinkButtonProps) {
             <Link className='h-3.5 w-3.5' /> Copy link
           </>
         )}
-      </button>
-    </div>
+      </SheetHeaderActionButton>
+    </SheetHeaderAction>
   );
 }
 

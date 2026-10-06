@@ -87,3 +87,21 @@ describe('GeneratedSqlViewer — unsaved changes', () => {
     expect(screen.queryByText(/unsaved changes in Report Columns/)).not.toBeInTheDocument();
   });
 });
+
+describe('GeneratedSqlViewer — load failure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows an error in place of the editor instead of an endless spinner', async () => {
+    getGeneratedSql.mockRejectedValue(new Error('boom'));
+
+    render(<GeneratedSqlViewer reportId='report-1' dataMartId='dm-1' variant='header-link' />);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview SQL' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the SQL');
+    expect(screen.queryByText('Generating SQL...')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy to Clipboard/ })).toBeDisabled();
+    expect(screen.queryByTestId('sql-validator')).not.toBeInTheDocument();
+  });
+});
