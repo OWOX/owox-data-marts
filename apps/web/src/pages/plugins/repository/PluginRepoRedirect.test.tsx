@@ -60,6 +60,32 @@ describe('PluginRepoRedirect', () => {
     expect(await screen.findByText('at /ui/project-1/plugins/p1/open/d/42')).toBeInTheDocument();
   });
 
+  it.each([
+    ['/open', '/open'],
+    ['/open?tab=2', '/open?tab=2'],
+    ['/open#top', '/open#top'],
+    ['/open/d/42?tab=2#top', '/open/d/42?tab=2#top'],
+  ])('forwards the open tail %s', async (tail, forwarded) => {
+    lookupByRepository.mockResolvedValue({ pluginId: 'p1' });
+
+    renderAt(`/ui/project-1/plugins/github/OWOX/odm-usage-stat${tail}`);
+
+    expect(await screen.findByText(`at /ui/project-1/plugins/p1${forwarded}`)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['another page', '/history', ''],
+    ['a look-alike of open', '/opened/d/1', ''],
+    ['a nested path', '/x/open/d/1', ''],
+    ['another page with a query and hash', '/settings?utm_source=x#h', '?utm_source=x#h'],
+  ])('lands on the plugin page for %s', async (_label, tail, kept) => {
+    lookupByRepository.mockResolvedValue({ pluginId: 'p1' });
+
+    renderAt(`/ui/project-1/plugins/github/OWOX/odm-usage-stat${tail}`);
+
+    expect(await screen.findByText(`at /ui/project-1/plugins/p1${kept}`)).toBeInTheDocument();
+  });
+
   it('keeps encoded characters of the inner route encoded', async () => {
     lookupByRepository.mockResolvedValue({ pluginId: 'p1' });
 

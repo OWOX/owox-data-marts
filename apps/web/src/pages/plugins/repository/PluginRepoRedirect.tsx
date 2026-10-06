@@ -30,10 +30,12 @@ export default function PluginRepoRedirect() {
 
   // The splat param arrives decoded; the raw path keeps %3F, %2F and %25 in the inner route intact.
   const tail = location.pathname.replace(/^.*?\/plugins\/github\/[^/]*\/[^/]*/i, '');
+  // Only a link into the running plugin carries on; any other tail lands on the plugin page.
+  const forwarded = tail === '/open' || tail.startsWith('/open/') ? tail : '';
   return (
     <Navigate
       replace
-      to={`${scope(`/plugins/${data.pluginId}`)}${tail}${location.search}${location.hash}`}
+      to={`${scope(`/plugins/${data.pluginId}`)}${forwarded}${location.search}${location.hash}`}
     />
   );
 }
