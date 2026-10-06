@@ -8,14 +8,14 @@ import type { DataMartReport } from '../model/types/data-mart-report';
 interface ReportGeneratedSqlActionProps {
   report: DataMartReport;
   variant?: GeneratedSqlViewerVariant;
-  hasUnsavedChanges?: boolean;
+  hasUnsavedSqlChanges?: boolean;
   className?: string;
 }
 
 export function ReportGeneratedSqlAction({
   report,
   variant,
-  hasUnsavedChanges,
+  hasUnsavedSqlChanges,
   className,
 }: ReportGeneratedSqlActionProps) {
   if (!isGeneratedSqlSupported(report.dataMart.definitionType, report.dataMart.storage.type)) {
@@ -28,7 +28,7 @@ export function ReportGeneratedSqlAction({
       dataMartId={report.dataMart.id}
       reportTitle={report.title}
       variant={variant}
-      hasUnsavedChanges={hasUnsavedChanges}
+      hasUnsavedSqlChanges={hasUnsavedSqlChanges}
       className={className}
     />
   );

@@ -82,12 +82,15 @@ import {
   applyColumnConfigChange,
   applyOutputConfigChange,
 } from '../../utils/apply-output-config-change';
+import { useHasUnsavedSqlChanges } from '../../hooks/useHasUnsavedSqlChanges';
 import { DEFAULT_REPORT_TITLE } from '../../../shared';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   onDirtyChange?: (isDirty: boolean) => void;
+  /** Reports whether unsaved edits would change the report's generated SQL. */
+  onSqlDirtyChange?: (isSqlDirty: boolean) => void;
   formError?: string | null;
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
@@ -127,6 +130,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       initialReport,
       mode,
       onDirtyChange,
+      onSqlDirtyChange,
       onFormErrorChange,
       onSubmit,
       onCancel,
@@ -339,6 +343,11 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     useEffect(() => {
       onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
     }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
+
+    const isSqlDirty = useHasUnsavedSqlChanges(form);
+    useEffect(() => {
+      onSqlDirtyChange?.(isSqlDirty);
+    }, [isSqlDirty, onSqlDirtyChange]);
 
     const reportConditionOptions = useMemo(
       () => [

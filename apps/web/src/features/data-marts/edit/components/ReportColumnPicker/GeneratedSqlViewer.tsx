@@ -44,10 +44,11 @@ interface GeneratedSqlViewerProps {
    */
   reportTitle?: string;
   /**
-   * The SQL is generated from the saved report, so edits still open in the
-   * report form are not part of it. When set, the dialog says so.
+   * The SQL is generated from the saved report, so unsaved edits to the
+   * report's columns and output settings are not part of it. When set, the
+   * dialog says so.
    */
-  hasUnsavedChanges?: boolean;
+  hasUnsavedSqlChanges?: boolean;
   className?: string;
 }
 
@@ -59,7 +60,7 @@ export function GeneratedSqlViewer({
   dataMartId,
   variant = 'action-icon',
   reportTitle,
-  hasUnsavedChanges = false,
+  hasUnsavedSqlChanges = false,
   className,
 }: GeneratedSqlViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -179,9 +180,10 @@ export function GeneratedSqlViewer({
       <DialogContent className='flex flex-col gap-4 sm:max-w-[80vw]'>
         <DialogHeader>
           <DialogTitle>Report SQL</DialogTitle>
-          {hasUnsavedChanges && (
+          {hasUnsavedSqlChanges && (
             <DialogDescription>
-              This is the SQL of the saved report. Your unsaved changes are not included.
+              This is the SQL of the saved report. Your unsaved changes in Report Columns are not
+              included.
             </DialogDescription>
           )}
         </DialogHeader>

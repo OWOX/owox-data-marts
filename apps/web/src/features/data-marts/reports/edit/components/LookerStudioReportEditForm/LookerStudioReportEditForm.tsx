@@ -44,12 +44,15 @@ import {
   applyColumnConfigChange,
   applyOutputConfigChange,
 } from '../../utils/apply-output-config-change';
+import { useHasUnsavedSqlChanges } from '../../hooks/useHasUnsavedSqlChanges';
 import { useDataMartContext } from '../../../../edit/model';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   onDirtyChange?: (isDirty: boolean) => void;
+  /** Reports whether unsaved edits would change the report's generated SQL. */
+  onSqlDirtyChange?: (isSqlDirty: boolean) => void;
   formError?: string | null;
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
@@ -81,6 +84,7 @@ export const LookerStudioReportEditForm = forwardRef<
       initialReport,
       mode,
       onDirtyChange,
+      onSqlDirtyChange,
       onFormErrorChange,
       onSubmit,
       onCancel,
@@ -177,6 +181,11 @@ export const LookerStudioReportEditForm = forwardRef<
     useEffect(() => {
       onDirtyChange?.(isDirty || ownersDirty);
     }, [isDirty, ownersDirty, onDirtyChange]);
+
+    const isSqlDirty = useHasUnsavedSqlChanges(form);
+    useEffect(() => {
+      onSqlDirtyChange?.(isSqlDirty);
+    }, [isSqlDirty, onSqlDirtyChange]);
 
     return (
       <Form {...form}>

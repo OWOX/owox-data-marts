@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/components/sheet';
 import { UnsavedChangesConfirmationDialog } from '../../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
@@ -29,12 +30,12 @@ export function ReportEditSheet({
   const {
     showUnsavedDialog,
     setShowUnsavedDialog,
-    isDirty,
     handleClose,
     confirmClose,
     handleFormDirtyChange,
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
+  const [hasUnsavedSqlChanges, setHasUnsavedSqlChanges] = useState(false);
 
   useIntercomLauncher(isOpen);
 
@@ -60,7 +61,11 @@ export function ReportEditSheet({
           <SheetTitle>
             {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
           </SheetTitle>
-          <ReportSheetDescription mode={mode} report={initialReport} hasUnsavedChanges={isDirty}>
+          <ReportSheetDescription
+            mode={mode}
+            report={initialReport}
+            hasUnsavedSqlChanges={hasUnsavedSqlChanges}
+          >
             {mode === ReportFormMode.CREATE
               ? `Fill in the details to create a new ${destinationPrefix}report`
               : `Update details of an existing ${destinationPrefix}report`}
@@ -72,6 +77,7 @@ export function ReportEditSheet({
             initialReport={initialReport}
             mode={mode}
             onDirtyChange={handleFormDirtyChange}
+            onSqlDirtyChange={setHasUnsavedSqlChanges}
             onSubmit={() => {
               void onSubmitSuccess?.();
               handleFormSubmitSuccess();

@@ -9,10 +9,11 @@ interface ReportSheetDescriptionProps {
   mode: ReportFormMode;
   report?: DataMartReport | null;
   /**
-   * Whether the report form has unsaved edits. Preview SQL shows the saved
-   * report, so its dialog says when those edits are left out.
+   * Whether the report form has unsaved edits that would change the SQL.
+   * Preview SQL shows the saved report, so its dialog says when those edits
+   * are left out.
    */
-  hasUnsavedChanges?: boolean;
+  hasUnsavedSqlChanges?: boolean;
   children: ReactNode;
 }
 
@@ -24,7 +25,7 @@ interface ReportSheetDescriptionProps {
 export function ReportSheetDescription({
   mode,
   report,
-  hasUnsavedChanges = false,
+  hasUnsavedSqlChanges = false,
   children,
 }: ReportSheetDescriptionProps) {
   const editedReport = mode === ReportFormMode.EDIT ? report : undefined;
@@ -39,7 +40,7 @@ export function ReportSheetDescription({
           <ReportGeneratedSqlAction
             report={editedReport}
             variant='header-link'
-            hasUnsavedChanges={hasUnsavedChanges}
+            hasUnsavedSqlChanges={hasUnsavedSqlChanges}
           />
         </div>
       )}

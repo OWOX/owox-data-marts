@@ -64,6 +64,7 @@ import {
   applyColumnConfigChange,
   applyOutputConfigChange,
 } from '../../utils/apply-output-config-change';
+import { useHasUnsavedSqlChanges } from '../../hooks/useHasUnsavedSqlChanges';
 import { DEFAULT_REPORT_TITLE } from '../../../shared';
 import { useDataMartContext } from '../../../../edit/model';
 
@@ -71,6 +72,8 @@ interface ReportEditFormProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   onDirtyChange?: (isDirty: boolean) => void;
+  /** Reports whether unsaved edits would change the report's generated SQL. */
+  onSqlDirtyChange?: (isSqlDirty: boolean) => void;
   formError?: string | null;
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
@@ -84,6 +87,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
       initialReport,
       mode,
       onDirtyChange,
+      onSqlDirtyChange,
       onFormErrorChange,
       onSubmit,
       onCancel,
@@ -249,6 +253,11 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
     useEffect(() => {
       onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
     }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
+
+    const isSqlDirty = useHasUnsavedSqlChanges(form);
+    useEffect(() => {
+      onSqlDirtyChange?.(isSqlDirty);
+    }, [isSqlDirty, onSqlDirtyChange]);
 
     const selectedDestinationId = form.watch('dataDestinationId');
     const selectedDestination = filteredDestinations.find(
