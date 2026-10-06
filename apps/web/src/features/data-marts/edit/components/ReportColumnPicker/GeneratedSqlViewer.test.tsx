@@ -30,8 +30,10 @@ vi.mock('next-themes', () => ({
   useTheme: () => ({ resolvedTheme: 'light' }),
 }));
 
-async function openDialog() {
-  render(<GeneratedSqlViewer reportId='report-1' dataMartId='dm-1' variant='outline-button' />);
+async function openDialog(props: { hasUnsavedChanges?: boolean } = {}) {
+  render(
+    <GeneratedSqlViewer reportId='report-1' dataMartId='dm-1' variant='header-link' {...props} />
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Preview SQL' }));
   await waitFor(() => {
     expect(screen.getByDisplayValue('SELECT 1')).toBeInTheDocument();
@@ -60,5 +62,28 @@ describe('GeneratedSqlViewer — read-only viewers', () => {
 
     expect(screen.getByRole('button', { name: 'Copy as Data Mart' })).toBeInTheDocument();
     expect(screen.getByTestId('sql-validator')).toBeInTheDocument();
+  });
+});
+
+describe('GeneratedSqlViewer — unsaved changes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getGeneratedSql.mockResolvedValue({ sql: 'SELECT 1', canModifySource: false });
+  });
+
+  it('says the SQL leaves out unsaved changes when the form has them', async () => {
+    await openDialog({ hasUnsavedChanges: true });
+
+    expect(
+      screen.getByText(
+        'This is the SQL of the saved report. Your unsaved changes are not included.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('shows no unsaved-changes note when the form is clean', async () => {
+    await openDialog();
+
+    expect(screen.queryByText(/unsaved changes are not included/)).not.toBeInTheDocument();
   });
 });

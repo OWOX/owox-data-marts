@@ -8,6 +8,7 @@ import { Button } from '@owox/ui/components/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -20,7 +21,7 @@ import { useProjectRoute } from '../../../../../shared/hooks';
 import { extractApiError, type ApiError } from '../../../../../app/api';
 import SqlValidator from '../SqlValidator/SqlValidator';
 
-type GeneratedSqlViewerVariant = 'action-icon' | 'outline-button';
+export type GeneratedSqlViewerVariant = 'action-icon' | 'header-link';
 
 interface GeneratedSqlViewerProps {
   reportId: string;
@@ -33,8 +34,8 @@ interface GeneratedSqlViewerProps {
    * Visual variant of the trigger:
    * - 'action-icon' (default): ghost icon button with tooltip, intended for
    *   table row action cells.
-   * - 'outline-button': outline button with label text, intended for use
-   *   inside forms.
+   * - 'header-link': muted text button with a leading divider, matching the
+   *   Copy link button in report sheet headers.
    */
   variant?: GeneratedSqlViewerVariant;
   /**
@@ -42,6 +43,11 @@ interface GeneratedSqlViewerProps {
    * action icon variant.
    */
   reportTitle?: string;
+  /**
+   * The SQL is generated from the saved report, so edits still open in the
+   * report form are not part of it. When set, the dialog says so.
+   */
+  hasUnsavedChanges?: boolean;
   className?: string;
 }
 
@@ -53,6 +59,7 @@ export function GeneratedSqlViewer({
   dataMartId,
   variant = 'action-icon',
   reportTitle,
+  hasUnsavedChanges = false,
   className,
 }: GeneratedSqlViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -156,17 +163,27 @@ export function GeneratedSqlViewer({
           </TooltipContent>
         </Tooltip>
       ) : (
-        <DialogTrigger asChild>
-          <Button type='button' variant='outline' size='sm'>
-            <FileCode2 className='mr-2 h-4 w-4' />
-            Preview SQL
-          </Button>
-        </DialogTrigger>
+        <div className={cn('border-border border-l pl-2', className)}>
+          <DialogTrigger asChild>
+            <button
+              type='button'
+              className='text-muted-foreground hover:bg-muted hover:text-foreground -my-1.5 flex items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors'
+            >
+              <FileCode2 className='h-3.5 w-3.5' aria-hidden='true' />
+              Preview SQL
+            </button>
+          </DialogTrigger>
+        </div>
       )}
 
       <DialogContent className='flex flex-col gap-4 sm:max-w-[80vw]'>
         <DialogHeader>
           <DialogTitle>Report SQL</DialogTitle>
+          {hasUnsavedChanges && (
+            <DialogDescription>
+              This is the SQL of the saved report. Your unsaved changes are not included.
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <div className='min-h-[600px]'>

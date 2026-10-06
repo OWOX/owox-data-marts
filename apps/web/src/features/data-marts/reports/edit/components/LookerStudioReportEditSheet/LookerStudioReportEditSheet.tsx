@@ -29,6 +29,7 @@ export function LookerStudioReportEditSheet({
   const {
     showUnsavedDialog,
     setShowUnsavedDialog,
+    isDirty,
     handleClose,
     confirmClose,
     handleFormDirtyChange,
@@ -49,7 +50,7 @@ export function LookerStudioReportEditSheet({
       <SheetContent data-testid='reportEditSheet'>
         <SheetHeader>
           <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
-          <ReportSheetDescription mode={mode} report={initialReport}>
+          <ReportSheetDescription mode={mode} report={initialReport} hasUnsavedChanges={isDirty}>
             {mode === ReportFormMode.CREATE
               ? 'Set up Data Mart as a data source'
               : 'Update connection details'}

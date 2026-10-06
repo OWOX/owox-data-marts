@@ -175,9 +175,10 @@ As soon as the report includes at least one joined field, OWOX Data Marts runs i
 
 ## View Generated SQL
 
-There are two ways to inspect the SQL OWOX Data Marts builds for a joined report:
+There are three ways to inspect the SQL OWOX Data Marts builds for a joined report:
 
 - **From the reports list.** On the source Data Mart's **Destinations** tab, hover over a report row and click the **Preview SQL** icon — the read-only **Report SQL** modal opens with the exact query that will run on the next execution.
+- **From the report itself.** Open the report and click **Preview SQL** in the panel header, next to **Copy link**. This works for a report opened from a shared link, too. The modal shows the saved report, so save your edits first to see them in the SQL.
 - **From Run History.** Open the Data Mart's **Run History** tab and click any report run to see the SQL that was sent to your storage for that run.
 
 ![Preview SQL icon on a report row in the Destinations tab](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0b6b7825-8512-42bf-4a14-46c8351f8c00/public)

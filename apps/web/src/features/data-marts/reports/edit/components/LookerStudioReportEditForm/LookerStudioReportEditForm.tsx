@@ -8,7 +8,6 @@ import {
   type DataMartReport,
   isLookerStudioDestinationConfig,
 } from '../../../shared/model/types/data-mart-report.ts';
-import { isGeneratedSqlSupported } from '../../../shared';
 import { useLookerStudioReportForm } from '../../hooks/useLookerStudioReportForm.ts';
 import {
   Form,
@@ -45,7 +44,6 @@ import {
   applyColumnConfigChange,
   applyOutputConfigChange,
 } from '../../utils/apply-output-config-change';
-import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 import { useDataMartContext } from '../../../../edit/model';
 
 interface LookerStudioReportEditFormProps {
@@ -273,21 +271,6 @@ export const LookerStudioReportEditForm = forwardRef<
                             }}
                             onCountChange={setColumnsCount}
                           />
-                          {mode === ReportFormMode.EDIT &&
-                            initialReport?.id &&
-                            dataMart.id &&
-                            isGeneratedSqlSupported(
-                              dataMart.definitionType,
-                              dataMart.storage.type
-                            ) && (
-                              <div className='pt-1'>
-                                <GeneratedSqlViewer
-                                  reportId={initialReport.id}
-                                  dataMartId={dataMart.id}
-                                  variant='outline-button'
-                                />
-                              </div>
-                            )}
                         </div>
                       </FormControl>
                     )}

@@ -49,6 +49,7 @@ export function EmailReportEditSheet({
   const {
     showUnsavedDialog,
     setShowUnsavedDialog,
+    isDirty,
     handleClose,
     confirmClose,
     handleFormDirtyChange,
@@ -94,7 +95,7 @@ export function EmailReportEditSheet({
             {preSelectedDestination?.title ??
               (mode === ReportFormMode.CREATE ? 'Create Report' : 'Report')}
           </SheetTitle>
-          <ReportSheetDescription mode={mode} report={initialReport}>
+          <ReportSheetDescription mode={mode} report={initialReport} hasUnsavedChanges={isDirty}>
             {mode === ReportFormMode.CREATE
               ? 'Fill in the details to create a new report'
               : 'Update details of an existing report'}
