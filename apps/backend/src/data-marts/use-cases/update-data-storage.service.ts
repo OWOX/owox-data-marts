@@ -3,11 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import {
   BigQueryConfig,
   BigQueryConfigSchema,
 } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
+import {
+  describeInvalidInput,
+  toFieldErrors,
+} from '../data-storage-types/utils/field-errors.utils';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
@@ -246,13 +251,9 @@ export class UpdateDataStorageService {
     ) {
       const parsed = BigQueryConfigSchema.safeParse(command.config);
       if (!parsed.success) {
-        const details = parsed.error.errors
-          .map(issue => {
-            const path = issue.path.join('.') || 'config';
-            return `${path}: ${issue.message}`;
-          })
-          .join('; ');
-        throw new BadRequestException(`Invalid config — ${details}`);
+        throw new BusinessViolationException(describeInvalidInput('config', parsed.error), {
+          fieldErrors: toFieldErrors('config', parsed.error),
+        });
       }
     }
 

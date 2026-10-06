@@ -22,16 +22,12 @@ export class RedshiftAccessValidator implements DataStorageAccessValidator {
   ): Promise<ValidationResult> {
     const configResult = RedshiftConfigSchema.safeParse(config);
     if (!configResult.success) {
-      return new ValidationResult(false, 'Invalid config', {
-        errors: configResult.error.errors,
-      });
+      return ValidationResult.invalidInput('config', configResult.error);
     }
 
     const credentialsResult = RedshiftCredentialsSchema.safeParse(credentials);
     if (!credentialsResult.success) {
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsResult.error.errors,
-      });
+      return ValidationResult.invalidInput('credentials', credentialsResult.error);
     }
 
     const adapter = this.adapterFactory.create(credentialsResult.data, configResult.data);

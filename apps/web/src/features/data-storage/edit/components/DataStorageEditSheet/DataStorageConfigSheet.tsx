@@ -54,11 +54,10 @@ export function DataStorageConfigSheet({
     source?: { id: string; title: string } | null
   ) => {
     if (dataStorage) {
+      // Throws on a rejected save; the form catches it to highlight the fields to fix.
       const updatedStorage = await updateDataStorage(dataStorage.id, data, source);
-      if (updatedStorage) {
-        onSaveSuccess(updatedStorage);
-        handleFormSubmitSuccess();
-      }
+      onSaveSuccess(updatedStorage);
+      handleFormSubmitSuccess();
     }
   };
 

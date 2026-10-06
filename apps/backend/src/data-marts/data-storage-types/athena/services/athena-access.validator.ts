@@ -32,15 +32,13 @@ export class AthenaAccessValidator implements DataStorageAccessValidator {
     const configOpt = AthenaConfigSchema.safeParse(config);
     if (!configOpt.success) {
       this.logger.warn('Invalid config', configOpt.error);
-      return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
+      return ValidationResult.invalidInput('config', configOpt.error);
     }
 
     const credentialsOpt = AthenaCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
+      return ValidationResult.invalidInput('credentials', credentialsOpt.error);
     }
 
     const athenaConfig: AthenaConfig = configOpt.data;

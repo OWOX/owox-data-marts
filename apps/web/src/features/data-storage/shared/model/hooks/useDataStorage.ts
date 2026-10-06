@@ -135,7 +135,8 @@ export function useDataStorage() {
           type: DataStorageActionType.UPDATE_STORAGE_ERROR,
           payload: extractApiError(error),
         });
-        return null;
+        // Rethrown so the form can highlight the inputs the server rejected.
+        throw error;
       }
     },
     [dispatch]

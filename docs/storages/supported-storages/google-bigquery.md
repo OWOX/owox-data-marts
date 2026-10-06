@@ -21,7 +21,12 @@ Give the storage configuration a clear **title**, eg `OWOX Data Marts – Your N
 
 - Go to the [Google Cloud Console](https://console.cloud.google.com/)
 - Click the project selector dropdown at the top
-- Find your project and copy the **Project ID**
+- Find your project and copy the **Project ID** from the **ID** column
+
+The Project ID is not the project name: it has 6–30 lowercase letters, digits, or hyphens,
+starts with a letter, and does not end with a hyphen (for example, `my-project-123`).
+If you enter the project name instead, **Save** highlights the **Project ID** field and
+explains the expected format.
 
 NOTE: BigQuery usage costs will be applied to this project.  
 
@@ -51,7 +56,9 @@ To get the JSON key, you'll need to create or use an existing service account in
   - `BigQuery Job User`
 - Go to the **Keys** tab, click **Add key → Create new key**
 - Choose **JSON**, click **Create**, and download the file
-- Copy the contents of the JSON file and paste it into the **Service Account JSON** field
+- Copy the contents of the JSON file and paste it into the **Service Account JSON** field.
+  Paste the whole file: if the text is not valid JSON or has no `client_email`, the field is
+  highlighted with the reason when you click **Save**.
 
 ![BigQuery Service Account Setup](../../res/screens/Storage-4.png)
 

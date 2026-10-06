@@ -41,6 +41,28 @@ export const googleServiceAccountSchema = z.object({
 });
 
 /**
+ * Why a Service Account value cannot be saved, or `null` when it can. Checks only what the
+ * already-saved key shown back in the form also carries (it is validated too, and the server
+ * never returns the private part), so an untouched key always passes.
+ */
+function describeServiceAccountKeyProblem(value: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return 'Service Account must be a valid JSON string';
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return 'Service Account must be a valid JSON object';
+  }
+  const clientEmail = (parsed as { client_email?: unknown }).client_email;
+  if (typeof clientEmail !== 'string' || clientEmail.trim().length === 0) {
+    return 'Service Account must contain a client_email field';
+  }
+  return null;
+}
+
+/**
  * Schema for Google credentials that supports both Service Account and OAuth.
  * OAuth is managed via credentialId on the parent entity.
  * At least one authentication method must be provided: a new serviceAccount JSON
@@ -52,9 +74,19 @@ export const googleCredentialsWithOAuthSchema = z
     credentialId: z.string().uuid('Invalid credential ID').nullable().optional(),
   })
   .superRefine((data, ctx) => {
-    const hasServiceAccount = !!data.serviceAccount && data.serviceAccount.trim().length > 0;
+    const serviceAccount = data.serviceAccount?.trim() ?? '';
     const hasCredentialId = !!data.credentialId && data.credentialId.trim().length > 0;
-    if (hasServiceAccount || hasCredentialId) return;
+
+    if (serviceAccount) {
+      // A malformed key used to pass here and only fail while building the request, which
+      // never pointed at this field. Flag the field instead.
+      const problem = describeServiceAccountKeyProblem(serviceAccount);
+      if (problem) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem, path: ['serviceAccount'] });
+      }
+      return;
+    }
+    if (hasCredentialId) return;
 
     // The form renders only one auth method at a time, so the issue is
     // addressed to both fields — whichever is mounted will display it.

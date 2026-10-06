@@ -62,7 +62,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
     const configOpt = BigQueryConfigSchema.safeParse(config);
     if (!configOpt.success) {
       this.logger.warn('Invalid config', configOpt.error);
-      return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
+      return ValidationResult.invalidInput('config', configOpt.error);
     }
 
     const bigQueryConfig = configOpt.data;
@@ -89,9 +89,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
     const credentialsOpt = BigQueryServiceAccountCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
+      return ValidationResult.invalidInput('credentials', credentialsOpt.error);
     }
 
     const apiAdapter = new BigQueryApiAdapter(credentialsOpt.data, bigQueryConfig);

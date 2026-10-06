@@ -22,15 +22,13 @@ export class SnowflakeAccessValidator implements DataStorageAccessValidator {
     const configOpt = SnowflakeConfigSchema.safeParse(config);
     if (!configOpt.success) {
       this.logger.log('Invalid config', configOpt.error);
-      return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
+      return ValidationResult.invalidInput('config', configOpt.error);
     }
 
     const credentialsOpt = SnowflakeCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
       this.logger.log('Invalid credentials', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
+      return ValidationResult.invalidInput('credentials', credentialsOpt.error);
     }
 
     const snowflakeConfig = configOpt.data;

@@ -1,3 +1,5 @@
+import type { FieldPath, FieldValues, UseFormSetError } from 'react-hook-form';
+
 /**
  * Creates a mutable copy of form data for safe manipulation.
  * This is commonly used when you need to conditionally modify
@@ -33,4 +35,32 @@ export function focusFirstInvalidField(_errors?: unknown, event?: { target?: unk
     }
   };
   requestAnimationFrame(tryFocus);
+}
+
+/**
+ * Puts the errors a rejected save names onto the inputs that hold those values, so the form
+ * highlights what to fix exactly as it does for its own validation — red field, message under
+ * it, section opened. `toFormField` maps a request path (`config.projectId`) to the form field
+ * that shows it, or `null` when no input does. Several request values can land on one input
+ * (every key of a pasted JSON file), so their messages are joined.
+ *
+ * Returns whether any field got an error, i.e. whether there is something to focus.
+ */
+export function applyServerFieldErrors<T extends FieldValues>(
+  setError: UseFormSetError<T>,
+  fieldErrors: readonly { field: string; message: string }[],
+  toFormField: (field: string) => FieldPath<T> | null
+): boolean {
+  const messagesByField = new Map<FieldPath<T>, string[]>();
+  for (const { field, message } of fieldErrors) {
+    const name = toFormField(field);
+    if (!name) continue;
+    const messages = messagesByField.get(name) ?? [];
+    if (!messages.includes(message)) messages.push(message);
+    messagesByField.set(name, messages);
+  }
+  for (const [name, messages] of messagesByField) {
+    setError(name, { type: 'server', message: messages.join('; ') });
+  }
+  return messagesByField.size > 0;
 }

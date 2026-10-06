@@ -35,6 +35,28 @@ const googleConfigSchema = z.object({
   location: z.string().min(1, 'Location is required'),
 });
 
+/**
+ * Same rule as the backend's BigQueryConfigSchema: 6-30 lowercase letters, digits or hyphens,
+ * starting with a letter and not ending with a hyphen, optionally domain-scoped
+ * (`example.com:my-project`). Checked here so the field is highlighted before the request
+ * instead of the save failing with a toast. Users most often paste the project NAME, which the
+ * message calls out.
+ */
+const GCP_PROJECT_ID_PATTERN = /^(?:[a-z][a-z0-9.-]*:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+// Only the editable BigQuery storage checks the format: the legacy one shows its stored
+// Project ID read-only, so a format error there would block saving with nothing to fix.
+const googleBigQueryConfigSchema = googleConfigSchema.extend({
+  projectId: z
+    .string()
+    .trim()
+    .min(1, 'Project ID is required')
+    .regex(
+      GCP_PROJECT_ID_PATTERN,
+      'Enter the Project ID, not the project name: 6–30 lowercase letters, digits, or hyphens, starting with a letter (e.g. my-project-123)'
+    ),
+});
+
 const awsConfigSchema = z.object({
   region: z.string().min(1, 'Region is required'),
   outputBucket: z.string().min(1, 'Output Bucket is required'),
@@ -82,7 +104,7 @@ const baseSchema = z.object({
 export const googleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.GOOGLE_BIGQUERY),
   credentials: googleCredentialsWithOAuthSchema,
-  config: googleConfigSchema,
+  config: googleBigQueryConfigSchema,
 });
 
 // Legacy BigQuery uses the same OAuth-enabled schema as GOOGLE_BIGQUERY

@@ -24,6 +24,8 @@ To configure a new **Storage**:
     - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
 4. Click **Save** to complete storage setup or **Cancel** to finish the configuration later.
+   If a value can't be used, **Save** marks the field to fix in red, opens its section, and
+   explains what is wrong under the field. The mark clears when you correct the value.
 
 > ☝️ Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created.
 > You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.  

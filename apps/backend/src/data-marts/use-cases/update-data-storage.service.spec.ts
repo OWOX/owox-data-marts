@@ -453,7 +453,17 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
 
     const command = makeCommand({ projectId: 'GTM-NC2077' });
 
-    await expect(service.run(command)).rejects.toThrow(/Invalid config — projectId: /);
+    const error = (await service.run(command).catch((e: unknown) => e)) as {
+      message: string;
+      errorDetails?: unknown;
+    };
+    expect(error.message).toMatch(/^Invalid config — projectId: /);
+    // The storage form highlights the Project ID input from this list.
+    expect(error.errorDetails).toEqual({
+      fieldErrors: [
+        { field: 'config.projectId', message: expect.stringContaining('Invalid GCP project ID') },
+      ],
+    });
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
   });

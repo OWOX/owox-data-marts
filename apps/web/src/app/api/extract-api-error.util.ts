@@ -1,4 +1,4 @@
-import type { ApiError } from './api-error.interface.ts';
+import type { ApiError, ApiFieldError } from './api-error.interface.ts';
 import type { AxiosError } from 'axios';
 
 /**
@@ -30,4 +30,19 @@ export const apiErrorMessage = (error: unknown, fallback: string): string => {
   if (serverMessage) return serverMessage;
   const thrownMessage = error instanceof Error ? error.message.trim() : '';
   return thrownMessage || fallback;
+};
+
+/**
+ * The per-input errors a rejected save names (`errorDetails.fieldErrors`), or an empty list.
+ * Shape-checked entry by entry: this runs inside an error handler, and a malformed body must
+ * leave the form as it was rather than throw on top of the failure it is reporting.
+ */
+export const extractApiFieldErrors = (error: unknown): ApiFieldError[] => {
+  const fieldErrors: unknown = extractApiError(error).errorDetails?.fieldErrors;
+  if (!Array.isArray(fieldErrors)) return [];
+  return fieldErrors.filter(
+    (entry): entry is ApiFieldError =>
+      typeof (entry as ApiFieldError | null)?.field === 'string' &&
+      typeof (entry as ApiFieldError | null)?.message === 'string'
+  );
 };

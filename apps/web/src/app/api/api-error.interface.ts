@@ -27,6 +27,16 @@ export interface ApiFormulaViolation {
   message?: string;
 }
 
+/**
+ * One rejected input value, named by its dot path in the request body (`config.projectId`,
+ * `credentials.private_key`). Lets a form highlight the input to fix rather than only toasting
+ * the server's sentence. Sent under `errorDetails.fieldErrors`.
+ */
+export interface ApiFieldError {
+  field: string;
+  message: string;
+}
+
 export interface ApiError {
   code?: string;
   message?: string;
@@ -40,9 +50,14 @@ export interface ApiError {
    * Envelope used by `BusinessViolationException` (via the backend's exception filter). `error`
    * is a single free-text string; `errors` is the calculated-field validator's structured list
    * (see `ApiFormulaViolation`) — two different callers of the same exception, two different
-   * shapes under the same key.
+   * shapes under the same key. `fieldErrors` is the storage update's per-input list (see
+   * `ApiFieldError`).
    */
-  errorDetails?: { error?: string; errors?: ApiFormulaViolation[] };
+  errorDetails?: {
+    error?: string;
+    errors?: ApiFormulaViolation[];
+    fieldErrors?: ApiFieldError[];
+  };
   /**
    * Envelope used by the output-controls validator, which throws
    * `BadRequestException({ message, details: { errors } })` — a different key AND a different
