@@ -21,6 +21,7 @@ export interface PluginHostBridgeOptions {
   /** A page inside OWOX the plugin asks to go to. The host decides whether it may. */
   onNavigate: (path: string) => void;
   onRouteChange: (route: string) => void;
+  /** A rejection declines the copy; the plugin gets a refusal without the reason. */
   onCopyLink: (route: string | undefined) => Promise<void> | void;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
@@ -337,7 +338,11 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         } else if (request.kind === 'route') {
           options.onRouteChange(request.path);
         } else if (request.kind === 'copyLink') {
-          await options.onCopyLink(request.path);
+          try {
+            await options.onCopyLink(request.path);
+          } catch {
+            throw forbidden('The link could not be copied');
+          }
           reply({ id, ok: true, status: 200, headers: {}, body: null });
         }
       } catch (caught) {

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const success = vi.fn();
@@ -54,5 +54,71 @@ describe('useCopyLink', () => {
     await act(() => copy('https://app.owox.test/x'));
 
     expect(screen.getByRole('dialog', { name: 'Copy this link' })).toBeInTheDocument();
+  });
+
+  it('copies while the member is interacting with the page', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText }, userActivation: { isActive: true } });
+    render(<Probe />);
+
+    await act(() => copy('https://app.owox.test/x'));
+
+    expect(writeText).toHaveBeenCalledWith('https://app.owox.test/x');
+    expect(success).toHaveBeenCalledWith('Link copied', { id: 'plugin-link-copied' });
+  });
+
+  it('refuses to copy when the member is not interacting with the page', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText }, userActivation: { isActive: false } });
+    render(<Probe />);
+
+    await act(() => expect(copy('https://app.owox.test/x')).rejects.toThrow());
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(success).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('refuses a second copy while the first is still in progress', async () => {
+    let finish: () => void = () => undefined;
+    const writeText = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+    );
+    vi.stubGlobal('navigator', { clipboard: { writeText }, userActivation: { isActive: true } });
+    render(<Probe />);
+
+    const first = copy('https://app.owox.test/first');
+    await act(() => expect(copy('https://app.owox.test/second')).rejects.toThrow());
+    finish();
+    await act(() => first);
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith('https://app.owox.test/first');
+    expect(success).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to copy while the fallback dialog is open, and copies again once it closes', async () => {
+    const writeText = vi
+      .fn<(url: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('denied'))
+      .mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText }, userActivation: { isActive: true } });
+    render(<Probe />);
+    await act(() => copy('https://app.owox.test/first'));
+
+    await act(() => expect(copy('https://app.owox.test/second')).rejects.toThrow());
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(screen.getByDisplayValue('https://app.owox.test/first')).toBeInTheDocument();
+    expect(success).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    await act(() => copy('https://app.owox.test/third'));
+
+    expect(writeText).toHaveBeenLastCalledWith('https://app.owox.test/third');
+    expect(success).toHaveBeenCalledTimes(1);
   });
 });

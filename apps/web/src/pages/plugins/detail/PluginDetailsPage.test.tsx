@@ -272,6 +272,31 @@ describe('PluginDetailsPage', () => {
     expect(copyLink).toHaveBeenCalledWith(`${window.location.origin}/ui/project-1/plugins/p1`);
   });
 
+  it('swallows a copy the helper declines', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      copyLink.mockImplementationOnce(() => {
+        const declined = Promise.reject(new Error('declined'));
+        // Not a Promise instance, so the spy does not mark the rejection as handled.
+        return {
+          then: declined.then.bind(declined),
+          catch: declined.catch.bind(declined),
+        } as unknown as Promise<void>;
+      });
+      renderPage();
+      openMenu();
+
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(copyLink).toHaveBeenCalledTimes(1);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
   it('offers nothing to withdraw when the caller manages no publication', () => {
     renderPage();
     openMenu();

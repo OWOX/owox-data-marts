@@ -214,11 +214,12 @@ export default function PluginDetailsPage({
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
                 <DropdownMenuItem
-                  onClick={() =>
+                  onClick={() => {
+                    // Refused only while an earlier copy is still running.
                     void copyLink(
                       `${window.location.origin}${scope(`/plugins/${plugin.pluginId}`)}`
-                    )
-                  }
+                    ).catch(() => undefined);
+                  }}
                 >
                   Copy link
                 </DropdownMenuItem>

@@ -1180,13 +1180,16 @@ describe('plugin host bridge', () => {
       expect(h.onCopyLink).not.toHaveBeenCalled();
     });
 
-    it('does not echo a rejected onCopyLink error to the plugin', async () => {
+    it('answers a copy the host declines with a refusal that does not echo its reason', async () => {
       const h = await harness();
       h.onCopyLink.mockRejectedValueOnce(new Error(`clipboard denied for ${RUNTIME_TOKEN}`));
 
       const response = await h.send({ kind: 'copyLink', path: '/d/42' });
 
-      expect(response).toMatchObject({ ok: false, error: { code: 'NETWORK_ERROR' } });
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'The link could not be copied' },
+      });
       expect(JSON.stringify(response)).not.toContain(RUNTIME_TOKEN);
     });
   });

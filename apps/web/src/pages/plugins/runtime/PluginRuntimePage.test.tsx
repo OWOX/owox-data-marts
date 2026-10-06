@@ -401,6 +401,13 @@ describe('PluginRuntimePage', () => {
     expect(copyLink).toHaveBeenCalledWith(`${window.location.origin}${OPEN_BASE}/d/9`);
   });
 
+  it('passes a declined copy back to the plugin', async () => {
+    copyLink.mockRejectedValueOnce(new Error('declined'));
+    await mountWithBridge();
+
+    await expect(bridgeOptions.onCopyLink?.('/d/9')).rejects.toThrow();
+  });
+
   it('copies the last reported page when the plugin names none', async () => {
     renderPage('/');
     await waitFor(() => {
