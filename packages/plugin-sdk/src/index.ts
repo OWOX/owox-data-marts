@@ -58,8 +58,8 @@ export interface PluginUi {
 }
 
 export interface PluginContext extends PluginHostContext {
-  /** The route the host opened this plugin at; `/` when it named none. */
-  readonly route: string;
+  /** The route the host opened this plugin at; undefined on a host without page links. */
+  readonly route: string | undefined;
 
   /**
    * A real OWOX API client whose transport is owned by this SDK.
@@ -202,7 +202,7 @@ function bind(
 
   return {
     ...init.context,
-    route: init.context.route ?? '/',
+    route: init.context.route,
     owox,
     credentials: createPluginCredentials(requester, init.context.credentialHandles ?? []),
     collections: <T>(name: string) => createPluginCollection<T>(owox, name),

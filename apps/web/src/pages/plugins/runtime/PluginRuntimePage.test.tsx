@@ -262,6 +262,16 @@ describe('PluginRuntimePage', () => {
     });
   });
 
+  // The SDK reads an absent route as a host without page links, so the root is sent too.
+  it('hands the root route to the plugin as well', async () => {
+    renderPage('/');
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+
+    expect(bridgeOptions.context).toHaveProperty('route', '/');
+  });
+
   it('keeps one bridge and replaces the address once for reports in quick succession', async () => {
     await mountWithBridge();
 

@@ -265,24 +265,28 @@ describe('connect', () => {
     expect(JSON.stringify(ambient)).not.toContain('token');
   });
 
-  it('exposes the route the host opened it on, and / when the host sends none', async () => {
+  it.each(['/d/42?tab=2', '/'])('exposes the route %s the host opened it on', async route => {
     const parent = pretendToBeFramed();
-    const withRoute = new MessageChannel();
+    const channel = new MessageChannel();
     const pending = connect();
     await vi.advanceTimersByTimeAsync(0);
     const init = hostInit();
-    deliverFromParent(parent, { ...init, context: { ...init.context, route: '/d/42?tab=2' } }, [
-      withRoute.port2,
-    ]);
-    expect((await pending).route).toBe('/d/42?tab=2');
+    deliverFromParent(parent, { ...init, context: { ...init.context, route } }, [channel.port2]);
 
-    __resetForTests();
-    const parent2 = pretendToBeFramed();
-    const bare = new MessageChannel();
-    const second = connect();
+    expect((await pending).route).toBe(route);
+  });
+
+  // A host without page links sends no route, and that absence is how a plugin can tell.
+  it('leaves the route undefined when the host sends none', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const pending = connect();
     await vi.advanceTimersByTimeAsync(0);
-    deliverFromParent(parent2, hostInit(), [bare.port2]);
-    expect((await second).route).toBe('/');
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+
+    const context = await pending;
+
+    expect(context.route).toBeUndefined();
   });
 
   it('reports its route to the host without waiting for an answer', async () => {
