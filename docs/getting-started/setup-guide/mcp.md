@@ -684,19 +684,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 
 Your client may be validating a response against a tool schema cached before a server update.
 Refresh the server's tool list or reconnect the MCP server (in Claude Code, use `/mcp`).
-Adding an optional response field is supported by the current output schemas; types and required
-fields are still validated.
-
-During temporary schema recovery, calls to any tool can send a tool-list refresh notification
-to help clients replace schemas cached before project contexts were added.
-Clients must support `notifications/tools/list_changed`; a call already in progress may still
-fail, so retry after the tool list refreshes. Legacy clients receive the notification on the
-call's response stream; clients using protocol `2026-07-28` need an active tool-change subscription.
-Notifications are limited to once every five minutes per OAuth client, user, and project on each
-server process. Modern subscription broadcasts are limited to once every five minutes per process.
-The process-local cooldown cache holds at most 10,000 entries and evicts the oldest entry when full.
-Different server processes may send additional notifications, and a client that does not receive
-or handle a notification still needs to refresh or reconnect manually.
+Then retry the tool call.
 
 ### Requests return 401 Unauthorized
 
