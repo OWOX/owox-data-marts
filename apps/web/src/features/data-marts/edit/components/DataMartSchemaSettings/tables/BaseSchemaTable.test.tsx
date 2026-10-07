@@ -44,9 +44,15 @@ vi.mock('react-router', async importOriginal => {
 // shares with the tests has to live in vi.hoisted.
 // `model` is the editor's OWN model, stable across `getModel()` calls: the completion provider
 // answers only for that one, so a fresh object per call would read as another editor's.
+// `editorText` is the text the stand-in editor shows, read by its model the way the real one is.
+const editorText = vi.hoisted(() => ({ current: '' }));
 const monacoState = vi.hoisted(() => ({
   registeredProvider: null as unknown,
-  model: { getValueInRange: () => '' },
+  model: {
+    getValueInRange: () => '',
+    getValue: () => editorText.current,
+    getFullModelRange: () => ({}),
+  },
 }));
 
 // A calculated row's formula cell renders a FormulaEditor, which pulls in Monaco — happy-dom
@@ -58,9 +64,14 @@ const monacoState = vi.hoisted(() => ({
 vi.mock('@monaco-editor/react', () => ({
   Editor: (props: {
     value?: string;
+    defaultValue?: string;
     onChange?: (value: string | undefined) => void;
     onMount?: (editor: unknown, monaco: unknown) => void;
   }) => {
+    // A stand-in that mirrors its props: the formula editor passes the starting text as
+    // `defaultValue` and writes later changes through the model.
+    const text = props.value ?? props.defaultValue ?? '';
+    editorText.current = text;
     useEffect(() => {
       props.onMount?.(
         {
@@ -71,6 +82,8 @@ vi.mock('@monaco-editor/react', () => ({
           // Registered once on mount; the formula editor binds Ctrl/Cmd+Enter to Apply through it.
           addCommand: () => undefined,
           getModel: () => monacoState.model,
+          executeEdits: () => true,
+          pushUndoStop: () => true,
           // Chip-blind: nothing here is about chips, and their own specs cover both halves.
           createDecorationsCollection: () => ({ set: () => [], getRanges: () => [] }),
           onKeyDown: () => ({ dispose: () => undefined }),
@@ -101,7 +114,7 @@ vi.mock('@monaco-editor/react', () => ({
       <textarea
         aria-label='Formula'
         data-testid='formula-editor'
-        value={props.value ?? ''}
+        value={text}
         onChange={e => {
           props.onChange?.(e.target.value);
         }}

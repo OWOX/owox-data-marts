@@ -20,12 +20,20 @@ vi.mock('react-router', async importOriginal => {
   };
 });
 
+// The text the stand-in editor shows, read by its model the way the real model is read.
+const editorText = vi.hoisted(() => ({ current: '' }));
+
 vi.mock('@monaco-editor/react', () => ({
   Editor: (props: {
     value?: string;
+    defaultValue?: string;
     onChange?: (value: string | undefined) => void;
     onMount?: (editor: unknown, monaco: unknown) => void;
   }) => {
+    // A stand-in that mirrors its props: the formula editor passes the starting text as
+    // `defaultValue` and writes later changes through the model.
+    const text = props.value ?? props.defaultValue ?? '';
+    editorText.current = text;
     useEffect(() => {
       props.onMount?.(
         {
@@ -35,7 +43,12 @@ vi.mock('@monaco-editor/react', () => ({
           onDidDispose: () => undefined,
           // Registered once on mount; the formula editor binds Ctrl/Cmd+Enter to Apply through it.
           addCommand: () => undefined,
-          getModel: () => ({}),
+          getModel: () => ({
+            getValue: () => editorText.current,
+            getFullModelRange: () => ({}),
+          }),
+          executeEdits: () => true,
+          pushUndoStop: () => true,
           // Chip-blind: nothing here is about chips, and their own specs cover both halves.
           createDecorationsCollection: () => ({ set: () => [], getRanges: () => [] }),
           onKeyDown: () => ({ dispose: () => undefined }),
@@ -62,7 +75,7 @@ vi.mock('@monaco-editor/react', () => ({
       <textarea
         aria-label='Formula'
         data-testid='formula-editor'
-        value={props.value ?? ''}
+        value={text}
         onChange={e => {
           props.onChange?.(e.target.value);
         }}
