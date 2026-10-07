@@ -1,6 +1,10 @@
 import { ZodError } from 'zod';
 import { TypedComponent } from '../../../common/resolver/typed-component.resolver';
-import { describeInvalidInput, toFieldErrors } from '../../utils/field-errors.utils';
+import {
+  describeInvalidInput,
+  sanitizeIssues,
+  toFieldErrors,
+} from '../../utils/field-errors.utils';
 import { DataDestinationType } from '../enums/data-destination-type.enum';
 import { DataDestinationCredentials } from '../data-destination-credentials.type';
 
@@ -32,11 +36,11 @@ export class ValidationResult {
   /**
    * The credentials failed their schema. `reason.fieldErrors` names each rejected value by its
    * request path so the destination form can highlight the input to fix; `reason.errors` keeps
-   * the raw issues for existing API consumers.
+   * the raw issues for existing API consumers, without the submitted values.
    */
   static invalidCredentials(error: ZodError): ValidationResult {
     return new ValidationResult(false, describeInvalidInput('credentials', error), {
-      errors: error.errors,
+      errors: sanitizeIssues(error.errors),
       fieldErrors: toFieldErrors('credentials', error),
     });
   }

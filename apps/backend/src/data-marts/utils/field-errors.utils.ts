@@ -20,6 +20,29 @@ export function toFieldErrors(scope: FieldErrorScope, error: ZodError): FieldErr
 }
 
 /**
+ * The raw issues, for the API consumers that read `errorDetails.errors`, with every copy of the
+ * submitted value removed: `received` (an enum or literal mismatch carries the value itself), the
+ * enum message that quotes it, and the same inside a union's nested issues. A credential typed into the wrong field must not come
+ * back in the response body any more than in the message.
+ */
+export function sanitizeIssues(issues: readonly ZodIssue[]): Record<string, unknown>[] {
+  return issues.map(issue => {
+    const { received: _received, ...raw } = issue as ZodIssue & { received?: unknown };
+    // Zod's own wording of an enum mismatch quotes the value too.
+    const rest = { ...raw, message: issueMessage(issue) };
+    if (issue.code === 'invalid_union') {
+      return {
+        ...rest,
+        unionErrors: issue.unionErrors.map(unionError => ({
+          issues: sanitizeIssues(unionError.issues),
+        })),
+      };
+    }
+    return rest;
+  });
+}
+
+/**
  * `Invalid config — projectId: <reason>` or `Invalid credentials — project_id is required` —
  * names every rejected value in the message itself, for the clients that only ever show
  * `message`. The key is not repeated when the reason already names it.

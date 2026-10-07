@@ -80,6 +80,24 @@ describe('field-errors.utils', () => {
     );
   });
 
+  it.each([
+    ['an enum', z.object({ authMethod: z.enum(['PASSWORD', 'KEY_PAIR']) })],
+    ['a literal', z.object({ type: z.literal('service_account') })],
+    [
+      'a union',
+      z.union([z.object({ authMethod: z.literal('PASSWORD') }), z.object({ token: z.string() })]),
+    ],
+  ])('keeps a value %s rejected out of the whole response', (_case, schema) => {
+    const submitted = { authMethod: 's3cr3t-value', type: 's3cr3t-value' };
+    const parsed = schema.safeParse(submitted);
+    if (parsed.success) throw new Error('expected the value to be rejected');
+
+    const result = ValidationResult.invalidInput('credentials', parsed.error);
+
+    expect(JSON.stringify(result.reason)).not.toContain('s3cr3t-value');
+    expect(result.errorMessage).not.toContain('s3cr3t-value');
+  });
+
   it('ValidationResult.invalidInput keeps the raw issues next to the field errors', () => {
     const parsed = BigQueryConfigSchema.safeParse({ projectId: 'GTM-NC2077' });
     if (parsed.success) throw new Error('expected the project ID to be rejected');

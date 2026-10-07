@@ -247,11 +247,14 @@ export class UpdateDataStorageService {
     ) {
       const parsed = BigQueryConfigSchema.safeParse(command.config);
       if (!parsed.success) {
-        // Same body shape as a validator's schema failure, so the storage form highlights the
-        // field either way. A BadRequestException keeps the handled-400 log line and requestId.
+        // Same `errorDetails` as a validator's schema failure, so the storage form highlights the
+        // field either way. A BadRequestException keeps the handled-400 log line and requestId;
+        // GlobalExceptionFilter adds statusCode, timestamp and path to this object, and `error`
+        // keeps the key the plain-string form of this exception used to send.
         const invalid = ValidationResult.invalidInput('config', parsed.error);
         throw new BadRequestException({
           message: invalid.errorMessage,
+          error: 'Bad Request',
           errorDetails: invalid.reason,
         });
       }

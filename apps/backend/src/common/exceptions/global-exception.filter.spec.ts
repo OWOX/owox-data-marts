@@ -108,6 +108,28 @@ describe('GlobalExceptionFilter', () => {
       });
     });
 
+    // A thrower that needs structured details passes an object; the envelope fields are still
+    // the filter's to add, so the body keeps the shape every other 400 has.
+    it('completes the envelope around a structured body', () => {
+      filter.catch(
+        new BadRequestException({
+          message: 'Invalid config — projectId: Invalid GCP project ID',
+          error: 'Bad Request',
+          errorDetails: { fieldErrors: [{ field: 'config.projectId', message: 'Invalid' }] },
+        }),
+        hostFor(json)
+      );
+
+      expect(body()).toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Invalid config — projectId: Invalid GCP project ID',
+        errorDetails: { fieldErrors: [{ field: 'config.projectId', message: 'Invalid' }] },
+        timestamp: expect.any(String),
+        path: '/api/reports',
+      });
+    });
+
     it('prefers a written message over the exception name', () => {
       filter.catch(new NotFoundException('Data Mart not found'), hostFor(json));
 

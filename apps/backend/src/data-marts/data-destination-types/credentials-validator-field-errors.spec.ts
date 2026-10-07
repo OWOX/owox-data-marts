@@ -1,13 +1,15 @@
 import { GoogleSheetsCredentialsValidator } from './google-sheets/services/google-sheets-credentials-validator';
 import { EmailCredentialsValidator } from './ee/email/services/email-credentials-validator';
 import { GoogleChatCredentialsValidator } from './ee/google-chat/services/google-chat-credentials-validator';
+import { LookerStudioConnectorCredentialsValidator } from './looker-studio-connector/services/looker-studio-connector-credentials-validator';
 import type { DataDestinationCredentialsValidator } from './interfaces/data-destination-credentials-validator.interface';
 import type { DataDestinationCredentials } from './data-destination-credentials.type';
 
 /**
  * The destination form highlights an input only from `reason.fieldErrors`, named by the value's
  * path in the save request. Pins that the credential validators report schema failures that way;
- * every case here fails the schema, so no Google API is called.
+ * every case here fails the schema, so no external API is called. Slack and Microsoft Teams share
+ * Email's validator.
  */
 const cases: [string, DataDestinationCredentialsValidator, unknown, string][] = [
   [
@@ -24,6 +26,12 @@ const cases: [string, DataDestinationCredentialsValidator, unknown, string][] = 
     new EmailCredentialsValidator(),
     { type: 'email-credentials', to: ['not-an-email'] },
     'credentials.to.0',
+  ],
+  [
+    'Looker Studio',
+    new LookerStudioConnectorCredentialsValidator(),
+    { type: 'looker-studio-credentials', destinationSecretKey: 42 },
+    'credentials.destinationSecretKey',
   ],
   [
     'Google Chat',

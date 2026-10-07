@@ -459,6 +459,7 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     // The storage form highlights the Project ID input from `fieldErrors`.
     expect(error.getResponse()).toEqual({
       message: error.message,
+      error: 'Bad Request',
       errorDetails: {
         errors: expect.any(Array),
         fieldErrors: [

@@ -3,6 +3,7 @@ import { TypedComponent } from '../../../common/resolver/typed-component.resolve
 import {
   describeInvalidInput,
   FieldErrorScope,
+  sanitizeIssues,
   toFieldErrors,
 } from '../../utils/field-errors.utils';
 import { DataStorageType } from '../enums/data-storage-type.enum';
@@ -40,11 +41,11 @@ export class ValidationResult {
   /**
    * The config or credentials failed their schema. `reason.fieldErrors` names each rejected
    * value by its request path so the storage form can highlight the input to fix;
-   * `reason.errors` keeps the raw issues for existing API consumers.
+   * `reason.errors` keeps the raw issues for existing API consumers, without the submitted values.
    */
   static invalidInput(scope: FieldErrorScope, error: ZodError): ValidationResult {
     return new ValidationResult(false, describeInvalidInput(scope, error), {
-      errors: error.errors,
+      errors: sanitizeIssues(error.errors),
       fieldErrors: toFieldErrors(scope, error),
     });
   }
