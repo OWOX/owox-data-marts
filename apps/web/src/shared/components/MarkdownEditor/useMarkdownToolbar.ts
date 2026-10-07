@@ -110,7 +110,7 @@ export function useMarkdownToolbar({
             start.lineNumber,
             start.column + prefix.length,
             end.lineNumber,
-            end.column + prefix.length
+            end.column + (start.lineNumber === end.lineNumber ? prefix.length : 0)
           )
         );
       } else {
