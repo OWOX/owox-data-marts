@@ -224,9 +224,19 @@ function RelationshipDetailsBody({
   if (details.isLoading) return <DetailsSkeleton />;
 
   if (!relationship) {
+    if (details.isGraphError) {
+      return (
+        <div role='alert' className='flex flex-col items-start gap-3 p-4 text-sm'>
+          <p className='text-muted-foreground'>This relationship could not be loaded.</p>
+          <Button type='button' variant='outline' size='sm' onClick={details.retryGraph}>
+            Retry
+          </Button>
+        </div>
+      );
+    }
     return (
       <p role='alert' className='text-muted-foreground p-4 text-sm'>
-        This relationship could not be loaded. It may have been deleted.
+        This relationship no longer exists. It may have been deleted.
       </p>
     );
   }

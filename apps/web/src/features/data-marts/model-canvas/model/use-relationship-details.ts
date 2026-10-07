@@ -201,8 +201,11 @@ export function useRelationshipDetails({
     /** A join back to a Data Mart already on the path, such as the source itself: reports skip it. */
     isCycleStub: graphNode?.isCycleStub ?? false,
     isLoading: graphQuery.isPending,
-    /** The graph failed to load, or no longer holds the relationship. */
-    isUnavailable: graphQuery.isError || (graphQuery.isSuccess && !graphNode),
+    /** The graph failed to load; a loaded graph without the relationship means it is gone. */
+    isGraphError: graphQuery.isError && !graphQuery.data,
+    retryGraph: () => {
+      void graphQuery.refetch();
+    },
     source: sourceEntry,
     siblingAliases,
     onRelationshipUpdated,

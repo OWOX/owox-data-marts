@@ -383,10 +383,12 @@ describe('DataMartRelationshipsContent config saves', () => {
     });
 
     saveDescription('first');
-    expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+    });
 
     // Two more edits land while the first PUT is still open — each one carries the whole
-    // config, so the middle one is dropped rather than queued behind the newest.
+    // config, so the middle one is dropped rather than sent before the newest.
     saveDescription('second');
     saveDescription('third');
     expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
@@ -399,8 +401,11 @@ describe('DataMartRelationshipsContent config saves', () => {
       expect(service.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
     });
     expect(savedDescriptions()).toEqual(['first', 'third']);
-    // The superseded response must not be applied as the saved state.
-    expect(harness.syncDataMartFromResponse).toHaveBeenCalledTimes(1);
+    // Each answered save is applied as the saved state, so a failure of a later one falls back to
+    // it rather than to the config before both.
+    await waitFor(() => {
+      expect(harness.syncDataMartFromResponse).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('warns and stops showing the edit as saved when the request fails', async () => {

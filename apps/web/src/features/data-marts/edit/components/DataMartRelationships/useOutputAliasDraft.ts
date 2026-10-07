@@ -45,6 +45,28 @@ export function useOutputAliasDraft(
     }
   }, [debouncedAlias, source, onAliasChange]);
 
+  const saveNow = () => {
+    if (!source) return;
+    if (localAlias !== lastSavedAlias.current) {
+      onAliasChange(source, localAlias);
+      lastSavedAlias.current = localAlias;
+      isDirtyRef.current = false;
+    }
+  };
+
+  // Closing the panel, or the row unmounting, inside the typing pause would otherwise drop the
+  // rename: an input removed from the page gets no blur.
+  const saveOnUnmountRef = useRef(saveNow);
+  saveOnUnmountRef.current = () => {
+    if (isDirtyRef.current) saveNow();
+  };
+  useEffect(
+    () => () => {
+      saveOnUnmountRef.current();
+    },
+    []
+  );
+
   return {
     savedValue,
     value: localAlias,
@@ -52,13 +74,6 @@ export function useOutputAliasDraft(
       setLocalAlias(next);
       isDirtyRef.current = true;
     },
-    onBlur: () => {
-      if (!source) return;
-      if (localAlias !== lastSavedAlias.current) {
-        onAliasChange(source, localAlias);
-        lastSavedAlias.current = localAlias;
-        isDirtyRef.current = false;
-      }
-    },
+    onBlur: saveNow,
   };
 }

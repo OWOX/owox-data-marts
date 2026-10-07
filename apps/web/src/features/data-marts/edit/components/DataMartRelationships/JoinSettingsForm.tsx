@@ -50,6 +50,11 @@ function buildJoinSettingsFormSchema(siblingAliasesRef: { current: Set<string> }
 
 type JoinSettingsFormValues = z.infer<ReturnType<typeof buildJoinSettingsFormSchema>>;
 
+interface JoinSettingsSavePayload {
+  targetAlias?: string;
+  joinConditions?: JoinSettingsFormValues['joinConditions'];
+}
+
 interface FlatField {
   name: string;
   type: string;
@@ -237,9 +242,9 @@ export function JoinSettingsForm({
   const debouncedAlias = useDebounce(watchedAlias, 800);
   const debouncedJoinKey = useDebounce(watchedJoinKey, 800);
 
-  useEffect(() => {
-    if (readOnly || isSaving) return;
-
+  // What a save of these values sends: only what changed since the last save or attempt, and
+  // only what is valid. Null when there is nothing to send.
+  const buildSavePayload = (alias: string, joinKey: string): JoinSettingsSavePayload | null => {
     const joinConditions = form.getValues('joinConditions');
     const hasAliasError = !!form.formState.errors.targetAlias;
     const joinsAreComplete =
@@ -247,33 +252,30 @@ export function JoinSettingsForm({
       joinConditions.every(jc => jc.sourceFieldName && jc.targetFieldName);
 
     const aliasIsNew =
-      debouncedAlias !== lastSavedRef.current.targetAlias &&
-      debouncedAlias !== lastAttemptedRef.current.targetAlias;
+      alias !== lastSavedRef.current.targetAlias && alias !== lastAttemptedRef.current.targetAlias;
     const joinsAreNew =
-      debouncedJoinKey !== lastSavedRef.current.joinConditionsKey &&
-      debouncedJoinKey !== lastAttemptedRef.current.joinConditionsKey;
+      joinKey !== lastSavedRef.current.joinConditionsKey &&
+      joinKey !== lastAttemptedRef.current.joinConditionsKey;
 
-    const payload: {
-      targetAlias?: string;
-      joinConditions?: JoinSettingsFormValues['joinConditions'];
-    } = {};
+    const payload: JoinSettingsSavePayload = {};
     if (aliasIsNew && !hasAliasError) {
-      payload.targetAlias = debouncedAlias;
+      payload.targetAlias = alias;
     }
     if (joinsAreNew && joinsAreComplete && !hasTypeMismatch) {
       payload.joinConditions = joinConditions;
     }
-    if (Object.keys(payload).length === 0) return;
+    return Object.keys(payload).length > 0 ? payload : null;
+  };
 
+  const inFlightSaveRef = useRef<Promise<void> | null>(null);
+  const sendSave = (payload: JoinSettingsSavePayload, joinKey: string): Promise<void> => {
     lastAttemptedRef.current = {
       targetAlias: payload.targetAlias ?? lastAttemptedRef.current.targetAlias,
       joinConditionsKey: payload.joinConditions
-        ? debouncedJoinKey
+        ? joinKey
         : lastAttemptedRef.current.joinConditionsKey,
     };
-    setIsSaving(true);
-
-    dataMartRelationshipService
+    const request = dataMartRelationshipService
       .updateRelationship(dataMartId, relationship.id, payload, {
         skipErrorToast: true,
         skipLoadingIndicator: true,
@@ -289,10 +291,22 @@ export function JoinSettingsForm({
         toast.error('Failed to save join settings', {
           id: `join-save-error-${relationship.id}`,
         });
-      })
-      .finally(() => {
-        setIsSaving(false);
       });
+    inFlightSaveRef.current = request;
+    return request;
+  };
+
+  useEffect(() => {
+    if (readOnly || isSaving) return;
+    const payload = buildSavePayload(debouncedAlias, debouncedJoinKey);
+    if (!payload) return;
+    setIsSaving(true);
+    void sendSave(payload, debouncedJoinKey).finally(() => {
+      setIsSaving(false);
+    });
+    // The payload helpers read the latest form values and refs; as dependencies they would
+    // re-run this on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     debouncedAlias,
     debouncedJoinKey,
@@ -304,6 +318,27 @@ export function JoinSettingsForm({
     onSaved,
     form,
   ]);
+
+  // Closing the panel, or collapsing the row, inside the typing pause would otherwise drop the
+  // change. It waits for a save still on the wire, so the two cannot land out of order.
+  const saveOnUnmountRef = useRef<() => void>(() => undefined);
+  saveOnUnmountRef.current = () => {
+    if (readOnly) return;
+    const joinKey = JSON.stringify(form.getValues('joinConditions'));
+    const payload = buildSavePayload(form.getValues('targetAlias'), joinKey);
+    if (!payload) return;
+    const send = () => {
+      void sendSave(payload, joinKey);
+    };
+    if (inFlightSaveRef.current) void inFlightSaveRef.current.then(send);
+    else send();
+  };
+  useEffect(
+    () => () => {
+      saveOnUnmountRef.current();
+    },
+    []
+  );
 
   return (
     <div className='flex flex-col gap-4 p-4'>

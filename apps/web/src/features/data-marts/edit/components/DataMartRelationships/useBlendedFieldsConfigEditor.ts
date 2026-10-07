@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  matchMutation,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { DataMartResponseDto } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -12,12 +18,42 @@ import type { SourceEntry } from './source-entries';
 
 const DEFAULT_BLENDED_FIELDS_CONFIG: BlendedFieldsConfig = { sources: [] };
 
+// The saves of one Data Mart's config, chained per query client. A mutation scope would also run
+// them one at a time, but it holds a waiting save until the browser tab has focus again.
+const saveChains = new WeakMap<QueryClient, Map<string, Promise<void>>>();
+
+function runAfterPreviousSave<T>(
+  queryClient: QueryClient,
+  dataMartId: string,
+  save: () => Promise<T>
+): Promise<T> {
+  let chains = saveChains.get(queryClient);
+  if (!chains) {
+    chains = new Map();
+    saveChains.set(queryClient, chains);
+  }
+  const previous = chains.get(dataMartId) ?? Promise.resolve();
+  const result = previous.then(save);
+  const settled = result.then(
+    () => undefined,
+    () => undefined
+  );
+  chains.set(dataMartId, settled);
+  void settled.then(() => {
+    if (chains.get(dataMartId) === settled) chains.delete(dataMartId);
+  });
+  return result;
+}
+
 interface UseBlendedFieldsConfigEditorOptions {
   /** The Data Mart whose blended fields config is edited — the root of every join path in it. */
   dataMartId: string;
   /** The config as the server last returned it. A new value replaces the local copy. */
   savedConfig: BlendedFieldsConfig | null | undefined;
-  /** Receives the response of the newest save: the Data Mart as the server now stores it. */
+  /**
+   * Receives the response of every save: the Data Mart as the server now stores it. Called even
+   * after this editor unmounted, for a save it started.
+   */
   onSaved: (response: DataMartResponseDto) => void;
 }
 
@@ -25,81 +61,99 @@ interface UseBlendedFieldsConfigEditorOptions {
  * Local, optimistic copy of a Data Mart's blended fields config plus the per-join edits the
  * Report Fields and Description tabs make to it: output alias, "Allow for reporting", per-join
  * description override and per-field overrides.
+ *
+ * Every save PUTs the whole config, so two side by side would drop each other's edits. The
+ * saves of one Data Mart are mutations that run one at a time, in the order the edits were
+ * made, whichever editor made them and whether it is still mounted. An editor that mounts while
+ * saves are pending starts from the newest config they carry.
  */
 export function useBlendedFieldsConfigEditor({
   dataMartId,
   savedConfig,
   onSaved,
 }: UseBlendedFieldsConfigEditorOptions) {
+  const queryClient = useQueryClient();
+  const mutationKey = useMemo(() => ['blended-fields-config', dataMartId], [dataMartId]);
   const confirmedConfig = savedConfig ?? DEFAULT_BLENDED_FIELDS_CONFIG;
-  const [localConfig, setLocalConfig] = useState<BlendedFieldsConfig>(confirmedConfig);
+  const savedConfigRef = useRef(confirmedConfig);
+  savedConfigRef.current = confirmedConfig;
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+
+  const hasPendingSave = useCallback(
+    () => queryClient.isMutating({ mutationKey }) > 0,
+    [queryClient, mutationKey]
+  );
+
+  const [localConfig, setLocalConfig] = useState<BlendedFieldsConfig>(() => {
+    const pending = queryClient
+      .getMutationCache()
+      .findAll({ mutationKey, status: 'pending' })
+      .at(-1)?.state.variables as BlendedFieldsConfig | undefined;
+    return pending ?? confirmedConfig;
+  });
   const localConfigRef = useRef(localConfig);
   useEffect(() => {
     localConfigRef.current = localConfig;
   }, [localConfig]);
 
-  // Config saves are whole-document PUTs fired from debounced editors (alias, description,
-  // field overrides), so two of them can otherwise be in flight at once and land out of
-  // order — an older config would then win. One request at a time: while one is in flight the
-  // newest config waits its turn, and intermediate ones are dropped because each PUT already
-  // carries the complete config.
-  const isSavingConfigRef = useRef(false);
-  const queuedConfigRef = useRef<BlendedFieldsConfig | null>(null);
-  const savedConfigRef = useRef(confirmedConfig);
-  savedConfigRef.current = confirmedConfig;
-
   // A config that arrives while a save is still on the wire, from a refetch, predates that save.
   // Taking it would drop the edit locally, and the next whole-document save would drop it on the
-  // server too. The save's own response brings the config up to date instead.
+  // server too. The last save's own response brings the config up to date instead.
   useEffect(() => {
-    if (isSavingConfigRef.current || queuedConfigRef.current) return;
+    if (hasPendingSave()) return;
     setLocalConfig(confirmedConfig);
-  }, [confirmedConfig]);
+  }, [confirmedConfig, hasPendingSave]);
 
-  const runConfigSaveRef = useRef<(config: BlendedFieldsConfig) => void>(() => {
-    /* replaced each render below */
+  // A failed save must not keep looking saved: fall back to the last config the server
+  // confirmed — with every earlier save in it — unless a newer save carries the edit again.
+  useEffect(
+    () =>
+      queryClient.getMutationCache().subscribe(event => {
+        if (event.type !== 'updated' || event.action.type !== 'error') return;
+        if (!matchMutation({ mutationKey }, event.mutation) || hasPendingSave()) return;
+        setLocalConfig(savedConfigRef.current);
+        localConfigRef.current = savedConfigRef.current;
+      }),
+    [queryClient, mutationKey, hasPendingSave]
+  );
+
+  const { mutate } = useMutation({
+    mutationKey,
+    // An autosave goes out right away; offline it fails and says so, like any request.
+    networkMode: 'always',
+    mutationFn: (config: BlendedFieldsConfig) =>
+      runAfterPreviousSave(queryClient, dataMartId, () => {
+        // A newer config waiting behind this one carries this one's edits too: skip the PUT.
+        const newest = queryClient
+          .getMutationCache()
+          .findAll({ mutationKey, status: 'pending' })
+          .at(-1)?.state.variables;
+        if (newest !== undefined && newest !== config) return Promise.resolve(null);
+        return dataMartRelationshipService.updateBlendedFieldsConfig(dataMartId, config, {
+          skipLoadingIndicator: true,
+        });
+      }),
+    // Every answered save becomes the confirmed config, also with a newer one still pending: a
+    // failure of that newer one then falls back to this, not to the config before both.
+    onSuccess: response => {
+      if (response) onSavedRef.current(response);
+    },
+    onError: () => {
+      toast.error('Failed to save changes');
+    },
   });
-  runConfigSaveRef.current = (config: BlendedFieldsConfig) => {
-    isSavingConfigRef.current = true;
-    void dataMartRelationshipService
-      .updateBlendedFieldsConfig(dataMartId, config, { skipLoadingIndicator: true })
-      .then(response => {
-        // A newer config is already queued — only the last response describes the saved state.
-        if (queuedConfigRef.current) return;
-        // Settled before the parent hears of it, so the config it passes back is taken.
-        isSavingConfigRef.current = false;
-        onSaved(response);
-      })
-      .catch(() => {
-        toast.error('Failed to save changes');
-        // The optimistic value must not keep looking saved: fall back to the last state the
-        // server confirmed, unless a newer edit is already on its way.
-        if (!queuedConfigRef.current) {
-          setLocalConfig(savedConfigRef.current);
-          localConfigRef.current = savedConfigRef.current;
-        }
-      })
-      .finally(() => {
-        isSavingConfigRef.current = false;
-        const queued = queuedConfigRef.current;
-        if (queued) {
-          queuedConfigRef.current = null;
-          runConfigSaveRef.current(queued);
-        }
-      });
-  };
 
-  const saveConfigAndRefresh = useCallback((newConfig: BlendedFieldsConfig) => {
-    setLocalConfig(newConfig);
-    // Kept in step synchronously: back-to-back edits read this ref to build the next config,
-    // and the effect that mirrors state into it runs only after the re-render.
-    localConfigRef.current = newConfig;
-    if (isSavingConfigRef.current) {
-      queuedConfigRef.current = newConfig;
-      return;
-    }
-    runConfigSaveRef.current(newConfig);
-  }, []);
+  const saveConfigAndRefresh = useCallback(
+    (newConfig: BlendedFieldsConfig) => {
+      setLocalConfig(newConfig);
+      // Kept in step synchronously: back-to-back edits read this ref to build the next config,
+      // and the effect that mirrors state into it runs only after the re-render.
+      localConfigRef.current = newConfig;
+      mutate(newConfig);
+    },
+    [mutate]
+  );
 
   const updateSourceConfig = useCallback(
     (path: string, updater: (current: BlendedSource | undefined) => BlendedSource) => {

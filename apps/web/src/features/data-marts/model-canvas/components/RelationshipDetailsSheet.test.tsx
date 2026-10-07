@@ -348,6 +348,67 @@ describe('RelationshipDetailsSheet', () => {
     );
   });
 
+  it('keeps a pending save of a source when the sheet leaves that source and comes back', async () => {
+    const graphs: Record<string, RelationshipGraph> = {
+      orders: graphOf(
+        buildRelationship('r-customers', ORDERS, CUSTOMERS),
+        buildRelationship('r-products', ORDERS, PRODUCTS)
+      ),
+      customers: graphOf(buildRelationship('r-back', CUSTOMERS, ORDERS)),
+    };
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockImplementation(id =>
+      Promise.resolve(graphs[id])
+    );
+    let resolveFirstSave: (value: UpdateConfigResult) => void = () => undefined;
+    vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig)
+      .mockImplementationOnce(
+        () =>
+          new Promise<UpdateConfigResult>(resolve => {
+            resolveFirstSave = resolve;
+          })
+      )
+      .mockResolvedValue({} as UpdateConfigResult);
+    const { showRelationship } = renderSheet([
+      { id: 'r-customers', source: ORDERS, target: CUSTOMERS },
+    ]);
+    await screen.findByTestId('join-settings');
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow for reporting' }));
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+    });
+
+    // Away to a relationship of another source, then back to Orders, with the save still open.
+    showRelationship([{ id: 'r-back', source: CUSTOMERS, target: ORDERS }], 'r-back');
+    await waitFor(() => {
+      expect(harness.joinSettingsProps.current?.relationship.id).toBe('r-back');
+    });
+    showRelationship([{ id: 'r-products', source: ORDERS, target: PRODUCTS }], 'r-products');
+    await waitFor(() => {
+      expect(harness.joinSettingsProps.current?.relationship.id).toBe('r-products');
+    });
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow for reporting' }));
+    expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
+
+    resolveFirstSave(
+      sourceDataMart([
+        { path: 'customers', alias: 'customers', isExcluded: true },
+      ]) as unknown as UpdateConfigResult
+    );
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenLastCalledWith(
+      'orders',
+      {
+        sources: [
+          { path: 'customers', alias: 'customers', isExcluded: true },
+          { path: 'products', alias: 'products', isExcluded: true },
+        ],
+      },
+      expect.anything()
+    );
+  });
+
   it('shows a join back to its own source as a loop, with nothing to edit', async () => {
     const loop = buildRelationship('r-self', ORDERS, ORDERS);
     vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue({
@@ -398,7 +459,22 @@ describe('RelationshipDetailsSheet', () => {
     renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This relationship could not be loaded'
+      'This relationship no longer exists'
     );
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('offers a retry when the relationships of the source fail to load', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS)));
+
+    renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This relationship could not be loaded.'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByTestId('join-settings')).toBeInTheDocument();
   });
 });

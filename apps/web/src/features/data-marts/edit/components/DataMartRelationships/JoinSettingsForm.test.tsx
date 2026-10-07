@@ -158,6 +158,50 @@ describe('JoinSettingsForm', () => {
     );
   });
 
+  it('saves a change still waiting for its typing pause when it unmounts', async () => {
+    const onSaved = vi.fn();
+    const { unmount } = render(
+      <JoinSettingsForm
+        relationship={buildRelationship()}
+        dataMartId='source-dm-1'
+        siblingAliases={[]}
+        inheritedFrom={null}
+        onSaved={onSaved}
+      />
+    );
+    await waitFor(() => {
+      expect(getAliasInput().value).toBe('customers');
+    });
+
+    fireEvent.change(getAliasInput(), { target: { value: 'buyers' } });
+    // The panel closes, or the row collapses, before the pause is over.
+    unmount();
+
+    await waitFor(() => {
+      expect(dataMartRelationshipService.updateRelationship).toHaveBeenCalledWith(
+        'source-dm-1',
+        'rel-1',
+        { targetAlias: 'buyers' },
+        expect.anything()
+      );
+    });
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('sends nothing on unmount when nothing changed', async () => {
+    const { unmount } = renderForm(buildRelationship());
+    await waitFor(() => {
+      expect(getAliasInput().value).toBe('customers');
+    });
+
+    unmount();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(dataMartRelationshipService.updateRelationship).not.toHaveBeenCalled();
+  });
+
   it('resets to the saved settings when they change on the server', async () => {
     const relationship = buildRelationship();
     const { rerender } = renderForm(relationship);
