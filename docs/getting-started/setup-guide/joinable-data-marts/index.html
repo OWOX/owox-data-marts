@@ -328,9 +328,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <p>Pick any combination of native and joined fields.</p>
 <p>As soon as the report includes at least one joined field, OWOX Data Marts runs it through the joined SQL pipeline; otherwise the native fast path runs unchanged.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="view-generated-sql">View Generated SQL</h2><a class="sl-anchor-link" href="#view-generated-sql"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “View Generated SQL”</span></a></div>
-<p>There are two ways to inspect the SQL OWOX Data Marts builds for a joined report:</p>
+<p>There are three ways to inspect the SQL OWOX Data Marts builds for a joined report:</p>
 <ul>
 <li><strong>From the reports list.</strong> On the source Data Mart’s <strong>Destinations</strong> tab, hover over a report row and click the <strong>Preview SQL</strong> icon — the read-only <strong>Report SQL</strong> modal opens with the exact query that will run on the next execution.</li>
+<li><strong>From the report itself.</strong> Open the report and click <strong>Preview SQL</strong> in the panel header, next to <strong>Copy link</strong>. This works for a report opened from a shared link, too. The modal shows the saved report, so save your changes to <strong>Report Columns</strong> first to see them in the SQL.</li>
 <li><strong>From Run History.</strong> Open the Data Mart’s <strong>Run History</strong> tab and click any report run to see the SQL that was sent to your storage for that run.</li>
 </ul>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0b6b7825-8512-42bf-4a14-46c8351f8c00/public" alt="Preview SQL icon on a report row in the Destinations tab"></p>
