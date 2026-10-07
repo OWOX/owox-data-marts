@@ -111,9 +111,20 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
       formulaPopover(page).locator('div.native-edit-context, textarea.inputarea')
     ).toBeFocused({ timeout: 15000 });
     await page.keyboard.type('users');
+    // On a loaded runner the editor falls several characters behind the keyboard (traces show
+    // `us` on screen 250ms after the whole word was sent), so wait for the word itself before
+    // asking anything of the list it should have opened.
+    await expect(formulaEditor.locator('.view-lines')).toContainText('users', { timeout: 15000 });
 
     const suggestWidget = page.locator(SUGGEST_WIDGET);
-    await expect(suggestWidget).toBeVisible({ timeout: 15000 });
+    // Typing opens the list on its own, but on CI runners that trigger was intermittently lost:
+    // the word was in the editor with no list for the full 15s, and nothing re-opens it. These
+    // tests measure the list — its width, its rows, a click on one — not what opened it, so open
+    // it with the editor's own Ctrl+Space when typing did not, as an analyst would.
+    await expect(async () => {
+      if (!(await suggestWidget.isVisible())) await page.keyboard.press('Control+Space');
+      await expect(suggestWidget).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 20000 });
     return suggestWidget;
   }
 

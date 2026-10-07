@@ -64,6 +64,9 @@ test.describe('Sheet-hosted confirmation dialogs', () => {
       const titleInput = form.getByLabel('Title');
       await titleInput.click();
       await titleInput.fill('Dirty storage title');
+      // Save turns on once the form has registered the edit — the same state the close guard
+      // reads. Closing before then tests a form that has no unsaved changes yet.
+      await expect(form.getByRole('button', { name: 'Save' })).toBeEnabled();
 
       await page.getByRole('button', { name: 'Cancel' }).click();
       await radix.stayOnDirtySheet(sheet);
@@ -88,6 +91,7 @@ test.describe('Sheet-hosted confirmation dialogs', () => {
       const titleInput = form.getByLabel('Title');
       await titleInput.click();
       await titleInput.fill('Dirty storage title');
+      await expect(form.getByRole('button', { name: 'Save' })).toBeEnabled();
 
       await page.keyboard.press('Escape');
       await radix.leaveDirtySheet(sheet);

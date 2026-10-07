@@ -65,6 +65,10 @@ export const DataStorageList = ({
 
   const handleEdit = useCallback(
     async (id: string) => {
+      // The `?id=` set below is this open's own link, not a deep link to follow: without the
+      // latch the effect underneath opened the same storage a second time, re-fetching it while
+      // the sheet was already in use.
+      hasAttemptedDeepLink.current = true;
       await getDataStorageById(id);
       setIsEditDrawerOpen(true);
 
