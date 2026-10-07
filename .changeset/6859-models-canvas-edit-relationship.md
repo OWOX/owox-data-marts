@@ -6,6 +6,10 @@
 
 Click an arrow on the Models canvas, or its join fields label, to open that relationship in a panel on the right. Previously a click only highlighted the arrow, and changing a join meant opening the source Data Mart. The panel holds the same **Report Fields**, **Join Settings** and **Description** tabs as the relationship's row in **Joinable Data Marts**, and changes save as you type.
 
+The video shows a relationship opened from its arrow, edited in place and switched to another one:
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/fcbf5bfa601adc9af21786712908fac8/iframe>
+
 - The arrow stays highlighted while the panel is open. Click another arrow to switch the panel to it.
 - A two-headed arrow stands for two mirrored relationships; pick the direction to edit at the top.
 - **Allow for reporting** and **Delete relationship** are in the panel too.
