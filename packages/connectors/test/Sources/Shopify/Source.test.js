@@ -47,18 +47,28 @@ describe('orders lineItems discount fields', () => {
   it('requests the exact lineItems sub-selection including discount sets and allocations', () => {
     // Full-string match pins nesting; toContain would pass on wrong structure.
     expect(proto._buildQueryFields.call(proto, schema, ['lineItems'])).toBe(
-      'lineItems(first: 250) { nodes { id name title sku vendor quantity ' +
+      'lineItems(first: 250) { nodes { id name title sku vendor quantity currentQuantity ' +
         'originalUnitPriceSet { shopMoney { amount } } ' +
         'discountedUnitPriceSet { shopMoney { amount } } ' +
         'discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } ' +
         'totalDiscountSet { shopMoney { amount } } ' +
-        'discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { index } } } }'
+        'discountAllocations { allocatedAmountSet { shopMoney { amount } } ' +
+        'discountApplication { index __typename targetSelection ' +
+        '... on DiscountCodeApplication { code } ' +
+        '... on AutomaticDiscountApplication { title } ' +
+        '... on ManualDiscountApplication { title } ' +
+        '... on ScriptDiscountApplication { title } } } } }'
     );
   });
 
-  it('requests the discount application index in the discountApplications sub-selection', () => {
-    expect(proto._buildQueryFields.call(proto, schema, ['discountApplications'])).toContain(
-      'nodes { index allocationMethod'
+  it('requests the exact discountApplications sub-selection including index and typename', () => {
+    expect(proto._buildQueryFields.call(proto, schema, ['discountApplications'])).toBe(
+      'discountApplications(first: 20) { nodes { index __typename allocationMethod targetSelection targetType ' +
+        'value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ' +
+        '... on DiscountCodeApplication { code } ' +
+        '... on AutomaticDiscountApplication { title } ' +
+        '... on ManualDiscountApplication { title description } ' +
+        '... on ScriptDiscountApplication { title } } }'
     );
   });
 
@@ -71,8 +81,18 @@ describe('orders lineItems discount fields', () => {
       discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: '20.25' } },
       totalDiscountSet: { shopMoney: { amount: '5.0' } },
       discountAllocations: [
-        { allocatedAmountSet: { shopMoney: { amount: '5.0' } }, discountApplication: { index: 0 } },
-        { allocatedAmountSet: { shopMoney: { amount: '4.5' } }, discountApplication: { index: 1 } },
+        {
+          allocatedAmountSet: { shopMoney: { amount: '5.0' } },
+          discountApplication: {
+            index: 0,
+            __typename: 'AutomaticDiscountApplication',
+            title: 'VIP',
+          },
+        },
+        {
+          allocatedAmountSet: { shopMoney: { amount: '4.5' } },
+          discountApplication: { index: 1, __typename: 'DiscountCodeApplication', code: 'SAVE10' },
+        },
       ],
     };
     const node = { lineItems: { nodes: [lineItem] } };
@@ -86,6 +106,7 @@ describe('orders lineItems discount fields', () => {
     expect(parsed[0].discountAllocations).toHaveLength(2);
     expect(parsed[0].discountAllocations[1].allocatedAmountSet.shopMoney.amount).toBe('4.5');
     expect(parsed[0].discountAllocations[1].discountApplication.index).toBe(1);
+    expect(parsed[0].discountAllocations[1].discountApplication.code).toBe('SAVE10');
   });
 
   it('keeps discountAllocations as an empty array when the line has no discounts', () => {

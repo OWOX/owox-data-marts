@@ -94,9 +94,9 @@ var ordersFields = {
     'graphqlPath': 'discountCodes'
   },
   'discountApplications': {
-    'description': 'All discount applications (codes, automatic, manual) as JSON array. Each entry carries its ordered index, which lineItems discountAllocations reference.',
+    'description': 'All discount applications (codes, automatic, manual, script) as JSON array, ordered by index. Shipping discounts allocate to shipping lines, not to lineItems discountAllocations.',
     'type': DATA_TYPES.STRING,
-    'graphqlPath': 'discountApplications(first: 20) { nodes { index allocationMethod targetSelection targetType value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title description } } }'
+    'graphqlPath': 'discountApplications(first: 20) { nodes { index __typename allocationMethod targetSelection targetType value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title description } ... on ScriptDiscountApplication { title } } }'
   },
   'totalRefunded': {
     'description': 'The total amount refunded.',
@@ -239,12 +239,12 @@ var ordersFields = {
     'graphqlPath': 'currentTotalTaxSet { shopMoney { amount } }'
   },
   'number': {
-    'description': "The order number used to generate the order name (with the shop's order number prefix/suffix).",
+    'description': "The order number used to generate the order name (with the shop's order number prefix/suffix). Not guaranteed to be unique.",
     'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'number'
   },
   'confirmationNumber': {
-    'description': 'A customer-facing order identifier, shown in some surfaces instead of the sequential order name.',
+    'description': 'A customer-facing order identifier, shown in some surfaces instead of the sequential order name. Not guaranteed to be unique.',
     'type': DATA_TYPES.STRING,
     'graphqlPath': 'confirmationNumber'
   },
@@ -304,7 +304,7 @@ var ordersFields = {
     'graphqlPath': 'cartDiscountAmountSet { shopMoney { amount } }'
   },
   'currentCartDiscountAmount': {
-    'description': 'The current total of all discounts applied to the entire order.',
+    'description': 'The current order-level (cart) discount amount after returns, refunds, order edits and cancellations. Does not include line-level discounts.',
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'currentCartDiscountAmountSet { shopMoney { amount } }'
   },
@@ -339,12 +339,12 @@ var ordersFields = {
     'graphqlPath': 'originalTotalAdditionalFeesSet { shopMoney { amount } }'
   },
   'refundDiscrepancy': {
-    'description': 'The difference between the suggested and the actual refunded amount.',
+    'description': 'The difference between the suggested and the actual refunded amount. Positive values favor the merchant, negative values favor the customer.',
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'refundDiscrepancySet { shopMoney { amount } }'
   },
   'presentmentCurrencyCode': {
-    'description': 'The currency the customer used when placing the order.',
+    'description': 'The currency the customer used when placing the order. Amount fields in this table are in the shop currency (currencyCode).',
     'type': DATA_TYPES.STRING,
     'graphqlPath': 'presentmentCurrencyCode'
   },
@@ -469,14 +469,14 @@ var ordersFields = {
     'graphqlPath': 'customerLocale'
   },
   'billingAddressMatchesShippingAddress': {
-    'description': 'Whether the billing address matches the shipping address.',
+    'description': 'Whether the billing address matches the shipping address. False when either address is missing.',
     'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'billingAddressMatchesShippingAddress'
   },
   'lineItems': {
-    'description': 'The line items in the order as JSON array. Includes unit prices after line-level discounts (discountedUnitPriceSet) and after all discounts including order-level (discountedUnitPriceAfterAllDiscountsSet), the total line-targeted discount (totalDiscountSet, excludes order-level discounts), and discountAllocations with allocated amounts plus the discount application index for joining to discountApplications. Both discounted amounts include discounts allocated to refunded and removed quantities.',
+    'description': 'The line items in the order as JSON array, with discount amounts and per-discount allocations (discountAllocations; join to discountApplications by index). See the connector guide for how the amounts differ.',
     'type': DATA_TYPES.STRING,
-    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } totalDiscountSet { shopMoney { amount } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { index } } } }'
+    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity currentQuantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } totalDiscountSet { shopMoney { amount } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { index __typename targetSelection ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title } ... on ScriptDiscountApplication { title } } } } }'
   },
   'shippingLines': {
     'description': 'Shipping lines as JSON array.',

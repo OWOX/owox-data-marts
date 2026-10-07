@@ -39,6 +39,21 @@ Before proceeding, please make sure that:
 
 ![Button labeled Publish Data Mart is highlighted in blue at the top right of the Shopify Data Mart Data Setup screen. A red arrow points to the button, indicating the action to publish the data mart. The wider environment is a dark-themed application interface. The emotional tone is neutral and instructional.](res/shopify_publishdatamart.png)
 
+## Discount Fields on Orders
+
+The orders `lineItems` field exports several discount values per line item:
+
+- `originalUnitPriceSet` — the unit price before discounts.
+- `discountedUnitPriceSet` — the unit price after line-level discounts. It excludes order-level and code-based discounts.
+- `discountedUnitPriceAfterAllDiscountsSet` — the unit price after all discounts.
+- `totalDiscountSet` — the line's discount total. It excludes order-level discounts.
+- `currentQuantity` — the units ordered, excluding refunded and removed units.
+- `discountAllocations` — one entry per discount that touched the line. Each entry carries the allocated amount and the discount's type, code or title, and index.
+
+Shopify rounds both discounted unit prices per unit, so they are approximate. Sum the `discountAllocations` amounts to get the exact per-line discount. Allocations already include each line's share of order-level discounts. Do not add `cartDiscountAmount` on top; that double-counts.
+
+Join allocations to the order's `discountApplications` field by `index`. Shipping discounts allocate to shipping lines and do not appear in `lineItems`.
+
 ## Run the Data Mart
 
 Now you have **two options** for importing data from Shopify:

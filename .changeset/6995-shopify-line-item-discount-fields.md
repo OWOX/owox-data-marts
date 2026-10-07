@@ -4,7 +4,7 @@
 
 **Shopify connector: more orders fields, including line-item discounts**
 
-The orders `lineItems` JSON now includes `discountedUnitPriceAfterAllDiscountsSet` (unit price after all discounts, including order-level), `totalDiscountSet` (total line-targeted discount, excludes order-level discounts), and `discountAllocations` with `allocatedAmountSet` and the `discountApplication.index` per allocation. The index joins each allocation to its entry in `discountApplications`, which now also exports `index`. Both discounted amounts include discounts allocated to refunded and removed quantities.
+The orders `lineItems` JSON now includes `discountedUnitPriceAfterAllDiscountsSet` (unit price after all discounts), `totalDiscountSet` (the line's discount total, excluding order-level discounts), `currentQuantity` (units net of refunds and removals), and `discountAllocations` with the allocated amount and the discount's type, code or title, and `index`. The index joins each allocation to its entry in `discountApplications`, which now also exports `index` and `__typename`. See the [Discount Fields section in the connector guide](https://docs.owox.com/packages/connectors/src/sources/shopify/getting-started/) for how the amounts differ.
 
 Data marts that already select `lineItems` or `discountApplications` get the new JSON keys on their next run; previously imported rows keep the old shape until a backfill.
 
