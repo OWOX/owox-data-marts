@@ -44,14 +44,21 @@ describe('orders checkoutToken and cartToken', () => {
 });
 
 describe('orders lineItems discount fields', () => {
-  it('requests the discount money sets and allocations in the lineItems sub-selection', () => {
-    const queryFields = proto._buildQueryFields.call(proto, schema, ['lineItems']);
-    expect(queryFields).toContain(
-      'discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } }'
+  it('requests the exact lineItems sub-selection including discount sets and allocations', () => {
+    // Full-string match pins nesting; toContain would pass on wrong structure.
+    expect(proto._buildQueryFields.call(proto, schema, ['lineItems'])).toBe(
+      'lineItems(first: 250) { nodes { id name title sku vendor quantity ' +
+        'originalUnitPriceSet { shopMoney { amount } } ' +
+        'discountedUnitPriceSet { shopMoney { amount } } ' +
+        'discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } ' +
+        'totalDiscountSet { shopMoney { amount } } ' +
+        'discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { index } } } }'
     );
-    expect(queryFields).toContain('totalDiscountSet { shopMoney { amount } }');
-    expect(queryFields).toContain(
-      'discountAllocations { allocatedAmountSet { shopMoney { amount } } }'
+  });
+
+  it('requests the discount application index in the discountApplications sub-selection', () => {
+    expect(proto._buildQueryFields.call(proto, schema, ['discountApplications'])).toContain(
+      'nodes { index allocationMethod'
     );
   });
 
@@ -64,8 +71,8 @@ describe('orders lineItems discount fields', () => {
       discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: '20.25' } },
       totalDiscountSet: { shopMoney: { amount: '5.0' } },
       discountAllocations: [
-        { allocatedAmountSet: { shopMoney: { amount: '5.0' } } },
-        { allocatedAmountSet: { shopMoney: { amount: '4.5' } } },
+        { allocatedAmountSet: { shopMoney: { amount: '5.0' } }, discountApplication: { index: 0 } },
+        { allocatedAmountSet: { shopMoney: { amount: '4.5' } }, discountApplication: { index: 1 } },
       ],
     };
     const node = { lineItems: { nodes: [lineItem] } };
@@ -78,6 +85,7 @@ describe('orders lineItems discount fields', () => {
     expect(parsed[0].totalDiscountSet.shopMoney.amount).toBe('5.0');
     expect(parsed[0].discountAllocations).toHaveLength(2);
     expect(parsed[0].discountAllocations[1].allocatedAmountSet.shopMoney.amount).toBe('4.5');
+    expect(parsed[0].discountAllocations[1].discountApplication.index).toBe(1);
   });
 
   it('keeps discountAllocations as an empty array when the line has no discounts', () => {

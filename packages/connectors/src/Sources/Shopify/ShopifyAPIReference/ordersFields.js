@@ -94,9 +94,9 @@ var ordersFields = {
     'graphqlPath': 'discountCodes'
   },
   'discountApplications': {
-    'description': 'All discount applications (codes, automatic, manual) as JSON array.',
+    'description': 'All discount applications (codes, automatic, manual) as JSON array. Each entry carries its ordered index, which lineItems discountAllocations reference.',
     'type': DATA_TYPES.STRING,
-    'graphqlPath': 'discountApplications(first: 20) { nodes { allocationMethod targetSelection targetType value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title description } } }'
+    'graphqlPath': 'discountApplications(first: 20) { nodes { index allocationMethod targetSelection targetType value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title description } } }'
   },
   'totalRefunded': {
     'description': 'The total amount refunded.',
@@ -299,7 +299,7 @@ var ordersFields = {
     'graphqlPath': 'currentSubtotalPriceSet { shopMoney { amount } }'
   },
   'cartDiscountAmount': {
-    'description': 'The total discount amount applied at the time the order was created.',
+    'description': 'The total order-level (cart) discount amount applied at the time the order was created. Does not include line-level discounts.',
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'cartDiscountAmountSet { shopMoney { amount } }'
   },
@@ -399,7 +399,7 @@ var ordersFields = {
     'graphqlPath': 'currentSubtotalLineItemsQuantity'
   },
   'currentTotalWeight': {
-    'description': 'The total weight of the order after returns and refunds.',
+    'description': 'The total weight of the order in grams, after returns and refunds.',
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'currentTotalWeight'
   },
@@ -474,9 +474,9 @@ var ordersFields = {
     'graphqlPath': 'billingAddressMatchesShippingAddress'
   },
   'lineItems': {
-    'description': 'The line items in the order as JSON array. Includes unit prices after line-level discounts (discountedUnitPriceSet) and after all discounts including order-level (discountedUnitPriceAfterAllDiscountsSet), the total line-targeted discount (totalDiscountSet, excludes order-level discounts), and per-application discountAllocations with allocated amounts.',
+    'description': 'The line items in the order as JSON array. Includes unit prices after line-level discounts (discountedUnitPriceSet) and after all discounts including order-level (discountedUnitPriceAfterAllDiscountsSet), the total line-targeted discount (totalDiscountSet, excludes order-level discounts), and discountAllocations with allocated amounts plus the discount application index for joining to discountApplications. Both discounted amounts include discounts allocated to refunded and removed quantities.',
     'type': DATA_TYPES.STRING,
-    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } totalDiscountSet { shopMoney { amount } } discountAllocations { allocatedAmountSet { shopMoney { amount } } } } }'
+    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } } totalDiscountSet { shopMoney { amount } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { index } } } }'
   },
   'shippingLines': {
     'description': 'Shipping lines as JSON array.',
