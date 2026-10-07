@@ -35,13 +35,15 @@ export default defineConfig({
         PageTitle: './src/components/starlight/PageTitle.astro',
       },
       head: [
-        // Hides the OWOX Cloud CTA for existing customers: links from the app carry
-        // utm_source=owox_data_marts. Runs before paint, so the CTA never flashes.
+        // Hides the OWOX Cloud CTA for existing customers: links from the app and its
+        // notification emails carry one of these utm_source values. Runs before paint,
+        // so the CTA never flashes.
         {
           tag: 'script',
           content: `(function(){try{var q=new URLSearchParams(location.search),r='';
+var s=['owox_data_marts','owox-data-marts','app_owox_com','community_edition','notifications'];
 try{r=new URL(document.referrer).hostname}catch(e){}
-if(q.get('utm_source')==='owox_data_marts'||r==='app.owox.com'||r==='platform.owox.com'){localStorage.setItem('owox-app-user','1')}
+if(s.includes(q.get('utm_source'))||r==='app.owox.com'||r==='platform.owox.com'){localStorage.setItem('owox-app-user','1')}
 if(localStorage.getItem('owox-app-user')==='1'){document.documentElement.classList.add('owox-app-user')}}catch(e){}})();`,
         },
         ...(gtmId
