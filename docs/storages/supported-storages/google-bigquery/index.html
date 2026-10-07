@@ -127,8 +127,12 @@ Note that <strong>Data Mart</strong> cannot be validated or published until the 
 <ul>
 <li>Go to the <a href="https://console.cloud.google.com/" rel="noopener noreferrer" target="_blank">Google Cloud Console</a></li>
 <li>Click the project selector dropdown at the top</li>
-<li>Find your project and copy the <strong>Project ID</strong></li>
+<li>Find your project and copy the <strong>Project ID</strong> from the <strong>ID</strong> column</li>
 </ul>
+<p>The Project ID is not the project name: it has 6–30 lowercase letters, digits, or hyphens,
+starts with a letter, and does not end with a hyphen (for example, <code dir="auto">my-project-123</code>).
+If you enter the project name instead, <strong>Save</strong> highlights the <strong>Project ID</strong> field and
+explains the expected format.</p>
 <p>NOTE: BigQuery usage costs will be applied to this project.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="select-location">Select location</h3><a class="sl-anchor-link" href="#select-location"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Select location”</span></a></div>
 <ul>
@@ -155,7 +159,9 @@ Note that <strong>Data Mart</strong> cannot be validated or published until the 
 </li>
 <li>Go to the <strong>Keys</strong> tab, click <strong>Add key → Create new key</strong></li>
 <li>Choose <strong>JSON</strong>, click <strong>Create</strong>, and download the file</li>
-<li>Copy the contents of the JSON file and paste it into the <strong>Service Account JSON</strong> field</li>
+<li>Copy the contents of the JSON file and paste it into the <strong>Service Account JSON</strong> field.
+Paste the whole file: if the text is not valid JSON or has no <code dir="auto">client_email</code>, the field is
+highlighted with the reason when you click <strong>Save</strong>.</li>
 </ul>
 <p><img alt="BigQuery Service Account Setup" loading="lazy" decoding="async" width="1862" height="952" src="/_astro/storage-4.-ze6Opt0_Z1omk2V.webp"></p>
 <div class="sl-heading-wrapper level-h4"><h4 id="option-b-google-oauth">Option B: Google OAuth</h4><a class="sl-anchor-link" href="#option-b-google-oauth"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Option B: Google OAuth”</span></a></div>
