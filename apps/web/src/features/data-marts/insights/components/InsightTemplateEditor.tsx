@@ -2,8 +2,11 @@ import { useRef } from 'react';
 import { Editor, type OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { registerTemplateSlashCommandProvider } from '../utils/monaco-template-commands.util';
-import { useMarkdownToolbar } from '../hooks';
-import { MarkdownToolbar } from './MarkdownToolbar';
+import { useMarkdownToolbar } from '../../../../shared/components/MarkdownEditor/useMarkdownToolbar';
+import { MarkdownToolbar } from '../../../../shared/components/MarkdownEditor/MarkdownToolbar';
+import { Button } from '@owox/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { SquareSlash } from 'lucide-react';
 import type { InsightTemplateSourceEntity } from '../model';
 import type * as monacoEditor from 'monaco-editor';
 
@@ -41,6 +44,34 @@ export function InsightTemplateEditor({
     monacoRef,
     readOnly,
   });
+
+  const insertTemplateCommand = () => {
+    if (readOnly) return;
+    const editor = editorRef.current;
+    const monacoInstance = monacoRef.current;
+    if (!editor || !monacoInstance || !editor.getModel()) return;
+    const position = editor.getPosition();
+    const selection =
+      editor.getSelection() ??
+      (position
+        ? new monacoInstance.Selection(
+            position.lineNumber,
+            position.column,
+            position.lineNumber,
+            position.column
+          )
+        : null);
+    if (!selection) return;
+    editor.focus();
+    editor.executeEdits('template-command', [
+      { range: selection, text: '/', forceMoveMarkers: true },
+    ]);
+    setTimeout(() => {
+      if (editorRef.current !== editor) return;
+      editor.focus();
+      editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+    }, 50);
+  };
 
   const handleMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
@@ -108,7 +139,24 @@ export function InsightTemplateEditor({
         defaultCollapsed={defaultToolbarCollapsed}
         onActionClick={applyAction}
         onHeadingClick={applyHeadingLevel}
-      />
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8'
+              disabled={readOnly}
+              onClick={insertTemplateCommand}
+              aria-label='Slash commands'
+            >
+              <SquareSlash className='h-4 w-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Slash commands</TooltipContent>
+        </Tooltip>
+      </MarkdownToolbar>
 
       <div className='min-h-0 flex-1'>
         <Editor

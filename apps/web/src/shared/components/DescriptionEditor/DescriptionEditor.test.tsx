@@ -119,6 +119,8 @@ function ContextDescriptionField() {
 describe('DescriptionEditor form integration', () => {
   it('connects the label, help, errors, focus ref and blur to the Monaco input across preview switches', async () => {
     render(<ContextDescriptionField />);
+    expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Slash commands' })).not.toBeInTheDocument();
     const input = screen.getByRole('textbox');
     const label = screen.getByText('Description (optional)').closest('label')!;
     expect(label.control).toBe(input);
@@ -145,7 +147,9 @@ describe('DescriptionEditor form integration', () => {
     ).toEqual(['Context help', 'Invalid description']);
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bold' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Markdown' }));
+    expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument();
     const reopened = screen.getByRole('textbox');
     expect(label.control).toBe(reopened);
     expect(reopened).toHaveAttribute('aria-invalid', 'true');

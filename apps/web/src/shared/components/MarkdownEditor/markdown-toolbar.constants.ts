@@ -1,20 +1,18 @@
 import type * as monacoEditor from 'monaco-editor';
 import type { LucideIcon } from 'lucide-react';
-import {
-  Bold,
-  Code2,
-  Italic,
-  Link,
-  List,
-  ListOrdered,
-  ListTodo,
-  Quote,
-  SquareSlash,
-  Table,
-} from 'lucide-react';
+import { Bold, Code2, Italic, Link, List, ListOrdered, ListTodo, Quote, Table } from 'lucide-react';
 
 export interface MarkdownAction {
-  id: string;
+  id:
+    | 'bold'
+    | 'italic'
+    | 'link'
+    | 'list'
+    | 'ordered-list'
+    | 'task-list'
+    | 'quote'
+    | 'code-block'
+    | 'table';
   label: string;
   icon: LucideIcon;
 }
@@ -77,10 +75,5 @@ export const MARKDOWN_ACTIONS: MarkdownAction[] = [
     id: 'table',
     label: 'Table',
     icon: Table,
-  },
-  {
-    id: 'slash-command',
-    label: 'Slash commands',
-    icon: SquareSlash,
   },
 ];

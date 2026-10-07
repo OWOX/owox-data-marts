@@ -14,6 +14,8 @@ import {
   MarkdownEditorPreview,
   useMarkdownPreview,
 } from '../MarkdownEditor';
+import { MarkdownToolbar } from '../MarkdownEditor/MarkdownToolbar';
+import { useMarkdownToolbar } from '../MarkdownEditor/useMarkdownToolbar';
 import { registerDataMartMentions } from './data-mart-mentions';
 import { useDataMartReferences } from './useDataMartReferences';
 
@@ -60,6 +62,13 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
     const loadReferences = useDataMartReferences(projectId, currentDataMartId);
     const latest = useRef({ loadReferences, onSave, onCancel, onBlur });
     latest.current = { loadReferences, onSave, onCancel, onBlur };
+    const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+    const monacoRef = useRef<typeof monaco | null>(null);
+    const { applyAction, applyHeadingLevel } = useMarkdownToolbar({
+      editorRef,
+      monacoRef,
+      readOnly: disabled,
+    });
     const disposable = useRef<monaco.IDisposable | null>(null);
     const [input, setInput] = useState<HTMLTextAreaElement | null>(null);
     const { resolvedTheme } = useTheme();
@@ -99,6 +108,8 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
     const onMount = useCallback(
       (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => {
         disposable.current?.dispose();
+        editorRef.current = editor;
+        monacoRef.current = monacoInstance;
         setInput(
           editor.getDomNode()?.querySelector<HTMLTextAreaElement>('textarea.inputarea') ?? null
         );
@@ -112,6 +123,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
         disposable.current = provider;
         editor.onDidDispose(() => {
           provider.dispose();
+          if (editorRef.current === editor) editorRef.current = null;
           setInput(null);
         });
         editor.onDidBlurEditorText(() => latest.current.onBlur?.());
@@ -139,24 +151,31 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
       <div className='w-full min-w-0 space-y-2'>
         <MarkdownEditorTabs value={tab} onChange={setTab} />
         {tab === 'markdown' ? (
-          <MarkdownEditor
-            key={projectId}
-            value={value}
-            onChange={onChange}
-            onMount={onMount}
-            placeholder={placeholder}
-            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-            options={{
-              readOnly: disabled,
-              fixedOverflowWidgets: true,
-              tabIndex: 0,
-              ariaLabel,
-              // Keep a labelable native textarea for FormControl and React Hook Form.
-              editContext: false,
-              quickSuggestions: { other: true, comments: false, strings: false },
-              wordBasedSuggestions: 'off',
-            }}
-          />
+          <div className='overflow-hidden rounded-md border'>
+            <MarkdownToolbar
+              readOnly={disabled}
+              onActionClick={applyAction}
+              onHeadingClick={applyHeadingLevel}
+            />
+            <MarkdownEditor
+              key={projectId}
+              value={value}
+              onChange={onChange}
+              onMount={onMount}
+              placeholder={placeholder}
+              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+              options={{
+                readOnly: disabled,
+                fixedOverflowWidgets: true,
+                tabIndex: 0,
+                ariaLabel,
+                // Keep a labelable native textarea for FormControl and React Hook Form.
+                editContext: false,
+                quickSuggestions: { other: true, comments: false, strings: false },
+                wordBasedSuggestions: 'off',
+              }}
+            />
+          </div>
         ) : (
           <MarkdownEditorPreview {...preview} />
         )}

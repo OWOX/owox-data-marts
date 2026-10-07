@@ -56,7 +56,7 @@ In the contexts list, click a row (or use the row actions) to open the **Configu
 
 ### Business descriptions and Data Mart links
 
-The description editor supports Markdown and a **Preview** tab. Type `@`, search by title, and select an accessible published Data Mart to insert a readable link. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+The description editor supports Markdown and a **Preview** tab. Use the formatting toolbar to insert headings, bold or italic text, links, lists, quotes, code blocks, and tables without typing the Markdown syntax yourself. Type `@`, search by title, and select an accessible published Data Mart to insert a readable link. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
 
 When editing a Data Mart's description, the current Data Mart is omitted from `@` suggestions. Project and Context descriptions can reference any accessible published Data Mart.
 

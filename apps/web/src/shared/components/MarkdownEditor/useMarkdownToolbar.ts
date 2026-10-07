@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type * as monacoEditor from 'monaco-editor';
-import type { EditorContext, MarkdownAction } from '../components/InsightTemplateEditor.constants';
+import type { EditorContext, MarkdownAction } from './markdown-toolbar.constants';
 
 export interface UseMarkdownToolbarProps {
   editorRef: React.RefObject<monacoEditor.editor.IStandaloneCodeEditor | null>;
@@ -265,18 +265,6 @@ export function useMarkdownToolbar({
     [applyEdit]
   );
 
-  const applySlashCommand = useCallback(
-    (ctx: EditorContext) => {
-      const { editor, selection } = ctx;
-      const insert = '/';
-      applyEdit(editor, selection, insert);
-      setTimeout(() => {
-        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
-      }, 50);
-    },
-    [applyEdit]
-  );
-
   const applyAction = useCallback(
     (actionId: MarkdownAction['id']) => {
       const ctx = getEditorContext();
@@ -313,9 +301,6 @@ export function useMarkdownToolbar({
         case 'table':
           applyTable(ctx);
           break;
-        case 'slash-command':
-          applySlashCommand(ctx);
-          break;
         default:
           break;
       }
@@ -334,7 +319,6 @@ export function useMarkdownToolbar({
       applyQuote,
       applyCodeBlock,
       applyTable,
-      applySlashCommand,
     ]
   );
 

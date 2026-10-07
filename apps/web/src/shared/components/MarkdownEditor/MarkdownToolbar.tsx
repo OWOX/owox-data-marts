@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, Heading } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -9,11 +9,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { MARKDOWN_ACTIONS, HEADING_LEVELS } from './InsightTemplateEditor.constants';
-import type { MarkdownAction } from './InsightTemplateEditor.constants';
+import { MARKDOWN_ACTIONS, HEADING_LEVELS } from './markdown-toolbar.constants';
+import type { MarkdownAction } from './markdown-toolbar.constants';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 export interface MarkdownToolbarProps {
+  children?: ReactNode;
   readOnly?: boolean;
   showToolbar?: boolean;
   collapsible?: boolean;
@@ -23,6 +24,7 @@ export interface MarkdownToolbarProps {
 }
 
 export function MarkdownToolbar({
+  children,
   readOnly = false,
   showToolbar = true,
   collapsible = false,
@@ -36,14 +38,15 @@ export function MarkdownToolbar({
   if (!showToolbar) return null;
 
   return (
-    <div className='bg-muted/40 flex items-center gap-2 border-b px-3 py-1 text-xs'>
+    <div className='bg-muted/40 flex flex-wrap items-center gap-2 border-b px-3 py-1 text-xs'>
       {!isCollapsed && (
-        <div className='flex flex-1 items-center gap-1'>
+        <div className='flex min-w-0 flex-1 flex-wrap items-center gap-1'>
           <DropdownMenu open={headingMenuOpen} onOpenChange={setHeadingMenuOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    type='button'
                     variant='ghost'
                     size='icon'
                     className='h-8 w-8'
@@ -82,6 +85,7 @@ export function MarkdownToolbar({
               <Tooltip key={action.id}>
                 <TooltipTrigger asChild>
                   <Button
+                    type='button'
                     variant='ghost'
                     size='icon'
                     className='h-8 w-8'
@@ -98,6 +102,7 @@ export function MarkdownToolbar({
               </Tooltip>
             );
           })}
+          {children}
         </div>
       )}
       <div className='flex items-center gap-2'>
@@ -126,6 +131,7 @@ export function MarkdownToolbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                type='button'
                 variant='ghost'
                 size='icon'
                 className='h-8 w-8'
