@@ -34,6 +34,8 @@ describe('McpSdkServerFactory', () => {
     }));
   });
 
+  afterEach(() => jest.restoreAllMocks());
+
   const loadFactory = async () => {
     const module = await import('./mcp-sdk-server.factory');
     return module.McpSdkServerFactory;
@@ -77,7 +79,7 @@ describe('McpSdkServerFactory', () => {
       {
         description: 'List data marts',
         inputSchema: { query: expect.any(Object) },
-        outputSchema,
+        outputSchema: expect.objectContaining({ '~standard': expect.any(Object) }),
         annotations,
       },
       expect.any(Function)
@@ -90,6 +92,62 @@ describe('McpSdkServerFactory', () => {
     });
     // The SDK's per-request abort signal (client disconnect/cancel) must reach the tool handler.
     expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, signal);
+  });
+
+  it.each(['list_data_marts', 'query_data_mart', 'list_contexts'])(
+    'shares the refresh cooldown across per-request servers and preserves calls when sending fails (%s)',
+    async toolName => {
+      const handler = jest.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
+      const tool = {
+        name: toolName,
+        description: 'List',
+        zodSchema: {},
+        requiredScopes: ['mcp:read'],
+        handler,
+      } as McpToolDefinition;
+      const McpSdkServerFactory = await loadFactory();
+      const factory = new McpSdkServerFactory(
+        new McpConfigService({ get: jest.fn() } as never),
+        new McpToolRegistry([tool]),
+        passthroughInstrumentation
+      );
+      const notify = jest.fn().mockResolvedValue(undefined);
+      factory.create(context);
+      await mockRegisterTool.mock.calls[0][2]({}, { mcpReq: { notify } });
+      factory.create(context);
+      await mockRegisterTool.mock.calls[1][2]({}, { mcpReq: { notify } });
+      expect(notify).toHaveBeenCalledTimes(1);
+      expect(notify).toHaveBeenCalledWith({ method: 'notifications/tools/list_changed' });
+
+      const failedNotify = jest.fn().mockRejectedValue(new Error('stream closed'));
+      factory.create({ ...context, clientId: 'another' });
+      await expect(
+        mockRegisterTool.mock.calls[2][2]({}, { mcpReq: { notify: failedNotify } })
+      ).resolves.toEqual({ content: [{ type: 'text', text: 'ok' }] });
+      expect(handler).toHaveBeenCalledTimes(3);
+    }
+  );
+
+  it('uses the subscription notifier for modern requests instead of emitting on the call stream', async () => {
+    const tool = {
+      name: 'get_data_mart_details_by_id',
+      description: 'Details',
+      zodSchema: {},
+      requiredScopes: ['mcp:read'],
+      handler: jest.fn().mockResolvedValue({ content: [] }),
+    } as McpToolDefinition;
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([tool]),
+      passthroughInstrumentation
+    );
+    const broadcast = jest.fn();
+    const notify = jest.fn();
+    factory.create(context, undefined, { era: 'modern', notifyToolsChanged: broadcast });
+    await mockRegisterTool.mock.calls[0][2]({}, { mcpReq: { notify } });
+    expect(broadcast).toHaveBeenCalledTimes(1);
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it('forwards an undefined signal when the SDK provides no ctx', async () => {

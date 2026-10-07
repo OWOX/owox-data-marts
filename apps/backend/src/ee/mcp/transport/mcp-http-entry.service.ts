@@ -63,10 +63,11 @@ export class McpHttpEntryService implements OnModuleInit, OnModuleDestroy {
     const express = this.adapterHost.httpAdapter.getInstance<Express>();
 
     this.handler = createMcpHandler(
-      ({ authInfo }) =>
+      ({ authInfo, era }) =>
         this.serverFactory.create(
           toMcpAuthContext(authInfo),
-          this.instructionsService.getInstructions()
+          this.instructionsService.getInstructions(),
+          { era, notifyToolsChanged: () => this.handler?.notify.toolsChanged() }
         ),
       { onerror: error => this.onTransportError(error) }
     );
