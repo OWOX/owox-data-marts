@@ -108,16 +108,16 @@ describe('DataStorageForm — a rejected save', () => {
   });
 
   it('reopens a pasted key the server rejected, keeps its text and focuses it', async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(
-        rejectedSave([
-          {
-            field: 'credentials.private_key',
-            message: 'private_key must be a valid PEM format private key',
-          },
-        ])
-      );
+    // A 400: the API interceptor has toasted it already.
+    vi.mocked(wasErrorToastShown).mockReturnValue(true);
+    const onSubmit = vi.fn().mockRejectedValue(
+      rejectedSave([
+        {
+          field: 'credentials.private_key',
+          message: 'private_key must be a valid PEM format private key',
+        },
+      ])
+    );
     renderForm(onSubmit);
 
     fireEvent.change(await serviceAccountInput(), { target: { value: pastedKey } });
@@ -152,6 +152,30 @@ describe('DataStorageForm — a rejected save', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Network Error');
+    });
+    consoleError.mockRestore();
+  });
+
+  it('still reports a rejection whose field is not on screen', async () => {
+    const onSubmit = vi.fn().mockRejectedValue({
+      response: {
+        status: 422,
+        data: {
+          message: 'The storage refused this setting',
+          errorDetails: {
+            fieldErrors: [{ field: 'config.unknownSetting', message: 'Not allowed' }],
+          },
+        },
+      },
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderForm(onSubmit, configuredStorage);
+
+    await changeOwners();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('The storage refused this setting');
     });
     consoleError.mockRestore();
   });

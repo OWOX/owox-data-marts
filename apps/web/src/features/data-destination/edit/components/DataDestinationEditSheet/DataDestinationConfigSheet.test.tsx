@@ -191,4 +191,21 @@ describe('DataDestinationConfigSheet', () => {
     expect(onClose).toHaveBeenCalled();
     expect(onSaveSuccess).toHaveBeenCalledWith(updated);
   });
+
+  it('treats a fault in the caller after the save as a saved Destination, not a rejected one', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockSave({ updateDataDestination: vi.fn().mockResolvedValue(dataDestination) });
+    const onClose = vi.fn();
+    renderSheet({
+      onClose,
+      onSaveSuccess: () => {
+        throw new Error('list refresh failed');
+      },
+    });
+
+    await expect(formProps.current?.onSubmit(sheetsFormData)).resolves.toBeUndefined();
+
+    expect(onClose).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });

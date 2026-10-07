@@ -88,31 +88,43 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      const signOut = (cause: unknown) => {
+        authStateManager.clear();
+
+        window.dispatchEvent(
+          new CustomEvent('auth:logout', {
+            detail: {
+              reason: isBlockedUserError(cause) ? 'user_blocked' : 'token_refresh_failed',
+            },
+          })
+        );
+
+        return Promise.reject(new Error('Token refresh failed'));
+      };
+
+      let newAccessToken: string;
       try {
         const tokenProvider = getTokenProvider();
         if (!tokenProvider) {
           throw new Error('No token provider available');
         }
 
-        const newAccessToken = await authStateManager.refreshToken(() =>
-          tokenProvider.refreshToken()
-        );
+        newAccessToken = await authStateManager.refreshToken(() => tokenProvider.refreshToken());
+      } catch (refreshError) {
+        return signOut(refreshError);
+      }
 
-        originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
-
+      originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
+      try {
         return await apiClient(originalRequest);
-      } catch (error) {
-        authStateManager.clear();
-
-        window.dispatchEvent(
-          new CustomEvent('auth:logout', {
-            detail: {
-              reason: isBlockedUserError(error) ? 'user_blocked' : 'token_refresh_failed',
-            },
-          })
-        );
-
-        return Promise.reject(new Error('Token refresh failed'));
+      } catch (retryError) {
+        // Only a refused token signs the user out. Any other failure of the retried request is
+        // that request's own answer — a 400 naming the field to fix, a 404 — already reported by
+        // this interceptor on its way through, and passed on to the caller unchanged.
+        if ((retryError as AxiosError | undefined)?.response?.status === 401) {
+          return signOut(retryError);
+        }
+        throw retryError;
       }
     }
 

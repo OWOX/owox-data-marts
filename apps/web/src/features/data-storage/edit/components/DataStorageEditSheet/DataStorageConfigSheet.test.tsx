@@ -54,12 +54,12 @@ const dataStorage: DataStorage = {
   modifiedAt: new Date('2026-06-09T10:00:00.000Z'),
 };
 
-function renderSheet(onSaveSuccess = vi.fn()) {
+function renderSheet(onSaveSuccess = vi.fn(), onClose = vi.fn()) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-storages']}>
       <DataStorageConfigSheet
         isOpen
-        onClose={vi.fn()}
+        onClose={onClose}
         dataStorage={dataStorage}
         onSaveSuccess={onSaveSuccess}
       />
@@ -151,5 +151,25 @@ describe('DataStorageConfigSheet', () => {
     await formProps.current?.onSubmit({});
 
     expect(onSaveSuccess).toHaveBeenCalledWith(updated);
+  });
+
+  it('treats a fault in the caller after the save as a saved Storage, not a rejected one', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      updateDataStorage: vi.fn().mockResolvedValue(dataStorage),
+    });
+    const onClose = vi.fn();
+    renderSheet(
+      vi.fn(() => {
+        throw new Error('list refresh failed');
+      }),
+      onClose
+    );
+
+    await expect(formProps.current?.onSubmit({})).resolves.toBeUndefined();
+
+    expect(onClose).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

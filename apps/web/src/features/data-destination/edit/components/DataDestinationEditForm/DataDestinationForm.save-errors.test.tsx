@@ -110,6 +110,33 @@ describe('DataDestinationForm — a rejected save', () => {
     });
   });
 
+  it('still reports a rejection whose field is not on screen', async () => {
+    vi.mocked(wasErrorToastShown).mockReturnValue(false);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onSubmit = vi.fn().mockRejectedValue({
+      response: {
+        status: 422,
+        data: {
+          message: 'The destination refused this setting',
+          errorDetails: {
+            fieldErrors: [{ field: 'credentials.deploymentUrl', message: 'Not allowed' }],
+          },
+        },
+      },
+    });
+    renderForm(onSubmit);
+
+    fireEvent.change(await screen.findByPlaceholderText('Enter title'), {
+      target: { value: 'Renamed' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('The destination refused this setting');
+    });
+    consoleError.mockRestore();
+  });
+
   it('reports a failure the API interceptor stayed silent on', async () => {
     vi.mocked(wasErrorToastShown).mockReturnValue(false);
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);

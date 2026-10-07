@@ -119,10 +119,26 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
     const suggestWidget = page.locator(SUGGEST_WIDGET);
     // Typing opens the list on its own, but on CI runners that trigger was intermittently lost:
     // the word was in the editor with no list for the full 15s, and nothing re-opens it. These
-    // tests measure the list — its width, its rows, a click on one — not what opened it, so open
-    // it with the editor's own Ctrl+Space when typing did not, as an analyst would.
+    // tests measure the list — its width, its rows, a click on one — not what opened it, so when
+    // typing did not open it, run the editor's own "Trigger Suggest" (what Ctrl+Space does with
+    // no list open). Not the key itself: pressed in the instant the list opens by itself,
+    // Ctrl+Space toggles the details pane instead, changing the very width measured here.
     await expect(async () => {
-      if (!(await suggestWidget.isVisible())) await page.keyboard.press('Control+Space');
+      if (!(await suggestWidget.isVisible())) {
+        const triggered = await page.evaluate(() => {
+          interface MonacoEditor {
+            hasTextFocus(): boolean;
+            trigger(source: string, handlerId: string, payload: unknown): void;
+          }
+          const { monaco } = window as unknown as {
+            monaco?: { editor: { getEditors(): MonacoEditor[] } };
+          };
+          const editor = monaco?.editor.getEditors().find(candidate => candidate.hasTextFocus());
+          editor?.trigger('e2e', 'editor.action.triggerSuggest', {});
+          return Boolean(editor);
+        });
+        expect(triggered, 'the focused formula editor, through window.monaco').toBe(true);
+      }
       await expect(suggestWidget).toBeVisible({ timeout: 3000 });
     }).toPass({ timeout: 20000 });
     return suggestWidget;

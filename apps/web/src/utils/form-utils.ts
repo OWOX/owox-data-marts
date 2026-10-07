@@ -56,9 +56,10 @@ export function applyServerFieldErrors<T extends FieldValues>(
     const name = toFormField(field);
     if (!name) continue;
     // On an input named for another key (one holding a whole file), a bare reason does not say
-    // which of the file's keys is wrong.
-    const key = field.split('.').at(-1) ?? '';
-    const holdsOtherKey = key !== '' && name.split('.').at(-1) !== key;
+    // which of the file's keys is wrong. A list index is not a key: `credentials.to.0` is the
+    // `to` list's input, whichever entry was refused.
+    const key = lastKeyOf(field);
+    const holdsOtherKey = key !== '' && lastKeyOf(name) !== key;
     const text = holdsOtherKey && !message.includes(key) ? `${key}: ${message}` : message;
     const messages = messagesByField.get(name) ?? [];
     if (!messages.includes(text)) messages.push(text);
@@ -68,4 +69,14 @@ export function applyServerFieldErrors<T extends FieldValues>(
     setError(name, { type: 'server', message: messages.join('; ') });
   }
   return messagesByField.size > 0;
+}
+
+/** The last named segment of a dot path, skipping list indexes. */
+function lastKeyOf(path: string): string {
+  return (
+    path
+      .split('.')
+      .filter(segment => !/^\d+$/.test(segment))
+      .at(-1) ?? ''
+  );
 }

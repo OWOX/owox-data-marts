@@ -10,7 +10,7 @@ Previously, when a Storage or a Destination could not be saved because of one of
 - **Service Account** in a Google BigQuery Storage or a Google Sheets Destination: a key that is not valid JSON or has no `client_email` is flagged on the field. Before, **Save** in a Storage did nothing in this case.
 - Any storage type: when the server rejects a value in the connection settings or credentials, the form marks that field the same way. Connection errors reported by the warehouse itself, such as a wrong password, still appear as a message only.
 - **Google Sheets** Destination: a Drive folder the service account can't use is marked on the folder field, with the reason and the fix. Email, Slack, Microsoft Teams and Google Chat Destinations mark a recipient or webhook URL the server refuses.
-- A save that fails for another reason, such as a lost connection, now says so instead of doing nothing. A change to the owners is kept when you fix a field and save again.
+- A save that fails for another reason, such as a lost connection, now says so instead of doing nothing. A change to the owners is kept when you fix a field and save again. A save refused after your session had to be renewed no longer signs you out.
 
 See [Google BigQuery](../../docs/storages/supported-storages/google-bigquery.md), [Storage Management](../../docs/storages/manage-storages.md) and [Destination Management](../../docs/destinations/manage-destinations.md).
 

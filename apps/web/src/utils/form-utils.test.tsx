@@ -205,6 +205,21 @@ describe('applyServerFieldErrors', () => {
     });
   });
 
+  it('does not take a list index for the key of a list input', () => {
+    const setError = vi.fn();
+
+    applyServerFieldErrors(
+      setError,
+      [{ field: 'credentials.to.0', message: 'Invalid email' }],
+      () => 'credentials.to'
+    );
+
+    expect(setError).toHaveBeenCalledWith('credentials.to', {
+      type: 'server',
+      message: 'Invalid email',
+    });
+  });
+
   it('leaves the reason alone on an input that holds exactly that value', () => {
     const setError = vi.fn();
 

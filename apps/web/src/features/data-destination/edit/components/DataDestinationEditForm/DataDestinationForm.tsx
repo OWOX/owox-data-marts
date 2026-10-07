@@ -258,9 +258,11 @@ export function DataDestinationForm({
       );
       if (highlighted) {
         focusFirstInvalidField(undefined, event);
-      } else if (!wasErrorToastShown(error)) {
-        // The API interceptor toasts 400/403/404/5xx only. A network failure, any other status
-        // or a throw while building the request must not vanish.
+      }
+      // Reported once whatever was marked: the marked input may not be on screen (another auth
+      // tab, a collapsed choice). The API interceptor toasts 400/403/404/5xx; a network failure,
+      // any other status or a throw while building the request is reported here.
+      if (!wasErrorToastShown(error)) {
         console.error(error);
         toast.error(apiErrorMessage(error, 'Failed to save the Destination'));
       }
