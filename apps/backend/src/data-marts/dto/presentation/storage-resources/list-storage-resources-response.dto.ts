@@ -34,7 +34,7 @@ export class StorageResourceLeafDto {
   fullyQualifiedName: string;
 
   @ApiPropertyOptional({
-    description: "Where the resource's data lives (BigQuery dataset location)",
+    description: "Where the resource's data lives, e.g. a BigQuery dataset location",
     example: 'EU',
   })
   location?: string;

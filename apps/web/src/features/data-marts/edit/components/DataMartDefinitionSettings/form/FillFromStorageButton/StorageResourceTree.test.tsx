@@ -67,6 +67,8 @@ describe('StorageResourceTree location', () => {
 
     const mismatched = resourceRow('ads');
     expect(mismatched).toHaveAttribute('aria-disabled', 'true');
+    // Stays natively enabled so the hover explanation still shows.
+    expect(mismatched).not.toBeDisabled();
     expect(mismatched.title).toContain('Stored in US');
     fireEvent.click(mismatched);
     expect(onToggleResource).not.toHaveBeenCalled();

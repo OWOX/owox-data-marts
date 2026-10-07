@@ -1,5 +1,8 @@
 import type { StorageResourceLeaf } from '../../interfaces/storage-resource-browser.interface';
-import { flagLocationMismatches } from './bigquery-resource-location.util';
+import {
+  flagLocationMismatches,
+  isOutsideStorageLocation,
+} from './bigquery-resource-location.util';
 
 function leaf(id: string, location?: string): StorageResourceLeaf {
   return {
@@ -43,5 +46,22 @@ describe('flagLocationMismatches', () => {
     const [result] = flagLocationMismatches([leaf('orders')], 'EU');
 
     expect(result).not.toHaveProperty('locationMismatch');
+  });
+});
+
+describe('isOutsideStorageLocation', () => {
+  it.each([
+    ['US', 'EU', true],
+    ['eu', 'EU', false],
+    ['us-central1', 'US', true],
+  ])('compares %s against a %s storage', (resource, storage, expected) => {
+    expect(isOutsideStorageLocation(resource, storage)).toBe(expected);
+  });
+
+  it.each([
+    [undefined, 'EU'],
+    ['EU', undefined],
+  ])('has nothing to compare for %s against %s', (resource, storage) => {
+    expect(isOutsideStorageLocation(resource, storage)).toBeUndefined();
   });
 });

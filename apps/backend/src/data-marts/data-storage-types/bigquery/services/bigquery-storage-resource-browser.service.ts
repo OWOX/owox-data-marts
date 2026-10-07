@@ -257,7 +257,9 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
           datasetReference?: { datasetId?: string };
         };
         const id = dataset.id ?? metadata.datasetReference?.datasetId ?? '';
-        return { id, location: dataset.location ?? metadata.location };
+        // Only the API row is trusted: `dataset.location` falls back to the client's own
+        // location (the storage's) when the row has none, which would hide a mismatch.
+        return { id, location: metadata.location };
       })
       .filter(dataset => dataset.id);
   }
