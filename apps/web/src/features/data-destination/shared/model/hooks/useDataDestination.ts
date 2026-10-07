@@ -98,7 +98,8 @@ export function useDataDestination() {
           label: requestData.type,
           error: message,
         });
-        return null;
+        // Rethrown so the form stays open and can highlight the inputs the server rejected.
+        throw error;
       }
     },
     [dispatch, refreshSetupProgress]
@@ -145,7 +146,8 @@ export function useDataDestination() {
           action: 'UpdateError',
           error: message,
         });
-        return null;
+        // Rethrown so the form stays open and can highlight the inputs the server rejected.
+        throw error;
       }
     },
     [dispatch]

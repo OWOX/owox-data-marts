@@ -27,9 +27,7 @@ export class GoogleSheetsCredentialsValidator implements DataDestinationCredenti
     const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials format', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
+      return ValidationResult.invalidCredentials(credentialsOpt.error);
     }
 
     try {

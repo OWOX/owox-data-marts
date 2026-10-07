@@ -39,7 +39,17 @@ import {
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
 
-import { createFormPayload, focusFirstInvalidField } from '../../../../../utils';
+import {
+  applyServerFieldErrors,
+  createFormPayload,
+  focusFirstInvalidField,
+} from '../../../../../utils';
+import { apiErrorMessage, wasErrorToastShown } from '../../../../../app/api';
+import toast from 'react-hot-toast';
+import {
+  extractDestinationFieldErrors,
+  toDataDestinationFormField,
+} from '../../model/data-destination-server-errors';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
 import {
   DataDestinationType,
@@ -103,8 +113,13 @@ export function DataDestinationForm({
           },
         ]
       : []);
-  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
-    useOwnerState(initialOwnerUsers);
+  const {
+    ownerUsers,
+    ownersDirty,
+    handleOwnersChange,
+    pendingOwnerIdsRef,
+    consumePendingOwnerIds,
+  } = useOwnerState(initialOwnerUsers);
 
   const sharingInitial = initialData as {
     availableForUse?: boolean;
@@ -203,7 +218,7 @@ export function DataDestinationForm({
     [destinationId, selectedSource, handleSourceSelect, handleSourceClear]
   );
 
-  const handleSubmit = async (data: DataDestinationFormData) => {
+  const handleSubmit = async (data: DataDestinationFormData, event?: { target?: unknown }) => {
     const { dirtyFields } = form.formState;
     const payload = createFormPayload(data);
 
@@ -213,7 +228,8 @@ export function DataDestinationForm({
       delete (payload as Partial<DataDestinationFormData>).credentials;
     }
 
-    const ownerIds = consumePendingOwnerIds();
+    // Read, not consumed: a rejected save keeps the owner change for the retry.
+    const ownerIds = pendingOwnerIdsRef.current;
     if (ownerIds !== null) {
       (payload as Record<string, unknown>).ownerIds = ownerIds;
     }
@@ -228,7 +244,27 @@ export function DataDestinationForm({
       (payload as Record<string, unknown>).contextIds = contextIds;
     }
 
-    await onSubmit(payload, selectedSource);
+    try {
+      await onSubmit(payload, selectedSource);
+      consumePendingOwnerIds();
+    } catch (error) {
+      // When the rejection names the values it refused, mark those inputs the same way
+      // client-side validation does, so the user sees which field to fix instead of decoding
+      // the toast.
+      const highlighted = applyServerFieldErrors(
+        form.setError,
+        extractDestinationFieldErrors(error),
+        field => toDataDestinationFormField(data.type, field)
+      );
+      if (highlighted) {
+        focusFirstInvalidField(undefined, event);
+      } else if (!wasErrorToastShown(error)) {
+        // The API interceptor toasts 400/403/404/5xx only. A network failure, any other status
+        // or a throw while building the request must not vanish.
+        console.error(error);
+        toast.error(apiErrorMessage(error, 'Failed to save the Destination'));
+      }
+    }
   };
 
   return (

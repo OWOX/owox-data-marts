@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { describeInvalidInput, toFieldErrors } from './field-errors.utils';
-import { BigQueryConfigSchema } from '../bigquery/schemas/bigquery-config.schema';
-import { ValidationResult } from '../interfaces/data-storage-access-validator.interface';
+import { BigQueryConfigSchema } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
+import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 
 describe('field-errors.utils', () => {
   const credentialsSchema = z.object({

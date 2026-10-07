@@ -11,7 +11,7 @@ import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { Input } from '@owox/ui/components/input';
 import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
-import { type UseFormReturn } from 'react-hook-form';
+import { useFormState, type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
@@ -127,6 +127,18 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const serviceAccountLink = serviceAccountValue
     ? getServiceAccountLink(serviceAccountValue)
     : null;
+  // A key the server rejected stays open for correction rather than collapsing into the
+  // saved-key summary, where it could be neither seen, focused nor fixed — and where Edit
+  // would wipe it.
+  const serviceAccountFormState = useFormState({
+    control: form.control,
+    name: 'credentials.serviceAccount',
+  });
+  const serviceAccountInvalid = form.getFieldState(
+    'credentials.serviceAccount',
+    serviceAccountFormState
+  ).invalid;
+  const showServiceAccountSummary = !isEditing && !serviceAccountInvalid && !!serviceAccountLink;
 
   const handleOAuthSuccess = (credentialId: string) => {
     form.setValue('credentials.credentialId', credentialId, {
@@ -308,19 +320,19 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                     <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination provider'>
                       Service Account
                     </FormLabel>
-                    {!isEditing && serviceAccountValue && (
+                    {!isEditing && !serviceAccountInvalid && serviceAccountValue && (
                       <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
                         Edit
                       </Button>
                     )}
-                    {isEditing && (
+                    {(isEditing || (serviceAccountInvalid && serviceAccountLink)) && (
                       <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
                         Cancel
                       </Button>
                     )}
                   </div>
                   <FormControl>
-                    {!isEditing && serviceAccountLink ? (
+                    {showServiceAccountSummary ? (
                       <FieldWithActions
                         value={serviceAccountLink.email}
                         actions={[
@@ -371,46 +383,48 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                     <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
                       Drive folder for auto-created documents (required)
                     </FormLabel>
-                    <FormControl>
-                      <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-2'>
+                      {/* On the input itself, so a rejected folder marks and focuses the input
+                          and the label points at it — not at the row around it. */}
+                      <FormControl>
                         <Input
                           placeholder='https://drive.google.com/drive/folders/…'
                           className='flex-1'
                           {...field}
                           value={field.value ?? ''}
                         />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type='button'
-                              className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
-                                isValidFolderUrl
-                                  ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
-                                  : 'text-muted-foreground/30 cursor-not-allowed'
-                              }`}
-                              onClick={() => {
-                                if (isValidFolderUrl) {
-                                  window.open(folderUrl, '_blank', 'noopener,noreferrer');
-                                }
-                              }}
-                              disabled={!isValidFolderUrl}
-                              aria-label={
-                                isValidFolderUrl
-                                  ? 'Open folder in new tab'
-                                  : 'Folder link is not valid'
+                      </FormControl>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type='button'
+                            className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
+                              isValidFolderUrl
+                                ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
+                                : 'text-muted-foreground/30 cursor-not-allowed'
+                            }`}
+                            onClick={() => {
+                              if (isValidFolderUrl) {
+                                window.open(folderUrl, '_blank', 'noopener,noreferrer');
                               }
-                            >
-                              <ExternalLink className='h-4 w-4' aria-hidden='true' />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' align='center' role='tooltip'>
-                            {isValidFolderUrl
-                              ? 'Open folder in new tab'
-                              : 'Paste a valid Drive folder URL to enable link'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </FormControl>
+                            }}
+                            disabled={!isValidFolderUrl}
+                            aria-label={
+                              isValidFolderUrl
+                                ? 'Open folder in new tab'
+                                : 'Folder link is not valid'
+                            }
+                          >
+                            <ExternalLink className='h-4 w-4' aria-hidden='true' />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side='top' align='center' role='tooltip'>
+                          {isValidFolderUrl
+                            ? 'Open folder in new tab'
+                            : 'Paste a valid Drive folder URL to enable link'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <FormDescription>
                       Paste a Google Drive folder URL. New documents created with “Create document”
                       are placed here. A Shared Drive folder is required — add the service account

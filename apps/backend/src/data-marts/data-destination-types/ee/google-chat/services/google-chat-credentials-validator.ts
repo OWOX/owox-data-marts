@@ -23,9 +23,7 @@ export class GoogleChatCredentialsValidator implements DataDestinationCredential
         : GoogleChatCredentialsSchema.safeParse(credentials);
     if (!credentialsValidation.success) {
       this.logger.warn('Invalid Google Chat credentials format', credentialsValidation.error);
-      return new ValidationResult(false, 'Invalid Google Chat credentials', {
-        errors: credentialsValidation.error.errors,
-      });
+      return ValidationResult.invalidCredentials(credentialsValidation.error);
     }
 
     return new ValidationResult(true);

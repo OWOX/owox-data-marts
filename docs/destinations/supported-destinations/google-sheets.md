@@ -78,7 +78,7 @@ Review your entries and click **Save** to integrate the **Destination**, or **Ca
 
 ## Troubleshooting Folder Access
 
-When a **Destination** has a Drive folder configured, OWOX checks that it can actually write there before saving, so problems surface at setup time instead of during a refresh. If the save fails, match the message below:
+When a **Destination** has a Drive folder configured, OWOX checks that it can actually write there before saving, so problems surface at setup time instead of during a refresh. If the save fails, the folder field is marked and shows one of these messages:
 
 - **"The Google Drive API is not enabled..."** — enable the [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com/) in the Cloud project named in the message (the one your service account key belongs to), wait a minute, then save again. The Google Sheets API being enabled does not cover folder placement.
 - **"The Drive folder was not found, or the service account is not a member..."** — check the folder URL you pasted, then open the folder's Shared Drive, click **Manage members**, and add the service account's email as a member.

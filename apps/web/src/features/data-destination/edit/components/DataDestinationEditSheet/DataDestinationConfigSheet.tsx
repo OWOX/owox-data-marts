@@ -54,6 +54,8 @@ export function DataDestinationConfigSheet({
       ? `${window.location.origin}${scope(`/data-destinations?id=${dataDestination.id}`)}`
       : null;
 
+  // A rejected save throws out of here and the sheet stays open: the form catches it to mark the
+  // inputs the server refused, instead of the sheet closing on the user's unsaved values.
   const onSave = async (
     data: DataDestinationFormData,
     source?: { id: string; title: string } | null
@@ -73,9 +75,7 @@ export function DataDestinationConfigSheet({
         };
         const newDestination = await createDataDestination(createData);
         handleFormSubmitSuccess();
-        if (newDestination) {
-          onSaveSuccess(newDestination);
-        }
+        onSaveSuccess(newDestination);
       } else {
         const createData = {
           ...mapper.mapToCreateRequest(formFields),
@@ -83,9 +83,7 @@ export function DataDestinationConfigSheet({
         };
         const newDestination = await createDataDestination(createData);
         handleFormSubmitSuccess();
-        if (newDestination) {
-          onSaveSuccess(newDestination);
-        }
+        onSaveSuccess(newDestination);
       }
     } else {
       const { ownerIds, availableForUse, availableForMaintenance, contextIds, ...formFields } =
@@ -105,9 +103,7 @@ export function DataDestinationConfigSheet({
       };
       const updatedDestination = await updateDataDestination(dataDestination.id, requestWithExtras);
       handleFormSubmitSuccess();
-      if (updatedDestination) {
-        onSaveSuccess(updatedDestination);
-      }
+      onSaveSuccess(updatedDestination);
     }
   };
 

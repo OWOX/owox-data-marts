@@ -26,8 +26,16 @@ vi.mock('../../../../idp', () => ({
   useAuth: () => authMock.value,
 }));
 
+// Captures what the sheet hands the form, so a test can drive a save the way the form does.
+const formProps = vi.hoisted(() => ({
+  current: null as null | { onSubmit: (data: unknown) => Promise<void> },
+}));
+
 vi.mock('../DataDestinationEditForm', () => ({
-  DataDestinationForm: () => null,
+  DataDestinationForm: (props: { onSubmit: (data: unknown) => Promise<void> }) => {
+    formProps.current = props;
+    return null;
+  },
 }));
 
 vi.mock('@owox/ui/components/sheet', () => ({
@@ -50,17 +58,40 @@ const dataDestination: DataDestination = {
   contexts: [],
 };
 
-function renderSheet() {
+function renderSheet({
+  onClose = vi.fn(),
+  onSaveSuccess = vi.fn(),
+  destination = dataDestination,
+}: {
+  onClose?: () => void;
+  onSaveSuccess?: (destination: DataDestination) => void;
+  destination?: DataDestination | null;
+} = {}) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-destinations']}>
       <DataDestinationConfigSheet
         isOpen
-        onClose={vi.fn()}
-        dataDestination={dataDestination}
-        onSaveSuccess={vi.fn()}
+        onClose={onClose}
+        dataDestination={destination}
+        onSaveSuccess={onSaveSuccess}
       />
     </MemoryRouter>
   );
+}
+
+const sheetsFormData = {
+  type: DataDestinationType.GOOGLE_SHEETS,
+  title: 'Sheets',
+  credentials: { serviceAccount: '', credentialId: null },
+};
+
+const rejection = { response: { status: 400, data: { code: 'DESTINATION_FOLDER_ACCESS' } } };
+
+function mockSave(overrides: Partial<ReturnType<typeof useDataDestination>>) {
+  vi.mocked(useDataDestination).mockReturnValue({
+    ...vi.mocked(useDataDestination)(),
+    ...overrides,
+  });
 }
 
 describe('DataDestinationConfigSheet', () => {
@@ -115,5 +146,49 @@ describe('DataDestinationConfigSheet', () => {
     renderSheet();
 
     expect(screen.queryByRole('button', { name: 'Copy link to this destination' })).toBeNull();
+  });
+
+  // Before, the sheet closed after ANY save, so a rejected one threw the user's values away and
+  // left nothing to point at the field to fix.
+  it('stays open on a rejected update and passes the failure on to the form', async () => {
+    const updateDataDestination = vi.fn().mockRejectedValue(rejection);
+    mockSave({ updateDataDestination });
+    const onClose = vi.fn();
+    const onSaveSuccess = vi.fn();
+    renderSheet({ onClose, onSaveSuccess });
+
+    await expect(formProps.current?.onSubmit(sheetsFormData)).rejects.toBe(rejection);
+
+    expect(updateDataDestination).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSaveSuccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('stays open on a rejected create', async () => {
+    const createDataDestination = vi.fn().mockRejectedValue(rejection);
+    mockSave({ createDataDestination });
+    const onClose = vi.fn();
+    const onSaveSuccess = vi.fn();
+    renderSheet({ onClose, onSaveSuccess, destination: null });
+
+    await expect(formProps.current?.onSubmit(sheetsFormData)).rejects.toBe(rejection);
+
+    expect(createDataDestination).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSaveSuccess).not.toHaveBeenCalled();
+  });
+
+  it('closes and reports a successful update', async () => {
+    const updated = { ...dataDestination, title: 'Renamed' };
+    mockSave({ updateDataDestination: vi.fn().mockResolvedValue(updated) });
+    const onClose = vi.fn();
+    const onSaveSuccess = vi.fn();
+    renderSheet({ onClose, onSaveSuccess });
+
+    await formProps.current?.onSubmit(sheetsFormData);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(onSaveSuccess).toHaveBeenCalledWith(updated);
   });
 });

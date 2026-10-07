@@ -34,6 +34,9 @@ To configure a new **Destination**:
 
 3. Complete the configuration fields specific to the selected **Destination Type**. Refer to the corresponding service configuration page for detailed instructions.
 4. Click **Save** to apply the **Destination** configuration or **Cancel** to discard changes.
+   If a value can't be used, the panel stays open with everything you entered, and **Save** marks
+   the field to fix in red and explains what is wrong under it. The mark clears when you correct
+   the value.
 
 ---
 

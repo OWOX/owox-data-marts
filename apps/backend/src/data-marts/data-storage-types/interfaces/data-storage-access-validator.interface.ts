@@ -1,6 +1,10 @@
 import { ZodError } from 'zod';
 import { TypedComponent } from '../../../common/resolver/typed-component.resolver';
-import { describeInvalidInput, FieldErrorScope, toFieldErrors } from '../utils/field-errors.utils';
+import {
+  describeInvalidInput,
+  FieldErrorScope,
+  toFieldErrors,
+} from '../../utils/field-errors.utils';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataStorageConfig } from '../data-storage-config.type';
 import { DataStorageCredentials } from '../data-storage-credentials.type';

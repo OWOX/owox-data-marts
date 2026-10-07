@@ -2,8 +2,8 @@ import { ZodError, ZodIssue } from 'zod';
 
 /**
  * One rejected value the client can point at. `field` is the dot path of that value in the
- * storage update request body (`config.projectId`, `credentials.private_key`), so a form can
- * highlight the input that holds it instead of leaving the user to guess from a toast.
+ * Storage or Destination save request body (`config.projectId`, `credentials.private_key`), so a
+ * form can highlight the input that holds it instead of leaving the user to guess from a toast.
  */
 export interface FieldError {
   field: string;
