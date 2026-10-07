@@ -46,7 +46,7 @@ export function CardRelationshipsSection({
 }: {
   dataMartTitle: string;
   relationships: CanvasNodeRelationship[];
-  onOpenRelationship?: (relationshipId: string) => void;
+  onOpenRelationship?: (relationshipId: string, options?: { viaKeyboard?: boolean }) => void;
 }) {
   return (
     <ul className='border-t' aria-label={`Relationships of ${dataMartTitle}`}>
@@ -66,7 +66,8 @@ export function CardRelationshipsSection({
               onClick={e => {
                 // The card itself toggles its edge highlight on click — keep the two apart.
                 e.stopPropagation();
-                onOpenRelationship(relationship.id);
+                // Enter or Space on the button: a click with no pointer behind it.
+                onOpenRelationship(relationship.id, { viaKeyboard: e.detail === 0 });
               }}
             >
               <RelationshipSummary relationship={relationship} />

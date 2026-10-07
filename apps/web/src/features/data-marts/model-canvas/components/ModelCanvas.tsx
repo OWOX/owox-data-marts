@@ -77,7 +77,10 @@ interface ModelCanvasProps {
    * A click on an arrow, or on its join fields label, picks the arrow's relationship. A click
    * on a card or on the empty canvas passes null.
    */
-  onSelectRelationship?: (relationshipId: string | null) => void;
+  onSelectRelationship?: (
+    relationshipId: string | null,
+    options?: RelationshipSelectOptions
+  ) => void;
   /** True while the Actions → Check Data Last Updated sweep is in flight — spins the node icons. */
   isCheckingDataLastUpdated?: boolean;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
@@ -88,6 +91,11 @@ interface ModelCanvasProps {
   exportApiRef?: Ref<ModelCanvasExportHandle>;
   className?: string;
   style?: React.CSSProperties;
+}
+
+export interface RelationshipSelectOptions {
+  /** Picked with the keyboard: focus should follow into the relationship's details. */
+  viaKeyboard?: boolean;
 }
 
 const LAYOUT_LS_KEY = 'model-canvas-layout';
@@ -101,6 +109,13 @@ function positionsStorageKey(storageId: string): string {
 }
 
 type SavedPositions = Partial<Record<string, PathPoint>>;
+
+interface FlowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 function loadSavedPositions(storageId: string | undefined): SavedPositions {
   if (!storageId) return {};
@@ -205,7 +220,7 @@ interface FlowNodeParams {
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
   onRaisedChange: (raised: boolean) => void;
-  onOpenRelationship: (relationshipId: string) => void;
+  onOpenRelationship: (relationshipId: string, options?: RelationshipSelectOptions) => void;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
@@ -302,7 +317,10 @@ interface ModelCanvasInnerProps {
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
   selectedRelationshipId?: string | null;
-  onSelectRelationship?: (relationshipId: string | null) => void;
+  onSelectRelationship?: (
+    relationshipId: string | null,
+    options?: RelationshipSelectOptions
+  ) => void;
   isCheckingDataLastUpdated?: boolean;
   storageId?: string;
   storageTitle?: string;
@@ -371,6 +389,8 @@ function ModelCanvasInner({
   const [layoutEpoch, setLayoutEpoch] = useState(0);
   // What the viewport was last fitted to; see the layout effect.
   const lastFitKeyRef = useRef<FitKey | null>(null);
+  // The last computed layout and what it was computed for; see the layout effect.
+  const lastLayoutRef = useRef<{ key: string; positions: Map<string, PathPoint> } | null>(null);
   const [ready, setReady] = useState(false);
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
@@ -390,10 +410,13 @@ function ModelCanvasInner({
   // A card selection and an open relationship supersede each other.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // A row of a card's relationships list opens that relationship, as a click on its arrow does.
-  const openRelationship = useCallback((relationshipId: string) => {
-    setSelectedNodeId(null);
-    onSelectRelationshipRef.current?.(relationshipId);
-  }, []);
+  const openRelationship = useCallback(
+    (relationshipId: string, options?: RelationshipSelectOptions) => {
+      setSelectedNodeId(null);
+      onSelectRelationshipRef.current?.(relationshipId, options);
+    },
+    []
+  );
   const graphBounds = useMemo(() => getCanvasGraphBounds(flowNodes), [flowNodes]);
   const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
   const topologyEdges = useStableValue(edges, getEdgeTopologySignature);
@@ -446,7 +469,23 @@ function ModelCanvasInner({
       label: estimateEdgeLabelDimensions(joinLabels.get(e.id) ?? []),
     }));
 
-    const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
+    // New join fields — on an arrow label, or a two-headed arrow split into two — keep every card
+    // where it is, as the viewport stays too: a fresh layout could move the arrow being edited
+    // off screen. Anything else that changes the picture lays the graph out again.
+    const layoutKey = JSON.stringify([
+      getNodeFitSignature(topologyNodes),
+      getEdgeFitSignature(topologyEdges),
+      direction,
+      layoutEpoch,
+      viewMode,
+      showJoinLabels,
+      serializeObjectLabelsHidden(objectLabels),
+    ]);
+    const positions =
+      lastLayoutRef.current?.key === layoutKey
+        ? lastLayoutRef.current.positions
+        : runDagreLayout(dagreNodes, dagreEdges, direction).positions;
+    lastLayoutRef.current = { key: layoutKey, positions };
     const offsets = computeParallelEdgeOffsets(topologyEdges);
 
     // Prune saved positions of data marts that no longer exist, so the
@@ -748,27 +787,65 @@ function ModelCanvasInner({
     storageService.set(JOIN_LABELS_LS_KEY, checked);
   }, []);
 
-  // The relationship sheet takes the right part of the screen and the canvas shrinks for it, so
-  // the picked arrow may end up off screen. Pan it back into view, at the same zoom.
+  // The relationship sheet takes the right part of the screen and the canvas narrows for it, so
+  // neither card of the picked arrow may be in view any more. Then pan, at the same zoom: to
+  // both cards when they fit together, otherwise to the one nearer the middle of the view. A card
+  // at least half in view keeps the canvas where it is; a sliver at the edge does not count.
+  // Picking a relationship checks it, and so does a resize (the sheet sliding in), unless the
+  // user has moved the canvas since.
+  const pannedForRelationshipRef = useRef<string | null>(null);
+  const userMovedSincePickRef = useRef(false);
   useEffect(() => {
-    if (!selectedRelationshipId || paneWidth === 0 || paneHeight === 0) return;
+    if (!selectedRelationshipId) {
+      pannedForRelationshipRef.current = null;
+      return;
+    }
+    if (paneWidth === 0 || paneHeight === 0) return;
+    if (pannedForRelationshipRef.current !== selectedRelationshipId) {
+      pannedForRelationshipRef.current = selectedRelationshipId;
+      userMovedSincePickRef.current = false;
+    } else if (userMovedSincePickRef.current) {
+      return;
+    }
     const edge = reactFlow
       .getEdges()
       .find(candidate => candidate.data.relationshipIds.includes(selectedRelationshipId));
     if (!edge) return;
-    const bounds = reactFlow.getNodesBounds([edge.source, edge.target]);
+
     const { x, y, zoom } = reactFlow.getViewport();
-    const isInView =
-      bounds.x * zoom + x >= 0 &&
-      bounds.y * zoom + y >= 0 &&
-      (bounds.x + bounds.width) * zoom + x <= paneWidth &&
-      (bounds.y + bounds.height) * zoom + y <= paneHeight;
-    if (isInView) return;
-    void reactFlow.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
-      zoom,
-      duration: 300,
+    const isInView = (rect: FlowRect) => {
+      const left = rect.x * zoom + x;
+      const top = rect.y * zoom + y;
+      const width = rect.width * zoom;
+      const height = rect.height * zoom;
+      const shownWidth = Math.min(left + width, paneWidth) - Math.max(left, 0);
+      const shownHeight = Math.min(top + height, paneHeight) - Math.max(top, 0);
+      return shownWidth >= width / 2 && shownHeight >= height / 2;
+    };
+    const cards = [edge.source, edge.target].map(id => reactFlow.getNodesBounds([id]));
+    if (cards.some(isInView)) return;
+
+    const centerOf = (rect: FlowRect) => ({
+      x: rect.x + rect.width / 2,
+      y: rect.y + rect.height / 2,
     });
+    const both = reactFlow.getNodesBounds([edge.source, edge.target]);
+    const viewCenter = { x: (paneWidth / 2 - x) / zoom, y: (paneHeight / 2 - y) / zoom };
+    const distanceToView = (rect: FlowRect) => {
+      const center = centerOf(rect);
+      return Math.hypot(center.x - viewCenter.x, center.y - viewCenter.y);
+    };
+    const target =
+      both.width * zoom <= paneWidth && both.height * zoom <= paneHeight
+        ? centerOf(both)
+        : centerOf(distanceToView(cards[0]) <= distanceToView(cards[1]) ? cards[0] : cards[1]);
+    void reactFlow.setCenter(target.x, target.y, { zoom, duration: 300 });
   }, [selectedRelationshipId, paneWidth, paneHeight, reactFlow]);
+
+  // Only a pan or zoom by the user counts: React Flow passes no event for programmatic moves.
+  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent | null) => {
+    if (event) userMovedSincePickRef.current = true;
+  }, []);
 
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
@@ -855,6 +932,7 @@ function ModelCanvasInner({
           minZoom={0.05}
           maxZoom={2}
           onMove={handleMove}
+          onMoveStart={handleMoveStart}
           fitView
           fitViewOptions={{ padding: FIT_VIEW_PADDING }}
           proOptions={{ hideAttribution: true }}

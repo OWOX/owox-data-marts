@@ -27,7 +27,7 @@ Click the badge again to close the list.
 
 ## Edit a relationship
 
-Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The arrow stays highlighted while the panel is open. The panel edits the same settings as the relationship's row in the source Data Mart's [Joinable Data Marts](joinable-data-marts.md) block:
+Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The panel sits below the toolbar, so the filters stay in reach. The arrow stays highlighted while the panel is open. If neither of its Data Marts is in view beside the panel, the canvas moves to show them. The panel edits the same settings as the relationship's row in the source Data Mart's [Joinable Data Marts](joinable-data-marts.md) block:
 
 - **Report Fields**: the Output Alias, and the alias, Dedup and Σ available of each joined field.
 - **Join Settings**: the SQL Alias and the join fields.
@@ -38,6 +38,8 @@ Changes save as you type. The canvas redraws the arrow with the new join fields 
 A two-headed arrow stands for two relationships that mirror each other. Pick the direction to edit at the top of the panel.
 
 Click another arrow to switch the panel to it. Click a card, the empty canvas or the close button to close the panel. Filters and search leave it open.
+
+From the keyboard, press Enter on a row of a card's **N relationships** list. Focus moves into the panel, and Esc closes it and returns focus to the row.
 
 A card's **N relationships** list also opens relationships whose other Data Mart the filters hide. The panel then has no arrow to highlight. A relationship that joins a Data Mart to itself shows as **Loop** and has no settings to edit, as in Joinable Data Marts.
 

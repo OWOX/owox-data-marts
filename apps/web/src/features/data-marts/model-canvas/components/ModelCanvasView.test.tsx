@@ -147,14 +147,19 @@ vi.mock('./ModelCanvas', () => ({
     selectedRelationshipId,
     onSelectRelationship,
     exportApiRef,
+    className,
   }: {
+    className?: string;
     nodes: { id: string }[];
     edges: { id: string; relationshipIds: string[] }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
     selectedRelationshipId?: string | null;
-    onSelectRelationship?: (relationshipId: string | null) => void;
+    onSelectRelationship?: (
+      relationshipId: string | null,
+      options?: { viaKeyboard?: boolean }
+    ) => void;
     exportApiRef?: { current: unknown };
   }) => (
     (() => {
@@ -163,6 +168,7 @@ vi.mock('./ModelCanvas', () => ({
     })(),
     (
       <>
+        <span data-testid='canvas-class'>{className ?? ''}</span>
         <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
         <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
         <button
@@ -190,6 +196,16 @@ vi.mock('./ModelCanvas', () => ({
             Open card relationship
           </button>
         )}
+        {viewState.cardRelationshipId && (
+          <button
+            type='button'
+            onClick={() => {
+              onSelectRelationship?.(viewState.cardRelationshipId, { viaKeyboard: true });
+            }}
+          >
+            Open card relationship with the keyboard
+          </button>
+        )}
         {edges.map(edge => (
           <button
             key={edge.id}
@@ -210,14 +226,20 @@ vi.mock('./RelationshipDetailsSheet', () => ({
   default: ({
     options,
     relationshipId,
+    focusRequest,
+    top,
     onClose,
   }: {
     options: { id: string; source: { title: string }; target: { title: string } }[];
     relationshipId: string;
+    focusRequest?: number;
+    top?: number;
     onClose: () => void;
   }) => (
     <div role='dialog' aria-label='Relationship'>
       <span data-testid='sheet-relationship'>{relationshipId}</span>
+      <span data-testid='sheet-focus-request'>{focusRequest ?? 0}</span>
+      <span data-testid='sheet-top'>{top ?? 0}</span>
       <span data-testid='sheet-options'>
         {options
           .map(option => `${option.id}:${option.source.title}->${option.target.title}`)
@@ -416,6 +438,47 @@ describe('ModelCanvasView', () => {
     expect(await screen.findByTestId('sheet-options')).toHaveTextContent(
       'rel-draft:Orders->Refunds draft'
     );
+  });
+
+  it('docks the open sheet below the toolbar and keeps the canvas clear of it', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 120,
+    } as DOMRect);
+    viewState.canvasHook.data = buildCanvasData();
+    const { container } = render(<ModelCanvasView />);
+
+    expect(await screen.findByTestId('canvas-class')).toHaveTextContent('');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Click arrow edge-1' }));
+    await screen.findByRole('dialog', { name: 'Relationship' });
+
+    // Only the canvas leaves room for the sheet; the toolbar keeps its full width on one row.
+    expect(screen.getByTestId('canvas-class')).toHaveTextContent('sm:mr-[640px]');
+    expect(container.querySelector('.dm-card')).not.toHaveClass('sm:mr-[640px]');
+    expect(screen.getByTestId('sheet-top')).toHaveTextContent('120');
+  });
+
+  it('moves focus into the sheet on a keyboard pick and back when it closes', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+    viewState.cardRelationshipId = 'edge-1';
+    render(<ModelCanvasView />);
+
+    // A pointer pick leaves focus alone.
+    fireEvent.click(await screen.findByRole('button', { name: 'Click arrow edge-1' }));
+    expect(await screen.findByTestId('sheet-focus-request')).toHaveTextContent('0');
+    fireEvent.click(screen.getByRole('button', { name: 'Close sheet' }));
+
+    const row = screen.getByRole('button', { name: 'Open card relationship with the keyboard' });
+    row.focus();
+    fireEvent.click(row);
+    expect(await screen.findByTestId('sheet-focus-request')).toHaveTextContent('1');
+
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.click(screen.getByRole('button', { name: 'Close sheet' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
+    });
+    expect(document.activeElement).toBe(row);
   });
 
   it('opens the Data Mart Quality tab in the current project route', async () => {

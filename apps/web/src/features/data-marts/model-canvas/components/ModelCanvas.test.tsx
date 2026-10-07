@@ -28,7 +28,8 @@ interface ReactFlowStubProps {
       icon?: string | null;
       isCheckingDataLastUpdated?: boolean;
       onRaisedChange?: (raised: boolean) => void;
-      onOpenRelationship?: (relationshipId: string) => void;
+      onOpenRelationship?: (relationshipId: string, options?: { viaKeyboard?: boolean }) => void;
+      relationships?: { joinFields: { otherField: string }[] }[];
     };
   }[];
   edges?: EdgeStub[];
@@ -37,6 +38,7 @@ interface ReactFlowStubProps {
   onNodeClick?: (event: unknown, node: { id: string }) => void;
   onEdgeClick?: (event: unknown, edge: EdgeStub) => void;
   onPaneClick?: () => void;
+  onMoveStart?: (event: unknown) => void;
 }
 
 interface EdgeStub {
@@ -412,7 +414,24 @@ describe('ModelCanvas', () => {
     expect(onSelectRelationship).toHaveBeenCalledWith(null);
   });
 
-  it('pans an opened arrow into view at the same zoom, and leaves a visible one alone', async () => {
+  describe('panning a picked arrow into view', () => {
+    interface Rect {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }
+    const placeCards = (cards: Record<string, Rect>) => {
+      reactFlow.getNodesBounds.mockImplementation((ids: string[]) => {
+        const rects = ids.map(id => cards[id]);
+        const left = Math.min(...rects.map(rect => rect.x));
+        const top = Math.min(...rects.map(rect => rect.y));
+        const right = Math.max(...rects.map(rect => rect.x + rect.width));
+        const bottom = Math.max(...rects.map(rect => rect.y + rect.height));
+        return { x: left, y: top, width: right - left, height: bottom - top };
+      });
+    };
+    const card = (x: number): Rect => ({ x, y: 100, width: 200, height: 100 });
     const renderCanvas = (selectedRelationshipId: string | null) => (
       <ModelCanvas
         nodes={['orders', 'customers'].map(id => ({
@@ -443,22 +462,72 @@ describe('ModelCanvas', () => {
         onSelectRelationship={vi.fn()}
       />
     );
-    const { rerender } = render(renderCanvas(null));
-    await waitFor(() => {
-      expect(reactFlow.latestProps?.edges).toHaveLength(1);
+    const renderReady = async () => {
+      const view = render(renderCanvas(null));
+      await waitFor(() => {
+        expect(reactFlow.latestProps?.edges).toHaveLength(1);
+      });
+      return view;
+    };
+
+    it('leaves the canvas alone while either card is at least half in view', async () => {
+      // The 800 px pane shows the left half of Customers and nothing of Orders.
+      placeCards({ orders: card(-900), customers: card(700) });
+      const { rerender } = await renderReady();
+
+      rerender(renderCanvas('r1'));
+
+      expect(reactFlow.setCenter).not.toHaveBeenCalled();
     });
 
-    // Both cards fit the 800 × 600 pane: nothing moves.
-    rerender(renderCanvas('r1'));
-    expect(reactFlow.getNodesBounds).toHaveBeenCalledWith(['orders', 'customers']);
-    expect(reactFlow.setCenter).not.toHaveBeenCalled();
+    it('does not count a sliver of a card at the edge as in view', async () => {
+      // Only the left 20 px of Customers show, so it pans to it: the nearer card.
+      placeCards({ orders: card(-3000), customers: card(780) });
+      const { rerender } = await renderReady();
 
-    // The sheet narrowed the pane, and the cards now sit past its right edge.
-    rerender(renderCanvas(null));
-    reactFlow.getNodesBounds.mockReturnValue({ x: 900, y: 100, width: 300, height: 100 });
-    reactFlow.getViewport.mockReturnValue({ x: 0, y: 0, zoom: 0.8 });
-    rerender(renderCanvas('r1'));
-    expect(reactFlow.setCenter).toHaveBeenCalledWith(1050, 150, { zoom: 0.8, duration: 300 });
+      rerender(renderCanvas('r1'));
+
+      expect(reactFlow.setCenter).toHaveBeenCalledWith(880, 150, { zoom: 1, duration: 300 });
+    });
+
+    it('pans to both cards, at the same zoom, when they fit together', async () => {
+      placeCards({ orders: card(1000), customers: card(1300) });
+      reactFlow.getViewport.mockReturnValue({ x: 0, y: 0, zoom: 1 });
+      const { rerender } = await renderReady();
+
+      rerender(renderCanvas('r1'));
+
+      expect(reactFlow.setCenter).toHaveBeenCalledWith(1250, 150, { zoom: 1, duration: 300 });
+    });
+
+    it('pans to the card nearer the view when the two do not fit together', async () => {
+      placeCards({ orders: card(-3000), customers: card(1000) });
+      const { rerender } = await renderReady();
+
+      rerender(renderCanvas('r1'));
+
+      expect(reactFlow.setCenter).toHaveBeenCalledWith(1100, 150, { zoom: 1, duration: 300 });
+    });
+
+    it('checks again on a resize, unless the user has moved the canvas since the pick', async () => {
+      placeCards({ orders: card(1000), customers: card(1300) });
+      const { rerender } = await renderReady();
+      rerender(renderCanvas('r1'));
+      expect(reactFlow.setCenter).toHaveBeenCalledTimes(1);
+
+      // The sheet slides in and the pane narrows: checked again.
+      reactFlow.store.width = 700;
+      rerender(renderCanvas('r1'));
+      expect(reactFlow.setCenter).toHaveBeenCalledTimes(2);
+
+      // The user pans; a later resize leaves their view alone.
+      act(() => {
+        reactFlow.latestProps?.onMoveStart?.(new MouseEvent('mousedown'));
+      });
+      reactFlow.store.width = 650;
+      rerender(renderCanvas('r1'));
+      expect(reactFlow.setCenter).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("opens a relationship picked in a card's list and drops the card selection", async () => {
@@ -500,10 +569,11 @@ describe('ModelCanvas', () => {
     });
 
     act(() => {
-      reactFlow.latestProps?.nodes?.[0].data?.onOpenRelationship?.('r1');
+      reactFlow.latestProps?.nodes?.[0].data?.onOpenRelationship?.('r1', { viaKeyboard: true });
     });
 
-    expect(onSelectRelationship).toHaveBeenLastCalledWith('r1');
+    // A keyboard pick says so, so focus can follow into the sheet.
+    expect(onSelectRelationship).toHaveBeenLastCalledWith('r1', { viaKeyboard: true });
     expect(reactFlow.latestProps?.nodes?.some(node => node.selected)).toBe(false);
   });
 
@@ -558,12 +628,18 @@ describe('ModelCanvas', () => {
     });
 
     // A save in the relationship sheet refetches the model with the new join fields.
+    const positionsBefore = reactFlow.latestProps?.nodes?.map(node => node.position);
     rerender(renderCanvas('customer_key'));
     await waitFor(() => {
-      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+      expect(
+        reactFlow.latestProps?.nodes?.[0].data?.relationships?.[0].joinFields[0].otherField
+      ).toBe('customer_key');
     });
     await new Promise(resolve => requestAnimationFrame(resolve));
     expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+    // The cards stay put too: no new layout that could move the arrow being edited.
+    expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    expect(reactFlow.latestProps?.nodes?.map(node => node.position)).toEqual(positionsBefore);
   });
 
   it('keeps the viewport when a two-headed arrow splits, and refits once other cards connect', async () => {
@@ -620,6 +696,7 @@ describe('ModelCanvas', () => {
     });
     await new Promise(resolve => requestAnimationFrame(resolve));
     expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+    expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
 
     rerender(
       renderCanvas([

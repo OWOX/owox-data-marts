@@ -56,6 +56,7 @@ import {
   RELATIONSHIP_STATUS_FILTER_OPTIONS,
   type RelationshipStatusFilter,
 } from './relationship-filters';
+import type { JoinSettingsSaveContext } from './JoinSettingsForm';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import {
   applyRelationshipDescriptionToGraph,
@@ -147,36 +148,43 @@ export function DataMartRelationshipsContent({
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
-  const loadRelationships = useCallback(async () => {
-    if (!dataMartId) return;
-    const requestId = ++loadRelationshipsRequestIdRef.current;
-    isLoadingRelationshipsRef.current = true;
-    setRelationshipGraph(null);
-    setIsLoading(true);
-    try {
-      const fetched = await dataMartRelationshipService.getRelationshipGraph(dataMartId, {
-        skipLoadingIndicator: true,
-      });
-      if (loadRelationshipsRequestIdRef.current !== requestId) return;
-      let graph = fetched;
-      for (const updated of relationshipPatchesPendingReloadRef.current.values()) {
-        graph = applyRelationshipDescriptionToGraph(graph, updated);
+  // `keepList` reloads behind the current rows instead of a skeleton, so rows stay mounted and
+  // keep whatever is expanded.
+  const loadRelationships = useCallback(
+    async ({ keepList = false }: { keepList?: boolean } = {}) => {
+      if (!dataMartId) return;
+      const requestId = ++loadRelationshipsRequestIdRef.current;
+      isLoadingRelationshipsRef.current = true;
+      if (!keepList) {
+        setRelationshipGraph(null);
+        setIsLoading(true);
       }
-      relationshipPatchesPendingReloadRef.current.clear();
-      setRelationshipGraph(graph);
-    } catch {
-      if (loadRelationshipsRequestIdRef.current !== requestId) return;
-      // Nothing to replay onto: the saves were for a graph this load never delivered, and a
-      // later reload starts from the server's current state.
-      relationshipPatchesPendingReloadRef.current.clear();
-      toast.error('Failed to load relationships');
-    } finally {
-      if (loadRelationshipsRequestIdRef.current === requestId) {
-        isLoadingRelationshipsRef.current = false;
-        setIsLoading(false);
+      try {
+        const fetched = await dataMartRelationshipService.getRelationshipGraph(dataMartId, {
+          skipLoadingIndicator: true,
+        });
+        if (loadRelationshipsRequestIdRef.current !== requestId) return;
+        let graph = fetched;
+        for (const updated of relationshipPatchesPendingReloadRef.current.values()) {
+          graph = applyRelationshipDescriptionToGraph(graph, updated);
+        }
+        relationshipPatchesPendingReloadRef.current.clear();
+        setRelationshipGraph(graph);
+      } catch {
+        if (loadRelationshipsRequestIdRef.current !== requestId) return;
+        // Nothing to replay onto: the saves were for a graph this load never delivered, and a
+        // later reload starts from the server's current state.
+        relationshipPatchesPendingReloadRef.current.clear();
+        toast.error('Failed to load relationships');
+      } finally {
+        if (loadRelationshipsRequestIdRef.current === requestId) {
+          isLoadingRelationshipsRef.current = false;
+          setIsLoading(false);
+        }
       }
-    }
-  }, [dataMartId]);
+    },
+    [dataMartId]
+  );
 
   const relationships = useMemo<DataMartRelationship[]>(() => {
     if (!relationshipGraph) return [];
@@ -370,14 +378,16 @@ export function DataMartRelationshipsContent({
   );
 
   const handleRelationshipUpdated = useCallback(
-    (updated: DataMartRelationship) => {
+    (updated: DataMartRelationship, context?: JoinSettingsSaveContext) => {
       toast.success('Relationship updated');
       const prevTargetAlias = relationships.find(r => r.id === updated.id)?.targetAlias;
       // Rename cascades paths in blendedFieldsConfig server-side; refetch to avoid overwriting it on next save.
       if (prevTargetAlias !== undefined && prevTargetAlias !== updated.targetAlias) {
         void refreshDataMart(dataMartId);
       }
-      void loadRelationships();
+      // A save sent as the row collapsed or its tab changed must not swap the whole list for a
+      // skeleton and fold every other open row.
+      void loadRelationships({ keepList: context?.afterUnmount });
       invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },

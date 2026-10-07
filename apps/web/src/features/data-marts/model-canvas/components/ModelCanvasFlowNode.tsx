@@ -79,7 +79,7 @@ export interface ModelCanvasFlowNodeData {
   /** Tells the canvas whether a list on this card runs past it, so the canvas can lift the card. */
   onRaisedChange?: (raised: boolean) => void;
   /** Opens a relationship picked in the card's relationships list in the details sheet. */
-  onOpenRelationship?: (relationshipId: string) => void;
+  onOpenRelationship?: (relationshipId: string, options?: { viaKeyboard?: boolean }) => void;
 }
 
 const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {

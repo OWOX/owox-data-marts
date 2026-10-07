@@ -26,7 +26,10 @@ interface CanvasStubProps {
 
 interface AccordionStubProps {
   row: { relationship: DataMartRelationship; rowKey: string };
-  onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  onRelationshipUpdated: (
+    updated: DataMartRelationship,
+    context: { afterUnmount: boolean }
+  ) => void;
   onRelationshipDescriptionSaved: (updated: DataMartRelationship) => void;
   onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
 }
@@ -611,7 +614,7 @@ describe('DataMartRelationshipsContent relationship saves', () => {
     const reload = deferred<RelationshipGraph>();
     service.getRelationshipGraph.mockReturnValueOnce(reload.promise);
     act(() => {
-      alpha.onRelationshipUpdated({ ...alpha.row.relationship });
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship }, { afterUnmount: false });
     });
     expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
 
@@ -634,12 +637,36 @@ describe('DataMartRelationshipsContent relationship saves', () => {
     const alpha = harness.accordionPropsByRowKey.get('alpha')!;
 
     act(() => {
-      alpha.onRelationshipUpdated({ ...alpha.row.relationship, targetAlias: 'alpha' });
+      alpha.onRelationshipUpdated(
+        { ...alpha.row.relationship, targetAlias: 'alpha' },
+        { afterUnmount: false }
+      );
     });
 
     await waitFor(() => {
       expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
     });
     expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated');
+  });
+
+  it('reloads behind the rows after a Join Settings save sent as its row closed', async () => {
+    await renderRows();
+    const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+    const reload = deferred<RelationshipGraph>();
+    service.getRelationshipGraph.mockReturnValueOnce(reload.promise);
+
+    // The row collapsed, or its tab changed, inside the typing pause; the save went out after.
+    act(() => {
+      alpha.onRelationshipUpdated({ ...alpha.row.relationship }, { afterUnmount: true });
+    });
+
+    expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
+    // No skeleton in the meantime: the rows stay mounted, with whatever is expanded.
+    expect(screen.getAllByTestId('relationship-row')).toHaveLength(2);
+    await act(async () => {
+      reload.resolve(harness.graph);
+      await Promise.resolve();
+    });
+    expect(screen.getAllByTestId('relationship-row')).toHaveLength(2);
   });
 });

@@ -13,7 +13,7 @@ The video shows a relationship opened from its arrow, edited in place and switch
 - The arrow stays highlighted while the panel is open. Click another arrow to switch the panel to it.
 - A two-headed arrow stands for two mirrored relationships; pick the direction to edit at the top.
 - **Allow for reporting** and **Delete relationship** are in the panel too.
-- A row in a card's **N relationships** list opens the same panel.
+- A row in a card's **N relationships** list opens the same panel. From the keyboard, Enter moves focus into the panel and Esc returns it to the row.
 - After a join fields change, the canvas redraws the arrow and keeps your zoom and position.
 
 See [Edit a relationship](../../docs/getting-started/setup-guide/models-canvas.md#edit-a-relationship).

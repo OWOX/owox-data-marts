@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -114,7 +114,12 @@ function sourceDataMart(sources: object[] = []): DataMartDetail {
 
 function renderSheet(
   options: RelationshipSheetOption[],
-  props: { relationshipId?: string; onClose?: () => void; onRelationshipChange?: () => void } = {}
+  props: {
+    relationshipId?: string;
+    focusRequest?: number;
+    onClose?: () => void;
+    onRelationshipChange?: () => void;
+  } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onClose = props.onClose ?? vi.fn();
@@ -133,6 +138,7 @@ function renderSheet(
       options={current}
       relationshipId={relationshipId}
       storageId='storage-1'
+      focusRequest={props.focusRequest}
       onRelationshipChange={onRelationshipChange}
       onClose={onClose}
     />
@@ -188,6 +194,22 @@ describe('RelationshipDetailsSheet', () => {
       'href',
       '/ui/project-1/data-marts/customers/data-setup'
     );
+  });
+
+  it('takes focus when opened with the keyboard, and leaves it alone otherwise', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS))
+    );
+    const option = { id: 'r-customers', source: ORDERS, target: CUSTOMERS };
+
+    renderSheet([option]);
+    await screen.findByTestId('join-settings');
+    expect(document.activeElement).not.toBe(document.querySelector('[data-slot="sheet-content"]'));
+    cleanup();
+
+    renderSheet([option], { focusRequest: 1 });
+    await screen.findByTestId('join-settings');
+    expect(document.activeElement).toBe(document.querySelector('[data-slot="sheet-content"]'));
   });
 
   it('offers both directions of a two-headed arrow', async () => {

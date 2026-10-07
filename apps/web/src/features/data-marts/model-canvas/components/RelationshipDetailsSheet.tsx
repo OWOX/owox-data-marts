@@ -15,7 +15,7 @@ import {
 import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { ArrowRight, ExternalLink, MoreHorizontal, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { useProjectRoute } from '../../../../shared/hooks/useProjectRoute';
@@ -53,6 +53,13 @@ interface RelationshipDetailsSheetProps {
   options: RelationshipSheetOption[];
   relationshipId: string;
   storageId: string;
+  /**
+   * Grows each time a relationship is picked with the keyboard: focus then moves into the sheet.
+   * Zero for a pick with the pointer, which leaves focus where it is.
+   */
+  focusRequest?: number;
+  /** Where the sheet starts, in pixels from the top of the window: below the canvas toolbar. */
+  top?: number;
   onRelationshipChange: (relationshipId: string) => void;
   onClose: () => void;
 }
@@ -82,9 +89,20 @@ export default function RelationshipDetailsSheet({
   options,
   relationshipId,
   storageId,
+  focusRequest = 0,
+  top = 0,
   onRelationshipChange,
   onClose,
 }: RelationshipDetailsSheetProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const focusRequestRef = useRef(focusRequest);
+  focusRequestRef.current = focusRequest;
+  // A keyboard pick while the sheet is open already; the first open is handled once the content
+  // has mounted, in `onOpenAutoFocus`.
+  useEffect(() => {
+    if (focusRequest > 0) contentRef.current?.focus();
+  }, [focusRequest]);
+
   const active = options.find(option => option.id === relationshipId) ?? options.at(0);
   if (!active) return null;
 
@@ -97,10 +115,14 @@ export default function RelationshipDetailsSheet({
       }}
     >
       <SheetContent
+        ref={contentRef}
         className={`gap-0 ${RELATIONSHIP_SHEET_WIDTH_CLASS}`}
-        // Focus stays on the canvas, and no field looks active before the user picks one.
+        style={top > 0 ? { top, bottom: 0, height: 'auto' } : undefined}
+        // A pointer pick keeps focus on the canvas, so no field looks active before the user
+        // picks one. A keyboard pick moves focus to the sheet itself.
         onOpenAutoFocus={event => {
           event.preventDefault();
+          if (focusRequestRef.current > 0) contentRef.current?.focus();
         }}
         // Not modal, so a click elsewhere leaves it open: on the canvas controls, the toolbar or
         // a menu. The canvas closes it on a click on a card or on the empty canvas.

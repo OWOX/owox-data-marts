@@ -228,4 +228,74 @@ describe('useBlendedFieldsConfigEditor', () => {
       focusManager.setFocused(undefined);
     }
   });
+
+  it('keeps the newer edit when an older save fails while it waits behind that save', async () => {
+    const first = deferredSave();
+    const second = deferredSave();
+    vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result } = renderHook(
+      () =>
+        useBlendedFieldsConfigEditor({
+          dataMartId: 'orders',
+          savedConfig: { sources: [] },
+          onSaved: vi.fn(),
+        }),
+      { wrapper: withQueryClient() }
+    );
+
+    act(() => {
+      result.current.onHideForReportingChange('customers', 'customers', true);
+    });
+    await waitFor(() => {
+      expect(sentConfigs()).toHaveLength(1);
+    });
+    act(() => {
+      result.current.onHideForReportingChange('products', 'products', true);
+    });
+    const newest = result.current.localConfig;
+
+    act(() => {
+      first.reject(new Error('network down'));
+    });
+    // The queued save carries both edits and goes out next; nothing rolls back meanwhile.
+    await waitFor(() => {
+      expect(sentConfigs()).toHaveLength(2);
+    });
+    expect(result.current.localConfig).toBe(newest);
+    expect(sentConfigs()[1]).toEqual(newest);
+  });
+
+  it('reports a save that settles after its editor unmounted', async () => {
+    const pending = deferredSave();
+    vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig).mockReturnValueOnce(
+      pending.promise
+    );
+    const onSaved = vi.fn();
+    const { result, unmount } = renderHook(
+      () =>
+        useBlendedFieldsConfigEditor({
+          dataMartId: 'orders',
+          savedConfig: { sources: [] },
+          onSaved,
+        }),
+      { wrapper: withQueryClient() }
+    );
+    act(() => {
+      result.current.onHideForReportingChange('customers', 'customers', true);
+    });
+    await waitFor(() => {
+      expect(sentConfigs()).toHaveLength(1);
+    });
+
+    // The sheet closes; its save still updates the cached source Data Mart through onSaved.
+    unmount();
+    const response = responseWith(sentConfigs()[0]);
+    pending.resolve(response);
+
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledWith(response);
+    });
+  });
 });

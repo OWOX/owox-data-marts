@@ -435,9 +435,12 @@ describe('ModelCanvasFlowNode', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Show relationships of Orders' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Open the relationship with Customers' }));
-
-    expect(onOpenRelationship).toHaveBeenCalledWith('edge-1');
+    const row = screen.getByRole('button', { name: 'Open the relationship with Customers' });
+    // A pointer click carries a click count; Enter or Space on the button does not.
+    fireEvent.click(row, { detail: 1 });
+    expect(onOpenRelationship).toHaveBeenLastCalledWith('edge-1', { viaKeyboard: false });
+    fireEvent.click(row, { detail: 0 });
+    expect(onOpenRelationship).toHaveBeenLastCalledWith('edge-1', { viaKeyboard: true });
     expect(parentClick).not.toHaveBeenCalled();
   });
 

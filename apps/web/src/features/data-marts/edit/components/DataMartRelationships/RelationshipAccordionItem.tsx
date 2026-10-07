@@ -20,6 +20,7 @@ import type {
   DataMartRelationship,
   TransientRelationshipRow,
 } from '../../../shared/types/relationship.types';
+import type { JoinSettingsSaveContext } from './JoinSettingsForm';
 import { NoAccessIndicator } from './NoAccessIndicator';
 import { RelationshipDetailsTabs, type RelationshipDetailsTab } from './RelationshipDetailsTabs';
 import { RelationshipWarningBadges } from './RelationshipWarningBadges';
@@ -37,7 +38,7 @@ interface RelationshipAccordionItemProps {
   defaultOpenTab?: RelationshipDetailsTab;
   readOnly?: boolean;
   onDelete: (id: string) => Promise<void>;
-  onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  onRelationshipUpdated: (updated: DataMartRelationship, context: JoinSettingsSaveContext) => void;
   /**
    * Fired by the Description tab's autosave. Kept apart from `onRelationshipUpdated` because it
    * runs while the user is still typing: the parent must update the row in place, not reload

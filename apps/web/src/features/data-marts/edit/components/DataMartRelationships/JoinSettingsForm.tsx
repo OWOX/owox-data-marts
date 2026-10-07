@@ -50,6 +50,12 @@ function buildJoinSettingsFormSchema(siblingAliasesRef: { current: Set<string> }
 
 type JoinSettingsFormValues = z.infer<ReturnType<typeof buildJoinSettingsFormSchema>>;
 
+/** How a Join Settings save reached the server. */
+export interface JoinSettingsSaveContext {
+  /** Sent as the form unmounted — the panel closed or the row collapsed mid-pause. */
+  afterUnmount: boolean;
+}
+
 interface JoinSettingsSavePayload {
   targetAlias?: string;
   joinConditions?: JoinSettingsFormValues['joinConditions'];
@@ -120,7 +126,7 @@ interface JoinSettingsFormProps {
    * Renders an informational banner with a link to the parent.
    */
   inheritedFrom?: { id: string; title: string } | null;
-  onSaved: (updated: DataMartRelationship) => void;
+  onSaved: (updated: DataMartRelationship, context: JoinSettingsSaveContext) => void;
 }
 
 export function JoinSettingsForm({
@@ -268,7 +274,11 @@ export function JoinSettingsForm({
   };
 
   const inFlightSaveRef = useRef<Promise<void> | null>(null);
-  const sendSave = (payload: JoinSettingsSavePayload, joinKey: string): Promise<void> => {
+  const sendSave = (
+    payload: JoinSettingsSavePayload,
+    joinKey: string,
+    context: JoinSettingsSaveContext = { afterUnmount: false }
+  ): Promise<void> => {
     lastAttemptedRef.current = {
       targetAlias: payload.targetAlias ?? lastAttemptedRef.current.targetAlias,
       joinConditionsKey: payload.joinConditions
@@ -285,7 +295,7 @@ export function JoinSettingsForm({
           targetAlias: updated.targetAlias,
           joinConditionsKey: JSON.stringify(updated.joinConditions),
         };
-        onSaved(updated);
+        onSaved(updated, context);
       })
       .catch(() => {
         toast.error('Failed to save join settings', {
@@ -328,7 +338,7 @@ export function JoinSettingsForm({
     const payload = buildSavePayload(form.getValues('targetAlias'), joinKey);
     if (!payload) return;
     const send = () => {
-      void sendSave(payload, joinKey);
+      void sendSave(payload, joinKey, { afterUnmount: true });
     };
     if (inFlightSaveRef.current) void inFlightSaveRef.current.then(send);
     else send();

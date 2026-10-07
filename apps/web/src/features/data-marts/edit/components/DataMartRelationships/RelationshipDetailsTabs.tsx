@@ -9,7 +9,7 @@ import type {
 } from '../../../shared/types/relationship.types';
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
 import { JoinDescriptionForm } from './JoinDescriptionForm';
-import { JoinSettingsForm } from './JoinSettingsForm';
+import { JoinSettingsForm, type JoinSettingsSaveContext } from './JoinSettingsForm';
 import type { SourceEntry } from './source-entries';
 import type { OutputAliasDraft } from './useOutputAliasDraft';
 
@@ -32,7 +32,7 @@ interface RelationshipDetailsTabsProps {
   activeTab: RelationshipDetailsTab;
   onActiveTabChange: (tab: RelationshipDetailsTab) => void;
   outputAlias: OutputAliasDraft;
-  onRelationshipUpdated: (updated: DataMartRelationship) => void;
+  onRelationshipUpdated: (updated: DataMartRelationship, context: JoinSettingsSaveContext) => void;
   /**
    * Fired by the Description tab's autosave. Kept apart from `onRelationshipUpdated` because it
    * runs while the user is still typing: the parent must update the relationship in place, not
