@@ -327,6 +327,10 @@ function BulkCreateFromStorageDialogInner({
                 <BlockHeading step={2}>Browse resources</BlockHeading>
                 {storageId ? (
                   <StorageResourceTree
+                    // The tree caches loaded resources per namespace, and two storages can
+                    // share a project. Remount on a storage switch so it never shows the
+                    // previous storage's resources and location checks.
+                    key={storageId}
                     namespaces={namespaces}
                     namespacesLoading={namespacesLoading}
                     namespacesError={namespacesError}
