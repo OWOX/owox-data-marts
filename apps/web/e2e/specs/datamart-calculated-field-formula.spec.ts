@@ -111,36 +111,14 @@ test.describe('Data Setup - Calculated field formula autocomplete', () => {
       formulaPopover(page).locator('div.native-edit-context, textarea.inputarea')
     ).toBeFocused({ timeout: 15000 });
     await page.keyboard.type('users');
-    // On a loaded runner the editor falls several characters behind the keyboard (traces show
-    // `us` on screen 250ms after the whole word was sent), so wait for the word itself before
-    // asking anything of the list it should have opened.
+    // The whole word has to land before the list is asked for. A re-render arriving mid-typing
+    // used to write older text over the editor and wipe the keystrokes after it (`users` typed,
+    // `urs` kept), and no list opens for a word that is not there. FormulaEditor no longer
+    // writes its own text back; this pins it from the analyst's side.
     await expect(formulaEditor.locator('.view-lines')).toContainText('users', { timeout: 15000 });
 
     const suggestWidget = page.locator(SUGGEST_WIDGET);
-    // Typing opens the list on its own, but on CI runners that trigger was intermittently lost:
-    // the word was in the editor with no list for the full 15s, and nothing re-opens it. These
-    // tests measure the list — its width, its rows, a click on one — not what opened it, so when
-    // typing did not open it, run the editor's own "Trigger Suggest" (what Ctrl+Space does with
-    // no list open). Not the key itself: pressed in the instant the list opens by itself,
-    // Ctrl+Space toggles the details pane instead, changing the very width measured here.
-    await expect(async () => {
-      if (!(await suggestWidget.isVisible())) {
-        const triggered = await page.evaluate(() => {
-          interface MonacoEditor {
-            hasTextFocus(): boolean;
-            trigger(source: string, handlerId: string, payload: unknown): void;
-          }
-          const { monaco } = window as unknown as {
-            monaco?: { editor: { getEditors(): MonacoEditor[] } };
-          };
-          const editor = monaco?.editor.getEditors().find(candidate => candidate.hasTextFocus());
-          editor?.trigger('e2e', 'editor.action.triggerSuggest', {});
-          return Boolean(editor);
-        });
-        expect(triggered, 'the focused formula editor, through window.monaco').toBe(true);
-      }
-      await expect(suggestWidget).toBeVisible({ timeout: 3000 });
-    }).toPass({ timeout: 20000 });
+    await expect(suggestWidget).toBeVisible({ timeout: 15000 });
     return suggestWidget;
   }
 

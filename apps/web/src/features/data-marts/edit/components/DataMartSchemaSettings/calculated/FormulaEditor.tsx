@@ -315,8 +315,43 @@ export function FormulaEditor({
     [overflowHost, ariaLabel]
   );
 
+  // `value` reaches the model through the effect below, not through <Editor value>. The library
+  // writes every `value` that differs from the model over the WHOLE model, and a re-render that
+  // lands while the analyst is still typing carries the text a keystroke or two behind it: the
+  // newer characters were wiped (`users` typed, `urs` kept) and the suggest list closed with them.
+  // So the editor's own text coming back is never written; only a change made outside it is.
+  /** Texts sent up through `onChange` that have not come back as `value` yet. */
+  const pendingEchoesRef = useRef<string[]>([]);
+  /** Set while the effect below writes `value`, so that write is not reported as an edit. */
+  const isApplyingValueRef = useRef(false);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    const echoes = pendingEchoesRef.current;
+    const echoAt = echoes.lastIndexOf(value);
+    if (echoAt !== -1) {
+      // Renders come back in order, so the texts sent before this one can no longer arrive.
+      echoes.splice(0, echoAt + 1);
+      return;
+    }
+    if (model.getValue() === value) return;
+    isApplyingValueRef.current = true;
+    try {
+      editor.executeEdits('formula-value', [
+        { range: model.getFullModelRange(), text: value, forceMoveMarkers: true },
+      ]);
+      editor.pushUndoStop();
+    } finally {
+      isApplyingValueRef.current = false;
+    }
+  }, [isEditorReady, value]);
+
   const handleChange = (nextValue: string | undefined) => {
+    if (isApplyingValueRef.current) return;
     const text = nextValue ?? '';
+    pendingEchoesRef.current.push(text);
     onChange({ text, refs: resolveAll(text, indexRef.current, referencesRef.current) });
   };
 
@@ -330,7 +365,8 @@ export function FormulaEditor({
           className='h-full w-full'
           height='100%'
           language='sql'
-          value={value}
+          // The starting text only — later `value`s are applied by the effect above.
+          defaultValue={value}
           onChange={handleChange}
           onMount={handleMount}
           theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}

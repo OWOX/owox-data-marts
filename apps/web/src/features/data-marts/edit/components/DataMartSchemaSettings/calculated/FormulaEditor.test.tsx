@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { FormulaEditor } from './FormulaEditor';
 import { WORD_TRIGGER_CHARACTERS } from './monaco-formula-completion.util';
 import type { ReferenceableField } from './formula-reference-index';
@@ -133,6 +133,12 @@ vi.mock('@monaco-editor/react', () => {
     getOffsetAt: (position: { column: number }) => position.column - 1,
     getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
     getValue: () => mockState.modelText,
+    getFullModelRange: () => ({
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: 1,
+      endColumn: mockState.modelText.length + 1,
+    }),
     getValueInRange: () => '',
     getLineContent: () => '',
   };
@@ -190,13 +196,33 @@ vi.mock('@monaco-editor/react', () => {
   return {
     Editor: (props: {
       value?: string;
+      defaultValue?: string;
       onChange?: (value: string | undefined) => void;
       onMount?: (editor: unknown, monaco: unknown) => void;
       options?: unknown;
     }) => {
       mockState.latestOnChange = props.onChange ?? null;
       mockState.latestOptions = props.options ?? null;
-      mockState.modelText = props.value ?? '';
+      // Like the real editor: `defaultValue` seeds the model once, at mount; after that only
+      // typing (typeInMockEditor) and edits change it.
+      const seeded = useRef(false);
+      if (!seeded.current) {
+        mockState.modelText = props.value ?? props.defaultValue ?? '';
+        seeded.current = true;
+      } else if (props.value !== undefined && props.value !== mockState.modelText) {
+        // What the real component does with a `value` that differs from the model: writes it
+        // over the whole model.
+        mockState.edits.push({
+          range: {
+            startLineNumber: 1,
+            startColumn: 1,
+            endLineNumber: 1,
+            endColumn: mockState.modelText.length + 1,
+          },
+          text: props.value,
+        });
+        mockState.modelText = props.value;
+      }
       useEffect(() => {
         props.onMount?.(editorMock, monacoMock);
         return () => {
@@ -217,6 +243,8 @@ vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }))
 
 async function typeInMockEditor(text: string) {
   const onChange = mockState.latestOnChange as ((value: string | undefined) => void) | null;
+  // Typing changes the model first, then reports it — as the real editor does.
+  mockState.modelText = text;
   onChange?.(text);
   await Promise.resolve();
 }
@@ -278,6 +306,41 @@ describe('FormulaEditor', () => {
     mockState.commands = new Map();
     mockState.caretColumn = 1;
     mockState.edits = [];
+  });
+
+  // A re-render that lands while the analyst is still typing carries text a keystroke or two
+  // behind the model. Written back over the model, it wiped the newer characters (`users` typed,
+  // `urs` kept) and closed the suggest list along with them.
+  describe('the text it is given back', () => {
+    const textEdits = () => mockState.edits.map(edit => edit.text);
+
+    it('never writes its own earlier text over newer typing', async () => {
+      const { rerender } = render(
+        <FormulaEditor value='' references={[]} index={index} onChange={vi.fn()} />
+      );
+      await typeInMockEditor('u');
+      await typeInMockEditor('us');
+
+      // The render for `u` arrives after `s` was typed.
+      rerender(<FormulaEditor value='u' references={[]} index={index} onChange={vi.fn()} />);
+      rerender(<FormulaEditor value='us' references={[]} index={index} onChange={vi.fn()} />);
+
+      expect(textEdits()).toEqual([]);
+      expect(mockState.modelText).toBe('us');
+    });
+
+    it('applies a change made outside the editor', async () => {
+      const { rerender } = render(
+        <FormulaEditor value='SUM(clicks)' references={[]} index={index} onChange={vi.fn()} />
+      );
+      await typeInMockEditor('SUM(clicks) + 1');
+
+      rerender(
+        <FormulaEditor value='COUNT(id)' references={[]} index={index} onChange={vi.fn()} />
+      );
+
+      expect(textEdits()).toEqual(['COUNT(id)']);
+    });
   });
 
   // The editor loads asynchronously, so the popover's own autofocus has already run and landed on

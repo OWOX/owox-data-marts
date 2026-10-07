@@ -25,12 +25,19 @@ const validateFormula = vi.mocked(dataMartService.validateFormula);
 // editor's `value`, so `formulaValue()` reads what the cell currently believes the authoring text
 // is, and `typeFormula()` drives a change through exactly as FormulaEditor's onChange would (one
 // full-text change, not a keystroke-by-keystroke simulation).
+// The text the stand-in editor shows, read by its model the way the real model is read.
+const mockEditorText = vi.hoisted(() => ({ current: '' }));
+
 vi.mock('@monaco-editor/react', () => ({
   Editor: (props: {
     value?: string;
+    defaultValue?: string;
     onChange?: (value: string | undefined) => void;
     onMount?: (editor: unknown, monaco: unknown) => void;
   }) => {
+    // A stand-in that mirrors its props: the formula editor passes the current text each render.
+    const text = props.value ?? props.defaultValue ?? '';
+    mockEditorText.current = text;
     useEffect(() => {
       props.onMount?.(
         {
@@ -40,7 +47,12 @@ vi.mock('@monaco-editor/react', () => ({
           onDidDispose: () => undefined,
           // Registered once on mount; the formula editor binds Ctrl/Cmd+Enter to Apply through it.
           addCommand: () => undefined,
-          getModel: () => ({}),
+          getModel: () => ({
+            getValue: () => mockEditorText.current,
+            getFullModelRange: () => ({}),
+          }),
+          executeEdits: () => true,
+          pushUndoStop: () => true,
           // Chip-blind on purpose: nothing in this file is about chips, and a stub that draws
           // none keeps it that way. Their own specs cover both halves of the chip layer.
           createDecorationsCollection: () => ({ set: () => [], getRanges: () => [] }),
@@ -68,7 +80,7 @@ vi.mock('@monaco-editor/react', () => ({
       <textarea
         aria-label='Formula'
         data-testid='formula-editor'
-        value={props.value ?? ''}
+        value={text}
         onChange={e => {
           props.onChange?.(e.target.value);
         }}

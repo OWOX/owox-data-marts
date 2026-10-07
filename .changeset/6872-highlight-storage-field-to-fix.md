@@ -12,6 +12,8 @@ Previously, when a Storage or a Destination could not be saved because of one of
 - **Google Sheets** Destination: a Drive folder the service account can't use is marked on the folder field, with the reason and the fix. Email, Slack, Microsoft Teams and Google Chat Destinations mark a recipient or webhook URL the server refuses.
 - A save that fails for another reason, such as a lost connection, now says so instead of doing nothing. A change to the owners is kept when you fix a field and save again. A save refused after your session had to be renewed no longer signs you out.
 
+Also, a calculated field's formula editor no longer loses characters typed quickly while the page is busy, which also closed the field suggestions mid-word.
+
 See [Google BigQuery](../../docs/storages/supported-storages/google-bigquery.md), [Storage Management](../../docs/storages/manage-storages.md) and [Destination Management](../../docs/destinations/manage-destinations.md).
 
 <!-- markdownlint-disable-file MD041 MD036 -->
