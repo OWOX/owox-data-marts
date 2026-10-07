@@ -11,7 +11,7 @@ import {
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
-import type { UseFormReturn } from 'react-hook-form';
+import { useFormState, type UseFormReturn } from 'react-hook-form';
 import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
 import GoogleBigQueryOAuthDescription from './FormDescriptions/GoogleBigQueryOAuthDescription';
 import GoogleBigQueryAuthMethodDescription from './FormDescriptions/GoogleBigQueryAuthMethodDescription';
@@ -95,6 +95,12 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
   const serviceAccountLink = serviceAccountValue
     ? getServiceAccountLink(serviceAccountValue)
     : null;
+  // A key the server rejected stays open for correction rather than collapsing into the
+  // saved-key summary, where it could be neither seen, focused nor fixed — and where Edit
+  // would wipe it.
+  const { errors } = useFormState({ control: form.control, name: 'credentials.serviceAccount' });
+  const serviceAccountInvalid = !!errors.credentials?.serviceAccount;
+  const showServiceAccountSummary = !isEditing && !serviceAccountInvalid && !!serviceAccountLink;
 
   const handleOAuthSuccess = (credentialId: string) => {
     form.setValue('credentials.credentialId', credentialId, {
@@ -245,19 +251,19 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                       <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
                         Service Account
                       </FormLabel>
-                      {!isEditing && serviceAccountValue && (
+                      {!isEditing && !serviceAccountInvalid && serviceAccountValue && (
                         <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
                           Edit
                         </Button>
                       )}
-                      {isEditing && (
+                      {(isEditing || (serviceAccountInvalid && serviceAccountLink)) && (
                         <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
                           Cancel
                         </Button>
                       )}
                     </div>
                     <FormControl>
-                      {!isEditing && serviceAccountLink ? (
+                      {showServiceAccountSummary ? (
                         <FieldWithActions
                           value={serviceAccountLink.email}
                           actions={[

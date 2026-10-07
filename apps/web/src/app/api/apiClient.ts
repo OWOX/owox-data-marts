@@ -39,6 +39,18 @@ const axiosConfig: AxiosRequestConfig = {
 
 const apiClient: AxiosInstance = axios.create(axiosConfig);
 
+/**
+ * Rejections this interceptor already reported with a toast (400, 403, 404, 5xx). A caller that
+ * catches the rejection asks `wasErrorToastShown` before reporting it again, so a failure is
+ * shown exactly once — and one the interceptor stays silent on (a network failure, a 409) is
+ * not lost.
+ */
+const toastedErrors = new WeakSet();
+
+export function wasErrorToastShown(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && toastedErrors.has(error);
+}
+
 const authStateManager = new AuthStateManager();
 
 // Request interceptor to add auth headers
@@ -108,6 +120,7 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 404 && !skipErrorToast) {
       showApiErrorToast(error, 'Resource not found');
+      toastedErrors.add(error);
     }
 
     if (error.response?.status === 403 && !skipErrorToast) {
@@ -117,10 +130,12 @@ apiClient.interceptors.response.use(
           ? 'This action is not available in view-only mode'
           : 'Access forbidden - insufficient permissions';
       showApiErrorToast(error, message, { persistent: true });
+      toastedErrors.add(error);
     }
 
     if (error.response?.status === 400 && !skipErrorToast) {
       showApiErrorToast(error, 'Bad request');
+      toastedErrors.add(error);
     }
 
     // A 5xx used to show the user NOTHING: only 400/403/404 were toasted, and the backend
@@ -140,6 +155,7 @@ apiClient.interceptors.response.use(
           : 'Something went wrong on our side. Please try again',
         { id: `server-error:${status}` }
       );
+      toastedErrors.add(error);
     }
     return Promise.reject(error);
   }

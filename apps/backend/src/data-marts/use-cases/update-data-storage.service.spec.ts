@@ -10,7 +10,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -453,16 +453,18 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
 
     const command = makeCommand({ projectId: 'GTM-NC2077' });
 
-    const error = (await service.run(command).catch((e: unknown) => e)) as {
-      message: string;
-      errorDetails?: unknown;
-    };
+    const error = (await service.run(command).catch((e: unknown) => e)) as BadRequestException;
+    expect(error).toBeInstanceOf(BadRequestException);
     expect(error.message).toMatch(/^Invalid config — projectId: /);
-    // The storage form highlights the Project ID input from this list.
-    expect(error.errorDetails).toEqual({
-      fieldErrors: [
-        { field: 'config.projectId', message: expect.stringContaining('Invalid GCP project ID') },
-      ],
+    // The storage form highlights the Project ID input from `fieldErrors`.
+    expect(error.getResponse()).toEqual({
+      message: error.message,
+      errorDetails: {
+        errors: expect.any(Array),
+        fieldErrors: [
+          { field: 'config.projectId', message: expect.stringContaining('Invalid GCP project ID') },
+        ],
+      },
     });
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();

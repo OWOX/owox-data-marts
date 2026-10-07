@@ -80,13 +80,17 @@ describe('GoogleBigQueryFields', () => {
 
   it('highlights a Project ID that is a project name before anything is sent', async () => {
     const onValid = vi.fn();
-    render(<TestForm onValid={onValid} projectId='BASE DE LEADS SAFETY' />);
+    render(
+      <TestForm
+        onValid={onValid}
+        projectId='BASE DE LEADS SAFETY'
+        credentialId='6f1c1b1e-8a43-4c5e-9a39-0d5b3c6f2a10'
+      />
+    );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
 
-    expect(
-      await screen.findByText(/Enter the Project ID, not the project name/)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Use the Project ID, not the project name/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter a Project Id')).toHaveAttribute(
       'aria-invalid',
       'true'

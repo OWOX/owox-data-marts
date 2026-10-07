@@ -54,7 +54,7 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
       const serviceAccount = creds.serviceAccount;
       if (serviceAccount.trim()) {
         try {
-          const parsed: unknown = JSON.parse(serviceAccount);
+          const parsed: unknown = JSON.parse(serviceAccount.trim());
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
             throw new Error('Service Account must be a JSON object');
           }

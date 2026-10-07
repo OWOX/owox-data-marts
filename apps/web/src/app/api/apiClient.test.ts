@@ -132,3 +132,54 @@ describe('apiClient — server-error toast', () => {
     expect(showApiErrorToast).not.toHaveBeenCalled();
   });
 });
+
+// A caller that catches a failed save reports it only when the interceptor stayed silent, so
+// every failure is shown exactly once.
+describe('apiClient — wasErrorToastShown', () => {
+  const load = async () => {
+    const axios = await import('axios');
+    const { wasErrorToastShown } = await import('./apiClient');
+    const instance = (axios.default.create as unknown as ReturnType<typeof vi.fn>).mock.results[0]
+      .value as { interceptors: { response: { use: ReturnType<typeof vi.fn> } } };
+    const onRejected = instance.interceptors.response.use.mock.calls[0][1] as (
+      e: unknown
+    ) => Promise<never>;
+    return { onRejected, wasErrorToastShown };
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it.each([400, 403, 404, 500])('is true for a %i the interceptor toasted', async status => {
+    const { onRejected, wasErrorToastShown } = await load();
+    const error = { response: { status, data: {} }, config: {} };
+
+    await expect(onRejected(error)).rejects.toBe(error);
+
+    expect(wasErrorToastShown(error)).toBe(true);
+  });
+
+  it.each([
+    ['a 409', { response: { status: 409, data: {} }, config: {} }],
+    ['a network failure', { message: 'Network Error', config: {} }],
+    [
+      'a toast the caller opted out of',
+      { response: { status: 400 }, config: { skipErrorToast: true } },
+    ],
+  ])('is false for %s', async (_case, error) => {
+    const { onRejected, wasErrorToastShown } = await load();
+
+    await expect(onRejected(error)).rejects.toBe(error);
+
+    expect(wasErrorToastShown(error)).toBe(false);
+  });
+
+  it('is false for something that is not a request failure at all', async () => {
+    const { wasErrorToastShown } = await load();
+
+    expect(wasErrorToastShown(new Error('boom'))).toBe(false);
+    expect(wasErrorToastShown(undefined)).toBe(false);
+  });
+});

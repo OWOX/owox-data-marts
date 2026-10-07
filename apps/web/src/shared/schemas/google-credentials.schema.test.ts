@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { googleCredentialsWithOAuthSchema } from './google-credentials.schema';
+import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../utils/credential-identity-utils';
 
 describe('googleCredentialsWithOAuthSchema', () => {
   it('passes when a service account is provided', () => {
@@ -68,6 +69,15 @@ describe('googleCredentialsWithOAuthSchema', () => {
         client_email: 'sa@my-project.iam.gserviceaccount.com',
       }),
       credentialId: '6f1b9c0a-2f64-4f4e-9f3a-1f2e3d4c5b6a',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('ignores a half-typed key while credentials are copied from elsewhere', () => {
+    // "Copy from" hides the key field and never sends it, so it must not block the save.
+    const result = googleCredentialsWithOAuthSchema.safeParse({
+      serviceAccount: '{"client_email": ',
+      credentialId: COPY_SOURCE_CREDENTIAL_PLACEHOLDER,
     });
     expect(result.success).toBe(true);
   });

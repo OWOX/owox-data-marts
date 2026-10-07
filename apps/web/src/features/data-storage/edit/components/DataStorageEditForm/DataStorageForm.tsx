@@ -48,7 +48,8 @@ import {
   createFormPayload,
   focusFirstInvalidField,
 } from '../../../../../utils/form-utils';
-import { extractApiFieldErrors } from '../../../../../app/api';
+import { apiErrorMessage, extractApiFieldErrors, wasErrorToastShown } from '../../../../../app/api';
+import toast from 'react-hot-toast';
 import { toDataStorageFormField } from '../../model/data-storage-server-errors';
 import {
   type DataStorageFormData,
@@ -121,8 +122,13 @@ export function DataStorageForm({
           },
         ]
       : []);
-  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
-    useOwnerState(initialOwnerUsers);
+  const {
+    ownerUsers,
+    ownersDirty,
+    handleOwnersChange,
+    pendingOwnerIdsRef,
+    consumePendingOwnerIds,
+  } = useOwnerState(initialOwnerUsers);
 
   const sharingInitial = initialData as
     | { availableForUse?: boolean; availableForMaintenance?: boolean }
@@ -205,7 +211,8 @@ export function DataStorageForm({
       delete (payload as Partial<DataStorageFormData>).credentials;
     }
 
-    const ownerIds = consumePendingOwnerIds();
+    // Read, not consumed: a rejected save keeps the owner change for the retry.
+    const ownerIds = pendingOwnerIdsRef.current;
     if (ownerIds !== null) {
       (payload as Record<string, unknown>).ownerIds = ownerIds;
     }
@@ -222,10 +229,11 @@ export function DataStorageForm({
 
     try {
       await onSubmit(payload, selectedSource);
+      consumePendingOwnerIds();
     } catch (error) {
-      // The server's message is already toasted. When it names the values it rejected, mark
-      // those inputs the same way client-side validation does, so the user sees which field to
-      // fix instead of decoding the toast.
+      // When the rejection names the values it refused, mark those inputs the same way
+      // client-side validation does, so the user sees which field to fix instead of decoding
+      // the toast.
       const highlighted = applyServerFieldErrors(
         form.setError,
         extractApiFieldErrors(error),
@@ -233,6 +241,11 @@ export function DataStorageForm({
       );
       if (highlighted) {
         focusFirstInvalidField(undefined, event);
+      } else if (!wasErrorToastShown(error)) {
+        // The API interceptor toasts 400/403/404/5xx only. A network failure, any other status
+        // or a throw after the save must not vanish.
+        console.error(error);
+        toast.error(apiErrorMessage(error, 'Failed to save the Storage'));
       }
     }
   };

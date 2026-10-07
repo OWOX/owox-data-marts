@@ -1,44 +1,5 @@
 import { z } from 'zod';
-
-/**
- * Schema for validating Google Service Account JSON credentials
- * Used by both Data Storage and Data Destination modules
- */
-export const googleServiceAccountSchema = z.object({
-  serviceAccount: z
-    .string()
-    .min(1, 'Service Account Key is required')
-    .transform((str, ctx) => {
-      try {
-        const parsed = JSON.parse(str) as { client_email: string; private_key: string };
-
-        if (typeof parsed !== 'object') {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Service Account must be a valid JSON object',
-          });
-          return z.NEVER;
-        }
-
-        if (!parsed.client_email) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Service Account must contain a client_email field',
-          });
-          return z.NEVER;
-        }
-
-        return str;
-      } catch (e) {
-        console.error(e);
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Service Account must be a valid JSON string',
-        });
-        return z.NEVER;
-      }
-    }),
-});
+import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../utils/credential-identity-utils';
 
 /**
  * Why a Service Account value cannot be saved, or `null` when it can. Checks only what the
@@ -76,8 +37,11 @@ export const googleCredentialsWithOAuthSchema = z
   .superRefine((data, ctx) => {
     const serviceAccount = data.serviceAccount?.trim() ?? '';
     const hasCredentialId = !!data.credentialId && data.credentialId.trim().length > 0;
+    // While credentials are copied from another entity the key field is hidden and never sent,
+    // so whatever was typed into it before must not block the save.
+    const copyingCredentials = data.credentialId === COPY_SOURCE_CREDENTIAL_PLACEHOLDER;
 
-    if (serviceAccount) {
+    if (serviceAccount && !copyingCredentials) {
       // A malformed key used to pass here and only fail while building the request, which
       // never pointed at this field. Flag the field instead.
       const problem = describeServiceAccountKeyProblem(serviceAccount);

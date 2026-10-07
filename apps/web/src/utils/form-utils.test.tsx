@@ -190,6 +190,36 @@ describe('applyServerFieldErrors', () => {
     });
   });
 
+  it('names the key when a reason that omits it lands on an input holding a whole file', () => {
+    const setError = vi.fn();
+
+    applyServerFieldErrors(
+      setError,
+      [{ field: 'credentials.type', message: 'Invalid literal value, expected "service_account"' }],
+      () => 'serviceAccount'
+    );
+
+    expect(setError).toHaveBeenCalledWith('serviceAccount', {
+      type: 'server',
+      message: 'type: Invalid literal value, expected "service_account"',
+    });
+  });
+
+  it('leaves the reason alone on an input that holds exactly that value', () => {
+    const setError = vi.fn();
+
+    applyServerFieldErrors(
+      setError,
+      [{ field: 'projectId', message: 'Invalid GCP project ID' }],
+      field => field as 'projectId'
+    );
+
+    expect(setError).toHaveBeenCalledWith('projectId', {
+      type: 'server',
+      message: 'Invalid GCP project ID',
+    });
+  });
+
   it('reports nothing to focus when no input holds a rejected value', () => {
     const setError = vi.fn();
 

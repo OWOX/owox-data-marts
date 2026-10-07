@@ -3,16 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import {
   BigQueryConfig,
   BigQueryConfigSchema,
 } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
-import {
-  describeInvalidInput,
-  toFieldErrors,
-} from '../data-storage-types/utils/field-errors.utils';
+import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
@@ -251,8 +247,12 @@ export class UpdateDataStorageService {
     ) {
       const parsed = BigQueryConfigSchema.safeParse(command.config);
       if (!parsed.success) {
-        throw new BusinessViolationException(describeInvalidInput('config', parsed.error), {
-          fieldErrors: toFieldErrors('config', parsed.error),
+        // Same body shape as a validator's schema failure, so the storage form highlights the
+        // field either way. A BadRequestException keeps the handled-400 log line and requestId.
+        const invalid = ValidationResult.invalidInput('config', parsed.error);
+        throw new BadRequestException({
+          message: invalid.errorMessage,
+          errorDetails: invalid.reason,
         });
       }
     }

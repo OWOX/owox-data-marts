@@ -50,8 +50,8 @@ export interface ApiError {
    * Envelope used by `BusinessViolationException` (via the backend's exception filter). `error`
    * is a single free-text string; `errors` is the calculated-field validator's structured list
    * (see `ApiFormulaViolation`) — two different callers of the same exception, two different
-   * shapes under the same key. `fieldErrors` is the storage update's per-input list (see
-   * `ApiFieldError`).
+   * shapes under the same key. On the storage update `errors` holds raw Zod issues instead
+   * (`path`, not `field`); read `fieldErrors` there — the per-input list (see `ApiFieldError`).
    */
   errorDetails?: {
     error?: string;

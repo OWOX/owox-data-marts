@@ -19,6 +19,8 @@ export function toDataStorageFormField(
   const isBigQuery =
     type === DataStorageType.GOOGLE_BIGQUERY || type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
   if (isBigQuery && scope === 'credentials') return 'credentials.serviceAccount';
+  // The legacy storage shows its stored Project ID read-only: there is nothing to fix there.
+  if (type === DataStorageType.LEGACY_GOOGLE_BIGQUERY && field === 'config.projectId') return null;
 
   return field as FieldPath<DataStorageFormData>;
 }

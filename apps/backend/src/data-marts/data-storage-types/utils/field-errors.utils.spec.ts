@@ -42,8 +42,30 @@ describe('field-errors.utils', () => {
     if (parsed.success) throw new Error('expected credentials to be rejected');
 
     expect(describeInvalidInput('credentials', parsed.error)).toBe(
-      'Invalid credentials — username: username is required; password: password is required'
+      'Invalid credentials — username is required; password is required'
     );
+  });
+
+  it('says the same thing in the message as on the field for a missing key', () => {
+    const parsed = credentialsSchema.safeParse({ password: 'secret' });
+    if (parsed.success) throw new Error('expected credentials to be rejected');
+
+    expect(describeInvalidInput('credentials', parsed.error)).toBe(
+      'Invalid credentials — username is required'
+    );
+  });
+
+  it('never quotes a submitted value that an enum rejected', () => {
+    const schema = z.object({ authMethod: z.enum(['PASSWORD', 'KEY_PAIR']) });
+    const parsed = schema.safeParse({ authMethod: 's3cr3t-value' });
+    if (parsed.success) throw new Error('expected the value to be rejected');
+
+    const [fieldError] = toFieldErrors('credentials', parsed.error);
+    expect(fieldError).toEqual({
+      field: 'credentials.authMethod',
+      message: "authMethod must be one of 'PASSWORD' | 'KEY_PAIR'",
+    });
+    expect(describeInvalidInput('credentials', parsed.error)).not.toContain('s3cr3t-value');
   });
 
   it('falls back to the scope when the whole object is missing', () => {

@@ -23,8 +23,16 @@ vi.mock('../../../../idp', () => ({
   useAuth: () => authMock.value,
 }));
 
+// Captures what the sheet hands the form, so a test can drive a save the way the form does.
+const formProps = vi.hoisted(() => ({
+  current: null as null | { onSubmit: (data: unknown) => Promise<void> },
+}));
+
 vi.mock('../DataStorageEditForm', () => ({
-  DataStorageForm: () => null,
+  DataStorageForm: (props: { onSubmit: (data: unknown) => Promise<void> }) => {
+    formProps.current = props;
+    return null;
+  },
 }));
 
 vi.mock('@owox/ui/components/sheet', () => ({
@@ -46,14 +54,14 @@ const dataStorage: DataStorage = {
   modifiedAt: new Date('2026-06-09T10:00:00.000Z'),
 };
 
-function renderSheet() {
+function renderSheet(onSaveSuccess = vi.fn()) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-storages']}>
       <DataStorageConfigSheet
         isOpen
         onClose={vi.fn()}
         dataStorage={dataStorage}
-        onSaveSuccess={vi.fn()}
+        onSaveSuccess={onSaveSuccess}
       />
     </MemoryRouter>
   );
@@ -110,5 +118,38 @@ describe('DataStorageConfigSheet', () => {
     renderSheet();
 
     expect(screen.queryByRole('button', { name: 'Copy link to this storage' })).toBeNull();
+  });
+
+  // The form highlights the rejected fields only if the failure reaches it; a sheet that
+  // treated it as a success would also close as if the Storage had been saved.
+  it('passes a rejected save on to the form and stays open', async () => {
+    const rejection = { response: { status: 400, data: { message: 'Invalid config' } } };
+    const updateDataStorage = vi.fn().mockRejectedValue(rejection);
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      updateDataStorage,
+    });
+    const onSaveSuccess = vi.fn();
+    renderSheet(onSaveSuccess);
+
+    await expect(formProps.current?.onSubmit({})).rejects.toBe(rejection);
+
+    expect(updateDataStorage).toHaveBeenCalled();
+    expect(onSaveSuccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('reports a successful save', async () => {
+    const updated = { ...dataStorage, title: 'Renamed' };
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      updateDataStorage: vi.fn().mockResolvedValue(updated),
+    });
+    const onSaveSuccess = vi.fn();
+    renderSheet(onSaveSuccess);
+
+    await formProps.current?.onSubmit({});
+
+    expect(onSaveSuccess).toHaveBeenCalledWith(updated);
   });
 });

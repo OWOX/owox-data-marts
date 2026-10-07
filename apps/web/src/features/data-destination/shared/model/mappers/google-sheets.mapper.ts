@@ -69,7 +69,7 @@ export class GoogleSheetsMapper implements DestinationMapper {
       if (serviceAccount?.trim()) {
         try {
           result.credentials = {
-            serviceAccountKey: JSON.parse(serviceAccount) as Record<string, unknown>,
+            serviceAccountKey: JSON.parse(serviceAccount.trim()) as Record<string, unknown>,
             type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
           };
         } catch {
@@ -103,7 +103,7 @@ export class GoogleSheetsMapper implements DestinationMapper {
     if (serviceAccount?.trim()) {
       try {
         credentials = {
-          serviceAccountKey: JSON.parse(serviceAccount) as Record<string, unknown>,
+          serviceAccountKey: JSON.parse(serviceAccount.trim()) as Record<string, unknown>,
           type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
         };
       } catch {

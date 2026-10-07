@@ -33,4 +33,13 @@ describe('toDataStorageFormField', () => {
       expect(toDataStorageFormField(DataStorageType.GOOGLE_BIGQUERY, field)).toBeNull();
     }
   );
+
+  it('returns null for the legacy storage Project ID, which is read-only', () => {
+    expect(
+      toDataStorageFormField(DataStorageType.LEGACY_GOOGLE_BIGQUERY, 'config.projectId')
+    ).toBeNull();
+    expect(toDataStorageFormField(DataStorageType.LEGACY_GOOGLE_BIGQUERY, 'config.location')).toBe(
+      'config.location'
+    );
+  });
 });

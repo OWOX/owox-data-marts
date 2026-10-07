@@ -42,7 +42,7 @@ export function focusFirstInvalidField(_errors?: unknown, event?: { target?: unk
  * highlights what to fix exactly as it does for its own validation — red field, message under
  * it, section opened. `toFormField` maps a request path (`config.projectId`) to the form field
  * that shows it, or `null` when no input does. Several request values can land on one input
- * (every key of a pasted JSON file), so their messages are joined.
+ * (every key of a pasted JSON file), so their messages are joined, each naming its key.
  *
  * Returns whether any field got an error, i.e. whether there is something to focus.
  */
@@ -55,8 +55,13 @@ export function applyServerFieldErrors<T extends FieldValues>(
   for (const { field, message } of fieldErrors) {
     const name = toFormField(field);
     if (!name) continue;
+    // On an input named for another key (one holding a whole file), a bare reason does not say
+    // which of the file's keys is wrong.
+    const key = field.split('.').at(-1) ?? '';
+    const holdsOtherKey = key !== '' && name.split('.').at(-1) !== key;
+    const text = holdsOtherKey && !message.includes(key) ? `${key}: ${message}` : message;
     const messages = messagesByField.get(name) ?? [];
-    if (!messages.includes(message)) messages.push(message);
+    if (!messages.includes(text)) messages.push(text);
     messagesByField.set(name, messages);
   }
   for (const [name, messages] of messagesByField) {

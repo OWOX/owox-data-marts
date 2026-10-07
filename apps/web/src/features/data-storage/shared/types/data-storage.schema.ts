@@ -41,6 +41,9 @@ const googleConfigSchema = z.object({
  * (`example.com:my-project`). Checked here so the field is highlighted before the request
  * instead of the save failing with a toast. Users most often paste the project NAME, which the
  * message calls out.
+ *
+ * Keep in step with apps/backend/src/data-marts/data-storage-types/bigquery/schemas/
+ * bigquery-config.schema.ts: both specs run the same accept/reject table.
  */
 const GCP_PROJECT_ID_PATTERN = /^(?:[a-z][a-z0-9.-]*:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 
@@ -53,7 +56,7 @@ const googleBigQueryConfigSchema = googleConfigSchema.extend({
     .min(1, 'Project ID is required')
     .regex(
       GCP_PROJECT_ID_PATTERN,
-      'Enter the Project ID, not the project name: 6–30 lowercase letters, digits, or hyphens, starting with a letter (e.g. my-project-123)'
+      'Use the Project ID, not the project name: 6–30 lowercase letters, digits, or hyphens, starting with a letter and not ending with a hyphen (e.g. my-project-123)'
     ),
 });
 
