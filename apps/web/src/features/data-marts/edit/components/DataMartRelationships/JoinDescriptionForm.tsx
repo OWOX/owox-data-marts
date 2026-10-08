@@ -1,5 +1,6 @@
 import { Textarea } from '@owox/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { cn } from '@owox/ui/lib/utils';
 import { ExternalLink, Info } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -31,6 +32,11 @@ interface JoinDescriptionFormProps {
    * placeholder, while anything typed here applies to this join node only.
    */
   override?: JoinDescriptionOverride;
+  /**
+   * `inline` (default): padded, for the Data Setup row. `sheet`: no padding of its own, for a
+   * card of a side sheet.
+   */
+  variant?: 'inline' | 'sheet';
   onSaved: (updated: DataMartRelationship) => void;
 }
 
@@ -68,10 +74,12 @@ function OverrideDescriptionEditor({
   inheritedDescription,
   inheritedFrom,
   override,
+  variant,
 }: {
   inheritedDescription: string;
   inheritedFrom: { id: string; title: string } | null;
   override: JoinDescriptionOverride;
+  variant: 'inline' | 'sheet';
 }) {
   const { scope } = useProjectRoute();
 
@@ -123,7 +131,7 @@ function OverrideDescriptionEditor({
   const hasOverride = localValue.trim() !== '';
 
   return (
-    <div className='flex flex-col gap-3 p-4'>
+    <div className={cn('flex flex-col gap-3', variant === 'inline' && 'p-4')}>
       {inheritedFrom && (
         <div className='flex min-w-0 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'>
           <Info className='size-4 shrink-0' />
@@ -193,6 +201,7 @@ export function JoinDescriptionForm({
   readOnly = false,
   inheritedFrom,
   override,
+  variant = 'inline',
   onSaved,
 }: JoinDescriptionFormProps) {
   // Distinct child components, not an inline branch: the editors hold different hook sets, and
@@ -204,6 +213,7 @@ export function JoinDescriptionForm({
         inheritedDescription={relationship.description ?? ''}
         inheritedFrom={inheritedFrom ?? null}
         override={override}
+        variant={variant}
       />
     );
   }
@@ -213,6 +223,7 @@ export function JoinDescriptionForm({
       dataMartId={dataMartId}
       readOnly={readOnly}
       inheritedFrom={inheritedFrom}
+      variant={variant}
       onSaved={onSaved}
     />
   );
@@ -223,6 +234,7 @@ function RelationshipDescriptionEditor({
   dataMartId,
   readOnly = false,
   inheritedFrom,
+  variant = 'inline',
   onSaved,
 }: Omit<JoinDescriptionFormProps, 'override'>) {
   const { scope } = useProjectRoute();
@@ -333,7 +345,7 @@ function RelationshipDescriptionEditor({
   }, []);
 
   return (
-    <div className='flex flex-col gap-3 p-4'>
+    <div className={cn('flex flex-col gap-3', variant === 'inline' && 'p-4')}>
       {inheritedFrom && (
         <div className='flex min-w-0 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'>
           <Info className='size-4 shrink-0' />

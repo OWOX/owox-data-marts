@@ -126,8 +126,15 @@ interface JoinSettingsFormProps {
    * Renders an informational banner with a link to the parent.
    */
   inheritedFrom?: { id: string; title: string } | null;
+  /**
+   * `inline` (default): muted panels on the white Data Setup row. `sheet`: the white cards of a
+   * side sheet, one under another, laid on the sheet's muted body.
+   */
+  variant?: 'inline' | 'sheet';
   onSaved: (updated: DataMartRelationship, context: JoinSettingsSaveContext) => void;
 }
+
+const INLINE_PANEL_CLASS = 'bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5';
 
 export function JoinSettingsForm({
   relationship,
@@ -135,9 +142,15 @@ export function JoinSettingsForm({
   readOnly = false,
   siblingAliases,
   inheritedFrom,
+  variant = 'inline',
   onSaved,
 }: JoinSettingsFormProps) {
   const { scope } = useProjectRoute();
+  const isSheet = variant === 'sheet';
+  // A block of the form: a muted panel inline, a white card in a sheet.
+  const blockProps = isSheet
+    ? ({ variant: 'default' } as const)
+    : ({ variant: 'light', className: INLINE_PANEL_CLASS } as const);
   const [sourceDM, setSourceDM] = useState<DataMartResponseDto | null>(null);
   const [targetDM, setTargetDM] = useState<DataMartResponseDto | null>(null);
   const [isLoadingSchemas, setIsLoadingSchemas] = useState(false);
@@ -351,7 +364,7 @@ export function JoinSettingsForm({
   );
 
   return (
-    <div className='flex flex-col gap-4 p-4'>
+    <div className={cn('flex flex-col', isSheet ? 'gap-2' : 'gap-4 p-4')}>
       {inheritedFrom && (
         <div className='flex min-w-0 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'>
           <Info className='size-4 shrink-0' />
@@ -374,8 +387,8 @@ export function JoinSettingsForm({
         </div>
       )}
       <Form {...form}>
-        <div className='grid grid-cols-2 gap-3'>
-          <div className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'>
+        <div className={isSheet ? 'flex flex-col gap-2' : 'grid grid-cols-2 gap-3'}>
+          <FormItem {...blockProps}>
             <label className='flex items-center gap-1.5 text-sm font-medium'>
               Joined Data Mart
               <Tooltip>
@@ -414,16 +427,13 @@ export function JoinSettingsForm({
                 </span>
               )}
             </div>
-          </div>
+          </FormItem>
 
           <FormField
             control={form.control}
             name='targetAlias'
             render={({ field }) => (
-              <FormItem
-                variant='light'
-                className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-              >
+              <FormItem {...blockProps}>
                 <label className='flex items-center gap-1.5 text-sm font-medium'>
                   SQL Alias
                   <Tooltip>
@@ -452,10 +462,10 @@ export function JoinSettingsForm({
           />
         </div>
 
-        <Separator />
+        {!isSheet && <Separator />}
 
         {/* Join Fields section */}
-        <div className='flex flex-col gap-3'>
+        <FormItem variant={isSheet ? 'default' : 'light'} className='gap-3'>
           <div className='flex shrink-0 items-center justify-between'>
             <p className='flex items-center gap-1.5 text-sm font-medium'>
               Join Fields
@@ -592,7 +602,7 @@ export function JoinSettingsForm({
               {form.formState.errors.joinConditions.root.message}
             </p>
           )}
-        </div>
+        </FormItem>
       </Form>
     </div>
   );

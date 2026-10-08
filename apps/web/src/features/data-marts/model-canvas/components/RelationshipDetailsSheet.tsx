@@ -1,10 +1,8 @@
-import { Skeleton } from '@owox/ui/components/skeleton';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
+  SheetHeaderAction,
+  SheetHeaderActionButton,
+} from '@owox/ui/components/common/sheet-header-action';
+import { FormItem, FormLayout, FormSection } from '@owox/ui/components/form';
 import {
   Sheet,
   SheetContent,
@@ -12,18 +10,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
+import { Skeleton } from '@owox/ui/components/skeleton';
 import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
-import { ArrowRight, ExternalLink, MoreHorizontal, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowRight, ExternalLink, Trash2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { useProjectRoute } from '../../../../shared/hooks/useProjectRoute';
+import { SourceFieldsTable } from '../../edit/components/DataMartSchemaSettings/SourceFieldsTable';
+import { JoinDescriptionForm } from '../../edit/components/DataMartRelationships/JoinDescriptionForm';
+import { JoinSettingsForm } from '../../edit/components/DataMartRelationships/JoinSettingsForm';
 import { NoAccessIndicator } from '../../edit/components/DataMartRelationships/NoAccessIndicator';
-import {
-  RelationshipDetailsTabs,
-  type RelationshipDetailsTab,
-} from '../../edit/components/DataMartRelationships/RelationshipDetailsTabs';
+import { OutputAliasField } from '../../edit/components/DataMartRelationships/RelationshipDetailsTabs';
 import { RelationshipWarningBadges } from '../../edit/components/DataMartRelationships/RelationshipWarningBadges';
 import { useOutputAliasDraft } from '../../edit/components/DataMartRelationships/useOutputAliasDraft';
 import { DataMartIconGlyph } from '../../shared/components/DataMartIcon';
@@ -69,19 +68,20 @@ function DataMartLink({ dataMart }: { dataMart: RelationshipSheetDataMart }) {
       target='_blank'
       rel='noopener noreferrer'
       title={`Open ${dataMart.title} in a new tab`}
-      className='text-foreground hover:bg-muted inline-flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 font-medium'
+      className='hover:text-foreground inline-flex min-w-0 items-center gap-1 hover:underline'
     >
-      <DataMartIconGlyph icon={dataMart.icon} className='size-4 shrink-0' aria-hidden='true' />
+      <DataMartIconGlyph icon={dataMart.icon} className='size-3.5 shrink-0' aria-hidden='true' />
       <span className='truncate'>{dataMart.title}</span>
     </a>
   );
 }
 
 /**
- * The details of a relationship picked on the Models canvas, in a full-height sheet on the right
- * like the other sheets of the app. It edits the same settings as the relationship's row in the
- * source Data Mart's Joinable Data Marts block. It is not modal: the canvas stays usable, so
- * another arrow can be picked while it is open.
+ * The details of a relationship picked on the Models canvas, in a sheet laid out like the other
+ * sheets of the app: a header, then sections of cards on a muted body. It edits the same settings
+ * as the relationship's row in the source Data Mart's Joinable Data Marts block, and saves them as
+ * they change. It is not modal: the canvas stays usable, so another arrow can be picked while it
+ * is open.
  */
 export default function RelationshipDetailsSheet({
   options,
@@ -91,6 +91,7 @@ export default function RelationshipDetailsSheet({
   onRelationshipChange,
   onClose,
 }: RelationshipDetailsSheetProps) {
+  const { scope } = useProjectRoute();
   const contentRef = useRef<HTMLDivElement>(null);
   const focusRequestRef = useRef(focusRequest);
   focusRequestRef.current = focusRequest;
@@ -125,17 +126,34 @@ export default function RelationshipDetailsSheet({
           event.preventDefault();
         }}
       >
-        <SheetHeader className='gap-2 pr-12'>
+        <SheetHeader className='pr-12'>
           <SheetTitle>Relationship</SheetTitle>
-          <SheetDescription asChild>
-            <div className='flex min-w-0 items-center gap-1'>
-              <DataMartLink dataMart={active.source} />
-              <ArrowRight className='size-4 shrink-0' aria-label='joins' />
-              <DataMartLink dataMart={active.target} />
-            </div>
-          </SheetDescription>
+          <div className='flex w-full min-w-0 items-center gap-4'>
+            <SheetDescription asChild>
+              <div className='flex min-w-0 items-center gap-1'>
+                <DataMartLink dataMart={active.source} />
+                <ArrowRight className='size-3.5 shrink-0' aria-label='joins' />
+                <DataMartLink dataMart={active.target} />
+              </div>
+            </SheetDescription>
+            {/* The relationship's row in the Joinable Data Marts block of its source. */}
+            <SheetHeaderAction className='shrink-0'>
+              <SheetHeaderActionButton
+                onClick={() => {
+                  window.open(
+                    scope(`/data-marts/${active.source.id}/data-setup`),
+                    '_blank',
+                    'noopener,noreferrer'
+                  );
+                }}
+              >
+                <ExternalLink className='h-3.5 w-3.5' />
+                Open in Data Setup
+              </SheetHeaderActionButton>
+            </SheetHeaderAction>
+          </div>
           {options.length > 1 && (
-            <Tabs value={active.id} onValueChange={onRelationshipChange}>
+            <Tabs value={active.id} onValueChange={onRelationshipChange} className='mt-2'>
               <TabsList aria-label='Direction'>
                 {options.map(option => (
                   <TabsTrigger key={option.id} value={option.id}>
@@ -146,14 +164,14 @@ export default function RelationshipDetailsSheet({
             </Tabs>
           )}
         </SheetHeader>
-        <div className='flex-1 overflow-y-auto'>
+        <FormLayout>
           <RelationshipSourceScope
             key={active.source.id}
             option={active}
             storageId={storageId}
             onDeleted={onClose}
           />
-        </div>
+        </FormLayout>
       </SheetContent>
     </Sheet>
   );
@@ -161,8 +179,8 @@ export default function RelationshipDetailsSheet({
 
 function DetailsSkeleton() {
   return (
-    <div className='flex flex-col gap-3 p-4' aria-busy='true'>
-      <Skeleton className='h-8 w-full' />
+    <div className='flex flex-col gap-3' aria-busy='true'>
+      <Skeleton className='h-16 w-full' />
       <Skeleton className='h-40 w-full' />
     </div>
   );
@@ -188,14 +206,14 @@ function RelationshipSourceScope({
   if (!source.sourceDataMart) {
     if (source.isLoading) return <DetailsSkeleton />;
     return (
-      <div role='alert' className='flex flex-col items-start gap-3 p-4 text-sm'>
+      <FormItem role='alert' className='items-start gap-3 text-sm'>
         <p className='text-muted-foreground'>
           {option.source.title} could not be loaded, so this relationship cannot be edited.
         </p>
         <Button type='button' variant='outline' size='sm' onClick={source.retry}>
           Retry
         </Button>
-      </div>
+      </FormItem>
     );
   }
 
@@ -221,7 +239,6 @@ function RelationshipDetailsBody({
   configEditor: RelationshipConfigEditor;
   onDeleted: () => void;
 }) {
-  const { scope } = useProjectRoute();
   const details = useRelationshipDetails({
     relationshipId: option.id,
     sourceDataMartId: option.source.id,
@@ -229,9 +246,9 @@ function RelationshipDetailsBody({
     configEditor,
   });
   const { relationship, source } = details;
-  const [activeTab, setActiveTab] = useState<RelationshipDetailsTab>('join-settings');
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const allowForReportingId = useId();
   const outputAlias = useOutputAliasDraft(
     source,
     relationship?.targetDataMart.title ?? option.target.title,
@@ -243,18 +260,20 @@ function RelationshipDetailsBody({
   if (!relationship) {
     if (details.isGraphError) {
       return (
-        <div role='alert' className='flex flex-col items-start gap-3 p-4 text-sm'>
+        <FormItem role='alert' className='items-start gap-3 text-sm'>
           <p className='text-muted-foreground'>This relationship could not be loaded.</p>
           <Button type='button' variant='outline' size='sm' onClick={details.retryGraph}>
             Retry
           </Button>
-        </div>
+        </FormItem>
       );
     }
     return (
-      <p role='alert' className='text-muted-foreground p-4 text-sm'>
-        This relationship no longer exists. It may have been deleted.
-      </p>
+      <FormItem role='alert'>
+        <p className='text-muted-foreground text-sm'>
+          This relationship no longer exists. It may have been deleted.
+        </p>
+      </FormItem>
     );
   }
 
@@ -266,21 +285,37 @@ function RelationshipDetailsBody({
     if (deleted) onDeleted();
   };
 
+  const sourceTitle = relationship.sourceDataMart.title;
+  const targetTitle = relationship.targetDataMart.title;
+
   return (
     <>
-      <div className='flex flex-wrap items-center gap-2 border-b px-4 py-2.5'>
-        {!relationship.targetDataMart.userHasAccess && <NoAccessIndicator />}
-        <RelationshipWarningBadges
-          relationship={relationship}
-          isBlocked={details.isBlocked}
-          isCycleStub={details.isCycleStub}
-        />
-        <div className='ml-auto flex shrink-0 items-center gap-1.5'>
-          {!details.isCycleStub && (
-            <>
-              <span className='text-muted-foreground text-xs'>Allow for reporting</span>
+      <FormSection title='General' name='relationship-sheet-general'>
+        {/* Why the join does not work, or works with a caveat; hidden when there is nothing. */}
+        <FormItem className='flex-row flex-wrap items-center gap-2 empty:hidden'>
+          {!relationship.targetDataMart.userHasAccess && <NoAccessIndicator />}
+          <RelationshipWarningBadges
+            relationship={relationship}
+            isBlocked={details.isBlocked}
+            isCycleStub={details.isCycleStub}
+          />
+        </FormItem>
+        {details.isCycleStub ? (
+          // As in the Joinable Data Marts block, a loop has no settings to edit.
+          <FormItem>
+            <p className='text-muted-foreground text-sm'>
+              {targetTitle} is already on this join path, so the join stops here to avoid a loop and
+              has no settings to edit.
+            </p>
+          </FormItem>
+        ) : (
+          <FormItem>
+            <div className='flex items-center justify-between gap-4'>
+              <label htmlFor={allowForReportingId} className='text-sm font-medium'>
+                Allow for reporting
+              </label>
               <Switch
-                aria-label='Allow for reporting'
+                id={allowForReportingId}
                 checked={source?.isIncluded ?? true}
                 onCheckedChange={checked => {
                   // A join without conditions has no source entry yet. The preference is still
@@ -292,70 +327,86 @@ function RelationshipDetailsBody({
                   );
                 }}
               />
-            </>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 w-7 cursor-pointer p-0'
-                aria-label='More actions'
-              >
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              {/* The relationship's row in the Joinable Data Marts block of its source. */}
-              <DropdownMenuItem
-                onClick={() => {
-                  window.open(
-                    scope(`/data-marts/${option.source.id}/data-setup`),
-                    '_blank',
-                    'noopener,noreferrer'
-                  );
-                }}
-              >
-                <ExternalLink className='h-4 w-4' />
-                Open in Data Setup
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant='destructive'
-                onClick={() => {
-                  setIsConfirmDeleteOpen(true);
-                }}
-              >
-                <Trash2 className='h-4 w-4' />
-                Delete relationship
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+            </div>
+            <p className='text-muted-foreground text-xs'>
+              Turn off to hide every field of {targetTitle} from the reports of {sourceTitle}. The
+              relationship stays in place.
+            </p>
+          </FormItem>
+        )}
+      </FormSection>
 
-      {details.isCycleStub ? (
-        // As in the Joinable Data Marts block, a loop has no settings to edit.
-        <p className='text-muted-foreground p-4 text-sm'>
-          {relationship.targetDataMart.title} is already on this join path, so the join stops here
-          to avoid a loop and has no settings to edit.
-        </p>
-      ) : (
-        <RelationshipDetailsTabs
-          relationship={relationship}
-          source={source}
-          dataMartId={option.source.id}
-          siblingAliases={details.siblingAliases}
-          readOnly={false}
-          inheritedFrom={null}
-          activeTab={activeTab}
-          onActiveTabChange={setActiveTab}
-          outputAlias={outputAlias}
-          onRelationshipUpdated={details.onRelationshipUpdated}
-          onRelationshipDescriptionSaved={details.onRelationshipDescriptionSaved}
-          onFieldOverrideChange={details.onFieldOverrideChange}
-          onDescriptionOverrideChange={details.onDescriptionOverrideChange}
-        />
+      {!details.isCycleStub && (
+        <>
+          <FormSection title='Join Settings' name='relationship-sheet-join-settings'>
+            <JoinSettingsForm
+              relationship={relationship}
+              dataMartId={option.source.id}
+              readOnly={false}
+              siblingAliases={details.siblingAliases}
+              inheritedFrom={null}
+              variant='sheet'
+              onSaved={details.onRelationshipUpdated}
+            />
+          </FormSection>
+
+          <FormSection title='Description' name='relationship-sheet-description'>
+            <FormItem>
+              <JoinDescriptionForm
+                relationship={relationship}
+                dataMartId={option.source.id}
+                inheritedFrom={null}
+                variant='sheet'
+                onSaved={details.onRelationshipDescriptionSaved}
+              />
+            </FormItem>
+          </FormSection>
+
+          <FormSection title='Report Fields' name='relationship-sheet-report-fields'>
+            {source ? (
+              <SourceFieldsTable
+                fields={source.fields}
+                onFieldOverrideChange={(fieldName, override) => {
+                  details.onFieldOverrideChange(source, fieldName, override);
+                }}
+                leadingToolbar={<OutputAliasField outputAlias={outputAlias} variant='sheet' />}
+                variant='sheet'
+              />
+            ) : (
+              <FormItem>
+                <p className='text-muted-foreground text-sm'>
+                  Fields will appear after configuring join conditions.
+                </p>
+              </FormItem>
+            )}
+          </FormSection>
+        </>
       )}
+
+      <FormSection title='Danger zone' name='relationship-sheet-danger-zone' defaultOpen={false}>
+        <FormItem>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='space-y-1'>
+              <p className='text-sm font-medium'>Delete this relationship</p>
+              <p className='text-muted-foreground text-sm'>
+                Remove the join between {sourceTitle} and {targetTitle}. This action cannot be
+                undone.
+              </p>
+            </div>
+            <Button
+              type='button'
+              variant='outline'
+              className='border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15 sm:shrink-0'
+              onClick={() => {
+                setIsConfirmDeleteOpen(true);
+              }}
+            >
+              <Trash2 className='size-4' />
+              Delete Relationship
+            </Button>
+          </div>
+        </FormItem>
+      </FormSection>
 
       <ConfirmationDialog
         open={isConfirmDeleteOpen}

@@ -160,6 +160,8 @@ function renderSheet(
 describe('RelationshipDetailsSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Sections remember whether they were collapsed.
+    localStorage.clear();
     harness.joinSettingsProps.current = null;
     vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(EMPTY_SCHEMA);
     vi.mocked(dataMartService.getDataMartById).mockResolvedValue(sourceDataMart());
@@ -194,6 +196,32 @@ describe('RelationshipDetailsSheet', () => {
       'href',
       '/ui/project-1/data-marts/customers/data-setup'
     );
+  });
+
+  it('lays the relationship out in the sections of a sheet, with its Data Setup row a click away', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS))
+    );
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
+    await screen.findByTestId('join-settings');
+
+    for (const section of ['General', 'Join Settings', 'Description', 'Report Fields']) {
+      expect(screen.getByRole('button', { name: section })).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      );
+    }
+    expect(screen.getByTestId('join-description')).toBeInTheDocument();
+    expect(screen.getByText('Fields will appear after configuring join conditions.')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Data Setup' }));
+    expect(open).toHaveBeenCalledWith(
+      '/ui/project-1/data-marts/orders/data-setup',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    open.mockRestore();
   });
 
   it('takes focus when opened with the keyboard, and leaves it alone otherwise', async () => {
@@ -456,11 +484,10 @@ describe('RelationshipDetailsSheet', () => {
     const { onClose } = renderSheet([{ id: 'r-customers', source: ORDERS, target: CUSTOMERS }]);
     await screen.findByTestId('join-settings');
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete relationship' }));
+    // As in the other sheets, deleting sits in a Danger zone that starts collapsed.
+    expect(screen.queryByRole('button', { name: 'Delete Relationship' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Danger zone' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Relationship' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {

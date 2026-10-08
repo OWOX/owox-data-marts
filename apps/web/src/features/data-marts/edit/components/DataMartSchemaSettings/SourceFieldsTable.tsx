@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EyeOff, Info, MoreHorizontal, Eye, Search, Sigma } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
+import { FormItem } from '@owox/ui/components/form';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ import {
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@owox/ui/components/table';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { cn } from '@owox/ui/lib/utils';
 import {
   AGGREGATE_FUNCTIONS,
   type AggregateFunction,
@@ -48,6 +50,11 @@ interface SourceFieldsTableProps {
    * same row as the field filters, matching the Join Settings layout.
    */
   leadingToolbar?: ReactNode;
+  /**
+   * `inline` (default): muted panels side by side, for the Data Setup row. `sheet`: white cards
+   * one under another, the table in a card of its own, for a side sheet's muted body.
+   */
+  variant?: 'inline' | 'sheet';
 }
 
 function FieldAliasInput({
@@ -99,7 +106,9 @@ export function SourceFieldsTable({
   fields,
   onFieldOverrideChange,
   leadingToolbar,
+  variant = 'inline',
 }: SourceFieldsTableProps) {
+  const isSheet = variant === 'sheet';
   const [searchValue, setSearchValue] = useState('');
   // Re-run the filter on the debounced value so typing stays responsive on
   // schemas with hundreds of fields (the input itself always reflects the
@@ -154,7 +163,14 @@ export function SourceFieldsTable({
   const headCellClass = 'bg-secondary dark:bg-background sticky top-0 z-10';
 
   const filteringBlock = (
-    <div className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'>
+    <FormItem
+      {...(isSheet
+        ? { variant: 'default' }
+        : {
+            variant: 'light',
+            className: 'bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5',
+          })}
+    >
       <label className='flex items-center gap-1.5 text-sm font-medium'>
         Fields filtering
         <Tooltip>
@@ -193,12 +209,17 @@ export function SourceFieldsTable({
           </TabsList>
         </Tabs>
       </div>
-    </div>
+    </FormItem>
   );
 
   return (
-    <div className='space-y-3 py-2'>
-      {leadingToolbar ? (
+    <div className={isSheet ? 'flex flex-col gap-2' : 'space-y-3 py-2'}>
+      {isSheet ? (
+        <>
+          {leadingToolbar}
+          {filteringBlock}
+        </>
+      ) : leadingToolbar ? (
         <div className='grid grid-cols-2 gap-3'>
           {filteringBlock}
           {leadingToolbar}
@@ -207,7 +228,12 @@ export function SourceFieldsTable({
         filteringBlock
       )}
 
-      <div className='relative max-h-[400px] w-full overflow-auto'>
+      <div
+        className={cn(
+          'relative max-h-[400px] w-full overflow-auto',
+          isSheet && 'rounded-md bg-white dark:bg-white/4'
+        )}
+      >
         {/* Narrower than this (the relationship sheet on the Models canvas), the table scrolls
             sideways rather than squeezing the Alias inputs to a few characters. */}
         <table className='w-full min-w-[680px] table-auto caption-bottom text-sm'>

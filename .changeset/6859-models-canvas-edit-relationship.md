@@ -4,7 +4,7 @@
 
 **Edit a relationship from its arrow on the Models canvas**
 
-Click an arrow on the Models canvas, or its join fields label, to open that relationship in a panel on the right. Previously a click only highlighted the arrow, and changing a join meant opening the source Data Mart. The panel holds the same **Report Fields**, **Join Settings** and **Description** tabs as the relationship's row in **Joinable Data Marts**, and changes save as you type.
+Click an arrow on the Models canvas, or its join fields label, to open that relationship in a panel on the right. Previously a click only highlighted the arrow, and changing a join meant opening the source Data Mart. The panel edits the same **Report Fields**, **Join Settings** and **Description** settings as the relationship's row in **Joinable Data Marts**, in collapsible sections like the app's other side panels, and changes save as you type.
 
 The video shows a relationship opened from its arrow, edited in place and switched to another one:
 
@@ -12,7 +12,7 @@ The video shows a relationship opened from its arrow, edited in place and switch
 
 - The arrow stays highlighted while the panel is open. Click another arrow to switch the panel to it.
 - A two-headed arrow stands for two mirrored relationships; pick the direction to edit at the top.
-- **Allow for reporting** and **Delete relationship** are in the panel too.
+- **Allow for reporting** is under **General**, and **Delete Relationship** under **Danger zone**. **Open in Data Setup** at the top opens the relationship's row in its source Data Mart.
 - A row in a card's **N relationships** list opens the same panel. From the keyboard, Enter moves focus into the panel and Esc returns it to the row.
 - After a join fields change, the canvas redraws the arrow and keeps your zoom and position.
 

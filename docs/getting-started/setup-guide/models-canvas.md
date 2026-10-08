@@ -27,13 +27,15 @@ Click the badge again to close the list.
 
 ## Edit a relationship
 
-Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The canvas stays usable while the panel is open, and the arrow stays highlighted. If neither of its Data Marts is in view beside the panel, the canvas moves to show them. The panel edits the same settings as the relationship's row in the source Data Mart's [Joinable Data Marts](joinable-data-marts.md) block:
+Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The canvas stays usable while the panel is open, and the arrow stays highlighted. If neither of its Data Marts is in view beside the panel, the canvas moves to show them. The panel edits the same settings as the relationship's row in the source Data Mart's [Joinable Data Marts](joinable-data-marts.md) block. Like other panels, it groups them in sections you can collapse:
 
-- **Report Fields**: the Output Alias, and the alias, Dedup and Σ available of each joined field.
+- **General**: **Allow for reporting**, which hides every joined field from the reports of the source Data Mart.
 - **Join Settings**: the SQL Alias and the join fields.
 - **Description**: what the join means in business terms, for AI assistants.
+- **Report Fields**: the Output Alias, and the alias, Dedup and Σ available of each joined field.
+- **Danger zone**: delete the relationship.
 
-Changes save as you type. The canvas redraws the arrow with the new join fields and keeps your zoom and position. **Allow for reporting** hides every joined field from the reports of the source Data Mart. The **⋯** menu opens the relationship in Data Setup or deletes it. The two Data Mart names at the top open those Data Marts in a new tab.
+Changes save as you type. The canvas redraws the arrow with the new join fields and keeps your zoom and position. The two Data Mart names at the top open those Data Marts in a new tab, and **Open in Data Setup** opens the relationship's row in its source Data Mart.
 
 A two-headed arrow stands for two relationships that mirror each other. Pick the direction to edit at the top of the panel.
 

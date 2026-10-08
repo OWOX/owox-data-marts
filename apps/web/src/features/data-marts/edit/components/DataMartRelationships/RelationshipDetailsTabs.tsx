@@ -1,3 +1,4 @@
+import { FormItem } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -47,6 +48,54 @@ interface RelationshipDetailsTabsProps {
   onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
   /** Applied to the row that holds the tab list. */
   tabListClassName?: string;
+}
+
+/**
+ * The Output Alias of a joined Data Mart: a muted panel inline, a white card in a side sheet.
+ */
+export function OutputAliasField({
+  outputAlias,
+  variant = 'inline',
+}: {
+  outputAlias: OutputAliasDraft;
+  variant?: 'inline' | 'sheet';
+}) {
+  return (
+    <FormItem
+      {...(variant === 'sheet'
+        ? { variant: 'default' }
+        : {
+            variant: 'light',
+            className: 'bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5',
+          })}
+      onClick={e => {
+        e.stopPropagation();
+      }}
+    >
+      <label className='flex items-center gap-1.5 text-sm font-medium'>
+        Output Alias
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+              <Info className='size-4 shrink-0' />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side='top' className='max-w-xs'>
+            Short name that appears in the output data schema for fields from this data mart.
+          </TooltipContent>
+        </Tooltip>
+      </label>
+      <Input
+        value={outputAlias.value}
+        onChange={e => {
+          outputAlias.onChange(e.target.value);
+        }}
+        onBlur={outputAlias.onBlur}
+        placeholder='e.g. campaign_performance'
+        className='bg-background h-8 text-sm dark:bg-white/5'
+      />
+    </FormItem>
+  );
 }
 
 /** The Report Fields, Join Settings and Description tabs of one join. */
@@ -99,38 +148,7 @@ export function RelationshipDetailsTabs({
             onFieldOverrideChange={(fieldName, override) => {
               onFieldOverrideChange(source, fieldName, override);
             }}
-            leadingToolbar={
-              <div
-                className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-                onClick={e => {
-                  e.stopPropagation();
-                }}
-              >
-                <label className='flex items-center gap-1.5 text-sm font-medium'>
-                  Output Alias
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                        <Info className='size-4 shrink-0' />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs'>
-                      Short name that appears in the output data schema for fields from this data
-                      mart.
-                    </TooltipContent>
-                  </Tooltip>
-                </label>
-                <Input
-                  value={outputAlias.value}
-                  onChange={e => {
-                    outputAlias.onChange(e.target.value);
-                  }}
-                  onBlur={outputAlias.onBlur}
-                  placeholder='e.g. campaign_performance'
-                  className='bg-background h-8 text-sm dark:bg-white/5'
-                />
-              </div>
-            }
+            leadingToolbar={<OutputAliasField outputAlias={outputAlias} />}
           />
         ) : (
           <p className='text-muted-foreground py-4 text-sm'>
