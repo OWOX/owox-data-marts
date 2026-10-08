@@ -22,8 +22,9 @@ import { getActiveMenuItemClassName, isSameOrNestedPath } from '../menu-item-act
  * dependency in the render path of every other menu item.
  *
  * Hidden until the member has an active installation or the project has a Gallery plugin
- * a member can install (or reinstall). Until then the entry would only advertise an empty
- * page, so it stays out of the way; first publications arrive via the control plane (owox-ctl).
+ * a member can install (or install again after an uninstall). Until then the entry would only
+ * advertise an empty page, so it stays out of the way; first publications arrive via the
+ * control plane (owox-ctl).
  */
 export function PluginsMenu() {
   const { scope } = useProjectRoute();
@@ -34,7 +35,7 @@ export function PluginsMenu() {
 
   const active = installations.filter(installation => installation.uninstalledAt === null);
 
-  // At least one plugin listed for this project/member that can be installed or reinstalled.
+  // At least one plugin listed for this project/member that can be installed, or installed again.
   const hasInstallablePlugin = plugins.some(
     plugin => !plugin.suspended && plugin.currentVersionId !== null
   );

@@ -59,6 +59,9 @@ const UNPUBLISH_LABELS: Record<string, string> = {
   member: 'Unpublish for me',
 };
 
+/** The version action's tooltip and accessible name: one string, so they cannot drift. */
+const CHECK_AND_UPDATE_LABEL = 'Check and Update';
+
 /**
  * One plugin's own page.
  *
@@ -420,7 +423,7 @@ export default function PluginDetailsPage({
                         size='icon'
                         className='shrink-0'
                         disabled={isUpdating}
-                        aria-label='Check and Update'
+                        aria-label={CHECK_AND_UPDATE_LABEL}
                         onClick={() => void checkNow(plugin.pluginId)}
                       >
                         <RefreshCw className={isUpdating ? 'size-4 animate-spin' : 'size-4'} />
@@ -432,7 +435,7 @@ export default function PluginDetailsPage({
                       label says Update because a newer valid release this check finds becomes
                       current at once.
                     */}
-                    <TooltipContent>Check and Update</TooltipContent>
+                    <TooltipContent>{CHECK_AND_UPDATE_LABEL}</TooltipContent>
                   </Tooltip>
                 </InfoCard>
               </div>

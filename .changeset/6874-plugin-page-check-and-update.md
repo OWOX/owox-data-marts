@@ -13,7 +13,10 @@ for a plugin that asks for Credentials work as before.
 The button next to the plugin's version is now called **Check and Update** instead of **Check
 now**. It does the same thing: checks for a newer release at once instead of waiting for the daily
 check, and a newer valid release it finds becomes current for everyone using the plugin. Updates
-and versioning are otherwise unchanged. See
-[Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
+and versioning are otherwise unchanged.
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/11a431894de0cfbb22e83da4fc14013b/iframe>
+
+See [Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
 
 <!-- markdownlint-disable-file MD041 MD036 -->

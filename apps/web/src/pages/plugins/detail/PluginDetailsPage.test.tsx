@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -163,6 +163,19 @@ describe('PluginDetailsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
     expect(checkNow).toHaveBeenCalledWith('p1');
+  });
+
+  // The label is the point of the rename: the visible tooltip has to say what the button
+  // does, not only its accessible name.
+  it('labels the version action Check and Update in its tooltip', async () => {
+    plugin = entry({ installationState: 'installed' });
+    renderPage();
+
+    act(() => {
+      screen.getByRole('button', { name: 'Check and Update' }).focus();
+    });
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Check and Update');
   });
 
   it('offers Credential configuration instead of reinstall for an installed plugin requirement', () => {

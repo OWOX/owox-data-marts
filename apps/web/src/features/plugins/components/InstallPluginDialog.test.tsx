@@ -136,7 +136,7 @@ describe('InstallPluginDialog', () => {
    * The three statements a member must see before granting their authority to third-party
    * code. Wording is product copy, but the facts are the authoring-guide contract.
    */
-  it('states access, data exfiltration, and that reinstall restores nothing on the plugin side', () => {
+  it('states access, data exfiltration, and that installing again restores nothing on the plugin side', () => {
     render(
       <InstallPluginDialog
         plugin={plugin()}
@@ -154,7 +154,7 @@ describe('InstallPluginDialog', () => {
       'Anything it reads can leave OWOX and reach the plugin publisher.'
     );
     expect(notice).toHaveTextContent(
-      'Reinstalling restores nothing the plugin kept on its own side.'
+      'Uninstalling and installing again restores nothing the plugin kept on its own side.'
     );
   });
 
@@ -178,7 +178,7 @@ describe('InstallPluginDialog', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(
-      screen.getByText('Changing Credential access does not reinstall or clear plugin data.')
+      screen.getByText('Changing Credential access does not clear plugin data.')
     ).toBeInTheDocument();
   });
 

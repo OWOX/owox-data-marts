@@ -37,7 +37,8 @@ const ADD_CREDENTIAL_VALUE = '__add_credential__';
  * Deliberately not a second product page. What the plugin does, who wrote it and where it
  * came from live on the plugin's own page; this dialog only restates the three things a
  * member must accept before the plugin can act: it uses their access, data it reads can
- * leave OWOX, and reinstalling restores nothing the plugin kept on its own side.
+ * leave OWOX, and uninstalling and installing again restores nothing the plugin kept on its
+ * own side.
  * A plugin nothing lists for the member adds a fourth: they are trusting its source alone.
  *
  * The name and current SemVer stay because §13 requires the installation screen to show
@@ -216,8 +217,8 @@ export function InstallPluginDialog({
             </Fact>
             <Fact icon={<RotateCcw className='size-4 shrink-0' aria-hidden />}>
               {isConfiguring
-                ? 'Changing Credential access does not reinstall or clear plugin data.'
-                : 'Reinstalling restores nothing the plugin kept on its own side.'}
+                ? 'Changing Credential access does not clear plugin data.'
+                : 'Uninstalling and installing again restores nothing the plugin kept on its own side.'}
             </Fact>
           </div>
 
