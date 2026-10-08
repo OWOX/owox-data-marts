@@ -115,7 +115,11 @@ export function usePluginPublishing() {
     async (repository: string, scope: PluginPublicationScope) => {
       try {
         await unpublishMutation.mutateAsync({ repository, scope });
-        toast.success('Plugin unpublished');
+        // Members read Unpublish as Uninstall, then cannot tell why the plugin is still in
+        // their menu. The listing is all that went.
+        toast.success(
+          'Plugin unpublished. Anyone who installed it keeps it until they uninstall it.'
+        );
       } catch (caught) {
         toast.error(readPublishFailure(caught).message);
         throw caught;

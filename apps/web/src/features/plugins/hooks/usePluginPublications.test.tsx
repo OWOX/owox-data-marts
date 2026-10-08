@@ -16,6 +16,7 @@ vi.mock('../services/plugins.service', () => ({
   },
 }));
 
+import toast from 'react-hot-toast';
 import { pluginsService } from '../services/plugins.service';
 import {
   usePluginPublishing,
@@ -117,5 +118,20 @@ describe('usePluginPublishing', () => {
 
     expect(captured.failure?.installationUrl).toBeUndefined();
     expect(captured.failure?.message).toBe('Not allowed');
+  });
+
+  // Members read Unpublish as Uninstall and then wonder why the plugin is still in their
+  // menu, so the confirmation says what stayed.
+  it('says that unpublishing uninstalls nobody', async () => {
+    vi.mocked(pluginsService.unpublish).mockResolvedValue(undefined as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.unpublish('OWOX/example', 'member');
+    });
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Plugin unpublished. Anyone who installed it keeps it until they uninstall it.'
+    );
   });
 });

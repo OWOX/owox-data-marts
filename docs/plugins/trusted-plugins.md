@@ -101,6 +101,9 @@ installed the plugin keep it, and publishing again restores the same listing:
 owox-ctl plugins unpublish OWNER/PLUGIN_NAME --scope deployment
 ```
 
+A member who no longer wants the plugin uninstalls it from its menu in the sidebar, as described
+in [Uninstall or restore](./authoring-guide.md#uninstall-or-restore).
+
 For an emergency there is suspension, which blocks opening, installing and restoring across the
 whole deployment while uninstalling and updating stay available:
 

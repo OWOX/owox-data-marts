@@ -5,6 +5,7 @@ export {
   PluginPageMessage,
   PluginReleaseIssuesCard,
   PublishPluginSheet,
+  UninstallPluginDialog,
   useCopyLink,
 } from './components';
 export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './rejections';

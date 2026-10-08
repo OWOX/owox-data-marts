@@ -1,21 +1,35 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { SidebarProvider } from '@owox/ui/components/sidebar';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
-vi.mock('../../../features/plugins', () => ({
-  usePluginInstallations: vi.fn(),
-  usePluginGallery: vi.fn(),
-}));
+// The real UninstallPluginDialog stays: what it asks before uninstalling is part of the menu.
+vi.mock('../../../features/plugins', async () => {
+  const actual = await vi.importActual<typeof import('../../../features/plugins')>(
+    '../../../features/plugins'
+  );
+  return {
+    ...actual,
+    usePluginInstallations: vi.fn(),
+    usePluginGallery: vi.fn(),
+    usePluginActions: vi.fn(),
+  };
+});
 
-import { usePluginGallery, usePluginInstallations } from '../../../features/plugins';
+import {
+  usePluginActions,
+  usePluginGallery,
+  usePluginInstallations,
+} from '../../../features/plugins';
 import { PluginsMenu } from './PluginsMenu';
 
 const installations = usePluginInstallations as unknown as ReturnType<typeof vi.fn>;
 const gallery = usePluginGallery as unknown as ReturnType<typeof vi.fn>;
+const actions = usePluginActions as unknown as ReturnType<typeof vi.fn>;
+const uninstall = vi.fn();
 
 const installation = (overrides = {}) => ({
   installationId: 'i1',
@@ -33,6 +47,11 @@ const galleryPlugin = (overrides = {}) => ({
   ...overrides,
 });
 
+/** Where the router is now, so a test can see the menu move the member. */
+function CurrentPath() {
+  return <output data-testid='current-path'>{useLocation().pathname}</output>;
+}
+
 // SidebarMenu* read layout state from context, so the provider is required even though
 // nothing here asserts on it.
 const renderMenu = (path = '/ui/project-1/plugins') =>
@@ -40,9 +59,12 @@ const renderMenu = (path = '/ui/project-1/plugins') =>
     <MemoryRouter initialEntries={[path]}>
       <SidebarProvider>
         <PluginsMenu />
+        <CurrentPath />
       </SidebarProvider>
     </MemoryRouter>
   );
+
+const currentPath = () => screen.getByTestId('current-path').textContent;
 
 const isHighlighted = (name: string) =>
   screen.getByRole('link', { name }).className.includes('bg-sidebar-active');
@@ -52,6 +74,8 @@ describe('PluginsMenu', () => {
     vi.clearAllMocks();
     installations.mockReturnValue({ installations: [], isLoading: false });
     gallery.mockReturnValue({ plugins: [galleryPlugin()], isLoading: false });
+    uninstall.mockResolvedValue(undefined);
+    actions.mockReturnValue({ uninstall, isUninstalling: false });
   });
 
   it('hides when the gallery has no installable plugin', () => {
@@ -195,5 +219,118 @@ describe('PluginsMenu', () => {
     renderMenu();
 
     expect(screen.queryByRole('link', { name: 'Example Plugin' })).not.toBeInTheDocument();
+  });
+
+  /**
+   * The submenu lists installations, not Gallery listings, so a plugin can stay here after
+   * it leaves the Gallery. Its own row is where a member looks for a way to remove it.
+   */
+  describe('row menu', () => {
+    const openRowMenu = (name = 'Example Plugin') => {
+      fireEvent.keyDown(screen.getByRole('button', { name: `More actions for ${name}` }), {
+        key: 'Enter',
+      });
+    };
+
+    const confirmUninstall = () => {
+      openRowMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+      fireEvent.click(
+        within(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).getByRole('button', {
+          name: 'Uninstall',
+        })
+      );
+    };
+
+    beforeEach(() => {
+      installations.mockReturnValue({ installations: [installation()], isLoading: false });
+    });
+
+    it('gives every installed plugin a menu of its own', () => {
+      installations.mockReturnValue({
+        installations: [
+          installation(),
+          installation({ installationId: 'i2', pluginId: 'p2', displayName: 'Second Plugin' }),
+        ],
+        isLoading: false,
+      });
+      renderMenu();
+
+      expect(screen.getByRole('button', { name: 'More actions for Example Plugin' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'More actions for Second Plugin' })).toBeTruthy();
+    });
+
+    it('opens the plugin page from Settings, even when nothing lists the plugin', () => {
+      gallery.mockReturnValue({ plugins: [], isLoading: false });
+      renderMenu();
+      openRowMenu();
+
+      expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute(
+        'href',
+        '/ui/project-1/plugins/p1'
+      );
+    });
+
+    it('uninstalls only after the member confirms', async () => {
+      renderMenu();
+      openRowMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+
+      expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
+      expect(uninstall).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }));
+
+      await waitFor(() => {
+        expect(uninstall).toHaveBeenCalledWith('p1');
+      });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
+      });
+    });
+
+    it('keeps the plugin when the member cancels', () => {
+      renderMenu();
+      openRowMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(uninstall).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
+    });
+
+    // The hook has already toasted the reason; closing would hide the retry.
+    it('keeps the confirmation open when the uninstall fails', async () => {
+      uninstall.mockRejectedValue(new Error('refused'));
+      renderMenu();
+      confirmUninstall();
+
+      await waitFor(() => {
+        expect(uninstall).toHaveBeenCalledWith('p1');
+      });
+      expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
+    });
+
+    // An open address with no installation behind it offers the install, which is the
+    // opposite of what the member just asked for.
+    it("leaves the plugin's open address for its page before uninstalling", async () => {
+      renderMenu('/ui/project-1/plugins/p1/open/d/42');
+      confirmUninstall();
+
+      await waitFor(() => {
+        expect(uninstall).toHaveBeenCalledWith('p1');
+      });
+      expect(currentPath()).toBe('/ui/project-1/plugins/p1');
+    });
+
+    it('leaves the member where they are when they uninstall from elsewhere', async () => {
+      renderMenu('/ui/project-1/data-marts');
+      confirmUninstall();
+
+      await waitFor(() => {
+        expect(uninstall).toHaveBeenCalledWith('p1');
+      });
+      expect(currentPath()).toBe('/ui/project-1/data-marts');
+    });
   });
 });

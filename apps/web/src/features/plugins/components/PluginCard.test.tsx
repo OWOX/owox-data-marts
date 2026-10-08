@@ -47,4 +47,21 @@ describe('PluginCard', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('script')).toBeNull();
   });
+
+  // Kept on the Plugins page by the member's own installation after it left the Gallery:
+  // the card leads to its page, where uninstall lives, and says why it is still here.
+  it('marks an installed plugin nothing lists and leads to its settings', () => {
+    render(
+      <MemoryRouter>
+        <PluginCard
+          plugin={plugin({ installationState: 'installed', visibleViaScopes: [] })}
+          onInstall={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText('Installed, not listed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Example Plugin settings' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Install Example Plugin' })).toBeNull();
+  });
 });

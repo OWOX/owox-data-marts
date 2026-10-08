@@ -48,4 +48,26 @@ describe('describeVisibility', () => {
     expect(visibility?.audience).toBe('unlisted');
     expect(visibility?.detail).toContain('direct link');
   });
+
+  // Unpublishing is not uninstalling: the member's own installation keeps the plugin in
+  // their menu, so the sentence has to say why it is still there and what removes it.
+  it('tells the installer why an unlisted plugin stays and what removes it', () => {
+    const visibility = describeVisibility([], 'installed');
+
+    expect(visibility?.audience).toBe('unlisted');
+    expect(visibility?.summary).toBe('Installed, not listed');
+    expect(visibility?.detail).toContain('until you uninstall it');
+    expect(visibility?.detail).not.toContain('direct link');
+  });
+
+  it('keeps the direct-link sentence for a plugin the member removed or never installed', () => {
+    expect(describeVisibility([], 'uninstalled')?.detail).toContain('direct link');
+    expect(describeVisibility([], 'not_installed')?.detail).toContain('direct link');
+  });
+
+  // A listing still explains itself the same way to someone who installed the plugin.
+  it('describes a listed plugin by its listing whatever the installation state', () => {
+    expect(describeVisibility(['member'], 'installed')?.audience).toBe('you');
+    expect(describeVisibility(['project'], 'installed')?.audience).toBe('project');
+  });
 });

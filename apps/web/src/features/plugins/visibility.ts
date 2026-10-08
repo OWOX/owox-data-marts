@@ -1,4 +1,4 @@
-import type { PluginPublicationScope } from './types';
+import type { PluginInstallationState, PluginPublicationScope } from './types';
 
 /**
  * Who, besides the reader, can find this plugin in the Gallery -- or why they can
@@ -26,9 +26,13 @@ export interface GalleryVisibility {
  *   That is the trust signal, so it wins over personal or project reasons.
  * - **project**: available to every member of this project.
  * - **you**: only this member listed it for themselves.
- * - **unlisted**: reached by direct link with no active publication.
+ * - **unlisted**: reached by direct link with no active publication -- or kept by the
+ *   member's own installation, which unpublishing never removes.
  */
-export function describeVisibility(scopes: PluginPublicationScope[]): GalleryVisibility | null {
+export function describeVisibility(
+  scopes: PluginPublicationScope[],
+  installationState?: PluginInstallationState
+): GalleryVisibility | null {
   if (scopes.includes('deployment')) {
     return {
       audience: 'verified',
@@ -57,6 +61,18 @@ export function describeVisibility(scopes: PluginPublicationScope[]): GalleryVis
       summary: 'Only you can see it',
       detail: 'You added this plugin for yourself. No one else in the project sees it here.',
       listing: 'Added by you, for yourself',
+    };
+  }
+
+  // Not "reachable only by direct link": the member's menu and the Plugins page keep an
+  // installed plugin, and what they need to hear is why it is still there and how to remove it.
+  if (installationState === 'installed') {
+    return {
+      audience: 'unlisted',
+      summary: 'Installed, not listed',
+      detail:
+        'Nothing lists this plugin, but you have it installed, so it stays in your menu until you uninstall it.',
+      listing: 'Not listed',
     };
   }
 

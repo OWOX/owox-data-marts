@@ -162,6 +162,8 @@ export function usePluginActions() {
     async (pluginId: string) => {
       try {
         await uninstallMutation.mutateAsync(pluginId);
+        // Said out loud: from the menu, the only other sign is an entry that disappears.
+        toast.success('Plugin uninstalled');
       } catch (caught) {
         toast.error(errorMessage(caught));
         throw caught;

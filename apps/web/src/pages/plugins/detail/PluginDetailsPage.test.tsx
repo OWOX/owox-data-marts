@@ -11,6 +11,7 @@ import { repositoryPath as actualRepositoryPath } from '../../../features/plugin
 import { safeHttpsUrl as actualSafeHttpsUrl } from '../../../features/plugins/safeHttpsUrl';
 import { findReleaseIssues as actualFindReleaseIssues } from '../../../features/plugins/rejections';
 import { PluginReleaseIssuesCard as ActualPluginReleaseIssuesCard } from '../../../features/plugins/components/PluginReleaseIssuesCard';
+import { UninstallPluginDialog as ActualUninstallPluginDialog } from '../../../features/plugins/components/UninstallPluginDialog';
 
 const publish = vi.fn();
 const unpublish = vi.fn();
@@ -36,6 +37,7 @@ vi.mock('../../../features/plugins', () => ({
     uninstall,
     checkNow,
     isInstalling: false,
+    isUninstalling: false,
     isUpdating: false,
   }),
   usePluginInstallations: () => ({ installations, isLoading: false }),
@@ -48,6 +50,7 @@ vi.mock('../../../features/plugins', () => ({
   safeHttpsUrl: actualSafeHttpsUrl,
   findReleaseIssues: actualFindReleaseIssues,
   PluginReleaseIssuesCard: ActualPluginReleaseIssuesCard,
+  UninstallPluginDialog: ActualUninstallPluginDialog,
   AudienceIcon: () => null,
   InstallPluginDialog: ({
     open,
@@ -135,6 +138,7 @@ describe('PluginDetailsPage', () => {
     publishableScopes = ['member'];
     publish.mockResolvedValue(null);
     install.mockResolvedValue(null);
+    uninstall.mockResolvedValue(undefined);
     unpublish.mockResolvedValue(undefined);
     plugin = entry();
   });
@@ -392,7 +396,7 @@ describe('PluginDetailsPage', () => {
   });
 
   // Only an installer may uninstall, so it must not be offered to anyone else.
-  it('offers uninstall only to a member who has it installed', () => {
+  it('offers uninstall only to a member who has it installed', async () => {
     renderPage();
     openMenu();
     expect(screen.queryByRole('menuitem', { name: 'Uninstall' })).toBeNull();
@@ -402,7 +406,39 @@ describe('PluginDetailsPage', () => {
     openMenu();
 
     fireEvent.click(screen.getAllByRole('menuitem', { name: 'Uninstall' })[0]);
-    expect(uninstall).toHaveBeenCalledWith('p1');
+    const dialog = screen.getByRole('dialog', { name: 'Uninstall this plugin?' });
+    expect(uninstall).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Uninstall' }));
+    await waitFor(() => {
+      expect(uninstall).toHaveBeenCalledWith('p1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
+    });
+  });
+
+  // The same confirmation as the menu's: uninstalling ends the Credential access the member
+  // granted, so a stray click in this menu should not do it either.
+  it('keeps the plugin installed when the member cancels the uninstall', () => {
+    plugin = entry({ installationState: 'installed' });
+    renderPage();
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(uninstall).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
+  });
+
+  // Unpublishing is not uninstalling: the page says why the plugin is still the member's.
+  it('tells the installer of a plugin nothing lists that it stays until uninstalled', () => {
+    plugin = entry({ installationState: 'installed', visibleViaScopes: [] });
+    renderPage();
+
+    expect(screen.getByText(/until you uninstall it/)).toBeTruthy();
+    expect(screen.queryByText(/reachable only by direct link/)).toBeNull();
   });
 
   it('marks a suspended plugin and refuses to install it', () => {

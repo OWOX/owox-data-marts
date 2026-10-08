@@ -9,7 +9,8 @@ import type { PluginAudience } from '../visibility';
  * - verified (badge-check): deployment admins listed it product-wide.
  * - you (lock): only this member listed it, for themselves.
  * - project (users): available to every member of the project.
- * - unlisted (link-off): reached by direct link, listed by nobody.
+ * - unlisted (link-off): listed by nobody -- reached by direct link, or kept by the
+ *   reader's own installation.
  */
 export function AudienceIcon({
   audience,

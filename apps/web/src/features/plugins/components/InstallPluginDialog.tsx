@@ -1,6 +1,6 @@
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Blocks, KeyRound, Plus, RotateCcw, Share2, ShieldAlert } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CredentialConfigSheet,
   isCredentialEligible,
@@ -16,6 +16,7 @@ import { GitHubIcon } from '../../../shared/icons';
 import { repositoryPath } from '../repository';
 import { safeHttpsUrl } from '../safeHttpsUrl';
 import type { PluginGalleryEntry } from '../types';
+import { DialogFact } from './DialogFact';
 
 interface InstallPluginDialogProps {
   plugin: PluginGalleryEntry;
@@ -199,7 +200,7 @@ export function InstallPluginDialog({
             data-testid='install-data-notice'
           >
             {isUnlisted && (
-              <Fact icon={<ShieldAlert className='size-4 shrink-0' aria-hidden />}>
+              <DialogFact icon={<ShieldAlert className='size-4 shrink-0' aria-hidden />}>
                 This plugin isn't listed for you. Install it only if you trust{' '}
                 {repoPath ? (
                   <span className='break-words'>{repoPath}</span>
@@ -207,19 +208,19 @@ export function InstallPluginDialog({
                   'whoever sent you the link'
                 )}
                 .
-              </Fact>
+              </DialogFact>
             )}
-            <Fact icon={<KeyRound className='size-4 shrink-0' aria-hidden />}>
+            <DialogFact icon={<KeyRound className='size-4 shrink-0' aria-hidden />}>
               Acts with your access to OWOX Data Marts.
-            </Fact>
-            <Fact icon={<Share2 className='size-4 shrink-0' aria-hidden />}>
+            </DialogFact>
+            <DialogFact icon={<Share2 className='size-4 shrink-0' aria-hidden />}>
               Anything it reads can leave OWOX and reach the plugin publisher.
-            </Fact>
-            <Fact icon={<RotateCcw className='size-4 shrink-0' aria-hidden />}>
+            </DialogFact>
+            <DialogFact icon={<RotateCcw className='size-4 shrink-0' aria-hidden />}>
               {isConfiguring
                 ? 'Changing Credential access does not clear plugin data.'
                 : 'Uninstalling and installing again restores nothing the plugin kept on its own side.'}
-            </Fact>
+            </DialogFact>
           </div>
 
           {requirements.length > 0 && (
@@ -447,14 +448,5 @@ function toCredentialSelections(
     Object.entries(selections).filter(
       (entry): entry is [string, string | null] => entry[1] !== undefined
     )
-  );
-}
-
-function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <div className='text-muted-foreground flex items-start gap-2'>
-      <span className='mt-0.5'>{icon}</span>
-      <p className='min-w-0'>{children}</p>
-    </div>
   );
 }

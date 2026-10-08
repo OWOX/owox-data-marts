@@ -42,9 +42,9 @@ export class GetPluginDetailsService {
       ...new Set(visible.filter(row => row.pluginId === pluginId).map(row => row.scope)),
     ] as PluginPublicationScope[];
 
-    // Read, never assumed. This page is the only surface offering uninstall and update,
-    // and it is the sole route to a plugin no publication lists any more -- reporting a
-    // member's own installation as absent here strands them on it.
+    // Read, never assumed. Members come here to update or uninstall a plugin even after no
+    // publication lists it any more -- reporting their own installation as absent here
+    // strands them on it.
     const installation = await this.installations.findOne(
       pluginId,
       context.projectId,

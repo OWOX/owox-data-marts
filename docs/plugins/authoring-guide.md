@@ -655,6 +655,21 @@ the installation link returned by OWOX Data Marts to grant the correct GitHub Ap
 publish again. A self-managed deployment may use its own GitHub App, so use the link returned by
 that deployment.
 
+### Uninstall or restore
+
+Unpublishing removes a listing, not an installation. A plugin you installed stays under
+**Plugins** in the sidebar and on the **Plugins** page even after nothing lists it any more; its
+card is marked as not listed.
+
+To remove it, hover over the plugin in the sidebar, open its **…** menu, and select
+**Uninstall**. The same action is in the **⋮** menu of the plugin's page, which **Settings** in
+that sidebar menu opens. Uninstalling stops the plugin only for you: who can find it does not
+change, other members keep their installations, and the Credential access you granted ends.
+
+To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Installation history**,
+and select **Restore**. Restoring works even when nothing lists the plugin, and asks for its
+Credential access again.
+
 ## Test the installed plugin
 
 Publish the first release to **Only me**, install it, and test it inside OWOX Data Marts. The

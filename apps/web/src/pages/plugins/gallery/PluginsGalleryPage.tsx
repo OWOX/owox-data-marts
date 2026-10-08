@@ -24,6 +24,7 @@ import {
   useGalleryView,
   usePluginActions,
   usePluginGallery,
+  usePluginInstallations,
   type PluginFilter,
   type PluginGalleryEntry,
   type PluginSort,
@@ -47,7 +48,9 @@ const SORT_LABELS: Record<PluginSort, string> = {
 };
 
 export default function PluginsGalleryPage() {
-  const { plugins, isLoading } = usePluginGallery();
+  const { plugins: listed, isLoading: galleryLoading } = usePluginGallery();
+  // Shares the sidebar's query (uninstalled rows included), so it costs no extra request.
+  const { installations, isLoading: installationsLoading } = usePluginInstallations(true);
   const { install, isInstalling } = usePluginActions();
   const { view, update } = useGalleryView();
   const { scope } = useProjectRoute();
@@ -55,6 +58,24 @@ export default function PluginsGalleryPage() {
   const [query, setQuery] = useState('');
   const [candidate, setCandidate] = useState<PluginGalleryEntry | null>(null);
   const [publishing, setPublishing] = useState(false);
+
+  /**
+   * The Gallery plus every live installation that nothing lists any more.
+   *
+   * Unpublishing is not uninstalling: a plugin can leave the Gallery and stay installed, and
+   * it stays in the member's menu. Without its card here, the Installed filter would disagree
+   * with that menu, and the plugin's own page -- where uninstall lives -- would have no way in
+   * from this page. Its audience mark says why it is still here.
+   */
+  const plugins = useMemo<PluginGalleryEntry[]>(() => {
+    const listedIds = new Set(listed.map(plugin => plugin.pluginId));
+    const kept = installations.filter(
+      installation => installation.uninstalledAt === null && !listedIds.has(installation.pluginId)
+    );
+
+    return kept.length > 0 ? [...listed, ...kept] : listed;
+  }, [listed, installations]);
+  const isLoading = galleryLoading || installationsLoading;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();

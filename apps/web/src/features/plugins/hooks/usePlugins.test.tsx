@@ -107,6 +107,31 @@ describe('usePluginActions', () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  // From the menu, the entry disappearing would otherwise be the only sign it worked.
+  it('confirms an uninstall', async () => {
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.uninstall('p1');
+    });
+
+    expect(service.uninstall).toHaveBeenCalledWith('p1');
+    expect(toast.success).toHaveBeenCalledWith('Plugin uninstalled');
+  });
+
+  it('reports a failed uninstall instead of confirming it', async () => {
+    service.uninstall.mockRejectedValue({ response: { data: { message: 'Not installed' } } });
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.uninstall('p1');
+      })
+    ).rejects.toBeDefined();
+    expect(toast.error).toHaveBeenCalledWith('Not installed');
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
   it('still surfaces a genuine install failure', async () => {
     service.install.mockRejectedValue({ response: { data: { code: 'PLUGIN_SUSPENDED' } } });
     const { result } = renderHook(() => usePluginActions(), { wrapper });

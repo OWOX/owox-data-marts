@@ -16,10 +16,10 @@ import { formatDateOnly } from '../../../utils/date-formatters';
 /**
  * Everything this member has ever installed in this project, still installed or not.
  *
- * Not a convenience listing, and the reason it lists both is the same in either case: a
- * plugin nobody publishes any more is gone from the Gallery entirely. §13 entitles a
- * previous installer to restore it, and an installed one still needs a route to its own
- * page, where uninstall and update live. Nothing else reaches either.
+ * Not a convenience listing: a plugin nobody publishes any more is gone from the Gallery
+ * entirely, and §13 entitles a previous installer to restore it -- this is the only list that
+ * still shows a removed one. An installed one also stays in the menu and on the Plugins page,
+ * each with a way to its own page, so for it this listing is the fallback.
  */
 export default function PluginHistoryPage() {
   const { installations, isLoading } = usePluginInstallations(true);
@@ -149,7 +149,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /**
  * Built like the Gallery card, so a plugin looks the same wherever it is listed.
  *
- * The plugin's own page is where uninstall and update live, and for a plugin no
+ * The plugin's own page is where install and update live, and for a removed plugin no
  * publication lists any more this card is the only way there -- hence the whole surface
  * navigates, not just the name.
  */
