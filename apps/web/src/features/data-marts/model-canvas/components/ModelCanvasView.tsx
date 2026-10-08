@@ -1,13 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../../app/api';
@@ -223,23 +214,6 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
     });
   }, [selectedModelEdge, topology]);
   const isRelationshipSheetOpen = selectedRelationshipId !== null && relationshipOptions.length > 0;
-  // The sheet docks below the toolbar, so the toolbar stays whole and usable; only the canvas
-  // makes room for it.
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const [sheetTop, setSheetTop] = useState(0);
-  useLayoutEffect(() => {
-    if (!isRelationshipSheetOpen) return;
-    const measure = () => {
-      setSheetTop(Math.max(0, Math.round(toolbarRef.current?.getBoundingClientRect().bottom ?? 0)));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', measure, true);
-    return () => {
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure, true);
-    };
-  }, [isRelationshipSheetOpen]);
   const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
   const bulkActionDataMarts = useMemo(
     () =>
@@ -371,33 +345,31 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
   return (
     <div className='dm-card !p-0'>
       {storageKnown && (
-        <div ref={toolbarRef}>
-          <ModelCanvasToolbar
-            status={filters.status}
-            onStatusChange={filters.setStatus}
-            rel={filters.rel}
-            onRelChange={filters.setRel}
-            searchQuery={filters.searchQuery}
-            onSearchChange={filters.setSearchQuery}
-            onExport={handleExport}
-            actions={
-              <DataMartBulkActions
-                onCheckDataLastUpdated={() => {
-                  // Meeting decision: the check covers what the user actually sees — the same
-                  // filtered set the other bulk actions target.
-                  void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
-                }}
-                isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
-                dataMarts={bulkActionDataMarts}
-                projectId={projectId ?? ''}
-                deleteDataMart={deleteDataMart}
-                publishDataMart={publishDataMart}
-                onCompleted={refreshCanvas}
-                targetScope='canvas'
-              />
-            }
-          />
-        </div>
+        <ModelCanvasToolbar
+          status={filters.status}
+          onStatusChange={filters.setStatus}
+          rel={filters.rel}
+          onRelChange={filters.setRel}
+          searchQuery={filters.searchQuery}
+          onSearchChange={filters.setSearchQuery}
+          onExport={handleExport}
+          actions={
+            <DataMartBulkActions
+              onCheckDataLastUpdated={() => {
+                // Meeting decision: the check covers what the user actually sees — the same
+                // filtered set the other bulk actions target.
+                void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
+              }}
+              isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+              dataMarts={bulkActionDataMarts}
+              projectId={projectId ?? ''}
+              deleteDataMart={deleteDataMart}
+              publishDataMart={publishDataMart}
+              onCompleted={refreshCanvas}
+              targetScope='canvas'
+            />
+          }
+        />
       )}
       {storageLoadError ? (
         <div className='p-4'>
@@ -483,7 +455,6 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
             relationshipId={selectedRelationshipId}
             storageId={filters.storageId}
             focusRequest={sheetFocusRequest}
-            top={sheetTop}
             onRelationshipChange={setSelectedRelationshipId}
             onClose={() => {
               selectRelationship(null);

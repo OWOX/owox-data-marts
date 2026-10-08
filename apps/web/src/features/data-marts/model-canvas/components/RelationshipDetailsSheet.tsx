@@ -28,7 +28,6 @@ import { RelationshipWarningBadges } from '../../edit/components/DataMartRelatio
 import { useOutputAliasDraft } from '../../edit/components/DataMartRelationships/useOutputAliasDraft';
 import { DataMartIconGlyph } from '../../shared/components/DataMartIcon';
 import type { DataMartIconValue } from '../../shared/enums/data-mart-icon.enum';
-import { RELATIONSHIP_SHEET_WIDTH_CLASS } from '../model/relationship-sheet-layout';
 import { useRelationshipDetails } from '../model/use-relationship-details';
 import {
   useRelationshipSourceConfig,
@@ -58,8 +57,6 @@ interface RelationshipDetailsSheetProps {
    * Zero for a pick with the pointer, which leaves focus where it is.
    */
   focusRequest?: number;
-  /** Where the sheet starts, in pixels from the top of the window: below the canvas toolbar. */
-  top?: number;
   onRelationshipChange: (relationshipId: string) => void;
   onClose: () => void;
 }
@@ -81,16 +78,16 @@ function DataMartLink({ dataMart }: { dataMart: RelationshipSheetDataMart }) {
 }
 
 /**
- * The details of a relationship picked on the Models canvas, docked on the right. It edits the
- * same settings as the relationship's row in the source Data Mart's Joinable Data Marts block.
- * It is not modal: the canvas stays usable, so another arrow can be picked while it is open.
+ * The details of a relationship picked on the Models canvas, in a full-height sheet on the right
+ * like the other sheets of the app. It edits the same settings as the relationship's row in the
+ * source Data Mart's Joinable Data Marts block. It is not modal: the canvas stays usable, so
+ * another arrow can be picked while it is open.
  */
 export default function RelationshipDetailsSheet({
   options,
   relationshipId,
   storageId,
   focusRequest = 0,
-  top = 0,
   onRelationshipChange,
   onClose,
 }: RelationshipDetailsSheetProps) {
@@ -116,8 +113,6 @@ export default function RelationshipDetailsSheet({
     >
       <SheetContent
         ref={contentRef}
-        className={`gap-0 ${RELATIONSHIP_SHEET_WIDTH_CLASS}`}
-        style={top > 0 ? { top, bottom: 0, height: 'auto' } : undefined}
         // A pointer pick keeps focus on the canvas, so no field looks active before the user
         // picks one. A keyboard pick moves focus to the sheet itself.
         onOpenAutoFocus={event => {

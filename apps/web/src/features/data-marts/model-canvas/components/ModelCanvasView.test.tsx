@@ -227,19 +227,16 @@ vi.mock('./RelationshipDetailsSheet', () => ({
     options,
     relationshipId,
     focusRequest,
-    top,
     onClose,
   }: {
     options: { id: string; source: { title: string }; target: { title: string } }[];
     relationshipId: string;
     focusRequest?: number;
-    top?: number;
     onClose: () => void;
   }) => (
     <div role='dialog' aria-label='Relationship'>
       <span data-testid='sheet-relationship'>{relationshipId}</span>
       <span data-testid='sheet-focus-request'>{focusRequest ?? 0}</span>
-      <span data-testid='sheet-top'>{top ?? 0}</span>
       <span data-testid='sheet-options'>
         {options
           .map(option => `${option.id}:${option.source.title}->${option.target.title}`)
@@ -440,10 +437,7 @@ describe('ModelCanvasView', () => {
     );
   });
 
-  it('docks the open sheet below the toolbar and keeps the canvas clear of it', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      bottom: 120,
-    } as DOMRect);
+  it('keeps the canvas clear of the open sheet', async () => {
     viewState.canvasHook.data = buildCanvasData();
     const { container } = render(<ModelCanvasView />);
 
@@ -453,9 +447,8 @@ describe('ModelCanvasView', () => {
     await screen.findByRole('dialog', { name: 'Relationship' });
 
     // Only the canvas leaves room for the sheet; the toolbar keeps its full width on one row.
-    expect(screen.getByTestId('canvas-class')).toHaveTextContent('sm:mr-[640px]');
-    expect(container.querySelector('.dm-card')).not.toHaveClass('sm:mr-[640px]');
-    expect(screen.getByTestId('sheet-top')).toHaveTextContent('120');
+    expect(screen.getByTestId('canvas-class')).toHaveTextContent('sm:mr-[600px]');
+    expect(container.querySelector('.dm-card')).not.toHaveClass('sm:mr-[600px]');
   });
 
   it('moves focus into the sheet on a keyboard pick and back when it closes', async () => {
