@@ -139,8 +139,10 @@ describe('PluginDetailsPage', () => {
     plugin = entry();
   });
 
-  // Header owns install/reinstall; the version chip carries Check now regardless.
-  it('offers Install or Reinstall in the header, and updating once installed', () => {
+  // Header owns Install; the version chip carries Check and Update regardless. An installed
+  // plugin has nothing to install again -- OWOX neither hosts nor packages it -- so its
+  // header offers no Reinstall that would only look like a lifecycle action.
+  it('offers Install until the plugin is installed, and updating once installed', () => {
     renderPage();
     expect(screen.getByRole('button', { name: 'Install' })).toBeTruthy();
     cleanup();
@@ -155,10 +157,11 @@ describe('PluginDetailsPage', () => {
     plugin = entry({ installationState: 'installed' });
     renderPage();
 
-    expect(screen.getByRole('button', { name: 'Reinstall' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reinstall' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
     expect(checkNow).toHaveBeenCalledWith('p1');
   });
 
@@ -171,14 +174,14 @@ describe('PluginDetailsPage', () => {
     expect(screen.queryByRole('button', { name: 'Reinstall' })).toBeNull();
   });
 
-  // §6.3: Check now is open to any project member who can reach the page, not only one
-  // who has installed the plugin -- an installation requirement would only delay a check
-  // that is scheduled and inevitable anyway.
-  it('offers Check now even without an installation', () => {
+  // §6.3: Check and Update is open to any project member who can reach the page, not only
+  // one who has installed the plugin -- an installation requirement would only delay a
+  // check that is scheduled and inevitable anyway.
+  it('offers Check and Update even without an installation', () => {
     plugin = entry({ installationState: 'not_installed' });
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
     expect(checkNow).toHaveBeenCalledWith('p1');
   });
 

@@ -670,7 +670,8 @@ eligible release before sharing the plugin more broadly.
 
 For a normal update, change and test the plugin, deploy it, and create a higher production release
 such as `v0.1.1`. OWOX Data Marts checks relevant repositories daily. Ask for an immediate check
-when needed:
+when needed, with **Check and Update** next to the version on the plugin's page or from the command
+line:
 
 ```bash
 owox-ctl plugins update OWNER/PLUGIN_NAME
