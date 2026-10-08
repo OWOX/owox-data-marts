@@ -11,7 +11,7 @@ import { repositoryPath as actualRepositoryPath } from '../../../features/plugin
 import { safeHttpsUrl as actualSafeHttpsUrl } from '../../../features/plugins/safeHttpsUrl';
 import { findReleaseIssues as actualFindReleaseIssues } from '../../../features/plugins/rejections';
 import { PluginReleaseIssuesCard as ActualPluginReleaseIssuesCard } from '../../../features/plugins/components/PluginReleaseIssuesCard';
-import { UninstallPluginDialog as ActualUninstallPluginDialog } from '../../../features/plugins/components/UninstallPluginDialog';
+import { useUninstallConfirmation as actualUseUninstallConfirmation } from '../../../features/plugins/components/useUninstallConfirmation';
 
 const publish = vi.fn();
 const unpublish = vi.fn();
@@ -50,7 +50,8 @@ vi.mock('../../../features/plugins', () => ({
   safeHttpsUrl: actualSafeHttpsUrl,
   findReleaseIssues: actualFindReleaseIssues,
   PluginReleaseIssuesCard: ActualPluginReleaseIssuesCard,
-  UninstallPluginDialog: ActualUninstallPluginDialog,
+  // The real confirmation: the page's part of the contract is what it asks and when it closes.
+  useUninstallConfirmation: actualUseUninstallConfirmation,
   AudienceIcon: () => null,
   InstallPluginDialog: ({
     open,
@@ -358,8 +359,9 @@ describe('PluginDetailsPage', () => {
     await waitFor(() => {
       expect(publish).toHaveBeenCalledWith('owox/example-plugin', 'project');
     });
+    // Quietly: "Plugin unpublished" right after widening the audience would say the opposite.
     await waitFor(() => {
-      expect(unpublish).toHaveBeenCalledWith('owox/example-plugin', 'member');
+      expect(unpublish).toHaveBeenCalledWith('owox/example-plugin', 'member', { silent: true });
     });
   });
 
@@ -430,6 +432,23 @@ describe('PluginDetailsPage', () => {
 
     expect(uninstall).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
+  });
+
+  // The action has already toasted the reason; closing would hide the retry.
+  it('keeps the uninstall confirmation open when the uninstall fails', async () => {
+    uninstall.mockRejectedValue(new Error('refused'));
+    plugin = entry({ installationState: 'installed' });
+    renderPage();
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+    const dialog = screen.getByRole('dialog', { name: 'Uninstall this plugin?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Uninstall' }));
+
+    await waitFor(() => {
+      expect(uninstall).toHaveBeenCalledWith('p1');
+    });
+    expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
   });
 
   // Unpublishing is not uninstalling: the page says why the plugin is still the member's.

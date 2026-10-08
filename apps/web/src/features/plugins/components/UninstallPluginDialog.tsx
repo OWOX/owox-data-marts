@@ -9,6 +9,7 @@ interface UninstallPluginDialogProps {
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
   isUninstalling: boolean;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -19,6 +20,9 @@ interface UninstallPluginDialogProps {
  * to click by mistake. So it asks once, and says what does not change -- who can find the
  * plugin and everyone else's installation -- because unpublishing and uninstalling are the
  * two actions members confuse.
+ *
+ * It cannot be dismissed while the request runs: the request would finish anyway, and a
+ * dialog closed by Cancel would be followed by "Plugin uninstalled".
  */
 export function UninstallPluginDialog({
   plugin,
@@ -26,13 +30,19 @@ export function UninstallPluginDialog({
   onOpenChange,
   onConfirm,
   isUninstalling,
+  onCloseAutoFocus,
 }: UninstallPluginDialogProps) {
   const hasCredentialRequirements = (plugin.credentialRequirements?.length ?? 0) > 0;
 
   return (
     <ConfirmationDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={next => {
+        if (!next && isUninstalling) {
+          return;
+        }
+        onOpenChange(next);
+      }}
       title='Uninstall this plugin?'
       description={
         <p className='break-words'>
@@ -43,18 +53,19 @@ export function UninstallPluginDialog({
       confirmLabel={isUninstalling ? 'Uninstalling…' : 'Uninstall'}
       cancelLabel='Cancel'
       confirmDisabled={isUninstalling}
+      cancelDisabled={isUninstalling}
       onConfirm={onConfirm}
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       <div className='flex flex-col gap-3 rounded-md border p-3 text-sm'>
-        <DialogFact icon={<Users className='size-4 shrink-0' aria-hidden />}>
+        <DialogFact icon={Users}>
           Who can find it does not change, and other members keep their installations.
         </DialogFact>
-        <DialogFact icon={<History className='size-4 shrink-0' aria-hidden />}>
-          You can restore it later from Installation history.
-        </DialogFact>
+        <DialogFact icon={History}>You can restore it later from Installation history.</DialogFact>
+        {/* "Any": an optional requirement may have been answered "Do not grant". */}
         {hasCredentialRequirements && (
-          <DialogFact icon={<KeyRound className='size-4 shrink-0' aria-hidden />}>
-            The Credential access you granted ends. Restoring asks for it again.
+          <DialogFact icon={KeyRound}>
+            Any Credential access you granted ends. Restoring asks for it again.
           </DialogFact>
         )}
       </div>

@@ -6,3 +6,4 @@ export { PluginReleaseIssuesCard } from './PluginReleaseIssuesCard';
 export { PublishPluginSheet } from './PublishPluginSheet';
 export { UninstallPluginDialog } from './UninstallPluginDialog';
 export { useCopyLink } from './useCopyLink';
+export { useUninstallConfirmation } from './useUninstallConfirmation';

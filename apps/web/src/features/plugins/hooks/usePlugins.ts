@@ -15,7 +15,8 @@ import type { InstalledPlugin, PluginGalleryEntry, PluginUpdateResult } from '..
 export const GALLERY_KEY = 'plugin-gallery';
 /** Shared with usePluginPublications for the same no-silent-drift reason as GALLERY_KEY. */
 export const PUBLICATIONS_KEY = 'plugin-publications';
-const INSTALLATIONS_KEY = 'plugin-installations';
+/** Exported for the same reason: installation rows carry visibleViaScopes too. */
+export const INSTALLATIONS_KEY = 'plugin-installations';
 
 const EMPTY_GALLERY: PluginGalleryEntry[] = [];
 const EMPTY_INSTALLATIONS: InstalledPlugin[] = [];

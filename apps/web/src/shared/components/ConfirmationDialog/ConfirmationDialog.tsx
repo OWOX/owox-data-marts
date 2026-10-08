@@ -19,6 +19,9 @@ interface ConfirmationDialogProps {
   onConfirm: () => void;
   onCancel?: () => void;
   confirmDisabled?: boolean;
+  cancelDisabled?: boolean;
+  /** Where focus goes on close; Radix has no trigger to return it to when the dialog opens from a menu. */
+  onCloseAutoFocus?: (event: Event) => void;
   variant?: 'destructive' | 'default' | 'brand' | 'outline' | 'secondary' | 'ghost' | 'link';
   children?: ReactNode;
 }
@@ -33,6 +36,8 @@ export const ConfirmationDialog = ({
   onConfirm,
   onCancel,
   confirmDisabled = false,
+  cancelDisabled = false,
+  onCloseAutoFocus,
   variant = 'destructive',
   children,
 }: ConfirmationDialogProps) => {
@@ -43,7 +48,7 @@ export const ConfirmationDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription asChild>
@@ -53,7 +58,7 @@ export const ConfirmationDialog = ({
         {children}
         <DialogFooter>
           {cancelLabel && (
-            <Button variant='secondary' onClick={handleCancel}>
+            <Button variant='secondary' onClick={handleCancel} disabled={cancelDisabled}>
               {cancelLabel}
             </Button>
           )}

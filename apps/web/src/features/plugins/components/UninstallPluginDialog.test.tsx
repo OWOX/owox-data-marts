@@ -67,4 +67,35 @@ describe('UninstallPluginDialog', () => {
 
     expect(screen.getByRole('button', { name: 'Uninstalling…' })).toBeDisabled();
   });
+
+  // The request finishes anyway; a dialog dismissed now would be followed by "uninstalled".
+  it('cannot be dismissed while the uninstall runs', () => {
+    const props = renderDialog({ isUninstalling: true });
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(props.onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('closes on Escape once nothing is running', () => {
+    const props = renderDialog();
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(props.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // An optional requirement may have been answered "Do not grant", so the warning hedges.
+  it('words the Credential warning for access that may never have been granted', () => {
+    renderDialog({
+      plugin: {
+        displayName: 'Example Plugin',
+        credentialRequirements: [{ id: 'openai', optional: true }],
+      },
+    });
+
+    expect(screen.getByText(/^Any Credential access you granted ends/)).toBeInTheDocument();
+  });
 });

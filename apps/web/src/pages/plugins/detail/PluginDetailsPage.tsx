@@ -27,7 +27,6 @@ import {
   AudienceIcon,
   InstallPluginDialog,
   PluginReleaseIssuesCard,
-  UninstallPluginDialog,
   findReleaseIssues,
   usePlugin,
   usePluginActions,
@@ -36,6 +35,7 @@ import {
   usePluginPublishing,
   usePublishableScopes,
   useCopyLink,
+  useUninstallConfirmation,
   repositoryPath,
   safeHttpsUrl,
   type PluginGalleryEntry,
@@ -88,7 +88,12 @@ export default function PluginDetailsPage({
   const navigate = useNavigate();
 
   const [confirming, setConfirming] = useState<PluginGalleryEntry | null>(null);
-  const [confirmingUninstall, setConfirmingUninstall] = useState(false);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const { requestUninstall, uninstallDialog } = useUninstallConfirmation({
+    uninstall,
+    isUninstalling,
+    fallbackFocus: () => actionsTriggerRef.current,
+  });
 
   // A shared deep link opens the dialog once; closing it is the member's answer.
   const offeredInstall = useRef(false);
@@ -163,15 +168,6 @@ export default function PluginDetailsPage({
     memberPublication !== undefined &&
     !publications.some(item => item.scope === 'project');
 
-  const confirmUninstall = async () => {
-    try {
-      await uninstall(plugin.pluginId);
-      setConfirmingUninstall(false);
-    } catch {
-      // The hook has already said why; the dialog stays open for another try.
-    }
-  };
-
   const shareWithProject = async () => {
     if (!memberPublication) {
       return;
@@ -182,7 +178,10 @@ export default function PluginDetailsPage({
       return;
     }
 
-    await unpublish(memberPublication.repository, 'member').catch(() => undefined);
+    // Quiet: the plugin just became more visible, and "unpublished" would say the opposite.
+    await unpublish(memberPublication.repository, 'member', { silent: true }).catch(
+      () => undefined
+    );
   };
 
   return (
@@ -231,7 +230,12 @@ export default function PluginDetailsPage({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant='ghost' size='icon' aria-label='More plugin actions'>
+                <Button
+                  ref={actionsTriggerRef}
+                  variant='ghost'
+                  size='icon'
+                  aria-label='More plugin actions'
+                >
                   <EllipsisVertical className='size-4' />
                 </Button>
               </DropdownMenuTrigger>
@@ -281,7 +285,7 @@ export default function PluginDetailsPage({
                     {publications.length > 0 && <DropdownMenuSeparator />}
                     <DropdownMenuItem
                       onClick={() => {
-                        setConfirmingUninstall(true);
+                        requestUninstall(plugin, actionsTriggerRef.current);
                       }}
                     >
                       Uninstall
@@ -544,13 +548,7 @@ export default function PluginDetailsPage({
           mode={isConfiguringCredentials ? 'configure' : 'install'}
         />
       )}
-      <UninstallPluginDialog
-        plugin={plugin}
-        open={confirmingUninstall}
-        onOpenChange={setConfirmingUninstall}
-        onConfirm={() => void confirmUninstall()}
-        isUninstalling={isUninstalling}
-      />
+      {uninstallDialog}
       {fallbackDialog}
     </div>
   );

@@ -214,9 +214,9 @@ describe('Plugin installations (e2e)', () => {
 
   /**
    * No publication is created anywhere in this suite, which is the point: withdrawing a
-   * publication leaves an installed plugin listed nowhere, and its own page is the only
-   * place offering uninstall and update. Reporting the caller's installation as absent
-   * there strands them on a plugin they are still running.
+   * publication leaves an installed plugin listed nowhere, and members still come to its own
+   * page to update or uninstall it. Reporting the caller's installation as absent there
+   * strands them on a plugin they are still running.
    */
   describe('direct plugin page', () => {
     it.each([

@@ -1,4 +1,5 @@
-import { useLocation, useParams } from 'react-router';
+import { useRef } from 'react';
+import { Navigate, useLocation, useParams } from 'react-router';
 import { routeFromLocation, usePluginInstallations } from '../../../features/plugins';
 import { useProjectRoute } from '../../../shared/hooks';
 import PluginDetailsPage from '../detail/PluginDetailsPage';
@@ -9,6 +10,8 @@ export default function PluginOpenPage() {
   const location = useLocation();
   const { scope } = useProjectRoute();
   const { installations, isLoading } = usePluginInstallations();
+  /** The plugin this page last ran: losing its installation is an uninstall, not a visit. */
+  const ranPluginIdRef = useRef<string | null>(null);
 
   if (isLoading) {
     return (
@@ -24,8 +27,17 @@ export default function PluginOpenPage() {
   );
 
   if (!installation) {
+    // Uninstalled while running -- from the menu, another tab, anywhere. Offering the install
+    // here would answer a question the member did not ask; the plugin's page is where they
+    // can install it again.
+    if (ranPluginIdRef.current === pluginId) {
+      return <Navigate to={scope(`/plugins/${pluginId}`)} replace />;
+    }
+
     return <PluginDetailsPage key={pluginId} installOnOpen />;
   }
+
+  ranPluginIdRef.current = pluginId;
 
   return (
     <PluginRuntime

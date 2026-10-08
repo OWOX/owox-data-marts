@@ -115,6 +115,32 @@ describe('PluginOpenPage', () => {
     expect(screen.getByText('details with install')).toBeInTheDocument();
   });
 
+  /**
+   * Uninstalled while running -- from the sidebar, another tab, anywhere. The page leaves for
+   * the plugin's own page instead of offering the install the member just turned down, and
+   * only once the installation is really gone.
+   */
+  it("leaves for the plugin's page when the running plugin is uninstalled", () => {
+    installations = [{ installationId: 'i1', pluginId: 'p1', uninstalledAt: null }];
+    // A fresh element each time: re-rendering the same one would let React skip the tree.
+    const view = () => (
+      <MemoryRouter initialEntries={['/ui/project-1/plugins/p1/open/d/42']}>
+        <Routes>
+          <Route path='/ui/:projectId/plugins/:pluginId/open/*' element={<PluginOpenPage />} />
+          <Route path='/ui/:projectId/plugins/:pluginId' element={<p>plugin page</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const { rerender } = render(view());
+    expect(screen.getByText(/runtime i1 at \/d\/42/)).toBeInTheDocument();
+
+    installations = [];
+    rerender(view());
+
+    expect(screen.getByText('plugin page')).toBeInTheDocument();
+    expect(screen.queryByText(/details with install/)).toBeNull();
+  });
+
   it('offers the install afresh on moving to another plugin the member lacks', async () => {
     render(
       <MemoryRouter initialEntries={['/ui/project-1/plugins/p1/open']}>

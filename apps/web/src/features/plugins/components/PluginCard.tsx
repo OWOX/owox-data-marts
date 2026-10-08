@@ -114,12 +114,8 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
 
         {/*
           Icon alone, with the sentence in the tooltip: on a grid of cards a permanent
-          line of text competes with the plugin's own name for attention.
-
-          - verified (badge-check): deployment admins listed it product-wide.
-          - lock / users: the reader had a hand in listing it (personal or project).
-          - unlisted: listed by nobody -- reached by direct link, or kept by the reader's
-            own installation after it left the Gallery.
+          line of text competes with the plugin's own name for attention. AudienceIcon says
+          which glyph means what.
         */}
         {visibility && (
           <Tooltip>

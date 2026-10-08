@@ -200,7 +200,7 @@ export function InstallPluginDialog({
             data-testid='install-data-notice'
           >
             {isUnlisted && (
-              <DialogFact icon={<ShieldAlert className='size-4 shrink-0' aria-hidden />}>
+              <DialogFact icon={ShieldAlert}>
                 This plugin isn't listed for you. Install it only if you trust{' '}
                 {repoPath ? (
                   <span className='break-words'>{repoPath}</span>
@@ -210,13 +210,11 @@ export function InstallPluginDialog({
                 .
               </DialogFact>
             )}
-            <DialogFact icon={<KeyRound className='size-4 shrink-0' aria-hidden />}>
-              Acts with your access to OWOX Data Marts.
-            </DialogFact>
-            <DialogFact icon={<Share2 className='size-4 shrink-0' aria-hidden />}>
+            <DialogFact icon={KeyRound}>Acts with your access to OWOX Data Marts.</DialogFact>
+            <DialogFact icon={Share2}>
               Anything it reads can leave OWOX and reach the plugin publisher.
             </DialogFact>
-            <DialogFact icon={<RotateCcw className='size-4 shrink-0' aria-hidden />}>
+            <DialogFact icon={RotateCcw}>
               {isConfiguring
                 ? 'Changing Credential access does not clear plugin data.'
                 : 'Uninstalling and installing again restores nothing the plugin kept on its own side.'}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { SidebarProvider } from '@owox/ui/components/sidebar';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
-// The real UninstallPluginDialog stays: what it asks before uninstalling is part of the menu.
+// The real confirmation stays: what it asks before uninstalling is part of the menu.
 vi.mock('../../../features/plugins', async () => {
   const actual = await vi.importActual<typeof import('../../../features/plugins')>(
     '../../../features/plugins'
@@ -35,9 +35,13 @@ const installation = (overrides = {}) => ({
   installationId: 'i1',
   pluginId: 'p1',
   displayName: 'Example Plugin',
+  suspended: false,
+  currentVersionId: 'v1',
   uninstalledAt: null,
   ...overrides,
 });
+
+const REMOVED_AT = '2026-07-01T00:00:00Z';
 
 const galleryPlugin = (overrides = {}) => ({
   pluginId: 'p1',
@@ -99,10 +103,31 @@ describe('PluginsMenu', () => {
     );
   });
 
-  it('hides with an empty gallery when the only installation was removed', () => {
+  // §10: uninstalling the last plugin nothing lists must not take Installation history with it.
+  it('stays for a removed installation the member can restore, even with an empty gallery', () => {
     gallery.mockReturnValue({ plugins: [], isLoading: false });
     installations.mockReturnValue({
-      installations: [installation({ uninstalledAt: '2026-07-01T00:00:00Z' })],
+      installations: [installation({ uninstalledAt: REMOVED_AT })],
+      isLoading: false,
+    });
+
+    renderMenu();
+
+    expect(screen.getByRole('link', { name: 'Plugins' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins'
+    );
+    expect(screen.queryByRole('link', { name: 'Example Plugin' })).not.toBeInTheDocument();
+  });
+
+  // Restore re-runs the install, which both of these refuse.
+  it.each([
+    ['suspended', { suspended: true }],
+    ['without a current version', { currentVersionId: null }],
+  ])('hides for a removed installation that is %s', (_, overrides) => {
+    gallery.mockReturnValue({ plugins: [], isLoading: false });
+    installations.mockReturnValue({
+      installations: [installation({ uninstalledAt: REMOVED_AT, ...overrides })],
       isLoading: false,
     });
 
@@ -212,7 +237,7 @@ describe('PluginsMenu', () => {
   // Uninstalling removes the shortcut but keeps the plugin restorable from history.
   it('drops a removed installation from the submenu', () => {
     installations.mockReturnValue({
-      installations: [installation({ uninstalledAt: '2026-07-01T00:00:00Z' })],
+      installations: [installation({ uninstalledAt: REMOVED_AT })],
       isLoading: false,
     });
 
@@ -226,15 +251,16 @@ describe('PluginsMenu', () => {
    * it leaves the Gallery. Its own row is where a member looks for a way to remove it.
    */
   describe('row menu', () => {
-    const openRowMenu = (name = 'Example Plugin') => {
-      fireEvent.keyDown(screen.getByRole('button', { name: `More actions for ${name}` }), {
-        key: 'Enter',
-      });
+    const rowMenuButton = () =>
+      screen.getByRole('button', { name: 'More actions for Example Plugin' });
+
+    const openUninstallDialog = () => {
+      fireEvent.keyDown(rowMenuButton(), { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
     };
 
     const confirmUninstall = () => {
-      openRowMenu();
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+      openUninstallDialog();
       fireEvent.click(
         within(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).getByRole('button', {
           name: 'Uninstall',
@@ -256,14 +282,14 @@ describe('PluginsMenu', () => {
       });
       renderMenu();
 
-      expect(screen.getByRole('button', { name: 'More actions for Example Plugin' })).toBeTruthy();
+      expect(rowMenuButton()).toBeTruthy();
       expect(screen.getByRole('button', { name: 'More actions for Second Plugin' })).toBeTruthy();
     });
 
     it('opens the plugin page from Settings, even when nothing lists the plugin', () => {
       gallery.mockReturnValue({ plugins: [], isLoading: false });
       renderMenu();
-      openRowMenu();
+      fireEvent.keyDown(rowMenuButton(), { key: 'Enter' });
 
       expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute(
         'href',
@@ -273,8 +299,7 @@ describe('PluginsMenu', () => {
 
     it('uninstalls only after the member confirms', async () => {
       renderMenu();
-      openRowMenu();
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+      openUninstallDialog();
 
       expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
       expect(uninstall).not.toHaveBeenCalled();
@@ -291,15 +316,14 @@ describe('PluginsMenu', () => {
 
     it('keeps the plugin when the member cancels', () => {
       renderMenu();
-      openRowMenu();
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Uninstall' }));
+      openUninstallDialog();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(uninstall).not.toHaveBeenCalled();
       expect(screen.queryByRole('dialog', { name: 'Uninstall this plugin?' })).toBeNull();
     });
 
-    // The hook has already toasted the reason; closing would hide the retry.
+    // The action has already toasted the reason; closing would hide the retry.
     it('keeps the confirmation open when the uninstall fails', async () => {
       uninstall.mockRejectedValue(new Error('refused'));
       renderMenu();
@@ -311,26 +335,66 @@ describe('PluginsMenu', () => {
       expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
     });
 
-    // An open address with no installation behind it offers the install, which is the
-    // opposite of what the member just asked for.
-    it("leaves the plugin's open address for its page before uninstalling", async () => {
-      renderMenu('/ui/project-1/plugins/p1/open/d/42');
-      confirmUninstall();
+    // A dialog dismissed mid-request would be followed by "Plugin uninstalled" anyway.
+    it('cannot be dismissed while the uninstall runs', () => {
+      actions.mockReturnValue({ uninstall, isUninstalling: true });
+      renderMenu();
+      openUninstallDialog();
 
-      await waitFor(() => {
-        expect(uninstall).toHaveBeenCalledWith('p1');
-      });
-      expect(currentPath()).toBe('/ui/project-1/plugins/p1');
+      const dialog = screen.getByRole('dialog', { name: 'Uninstall this plugin?' });
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+
+      expect(screen.getByRole('dialog', { name: 'Uninstall this plugin?' })).toBeTruthy();
     });
 
-    it('leaves the member where they are when they uninstall from elsewhere', async () => {
-      renderMenu('/ui/project-1/data-marts');
+    /**
+     * The menu does not move the member, even off the plugin's own open address: that page
+     * leaves for the plugin's page once the installation is gone, and only if it went.
+     */
+    it.each(['/ui/project-1/plugins/p1/open/d/42', '/ui/project-1/data-marts'])(
+      'leaves the member on %s',
+      async path => {
+        renderMenu(path);
+        confirmUninstall();
+
+        await waitFor(() => {
+          expect(uninstall).toHaveBeenCalledWith('p1');
+        });
+        expect(currentPath()).toBe(path);
+      }
+    );
+
+    it('gives focus back to the row menu button when the member cancels', async () => {
+      renderMenu();
+      openUninstallDialog();
+      // The closing menu hands focus back on a timer; in a browser that has long fired by
+      // the time the member clicks Cancel, so let it fire here too.
+      await act(() => new Promise(resolve => setTimeout(resolve, 0)));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => {
+        expect(rowMenuButton()).toHaveFocus();
+      });
+    });
+
+    // The row leaves with the plugin, so focus needs somewhere else to land than <body>.
+    it('moves focus to Plugins once the uninstalled row is gone', async () => {
+      uninstall.mockImplementation(() => {
+        installations.mockReturnValue({
+          installations: [installation({ uninstalledAt: REMOVED_AT })],
+          isLoading: false,
+        });
+        return Promise.resolve();
+      });
+      renderMenu();
       confirmUninstall();
 
       await waitFor(() => {
-        expect(uninstall).toHaveBeenCalledWith('p1');
+        expect(screen.getByRole('link', { name: 'Plugins' })).toHaveFocus();
       });
-      expect(currentPath()).toBe('/ui/project-1/data-marts');
+      expect(screen.queryByRole('link', { name: 'Example Plugin' })).not.toBeInTheDocument();
     });
   });
 });

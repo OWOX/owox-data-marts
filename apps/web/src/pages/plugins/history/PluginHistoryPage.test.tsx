@@ -82,7 +82,8 @@ describe('PluginHistoryPage', () => {
   /**
    * Withdrawing a publication removes a plugin from the Gallery without uninstalling
    * anyone, so an installed plugin can end up listed nowhere while still running. Its own
-   * page owns uninstall and update, and this is the only surface that still reaches it.
+   * page owns update and uninstall; the sidebar and the Plugins page reach it too, and this
+   * listing stays as the fallback.
    */
   it('lists a still-installed plugin and links to its page', () => {
     installations = [

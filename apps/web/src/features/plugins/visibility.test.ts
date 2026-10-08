@@ -60,9 +60,17 @@ describe('describeVisibility', () => {
     expect(visibility?.detail).not.toContain('direct link');
   });
 
-  it('keeps the direct-link sentence for a plugin the member removed or never installed', () => {
-    expect(describeVisibility([], 'uninstalled')?.detail).toContain('direct link');
+  it('keeps the direct-link sentence for a plugin the member never installed', () => {
     expect(describeVisibility([], 'not_installed')?.detail).toContain('direct link');
+  });
+
+  // They came from Installation history, not a link -- and that is where it comes back from.
+  it('points a member who uninstalled it to Installation history', () => {
+    const visibility = describeVisibility([], 'uninstalled');
+
+    expect(visibility?.audience).toBe('unlisted');
+    expect(visibility?.detail).toContain('Installation history');
+    expect(visibility?.detail).not.toContain('direct link');
   });
 
   // A listing still explains itself the same way to someone who installed the plugin.

@@ -5,7 +5,7 @@ import { useIsAdmin } from '../../idp/hooks/useRole';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
 import type { PluginPublication, PluginPublicationScope } from '../types';
-import { GALLERY_KEY, PUBLICATIONS_KEY } from './usePlugins';
+import { GALLERY_KEY, INSTALLATIONS_KEY, PUBLICATIONS_KEY } from './usePlugins';
 
 const EMPTY: PluginPublication[] = [];
 
@@ -77,6 +77,9 @@ export function usePluginPublishing() {
       // Publishing changes what the Gallery shows, so refreshing one without the other
       // leaves the member looking at a list that no longer matches.
       queryClient.invalidateQueries({ queryKey: [GALLERY_KEY, projectId] }),
+      // Installation rows say why each plugin is visible as well, and the Plugins page draws
+      // a plugin nothing lists any more from them.
+      queryClient.invalidateQueries({ queryKey: [INSTALLATIONS_KEY, projectId] }),
     ]);
   }, [queryClient, projectId]);
 
@@ -111,15 +114,26 @@ export function usePluginPublishing() {
     [publishMutation]
   );
 
+  /**
+   * `silent` is for a withdrawal that is a step of something else -- sharing a personal
+   * listing with the project -- where "unpublished" would describe the opposite of what the
+   * member just did. Failures are reported either way.
+   */
   const unpublish = useCallback(
-    async (repository: string, scope: PluginPublicationScope) => {
+    async (
+      repository: string,
+      scope: PluginPublicationScope,
+      { silent = false }: { silent?: boolean } = {}
+    ) => {
       try {
         await unpublishMutation.mutateAsync({ repository, scope });
-        // Members read Unpublish as Uninstall, then cannot tell why the plugin is still in
-        // their menu. The listing is all that went.
-        toast.success(
-          'Plugin unpublished. Anyone who installed it keeps it until they uninstall it.'
-        );
+        if (!silent) {
+          // Members read Unpublish as Uninstall, then cannot tell why the plugin is still in
+          // their menu. The listing is all that went.
+          toast.success(
+            'Plugin unpublished. Anyone who installed it keeps it until they uninstall it.'
+          );
+        }
       } catch (caught) {
         toast.error(readPublishFailure(caught).message);
         throw caught;

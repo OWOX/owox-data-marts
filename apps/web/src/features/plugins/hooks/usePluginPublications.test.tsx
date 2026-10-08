@@ -134,4 +134,39 @@ describe('usePluginPublishing', () => {
       'Plugin unpublished. Anyone who installed it keeps it until they uninstall it.'
     );
   });
+
+  // Sharing withdraws the personal listing as a step; "unpublished" would say the opposite.
+  it('says nothing when the withdrawal is a step of something else', async () => {
+    vi.mocked(pluginsService.unpublish).mockResolvedValue(undefined as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.unpublish('OWOX/example', 'member', { silent: true });
+    });
+
+    expect(pluginsService.unpublish).toHaveBeenCalledWith({
+      repository: 'OWOX/example',
+      scope: 'member',
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  // Installation rows carry visibleViaScopes too; the Plugins page draws kept cards from them.
+  it('refreshes installations along with the Gallery', async () => {
+    vi.mocked(pluginsService.unpublish).mockResolvedValue(undefined as never);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidated = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => usePluginPublishing(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.unpublish('OWOX/example', 'member');
+    });
+
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-installations', 'project-1'] });
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-gallery', 'project-1'] });
+  });
 });

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GalleryView, InstalledPlugin, PluginGalleryEntry } from '../../../features/plugins';
 
 let plugins: PluginGalleryEntry[] = [];
+let galleryLoading = false;
 let installations: InstalledPlugin[] = [];
 const update = vi.fn();
 let view: GalleryView = { sort: 'default', filter: 'all' };
@@ -14,7 +15,7 @@ vi.mock('../../../features/plugins', async () => {
   );
   return {
     ...actual,
-    usePluginGallery: () => ({ plugins, isLoading: false }),
+    usePluginGallery: () => ({ plugins, isLoading: galleryLoading }),
     usePluginInstallations: () => ({ installations, isLoading: false }),
     usePluginActions: () => ({ install: vi.fn(), isInstalling: false }),
     useGalleryView: () => ({ view, update }),
@@ -72,6 +73,7 @@ describe('PluginsGalleryPage', () => {
     vi.clearAllMocks();
     view = { sort: 'default', filter: 'all' };
     plugins = [entry()];
+    galleryLoading = false;
     installations = [];
   });
 
@@ -180,6 +182,20 @@ describe('PluginsGalleryPage', () => {
     renderPage();
 
     expect(screen.getByText('Add your first plugin')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Installation history' })).toBeNull();
+  });
+
+  // The sidebar keeps Plugins for a plugin the member can restore; this is where it leads.
+  it('points to Installation history when the member has uninstalled plugins', () => {
+    plugins = [];
+    installations = [kept({ uninstalledAt: '2026-07-03T00:00:00.000Z' })];
+    renderPage();
+
+    expect(screen.getByText('Add your first plugin')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Installation history' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/history'
+    );
   });
 
   /**
@@ -236,6 +252,20 @@ describe('PluginsGalleryPage', () => {
       renderPage();
 
       expect(screen.getByText('Unlisted Plugin')).toBeTruthy();
+      expect(screen.queryByText('Add your first plugin')).toBeNull();
+    });
+
+    // Before the Gallery arrives every installation would look kept: installed-only cards,
+    // or "No plugins match" under a saved filter.
+    it('shows nothing until the Gallery is in', () => {
+      view = { sort: 'default', filter: 'not_installed' };
+      plugins = [];
+      galleryLoading = true;
+      installations = [kept()];
+      renderPage();
+
+      expect(screen.queryByText('Unlisted Plugin')).toBeNull();
+      expect(screen.queryByText('No plugins match this search or filter.')).toBeNull();
       expect(screen.queryByText('Add your first plugin')).toBeNull();
     });
 

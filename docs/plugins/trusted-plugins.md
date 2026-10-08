@@ -17,8 +17,8 @@ project. The audience is indivisible: individual projects cannot be excluded fro
 narrower rollout is enough, name the projects instead and widen later.
 
 Nothing else needs to be enabled. The **Plugins** section appears in a project's sidebar once its
-Gallery has an installable plugin, or a member there already has an active installation; the first
-deployment publication is what makes the section visible everywhere.
+Gallery has an installable plugin, or a member there already has a plugin installed or one they can
+restore; the first deployment publication is what makes the section visible everywhere.
 
 ## Authorize a publisher key
 

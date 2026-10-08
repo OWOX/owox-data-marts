@@ -661,13 +661,15 @@ Unpublishing removes a listing, not an installation. A plugin you installed stay
 **Plugins** in the sidebar and on the **Plugins** page even after nothing lists it any more; its
 card is marked as not listed.
 
-To remove it, hover over the plugin in the sidebar, open its **…** menu, and select
-**Uninstall**. The same action is in the **⋮** menu of the plugin's page, which **Settings** in
-that sidebar menu opens. Uninstalling stops the plugin only for you: who can find it does not
-change, other members keep their installations, and the Credential access you granted ends.
+To remove it, open the **…** menu next to the plugin in the sidebar and select **Uninstall**.
+With a mouse, the menu appears when you point at the plugin; expand the sidebar first if it is
+collapsed. The same action is in the **⋮** menu of the plugin's page, which **Settings** in that
+sidebar menu opens. Uninstalling stops the plugin only for you: who can find it does not change,
+other members keep their installations, and any Credential access you granted ends.
 
 To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Installation history**,
-and select **Restore**. Restoring works even when nothing lists the plugin, and asks for its
+and select **Restore**. The **Plugins** section stays in the sidebar while you have a plugin to
+restore, and restoring works even when nothing lists the plugin. It asks for the plugin's
 Credential access again.
 
 ## Test the installed plugin
