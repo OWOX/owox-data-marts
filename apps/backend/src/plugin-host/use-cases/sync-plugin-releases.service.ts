@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
@@ -18,12 +18,10 @@ import {
   PluginVersionConflictError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
-import { ExternalCredentialDefinitionSyncService } from '../services/external-credential-definition-sync.service';
 import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginCredentialBindingReconciliationService } from '../services/plugin-credential-binding-reconciliation.service';
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
-import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 
@@ -43,26 +41,15 @@ interface Candidate {
 @Injectable()
 export class SyncPluginReleasesService {
   private readonly logger = new Logger(SyncPluginReleasesService.name);
-  private readonly candidateRules: ReleaseCandidateRulesService;
 
   constructor(
     private readonly githubApi: GithubApiService,
-    remoteUrlValidator: RemoteUrlValidatorService,
+    private readonly candidateRules: ReleaseCandidateRulesService,
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
     private readonly config: PluginHostConfigService,
-    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService,
-    @Optional()
-    externalCredentialDefinitions?: ExternalCredentialDefinitionSyncService
-  ) {
-    // Built here rather than injected so the constructor keeps its existing collaborators.
-    this.candidateRules = new ReleaseCandidateRulesService(
-      githubApi,
-      remoteUrlValidator,
-      versionService,
-      externalCredentialDefinitions
-    );
-  }
+    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService
+  ) {}
 
   async run(command: SyncPluginReleasesCommand): Promise<PluginSyncResultDto> {
     const ref = parseGithubRepoLocator(command.repoLocator);
