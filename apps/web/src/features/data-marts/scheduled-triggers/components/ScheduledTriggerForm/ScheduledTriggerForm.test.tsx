@@ -8,6 +8,36 @@ describe('ScheduledTriggerForm', () => {
     vi.restoreAllMocks();
   });
 
+  it('enables Create trigger right after mount, without any user interaction', async () => {
+    render(
+      <ScheduledTriggerForm
+        preSelectedType={ScheduledTriggerType.DATA_QUALITY_RUN}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Create trigger' })).toBeEnabled();
+    });
+  });
+
+  it('keeps Save changes disabled in edit mode until the form changes', () => {
+    render(
+      <ScheduledTriggerForm
+        initialData={{
+          type: ScheduledTriggerType.DATA_QUALITY_RUN,
+          cronExpression: '0 9 * * *',
+          timeZone: 'UTC',
+          isActive: true,
+          triggerConfig: null,
+        }}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  });
+
   it('shows Data Quality Run as a config-less trigger type', () => {
     render(
       <ScheduledTriggerForm
@@ -39,8 +69,6 @@ describe('ScheduledTriggerForm', () => {
     );
 
     expect(screen.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent('UTC (+00:00)');
-
-    fireEvent.change(screen.getByDisplayValue('09:00'), { target: { value: '10:00' } });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Create trigger' })).toBeEnabled();

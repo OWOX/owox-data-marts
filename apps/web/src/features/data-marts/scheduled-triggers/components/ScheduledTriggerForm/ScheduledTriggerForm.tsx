@@ -174,7 +174,10 @@ export function ScheduledTriggerForm({
             type='submit'
             className='w-full'
             aria-label={initialData ? 'Save changes' : 'Create trigger'}
-            disabled={!isDirty || isSubmitting}
+            // In CREATE mode the button stays clickable even while the form is
+            // invalid: submitting surfaces validation errors instead of leaving
+            // the user with a disabled button and no hint about what is missing.
+            disabled={isSubmitting || (!!initialData && !isDirty)}
           >
             {isSubmitting
               ? initialData
