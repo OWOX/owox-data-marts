@@ -135,13 +135,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </ul>
 <p>Click the badge again to close the list.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="edit-a-relationship">Edit a relationship</h2><a class="sl-anchor-link" href="#edit-a-relationship"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Edit a relationship”</span></a></div>
-<p>Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The panel sits below the toolbar, so the filters stay in reach. The arrow stays highlighted while the panel is open. If neither of its Data Marts is in view beside the panel, the canvas moves to show them. The panel edits the same settings as the relationship’s row in the source Data Mart’s <a href="/docs/getting-started/setup-guide/joinable-data-marts/">Joinable Data Marts</a> block:</p>
+<p>Click an arrow, or the join fields label on it, to open the relationship in a panel on the right. The canvas stays usable while the panel is open, and the arrow stays highlighted. If neither of its Data Marts is in view beside the panel, the canvas moves to show them. The panel edits the same settings as the relationship’s row in the source Data Mart’s <a href="/docs/getting-started/setup-guide/joinable-data-marts/">Joinable Data Marts</a> block. Like other panels, it groups them in sections you can collapse:</p>
 <ul>
-<li><strong>Report Fields</strong>: the Output Alias, and the alias, Dedup and Σ available of each joined field.</li>
+<li><strong>General</strong>: <strong>Allow for reporting</strong>, which hides every joined field from the reports of the source Data Mart.</li>
 <li><strong>Join Settings</strong>: the SQL Alias and the join fields.</li>
 <li><strong>Description</strong>: what the join means in business terms, for AI assistants.</li>
+<li><strong>Report Fields</strong>: the Output Alias, and the alias, Dedup and Σ available of each joined field.</li>
+<li><strong>Danger zone</strong>: delete the relationship.</li>
 </ul>
-<p>Changes save as you type. The canvas redraws the arrow with the new join fields and keeps your zoom and position. <strong>Allow for reporting</strong> hides every joined field from the reports of the source Data Mart. The <strong>⋯</strong> menu opens the relationship in Data Setup or deletes it. The two Data Mart names at the top open those Data Marts in a new tab.</p>
+<p>Changes save as you type. The canvas redraws the arrow with the new join fields and keeps your zoom and position. The two Data Mart names at the top open those Data Marts in a new tab, and <strong>Open in Data Setup</strong> opens the relationship’s row in its source Data Mart.</p>
 <p>A two-headed arrow stands for two relationships that mirror each other. Pick the direction to edit at the top of the panel.</p>
 <p>Click another arrow to switch the panel to it. Click a card, the empty canvas or the close button to close the panel. Filters and search leave it open.</p>
 <p>From the keyboard, press Enter on a row of a card’s <strong>N relationships</strong> list. Focus moves into the panel, and Esc closes it and returns focus to the row.</p>
