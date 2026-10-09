@@ -115,7 +115,9 @@ export class CheckPluginReleaseApiDto extends UpdatePluginByRepositoryApiDto {
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  @Matches(/^[^\s\p{Cc}\p{Cs}]+$/u)
+  @Matches(/^[^\s\p{Cc}\p{Cs}]+$/u, {
+    message: 'ref must not contain whitespace or control characters',
+  })
   ref: string;
 
   @ApiPropertyOptional({

@@ -118,7 +118,7 @@ export class ExternalCredentialDefinitionSyncService {
     });
   }
 
-  /** `resolveRequirements`' rules and errors, reading the Credential registry without writing to it. */
+  /** `resolveRequirements`' rules without writing to the registry; an unreadable Credential repository becomes a requirement error. */
   async previewRequirements(requirements: readonly PluginCredentialRequirement[]): Promise<void> {
     await this.settleRequirements(requirements, async locator => {
       try {
