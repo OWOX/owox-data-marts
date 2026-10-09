@@ -108,3 +108,68 @@ export class UpdatePluginByRepositoryApiDto {
   @MaxLength(512)
   repository: string;
 }
+
+export class CheckPluginReleaseApiDto extends UpdatePluginByRepositoryApiDto {
+  @ApiProperty({ description: 'Branch, tag, or commit SHA to check.', example: 'main' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  ref: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Version the release would carry, X.Y.Z optionally prefixed with v. Defaults to the next version after the current one: the next patch below 1.0.0, the next minor from 1.0.0.',
+    example: '1.5.0',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  version?: string;
+}
+
+export class PluginReleaseCheckIssueApiDto {
+  @ApiProperty({ enum: ReleaseRejectionCode }) code: ReleaseRejectionCode;
+  @ApiProperty() detail: string;
+}
+
+export class PluginReleaseCheckResultApiDto {
+  @ApiProperty() pluginId: string;
+
+  @ApiProperty({
+    description:
+      'Canonical owner/name. For a private repository the name is withheld from anyone but a deployment publisher, as `owner/***`.',
+  })
+  repository: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null when the ref does not resolve.',
+  })
+  commitSha: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Without the v prefix. Null when no version was given and none is current.',
+  })
+  candidateVersion: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "Highest recorded version in the candidate's compatibility line.",
+  })
+  baselineVersion: string | null;
+
+  @ApiProperty({
+    description: 'Whether collections were compared against the baseline.',
+  })
+  collectionsEvaluated: boolean;
+
+  @ApiProperty({
+    type: [PluginReleaseCheckIssueApiDto],
+    description: 'Every reason a release from this ref would be rejected.',
+  })
+  issues: PluginReleaseCheckIssueApiDto[];
+}

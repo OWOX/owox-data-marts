@@ -42,6 +42,7 @@ import { InstallPluginService } from './use-cases/install-plugin.service';
 import { ListInstallationsService } from './use-cases/list-installations.service';
 import { UninstallPluginService } from './use-cases/uninstall-plugin.service';
 import { UpdatePluginService } from './use-cases/update-plugin.service';
+import { CheckPluginReleaseService } from './use-cases/check-plugin-release.service';
 import { IssuePluginRuntimeTokenService } from './use-cases/issue-plugin-runtime-token.service';
 import { GetPluginGalleryService } from './use-cases/get-plugin-gallery.service';
 import { ListPublicationsService } from './use-cases/list-publications.service';
@@ -153,6 +154,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     ListInstallationsService,
     GetPluginInstallationEntryService,
     UpdatePluginService,
+    CheckPluginReleaseService,
     IssuePluginRuntimeTokenService,
     PluginInstallationLookupFacade,
     { provide: PLUGIN_INSTALLATION_LOOKUP, useExisting: PluginInstallationLookupFacade },

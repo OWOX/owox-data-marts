@@ -38,6 +38,7 @@ function setup(manifest: string | null = JSON.stringify(MANIFEST), versions: unk
     rules: new ReleaseCandidateRulesService(githubApi, validator, versionService),
     githubApi,
     validator,
+    versionService,
   };
 }
 
@@ -107,5 +108,30 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
 
     expect(report.issues).toEqual([]);
     expect(report).toMatchObject({ baselineSemver: null, collectionsEvaluated: false });
+  });
+
+  it('evaluates the other rules without a baseline when the candidate has no version', async () => {
+    const s = setup(JSON.stringify(MANIFEST), [DASHBOARDS_V1]);
+    s.validator.validate.mockResolvedValue({
+      ok: false,
+      code: ReleaseRejectionCode.URL_UNREACHABLE,
+      detail: 'https://plugin.example.com did not respond',
+    });
+
+    const report = await s.rules.collectAll({ ...CANDIDATE, semver: null });
+
+    expect(report.issues).toEqual([
+      {
+        code: ReleaseRejectionCode.URL_UNREACHABLE,
+        detail: 'https://plugin.example.com did not respond',
+      },
+    ]);
+    expect(report).toMatchObject({
+      manifest: expect.objectContaining({ name: 'Example Plugin' }),
+      credentialRequirements: [],
+      baselineSemver: null,
+      collectionsEvaluated: false,
+    });
+    expect(s.versionService.findAllByPluginId).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,8 @@ export interface ReleaseCandidate {
   readonly pluginId: string;
   readonly ref: GithubRepoRef;
   readonly commitSha: string;
-  readonly semver: string;
+  /** Null: no compatibility line, so no baseline and no collection rule. */
+  readonly semver: string | null;
 }
 
 export interface ReleaseCandidateIssue {
@@ -64,7 +65,7 @@ export class ReleaseCandidateRulesService {
     const { manifest } = parsed;
 
     const baseline = await this.findBaseline(candidate);
-    const collections = baseline && this.checkCollections(baseline, manifest, candidate.semver);
+    const collections = baseline && this.checkCollections(baseline, manifest);
     if (collections) return { ok: false, ...collections };
 
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
@@ -93,7 +94,7 @@ export class ReleaseCandidateRulesService {
     const { manifest } = parsed;
     const issues: ReleaseCandidateIssue[] = [];
 
-    const collections = baseline && this.checkCollections(baseline, manifest, candidate.semver);
+    const collections = baseline && this.checkCollections(baseline, manifest);
     if (collections) issues.push(collections);
 
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
@@ -120,6 +121,7 @@ export class ReleaseCandidateRulesService {
     pluginId,
     semver,
   }: ReleaseCandidate): Promise<PluginVersion | undefined> {
+    if (semver === null) return undefined;
     return (await this.versionService.findAllByPluginId(pluginId))
       .filter(version => sameCompatibilityLine(version.semver, semver))
       .reduce<
@@ -129,8 +131,7 @@ export class ReleaseCandidateRulesService {
 
   private checkCollections(
     baseline: PluginVersion,
-    manifest: PluginManifest,
-    semver: string
+    manifest: PluginManifest
   ): ReleaseCandidateIssue | null {
     const incompatibility = findIncompatibleCollectionChange(
       baseline.collections ?? [],
@@ -138,8 +139,9 @@ export class ReleaseCandidateRulesService {
     );
     if (!incompatibility) return null;
 
+    // The baseline shares the candidate's line, so it shares its major too.
     const escape =
-      majorOf(semver) === 0
+      majorOf(baseline.semver) === 0
         ? 'bump the minor version to ship this breaking change while below 1.0.0'
         : 'publish a new major version to ship this breaking change';
     return {
