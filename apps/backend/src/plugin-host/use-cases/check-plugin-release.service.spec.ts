@@ -4,7 +4,10 @@ import { PluginHostConfigService } from '../config/plugin-host.config';
 import { CheckPluginReleaseCommand } from '../dto/domain/check-plugin-release.command';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
-import { PluginCheckRateLimitedError } from '../errors/plugin-host.errors';
+import {
+  GithubRepoNotAccessibleError,
+  PluginCheckRateLimitedError,
+} from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
 import { PluginPublicationService } from '../services/plugin-publication.service';
 import { PluginVersionService } from '../services/plugin-version.service';
@@ -53,6 +56,7 @@ function setup(
           repoOwner: 'OWOX',
           repoName: 'example-plugin',
           isPrivateRepo: false,
+          githubRepoId: '42',
           currentVersionId: versions[0]?.id ?? null,
           ...options.plugin,
         };
@@ -83,6 +87,7 @@ function setup(
   } as unknown as jest.Mocked<PluginVersionService>;
 
   const githubApi = {
+    getRepo: jest.fn().mockResolvedValue({ githubRepoId: '42' }),
     resolveCommitSha: jest.fn().mockResolvedValue('sha-new'),
     getFileAtCommit: jest.fn().mockResolvedValue(MANIFEST),
   } as unknown as jest.Mocked<GithubApiService>;
@@ -138,6 +143,34 @@ describe('CheckPluginReleaseService', () => {
       await expect(attempt).rejects.toThrow(
         'Plugin OWOX/example-plugin was not found on this deployment'
       );
+      expect(s.githubApi.getRepo).not.toHaveBeenCalled();
+      expect(s.githubApi.resolveCommitSha).not.toHaveBeenCalled();
+    });
+
+    it('answers a repository that now has another identity with the same NotFound', async () => {
+      const s = setup();
+      s.githubApi.getRepo.mockResolvedValue({ githubRepoId: '43' } as never);
+
+      const attempt = check(s);
+
+      await expect(attempt).rejects.toBeInstanceOf(NotFoundException);
+      await expect(attempt).rejects.toThrow(
+        'Plugin OWOX/example-plugin was not found on this deployment'
+      );
+      expect(s.githubApi.getRepo).toHaveBeenCalledWith({ owner: 'OWOX', name: 'example-plugin' });
+      expect(s.githubApi.resolveCommitSha).not.toHaveBeenCalled();
+    });
+
+    it('reports a repository GitHub no longer lets it read as such', async () => {
+      const s = setup();
+      const denied = new GithubRepoNotAccessibleError(
+        'OWOX',
+        'example-plugin',
+        'https://github.com/apps/owox/installations/new'
+      );
+      s.githubApi.getRepo.mockRejectedValue(denied);
+
+      await expect(check(s)).rejects.toBe(denied);
       expect(s.githubApi.resolveCommitSha).not.toHaveBeenCalled();
     });
 
@@ -275,6 +308,59 @@ describe('CheckPluginReleaseService', () => {
         'sha-new'
       );
     });
+
+    it('reports a named version below the current one and still evaluates the content rules', async () => {
+      const s = setup();
+      s.validator.validate.mockResolvedValue({
+        ok: false,
+        code: ReleaseRejectionCode.URL_UNREACHABLE,
+        detail: 'https://plugin.example.com did not respond',
+      });
+
+      await expect(check(s, { version: '1.3.0' })).resolves.toMatchObject({
+        candidateVersion: '1.3.0',
+        baselineVersion: '1.4.2',
+        collectionsEvaluated: true,
+        issues: [
+          {
+            code: ReleaseRejectionCode.VERSION_CONFLICT,
+            detail:
+              'Version 1.3.0 is lower than the current version 1.4.2; release sync stops at the current version and would not record it',
+          },
+          {
+            code: ReleaseRejectionCode.URL_UNREACHABLE,
+            detail: 'https://plugin.example.com did not respond',
+          },
+        ],
+      });
+    });
+
+    it('reports only the recorded conflict for a recorded version below the current one', async () => {
+      const s = setup({
+        versions: [
+          CURRENT,
+          { id: 'v-old', semver: '1.2.0', commitSha: 'sha-1.2', collections: [] },
+        ],
+      });
+
+      await expect(check(s, { version: '1.2.0' })).resolves.toMatchObject({
+        issues: [
+          {
+            code: ReleaseRejectionCode.VERSION_CONFLICT,
+            detail: 'Version 1.2.0 is already recorded from commit sha-1.2',
+          },
+        ],
+      });
+    });
+
+    it('does not compare a named version when there is no current version', async () => {
+      const s = setup({
+        versions: [{ id: 'v-old', semver: '0.9.0', commitSha: 'sha-0.9', collections: [] }],
+        plugin: { currentVersionId: null },
+      });
+
+      await expect(check(s, { version: '0.1.0' })).resolves.toMatchObject({ issues: [] });
+    });
   });
 
   it('records nothing and claims no sync slot', async () => {
@@ -299,15 +385,28 @@ describe('CheckPluginReleaseService', () => {
         code: 'PLUGIN_CHECK_RATE_LIMITED',
         errorDetails: { retryAfterSeconds: 300 },
       });
+      expect(s.githubApi.getRepo).toHaveBeenCalledTimes(1);
       expect(s.githubApi.resolveCommitSha).toHaveBeenCalledTimes(1);
+    });
+
+    it('limits each caller separately', async () => {
+      const s = setup();
+      s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
+      await check(s, { context: PUBLISHER });
+
+      await expect(check(s, { context: MEMBER })).resolves.toMatchObject({ pluginId: 'p1' });
+      await expect(check(s, { context: MEMBER })).rejects.toBeInstanceOf(
+        PluginCheckRateLimitedError
+      );
     });
 
     it('does not spend the slot on an unauthorized caller', async () => {
       const s = setup();
 
       await expect(check(s, { context: MEMBER })).rejects.toBeInstanceOf(NotFoundException);
+      s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
 
-      await expect(check(s)).resolves.toMatchObject({ pluginId: 'p1' });
+      await expect(check(s, { context: MEMBER })).resolves.toMatchObject({ pluginId: 'p1' });
     });
 
     it('allows the next check once the interval has passed', async () => {

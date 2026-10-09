@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -114,6 +115,7 @@ export class CheckPluginReleaseApiDto extends UpdatePluginByRepositoryApiDto {
   @IsString()
   @MinLength(1)
   @MaxLength(255)
+  @Matches(/^[^\s\p{Cc}\p{Cs}]+$/u)
   ref: string;
 
   @ApiPropertyOptional({
@@ -158,7 +160,8 @@ export class PluginReleaseCheckResultApiDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: "Highest recorded version in the candidate's compatibility line.",
+    description:
+      "Highest recorded version in the candidate's compatibility line. Null when there is none or the ref does not resolve; set with collectionsEvaluated false when the manifest is invalid.",
   })
   baselineVersion: string | null;
 

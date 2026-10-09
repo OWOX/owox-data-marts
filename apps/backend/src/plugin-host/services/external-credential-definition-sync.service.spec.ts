@@ -1,7 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { GithubReadPolicy } from '../enums/github-read-policy.enum';
-import { ExternalCredentialDefinitionSyncService } from './external-credential-definition-sync.service';
+import {
+  GithubApiError,
+  GithubRateLimitedError,
+  GithubRepoNotAccessibleError,
+  GithubRepoNotFoundError,
+  InvalidRepoLocatorError,
+} from '../errors/plugin-host.errors';
+import {
+  ExternalCredentialDefinitionSyncService,
+  ExternalCredentialRequirementError,
+} from './external-credential-definition-sync.service';
 
 const repo = {
   githubRepoId: '123',
@@ -164,6 +174,49 @@ describe('ExternalCredentialDefinitionSyncService', () => {
       state.service.previewRequirements(['@acme/first', '@acme/second'])
     ).rejects.toThrow('Duplicate resolved Credential handle acme');
     expect(state.registry.register).not.toHaveBeenCalled();
+  });
+
+  describe('a Credential repository it cannot read', () => {
+    it('previews an invalid locator as a requirement error naming it', async () => {
+      const state = setup();
+
+      const attempt = state.service.previewRequirements(['@acme']);
+
+      await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+      await expect(attempt).rejects.toThrow(
+        '@acme: Expected a GitHub repository, for example https://github.com/owner/name or owner/name'
+      );
+      await expect(state.service.resolveRequirements(['@acme'])).rejects.toBeInstanceOf(
+        InvalidRepoLocatorError
+      );
+    });
+
+    it.each([
+      ['not found', new GithubRepoNotFoundError('acme', 'credentials')],
+      [
+        'not accessible',
+        new GithubRepoNotAccessibleError('acme', 'credentials', 'https://github.com/apps/owox'),
+      ],
+    ])('previews a repository GitHub reports %s as a requirement error', async (_case, error) => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(error);
+
+      const attempt = state.service.previewRequirements(['@acme/credentials']);
+
+      await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+      await expect(attempt).rejects.toThrow(`@acme/credentials: ${error.message}`);
+      await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toBe(error);
+    });
+
+    it.each([
+      ['an API error', new GithubApiError(502, '/repos/acme/credentials')],
+      ['a rate limit', new GithubRateLimitedError('2026-10-09T12:00:00Z', 'anonymous')],
+    ])('still throws %s from a preview', async (_case, error) => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(error);
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toBe(error);
+    });
   });
 
   it('rejects an exact requirement that is neither built-in nor a GitHub locator', async () => {

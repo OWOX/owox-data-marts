@@ -14,6 +14,11 @@ import {
 } from '../../data-marts/credentials/credential.types';
 import type { ResolvedCredentialDefinition } from '../../data-marts/credentials/dto/credential-api.dto';
 import { GithubReadPolicy } from '../enums/github-read-policy.enum';
+import {
+  GithubRepoNotAccessibleError,
+  GithubRepoNotFoundError,
+  InvalidRepoLocatorError,
+} from '../errors/plugin-host.errors';
 import type { PluginCredentialRequirement } from '../utils/plugin-manifest.util';
 import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
@@ -115,9 +120,20 @@ export class ExternalCredentialDefinitionSyncService {
 
   /** `resolveRequirements`' rules and errors, reading the Credential registry without writing to it. */
   async previewRequirements(requirements: readonly PluginCredentialRequirement[]): Promise<void> {
-    await this.settleRequirements(requirements, locator =>
-      this.settleLocator(locator, input => this.registry.preview(input))
-    );
+    await this.settleRequirements(requirements, async locator => {
+      try {
+        return await this.settleLocator(locator, input => this.registry.preview(input));
+      } catch (error) {
+        if (
+          error instanceof InvalidRepoLocatorError ||
+          error instanceof GithubRepoNotFoundError ||
+          error instanceof GithubRepoNotAccessibleError
+        ) {
+          throw new ExternalCredentialRequirementError(`${locator}: ${error.message}`);
+        }
+        throw error;
+      }
+    });
   }
 
   private async settleRequirements<D extends { readonly contract: CredentialDefinitionContract }>(

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
+import { GithubRepoNotFoundError } from '../errors/plugin-host.errors';
 import { ExternalCredentialDefinitionSyncService } from './external-credential-definition-sync.service';
 import { GithubApiService } from './github-api.service';
 import { PluginVersionService } from './plugin-version.service';
@@ -54,8 +55,6 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
       { code: ReleaseRejectionCode.MANIFEST_INVALID_JSON, detail: expect.any(String) },
     ]);
     expect(report).toMatchObject({
-      manifest: null,
-      credentialRequirements: null,
       baselineSemver: '1.0.0',
       collectionsEvaluated: false,
     });
@@ -95,8 +94,6 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
 
     expect(report).toEqual({
       issues: [],
-      manifest: expect.objectContaining({ name: 'Example Plugin' }),
-      credentialRequirements: [],
       baselineSemver: '1.0.0',
       collectionsEvaluated: true,
     });
@@ -129,8 +126,6 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
       },
     ]);
     expect(report).toMatchObject({
-      manifest: expect.objectContaining({ name: 'Example Plugin' }),
-      credentialRequirements: [],
       baselineSemver: null,
       collectionsEvaluated: false,
     });
@@ -183,7 +178,7 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
         s.versionService,
         new ExternalCredentialDefinitionSyncService(credentialGithub as never, registry as never)
       );
-      return { rules, registry };
+      return { rules, registry, credentialGithub, validator: s.validator };
     }
 
     it('previews it without writing to the Credential registry', async () => {
@@ -192,7 +187,6 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
       const report = await s.rules.collectAll(CANDIDATE);
 
       expect(report.issues).toEqual([]);
-      expect(report.credentialRequirements).toEqual(['@acme/credentials']);
       expect(s.registry.preview).toHaveBeenCalledWith(
         expect.objectContaining({ githubRepoId: '123', semver: '1.0.0' })
       );
@@ -219,7 +213,31 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
         },
       ]);
       expect(verdict).toEqual({ ok: false, ...report.issues[0] });
-      expect(report.credentialRequirements).toBeNull();
+    });
+
+    it('lists an unreadable Credential repository as MANIFEST_SCHEMA and keeps the other issues', async () => {
+      const s = setupExternal();
+      s.credentialGithub.getRepo.mockRejectedValue(
+        new GithubRepoNotFoundError('acme', 'credentials')
+      );
+      s.validator.validate.mockResolvedValue({
+        ok: false,
+        code: ReleaseRejectionCode.URL_UNREACHABLE,
+        detail: 'https://plugin.example.com did not respond',
+      });
+
+      const report = await s.rules.collectAll(CANDIDATE);
+
+      expect(report.issues).toEqual([
+        {
+          code: ReleaseRejectionCode.URL_UNREACHABLE,
+          detail: 'https://plugin.example.com did not respond',
+        },
+        {
+          code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+          detail: '@acme/credentials: GitHub repository acme/credentials was not found',
+        },
+      ]);
     });
   });
 });

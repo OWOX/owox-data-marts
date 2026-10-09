@@ -2,9 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import {
   CheckPluginReleaseCommand,
+  PluginReleaseCheckIssueDto,
   PluginReleaseCheckResultDto,
 } from '../dto/domain/check-plugin-release.command';
-import { Plugin } from '../entities/plugin.entity';
+import { PluginVersion } from '../entities/plugin-version.entity';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import { PluginCheckRateLimitedError } from '../errors/plugin-host.errors';
@@ -15,7 +16,7 @@ import { PluginService } from '../services/plugin.service';
 import { PublicationAuthorizationService } from '../services/publication-authorization.service';
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
-import { formatSemver, parseReleaseTag } from '../utils/semver.util';
+import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 import { managesPublicationOf, visibleRepository } from './plugin-publisher-access';
 
 /** Whether a release from one ref would be accepted, judged by release sync's rules and recorded nowhere. */
@@ -39,18 +40,27 @@ export class CheckPluginReleaseService {
     const locator = parseGithubRepoLocator(command.repoLocator);
     const plugin = await this.pluginService.findByRepoName(locator.owner, locator.name);
     const isPublisher = this.authorization.isDeploymentPublisher(command.context);
+    const notFound = () =>
+      new NotFoundException(
+        `Plugin ${locator.owner}/${locator.name} was not found on this deployment`
+      );
     if (
       !plugin ||
       !(isPublisher || (await managesPublicationOf(this.publications, plugin.id, command.context)))
     ) {
-      throw new NotFoundException(
-        `Plugin ${locator.owner}/${locator.name} was not found on this deployment`
-      );
+      throw notFound();
     }
-    this.claimSlot(plugin.id);
+    this.claimSlot(`${plugin.id}:${command.context.apiKeyId ?? command.context.userId}`);
 
-    const semver = namedSemver ?? (await this.nextVersionOf(plugin));
     const ref = { owner: plugin.repoOwner, name: plugin.repoName };
+    if ((await this.githubApi.getRepo(ref)).githubRepoId !== plugin.githubRepoId) {
+      throw notFound();
+    }
+
+    const current = plugin.currentVersionId
+      ? await this.versionService.findById(plugin.currentVersionId)
+      : null;
+    const semver = namedSemver ?? (current ? nextVersionOf(current.semver) : null);
     const identity = {
       pluginId: plugin.id,
       repository: visibleRepository(plugin, `${ref.owner}/${ref.name}`, isPublisher),
@@ -73,7 +83,7 @@ export class CheckPluginReleaseService {
       };
     }
 
-    const recorded = semver ? await this.versionService.findBySemver(plugin.id, semver) : null;
+    const versionIssue = semver ? await this.versionConflict(plugin.id, semver, current) : null;
     const report = await this.candidateRules.collectAll({
       pluginId: plugin.id,
       ref,
@@ -86,21 +96,32 @@ export class CheckPluginReleaseService {
       commitSha,
       baselineVersion: report.baselineSemver,
       collectionsEvaluated: report.collectionsEvaluated,
-      issues: [
-        ...(recorded
-          ? [
-              {
-                code: ReleaseRejectionCode.VERSION_CONFLICT,
-                detail: `Version ${semver} is already recorded from commit ${recorded.commitSha}`,
-              },
-            ]
-          : []),
-        ...report.issues,
-      ],
+      issues: [...(versionIssue ? [versionIssue] : []), ...report.issues],
     };
   }
 
-  private claimSlot(pluginId: string): void {
+  private async versionConflict(
+    pluginId: string,
+    semver: string,
+    current: PluginVersion | null
+  ): Promise<PluginReleaseCheckIssueDto | null> {
+    const recorded = await this.versionService.findBySemver(pluginId, semver);
+    if (recorded) {
+      return {
+        code: ReleaseRejectionCode.VERSION_CONFLICT,
+        detail: `Version ${semver} is already recorded from commit ${recorded.commitSha}`,
+      };
+    }
+    if (current && compareSemver(semver, current.semver) < 0) {
+      return {
+        code: ReleaseRejectionCode.VERSION_CONFLICT,
+        detail: `Version ${semver} is lower than the current version ${current.semver}; release sync stops at the current version and would not record it`,
+      };
+    }
+    return null;
+  }
+
+  private claimSlot(key: string): void {
     const mode = this.config.isAppModeConfigured
       ? GithubAccessMode.APP
       : this.config.githubToken
@@ -108,21 +129,17 @@ export class CheckPluginReleaseService {
         : GithubAccessMode.ANONYMOUS;
     const intervalMs = this.config.getSyncMinIntervalMs(mode);
     const now = Date.now();
-    const last = this.lastCheckAt.get(pluginId);
+    const last = this.lastCheckAt.get(key);
     if (last !== undefined && now - last < intervalMs) {
       throw new PluginCheckRateLimitedError(Math.ceil((last + intervalMs - now) / 1000));
     }
-    this.lastCheckAt.set(pluginId, now);
+    this.lastCheckAt.set(key, now);
   }
+}
 
-  private async nextVersionOf(plugin: Plugin): Promise<string | null> {
-    const current = plugin.currentVersionId
-      ? await this.versionService.findById(plugin.currentVersionId)
-      : null;
-    if (!current) return null;
-    const [major, minor, patch] = current.semver.split('.').map(Number);
-    return major === 0 ? `0.${minor}.${patch + 1}` : `${major}.${minor + 1}.0`;
-  }
+function nextVersionOf(current: string): string {
+  const [major, minor, patch] = current.split('.').map(Number);
+  return major === 0 ? `0.${minor}.${patch + 1}` : `${major}.${minor + 1}.0`;
 }
 
 function eligibleSemver(version: string): string {

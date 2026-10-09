@@ -43,9 +43,6 @@ export type ReleaseCandidateVerdict =
 
 export interface ReleaseCandidateReport {
   readonly issues: readonly ReleaseCandidateIssue[];
-  readonly manifest: PluginManifest | null;
-  /** As declared, null when rejected: external ones are previewed against the registry, never stored. */
-  readonly credentialRequirements: readonly StoredCredentialRequirement[] | null;
   readonly baselineSemver: string | null;
   readonly collectionsEvaluated: boolean;
 }
@@ -60,6 +57,7 @@ export class ReleaseCandidateRulesService {
     private readonly externalCredentialDefinitions?: ExternalCredentialDefinitionSyncService
   ) {}
 
+  /** For release sync: resolving external Credentials registers their definitions. */
   async firstFailure(candidate: ReleaseCandidate): Promise<ReleaseCandidateVerdict> {
     const parsed = await this.fetchManifest(candidate);
     if (!parsed.ok) return parsed;
@@ -86,8 +84,6 @@ export class ReleaseCandidateRulesService {
     if (!parsed.ok) {
       return {
         issues: [{ code: parsed.code, detail: parsed.detail }],
-        manifest: null,
-        credentialRequirements: null,
         baselineSemver,
         collectionsEvaluated: false,
       };
@@ -106,8 +102,6 @@ export class ReleaseCandidateRulesService {
 
     return {
       issues,
-      manifest,
-      credentialRequirements: credentials.ok ? credentials.requirements : null,
       baselineSemver,
       collectionsEvaluated: baseline !== undefined,
     };

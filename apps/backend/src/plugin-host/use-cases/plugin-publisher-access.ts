@@ -37,10 +37,9 @@ export async function managesPublicationOf(
 /**
  * Withholds a private repository's name from anyone but a deployment publisher.
  *
- * `PluginPresentationMapper.toSource` hides that name on the plugin view precisely because
- * it "would confirm to a member that one specific private repository exists" -- and
- * **Check and Update** sits on that same page, available to any viewer with no installation. The
- * owner stays, matching what `toSource` does disclose.
+ * Same reason `PluginPresentationMapper.toSource` hides that name on the plugin view: it
+ * "would confirm to a member that one specific private repository exists". The owner
+ * stays, matching what `toSource` does disclose.
  */
 export function visibleRepository(
   plugin: Plugin,
