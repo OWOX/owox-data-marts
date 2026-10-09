@@ -155,7 +155,39 @@ describe('Plugins API', () => {
     });
   });
 
+  it('checks a ref without sending an absent version', async () => {
+    const result = {
+      pluginId: 'p1',
+      repository: 'OWOX/example',
+      commitSha: 'abc',
+      candidateVersion: '1.5.0',
+      baselineVersion: '1.4.0',
+      collectionsEvaluated: true,
+      issues: [],
+    };
+    const { client, recorded } = createClient(() => json(200, result));
+
+    await expect(
+      client.plugins.check({ repository: 'OWOX/example', ref: 'main' })
+    ).resolves.toEqual(result);
+
+    expect(recorded[0]).toMatchObject({
+      method: 'POST',
+      url: '/api/plugins/check',
+      body: { repository: 'OWOX/example', ref: 'main' },
+    });
+    expect(recorded[0]?.body).not.toHaveProperty('version');
+  });
+
   describe('failures', () => {
+    it('rejects a check response without the expected shape', async () => {
+      const { client } = createClient(() => json(200, { pluginId: 'p1' }));
+
+      await expect(
+        client.plugins.check({ repository: 'OWOX/example', ref: 'main' })
+      ).rejects.toBeInstanceOf(OWOXApiError);
+    });
+
     it('rejects a response that is not a publication', async () => {
       const { client } = createClient(() => json(200, { unexpected: true }));
 

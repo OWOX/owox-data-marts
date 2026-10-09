@@ -44,6 +44,9 @@ export {
 } from './data-mart-runs.js';
 export {
   type OWOXDeploymentAudience,
+  type OWOXPluginCheckInput,
+  type OWOXPluginCheckIssue,
+  type OWOXPluginCheckResult,
   type OWOXPluginPublication,
   type OWOXPluginPublicationScope,
   type OWOXPluginPublisherDiagnostics,
