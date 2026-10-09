@@ -702,16 +702,19 @@ To roll back, restore the last working source, deploy it, and create a new highe
 that explains the restoration; do not try to move or recreate an older tag.
 
 Before you create a release, check that it would be accepted. The check runs the release rules
-against a branch, tag, or commit: manifest, collection compatibility with the recorded versions in
-that compatibility line, delivery URL, and Credential definitions. It lists every failed rule it can
-evaluate. It records nothing, and it does not delay **Check and Update** or the daily check.
-Without `--version`, the candidate is the next version after the current one: the next patch below
-`1.0.0`, the next minor from `1.0.0`; pass `--version MAJOR.MINOR.PATCH` to check another version.
-Without `--version`, a plugin with no current version gets no collection compatibility check. Only
-deployment publishers and members who manage a publication of the plugin can run it. Each plugin
-can be checked once per sync interval, `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC` (default 30 seconds with
-GitHub App or token access, 300 seconds without). The command prints JSON, prints a summary to
-stderr, and exits with code 1 when there are issues:
+against a branch, tag, or commit: manifest, collection compatibility with the highest recorded
+version in that compatibility line, delivery URL, and Credential definitions. It lists every failed
+rule it can evaluate, with release sync's rejection codes. It records nothing, and it does not delay
+**Check and Update** or the daily check. Without `--version`, the candidate is the next version
+after the current one: the next patch below `1.0.0`, the next minor from `1.0.0`; pass
+`--version MAJOR.MINOR.PATCH` to check another version. A version that is already recorded, or that
+is lower than the current version and not recorded, is reported as `VERSION_CONFLICT`. Without
+`--version`, a plugin with no current version gets no collection compatibility check. Only
+deployment publishers and members who manage a publication of the plugin can run it, and they see
+GitHub errors in full, including the GitHub App installation URL when the repository is not
+accessible. Checks are rate-limited per plugin and caller by `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`
+(default 30 seconds with GitHub App or token access, 300 seconds without). The command prints JSON,
+prints a summary to stderr, and exits with code 1 when there are issues:
 
 ```bash
 owox-ctl plugins check OWNER/PLUGIN_NAME --ref main
