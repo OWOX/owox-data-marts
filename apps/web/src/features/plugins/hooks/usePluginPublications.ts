@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useIsAdmin } from '../../idp/hooks/useRole';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
-import type { PluginPublication, PluginPublicationScope } from '../types';
+import type { InstalledPlugin, PluginPublication, PluginPublicationScope } from '../types';
 import { GALLERY_KEY, INSTALLATIONS_KEY, PUBLICATIONS_KEY, installationsKey } from './usePlugins';
 
 const EMPTY: PluginPublication[] = [];
@@ -86,15 +86,26 @@ export function usePluginPublishing() {
   /**
    * Best effort: the publication has already succeeded, so a failed lookup only costs the
    * note, never the success.
+   *
+   * Reads the full installation list the sidebar keeps loaded -- `invalidate` has just
+   * refreshed it -- and fetches only when nothing has cached it yet.
    */
   const findActiveInstallation = useCallback(
     async (pluginId: string) => {
       try {
-        const installations = await queryClient.query({
-          queryKey: installationsKey(projectId, false),
-          queryFn: () => pluginsService.getInstallations(false),
-        });
-        return installations.find(installation => installation.pluginId === pluginId) ?? null;
+        const key = installationsKey(projectId, true);
+        const installations =
+          queryClient.getQueryData<InstalledPlugin[]>(key) ??
+          (await queryClient.query<InstalledPlugin[]>({
+            queryKey: key,
+            queryFn: () => pluginsService.getInstallations(true),
+          }));
+        return (
+          installations.find(
+            installation =>
+              installation.pluginId === pluginId && installation.uninstalledAt === null
+          ) ?? null
+        );
       } catch {
         return null;
       }
@@ -119,12 +130,22 @@ export function usePluginPublishing() {
    *
    * A repository OWOX cannot read is fixed by installing the GitHub App, and the server
    * hands back exactly where. A toast would bury the one link that resolves it.
+   *
+   * `mentionInstalled` is for publishing from the Publish sheet, where a member can enter a
+   * repository they already have. Sharing a personal listing with the project is about who
+   * can find the plugin, so it keeps the plain confirmation.
    */
   const publish = useCallback(
-    async (repository: string, scope: PluginPublicationScope): Promise<PublishFailure | null> => {
+    async (
+      repository: string,
+      scope: PluginPublicationScope,
+      { mentionInstalled = false }: { mentionInstalled?: boolean } = {}
+    ): Promise<PublishFailure | null> => {
       try {
         const publication = await publishMutation.mutateAsync({ repository, scope });
-        const installed = await findActiveInstallation(publication.pluginId);
+        const installed = mentionInstalled
+          ? await findActiveInstallation(publication.pluginId)
+          : null;
         // Republishing a plugin the member already has succeeds just like a first publish,
         // and "published" alone left them wondering whether it had installed something.
         toast.success(

@@ -85,30 +85,90 @@ describe('usePluginPublishing', () => {
   });
 
   it('confirms a first publish plainly', async () => {
-    getInstallations.mockResolvedValue([{ pluginId: 'other', displayName: 'Other' }] as never);
+    getInstallations.mockResolvedValue([
+      { pluginId: 'other', displayName: 'Other', uninstalledAt: null },
+    ] as never);
     const { result } = renderHook(() => usePluginPublishing(), { wrapper });
 
     await act(async () => {
-      await result.current.publish('OWOX/example', 'member');
+      await result.current.publish('OWOX/example', 'member', { mentionInstalled: true });
     });
 
-    expect(getInstallations).toHaveBeenCalledWith(false);
+    expect(getInstallations).toHaveBeenCalledWith(true);
     expect(toast.success).toHaveBeenCalledWith('Plugin published');
   });
 
   // Republishing a plugin the member already has succeeds silently on the server, so
   // "published" alone left them unsure whether anything had been installed.
   it('says so when the member already has the plugin installed', async () => {
-    getInstallations.mockResolvedValue([{ pluginId: 'p1', displayName: 'Run History' }] as never);
+    getInstallations.mockResolvedValue([
+      { pluginId: 'p1', displayName: 'Run History', uninstalledAt: null },
+    ] as never);
     const { result } = renderHook(() => usePluginPublishing(), { wrapper });
 
     await act(async () => {
-      await result.current.publish('OWOX/example', 'member');
+      await result.current.publish('OWOX/example', 'member', { mentionInstalled: true });
     });
 
     expect(toast.success).toHaveBeenCalledWith(
       'Plugin published. You already have Run History installed.'
     );
+  });
+
+  // Installation history keeps uninstalled rows; those are not "already installed".
+  it('does not count an uninstalled plugin as installed', async () => {
+    getInstallations.mockResolvedValue([
+      { pluginId: 'p1', displayName: 'Run History', uninstalledAt: '2026-10-01T00:00:00.000Z' },
+    ] as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'member', { mentionInstalled: true });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith('Plugin published');
+  });
+
+  // The sidebar keeps the full installation list loaded on every page; publishing must not
+  // fetch it a second time.
+  it('reads installations the sidebar already cached', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(
+      ['plugin-installations', 'project-1', true],
+      [{ pluginId: 'p1', displayName: 'Run History', uninstalledAt: null }]
+    );
+    // Stands in for the refetch invalidation triggers while the sidebar observes the list.
+    vi.spyOn(client, 'invalidateQueries').mockResolvedValue(undefined);
+    const { result } = renderHook(() => usePluginPublishing(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'member', { mentionInstalled: true });
+    });
+
+    expect(getInstallations).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith(
+      'Plugin published. You already have Run History installed.'
+    );
+  });
+
+  // Sharing a personal listing with the project goes through the same publish; it is about
+  // who can find the plugin, so it keeps the plain confirmation and looks nothing up.
+  it('keeps the plain confirmation unless asked to mention the installation', async () => {
+    getInstallations.mockResolvedValue([
+      { pluginId: 'p1', displayName: 'Run History', uninstalledAt: null },
+    ] as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'project');
+    });
+
+    expect(getInstallations).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith('Plugin published');
   });
 
   // The publication already succeeded; a failed lookup must not turn it into a failure.
@@ -118,7 +178,9 @@ describe('usePluginPublishing', () => {
 
     const captured: { failure?: PublishFailure | null } = {};
     await act(async () => {
-      captured.failure = await result.current.publish('OWOX/example', 'member');
+      captured.failure = await result.current.publish('OWOX/example', 'member', {
+        mentionInstalled: true,
+      });
     });
 
     expect(captured.failure).toBeNull();

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const publish = vi.fn();
@@ -60,7 +60,33 @@ describe('PublishPluginSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
     await waitFor(() => {
-      expect(publish).toHaveBeenCalledWith('romandubovyi/owox-plugin-example', 'project');
+      expect(publish).toHaveBeenCalledWith('romandubovyi/owox-plugin-example', 'project', {
+        mentionInstalled: true,
+      });
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // The request settles before publish does -- it still looks up whether the member already
+  // has the plugin -- so the button must stay disabled until the sheet closes.
+  it('keeps Publish disabled until publishing has fully finished', async () => {
+    let finish: (value: null) => void = () => undefined;
+    publish.mockReturnValue(new Promise(resolve => (finish = resolve)));
+    const onClose = vi.fn();
+    render(<PublishPluginSheet isOpen onClose={onClose} />);
+
+    fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
+      target: { value: 'OWOX/import-model' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    const pending = await screen.findByRole('button', { name: 'Publishing…' });
+    expect((pending as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(pending);
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finish(null);
     });
     expect(onClose).toHaveBeenCalled();
   });

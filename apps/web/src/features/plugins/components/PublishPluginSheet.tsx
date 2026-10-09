@@ -88,9 +88,14 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
     resolver: zodResolver(schema),
     defaultValues: { repository: '', scope: scopes.includes('project') ? 'project' : 'member' },
   });
+  // The request settles before submit does: publish still looks up whether the member already
+  // has the plugin. Until the sheet closes, a second click would publish again.
+  const isSubmitting = isPublishing || form.formState.isSubmitting;
 
   const submit = async (values: PublishFormValues) => {
-    const result = await publish(values.repository.trim(), values.scope);
+    const result = await publish(values.repository.trim(), values.scope, {
+      mentionInstalled: true,
+    });
     if (result) {
       setFailure(result);
       return;
@@ -247,12 +252,12 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
               band with a top border, not float under the last field.
             */}
             <FormActions>
-              <Button type='button' variant='secondary' onClick={onClose} disabled={isPublishing}>
+              <Button type='button' variant='secondary' onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type='submit' disabled={isPublishing}>
-                {isPublishing ? <Loader2 className='size-4 animate-spin' aria-hidden /> : null}
-                {isPublishing ? 'Publishing…' : 'Publish'}
+              <Button type='submit' disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className='size-4 animate-spin' aria-hidden /> : null}
+                {isSubmitting ? 'Publishing…' : 'Publish'}
               </Button>
             </FormActions>
           </AppForm>
