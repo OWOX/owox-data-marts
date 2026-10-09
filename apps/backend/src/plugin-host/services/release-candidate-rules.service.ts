@@ -44,6 +44,7 @@ export type ReleaseCandidateVerdict =
 export interface ReleaseCandidateReport {
   readonly issues: readonly ReleaseCandidateIssue[];
   readonly manifest: PluginManifest | null;
+  /** As declared, null when rejected: external ones are previewed against the registry, never stored. */
   readonly credentialRequirements: readonly StoredCredentialRequirement[] | null;
   readonly baselineSemver: string | null;
   readonly collectionsEvaluated: boolean;
@@ -71,13 +72,13 @@ export class ReleaseCandidateRulesService {
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
     if (!delivery.ok) return delivery;
 
-    const credentials = await this.resolveCredentialRequirements(manifest);
+    const credentials = await this.resolveCredentialRequirements(manifest, 'resolve');
     if (!credentials.ok) return credentials;
 
     return { ok: true, manifest, credentialRequirements: credentials.requirements };
   }
 
-  /** An invalid manifest is the only issue; otherwise every rule runs and every failure is listed. */
+  /** Check mode, writing nothing: an invalid manifest is the only issue; otherwise every failure is listed. */
   async collectAll(candidate: ReleaseCandidate): Promise<ReleaseCandidateReport> {
     const parsed = await this.fetchManifest(candidate);
     const baseline = await this.findBaseline(candidate);
@@ -100,7 +101,7 @@ export class ReleaseCandidateRulesService {
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
     if (!delivery.ok) issues.push({ code: delivery.code, detail: delivery.detail });
 
-    const credentials = await this.resolveCredentialRequirements(manifest);
+    const credentials = await this.resolveCredentialRequirements(manifest, 'preview');
     if (!credentials.ok) issues.push({ code: credentials.code, detail: credentials.detail });
 
     return {
@@ -151,7 +152,8 @@ export class ReleaseCandidateRulesService {
   }
 
   private async resolveCredentialRequirements(
-    manifest: PluginManifest
+    manifest: PluginManifest,
+    mode: 'resolve' | 'preview'
   ): Promise<
     { readonly ok: true; readonly requirements: readonly StoredCredentialRequirement[] } | Rejection
   > {
@@ -162,6 +164,10 @@ export class ReleaseCandidateRulesService {
       throw new Error('External Credential definitions are not available');
     }
     try {
+      if (mode === 'preview') {
+        await this.externalCredentialDefinitions.previewRequirements(manifest.credentials);
+        return { ok: true, requirements: manifest.credentials };
+      }
       return {
         ok: true,
         requirements: await this.externalCredentialDefinitions.resolveRequirements(

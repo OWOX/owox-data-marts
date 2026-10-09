@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from '../../data-marts/credentials/services/builtin-credential-definitions';
-import { CredentialExternalDefinitionRegistryService } from '../../data-marts/credentials/services/credential-external-definition-registry.service';
+import {
+  CredentialExternalDefinitionRegistryService,
+  type RegisterExternalCredentialDefinitionInput,
+} from '../../data-marts/credentials/services/credential-external-definition-registry.service';
 import { parseExternalCredentialManifest } from '../../data-marts/credentials/services/external-credential-manifest';
 import {
+  type CredentialDefinitionContract,
   normalizeCredentialRequirement,
   type ResolvedExternalCredentialRequirement,
   type StoredCredentialRequirement,
@@ -24,7 +28,14 @@ export class ExternalCredentialDefinitionSyncService {
     private readonly registry: CredentialExternalDefinitionRegistryService
   ) {}
 
-  async syncLocator(locator: string): Promise<ResolvedCredentialDefinition> {
+  syncLocator(locator: string): Promise<ResolvedCredentialDefinition> {
+    return this.settleLocator(locator, input => this.registry.register(input));
+  }
+
+  private async settleLocator<T extends { readonly contract: CredentialDefinitionContract }>(
+    locator: string,
+    settle: (input: RegisterExternalCredentialDefinitionInput) => Promise<T>
+  ): Promise<T | ResolvedCredentialDefinition> {
     const ref = parseExternalLocator(locator);
     const repo = await this.github.getRepo(ref, GithubReadPolicy.CONFIGURED);
     const releases = (await this.github.listReleases(ref, GithubReadPolicy.CONFIGURED))
@@ -59,7 +70,7 @@ export class ExternalCredentialDefinitionSyncService {
         continue;
       }
       try {
-        return await this.registry.register({
+        return await settle({
           githubRepoId: repo.githubRepoId,
           repoOwner: repo.owner,
           repoName: repo.name,
@@ -87,7 +98,35 @@ export class ExternalCredentialDefinitionSyncService {
   async resolveRequirements(
     requirements: readonly PluginCredentialRequirement[]
   ): Promise<StoredCredentialRequirement[]> {
-    const resolved: StoredCredentialRequirement[] = [];
+    const settled = await this.settleRequirements(requirements, locator =>
+      this.syncLocator(locator)
+    );
+    return settled.map(({ requirement, definition }): StoredCredentialRequirement => {
+      if (!definition) return requirement;
+      const external: ResolvedExternalCredentialRequirement = {
+        id: definition.contract.id,
+        definitionId: definition.definitionId,
+        optional: typeof requirement === 'string' ? false : requirement.optional,
+        models: typeof requirement === 'string' ? undefined : requirement.models,
+      };
+      return external;
+    });
+  }
+
+  /** `resolveRequirements`' rules and errors, reading the Credential registry without writing to it. */
+  async previewRequirements(requirements: readonly PluginCredentialRequirement[]): Promise<void> {
+    await this.settleRequirements(requirements, locator =>
+      this.settleLocator(locator, input => this.registry.preview(input))
+    );
+  }
+
+  private async settleRequirements<D extends { readonly contract: CredentialDefinitionContract }>(
+    requirements: readonly PluginCredentialRequirement[],
+    settle: (locator: string) => Promise<D>
+  ): Promise<
+    { readonly requirement: PluginCredentialRequirement; readonly definition: D | null }[]
+  > {
+    const settled: { requirement: PluginCredentialRequirement; definition: D | null }[] = [];
     for (const requirement of requirements) {
       const locator = typeof requirement === 'string' ? requirement : requirement.id;
       if (!locator.startsWith('@')) {
@@ -96,12 +135,12 @@ export class ExternalCredentialDefinitionSyncService {
             `Unknown Credential requirement "${locator}"; use ai, a built-in definition, or @owner/repository`
           );
         }
-        resolved.push(requirement);
+        settled.push({ requirement, definition: null });
         continue;
       }
-      let definition: ResolvedCredentialDefinition;
+      let definition: D;
       try {
-        definition = await this.syncLocator(locator);
+        definition = await settle(locator);
       } catch (error) {
         if (error instanceof ExternalCredentialRequirementError) throw error;
         if (error instanceof BadRequestException) {
@@ -109,24 +148,20 @@ export class ExternalCredentialDefinitionSyncService {
         }
         throw error;
       }
-      const external: ResolvedExternalCredentialRequirement = {
-        id: definition.contract.id,
-        definitionId: definition.definitionId,
-        optional: typeof requirement === 'string' ? false : requirement.optional,
-        models: typeof requirement === 'string' ? undefined : requirement.models,
-      };
-      resolved.push(external);
+      settled.push({ requirement, definition });
     }
 
     const keys = new Set<string>();
-    for (const requirement of resolved) {
-      const key = normalizeCredentialRequirement(requirement).key;
+    for (const { requirement, definition } of settled) {
+      const key = definition
+        ? definition.contract.id
+        : normalizeCredentialRequirement(requirement).key;
       if (keys.has(key)) {
         throw new ExternalCredentialRequirementError(`Duplicate resolved Credential handle ${key}`);
       }
       keys.add(key);
     }
-    return resolved;
+    return settled;
   }
 }
 

@@ -52,6 +52,7 @@ function setup() {
         origins: ['https://api.acme.example'],
       },
     }),
+    preview: jest.fn().mockResolvedValue({ contract: { id: 'acme' } }),
     getCurrentByGithubRepoId: jest.fn().mockResolvedValue(null),
   };
   return {
@@ -141,6 +142,28 @@ describe('ExternalCredentialDefinitionSyncService', () => {
       'a'.repeat(40),
       GithubReadPolicy.CONFIGURED
     );
+  });
+
+  it('previews requirements under the same rules without registering them', async () => {
+    const state = setup();
+
+    await expect(
+      state.service.previewRequirements(['github', '@acme/credentials'])
+    ).resolves.toBeUndefined();
+    expect(state.registry.preview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        githubRepoId: '123',
+        semver: '1.0.0',
+        githubReleaseId: 'release-1',
+      })
+    );
+    await expect(state.service.previewRequirements(['stripe'])).rejects.toThrow(
+      'Unknown Credential requirement "stripe"'
+    );
+    await expect(
+      state.service.previewRequirements(['@acme/first', '@acme/second'])
+    ).rejects.toThrow('Duplicate resolved Credential handle acme');
+    expect(state.registry.register).not.toHaveBeenCalled();
   });
 
   it('rejects an exact requirement that is neither built-in nor a GitHub locator', async () => {

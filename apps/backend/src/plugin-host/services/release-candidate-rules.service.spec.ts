@@ -1,4 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
+import { ExternalCredentialDefinitionSyncService } from './external-credential-definition-sync.service';
 import { GithubApiService } from './github-api.service';
 import { PluginVersionService } from './plugin-version.service';
 import { ReleaseCandidateRulesService } from './release-candidate-rules.service';
@@ -133,5 +135,91 @@ describe('ReleaseCandidateRulesService.collectAll', () => {
       collectionsEvaluated: false,
     });
     expect(s.versionService.findAllByPluginId).not.toHaveBeenCalled();
+  });
+
+  describe('with an external Credential definition', () => {
+    const CREDENTIAL_MANIFEST = JSON.stringify({
+      name: 'Acme Credentials',
+      description: '',
+      delivery: { type: 'credential-definition' },
+      credential: {
+        name: 'acme',
+        authentication: {
+          type: 'secret',
+          label: 'API key',
+          placement: { type: 'header', name: 'authorization', scheme: 'Bearer' },
+        },
+        origins: ['https://api.acme.example'],
+      },
+    });
+
+    function setupExternal() {
+      const s = setup(JSON.stringify({ ...MANIFEST, credentials: ['@acme/credentials'] }));
+      const credentialGithub = {
+        getRepo: jest
+          .fn()
+          .mockResolvedValue({ githubRepoId: '123', owner: 'acme', name: 'credentials' }),
+        listReleases: jest.fn().mockResolvedValue([
+          {
+            githubReleaseId: 'release-1',
+            tagName: 'v1.0.0',
+            isDraft: false,
+            isPrerelease: false,
+            publishedAt: new Date(),
+          },
+        ]),
+        resolveCommitSha: jest.fn().mockResolvedValue('c'.repeat(40)),
+        getFileAtCommit: jest.fn().mockResolvedValue(CREDENTIAL_MANIFEST),
+      };
+      const registry = {
+        register: jest.fn(),
+        reschedule: jest.fn(),
+        preview: jest.fn().mockResolvedValue({ contract: { id: 'acme' } }),
+        getCurrentByGithubRepoId: jest.fn().mockResolvedValue(null),
+      };
+      const rules = new ReleaseCandidateRulesService(
+        s.githubApi,
+        s.validator,
+        s.versionService,
+        new ExternalCredentialDefinitionSyncService(credentialGithub as never, registry as never)
+      );
+      return { rules, registry };
+    }
+
+    it('previews it without writing to the Credential registry', async () => {
+      const s = setupExternal();
+
+      const report = await s.rules.collectAll(CANDIDATE);
+
+      expect(report.issues).toEqual([]);
+      expect(report.credentialRequirements).toEqual(['@acme/credentials']);
+      expect(s.registry.preview).toHaveBeenCalledWith(
+        expect.objectContaining({ githubRepoId: '123', semver: '1.0.0' })
+      );
+      expect(s.registry.register).not.toHaveBeenCalled();
+      expect(s.registry.reschedule).not.toHaveBeenCalled();
+    });
+
+    it('lists a rejected definition as MANIFEST_SCHEMA with the detail sync records', async () => {
+      const s = setupExternal();
+      const rejection = new BadRequestException(
+        'Credential definition 1.0.0 changes an incompatible contract within compatibility line 1; publish a new compatibility line for this change'
+      );
+      s.registry.preview.mockRejectedValue(rejection);
+      s.registry.register.mockRejectedValue(rejection);
+
+      const report = await s.rules.collectAll(CANDIDATE);
+      const verdict = await s.rules.firstFailure(CANDIDATE);
+
+      expect(report.issues).toEqual([
+        {
+          code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+          detail:
+            '1.0.0: Credential definition 1.0.0 changes an incompatible contract within compatibility line 1; publish a new compatibility line for this change',
+        },
+      ]);
+      expect(verdict).toEqual({ ok: false, ...report.issues[0] });
+      expect(report.credentialRequirements).toBeNull();
+    });
   });
 });

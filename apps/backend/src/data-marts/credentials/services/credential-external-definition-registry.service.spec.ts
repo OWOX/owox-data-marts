@@ -67,6 +67,7 @@ function setup(databaseType: 'sqlite' | 'better-sqlite3' | 'mysql' = 'better-sql
     definitions,
     versions,
     definitionRepository,
+    versionRepository,
   };
 }
 
@@ -224,5 +225,48 @@ describe('CredentialExternalDefinitionRegistryService', () => {
     await expect(state.service.register(input('1.1.0', { contract }))).rejects.toThrow(
       'publish a new compatibility line'
     );
+  });
+
+  it('previews with the same validations as register and writes nothing', async () => {
+    const state = setup();
+    await state.service.register(input('1.0.0'));
+    const before = structuredClone({ definitions: state.definitions, versions: state.versions });
+    for (const mock of [
+      state.definitionRepository.save,
+      state.definitionRepository.create,
+      state.definitionRepository.createQueryBuilder,
+      state.versionRepository.save,
+      state.versionRepository.create,
+    ]) {
+      mock.mockClear();
+    }
+
+    await expect(state.service.preview(input('1.1.0'))).resolves.toEqual({
+      contract: input('1.1.0').contract,
+    });
+    await expect(state.service.preview(input('1.0.0', { githubRepoId: '456' }))).resolves.toEqual({
+      contract: input('1.0.0').contract,
+    });
+    await expect(
+      state.service.preview(input('1.0.0', { githubReleaseId: 'another-release' }))
+    ).rejects.toThrow(
+      'Credential definition version 1.0.0 was already recorded from another release'
+    );
+    await expect(
+      state.service.preview(
+        input('1.1.0', {
+          contract: { ...input('1.1.0').contract, origins: ['https://other.acme.example'] },
+        })
+      )
+    ).rejects.toThrow(
+      'Credential definition 1.1.0 changes an incompatible contract within compatibility line 1; publish a new compatibility line for this change'
+    );
+
+    expect(state.definitionRepository.save).not.toHaveBeenCalled();
+    expect(state.definitionRepository.create).not.toHaveBeenCalled();
+    expect(state.definitionRepository.createQueryBuilder).not.toHaveBeenCalled();
+    expect(state.versionRepository.save).not.toHaveBeenCalled();
+    expect(state.versionRepository.create).not.toHaveBeenCalled();
+    expect({ definitions: state.definitions, versions: state.versions }).toEqual(before);
   });
 });
