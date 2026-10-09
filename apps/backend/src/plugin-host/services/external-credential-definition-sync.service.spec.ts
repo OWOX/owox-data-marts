@@ -1,7 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { GithubReadPolicy } from '../enums/github-read-policy.enum';
-import { ExternalCredentialDefinitionSyncService } from './external-credential-definition-sync.service';
+import {
+  GithubApiError,
+  GithubRateLimitedError,
+  GithubRepoNotAccessibleError,
+  GithubRepoNotFoundError,
+  InvalidRepoLocatorError,
+} from '../errors/plugin-host.errors';
+import {
+  ExternalCredentialDefinitionSyncService,
+  ExternalCredentialRequirementError,
+} from './external-credential-definition-sync.service';
 
 const repo = {
   githubRepoId: '123',
@@ -52,6 +62,7 @@ function setup() {
         origins: ['https://api.acme.example'],
       },
     }),
+    preview: jest.fn().mockResolvedValue({ contract: { id: 'acme' } }),
     getCurrentByGithubRepoId: jest.fn().mockResolvedValue(null),
   };
   return {
@@ -141,6 +152,134 @@ describe('ExternalCredentialDefinitionSyncService', () => {
       'a'.repeat(40),
       GithubReadPolicy.CONFIGURED
     );
+  });
+
+  it('previews requirements under the same rules without registering them', async () => {
+    const state = setup();
+
+    await expect(
+      state.service.previewRequirements(['github', '@acme/credentials'])
+    ).resolves.toBeUndefined();
+    expect(state.registry.preview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        githubRepoId: '123',
+        semver: '1.0.0',
+        githubReleaseId: 'release-1',
+      })
+    );
+    await expect(state.service.previewRequirements(['stripe'])).rejects.toThrow(
+      'Unknown Credential requirement "stripe"'
+    );
+    await expect(
+      state.service.previewRequirements(['@acme/first', '@acme/second'])
+    ).rejects.toThrow('Duplicate resolved Credential handle acme');
+    expect(state.registry.register).not.toHaveBeenCalled();
+  });
+
+  it('previews external requirements with distinct handles', async () => {
+    const state = setup();
+    state.registry.preview
+      .mockResolvedValueOnce({ contract: { id: 'first' } })
+      .mockResolvedValueOnce({ contract: { id: 'second' } });
+
+    await expect(
+      state.service.previewRequirements(['@acme/first', '@acme/second'])
+    ).resolves.toBeUndefined();
+    expect(state.registry.preview).toHaveBeenCalledTimes(2);
+  });
+
+  it('previews a definition the registry rejects as the requirement error resolving raises', async () => {
+    const state = setup();
+    const rejection = new BadRequestException(
+      'Credential definition contains a non-public network target'
+    );
+    state.registry.preview.mockRejectedValue(rejection);
+    state.registry.register.mockRejectedValue(rejection);
+    const message = '1.0.0: Credential definition contains a non-public network target';
+
+    const attempt = state.service.previewRequirements(['@acme/credentials']);
+
+    await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+    await expect(attempt).rejects.toThrow(message);
+    await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toThrow(message);
+  });
+
+  it('previews built-in and external requirements together, reading GitHub only for the external one', async () => {
+    const state = setup();
+
+    await expect(
+      state.service.previewRequirements([
+        'ai',
+        'github',
+        { id: '@acme/credentials', optional: true },
+      ])
+    ).resolves.toBeUndefined();
+    expect(state.github.getRepo).toHaveBeenCalledTimes(1);
+    expect(state.registry.preview).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a Credential repository it cannot read', () => {
+    it('previews an invalid locator as a requirement error naming it', async () => {
+      const state = setup();
+
+      const attempt = state.service.previewRequirements(['@acme']);
+
+      await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+      await expect(attempt).rejects.toThrow(
+        '@acme: Expected a GitHub repository, for example https://github.com/owner/name or owner/name'
+      );
+      await expect(state.service.resolveRequirements(['@acme'])).rejects.toBeInstanceOf(
+        InvalidRepoLocatorError
+      );
+    });
+
+    it.each([
+      ['not found', new GithubRepoNotFoundError('acme', 'credentials')],
+      [
+        'not accessible',
+        new GithubRepoNotAccessibleError('acme', 'credentials', 'https://github.com/apps/owox'),
+      ],
+    ])('previews a repository GitHub reports %s as a requirement error', async (_case, error) => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(error);
+
+      const attempt = state.service.previewRequirements(['@acme/credentials']);
+
+      await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+      await expect(attempt).rejects.toThrow(`@acme/credentials: ${error.message}`);
+      await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toBe(error);
+    });
+
+    it('keeps the installation URL of an inaccessible repository in the requirement error', async () => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(
+        new GithubRepoNotAccessibleError('acme', 'credentials', 'https://github.com/apps/owox')
+      );
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toThrow(
+        /^@acme\/credentials: .* https:\/\/github\.com\/apps\/owox$/
+      );
+    });
+
+    it('ends a not-found requirement error at the message', async () => {
+      const state = setup();
+      const error = new GithubRepoNotFoundError('acme', 'credentials');
+      state.github.getRepo.mockRejectedValue(error);
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toThrow(
+        new ExternalCredentialRequirementError(`@acme/credentials: ${error.message}`)
+      );
+    });
+
+    it.each([
+      ['an API error', new GithubApiError(502, '/repos/acme/credentials')],
+      ['a rate limit', new GithubRateLimitedError('2026-10-09T12:00:00Z', 'anonymous')],
+    ])('still throws %s from a preview', async (_case, error) => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(error);
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toBe(error);
+    });
   });
 
   it('rejects an exact requirement that is neither built-in nor a GitHub locator', async () => {

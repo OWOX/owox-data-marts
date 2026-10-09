@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthorizationContext } from '../../idp';
+import {
+  CheckPluginReleaseCommand,
+  PluginReleaseCheckResultDto,
+} from '../dto/domain/check-plugin-release.command';
 import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repository.command';
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
@@ -40,7 +44,9 @@ import {
   SuspendPluginApiDto,
 } from '../dto/presentation/plugin-suspension-api.dto';
 import {
+  CheckPluginReleaseApiDto,
   PluginPublisherDiagnosticsApiDto,
+  PluginReleaseCheckResultApiDto,
   PublicationResponseApiDto,
   PublishPluginApiDto,
   UpdatePluginByRepositoryApiDto,
@@ -147,6 +153,13 @@ export class PluginPresentationMapper {
     dto: UpdatePluginByRepositoryApiDto
   ): UpdatePluginCommand {
     return new UpdatePluginCommand(context, undefined, dto.repository);
+  }
+
+  toCheckReleaseCommand(
+    context: AuthorizationContext,
+    dto: CheckPluginReleaseApiDto
+  ): CheckPluginReleaseCommand {
+    return new CheckPluginReleaseCommand(context, dto.repository, dto.ref, dto.version);
   }
 
   toUninstallCommand(pluginId: string, context: AuthorizationContext): UninstallPluginCommand {
@@ -294,6 +307,18 @@ export class PluginPresentationMapper {
       updated: dto.updated,
       nextCheckAt: dto.nextCheckAt,
       diagnostics: dto.diagnostics ? this.toDiagnosticsResponse(dto.diagnostics) : null,
+    };
+  }
+
+  toReleaseCheckResponse(dto: PluginReleaseCheckResultDto): PluginReleaseCheckResultApiDto {
+    return {
+      pluginId: dto.pluginId,
+      repository: dto.repository,
+      commitSha: dto.commitSha,
+      candidateVersion: dto.candidateVersion,
+      baselineVersion: dto.baselineVersion,
+      collectionsEvaluated: dto.collectionsEvaluated,
+      issues: dto.issues.map(issue => ({ code: issue.code, detail: issue.detail })),
     };
   }
 

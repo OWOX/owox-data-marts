@@ -104,6 +104,19 @@ export class PluginSyncRateLimitedError extends PluginHostError {
   }
 }
 
+/** Another release check of this plugin ran too recently. Separate from the sync limit. */
+export class PluginCheckRateLimitedError extends PluginHostError {
+  readonly memberVisible = true;
+
+  constructor(retryAfterSeconds: number) {
+    super(
+      'PLUGIN_CHECK_RATE_LIMITED',
+      `This plugin was checked very recently. Try again in ${retryAfterSeconds} seconds.`,
+      { retryAfterSeconds }
+    );
+  }
+}
+
 /** Another synchronization is still running; publishing waits for its authoritative result. */
 export class PluginSyncInProgressError extends PluginHostError {
   readonly memberVisible = true;

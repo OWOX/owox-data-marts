@@ -155,7 +155,61 @@ describe('Plugins API', () => {
     });
   });
 
+  it('checks a ref without sending an absent version', async () => {
+    const result = {
+      pluginId: 'p1',
+      repository: 'OWOX/example',
+      commitSha: 'abc',
+      candidateVersion: '1.5.0',
+      baselineVersion: '1.4.0',
+      collectionsEvaluated: true,
+      issues: [],
+    };
+    const { client, recorded } = createClient(() => json(200, result));
+
+    await expect(
+      client.plugins.check({ repository: 'OWOX/example', ref: 'main' })
+    ).resolves.toEqual(result);
+
+    expect(recorded[0]).toMatchObject({
+      method: 'POST',
+      url: '/api/plugins/check',
+      body: { repository: 'OWOX/example', ref: 'main' },
+    });
+    expect(recorded[0]?.body).not.toHaveProperty('version');
+  });
+
+  it('sends the version when one is given', async () => {
+    const { client, recorded } = createClient(() =>
+      json(200, { pluginId: 'p1', collectionsEvaluated: true, issues: [] })
+    );
+
+    await client.plugins.check({ repository: 'OWOX/example', ref: 'main', version: '1.5.0' });
+
+    expect(recorded[0]?.body).toEqual({
+      repository: 'OWOX/example',
+      ref: 'main',
+      version: '1.5.0',
+    });
+  });
+
   describe('failures', () => {
+    it.each([
+      ['a missing pluginId', { collectionsEvaluated: true, issues: [] }],
+      ['issues that are not an array', { pluginId: 'p1', collectionsEvaluated: true, issues: {} }],
+      [
+        'a string collectionsEvaluated',
+        { pluginId: 'p1', collectionsEvaluated: 'true', issues: [] },
+      ],
+      ['a body with only a pluginId', { pluginId: 'p1' }],
+    ])('rejects a check response with %s', async (_name, body) => {
+      const { client } = createClient(() => json(200, body));
+
+      await expect(
+        client.plugins.check({ repository: 'OWOX/example', ref: 'main' })
+      ).rejects.toBeInstanceOf(OWOXApiError);
+    });
+
     it('rejects a response that is not a publication', async () => {
       const { client } = createClient(() => json(200, { unexpected: true }));
 

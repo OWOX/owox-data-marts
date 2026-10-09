@@ -43,6 +43,16 @@ export class CredentialExternalDefinitionRegistryService {
     return this.persist(definition.id, input);
   }
 
+  /** The validations `register` applies, against what is recorded, writing nothing. */
+  async preview(
+    input: RegisterExternalCredentialDefinitionInput
+  ): Promise<{ readonly contract: CredentialDefinitionContract }> {
+    await this.validateNetworkBoundary(input.contract);
+    const definition = await this.definitions.findOneBy({ githubRepoId: input.githubRepoId });
+    const { recorded } = await this.validateAgainstRecorded(definition, input);
+    return { contract: (recorded ?? input).contract };
+  }
+
   @Transactional()
   private async persist(
     definitionId: string,
@@ -59,35 +69,14 @@ export class CredentialExternalDefinitionRegistryService {
     definition.repoOwner = input.repoOwner;
     definition.repoName = input.repoName;
 
-    const compatibilityLine = compatibilityLineForSemver(input.semver);
-    const recorded = await this.versions.findOneBy({
-      externalDefinitionId: definition.id,
-      semver: input.semver,
-    });
+    const { compatibilityLine, recorded, current } = await this.validateAgainstRecorded(
+      definition,
+      input
+    );
     if (recorded) {
-      if (
-        recorded.commitSha !== input.commitSha ||
-        recorded.githubReleaseId !== input.githubReleaseId
-      ) {
-        throw new BadRequestException(
-          `Credential definition version ${input.semver} was already recorded from another release`
-        );
-      }
       this.markSynced(definition, input.semver, new Date());
       await this.definitions.save(definition);
       return this.resolved(definition.id, recorded);
-    }
-
-    const current = definition.currentVersionId
-      ? await this.versions.findOneBy({ id: definition.currentVersionId })
-      : null;
-    if (
-      current?.compatibilityLine === compatibilityLine &&
-      !isCompatibleWithinLine(current.contract, input.contract)
-    ) {
-      throw new BadRequestException(
-        `Credential definition ${input.semver} changes an incompatible contract within compatibility line ${compatibilityLine}; publish a new compatibility line for this change`
-      );
     }
 
     const version = await this.versions.save(
@@ -108,6 +97,48 @@ export class CredentialExternalDefinitionRegistryService {
     this.markSynced(definition, input.semver, new Date());
     await this.definitions.save(definition);
     return this.resolved(definition.id, version);
+  }
+
+  /** `recorded` is this exact release already stored; `current` is set only when it is not. */
+  private async validateAgainstRecorded(
+    definition: CredentialExternalDefinition | null,
+    input: RegisterExternalCredentialDefinitionInput
+  ): Promise<{
+    readonly compatibilityLine: string;
+    readonly recorded: CredentialDefinitionVersion | null;
+    readonly current: CredentialDefinitionVersion | null;
+  }> {
+    const compatibilityLine = compatibilityLineForSemver(input.semver);
+    const recorded = definition
+      ? await this.versions.findOneBy({
+          externalDefinitionId: definition.id,
+          semver: input.semver,
+        })
+      : null;
+    if (recorded) {
+      if (
+        recorded.commitSha !== input.commitSha ||
+        recorded.githubReleaseId !== input.githubReleaseId
+      ) {
+        throw new BadRequestException(
+          `Credential definition version ${input.semver} was already recorded from another release`
+        );
+      }
+      return { compatibilityLine, recorded, current: null };
+    }
+
+    const current = definition?.currentVersionId
+      ? await this.versions.findOneBy({ id: definition.currentVersionId })
+      : null;
+    if (
+      current?.compatibilityLine === compatibilityLine &&
+      !isCompatibleWithinLine(current.contract, input.contract)
+    ) {
+      throw new BadRequestException(
+        `Credential definition ${input.semver} changes an incompatible contract within compatibility line ${compatibilityLine}; publish a new compatibility line for this change`
+      );
+    }
+    return { compatibilityLine, recorded: null, current };
   }
 
   private async createOrFindDefinition(

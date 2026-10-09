@@ -12,6 +12,7 @@ import {
 import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
+import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { ExternalCredentialRequirementError } from '../services/external-credential-definition-sync.service';
 import { SyncPluginReleasesService } from './sync-plugin-releases.service';
@@ -81,12 +82,16 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
 
   const service = new SyncPluginReleasesService(
     githubApi,
-    validator,
+    new ReleaseCandidateRulesService(
+      githubApi,
+      validator,
+      versionService,
+      externalCredentialDefinitions as never
+    ),
     pluginService,
     versionService,
     config,
-    credentialBindingReconciliation as never,
-    externalCredentialDefinitions as never
+    credentialBindingReconciliation as never
   );
 
   return {

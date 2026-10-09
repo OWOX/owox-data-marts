@@ -15,6 +15,7 @@ import { Plugin } from './entities/plugin.entity';
 import { PluginAdminController } from './controllers/plugin-admin.controller';
 import { PluginGalleryController } from './controllers/plugin-gallery.controller';
 import { PluginInstallationsController } from './controllers/plugin-installations.controller';
+import { PluginReleaseCheckController } from './controllers/plugin-release-check.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
 import { PluginCredentialRuntimeController } from './controllers/plugin-credential-runtime.controller';
 import { CredentialDefinitionsGithubController } from './controllers/credential-definitions-github.controller';
@@ -33,6 +34,7 @@ import { PluginService } from './services/plugin.service';
 import { PublicationAuthorizationService } from './services/publication-authorization.service';
 import { PluginRuntimeAuthorizerService } from './services/plugin-runtime-authorizer.service';
 import { RemoteUrlValidatorService } from './services/remote-url-validator.service';
+import { ReleaseCandidateRulesService } from './services/release-candidate-rules.service';
 import { PluginPresentationMapper } from './mappers/plugin-presentation.mapper';
 import { FindPluginByRepositoryService } from './use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from './use-cases/get-plugin-details.service';
@@ -41,6 +43,7 @@ import { InstallPluginService } from './use-cases/install-plugin.service';
 import { ListInstallationsService } from './use-cases/list-installations.service';
 import { UninstallPluginService } from './use-cases/uninstall-plugin.service';
 import { UpdatePluginService } from './use-cases/update-plugin.service';
+import { CheckPluginReleaseService } from './use-cases/check-plugin-release.service';
 import { IssuePluginRuntimeTokenService } from './use-cases/issue-plugin-runtime-token.service';
 import { GetPluginGalleryService } from './use-cases/get-plugin-gallery.service';
 import { ListPublicationsService } from './use-cases/list-publications.service';
@@ -105,6 +108,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginCredentialRuntimeController,
     PluginPublicationsController,
     PluginAdminController,
+    PluginReleaseCheckController,
     PluginInstallationsController,
     PluginGalleryController,
   ],
@@ -125,6 +129,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     ExternalCredentialDefinitionSyncService,
     AddGithubCredentialDefinitionService,
     RemoteUrlValidatorService,
+    ReleaseCandidateRulesService,
     PluginService,
     PluginVersionService,
     PluginAuditService,
@@ -151,6 +156,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     ListInstallationsService,
     GetPluginInstallationEntryService,
     UpdatePluginService,
+    CheckPluginReleaseService,
     IssuePluginRuntimeTokenService,
     PluginInstallationLookupFacade,
     { provide: PLUGIN_INSTALLATION_LOOKUP, useExisting: PluginInstallationLookupFacade },

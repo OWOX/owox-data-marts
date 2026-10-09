@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PluginPublisherDiagnosticsDto } from '../dto/domain/plugin-publication.dto';
 import { PluginUpdateResultDto, UpdatePluginCommand } from '../dto/domain/update-plugin.command';
 import { Plugin } from '../entities/plugin.entity';
-import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { PluginService } from '../services/plugin.service';
 import { PluginInstallationService } from '../services/plugin-installation.service';
@@ -12,6 +11,7 @@ import { PluginVersionService } from '../services/plugin-version.service';
 import { PublicationAuthorizationService } from '../services/publication-authorization.service';
 import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import { buildPublisherDiagnostics } from './plugin-publisher-diagnostics';
+import { managesPublicationOf, visibleRepository } from './plugin-publisher-access';
 import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
 
 /**
@@ -63,7 +63,7 @@ export class UpdatePluginService {
     // release was just rejected.
     const isPublisher = this.authorization.isDeploymentPublisher(command.context);
     const managesPublication =
-      isPublisher || (await this.managesPublicationOf(plugin.id, command.context));
+      isPublisher || (await managesPublicationOf(this.publications, plugin.id, command.context));
     let diagnostics: PluginPublisherDiagnosticsDto | null = null;
     if (managesPublication) {
       const version = result.currentVersionId
@@ -118,36 +118,6 @@ export class UpdatePluginService {
   }
 
   /**
-   * Whether the caller manages a publication of this plugin, mirroring the scope rules
-   * `ListPublicationsService` enforces: project scope for Project Admins, member scope
-   * for the caller's own listings. Deployment scope is handled by the allowlist check.
-   */
-  private async managesPublicationOf(
-    pluginId: string,
-    context: AuthorizationContext
-  ): Promise<boolean> {
-    const scopes: PluginPublicationScope[] = [];
-    if (context.roles?.includes('admin')) {
-      scopes.push(PluginPublicationScope.PROJECT);
-    }
-    if (context.userId) {
-      scopes.push(PluginPublicationScope.MEMBER);
-    }
-
-    for (const scope of scopes) {
-      const rows = await this.publications.listManageable(scope, {
-        projectId: context.projectId,
-        userId: scope === PluginPublicationScope.MEMBER ? (context.userId ?? undefined) : undefined,
-      });
-      if (rows.some(row => row.pluginId === pluginId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
    * Whether this plugin is already reachable by the caller without guessing.
    *
    * A visible publication or the caller's own installation -- including a soft-uninstalled
@@ -172,16 +142,4 @@ export class UpdatePluginService {
 
     return installation !== null;
   }
-}
-
-/**
- * Withholds a private repository's name from anyone but a deployment publisher.
- *
- * `PluginPresentationMapper.toSource` hides that name on the plugin view precisely because
- * it "would confirm to a member that one specific private repository exists" -- and
- * **Check and Update** sits on that same page, available to any viewer with no installation. The
- * owner stays, matching what `toSource` does disclose.
- */
-function visibleRepository(plugin: Plugin, repository: string, isPublisher: boolean): string {
-  return plugin.isPrivateRepo && !isPublisher ? `${plugin.repoOwner}/***` : repository;
 }

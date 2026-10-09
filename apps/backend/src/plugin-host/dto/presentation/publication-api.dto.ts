@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -107,4 +108,75 @@ export class UpdatePluginByRepositoryApiDto {
   @MinLength(1)
   @MaxLength(512)
   repository: string;
+}
+
+export class CheckPluginReleaseApiDto extends UpdatePluginByRepositoryApiDto {
+  @ApiProperty({ description: 'Branch, tag, or commit SHA to check.', example: 'main' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  @Matches(/^[^\s\p{Cc}\p{Cs}]+$/u, {
+    message: 'ref must not contain whitespace or control characters',
+  })
+  ref: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Version the release would carry, X.Y.Z optionally prefixed with v. Defaults to the next version after the current one: the next patch below 1.0.0, the next minor from 1.0.0.',
+    example: '1.5.0',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  version?: string;
+}
+
+export class PluginReleaseCheckIssueApiDto {
+  @ApiProperty({ enum: ReleaseRejectionCode }) code: ReleaseRejectionCode;
+  @ApiProperty() detail: string;
+}
+
+export class PluginReleaseCheckResultApiDto {
+  @ApiProperty() pluginId: string;
+
+  @ApiProperty({
+    description:
+      'Canonical owner/name. For a private repository the name is withheld from anyone but a deployment publisher, as `owner/***`.',
+  })
+  repository: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null when the ref does not resolve.',
+  })
+  commitSha: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Without the v prefix. Null when no version was given and none is current.',
+  })
+  candidateVersion: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "Highest recorded version in the candidate's compatibility line. Null when there is none or the ref does not resolve; set with collectionsEvaluated false when the manifest is invalid.",
+  })
+  baselineVersion: string | null;
+
+  @ApiProperty({
+    description: 'Whether collections were compared against the baseline.',
+  })
+  collectionsEvaluated: boolean;
+
+  @ApiProperty({
+    type: [PluginReleaseCheckIssueApiDto],
+    description:
+      'Reasons a release from this ref would be rejected; an invalid manifest or an unresolvable ref stops evaluation.',
+  })
+  issues: PluginReleaseCheckIssueApiDto[];
 }

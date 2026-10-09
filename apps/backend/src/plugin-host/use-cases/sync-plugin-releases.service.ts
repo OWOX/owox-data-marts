@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
@@ -18,27 +18,12 @@ import {
   PluginVersionConflictError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
-import {
-  ExternalCredentialDefinitionSyncService,
-  ExternalCredentialRequirementError,
-} from '../services/external-credential-definition-sync.service';
 import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginCredentialBindingReconciliationService } from '../services/plugin-credential-binding-reconciliation.service';
-import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
+import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
-import {
-  findIncompatibleCollectionChange,
-  parsePluginManifest,
-} from '../utils/plugin-manifest.util';
-import {
-  compareSemver,
-  formatSemver,
-  majorOf,
-  parseReleaseTag,
-  sameCompatibilityLine,
-} from '../utils/semver.util';
-import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
+import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 
 /** A release that survived the free checks and is worth spending network calls on. */
 interface Candidate {
@@ -59,13 +44,11 @@ export class SyncPluginReleasesService {
 
   constructor(
     private readonly githubApi: GithubApiService,
-    private readonly remoteUrlValidator: RemoteUrlValidatorService,
+    private readonly candidateRules: ReleaseCandidateRulesService,
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
     private readonly config: PluginHostConfigService,
-    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService,
-    @Optional()
-    private readonly externalCredentialDefinitions?: ExternalCredentialDefinitionSyncService
+    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService
   ) {}
 
   async run(command: SyncPluginReleasesCommand): Promise<PluginSyncResultDto> {
@@ -222,68 +205,12 @@ export class SyncPluginReleasesService {
       return false;
     }
 
-    const manifestSource = await this.githubApi.getFileAtCommit(ref, 'plugin.json', commitSha);
-    const manifest = parsePluginManifest(manifestSource);
-    if (!manifest.ok) {
-      into.rejections.push(this.rejection(release, manifest.code, manifest.detail));
+    const verdict = await this.candidateRules.firstFailure({ pluginId, ref, commitSha, semver });
+    if (!verdict.ok) {
+      into.rejections.push(this.rejection(release, verdict.code, verdict.detail));
       return false;
     }
-
-    // Collection compatibility is enforced only against the candidate's own
-    // compatibility line -- the highest released version with the same major (same
-    // minor too while below 1.0.0, per SemVer §4). A release that opens a new line is
-    // the publisher's declared breaking change, and versions from other lines are not
-    // its contract.
-    const baseline = (await this.versionService.findAllByPluginId(pluginId))
-      .filter(version => sameCompatibilityLine(version.semver, semver))
-      .reduce<
-        { semver: string; collections: PluginVersionCollections } | undefined
-      >((highest, version) => (!highest || compareSemver(version.semver, highest.semver) > 0 ? { semver: version.semver, collections: version.collections ?? [] } : highest), undefined);
-    if (baseline) {
-      const incompatibility = findIncompatibleCollectionChange(
-        baseline.collections ?? [],
-        manifest.manifest.collections
-      );
-      if (incompatibility) {
-        const escape =
-          majorOf(semver) === 0
-            ? 'bump the minor version to ship this breaking change while below 1.0.0'
-            : 'publish a new major version to ship this breaking change';
-        into.rejections.push(
-          this.rejection(
-            release,
-            ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
-            `${incompatibility} within the ${baseline.semver} compatibility line; ${escape}`
-          )
-        );
-        return false;
-      }
-    }
-
-    const delivery = await this.remoteUrlValidator.validate(manifest.manifest.delivery.url);
-    if (!delivery.ok) {
-      into.rejections.push(this.rejection(release, delivery.code, delivery.detail));
-      return false;
-    }
-
-    let credentialRequirements: readonly StoredCredentialRequirement[] =
-      manifest.manifest.credentials;
-    try {
-      if (manifest.manifest.credentials.some(requirement => externalLocator(requirement))) {
-        if (!this.externalCredentialDefinitions) {
-          throw new Error('External Credential definitions are not available');
-        }
-        credentialRequirements = await this.externalCredentialDefinitions.resolveRequirements(
-          manifest.manifest.credentials
-        );
-      }
-    } catch (error) {
-      if (!(error instanceof ExternalCredentialRequirementError)) throw error;
-      into.rejections.push(
-        this.rejection(release, ReleaseRejectionCode.MANIFEST_SCHEMA, castError(error).message)
-      );
-      return false;
-    }
+    const { manifest, credentialRequirements } = verdict;
 
     try {
       const inserted = await this.versionService.insertVersionForLease(
@@ -293,10 +220,10 @@ export class SyncPluginReleasesService {
           commitSha,
           githubReleaseId: release.githubReleaseId,
           tagName: release.tagName,
-          displayName: manifest.manifest.name,
-          description: manifest.manifest.description,
-          deliveryUrl: manifest.manifest.delivery.url,
-          collections: manifest.manifest.collections,
+          displayName: manifest.name,
+          description: manifest.description,
+          deliveryUrl: manifest.delivery.url,
+          collections: manifest.collections,
           credentialRequirements,
           releasePublishedAt: release.publishedAt,
         },
@@ -446,12 +373,4 @@ export class SyncPluginReleasesService {
   ): ReleaseRejectionDto {
     return { tagName: release.tagName, githubReleaseId: release.githubReleaseId, code, detail };
   }
-}
-
-type PluginVersionCollections = NonNullable<
-  Awaited<ReturnType<PluginVersionService['findById']>>
->['collections'];
-
-function externalLocator(requirement: string | { id: string }): boolean {
-  return (typeof requirement === 'string' ? requirement : requirement.id).startsWith('@');
 }

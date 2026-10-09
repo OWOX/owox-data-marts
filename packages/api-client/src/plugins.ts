@@ -61,6 +61,31 @@ export interface OWOXPluginUpdateResult {
   diagnostics: OWOXPluginPublisherDiagnostics | null;
 }
 
+export interface OWOXPluginCheckInput {
+  /** GitHub repository, as a URL or owner/name. */
+  repository: string;
+  /** Branch, tag, or commit SHA. */
+  ref: string;
+  /** Candidate version; the server derives the next one from the current version when omitted. */
+  version?: string;
+}
+
+export interface OWOXPluginCheckIssue {
+  code: string;
+  detail: string;
+}
+
+/** Dry run: nothing is recorded, and `collectionsEvaluated` is false when there is no baseline or the manifest is invalid. */
+export interface OWOXPluginCheckResult {
+  pluginId: string;
+  repository: string;
+  commitSha: string | null;
+  candidateVersion: string | null;
+  baselineVersion: string | null;
+  collectionsEvaluated: boolean;
+  issues: OWOXPluginCheckIssue[];
+}
+
 export interface OWOXPluginSuspension {
   pluginId: string;
   suspended: boolean;
@@ -117,6 +142,16 @@ const asPublication = (value: unknown, operation: string) =>
 const asUpdateResult = (value: unknown, operation: string) =>
   asShape<OWOXPluginUpdateResult>(value, 'pluginId', operation);
 
+const asCheckResult = (value: unknown) => {
+  const result = asShape<OWOXPluginCheckResult>(value, 'pluginId', 'check');
+  if (!Array.isArray(result.issues) || typeof result.collectionsEvaluated !== 'boolean') {
+    throw new OWOXApiError('OWOX Plugins API returned an unexpected response shape for check', {
+      details: value,
+    });
+  }
+  return result;
+};
+
 /**
  * Publisher-facing plugin catalog operations.
  *
@@ -171,6 +206,11 @@ export class PluginsApi {
       await this.requester.postJson<unknown>(`${BASE}/update`, { repository }),
       'update'
     );
+  }
+
+  /** Dry-runs a release from `ref`: reports what a release would reject, records nothing. */
+  async check(input: OWOXPluginCheckInput): Promise<OWOXPluginCheckResult> {
+    return asCheckResult(await this.requester.postJson<unknown>(`${BASE}/check`, input));
   }
 
   async suspend(repository: string, note?: string): Promise<OWOXPluginSuspension> {
