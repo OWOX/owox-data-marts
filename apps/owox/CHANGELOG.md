@@ -2,7 +2,7 @@
 
 ## 0.38.0
 
-### Minor Changes
+### Minor Changes 0.38.0
 
 - ce4310f: **Import from Google BigQuery blocks tables stored in another location**
 
@@ -227,7 +227,7 @@ was not found.` — and the same report could fail with a different message ever
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.38.0
 
 - @owox/internal-helpers@0.38.0
 - @owox/idp-protocol@0.38.0
