@@ -433,7 +433,7 @@ describe('CheckPluginReleaseService', () => {
           {
             code: ReleaseRejectionCode.VERSION_CONFLICT,
             detail:
-              'Version 1.3.0 is lower than the current version 1.4.2; release sync stops at the current version and would not record it',
+              'Version 1.3.0 is lower than the current version 1.4.2; release sync stops at the current version, so it would never become current',
           },
           {
             code: ReleaseRejectionCode.URL_UNREACHABLE,
@@ -576,15 +576,24 @@ describe('CheckPluginReleaseService', () => {
       expect(s.githubApi.resolveCommitSha).toHaveBeenCalledTimes(1);
     });
 
-    it('limits each caller separately', async () => {
+    it('gives one person a single slot across a session and an API key', async () => {
       const s = setup();
       s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
       await check(s, { context: PUBLISHER });
 
-      await expect(check(s, { context: MEMBER })).resolves.toMatchObject({ pluginId: 'p1' });
       await expect(check(s, { context: MEMBER })).rejects.toBeInstanceOf(
         PluginCheckRateLimitedError
       );
+    });
+
+    it('does not block a different person', async () => {
+      const s = setup();
+      s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
+      await check(s, { context: PUBLISHER });
+
+      await expect(
+        check(s, { context: { ...MEMBER, userId: 'u2' } as AuthorizationContext })
+      ).resolves.toMatchObject({ pluginId: 'p1' });
     });
 
     it('does not spend the slot on an unauthorized caller', async () => {

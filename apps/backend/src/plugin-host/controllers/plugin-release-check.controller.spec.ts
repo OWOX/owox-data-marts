@@ -75,4 +75,12 @@ describe('PluginReleaseCheckController', () => {
       expect(await invalidProperties(ref)).toEqual(['ref']);
     });
   });
+
+  it('rejects an empty version', async () => {
+    const errors = await validate(
+      plainToInstance(CheckPluginReleaseApiDto, { repository: 'OWOX/x', ref: 'main', version: '' })
+    );
+
+    expect(errors.map(error => error.property)).toEqual(['version']);
+  });
 });

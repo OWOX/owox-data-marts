@@ -250,6 +250,27 @@ describe('ExternalCredentialDefinitionSyncService', () => {
       await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toBe(error);
     });
 
+    it('keeps the installation URL of an inaccessible repository in the requirement error', async () => {
+      const state = setup();
+      state.github.getRepo.mockRejectedValue(
+        new GithubRepoNotAccessibleError('acme', 'credentials', 'https://github.com/apps/owox')
+      );
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toThrow(
+        /^@acme\/credentials: .* https:\/\/github\.com\/apps\/owox$/
+      );
+    });
+
+    it('ends a not-found requirement error at the message', async () => {
+      const state = setup();
+      const error = new GithubRepoNotFoundError('acme', 'credentials');
+      state.github.getRepo.mockRejectedValue(error);
+
+      await expect(state.service.previewRequirements(['@acme/credentials'])).rejects.toThrow(
+        new ExternalCredentialRequirementError(`@acme/credentials: ${error.message}`)
+      );
+    });
+
     it.each([
       ['an API error', new GithubApiError(502, '/repos/acme/credentials')],
       ['a rate limit', new GithubRateLimitedError('2026-10-09T12:00:00Z', 'anonymous')],

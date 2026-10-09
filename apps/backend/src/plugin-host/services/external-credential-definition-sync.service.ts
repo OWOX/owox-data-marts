@@ -129,7 +129,13 @@ export class ExternalCredentialDefinitionSyncService {
           error instanceof GithubRepoNotFoundError ||
           error instanceof GithubRepoNotAccessibleError
         ) {
-          throw new ExternalCredentialRequirementError(`${locator}: ${error.message}`);
+          const installationUrl =
+            error instanceof GithubRepoNotAccessibleError
+              ? error.errorDetails?.installationUrl
+              : undefined;
+          throw new ExternalCredentialRequirementError(
+            `${locator}: ${error.message}${installationUrl ? ` ${installationUrl}` : ''}`
+          );
         }
         throw error;
       }

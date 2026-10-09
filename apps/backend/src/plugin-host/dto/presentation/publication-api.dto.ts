@@ -127,6 +127,7 @@ export class CheckPluginReleaseApiDto extends UpdatePluginByRepositoryApiDto {
   })
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(64)
   version?: string;
 }

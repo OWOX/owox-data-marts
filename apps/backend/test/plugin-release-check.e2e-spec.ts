@@ -7,6 +7,7 @@ import { IdpProviderService } from 'src/idp/services/idp-provider.service';
 import { PluginVersion } from 'src/plugin-host/entities/plugin-version.entity';
 import { Plugin } from 'src/plugin-host/entities/plugin.entity';
 import { PluginPublicationScope } from 'src/plugin-host/enums/plugin-publication-scope.enum';
+import { GithubRepoNotAccessibleError } from 'src/plugin-host/errors/plugin-host.errors';
 import { GithubApiService } from 'src/plugin-host/services/github-api.service';
 import { RemoteUrlValidatorService } from 'src/plugin-host/services/remote-url-validator.service';
 import { PluginPublicationService } from 'src/plugin-host/services/plugin-publication.service';
@@ -162,6 +163,7 @@ describe('Plugin release check (e2e)', () => {
       await definitionVersions.count(),
     ];
     const before = await counts();
+    const rowBefore = await plugins.findOneBy({ id: plugin.id });
     (app.get(GithubApiService).getFileAtCommit as jest.Mock).mockClear();
 
     const response = await check(plugin, 'publisher').expect(200);
@@ -176,6 +178,7 @@ describe('Plugin release check (e2e)', () => {
       issues: [],
     });
     expect(await counts()).toEqual(before);
+    expect(await plugins.findOneBy({ id: plugin.id })).toEqual(rowBefore);
     expect(manifestReadFor('acme/credentials')).toBe(true);
   });
 
@@ -209,6 +212,21 @@ describe('Plugin release check (e2e)', () => {
 
     expect(second.status).toBe(400);
     expect(second.body).toMatchObject({ code: 'PLUGIN_CHECK_RATE_LIMITED' });
+  });
+
+  it('tells the checker how to grant the GitHub App access when the repository is unreadable', async () => {
+    const plugin = await seedPlugin();
+    const installationUrl = 'https://github.com/apps/owox/installations/new';
+    (app.get(GithubApiService).getRepo as jest.Mock).mockRejectedValueOnce(
+      new GithubRepoNotAccessibleError(plugin.repoOwner, plugin.repoName, installationUrl)
+    );
+
+    const response = await check(plugin, 'publisher').expect(400);
+
+    expect(response.body).toMatchObject({
+      code: 'GITHUB_REPO_NOT_ACCESSIBLE',
+      errorDetails: { installationUrl },
+    });
   });
 
   function manifestReadFor(repo: string): boolean {

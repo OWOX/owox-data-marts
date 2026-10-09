@@ -50,7 +50,7 @@ export class CheckPluginReleaseService {
     ) {
       throw notFound();
     }
-    this.claimSlot(`${plugin.id}:${command.context.apiKeyId ?? command.context.userId}`);
+    this.claimSlot(`${plugin.id}:${command.context.userId}`);
 
     const ref = { owner: plugin.repoOwner, name: plugin.repoName };
     if ((await this.githubApi.getRepo(ref)).githubRepoId !== plugin.githubRepoId) {
@@ -115,7 +115,7 @@ export class CheckPluginReleaseService {
     if (current && compareSemver(semver, current.semver) < 0) {
       return {
         code: ReleaseRejectionCode.VERSION_CONFLICT,
-        detail: `Version ${semver} is lower than the current version ${current.semver}; release sync stops at the current version and would not record it`,
+        detail: `Version ${semver} is lower than the current version ${current.semver}; release sync stops at the current version, so it would never become current`,
       };
     }
     return null;
