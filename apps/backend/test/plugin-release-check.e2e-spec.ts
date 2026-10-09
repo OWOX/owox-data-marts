@@ -162,6 +162,7 @@ describe('Plugin release check (e2e)', () => {
       await definitionVersions.count(),
     ];
     const before = await counts();
+    (app.get(GithubApiService).getFileAtCommit as jest.Mock).mockClear();
 
     const response = await check(plugin, 'publisher').expect(200);
 
@@ -175,7 +176,7 @@ describe('Plugin release check (e2e)', () => {
       issues: [],
     });
     expect(await counts()).toEqual(before);
-    expect(githubCalledFor('acme/credentials')).toBe(true);
+    expect(manifestReadFor('acme/credentials')).toBe(true);
   });
 
   it('answers 404 to a member who manages no publication of the plugin', async () => {
@@ -210,9 +211,9 @@ describe('Plugin release check (e2e)', () => {
     expect(second.body).toMatchObject({ code: 'PLUGIN_CHECK_RATE_LIMITED' });
   });
 
-  function githubCalledFor(repo: string): boolean {
+  function manifestReadFor(repo: string): boolean {
     const github = app.get(GithubApiService);
-    return (github.getRepo as jest.Mock).mock.calls.some(
+    return (github.getFileAtCommit as jest.Mock).mock.calls.some(
       ([ref]) => `${ref.owner}/${ref.name}` === repo
     );
   }
