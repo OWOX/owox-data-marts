@@ -32,14 +32,9 @@ import {
   PluginRuntimeTokenApiDto,
   PluginUpdateResultApiDto,
 } from '../dto/presentation/plugin-installation-api.dto';
-import {
-  CheckPluginReleaseApiDto,
-  PluginReleaseCheckResultApiDto,
-  UpdatePluginByRepositoryApiDto,
-} from '../dto/presentation/publication-api.dto';
+import { UpdatePluginByRepositoryApiDto } from '../dto/presentation/publication-api.dto';
 import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
-import { CheckPluginReleaseService } from '../use-cases/check-plugin-release.service';
 import { GetPluginInstallationEntryService } from '../use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from '../use-cases/install-plugin.service';
 import { ListInstallationsService } from '../use-cases/list-installations.service';
@@ -72,7 +67,6 @@ export class PluginInstallationsController {
     private readonly getPluginInstallationEntryService: GetPluginInstallationEntryService,
     private readonly updatePluginService: UpdatePluginService,
     private readonly issuePluginRuntimeTokenService: IssuePluginRuntimeTokenService,
-    private readonly checkPluginReleaseService: CheckPluginReleaseService,
     private readonly mapper: PluginPresentationMapper
   ) {}
 
@@ -166,26 +160,6 @@ export class PluginInstallationsController {
       this.mapper.toUpdateByRepositoryCommand(context, dto)
     );
     return this.mapper.toUpdateResultResponse(result);
-  }
-
-  @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectPluginAuth()
-  @Post('check')
-  @HttpCode(200)
-  @ApiOperation({
-    summary: 'Check a release before publishing it',
-    description:
-      'Dry run: reports whether a release from this ref would be accepted, using the same rules as release sync, and records nothing. For deployment publishers and members who manage a publication of the plugin. Uses cached repository identity. Rate-limited per plugin, separately from Check now.',
-  })
-  @ApiOkResponse({ type: PluginReleaseCheckResultApiDto })
-  async check(
-    @AuthContext() context: AuthorizationContext,
-    @Body() dto: CheckPluginReleaseApiDto
-  ): Promise<PluginReleaseCheckResultApiDto> {
-    const result = await this.checkPluginReleaseService.run(
-      this.mapper.toCheckReleaseCommand(context, dto)
-    );
-    return this.mapper.toReleaseCheckResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

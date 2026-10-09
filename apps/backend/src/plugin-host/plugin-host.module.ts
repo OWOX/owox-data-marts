@@ -15,6 +15,7 @@ import { Plugin } from './entities/plugin.entity';
 import { PluginAdminController } from './controllers/plugin-admin.controller';
 import { PluginGalleryController } from './controllers/plugin-gallery.controller';
 import { PluginInstallationsController } from './controllers/plugin-installations.controller';
+import { PluginReleaseCheckController } from './controllers/plugin-release-check.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
 import { PluginCredentialRuntimeController } from './controllers/plugin-credential-runtime.controller';
 import { CredentialDefinitionsGithubController } from './controllers/credential-definitions-github.controller';
@@ -107,6 +108,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginCredentialRuntimeController,
     PluginPublicationsController,
     PluginAdminController,
+    PluginReleaseCheckController,
     PluginInstallationsController,
     PluginGalleryController,
   ],
