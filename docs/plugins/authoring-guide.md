@@ -669,8 +669,8 @@ other members keep their installations, and any Credential access you granted en
 
 To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Installation history**,
 and select **Restore**. The **Plugins** section stays in the sidebar while you have a plugin to
-restore, and restoring works even when nothing lists the plugin. It asks for the plugin's
-Credential access again.
+restore, and restoring works even when nothing lists the plugin. If the plugin needs Credentials,
+restoring asks for that access again.
 
 ## Test the installed plugin
 

@@ -27,13 +27,16 @@ export default function PluginOpenPage() {
   );
 
   if (!installation) {
-    // Uninstalled while running -- from the menu, another tab, anywhere. Offering the install
-    // here would answer a question the member did not ask; the plugin's page is where they
-    // can install it again.
+    // Uninstalled while running, from the sidebar's row menu. Offering the install here would
+    // answer a question the member did not ask; the plugin's page is where they can install it
+    // again.
     if (ranPluginIdRef.current === pluginId) {
       return <Navigate to={scope(`/plugins/${pluginId}`)} replace />;
     }
 
+    // Another plugin's address: forget the last run, so coming back to one that was uninstalled
+    // meanwhile offers the install instead of leaving.
+    ranPluginIdRef.current = null;
     return <PluginDetailsPage key={pluginId} installOnOpen />;
   }
 

@@ -4,7 +4,10 @@ import type { PluginGalleryEntry } from '../types';
 import { DialogFact } from './DialogFact';
 
 interface UninstallPluginDialogProps {
-  plugin: Pick<PluginGalleryEntry, 'displayName' | 'credentialRequirements'>;
+  plugin: Pick<
+    PluginGalleryEntry,
+    'displayName' | 'credentialRequirements' | 'suspended' | 'currentVersionId'
+  >;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
@@ -22,7 +25,8 @@ interface UninstallPluginDialogProps {
  * two actions members confuse.
  *
  * It cannot be dismissed while the request runs: the request would finish anyway, and a
- * dialog closed by Cancel would be followed by "Plugin uninstalled".
+ * dialog closed by Cancel would be followed by "Plugin uninstalled". The facts sit in the
+ * description, so a screen reader announces them with the question.
  */
 export function UninstallPluginDialog({
   plugin,
@@ -33,6 +37,8 @@ export function UninstallPluginDialog({
   onCloseAutoFocus,
 }: UninstallPluginDialogProps) {
   const hasCredentialRequirements = (plugin.credentialRequirements?.length ?? 0) > 0;
+  // Restore re-runs the install, which a suspension or a missing current version refuses.
+  const isRestorable = !plugin.suspended && plugin.currentVersionId !== null;
 
   return (
     <ConfirmationDialog
@@ -45,30 +51,37 @@ export function UninstallPluginDialog({
       }}
       title='Uninstall this plugin?'
       description={
-        <p className='break-words'>
-          <span className='font-medium [overflow-wrap:anywhere]'>{plugin.displayName}</span> stops
-          for you and leaves your menu.
-        </p>
+        <>
+          <p className='break-words'>
+            <span className='font-medium [overflow-wrap:anywhere]'>{plugin.displayName}</span> stops
+            for you and leaves your menu.
+          </p>
+          {/* text-left: the dialog header centres its text on narrow screens. */}
+          <div className='mt-4 flex flex-col gap-3 rounded-md border p-3 text-left text-sm'>
+            <DialogFact icon={Users}>
+              Who can find it does not change, and other members keep their installations.
+            </DialogFact>
+            <DialogFact icon={History}>
+              {isRestorable
+                ? 'You can restore it later from Installation history.'
+                : 'It stays in Installation history, where you can restore it once the plugin is available again.'}
+            </DialogFact>
+            {/* "Any": an optional requirement may have been answered "Do not grant". */}
+            {hasCredentialRequirements && (
+              <DialogFact icon={KeyRound}>
+                Any Credential access you granted ends. Restoring asks for it again.
+              </DialogFact>
+            )}
+          </div>
+        </>
       }
       confirmLabel={isUninstalling ? 'Uninstalling…' : 'Uninstall'}
       cancelLabel='Cancel'
       confirmDisabled={isUninstalling}
       cancelDisabled={isUninstalling}
+      showCloseButton={!isUninstalling}
       onConfirm={onConfirm}
       onCloseAutoFocus={onCloseAutoFocus}
-    >
-      <div className='flex flex-col gap-3 rounded-md border p-3 text-sm'>
-        <DialogFact icon={Users}>
-          Who can find it does not change, and other members keep their installations.
-        </DialogFact>
-        <DialogFact icon={History}>You can restore it later from Installation history.</DialogFact>
-        {/* "Any": an optional requirement may have been answered "Do not grant". */}
-        {hasCredentialRequirements && (
-          <DialogFact icon={KeyRound}>
-            Any Credential access you granted ends. Restoring asks for it again.
-          </DialogFact>
-        )}
-      </div>
-    </ConfirmationDialog>
+    />
   );
 }

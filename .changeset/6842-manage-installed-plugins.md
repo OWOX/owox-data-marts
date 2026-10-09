@@ -16,6 +16,8 @@ members keep their installations, and any Credential access you granted ends —
 plugin asks for it again. The **Plugins** section stays in the sidebar while you have an
 uninstalled plugin to restore, so **Installation history** stays within reach.
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/6ed6eb7d470a89be099e9f9730c7d4ab/iframe>
+
 See [Uninstall or restore](../../docs/plugins/authoring-guide.md#uninstall-or-restore).
 
 <!-- markdownlint-disable-file MD041 MD036 -->

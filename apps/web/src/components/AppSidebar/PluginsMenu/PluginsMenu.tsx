@@ -78,11 +78,13 @@ export function PluginsMenu() {
 
   // Avoid a flash of the menu while the first gallery load is still in flight.
   if (galleryLoading || installationsLoading) {
-    return null;
+    return <>{uninstallDialog}</>;
   }
 
+  // The confirmation outlives the section: uninstalling the last plugin, when it is suspended
+  // or has no version to restore, hides the section while the dialog still has to close.
   if (!hasInstallablePlugin && active.length === 0 && !hasRestorableInstallation) {
-    return null;
+    return <>{uninstallDialog}</>;
   }
 
   const rootHref = scope('/plugins');
@@ -167,7 +169,8 @@ export function PluginsMenu() {
  *
  * The kit's menu action, aimed at the sub-item: its `showOnHover` keys on the parent item,
  * which would reveal every row's button at once. Hidden until the row is hovered or focused
- * only where a pointer can hover; touch screens of any width always show it. The
+ * only where a pointer can hover; touch screens of any width always show it, with the kit's
+ * larger touch target (which the kit itself drops from 768px by width alone). The
  * data-sidebar override keeps the parent Plugins button from reserving room for an action
  * of its own.
  */
@@ -190,7 +193,7 @@ function InstalledPluginMenu({
           data-sidebar='menu-sub-action'
           aria-label={`More actions for ${displayName}`}
           className={cn(
-            'top-1 [@media(hover:hover)]:after:hidden',
+            'top-1 [@media(hover:hover)]:after:hidden [@media(hover:none)]:after:block!',
             'group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0'
           )}
         >

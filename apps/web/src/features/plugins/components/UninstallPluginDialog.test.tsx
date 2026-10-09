@@ -6,7 +6,12 @@ const renderDialog = (
   over: Partial<Parameters<typeof UninstallPluginDialog>[0]> = {}
 ): Parameters<typeof UninstallPluginDialog>[0] => {
   const props = {
-    plugin: { displayName: 'Example Plugin', credentialRequirements: [] },
+    plugin: {
+      displayName: 'Example Plugin',
+      credentialRequirements: [],
+      suspended: false,
+      currentVersionId: 'v1',
+    },
     open: true,
     onOpenChange: vi.fn(),
     onConfirm: vi.fn(),
@@ -38,6 +43,8 @@ describe('UninstallPluginDialog', () => {
       plugin: {
         displayName: 'Example Plugin',
         credentialRequirements: [{ id: 'openai', optional: false }],
+        suspended: false,
+        currentVersionId: 'v1',
       },
     });
 
@@ -73,10 +80,31 @@ describe('UninstallPluginDialog', () => {
     const props = renderDialog({ isUninstalling: true });
 
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(props.onOpenChange).not.toHaveBeenCalled();
+  });
+
+  // Restore re-runs the install, which a suspension or a missing current version refuses.
+  it.each([
+    ['suspended', { suspended: true, currentVersionId: 'v1' }],
+    ['without a current version', { suspended: false, currentVersionId: null }],
+  ])('does not promise a restore for a plugin that is %s', (_, state) => {
+    renderDialog({
+      plugin: { displayName: 'Example Plugin', credentialRequirements: [], ...state },
+    });
+
+    expect(screen.queryByText(/You can restore it later/)).toBeNull();
+    expect(screen.getByText(/once the plugin is available again/)).toBeInTheDocument();
+  });
+
+  // Announced with the question rather than left for the reader to find.
+  it('describes the dialog with what uninstalling does and does not change', () => {
+    renderDialog();
+
+    const dialog = screen.getByRole('dialog', { name: 'Uninstall this plugin?' });
+    expect(dialog).toHaveAccessibleDescription(/Who can find it does not change/);
   });
 
   it('closes on Escape once nothing is running', () => {
@@ -93,6 +121,8 @@ describe('UninstallPluginDialog', () => {
       plugin: {
         displayName: 'Example Plugin',
         credentialRequirements: [{ id: 'openai', optional: true }],
+        suspended: false,
+        currentVersionId: 'v1',
       },
     });
 

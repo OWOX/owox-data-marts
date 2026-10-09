@@ -5,7 +5,6 @@ export {
   PluginPageMessage,
   PluginReleaseIssuesCard,
   PublishPluginSheet,
-  UninstallPluginDialog,
   useCopyLink,
   useUninstallConfirmation,
 } from './components';

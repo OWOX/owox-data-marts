@@ -12,8 +12,6 @@ export interface GalleryVisibility {
   readonly summary: string;
   /** One sentence a member can act on. */
   readonly detail: string;
-  /** How the install dialog labels who listed it. */
-  readonly listing: string;
 }
 
 /**
@@ -39,7 +37,6 @@ export function describeVisibility(
       summary: 'Verified',
       // No product/admin story on the card yet -- just the trust mark.
       detail: 'Verified',
-      listing: 'Verified',
     };
   }
 
@@ -49,7 +46,6 @@ export function describeVisibility(
       // Who listed it is not the reader's concern -- what they can do with it is.
       summary: 'Available to the project',
       detail: 'Available to every member of this project to install.',
-      listing: 'Available to the whole project',
     };
   }
 
@@ -60,7 +56,6 @@ export function describeVisibility(
       audience: 'you',
       summary: 'Only you can see it',
       detail: 'You added this plugin for yourself. No one else in the project sees it here.',
-      listing: 'Added by you, for yourself',
     };
   }
 
@@ -72,18 +67,17 @@ export function describeVisibility(
       summary: 'Installed, not listed',
       detail:
         'Nothing lists this plugin, but you have it installed, so it stays in your menu until you uninstall it.',
-      listing: 'Not listed',
     };
   }
 
   // Not "by direct link" either: a member who uninstalled it reaches it from Installation history.
+  // No promise to restore: a suspension or a missing version refuses it.
   if (installationState === 'uninstalled') {
     return {
       audience: 'unlisted',
       summary: 'Not in the Gallery',
       detail:
-        'Nothing lists this plugin. You can restore it from Installation history; that does not list it for anyone.',
-      listing: 'Not listed',
+        'Nothing lists this plugin, and you uninstalled it. Installing it again does not list it for anyone.',
     };
   }
 
@@ -92,6 +86,5 @@ export function describeVisibility(
     summary: 'Not in the Gallery',
     detail:
       'Nothing lists this plugin, so it is reachable only by direct link. Installing it does not list it for anyone.',
-    listing: 'Not listed',
   };
 }

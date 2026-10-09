@@ -4,7 +4,7 @@ import { UninstallPluginDialog } from './UninstallPluginDialog';
 
 type UninstallTarget = Pick<
   PluginGalleryEntry,
-  'pluginId' | 'displayName' | 'credentialRequirements'
+  'pluginId' | 'displayName' | 'credentialRequirements' | 'suspended' | 'currentVersionId'
 >;
 
 interface PendingUninstall {

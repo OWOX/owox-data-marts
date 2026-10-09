@@ -116,9 +116,9 @@ describe('PluginOpenPage', () => {
   });
 
   /**
-   * Uninstalled while running -- from the sidebar, another tab, anywhere. The page leaves for
-   * the plugin's own page instead of offering the install the member just turned down, and
-   * only once the installation is really gone.
+   * Uninstalled while running, from the sidebar's row menu. The page leaves for the plugin's
+   * own page instead of offering the install the member just turned down, and only once the
+   * installation is really gone.
    */
   it("leaves for the plugin's page when the running plugin is uninstalled", () => {
     installations = [{ installationId: 'i1', pluginId: 'p1', uninstalledAt: null }];
@@ -139,6 +139,34 @@ describe('PluginOpenPage', () => {
 
     expect(screen.getByText('plugin page')).toBeInTheDocument();
     expect(screen.queryByText(/details with install/)).toBeNull();
+  });
+
+  // Visiting another plugin ends the run: coming back after an uninstall is a fresh visit.
+  it('offers the install on returning to a plugin uninstalled while another was open', async () => {
+    installations = [{ installationId: 'i1', pluginId: 'p1', uninstalledAt: null }];
+    const view = () => (
+      <MemoryRouter initialEntries={['/ui/project-1/plugins/p1/open']}>
+        <Link to='/ui/project-1/plugins/p2/open'>Other plugin</Link>
+        <Link to='/ui/project-1/plugins/p1/open'>Back to the first</Link>
+        <Routes>
+          <Route path='/ui/:projectId/plugins/:pluginId/open/*' element={<PluginOpenPage />} />
+          <Route path='/ui/:projectId/plugins/:pluginId' element={<p>plugin page</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const { rerender } = render(view());
+    expect(screen.getByText(/runtime i1 at/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Other plugin' }));
+    expect(await screen.findByText('details mount 1')).toBeInTheDocument();
+
+    installations = [];
+    rerender(view());
+    fireEvent.click(screen.getByRole('link', { name: 'Back to the first' }));
+
+    expect(await screen.findByText('details mount 2')).toBeInTheDocument();
+    expect(screen.getByText('details with install')).toBeInTheDocument();
+    expect(screen.queryByText('plugin page')).toBeNull();
   });
 
   it('offers the install afresh on moving to another plugin the member lacks', async () => {

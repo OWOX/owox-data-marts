@@ -20,6 +20,8 @@ interface ConfirmationDialogProps {
   onCancel?: () => void;
   confirmDisabled?: boolean;
   cancelDisabled?: boolean;
+  /** Hide the corner ✕, e.g. while a request the dialog started cannot be abandoned. */
+  showCloseButton?: boolean;
   /** Where focus goes on close; Radix has no trigger to return it to when the dialog opens from a menu. */
   onCloseAutoFocus?: (event: Event) => void;
   variant?: 'destructive' | 'default' | 'brand' | 'outline' | 'secondary' | 'ghost' | 'link';
@@ -37,6 +39,7 @@ export const ConfirmationDialog = ({
   onCancel,
   confirmDisabled = false,
   cancelDisabled = false,
+  showCloseButton = true,
   onCloseAutoFocus,
   variant = 'destructive',
   children,
@@ -48,7 +51,7 @@ export const ConfirmationDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
+      <DialogContent showCloseButton={showCloseButton} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription asChild>
