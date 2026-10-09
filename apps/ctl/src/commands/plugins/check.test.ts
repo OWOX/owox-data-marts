@@ -76,6 +76,18 @@ describe('plugins check', () => {
     );
   });
 
+  it('prints no not-checked line when an invalid manifest skipped the comparison', () => {
+    expect(
+      checkSummary(
+        result({
+          issues: [{ code: 'MANIFEST_SCHEMA', detail: 'bad manifest' }],
+          baselineVersion: '1.4.2',
+          collectionsEvaluated: false,
+        })
+      )
+    ).toBe('MANIFEST_SCHEMA: bad manifest');
+  });
+
   it('propagates a request failure', async () => {
     const client = clientWith(async () => {
       throw new Error('boom');

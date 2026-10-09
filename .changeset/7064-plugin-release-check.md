@@ -8,7 +8,7 @@
 
 - Nothing is recorded: no version, no change to the current version, no sync report. The check does not delay **Check and Update** or the daily check.
 - Without `--version`, the candidate is the next version in the current line: the next patch below `1.0.0`, the next minor from `1.0.0`. Without `--version`, a plugin with no current version gets no collection compatibility check.
-- Only deployment publishers and members who manage a publication of the plugin can run it. A plugin can be checked once per sync interval.
+- Only deployment publishers and members who manage a publication of the plugin can run it. Checks are limited to one per plugin per sync interval.
 
 See [Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
 

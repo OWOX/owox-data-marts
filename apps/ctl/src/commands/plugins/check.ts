@@ -27,20 +27,20 @@ export function checkSummary(result: OWOXPluginCheckResult): string {
   }
 
   if (!result.collectionsEvaluated && result.commitSha) {
-    lines.push(
-      result.candidateVersion
-        ? 'Collection compatibility was not checked: no version is recorded in that compatibility line.'
-        : 'Collection compatibility was not checked: the plugin has no current version and no --version was given.'
-    );
+    if (!result.candidateVersion) {
+      lines.push(
+        'Collection compatibility was not checked: the plugin has no current version and no --version was given.'
+      );
+    } else if (result.baselineVersion === null) {
+      lines.push(
+        'Collection compatibility was not checked: no version is recorded in that compatibility line.'
+      );
+    }
   }
 
   return lines.join('\n');
 }
 
-/**
- * Dry-runs a release from a branch, tag or commit. Nothing is recorded and the plugin's
- * current version is unchanged. Exits 1 when the release would be rejected.
- */
 export default class PluginsCheck extends BaseCommand {
   static override description =
     'Check whether a release from a branch, tag or commit would be accepted, without releasing anything';

@@ -75,7 +75,7 @@ export interface OWOXPluginCheckIssue {
   detail: string;
 }
 
-/** Dry run: nothing is recorded, and `collectionsEvaluated` is false when there is no baseline. */
+/** Dry run: nothing is recorded, and `collectionsEvaluated` is false when there is no baseline or the manifest is invalid. */
 export interface OWOXPluginCheckResult {
   pluginId: string;
   repository: string;

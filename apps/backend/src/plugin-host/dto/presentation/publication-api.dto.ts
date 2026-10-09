@@ -169,7 +169,8 @@ export class PluginReleaseCheckResultApiDto {
 
   @ApiProperty({
     type: [PluginReleaseCheckIssueApiDto],
-    description: 'Every reason a release from this ref would be rejected.',
+    description:
+      'Reasons a release from this ref would be rejected; an invalid manifest or an unresolvable ref stops evaluation.',
   })
   issues: PluginReleaseCheckIssueApiDto[];
 }
