@@ -702,11 +702,13 @@ To roll back, restore the last working source, deploy it, and create a new highe
 that explains the restoration; do not try to move or recreate an older tag.
 
 Before you create a release, check that it would be accepted. The check runs the release rules
-against a branch, tag, or commit: manifest, collection compatibility with the current version,
-delivery URL, and Credential definitions. It lists every rule that fails. It records nothing, and
+against a branch, tag, or commit: manifest, collection compatibility with the recorded versions in
+that compatibility line, delivery URL, and Credential definitions. It lists every failed rule it can
+evaluate. It records nothing, and
 it does not delay **Check and Update** or the daily check. Without `--version`, the candidate is the
 next patch below `1.0.0` and the next minor from `1.0.0`; pass `--version MAJOR.MINOR.PATCH` to
-check another version. Only deployment publishers and members who manage a publication of the
+check another version. Without `--version`, a plugin with no current version gets no collection
+compatibility check. Only deployment publishers and members who manage a publication of the
 plugin can run it, and a plugin can be checked once per sync interval. The command prints JSON,
 prints a summary to stderr, and exits with code 1 when there are issues:
 
