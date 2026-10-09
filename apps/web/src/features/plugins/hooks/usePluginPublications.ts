@@ -5,7 +5,7 @@ import { useIsAdmin } from '../../idp/hooks/useRole';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
 import type { PluginPublication, PluginPublicationScope } from '../types';
-import { GALLERY_KEY, INSTALLATIONS_KEY, PUBLICATIONS_KEY } from './usePlugins';
+import { GALLERY_KEY, INSTALLATIONS_KEY, PUBLICATIONS_KEY, installationsKey } from './usePlugins';
 
 const EMPTY: PluginPublication[] = [];
 
@@ -83,6 +83,25 @@ export function usePluginPublishing() {
     ]);
   }, [queryClient, projectId]);
 
+  /**
+   * Best effort: the publication has already succeeded, so a failed lookup only costs the
+   * note, never the success.
+   */
+  const findActiveInstallation = useCallback(
+    async (pluginId: string) => {
+      try {
+        const installations = await queryClient.query({
+          queryKey: installationsKey(projectId, false),
+          queryFn: () => pluginsService.getInstallations(false),
+        });
+        return installations.find(installation => installation.pluginId === pluginId) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    [queryClient, projectId]
+  );
+
   const publishMutation = useMutation({
     mutationFn: (payload: { repository: string; scope: PluginPublicationScope }) =>
       pluginsService.publish(payload),
@@ -104,14 +123,21 @@ export function usePluginPublishing() {
   const publish = useCallback(
     async (repository: string, scope: PluginPublicationScope): Promise<PublishFailure | null> => {
       try {
-        await publishMutation.mutateAsync({ repository, scope });
-        toast.success('Plugin published');
+        const publication = await publishMutation.mutateAsync({ repository, scope });
+        const installed = await findActiveInstallation(publication.pluginId);
+        // Republishing a plugin the member already has succeeds just like a first publish,
+        // and "published" alone left them wondering whether it had installed something.
+        toast.success(
+          installed
+            ? `Plugin published. You already have ${installed.displayName} installed.`
+            : 'Plugin published'
+        );
         return null;
       } catch (caught) {
         return readPublishFailure(caught);
       }
     },
-    [publishMutation]
+    [publishMutation, findActiveInstallation]
   );
 
   /**

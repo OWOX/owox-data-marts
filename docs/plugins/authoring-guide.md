@@ -626,6 +626,9 @@ install it, and unpublishing later does not uninstall existing installations.
    **Everyone in this project** after the plugin is ready.
 5. Publish the plugin, find it in the Gallery, select it, and confirm installation.
 
+Publishing a plugin you have already installed changes only who can find it. The confirmation says
+that you already have it installed, and your installation stays as it is.
+
 For an agent or script, use the already configured [`owox-ctl`](../api/owox-ctl.md):
 
 ```bash

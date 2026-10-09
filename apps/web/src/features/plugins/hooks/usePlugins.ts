@@ -23,7 +23,7 @@ const EMPTY_INSTALLATIONS: InstalledPlugin[] = [];
 
 /** Every key carries the project: switching projects must not show the previous one's plugins. */
 const galleryKey = (projectId: string | null) => [GALLERY_KEY, projectId];
-const installationsKey = (projectId: string | null, includeUninstalled: boolean) => [
+export const installationsKey = (projectId: string | null, includeUninstalled: boolean) => [
   INSTALLATIONS_KEY,
   projectId,
   includeUninstalled,

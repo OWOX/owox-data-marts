@@ -11,6 +11,7 @@ vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() 
 vi.mock('../services/plugins.service', () => ({
   pluginsService: {
     listPublications: vi.fn(),
+    getInstallations: vi.fn(),
     publish: vi.fn(),
     unpublish: vi.fn(),
   },
@@ -25,6 +26,7 @@ import {
 } from './usePluginPublications';
 
 const publish = vi.mocked(pluginsService.publish);
+const getInstallations = vi.mocked(pluginsService.getInstallations);
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -66,7 +68,8 @@ describe('usePublishableScopes', () => {
 describe('usePluginPublishing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    publish.mockResolvedValue({ publicationId: 'pub1' } as never);
+    publish.mockResolvedValue({ publicationId: 'pub1', pluginId: 'p1' } as never);
+    getInstallations.mockResolvedValue([]);
   });
 
   it('reports success as no failure at all', async () => {
@@ -79,6 +82,47 @@ describe('usePluginPublishing', () => {
 
     expect(captured.failure).toBeNull();
     expect(publish).toHaveBeenCalledWith({ repository: 'OWOX/example', scope: 'member' });
+  });
+
+  it('confirms a first publish plainly', async () => {
+    getInstallations.mockResolvedValue([{ pluginId: 'other', displayName: 'Other' }] as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'member');
+    });
+
+    expect(getInstallations).toHaveBeenCalledWith(false);
+    expect(toast.success).toHaveBeenCalledWith('Plugin published');
+  });
+
+  // Republishing a plugin the member already has succeeds silently on the server, so
+  // "published" alone left them unsure whether anything had been installed.
+  it('says so when the member already has the plugin installed', async () => {
+    getInstallations.mockResolvedValue([{ pluginId: 'p1', displayName: 'Run History' }] as never);
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'member');
+    });
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Plugin published. You already have Run History installed.'
+    );
+  });
+
+  // The publication already succeeded; a failed lookup must not turn it into a failure.
+  it('still reports success when the installations cannot be read', async () => {
+    getInstallations.mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => usePluginPublishing(), { wrapper });
+
+    const captured: { failure?: PublishFailure | null } = {};
+    await act(async () => {
+      captured.failure = await result.current.publish('OWOX/example', 'member');
+    });
+
+    expect(captured.failure).toBeNull();
+    expect(toast.success).toHaveBeenCalledWith('Plugin published');
   });
 
   // The one publishing failure a member can resolve themselves, and the server hands
