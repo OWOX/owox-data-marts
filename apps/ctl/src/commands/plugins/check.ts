@@ -18,9 +18,12 @@ export function checkSummary(result: OWOXPluginCheckResult): string {
   const lines = result.issues.map(issue => `${issue.code}: ${issue.detail}`);
 
   if (lines.length === 0) {
-    const version = result.candidateVersion ? ` ${result.candidateVersion}` : '';
-    const sha = result.commitSha ? ` from ${result.commitSha.slice(0, 7)}` : '';
-    lines.push(`A release of version${version}${sha} would pass the checks.`);
+    const sha = result.commitSha?.slice(0, 7);
+    lines.push(
+      result.candidateVersion
+        ? `A release of version ${result.candidateVersion}${sha ? ` from ${sha}` : ''} would pass the checks.`
+        : `No issues found${sha ? ` in ${sha}` : ''}.`
+    );
   }
 
   if (!result.collectionsEvaluated && result.commitSha) {

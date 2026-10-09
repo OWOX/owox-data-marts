@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import type { OWOXPluginCheckResult } from '@owox/api-client';
 
 import PluginsCheck, { checkPlugin, checkSummary } from './check.js';
@@ -44,6 +45,16 @@ describe('plugins check', () => {
     );
   });
 
+  it('words a clean result without a candidate version', () => {
+    expect(
+      checkSummary(
+        result({ candidateVersion: null, baselineVersion: null, collectionsEvaluated: false })
+      )
+    ).toBe(
+      'No issues found in abcdef1.\nCollection compatibility was not checked: the plugin has no current version and no --version was given.'
+    );
+  });
+
   it('lists each issue as code: detail', () => {
     const summary = checkSummary(
       result({
@@ -60,11 +71,8 @@ describe('plugins check', () => {
   });
 
   it('explains why collections were not evaluated', () => {
-    expect(checkSummary(result({ collectionsEvaluated: false, baselineVersion: null }))).toContain(
-      'no version is recorded in that compatibility line'
-    );
-    expect(checkSummary(result({ collectionsEvaluated: false, candidateVersion: null }))).toContain(
-      'no current version'
+    expect(checkSummary(result({ collectionsEvaluated: false, baselineVersion: null }))).toBe(
+      'A release of version 1.5.0 from abcdef1 would pass the checks.\nCollection compatibility was not checked: no version is recorded in that compatibility line.'
     );
   });
 
@@ -74,5 +82,65 @@ describe('plugins check', () => {
     });
 
     await expect(checkPlugin(client, 'OWOX/example', 'main')).rejects.toThrow('boom');
+  });
+});
+
+describe('plugins check run', () => {
+  const run = async (check: () => Promise<OWOXPluginCheckResult>) => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    class Harness extends PluginsCheck {
+      protected override loadEnvironment() {
+        return null;
+      }
+      protected override getAuthenticatedClient() {
+        return clientWith(check);
+      }
+      override log(message?: string) {
+        stdout.push(message ?? '');
+      }
+    }
+    const spy = jest.spyOn(process.stderr, 'write').mockImplementation(chunk => {
+      stderr.push(String(chunk));
+      return true;
+    });
+    let exitCode = 0;
+    try {
+      await new Harness(['OWOX/example', '--ref', 'main'], {
+        runHook: async () => ({ successes: [], failures: [] }),
+      } as never).run();
+    } catch (error) {
+      exitCode = (error as { oclif?: { exit?: number } }).oclif?.exit ?? -1;
+    } finally {
+      spy.mockRestore();
+    }
+    return { stdout, stderr, exitCode };
+  };
+
+  it('exits 0 for a clean result, with JSON on stdout and the summary on stderr', async () => {
+    const { stdout, stderr, exitCode } = await run(async () => result());
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout.join('\n'))).toEqual(result());
+    expect(stderr.join('')).toContain('would pass the checks');
+  });
+
+  it('exits 1 when there are issues', async () => {
+    const withIssue = result({ issues: [{ code: 'COLLECTIONS_INCOMPATIBLE', detail: 'broken' }] });
+    const { stdout, stderr, exitCode } = await run(async () => withIssue);
+
+    expect(exitCode).toBe(1);
+    expect(JSON.parse(stdout.join('\n'))).toEqual(withIssue);
+    expect(stderr.join('')).toContain('COLLECTIONS_INCOMPATIBLE: broken');
+  });
+
+  it('reports a request failure as error JSON and exits 1', async () => {
+    const { stdout, stderr, exitCode } = await run(async () => {
+      throw new Error('boom');
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(JSON.parse(stderr.join(''))).toMatchObject({ error: { message: 'boom' } });
   });
 });
