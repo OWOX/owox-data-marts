@@ -176,6 +176,48 @@ describe('ExternalCredentialDefinitionSyncService', () => {
     expect(state.registry.register).not.toHaveBeenCalled();
   });
 
+  it('previews external requirements with distinct handles', async () => {
+    const state = setup();
+    state.registry.preview
+      .mockResolvedValueOnce({ contract: { id: 'first' } })
+      .mockResolvedValueOnce({ contract: { id: 'second' } });
+
+    await expect(
+      state.service.previewRequirements(['@acme/first', '@acme/second'])
+    ).resolves.toBeUndefined();
+    expect(state.registry.preview).toHaveBeenCalledTimes(2);
+  });
+
+  it('previews a definition the registry rejects as the requirement error resolving raises', async () => {
+    const state = setup();
+    const rejection = new BadRequestException(
+      'Credential definition contains a non-public network target'
+    );
+    state.registry.preview.mockRejectedValue(rejection);
+    state.registry.register.mockRejectedValue(rejection);
+    const message = '1.0.0: Credential definition contains a non-public network target';
+
+    const attempt = state.service.previewRequirements(['@acme/credentials']);
+
+    await expect(attempt).rejects.toBeInstanceOf(ExternalCredentialRequirementError);
+    await expect(attempt).rejects.toThrow(message);
+    await expect(state.service.resolveRequirements(['@acme/credentials'])).rejects.toThrow(message);
+  });
+
+  it('previews built-in and external requirements together, reading GitHub only for the external one', async () => {
+    const state = setup();
+
+    await expect(
+      state.service.previewRequirements([
+        'ai',
+        'github',
+        { id: '@acme/credentials', optional: true },
+      ])
+    ).resolves.toBeUndefined();
+    expect(state.github.getRepo).toHaveBeenCalledTimes(1);
+    expect(state.registry.preview).toHaveBeenCalledTimes(1);
+  });
+
   describe('a Credential repository it cannot read', () => {
     it('previews an invalid locator as a requirement error naming it', async () => {
       const state = setup();

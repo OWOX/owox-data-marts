@@ -269,4 +269,47 @@ describe('CredentialExternalDefinitionRegistryService', () => {
     expect(state.versionRepository.create).not.toHaveBeenCalled();
     expect({ definitions: state.definitions, versions: state.versions }).toEqual(before);
   });
+
+  const breaking = (semver: string) =>
+    input(semver, {
+      contract: { ...input(semver).contract, origins: ['https://other.acme.example'] },
+    });
+
+  it.each([
+    ['a new repository', [], input('1.0.0'), null],
+    ['a new version in the line', ['1.0.0'], input('1.1.0'), null],
+    ['the identical recorded release', ['1.0.0'], input('1.0.0'), null],
+    [
+      'a version recorded from another release',
+      ['1.0.0'],
+      input('1.0.0', { githubReleaseId: 'another-release' }),
+      'Credential definition version 1.0.0 was already recorded from another release',
+    ],
+    [
+      'an incompatible contract in the line',
+      ['1.0.0'],
+      breaking('1.1.0'),
+      'Credential definition 1.1.0 changes an incompatible contract within compatibility line 1; publish a new compatibility line for this change',
+    ],
+    ['an incompatible contract on a new line', ['1.0.0'], breaking('2.0.0'), null],
+  ])('previews %s as register would decide', async (_case, recorded, attempt, error) => {
+    const outcome = async (
+      act: (
+        service: CredentialExternalDefinitionRegistryService
+      ) => Promise<{ readonly contract: unknown }>
+    ) => {
+      const state = setup();
+      for (const semver of recorded) await state.service.register(input(semver));
+      return act(state.service).then(
+        result => ({ contract: result.contract }),
+        (rejection: Error) => ({ error: rejection.message })
+      );
+    };
+
+    const registered = await outcome(service => service.register(attempt));
+    const previewed = await outcome(service => service.preview(attempt));
+
+    expect(registered).toEqual(error ? { error } : { contract: attempt.contract });
+    expect(previewed).toEqual(registered);
+  });
 });
