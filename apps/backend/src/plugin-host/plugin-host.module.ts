@@ -33,6 +33,7 @@ import { PluginService } from './services/plugin.service';
 import { PublicationAuthorizationService } from './services/publication-authorization.service';
 import { PluginRuntimeAuthorizerService } from './services/plugin-runtime-authorizer.service';
 import { RemoteUrlValidatorService } from './services/remote-url-validator.service';
+import { ReleaseCandidateRulesService } from './services/release-candidate-rules.service';
 import { PluginPresentationMapper } from './mappers/plugin-presentation.mapper';
 import { FindPluginByRepositoryService } from './use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from './use-cases/get-plugin-details.service';
@@ -125,6 +126,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     ExternalCredentialDefinitionSyncService,
     AddGithubCredentialDefinitionService,
     RemoteUrlValidatorService,
+    ReleaseCandidateRulesService,
     PluginService,
     PluginVersionService,
     PluginAuditService,
