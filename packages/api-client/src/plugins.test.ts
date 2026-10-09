@@ -179,9 +179,31 @@ describe('Plugins API', () => {
     expect(recorded[0]?.body).not.toHaveProperty('version');
   });
 
+  it('sends the version when one is given', async () => {
+    const { client, recorded } = createClient(() =>
+      json(200, { pluginId: 'p1', collectionsEvaluated: true, issues: [] })
+    );
+
+    await client.plugins.check({ repository: 'OWOX/example', ref: 'main', version: '1.5.0' });
+
+    expect(recorded[0]?.body).toEqual({
+      repository: 'OWOX/example',
+      ref: 'main',
+      version: '1.5.0',
+    });
+  });
+
   describe('failures', () => {
-    it('rejects a check response without the expected shape', async () => {
-      const { client } = createClient(() => json(200, { pluginId: 'p1' }));
+    it.each([
+      ['a missing pluginId', { collectionsEvaluated: true, issues: [] }],
+      ['issues that are not an array', { pluginId: 'p1', collectionsEvaluated: true, issues: {} }],
+      [
+        'a string collectionsEvaluated',
+        { pluginId: 'p1', collectionsEvaluated: 'true', issues: [] },
+      ],
+      ['a body with only a pluginId', { pluginId: 'p1' }],
+    ])('rejects a check response with %s', async (_name, body) => {
+      const { client } = createClient(() => json(200, body));
 
       await expect(
         client.plugins.check({ repository: 'OWOX/example', ref: 'main' })
