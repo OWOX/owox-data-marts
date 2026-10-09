@@ -207,13 +207,13 @@ export function usePluginActions() {
 /**
  * Plain language for each outcome, in the member's terms rather than the API's.
  *
- * Success says who else is affected, because a member who pressed Check now has no other
+ * Success says who else is affected, because a member who pressed Check and Update has no other
  * way to learn that the version they just activated is now everyone's. Failure names no
  * source: which host could not be reached is a publisher diagnostic, and the member can
  * act on none of it.
  *
  * For a publisher whose fresh check rejected a release, "you're up to date" would be
- * the "Check now did nothing" silence all over again -- the response carries their
+ * the "the button did nothing" silence all over again -- the response carries their
  * diagnostics precisely so this toast can say what actually happened.
  *
  * Falls back to `updated` when the response predates the outcome field, so the older

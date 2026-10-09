@@ -59,7 +59,7 @@ export class UpdatePluginService {
     // not reach ordinary members on the same operation (§6.2 / §16). "Publisher" here
     // includes anyone managing a publication of this plugin -- GET /publications already
     // hands the same diagnostics block to exactly those callers, and without it a
-    // member-scope publisher pressing Check now is told everything is fine while their
+    // member-scope publisher pressing Check and Update is told everything is fine while their
     // release was just rejected.
     const isPublisher = this.authorization.isDeploymentPublisher(command.context);
     const managesPublication =
@@ -179,7 +179,7 @@ export class UpdatePluginService {
  *
  * `PluginPresentationMapper.toSource` hides that name on the plugin view precisely because
  * it "would confirm to a member that one specific private repository exists" -- and
- * **Check now** sits on that same page, available to any viewer with no installation. The
+ * **Check and Update** sits on that same page, available to any viewer with no installation. The
  * owner stays, matching what `toSource` does disclose.
  */
 function visibleRepository(plugin: Plugin, repository: string, isPublisher: boolean): string {

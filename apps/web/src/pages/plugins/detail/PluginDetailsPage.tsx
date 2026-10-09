@@ -88,6 +88,12 @@ export default function PluginDetailsPage({
   const navigate = useNavigate();
 
   const [confirming, setConfirming] = useState<PluginGalleryEntry | null>(null);
+  /**
+   * Fixed when the dialog opens. A stale-version retry can bring a version without Credential
+   * requirements, which must not turn an installed plugin's Configure Credentials into
+   * "Install this plugin?".
+   */
+  const [confirmingMode, setConfirmingMode] = useState<'install' | 'configure'>('install');
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const { requestUninstall, uninstallDialog } = useUninstallConfirmation({
     uninstall,
@@ -107,6 +113,7 @@ export default function PluginDetailsPage({
     // An unlisted plugin waits for the member to choose Install on the banner instead.
     if (isInstallableFromLink(plugin) && plugin.visibleViaScopes.length > 0) {
       leaveLinkOnCancel.current = true;
+      setConfirmingMode('install');
       setConfirming(plugin);
     }
   }, [installOnOpen, plugin]);
@@ -214,6 +221,7 @@ export default function PluginDetailsPage({
                     return;
                   }
                   // Every install/restore/reconfigure uses the same explicit Credential grant flow.
+                  setConfirmingMode(isConfiguringCredentials ? 'configure' : 'install');
                   setConfirming(plugin);
                 }}
               >
@@ -319,6 +327,7 @@ export default function PluginDetailsPage({
                   className='mt-2'
                   disabled={isInstalling}
                   onClick={() => {
+                    setConfirmingMode('install');
                     setConfirming(plugin);
                   }}
                 >
@@ -545,7 +554,7 @@ export default function PluginDetailsPage({
           }}
           onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
           isInstalling={isInstalling}
-          mode={isConfiguringCredentials ? 'configure' : 'install'}
+          mode={confirmingMode}
         />
       )}
       {uninstallDialog}

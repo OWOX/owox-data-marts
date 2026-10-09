@@ -71,7 +71,7 @@ export function PluginsMenu() {
       installation.currentVersionId !== null
   );
 
-  // At least one plugin listed for this project/member that can be installed, or installed again.
+  // At least one listed plugin that is installable now: not suspended, with a current version.
   const hasInstallablePlugin = plugins.some(
     plugin => !plugin.suspended && plugin.currentVersionId !== null
   );

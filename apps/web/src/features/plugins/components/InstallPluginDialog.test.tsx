@@ -154,7 +154,7 @@ describe('InstallPluginDialog', () => {
       'Anything it reads can leave OWOX and reach the plugin publisher.'
     );
     expect(notice).toHaveTextContent(
-      'Uninstalling and installing again restores nothing the plugin kept on its own side.'
+      "Uninstalling and installing again restores nothing the plugin kept on its publisher's side."
     );
   });
 
