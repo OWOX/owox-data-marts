@@ -53,13 +53,18 @@ vi.mock('../../../features/plugins', () => ({
     open,
     onOpenChange,
     onConfirm,
+    mode,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: (selections: Record<string, string | null>) => void;
+    mode?: 'install' | 'configure';
   }) =>
     open ? (
-      <div role='dialog' aria-label='Install this plugin?'>
+      <div
+        role='dialog'
+        aria-label={mode === 'configure' ? 'Configure plugin Credentials?' : 'Install this plugin?'}
+      >
         <button
           onClick={() => {
             onConfirm({});
@@ -178,13 +183,42 @@ describe('PluginDetailsPage', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Check and Update');
   });
 
-  it('offers Credential configuration instead of reinstall for an installed plugin requirement', () => {
+  it('offers Credential configuration for an installed plugin with Credential requirements', () => {
     plugin = entry({ installationState: 'installed', credentialRequirements: ['github'] });
 
     renderPage();
 
     expect(screen.getByRole('button', { name: 'Configure Credentials' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Reinstall' })).toBeNull();
+  });
+
+  // A newer version can drop every Credential requirement while the member is configuring
+  // them; the retry must not turn into "Install this plugin?" for an installed plugin.
+  it('keeps configuring Credentials when a newer version arrives mid-dialog', async () => {
+    plugin = entry({ installationState: 'installed', credentialRequirements: ['github'] });
+    const newer = entry({
+      installationState: 'installed',
+      currentVersionId: 'v2',
+      currentSemver: '2.0.0',
+      credentialRequirements: [],
+    });
+    install.mockResolvedValueOnce(newer);
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Credentials' }));
+    expect(screen.getByRole('dialog', { name: 'Configure plugin Credentials?' })).toBeTruthy();
+
+    // The page refetches the plugin as well, now without requirements.
+    plugin = newer;
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalledWith('p1', 'v1', {});
+    });
+    expect(
+      await screen.findByRole('dialog', { name: 'Configure plugin Credentials?' })
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Install this plugin?' })).toBeNull();
   });
 
   // §6.3: Check and Update is open to any project member who can reach the page, not only
