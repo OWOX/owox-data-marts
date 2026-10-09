@@ -98,7 +98,10 @@ describe('plugins check', () => {
 });
 
 describe('plugins check run', () => {
-  const run = async (check: () => Promise<OWOXPluginCheckResult>) => {
+  const run = async (
+    check: (input: unknown) => Promise<OWOXPluginCheckResult>,
+    argv = ['OWOX/example', '--ref', 'main']
+  ) => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     class Harness extends PluginsCheck {
@@ -118,7 +121,7 @@ describe('plugins check run', () => {
     });
     let exitCode = 0;
     try {
-      await new Harness(['OWOX/example', '--ref', 'main'], {
+      await new Harness(argv, {
         runHook: async () => ({ successes: [], failures: [] }),
       } as never).run();
     } catch (error) {
@@ -144,6 +147,61 @@ describe('plugins check run', () => {
     expect(exitCode).toBe(1);
     expect(JSON.parse(stdout.join('\n'))).toEqual(withIssue);
     expect(stderr.join('')).toContain('COLLECTIONS_INCOMPATIBLE: broken');
+  });
+
+  it('sends --version through run(), including an empty one', async () => {
+    const inputs: unknown[] = [];
+    const check = async (input: unknown) => {
+      inputs.push(input);
+      return result();
+    };
+
+    await run(check, ['OWOX/example', '--ref', 'main', '--version', '1.5.0']);
+    await run(check, ['OWOX/example', '--ref', 'main', '--version', '']);
+
+    expect(inputs).toEqual([
+      { repository: 'OWOX/example', ref: 'main', version: '1.5.0' },
+      { repository: 'OWOX/example', ref: 'main', version: '' },
+    ]);
+  });
+
+  it('treats a missing --ref as a parse error without calling the API', async () => {
+    const check = jest.fn(async (_input: unknown) => result());
+    const { stdout, stderr, exitCode } = await run(check, ['OWOX/example']);
+
+    expect(check).not.toHaveBeenCalled();
+    expect(exitCode).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr.join('')).toContain('ref');
+  });
+
+  it('prints the installation hint when the error carries an installation URL', async () => {
+    const { stderr, exitCode } = await run(async () => {
+      throw Object.assign(new Error('OWOX cannot read OWOX/example'), {
+        code: 'GITHUB_REPO_NOT_ACCESSIBLE',
+        details: { installationUrl: 'https://github.com/apps/owox/installations/new' },
+      });
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.join('')).toContain(
+      'Install the OWOX Data Marts GitHub App at https://github.com/apps/owox/installations/new'
+    );
+  });
+
+  it('reports an unresolved commit as an issue and exits 1', async () => {
+    const unresolved = result({
+      commitSha: null,
+      candidateVersion: null,
+      baselineVersion: null,
+      collectionsEvaluated: false,
+      issues: [{ code: 'COMMIT_UNRESOLVABLE', detail: 'Ref nope does not resolve' }],
+    });
+    const { stdout, stderr, exitCode } = await run(async () => unresolved);
+
+    expect(exitCode).toBe(1);
+    expect(JSON.parse(stdout.join('\n'))).toEqual(unresolved);
+    expect(stderr.join('')).toBe('COMMIT_UNRESOLVABLE: Ref nope does not resolve\n');
   });
 
   it('reports a request failure as error JSON and exits 1', async () => {

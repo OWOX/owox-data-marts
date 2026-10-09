@@ -2,7 +2,7 @@ import { Flags } from '@oclif/core';
 import type { OWOXPluginCheckResult } from '@owox/api-client';
 
 import { BaseCommand } from '../../base-command.js';
-import { repositoryArg, type PluginsClient } from '../../plugins-support.js';
+import { installationHint, repositoryArg, type PluginsClient } from '../../plugins-support.js';
 
 export function checkPlugin(
   client: PluginsClient,
@@ -10,7 +10,7 @@ export function checkPlugin(
   ref: string,
   version?: string
 ): Promise<OWOXPluginCheckResult> {
-  return client.plugins.check({ repository, ref, ...(version ? { version } : {}) });
+  return client.plugins.check({ repository, ref, ...(version !== undefined ? { version } : {}) });
 }
 
 /** One line per issue, then what a clean result means. Goes to stderr so stdout stays JSON. */
@@ -73,6 +73,10 @@ export default class PluginsCheck extends BaseCommand {
       process.stderr.write(`${checkSummary(result)}\n`);
       this.writeJson(result);
     } catch (error) {
+      const hint = installationHint(error);
+      if (hint) {
+        process.stderr.write(`${hint}\n`);
+      }
       this.handleCliError(error);
     }
 
