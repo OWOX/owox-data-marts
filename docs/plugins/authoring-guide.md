@@ -3,8 +3,8 @@
 Use this guide while building and maintaining an OWOX Data Marts plugin. It defines the production
 plugin contract, SDK usage, UI foundation, deployment, releases, publication, and updates.
 
-If the repository and development tools are not ready yet, first
-[prepare your plugin project](./project-setup.md).
+If the repository and development tools are not ready yet, first follow
+[Get Started](./project-setup.md).
 
 ## Scaffold the plugin
 
@@ -130,6 +130,41 @@ The generic does not validate the response at runtime, so validate returned data
 must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
 are refused.
 
+### Handle request errors
+
+A failed `ctx.owox`, collection, or credential call rejects with a `PluginTransportError`. Its
+`payload` holds `code`, `message`, and, for API errors, `status` and `details`:
+
+| `payload.code`   | Meaning                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `HTTP_ERROR`     | The API answered with an error. `status` is the HTTP status, `message` the API's message, and `details` its error details.   |
+| `SUSPENDED`      | An administrator suspended the plugin while it was open.                                                                     |
+| `FORBIDDEN`      | The host refused the request before sending it, for example because of its path or method.                                   |
+| `NETWORK_ERROR`  | The host could not complete the request.                                                                                     |
+| `TIMEOUT`        | The host did not answer within 30 seconds, or 120 seconds for an AI Credential call.                                         |
+| `PROTOCOL_ERROR` | The request could not be exchanged: the handshake was not complete, a response was malformed, or 32 requests were in flight. |
+
+Some typed methods wrap the failure in an `OWOXApiError` and keep the `PluginTransportError` as its
+`cause`. `dataMarts.traverseData()`, for example, rejects with "Failed to open OWOX Data Mart data
+stream" whatever the API answered. Neither class is exported to plugin code, so find the payload by
+`error.name` and walk `cause`:
+
+```ts
+import type { PluginErrorPayload } from '@owox/plugin-sdk';
+
+function describeError(error: unknown): string {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    if (current.name === 'PluginTransportError' && 'payload' in current) {
+      const { code, status, message } = current.payload as PluginErrorPayload;
+      return [code, status, message].filter(Boolean).join(' ');
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+```
+
+Show the member what failed instead of a blank or empty view.
+
 ### Make pages shareable
 
 A plugin's pages are reachable at `/ui/<project>/plugins/<pluginId>/open<route>`, where `<route>` is
@@ -215,6 +250,28 @@ the logical capability, not the provider secret. The common `"ai"` requirement d
 Additional named models are available only when declared. Logical AI never exposes `asFetch()`;
 declare an exact provider if the plugin needs provider-specific APIs. Optional or unusable handles
 are absent from the context, so check a handle before using it.
+
+## Read Data Mart data
+
+`ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
+aggregation, and date buckets are documented in the
+[API client reference](../api/api-client.md#stream-data-mart-rows). Four things are not visible
+from the rows:
+
+- **Schema.** `dataMarts.list()` returns no schema. Read a Data Mart's fields, with their types and
+  reporting settings, from `schema.fields` of ``ctx.owox.getJson(`/api/data-marts/${id}`)``. For
+  joined fields, read ``ctx.owox.getJson(`/api/data-marts/${id}/blendable-schema`)``:
+  `blendedFields[].name` is the column name to request, and `availableSources[].aliasPath`
+  identifies a joined source. A `pre-join` filter may reference only a joined source's columns.
+- **Unique count.** The Unique Count metric that reports offer is not available here. For a
+  single-column primary key, aggregate it with `COUNT_DISTINCT`; `blendable-schema` lists the key
+  in `mainUniqueCountKeyFields`.
+- **Grand totals.** Rows do not carry them. OWOX computes totals for the read's metrics in a
+  separate query and records them on the run. Read every row first, then call
+  `ctx.owox.runs.forDataMart(id).get(data.runId)`; its `totals` is `null` when there was nothing to
+  total or the totals query failed.
+- **Errors.** A failure while opening the stream arrives wrapped, as described in
+  [Handle request errors](#handle-request-errors).
 
 ## Make the plugin feel native
 

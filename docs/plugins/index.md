@@ -37,8 +37,8 @@ prepare deployment and release steps.
 
 ## Continue building
 
-When you are ready, [prepare your plugin project](./project-setup.md). That page helps you and your
-coding agent set up the repository, tools, and durable agent instructions.
+When you are ready, follow [Get Started](./project-setup.md). That page helps you and your coding
+agent set up the repository, tools, and durable agent instructions.
 
 After preparation, the [plugin authoring guide](./authoring-guide.md) becomes the shared reference
 for building, releasing, publishing, installing, and maintaining the plugin.
