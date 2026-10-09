@@ -701,6 +701,19 @@ A valid higher release applies to every installation. There is no member-level v
 To roll back, restore the last working source, deploy it, and create a new higher patch release
 that explains the restoration; do not try to move or recreate an older tag.
 
+Before you create a release, check that it would be accepted. The check runs the release rules
+against a branch, tag, or commit: manifest, collection compatibility with the current version,
+delivery URL, and Credential definitions. It lists every rule that fails. It records nothing, and
+it does not delay **Check and Update** or the daily check. Without `--version`, the candidate is the
+next patch below `1.0.0` and the next minor from `1.0.0`; pass `--version MAJOR.MINOR.PATCH` to
+check another version. Only deployment publishers and members who manage a publication of the
+plugin can run it, and a plugin can be checked once per sync interval. The command prints JSON,
+prints a summary to stderr, and exits with code 1 when there are issues:
+
+```bash
+owox-ctl plugins check OWNER/PLUGIN_NAME --ref main
+```
+
 OWOX Data Marts records the exact commit referenced by each eligible release, but the delivery URL
 does not pin the files served there. Once an eligible release version is recorded, moving,
 deleting, or recreating its tag cannot rewrite that recorded version; use a new higher eligible
