@@ -1,5 +1,12 @@
 # @owox/idp-owox-better-auth
 
+## 0.38.0
+
+### Patch Changes 0.38.0
+
+- @owox/internal-helpers@0.38.0
+- @owox/idp-protocol@0.38.0
+
 ## 0.37.0
 
 ### Patch Changes 0.37.0

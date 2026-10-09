@@ -1,5 +1,241 @@
 # owox
 
+## 0.38.0
+
+### Minor Changes 0.38.0
+
+- ce4310f: **Import from Google BigQuery blocks tables stored in another location**
+
+  Previously, **Import data marts from storage** let you pick a table or view from a dataset stored in a different location than the Google BigQuery storage, for example a `US` dataset with an `EU` storage. The data mart was created, but it could not read its data. The picker now shows each dataset's location and greys out the tables and views outside the storage's [location](../../docs/storages/supported-storages/google-bigquery.md#select-location), so they can't be picked.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f972a02d97d1f06d42e5db5bcb67e581/iframe>
+
+  The **Select...** picker for Table, View and Pattern Data Marts follows the same rule.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9a93576: **Uninstall plugins from the sidebar, even after they leave the Gallery**
+
+  Unpublishing removes a listing, not an installation, so an unpublished plugin stays in the
+  sidebar. Previously, its **Uninstall** was reachable only through **Installation history**; now
+  every installed plugin in the sidebar has a **…** menu with **Settings**, which opens the plugin's
+  page, and **Uninstall**.
+
+  The **Plugins** page also keeps an installed plugin that nothing lists any more, marked as not
+  listed, so the **Installed** filter matches the sidebar. Uninstalling, from the sidebar or the
+  plugin page's **⋮** menu, now asks for confirmation: it stops the plugin only for you, other
+  members keep their installations, and any Credential access you granted ends — restoring the
+  plugin asks for it again. The **Plugins** section stays in the sidebar while you have an
+  uninstalled plugin to restore, so **Installation history** stays within reach.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/6ed6eb7d470a89be099e9f9730c7d4ab/iframe>
+
+  See [Uninstall or restore](../../docs/plugins/authoring-guide.md#uninstall-or-restore).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 5e885c5: **Publishing a plugin you already have now says it is installed**
+
+  Publishing a repository whose plugin you have already installed used to confirm only **Plugin
+  published**, leaving it unclear whether anything had been installed. The confirmation now names the
+  plugin and says you already have it installed. Publishing still changes only who can find a plugin;
+  it installs it for nobody and leaves existing installations as they are.
+
+  ![Publish a plugin panel with the repository of an already installed plugin entered](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/57ec02c3-5d26-49b8-e02e-86074fb95900/w=800)
+
+  ![Confirmation after publishing: Plugin published. You already have Import Model installed.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3b8af877-0919-4c5f-584b-710d0dc04e00/w=800)
+
+  See [Publish in OWOX Data Marts](../../docs/plugins/authoring-guide.md#publish-in-owox-data-marts).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4382602: **Edit a relationship from its arrow on the Models canvas**
+
+  Click an arrow on the Models canvas, or its join fields label, to open that relationship in a panel on the right. Previously a click only highlighted the arrow, and changing a join meant opening the source Data Mart. The panel edits the same **Report Fields**, **Join Settings** and **Description** settings as the relationship's row in **Joinable Data Marts**, in collapsible sections like the app's other side panels, and changes save as you type.
+
+  The video shows a relationship opened from its arrow, edited in place and switched to another one:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/fcbf5bfa601adc9af21786712908fac8/iframe>
+  - The arrow stays highlighted while the panel is open. Click another arrow to switch the panel to it.
+  - A two-headed arrow stands for two mirrored relationships; pick the direction to edit at the top.
+  - **Allow for reporting** is under **General**, and **Delete Relationship** under **Danger zone**. **Open in Data Setup** at the top opens the relationship's row in its source Data Mart.
+  - A row in a card's **N relationships** list opens the same panel. From the keyboard, Enter moves focus into the panel and Esc returns it to the row.
+  - After a join fields change, the canvas redraws the arrow and keeps your zoom and position.
+
+  See [Edit a relationship](../../docs/getting-started/setup-guide/models-canvas.md#edit-a-relationship).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 582661c: **Preview SQL from an open report**
+
+  The report side panel now has a **Preview SQL** button in its header, next to **Copy link**. When a teammate shares a link to a report, you can read the query the report runs without going back to the reports list. The button is available for Google Sheets, Microsoft Excel, Data Studio, Email, Slack, Microsoft Teams and Google Chat reports. As in the reports list, it is not shown for Data Marts with a Pattern definition on storages other than Google BigQuery.
+
+  Watch a report opened from a shared link show its SQL, and the note that appears when Report Columns has unsaved edits.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/49a2587a4612938423ca6015f1a21f5f/iframe>
+
+  The SQL comes from the saved report. If **Report Columns** has unsaved edits, the **Report SQL** dialog says they are not included. In Data Studio reports, the button moved from under **Report Columns** to the header. See [Joinable Data Marts](../../docs/getting-started/setup-guide/joinable-data-marts.md#view-generated-sql).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 5c38b50: **Storage and Destination settings point to the field you need to fix**
+
+  Previously, when a Storage or a Destination could not be saved because of one of its values, the only explanation was a toast at the top of the page, such as `Invalid config — projectId: Invalid GCP project ID…`, and nothing in the form showed which field it meant. A Destination's panel even closed, discarding what you had entered. Now the panel stays open and **Save** marks that field in red, opens its section if it was collapsed, moves the cursor to it, and shows the reason under the field. The mark clears when you correct the value.
+
+  The video shows a Storage and a Destination that each point to the field to fix:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/4507b26dd647070abb3d22b6457d6d4e/iframe>
+  - **Google BigQuery**: the **Project ID** format is checked before saving, so a project name entered instead of the ID is flagged at once. Spaces around a pasted ID are removed.
+  - **Service Account** in a Google BigQuery Storage or a Google Sheets Destination: a key that is not valid JSON or has no `client_email` is flagged on the field. Before, **Save** in a Storage did nothing in this case.
+  - Any storage type: when the server rejects a value in the connection settings or credentials, the form marks that field the same way. Connection errors reported by the warehouse itself, such as a wrong password, still appear as a message only.
+  - **Google Sheets** Destination: a Drive folder the service account can't use is marked on the folder field, with the reason and the fix. Email, Slack, Microsoft Teams and Google Chat Destinations mark a recipient or webhook URL the server refuses.
+  - A save that fails for another reason, such as a lost connection, now says so instead of doing nothing. A change to the owners is kept when you fix a field and save again. A save refused after your session had to be renewed no longer signs you out.
+
+  Also, a calculated field's formula editor no longer loses characters typed quickly while the page is busy, which also closed the field suggestions mid-word.
+
+  See [Google BigQuery](../../docs/storages/supported-storages/google-bigquery.md), [Storage Management](../../docs/storages/manage-storages.md) and [Destination Management](../../docs/destinations/manage-destinations.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 76696b7: **Plugin page drops Reinstall and renames Check now to Check and Update**
+
+  An installed plugin's page no longer offers **Reinstall**. OWOX does not host or package plugins,
+  so installing an installed plugin again rebuilt, replaced or reset nothing — it only looked like a
+  lifecycle action. **Install** for a plugin you have not installed, **Restore** in Installation
+  history after an uninstall (with its confirmation), and **Configure Credentials** for a plugin that
+  asks for Credentials work as before.
+
+  The button next to the plugin's version is now called **Check and Update** instead of **Check
+  now**. It does the same thing: asks for a newer release right away instead of waiting for the daily
+  check — a check that has just run answers for it — and a newer valid release it finds becomes
+  current for everyone using the plugin. Updates and versioning are otherwise unchanged.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/11a431894de0cfbb22e83da4fc14013b/iframe>
+
+  See [Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9f81f2d: **Google Sheets errors in Run History explain the cause and the fix**
+
+  Previously, when Google Sheets failed to apply a report's changes, Run History showed only Google's
+  text — `Internal error encountered.`, `The service is currently unavailable.` or `Requested entity
+was not found.` — and the same report could fail with a different message every day. These
+  failures now show one message in plain words: Google Sheets couldn't finish updating the
+  spreadsheet. It says what to do: run the report again after a single failure; if it fails on every
+  run, limit the formulas that read whole columns of the report's sheet or send the report to a
+  separate spreadsheet, and fix circular-reference errors — **Iterative calculation** is only for
+  circular references made on purpose. Google's text stays at the end as details. See
+  [When Google Sheets can't finish updating the spreadsheet](../../docs/destinations/supported-destinations/google-sheets.md#when-google-sheets-cant-finish-updating-the-spreadsheet).
+
+  Other errors from Google Sheets now name the step that failed and Google's reason.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- ad99842: **Plugin SDK: links to a plugin's own pages**
+
+  `@owox/plugin-sdk` adds three members, so a plugin's pages can be shared by link:
+  - `ctx.route` — the plugin's own route the member opened, `undefined` on a host without page links.
+  - `ctx.ui.setRoute(path)` — keeps the browser address on the page the plugin shows.
+  - `ctx.ui.copyLink(path?)` — copies a link to one of the plugin's pages, the current one by
+    default, and the host shows "Link copied".
+
+  The change is backward compatible: existing plugins keep working without changes. To use the new
+  members, update `@owox/plugin-sdk` to this release. On an older OWOX Data Marts deployment
+  `ctx.route` is `undefined`, `setRoute` does nothing and `copyLink` rejects.
+
+  See [Make pages shareable](../../docs/plugins/authoring-guide.md#make-pages-shareable).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- ad99842: **Share links to plugins**
+
+  A plugin page's **⋮** menu now has **Copy link** as its first item: it copies a link to that
+  plugin page and shows "Link copied".
+
+  A link to a page inside a plugin, `/ui/<project>/plugins/<pluginId>/open<route>`, opens that page
+  in plugins that support it; a member who has not installed the plugin is offered the install
+  first. A member's earlier `/plugins/run/<installationId>` links redirect to the new address.
+
+  A link written for people outside a project, such as a website or an email, can use `none` in
+  place of the project id — OWOX opens it in the reader's current project after sign-in.
+  `/ui/none/plugins/github/<owner>/<repo>` finds a public plugin published at deployment scope for
+  the reader's project, case-insensitively; anything else answers "This plugin isn't available
+  here".
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/1584b3c1f034eec233b252afb6f25f96/iframe>
+
+  See [Link to a plugin](../../docs/plugins/trusted-plugins.md#link-to-a-plugin).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 16d8a24: **Shopify connector: more orders fields, including line-item discounts**
+
+  The orders `lineItems` JSON now includes `discountedUnitPriceAfterAllDiscountsSet` (unit price after all discounts), `totalDiscountSet` (the line's discount total, excluding order-level discounts), `currentQuantity` (units net of refunds and removals), and `discountAllocations` with the allocated amount and the discount's type, code or title, and `index`. The index joins each allocation to its entry in `discountApplications`, which now also exports `index` and `__typename`. See the [Discount Fields section in the connector guide](https://docs.owox.com/packages/connectors/src/sources/shopify/getting-started/) for how the amounts differ.
+
+  Data marts that already select `lineItems` or `discountApplications` get the new JSON keys on their next run; previously imported rows keep the old shape until a backfill.
+
+  The orders field list also gains 47 previously unavailable scalar and money fields (order number, confirmation number, test/edited flags, additional payment and duties totals, fulfillment and tax flags, and more). These are opt-in via the existing **Fields** picker and aren't added to any data mart automatically.
+
+  See the [Shopify connector guide](https://docs.owox.com/packages/connectors/src/sources/shopify/getting-started/) for setup.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- e42c3cf: **Explore business contexts with your AI assistant**
+
+  Connected AI assistants can read complete context descriptions and discover Data Marts within selected contexts. Search, catalog, and Data Mart details now include attached context names and IDs, while preserving each user's existing access. Empty context results no longer suggest creating a first Data Mart when accessible published Data Marts exist elsewhere.
+
+  In Project, Context, and Data Mart descriptions, use Markdown and type `@` to find a published Data Mart and insert a link. Preview the result before saving. If saving a Data Mart description fails, your draft stays in the editor for retry. Links explain which data supports a goal; they do not change context assignments or permissions.
+
+  See [MCP](../../docs/getting-started/setup-guide/mcp.md) and [Contexts](../../docs/project/contexts.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 5717428: **SQL validation no longer fails for large queries**
+
+  On MySQL-backed deployments, SQL validation (dry run) failed with a server error for queries
+  over 64 KB. Large queries now validate normally.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- b2f580c: **Athena query results are cleaned up when the Output Bucket names a folder**
+
+  When an AWS Athena storage's **Output Bucket** included a folder, such as `my-athena-results/owox/`, OWOX Data Marts could not delete the results of the queries that read your data, and they stayed in your bucket. They are now deleted once read, as with a plain bucket. The bucket link on the Data Mart page opens that folder.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 60644c8: **Inspect executed SQL for HTTP Data streaming runs**
+
+  Run History now shows the SQL used by the Data Mart and report HTTP Data streaming endpoints
+  with output controls or joined fields in the **Executed SQL** block, with parameter values
+  inlined and a copy button. Previously, these streaming API runs had no dedicated SQL block
+  in Run History.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/dfad8100c50900faf8f0e95c0ecc7df2/iframe>
+
+  See the [HTTP Data API](../../docs/api/openapi.md) for how to locate the run using
+  the `x-owox-run-id` response header.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- cdd9424: **Enable the Create trigger button on a freshly opened form**
+
+  The trigger creation form opens with valid defaults, but the **Create trigger** button stayed
+  disabled until the user changed any field. The button is now enabled immediately in create mode;
+  submitting an incomplete form shows a validation error instead (for example, a missing report). Editing an existing trigger
+  still requires a change before **Save changes** enables.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes 0.38.0
+
+- @owox/internal-helpers@0.38.0
+- @owox/idp-protocol@0.38.0
+- @owox/idp-better-auth@0.38.0
+- @owox/idp-owox-better-auth@0.38.0
+- @owox/backend@0.38.0
+- @owox/web@0.38.0
+
 ## 0.37.0
 
 ### Minor Changes 0.37.0
