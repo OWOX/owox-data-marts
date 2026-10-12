@@ -1,43 +1,58 @@
 # OWOX Data Marts
 
-## Free connectors, governed Data Marts, one number everywhere
+## Free connectors and ontology-backed self-service analytics without hallucinations
 
-Plug in open-source connectors, define each metric once as a Data Mart in your own warehouse, and publish it to Google Sheets, Excel, Data Studio, Slack, Claude and ChatGPT. Every answer comes from your SQL, so nobody downstream gets a hallucinated number with your name on it.
+Plug your sources into ready-to-prompt ontology models and get hallucination-free self-service analytics. Give people and AI agents [joinable Data Marts](./docs/getting-started/setup-guide/joinable-data-marts.md) in the tools they already know: API, CLI, MCP, Google Sheets, Excel, Claude, ChatGPT, Data Studio and more. No extra chat tool, no semantic-layer tax, no black boxes. No LLM writes the SQL behind a business user's answer, so nobody downstream gets a hallucinated number with your name on it.
 
 [**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com/product?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
-![OWOX Data Marts: six layers from Sources through Storages, Data Marts, Destinations and Reports to Plugins. Facebook Ads and Google Ads land in Google BigQuery, become the Unified AdSpend Data Mart, join with Orders, and reach Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report refreshes itself](./docs/res/architecture/owox-data-marts-architecture.svg)
+<!-- markdownlint-disable MD033 -- <picture> is how GitHub serves a light and a dark image -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
+  <img alt="OWOX Data Marts: six layers from Sources through Storages, Data Marts, Destinations and Reports to Plugins. Facebook Ads and Google Ads land in Google BigQuery, become the Unified AdSpend Data Mart, join with Orders, and reach Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report refreshes itself" src="./docs/res/architecture/architecture-light.svg">
+</picture>
+<!-- markdownlint-enable MD033 -->
 
-## Why analysts use it
+## Why OWOX Data Marts
 
-Once a number leaves your hands, you lose it. Someone copies it into a spreadsheet, someone rebuilds it in a dashboard with a different filter, someone asks ChatGPT and gets a third answer. Then the question comes back to you: why is this number wrong?
+1. **Zero hallucinations.** No LLM writes the SQL behind a business user's answer. Every answer resolves to your ontology model: Data Marts are the entities, [declared joins](./docs/getting-started/setup-guide/joinable-data-marts.md) are the relationships. A metric nobody defined goes back to its owner instead of being guessed. [Patented](https://patents.google.com/patent/US11074250B2/en).
+2. **Same number everywhere.** Sheets, Excel, Data Studio, Claude and ChatGPT query one model, so revenue means one thing.
+3. **You control the handoff.** Nothing reaches business users until you publish it. Access is set per Data Mart and [Data Context](./docs/project/contexts.md).
+4. **No semantic-layer tax.** No YAML that goes stale by next Tuesday. Just your SQL, plus metadata that AI autofills for you to review.
+5. **Free connectors.** MIT-licensed, with no per-connector bill. A missing API takes the [Connector Builder](./docs/connectors/connector-builder.md), not code.
+6. **Your warehouse.** Data Marts run as queries in Google BigQuery, Snowflake, AWS Redshift, AWS Athena or Databricks. No second copy. Self-host for free.
+7. **Agent-friendly.** The [`owox-ctl` CLI](./apps/ctl/README.md) and the [MCP server](./docs/getting-started/setup-guide/mcp.md) work out of the box, so your AI can set it up for you:
 
-OWOX Data Marts keeps the definition with you and sends the data out:
-
-1. **You define it once.** A Data Mart is your SQL, table, view or connector, with a description, an owner and declared joins to other Data Marts.
-2. **You decide what goes out.** Nothing reaches a business user until you publish it. Access is set per Data Mart and per [Data Context](./docs/project/contexts.md).
-3. **Everyone reads the same definition.** A spreadsheet, a dashboard and an AI assistant all query the same Data Mart, so revenue means the same thing in all three.
-4. **You stop being the courier.** Reports refresh on a schedule. Business users pick columns and filters themselves, inside the Data Marts you published.
+   > Dear coding agent, set up [owox-data-marts](https://github.com/OWOX/owox-data-marts) and connect the sources I need.
 
 ## How it works
 
-1. **Collect.** [Open-source connectors](#-available-connectors) load ads, e-commerce and other API data into your warehouse. No per-connector bill. A missing API can be added with the [Connector Builder](./docs/connectors/connector-builder.md), without writing code.
-2. **Define.** Build Data Marts from [SQL](./docs/getting-started/setup-guide/sql-data-mart.md), a [table](./docs/getting-started/setup-guide/table-data-mart.md), a [view](./docs/getting-started/setup-guide/view-data-mart.md) or a [connector](./docs/getting-started/setup-guide/connector-data-mart.md). Declare [joins](./docs/getting-started/setup-guide/joinable-data-marts.md) between them once, and schedule [data quality checks](./docs/getting-started/setup-guide/data-quality-checks.md) so a broken Data Mart shows up before someone reads it.
-3. **Hand off.** Publish to [destinations](./docs/destinations/index.md) where business users already work, and to Claude or ChatGPT through the [MCP server](./docs/getting-started/setup-guide/mcp.md).
-4. **Refresh.** [Triggers](./docs/getting-started/setup-guide/report-triggers.md) re-run reports on your schedule. Last run, status and owner sit on each report.
+1. **Connect** [sources](#data-sources) to your warehouse.
+2. **Define** [Data Marts](./docs/data-marts/index.md#data-mart-types) from SQL, a table, a view or a connector, and declare joins.
+3. **Publish** to [destinations](./docs/destinations/index.md), or to Claude and ChatGPT through [MCP](./docs/getting-started/setup-guide/mcp.md).
+4. **Schedule** [report refreshes](./docs/getting-started/setup-guide/report-triggers.md) and [data quality checks](./docs/getting-started/setup-guide/data-quality-checks.md).
 
-## No hallucinated numbers
+### Data sources
 
-When a business user asks Claude or ChatGPT a question, the assistant reads your Data Marts through MCP. It does not write SQL against raw tables. The query is built from your definitions and the joins you declared, not written by an LLM.
+[Shopify](https://docs.owox.com/packages/connectors/src/sources/shopify/getting-started/), [Facebook Ads](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/), [Google Ads](https://docs.owox.com/packages/connectors/src/sources/google-ads/getting-started/), [TikTok Ads](https://docs.owox.com/packages/connectors/src/sources/tik-tok-ads/getting-started/), [LinkedIn Ads](https://docs.owox.com/packages/connectors/src/sources/linked-in-ads/getting-started/), [X Ads](https://docs.owox.com/packages/connectors/src/sources/xads/getting-started/), [Microsoft Ads](https://docs.owox.com/packages/connectors/src/sources/microsoft-ads/getting-started/), [see all](https://docs.owox.com/docs/connectors/)
 
-If nobody has defined the metric, OWOX does not approximate it. It suggests asking the Data Mart owner to add it, and the owner decides whether it becomes a trusted definition.
+### Data warehouses
 
-## Your data stays yours
+[Google BigQuery](https://docs.owox.com/docs/storages/supported-storages/google-bigquery/), [Snowflake](https://docs.owox.com/docs/storages/supported-storages/snowflake/), [AWS Redshift](https://docs.owox.com/docs/storages/supported-storages/aws-redshift/), [AWS Athena](https://docs.owox.com/docs/storages/supported-storages/aws-athena/), [Databricks](https://docs.owox.com/docs/storages/supported-storages/databricks/)
 
-1. Data Marts run as queries in your warehouse: Google BigQuery, Snowflake, AWS Redshift, AWS Athena or Databricks. OWOX keeps no second copy.
-2. Data you load stays in your warehouse after a source API drops history or removes a field.
-3. Self-host it for free, or use [OWOX Cloud](https://www.owox.com/pricing?utm_source=github&utm_medium=referral&utm_campaign=readme). Connectors are MIT-licensed, so you can read, fork and fix every one.
-4. No modeling project first. Start from SQL you already have.
+### Destinations
+
+[Google Sheets](https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/), [Microsoft Excel](https://docs.owox.com/docs/destinations/supported-destinations/microsoft-excel/), [Data Studio](https://docs.owox.com/docs/destinations/supported-destinations/data-studio/), [Claude](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#claude-desktop-recommended), [ChatGPT](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#chatgpt), [Slack](https://docs.owox.com/docs/destinations/supported-destinations/slack/), [Microsoft Teams](https://docs.owox.com/docs/destinations/supported-destinations/microsoft-teams/), [Email](https://docs.owox.com/docs/destinations/supported-destinations/email/), [Google Chat](https://docs.owox.com/docs/destinations/supported-destinations/google-chat/), [see all](https://docs.owox.com/docs/destinations/)
+
+Missing an integration? Request it in [Discussions](https://github.com/OWOX/owox-data-marts/discussions), make it with the [Connector Builder](./docs/connectors/connector-builder.md), or [write your own](packages/connectors/CONTRIBUTING.md).
+
+## 🧑‍💻 Contribute
+
+1. Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md).
+2. Check [open Issues](https://github.com/OWOX/owox-data-marts/issues).
+3. Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions).
+
+New connectors, docs fixes and bug reports are all welcome, and we spotlight contributors.
 
 ## 🛠 Quick start
 
@@ -58,62 +73,6 @@ owox serve
 (4) **Open** <http://localhost:3000> 🎉
 
 For **Docker** and **cloud deployment**, see the [Quick Start Guide](./docs/getting-started/quick-start.md). Then [create your first Data Mart](./docs/getting-started/first-data-mart.md).
-
-## 🔌 Available connectors
-
-Free, MIT-licensed connectors, self-hosted or in OWOX Cloud, with no per-connector bill.
-
-### Data sources
-
-| Name                            | Status           | Links                                                                               |
-| ------------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
-| Bank of Canada                  | 🟢 Public        | [Get started](packages/connectors/src/Sources/BankOfCanada/GETTING_STARTED.md)      |
-| Criteo Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
-| Facebook Ads                    | 🟢 Public        | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
-| GitHub                          | 🟢 Public        | [Get started](packages/connectors/src/Sources/GitHub/GETTING_STARTED.md)            |
-| Google Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/GoogleAds/GETTING_STARTED.md)         |
-| LinkedIn Ads                    | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md)       |
-| LinkedIn Pages                  | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInPages/GETTING_STARTED.md)     |
-| Microsoft Ads (former Bing Ads) | 🟢 Public        | [Get started](packages/connectors/src/Sources/MicrosoftAds/GETTING_STARTED.md)      |
-| Open Exchange Rates             | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
-| Open Holidays                   | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenHolidays/GETTING_STARTED.md)      |
-| Reddit Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
-| Shopify                         | 🟢 Public        | [Get started](packages/connectors/src/Sources/Shopify/GETTING_STARTED.md)           |
-| TikTok Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
-| X Ads (former Twitter Ads)      | 🟢 Public        | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
-| Hotline                         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
-| Google Business Profile         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
-
-### Data warehouses
-
-| Name            | Status    | Links                                                         |
-| --------------- | --------- | ------------------------------------------------------------- |
-| Google BigQuery | 🟢 Public | [Readme](docs/storages/supported-storages/google-bigquery.md) |
-| AWS Redshift    | 🟢 Public | [Readme](docs/storages/supported-storages/aws-redshift.md)    |
-| AWS Athena      | 🟢 Public | [Readme](docs/storages/supported-storages/aws-athena.md)      |
-| Snowflake       | 🟢 Public | [Readme](docs/storages/supported-storages/snowflake.md)       |
-| Databricks      | 🟢 Public | [Readme](docs/storages/supported-storages/databricks.md)      |
-
-Missing an integration? Request it in [Discussions](https://github.com/OWOX/owox-data-marts/discussions), make it with the [Connector Builder](./docs/connectors/connector-builder.md), or [write your own](packages/connectors/CONTRIBUTING.md).
-
-### Destinations
-
-| Name                                | Business users get                            | Links                                                                                                                                                                                                      |
-| ----------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Google Sheets                       | Reports that refresh on a schedule            | [Setup guide](docs/destinations/supported-destinations/google-sheets.md)                                                                                                                                   |
-| Microsoft Excel                     | Reports they refresh from the add-in          | [Setup guide](docs/destinations/supported-destinations/microsoft-excel.md)                                                                                                                                 |
-| Data Studio                         | Dashboards that read the Data Mart on open    | [Setup guide](docs/destinations/supported-destinations/data-studio.md)                                                                                                                                     |
-| Claude, ChatGPT                     | Answers from your Data Marts, through MCP     | [Setup guide](docs/getting-started/setup-guide/mcp.md)                                                                                                                                                     |
-| Slack, Microsoft Teams, Google Chat | Scheduled reports and insights in a channel   | [Slack](docs/destinations/supported-destinations/slack.md) · [Teams](docs/destinations/supported-destinations/microsoft-teams.md) · [Google Chat](docs/destinations/supported-destinations/google-chat.md) |
-| Email                               | Scheduled reports and insights in their inbox | [Email](docs/destinations/supported-destinations/email.md)                                                                                                                                                 |
-
-## 🧑‍💻 Contribute
-
-1. Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md).
-2. Check [open Issues](https://github.com/OWOX/owox-data-marts/issues).
-3. Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions).
-
-New connectors, docs fixes and bug reports are all welcome, and we spotlight contributors.
 
 ## 📌 License
 
