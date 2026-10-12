@@ -144,6 +144,10 @@ A failed `ctx.owox`, collection, or credential call rejects with a `PluginTransp
 | `TIMEOUT`        | The host did not answer within 30 seconds, or 120 seconds for an AI Credential call.                                         |
 | `PROTOCOL_ERROR` | The request could not be exchanged: the handshake was not complete, a response was malformed, or 32 requests were in flight. |
 
+An exact Credential's `asFetch()` rejects only when the host fails the request. A provider's own
+error, such as 401, 403, 429, or 500, resolves with a `Response` whose `ok` is `false`: check
+`response.ok` and handle the provider's status and body yourself.
+
 Some typed methods wrap the failure in an `OWOXApiError` and keep the `PluginTransportError` as its
 `cause`. `dataMarts.traverseData()`, for example, rejects with "Failed to open OWOX Data Mart data
 stream" whatever the API answered. Neither class is exported to plugin code, so find the payload by
@@ -231,6 +235,7 @@ const github = exactCredential(ctx.credentials, 'github');
 if (!github) throw new Error('GitHub access is not configured');
 
 const response = await github.asFetch()('https://api.github.com/user');
+if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
 ```
 
 Logical AI handles implement the Vercel AI SDK provider v4 contract:

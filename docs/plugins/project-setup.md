@@ -111,6 +111,8 @@ about the OWOX plugin contract.
 
 - Catch errors from every `ctx.owox`, collection, and credential call, and show the member what
   failed. Never leave a blank screen.
+- An exact Credential's `asFetch()` resolves with the provider's error response instead of
+  throwing: check `response.ok`.
 - The reason is in `error.payload` (`code`, `status`, `message`, `details`), or in
   `error.cause.payload` when the API client wrapped it. See "Handle request errors" in the
   authoring guide.
