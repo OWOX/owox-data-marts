@@ -2,16 +2,9 @@
 
 ## Free connectors and ontology-backed self-service analytics without hallucinations
 
-Plug your sources into ready-to-prompt ontology models and get hallucination-free self-service analytics. Give people and AI agents [joinable Data Marts](./docs/getting-started/setup-guide/joinable-data-marts.md) in the tools they already know: API, CLI, MCP, Google Sheets, Excel, Claude, ChatGPT, Data Studio and more. No extra chat tool, no semantic-layer tax, no black boxes. No LLM writes the SQL behind a business user's answer, so nobody downstream gets a hallucinated number with your name on it.
+Plug your sources into ready-to-prompt ontology models and get hallucination-free self-service analytics. Give people and AI agents [joinable Data Marts](./docs/getting-started/setup-guide/joinable-data-marts.md) in the tools they already know: [API](https://docs.owox.com/docs/api/), [CLI](https://docs.owox.com/docs/api/owox-ctl/), [MCP](https://docs.owox.com/docs/getting-started/setup-guide/mcp/), [Google Sheets](https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/), [Excel](https://docs.owox.com/docs/destinations/supported-destinations/microsoft-excel/), [Claude](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#claude-desktop-recommended), [ChatGPT](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#chatgpt), [Data Studio](https://docs.owox.com/docs/destinations/supported-destinations/data-studio/) and [more destinations](https://docs.owox.com/docs/destinations/). No extra chat tool, no semantic-layer tax, no black boxes. No LLM writes the SQL behind a business user's answer, so nobody downstream gets a hallucinated number with your name on it.
 
 [**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com/product?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
-
-<!-- markdownlint-disable MD033 -- <picture> is how GitHub serves a light and a dark image -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
-  <img alt="OWOX Data Marts: six layers from Sources through Storages, Data Marts, Destinations and Reports to Plugins. Facebook Ads and Google Ads land in Google BigQuery, become the Unified AdSpend Data Mart, join with Orders, and reach Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report refreshes itself" src="./docs/res/architecture/architecture-light.svg">
-</picture>
-<!-- markdownlint-enable MD033 -->
 
 ## Why OWOX Data Marts
 
@@ -24,6 +17,13 @@ Plug your sources into ready-to-prompt ontology models and get hallucination-fre
 7. **Agent-friendly.** The [`owox-ctl` CLI](./apps/ctl/README.md) and the [MCP server](./docs/getting-started/setup-guide/mcp.md) work out of the box, so your AI can set it up for you:
 
    > Dear coding agent, set up [owox-data-marts](https://github.com/OWOX/owox-data-marts) and connect the sources I need.
+
+<!-- markdownlint-disable MD033 -- <picture> is how GitHub serves a light and a dark image -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
+  <img alt="OWOX Data Marts: six layers from Sources through Storages, Data Marts, Destinations and Reports to Plugins. Facebook Ads and Google Ads land in Google BigQuery, become the Unified AdSpend Data Mart, join with Orders, and reach Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report refreshes itself" src="./docs/res/architecture/architecture-light.svg">
+</picture>
+<!-- markdownlint-enable MD033 -->
 
 ## How it works
 
