@@ -29,6 +29,7 @@ export interface PluginCollectionPageDto {
 
 export interface ResolvedPluginCollection {
   readonly declaration: PluginCollectionDeclaration;
+  readonly semver: string;
   readonly namespaceKey: string;
   readonly memberId: string | null;
 }

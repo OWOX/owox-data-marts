@@ -19,6 +19,15 @@ export class PluginCollectionAuthorizationDeniedError extends ForbiddenException
 
 export class PluginCollectionValidationError extends BadRequestException {}
 
+export class PluginCollectionNotEntityBoundError extends PluginCollectionValidationError {
+  constructor(collectionName: string, semver: string) {
+    super({
+      code: 'PLUGIN_COLLECTION_NOT_ENTITY_BOUND',
+      message: `Collection "${collectionName}" has no entityBinding in plugin.json of the current version ${semver}, so put does not accept parentId`,
+    });
+  }
+}
+
 export class PluginCollectionQuotaExceededError extends PayloadTooLargeException {
   constructor(limit: string) {
     super(`Plugin collection limit exceeded: ${limit}`);

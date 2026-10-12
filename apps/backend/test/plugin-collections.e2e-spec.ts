@@ -175,6 +175,27 @@ describe('Plugin collections (e2e)', () => {
     await request('user-1').get(path).expect(200);
   });
 
+  it('names the missing entityBinding when a put sends parentId to an unbound collection', async () => {
+    const path = '/api/plugins/runtime/collections/settings/documents/unbound';
+    const response = await request()
+      .put(path)
+      .send({ document: {}, parentId: 'mart-1' })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      code: 'PLUGIN_COLLECTION_NOT_ENTITY_BOUND',
+      message:
+        'Collection "settings" has no entityBinding in plugin.json of the current version 1.0.0, so put does not accept parentId',
+    });
+    await request().get(path).expect(404);
+    const audits = app.get<Repository<PluginCollectionAuditEvent>>(
+      getRepositoryToken(PluginCollectionAuditEvent, PLUGIN_COLLECTIONS_DATA_SOURCE)
+    );
+    await expect(audits.findOneBy({ documentId: 'unbound' })).resolves.toMatchObject({
+      outcome: 'VALIDATION_FAILED',
+    });
+  });
+
   it('treats document ids as byte-exact values independent of database collation', async () => {
     const base = '/api/plugins/runtime/collections/settings/documents';
     await request()

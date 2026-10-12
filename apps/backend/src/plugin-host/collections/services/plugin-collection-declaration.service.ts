@@ -23,8 +23,8 @@ export class PluginCollectionDeclarationService {
     if (!plugin?.currentVersionId) throw new PluginCollectionNotFoundError();
 
     const version = await this.versions.findById(plugin.currentVersionId);
-    const declaration = (version?.collections ?? []).find(item => item.name === collectionName);
-    if (!declaration) throw new PluginCollectionNotFoundError();
+    const declaration = version?.collections?.find(item => item.name === collectionName);
+    if (!version || !declaration) throw new PluginCollectionNotFoundError();
 
     const memberId = declaration.scope === 'member' ? context.userId : null;
     const namespaceKey = createHash('sha256')
@@ -38,6 +38,6 @@ export class PluginCollectionDeclarationService {
         ])
       )
       .digest('hex');
-    return { declaration, namespaceKey, memberId };
+    return { declaration, semver: version.semver, namespaceKey, memberId };
   }
 }
