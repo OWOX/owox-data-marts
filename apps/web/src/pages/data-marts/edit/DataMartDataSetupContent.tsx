@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useLocation, useParams, useSearchParams } from 'react-router';
 import {
   ConnectorManualRunButton,
   DataMartDataStorageView,
@@ -23,6 +23,8 @@ import { DataQualityCompactStatusLink } from '../../../features/data-marts/data-
 export default function DataMartDataSetupContent() {
   const { dataMart, updateDataMartStorage } = useDataMartContext();
   const { projectId = '' } = useParams<{ projectId: string }>();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const initialDefinitionType = dataMart?.definitionType ?? null;
   const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
     initialDefinitionType
@@ -96,7 +98,13 @@ export default function DataMartDataSetupContent() {
           {dataMart && projectId && (
             <DataQualityCompactStatusLink projectId={projectId} dataMartId={dataMart.id} />
           )}
-          {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
+          {dataMart && (
+            <DataMartSchemaSettings
+              definitionType={definitionType}
+              referencedField={searchParams.get('field')}
+              fieldNavigationKey={`${dataMart.id}:${location.key}`}
+            />
+          )}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

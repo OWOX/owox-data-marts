@@ -5,12 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../../../features/idp/types';
 import { dataMartService } from '../../../features/data-marts/shared/services/data-mart.service';
 import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
-import { useDataMartReferences } from './useDataMartReferences';
+import { useDataMartFieldReferences, useDataMartReferences } from './useDataMartReferences';
 
 const currentUser = vi.hoisted(() => ({ value: null as User | null }));
 vi.mock('../../../features/idp/hooks/useAuthState', () => ({ useUser: () => currentUser.value }));
 vi.mock('../../../features/data-marts/shared/services/data-mart.service', () => ({
-  dataMartService: { getDataMarts: vi.fn() },
+  dataMartService: { getDataMarts: vi.fn(), getDataMartById: vi.fn() },
 }));
 
 function createWrapper() {
@@ -78,5 +78,49 @@ describe('useDataMartReferences', () => {
     hook.rerender();
     expect(await hook.result.current()).toEqual([]);
     expect(dataMartService.getDataMarts).not.toHaveBeenCalled();
+  });
+
+  it('loads fields only for a published mart in the current catalog and includes calculated aliases', async () => {
+    vi.mocked(dataMartService.getDataMartById).mockResolvedValue({
+      status: DataMartStatus.PUBLISHED,
+      schema: {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'amount', alias: 'Order total', type: 'NUMERIC', status: 'CONNECTED' },
+          {
+            name: 'average',
+            alias: 'Average order',
+            type: 'NUMERIC',
+            status: 'DISCONNECTED',
+            calculated: { formula: 'SUM(amount)/COUNT(*)' },
+          },
+          { name: 'no_alias', type: 'STRING', status: 'CONNECTED' },
+          { name: 'hidden', type: 'STRING', isHiddenForReporting: true },
+          { name: 'old', type: 'STRING', status: 'DISCONNECTED' },
+          {
+            name: 'address',
+            type: 'RECORD',
+            fields: [{ name: 'street', alias: 'Street', type: 'STRING' }],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof dataMartService.getDataMartById>>);
+    const hook = renderHook(() => useDataMartFieldReferences('project'), {
+      wrapper: createWrapper(),
+    });
+    expect(await hook.result.current('alpha')).toEqual([
+      { name: 'amount', alias: 'Order total', calculated: false },
+      { name: 'average', alias: 'Average order', calculated: true },
+      { name: 'no_alias', alias: 'no_alias', calculated: false },
+      { name: 'address', alias: 'address', calculated: false },
+      { name: 'address.street', alias: 'Street', calculated: false },
+    ]);
+    expect(await hook.result.current('draft')).toEqual([]);
+    expect(await hook.result.current('outside-project')).toEqual([]);
+    expect(dataMartService.getDataMartById).toHaveBeenCalledTimes(1);
+    currentUser.value = null;
+    hook.rerender();
+    expect(await hook.result.current('alpha')).toEqual([]);
+    expect(dataMartService.getDataMartById).toHaveBeenCalledTimes(1);
   });
 });

@@ -274,7 +274,7 @@ export function OverviewTab() {
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={FileText}
-            tooltip='Business context shared with connected AI assistants'
+            tooltip='Business context that helps your AI assistants give meaningful answers'
           >
             Description
           </CollapsibleCardHeaderTitle>
@@ -282,8 +282,8 @@ export function OverviewTab() {
         <CollapsibleCardContent>
           <div className='flex flex-col gap-2'>
             <p className='text-muted-foreground text-xs'>
-              Describe the project&apos;s business context, goals, terminology, and conventions.
-              This description is shared with connected AI assistants through MCP. Do not include
+              Context gives your AI assistants essential business content to make their answers
+              meaningful. Describe your business goals, terminology, and conventions. Do not include
               secrets.
             </p>
             {isProjectSettingsLoading ? (

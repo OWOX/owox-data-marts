@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '../../../features/idp/hooks/useAuthState';
 import { dataMartService } from '../../../features/data-marts/shared/services/data-mart.service';
 import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
-import type { DataMartReference } from './data-mart-mentions';
+import type { DataMartFieldReference, DataMartReference } from './data-mart-mentions';
+import { flattenNativeFields } from '../../../features/data-marts/shared/utils/flatten-native-fields';
 
 export function useDataMartReferences(
   projectId: string,
@@ -19,7 +20,7 @@ export function useDataMartReferences(
         const marts = await dataMartService.getDataMarts({ signal, skipLoadingIndicator: true });
         return marts
           .filter(mart => mart.status === DataMartStatus.PUBLISHED)
-          .map(mart => ({ id: mart.id, title: mart.title }))
+          .map(mart => ({ id: mart.id, title: mart.title, icon: mart.icon }))
           .sort((a, b) => a.title.localeCompare(b.title));
       },
       staleTime: 30_000,
@@ -27,4 +28,34 @@ export function useDataMartReferences(
     // Keep the shared project cache complete; exclusions belong to the current editor.
     return references.filter(reference => reference.id !== currentDataMartId);
   }, [projectId, currentDataMartId, queryClient, user?.projectId, user?.id]);
+}
+
+export function useDataMartFieldReferences(projectId: string) {
+  const queryClient = useQueryClient();
+  const user = useUser();
+  const loadReferences = useDataMartReferences(projectId);
+  return useCallback(
+    async (id: string): Promise<DataMartFieldReference[]> => {
+      if (!projectId || user?.projectId !== projectId) return [];
+      // Only drill into a published mart offered by the current user's project catalog.
+      if (!(await loadReferences()).some(reference => reference.id === id)) return [];
+      return queryClient.query({
+        queryKey: ['description-data-mart-fields', projectId, user.id, id],
+        queryFn: async ({ signal }) => {
+          const mart = await dataMartService.getDataMartById(id, {
+            signal,
+            skipLoadingIndicator: true,
+          });
+          if (mart.status !== DataMartStatus.PUBLISHED) return [];
+          return flattenNativeFields(mart.schema?.fields ?? []).map(field => ({
+            name: field.name,
+            alias: field.alias?.trim() ? field.alias.trim() : field.name,
+            calculated: Boolean(field.calculated),
+          }));
+        },
+        staleTime: 30_000,
+      });
+    },
+    [projectId, user?.projectId, user?.id, queryClient, loadReferences]
+  );
 }

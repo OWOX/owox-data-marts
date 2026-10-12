@@ -1,8 +1,15 @@
-import type * as Monaco from 'monaco-editor';
+import type { DataMartIconValue } from '../../../features/data-marts/shared/enums/data-mart-icon.enum';
 
 export interface DataMartReference {
   id: string;
   title: string;
+  icon?: DataMartIconValue | null;
+}
+
+export interface DataMartFieldReference {
+  name: string;
+  alias: string;
+  calculated: boolean;
 }
 
 function isMarkdownText(prefix: string): boolean {
@@ -73,73 +80,17 @@ export function mentionAtCursor(text: string): { query: string; start: number } 
 export function dataMartMarkdownLink(
   reference: DataMartReference,
   projectId: string,
-  origin: string
+  origin: string,
+  field?: DataMartFieldReference
 ): string {
-  const title = reference.title.replace(/([\\`*_[\]<>])/g, '\\$1').replace(/[\r\n]+/g, ' ');
+  const label = field ? `${reference.title} · ${field.alias}` : reference.title;
+  const title = label.replace(/([\\`*_[\]<>])/g, '\\$1').replace(/[\r\n]+/g, ' ');
   const url = new URL(
     `/ui/${encodeURIComponent(projectId)}/data-marts/${encodeURIComponent(reference.id)}/data-setup`,
     origin
-  ).href;
-  return `[${title}](${url})`;
-}
-
-export function registerDataMartMentions(
-  monaco: typeof Monaco,
-  editor: Monaco.editor.IStandaloneCodeEditor,
-  projectId: string,
-  load: () => Promise<DataMartReference[]>,
-  onError: (message: string | null) => void
-): Monaco.IDisposable {
-  const model = editor.getModel();
-  const lifetime = new AbortController();
-  const isDisposed = () => lifetime.signal.aborted;
-  const provider = monaco.languages.registerCompletionItemProvider('markdown', {
-    triggerCharacters: ['@'],
-    async provideCompletionItems(requestModel, position, _context, token) {
-      if (isDisposed() || requestModel !== model) return { suggestions: [] };
-      const text = requestModel.getValueInRange({
-        startLineNumber: 1,
-        startColumn: 1,
-        endLineNumber: position.lineNumber,
-        endColumn: position.column,
-      });
-      const mention = mentionAtCursor(text);
-      if (!mention) return { suggestions: [] };
-      onError(null);
-      try {
-        const references = await load();
-        if (isDisposed() || token.isCancellationRequested || requestModel !== editor.getModel())
-          return { suggestions: [] };
-        const query = mention.query.toLocaleLowerCase();
-        return {
-          isIncomplete: true,
-          suggestions: references
-            .filter(reference => reference.title.toLocaleLowerCase().includes(query))
-            .map(reference => ({
-              label: reference.title,
-              detail: 'Data Mart',
-              kind: monaco.languages.CompletionItemKind.Reference,
-              filterText: `@${reference.title}`,
-              insertText: dataMartMarkdownLink(reference, projectId, window.location.origin),
-              range: {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: position.column - (text.length - mention.start),
-                endColumn: position.column,
-              },
-            })),
-        };
-      } catch {
-        if (!isDisposed() && !token.isCancellationRequested)
-          onError('Could not load Data Marts. Type @ to try again.');
-        return { suggestions: [] };
-      }
-    },
-  });
-  return {
-    dispose() {
-      lifetime.abort();
-      provider.dispose();
-    },
-  };
+  );
+  // The saved field name identifies the reference; the link opens the mart's Data Setup.
+  // Both the name and label are snapshots, not a live relation to an editable schema field.
+  if (field) url.searchParams.set('field', field.name);
+  return `[${title}](${url.href})`;
 }

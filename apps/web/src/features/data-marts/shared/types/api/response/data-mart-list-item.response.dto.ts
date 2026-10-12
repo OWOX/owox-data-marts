@@ -2,6 +2,7 @@ import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { DataMartDefinitionType, DataMartStatus } from '../../../enums';
 import type { DataMartListItemStorageDto } from './data-mart-list-item-storage.dto';
 import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
+import type { DataMartIconValue } from '../../../enums/data-mart-icon.enum';
 
 /**
  * Lightweight data mart response DTO for list endpoint
@@ -9,6 +10,7 @@ import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
 export interface DataMartListItemResponseDto {
   id: string;
   title: string;
+  icon?: DataMartIconValue | null;
   status: DataMartStatus;
   storage: DataMartListItemStorageDto;
   definitionType: DataMartDefinitionType | null;

@@ -39,7 +39,7 @@ export function useMarkdownPreviewInternal({
     const t = setTimeout(() => {
       toHtml(md, controller.signal)
         .then(res => {
-          setHtml(res);
+          if (!controller.signal.aborted) setHtml(res);
         })
         .catch((e: unknown) => {
           if (controller.signal.aborted) return;

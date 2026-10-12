@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@owox/ui/components/button';
 import type { InlineEditDescriptionProps } from '../InlineEditDescription/InlineEditDescription';
-import { MarkdownEditorPreview, useMarkdownPreview } from '../MarkdownEditor';
+import { MarkdownEditorPreview } from '../MarkdownEditor';
+import { useDescriptionPreview } from './useDescriptionPreview';
 import { DescriptionEditor } from './DescriptionEditor';
 
 export function InlineMarkdownDescription({
@@ -17,7 +18,11 @@ export function InlineMarkdownDescription({
   const [value, setValue] = useState(description ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const preview = useMarkdownPreview({ markdown: description ?? '', enabled: !editing });
+  const preview = useDescriptionPreview({
+    markdown: description ?? '',
+    enabled: !editing,
+    projectId,
+  });
   useEffect(() => {
     setValue(description ?? '');
     setEditing(false);

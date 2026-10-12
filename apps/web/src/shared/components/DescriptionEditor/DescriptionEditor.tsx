@@ -8,16 +8,11 @@ import {
 } from 'react';
 import type * as monaco from 'monaco-editor';
 import { useTheme } from 'next-themes';
-import {
-  MarkdownEditor,
-  MarkdownEditorTabs,
-  MarkdownEditorPreview,
-  useMarkdownPreview,
-} from '../MarkdownEditor';
+import { MarkdownEditor, MarkdownEditorTabs, MarkdownEditorPreview } from '../MarkdownEditor';
 import { MarkdownToolbar } from '../MarkdownEditor/MarkdownToolbar';
 import { useMarkdownToolbar } from '../MarkdownEditor/useMarkdownToolbar';
-import { registerDataMartMentions } from './data-mart-mentions';
-import { useDataMartReferences } from './useDataMartReferences';
+import { DataMartMentionPicker } from './DataMartMentionPicker';
+import { useDescriptionPreview } from './useDescriptionPreview';
 
 export interface DescriptionEditorProps extends Pick<
   ComponentPropsWithoutRef<'textarea'>,
@@ -58,10 +53,11 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
     ref
   ) {
     const [tab, setTab] = useState<'markdown' | 'preview'>('markdown');
-    const [referenceError, setReferenceError] = useState<string | null>(null);
-    const loadReferences = useDataMartReferences(projectId, currentDataMartId);
-    const latest = useRef({ loadReferences, onSave, onCancel, onBlur });
-    latest.current = { loadReferences, onSave, onCancel, onBlur };
+    const latest = useRef({ onSave, onCancel, onBlur });
+    latest.current = { onSave, onCancel, onBlur };
+    const [mountedEditor, setMountedEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(
+      null
+    );
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<typeof monaco | null>(null);
     const { applyAction, applyHeadingLevel } = useMarkdownToolbar({
@@ -69,10 +65,13 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
       monacoRef,
       readOnly: disabled,
     });
-    const disposable = useRef<monaco.IDisposable | null>(null);
     const [input, setInput] = useState<HTMLTextAreaElement | null>(null);
     const { resolvedTheme } = useTheme();
-    const preview = useMarkdownPreview({ markdown: value, enabled: tab === 'preview' });
+    const preview = useDescriptionPreview({
+      markdown: value,
+      enabled: tab === 'preview',
+      projectId,
+    });
 
     useEffect(() => {
       if (!input) return;
@@ -99,31 +98,17 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
       };
     }, [input, ref]);
 
-    useEffect(
-      () => () => {
-        disposable.current?.dispose();
-      },
-      [projectId]
-    );
     const onMount = useCallback(
       (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => {
-        disposable.current?.dispose();
         editorRef.current = editor;
+        setMountedEditor(editor);
         monacoRef.current = monacoInstance;
         setInput(
           editor.getDomNode()?.querySelector<HTMLTextAreaElement>('textarea.inputarea') ?? null
         );
-        const provider = registerDataMartMentions(
-          monacoInstance,
-          editor,
-          projectId,
-          () => latest.current.loadReferences(),
-          setReferenceError
-        );
-        disposable.current = provider;
         editor.onDidDispose(() => {
-          provider.dispose();
           if (editorRef.current === editor) editorRef.current = null;
+          setMountedEditor(null);
           setInput(null);
         });
         editor.onDidBlurEditorText(() => latest.current.onBlur?.());
@@ -144,7 +129,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
           if (model) editor.setPosition(model.getPositionAt(model.getValueLength()));
         }
       },
-      [projectId, autoFocus]
+      [autoFocus]
     );
 
     return (
@@ -153,6 +138,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
         {tab === 'markdown' ? (
           <div className='overflow-hidden rounded-md border'>
             <MarkdownToolbar
+              showFormatBadge={false}
               readOnly={disabled}
               onActionClick={applyAction}
               onHeadingClick={applyHeadingLevel}
@@ -166,28 +152,31 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
               theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
               options={{
                 readOnly: disabled,
+                padding: { top: 8 },
                 fixedOverflowWidgets: true,
                 tabIndex: 0,
                 ariaLabel,
                 // Keep a labelable native textarea for FormControl and React Hook Form.
                 editContext: false,
-                quickSuggestions: { other: true, comments: false, strings: false },
+                quickSuggestions: false,
+                suggestOnTriggerCharacters: false,
                 wordBasedSuggestions: 'off',
               }}
+            />
+            <DataMartMentionPicker
+              editor={mountedEditor}
+              projectId={projectId}
+              currentDataMartId={currentDataMartId}
+              disabled={disabled}
             />
           </div>
         ) : (
           <MarkdownEditorPreview {...preview} />
         )}
         <p className='text-muted-foreground text-xs'>
-          Type @ to find and link a published Data Mart. Links do not change context assignments or
-          access.
+          Type @ to link a published Data Mart or one of its fields. Links do not change context
+          assignments or access.
         </p>
-        {referenceError && (
-          <p role='alert' className='text-destructive text-xs'>
-            {referenceError}
-          </p>
-        )}
       </div>
     );
   }

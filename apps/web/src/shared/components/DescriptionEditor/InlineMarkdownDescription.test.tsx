@@ -19,6 +19,9 @@ vi.mock('./DescriptionEditor', () => ({
     />
   ),
 }));
+vi.mock('./useDescriptionPreview', () => ({
+  useDescriptionPreview: () => ({ html: '', loading: true, error: null }),
+}));
 vi.mock('../MarkdownEditor', () => ({
   useMarkdownPreview: () => ({ html: '', loading: true, error: null }),
   MarkdownEditorPreview: () => <div>preview</div>,

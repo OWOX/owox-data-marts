@@ -17,6 +17,7 @@ export interface MarkdownToolbarProps {
   children?: ReactNode;
   readOnly?: boolean;
   showToolbar?: boolean;
+  showFormatBadge?: boolean;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
   onActionClick: (actionId: MarkdownAction['id']) => void;
@@ -27,6 +28,7 @@ export function MarkdownToolbar({
   children,
   readOnly = false,
   showToolbar = true,
+  showFormatBadge = true,
   collapsible = false,
   defaultCollapsed = false,
   onActionClick,
@@ -106,27 +108,29 @@ export function MarkdownToolbar({
         </div>
       )}
       <div className='flex items-center gap-2'>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge
-              variant='outline'
-              className='text-muted-foreground cursor-help px-2 py-0.5 font-normal'
-            >
-              Markdown
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>
-              This editor uses Markdown formatting.{' '}
-              <ExternalAnchor
-                href='https://www.markdownguide.org/basic-syntax/'
-                className='hover:text-foreground text-tooltip underline'
+        {showFormatBadge && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant='outline'
+                className='text-muted-foreground cursor-help px-2 py-0.5 font-normal'
               >
-                Learn more
-              </ExternalAnchor>
-            </p>
-          </TooltipContent>
-        </Tooltip>
+                Markdown
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                This editor uses Markdown formatting.{' '}
+                <ExternalAnchor
+                  href='https://www.markdownguide.org/basic-syntax/'
+                  className='hover:text-foreground text-tooltip underline'
+                >
+                  Learn more
+                </ExternalAnchor>
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         {collapsible && (
           <Tooltip>
             <TooltipTrigger asChild>

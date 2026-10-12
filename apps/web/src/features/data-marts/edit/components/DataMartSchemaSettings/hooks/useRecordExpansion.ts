@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BigQueryFieldType,
   type BigQuerySchemaField,
 } from '../../../../shared/types/data-mart-schema.types';
 import { findMatchingFieldPaths } from './useTableFilter';
+import { SchemaFieldReferenceContext } from '../schema-field-reference';
 
 /**
  * Custom hook for managing record field expansion in BigQuery schema tables
@@ -14,6 +15,13 @@ import { findMatchingFieldPaths } from './useTableFilter';
 export function useRecordExpansion(fields: BigQuerySchemaField[]) {
   // State to track which record fields are expanded
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
+  const reference = useContext(SchemaFieldReferenceContext);
+  const expandedNavigation = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reference || expandedNavigation.current === reference.navigationKey) return;
+    expandedNavigation.current = reference.navigationKey;
+    setExpandedRecords(prev => new Set([...prev, ...reference.parentPaths]));
+  }, [reference]);
 
   // Keep track of the original expanded state before search
   const [originalExpandedRecords, setOriginalExpandedRecords] = useState<Set<string> | null>(null);

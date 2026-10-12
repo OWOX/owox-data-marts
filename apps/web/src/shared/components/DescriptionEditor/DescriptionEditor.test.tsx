@@ -16,8 +16,9 @@ import { DescriptionEditor } from './DescriptionEditor';
 
 vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 vi.mock('./useDataMartReferences', () => ({ useDataMartReferences: () => vi.fn() }));
-vi.mock('./data-mart-mentions', () => ({
-  registerDataMartMentions: () => ({ dispose: vi.fn() }),
+vi.mock('./DataMartMentionPicker', () => ({ DataMartMentionPicker: () => null }));
+vi.mock('./useDescriptionPreview', () => ({
+  useDescriptionPreview: () => ({ html: '', loading: false, error: null }),
 }));
 vi.mock('../MarkdownEditor', () => ({
   useMarkdownPreview: () => ({ html: '', loading: false, error: null }),

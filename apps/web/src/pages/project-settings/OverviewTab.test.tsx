@@ -218,9 +218,7 @@ describe('OverviewTab project status', () => {
         Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
-    expect(
-      screen.getByText(/business context, goals, terminology, and conventions/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/business goals, terminology, and conventions/i)).toBeInTheDocument();
   });
 
   it('saves the project description with the same inline editor flow as a data mart', async () => {

@@ -18,6 +18,7 @@ import type { BlendedField } from '../../../shared/types/relationship.types';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
+import { SchemaFieldReferenceProvider } from './SchemaFieldReferenceProvider';
 import { DataMartDefinitionType, DataMartMetadataScope } from '../../../shared/index.ts';
 import { useAiHelper, useAiHelperAvailability } from '../../model/hooks';
 import type { ResolvedSchema } from '../../model/hooks';
@@ -46,6 +47,8 @@ import { resolveCalculatedFieldIssues } from '../../../shared/utils/calculated-f
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
+  referencedField?: string | null;
+  fieldNavigationKey?: string;
 }
 
 /** Scopes generated from the "Generate field metadata with AI" dropdown. */
@@ -196,7 +199,11 @@ function ViolationsByFieldList({ violationsByField }: { violationsByField: Viola
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
-export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSettingsProps) {
+export function DataMartSchemaSettings({
+  definitionType,
+  referencedField,
+  fieldNavigationKey,
+}: DataMartSchemaSettingsProps) {
   const {
     dataMart,
     updateDataMartSchema,
@@ -631,21 +638,27 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         <CalculatedFieldIssuesContext.Provider value={calculatedFieldIssues}>
           <FormulaDataMartIdContext.Provider value={dataMartId}>
             <DraftCalculatedFieldsContext.Provider value={draftCalculatedFields}>
-              <SchemaContent
-                schema={schema}
-                storageType={dataMart.storage.type}
-                onFieldsChange={handleSchemaFieldsChange}
-                aiHelper={
-                  showAiHelper
-                    ? {
-                        pendingScope: aiPendingScope,
-                        onGenerateFieldAlias: handleGenerateFieldAlias,
-                        onGenerateFieldDescription: handleGenerateFieldDescription,
-                      }
-                    : undefined
-                }
-                schemaToolbar={schemaToolbar}
-              />
+              <SchemaFieldReferenceProvider
+                fieldName={referencedField}
+                navigationKey={fieldNavigationKey}
+                fields={schema?.fields ?? []}
+              >
+                <SchemaContent
+                  schema={schema}
+                  storageType={dataMart.storage.type}
+                  onFieldsChange={handleSchemaFieldsChange}
+                  aiHelper={
+                    showAiHelper
+                      ? {
+                          pendingScope: aiPendingScope,
+                          onGenerateFieldAlias: handleGenerateFieldAlias,
+                          onGenerateFieldDescription: handleGenerateFieldDescription,
+                        }
+                      : undefined
+                  }
+                  schemaToolbar={schemaToolbar}
+                />
+              </SchemaFieldReferenceProvider>
             </DraftCalculatedFieldsContext.Provider>
           </FormulaDataMartIdContext.Provider>
         </CalculatedFieldIssuesContext.Provider>

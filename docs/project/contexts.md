@@ -56,13 +56,15 @@ In the contexts list, click a row (or use the row actions) to open the **Configu
 
 ### Business descriptions and Data Mart links
 
-The description editor supports Markdown and a **Preview** tab. Use the formatting toolbar to insert headings, bold or italic text, links, lists, quotes, code blocks, and tables without typing the Markdown syntax yourself. Type `@`, search by title, and select an accessible published Data Mart to insert a readable link. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+The description editor supports Markdown and a **Preview** tab. Use the formatting toolbar to insert headings, bold or italic text, links, lists, quotes, code blocks, and tables without typing the Markdown syntax yourself. Type `@` and search by title to select an accessible published Data Mart. Each entry shows the Data Mart’s icon. Then choose **Link entire Data Mart** or a specific output-schema field. Search fields by alias or technical name; calculated fields are included and marked in the list. Fields without an alias use their technical name. Hidden and disconnected warehouse fields are not offered for reporting references. The Data Mart icon also appears before its link in Preview. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+
+Press **Escape** in the field picker to return to the Data Mart list. Press it again to close the picker and keep editing the description. In a Context editor, these actions keep the panel open and preserve your draft.
 
 When editing a Data Mart's description, the current Data Mart is omitted from `@` suggestions. Project and Context descriptions can reference any accessible published Data Mart.
 
 The link stores the Data Mart's project and resource IDs in its URL. Renaming the Data Mart keeps the link working; its written label stays as it was when inserted. Deleted or inaccessible Data Marts remain subject to the normal resource access checks.
 
-**A mention is a reference, not a context assignment.** To attach a Data Mart, use its **Contexts** picker. Inserting a link never changes attachments, membership, or access permissions. Metric selection is not part of this editor.
+**A mention is a reference, not a context assignment.** To attach a Data Mart, use its **Contexts** picker. Inserting a link never changes attachments, membership, or access permissions. A field reference stores the Data Mart title and field alias as its readable label, and the field’s technical name in the URL as `?field=...`. Opening it expands **Output Schema**, scrolls to the exact field, and highlights its row. For nested fields, the parent records expand too. If the field is renamed or removed later, the link still opens the Data Mart normally, without highlighting a different field or applying a search. The saved label and technical name stay unchanged; update the reference manually when necessary.
 
 Use descriptions to explain goals, terminology, and which Data Marts supply relevant measurements. Connected AI assistants receive the complete Markdown through MCP: `get_project_context` for Project, `list_contexts` for Context, and the Data Mart discovery/details tools for Data Mart descriptions. All project members can view context descriptions; only Project Admins can edit them.
 
