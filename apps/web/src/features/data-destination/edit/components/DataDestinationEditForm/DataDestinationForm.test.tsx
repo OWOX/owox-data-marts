@@ -57,6 +57,35 @@ function renderForm() {
 }
 
 describe('DataDestinationForm', () => {
+  // Excel needs no credentials, so a pre-filled Excel form is valid the moment it opens.
+  const prefilledExcel = { title: 'New Destination', type: DataDestinationType.EXCEL as const };
+
+  it('enables Save on a valid pre-filled form in create mode', () => {
+    render(
+      <DataDestinationForm
+        initialData={prefilledExcel}
+        isEditMode={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('keeps Save disabled in edit mode until something changes', () => {
+    render(
+      <DataDestinationForm
+        initialData={prefilledExcel}
+        isEditMode
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
   it('submits the picked copy source while the type still supports it', async () => {
     const onSubmit = renderForm();
 

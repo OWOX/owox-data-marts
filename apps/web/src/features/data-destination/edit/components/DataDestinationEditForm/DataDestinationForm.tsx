@@ -473,13 +473,17 @@ export function DataDestinationForm({
             type='submit'
             className='w-full'
             aria-label='Save'
+            // In CREATE mode the button stays clickable even while the form is
+            // invalid: submitting surfaces validation errors instead of leaving
+            // the user with a disabled button and no hint about what is missing.
             disabled={
-              (!form.formState.isDirty &&
+              form.formState.isSubmitting ||
+              (isEditMode &&
+                !form.formState.isDirty &&
                 !selectedSource &&
                 !ownersDirty &&
                 !sharingDirty &&
-                !contextsDirty) ||
-              form.formState.isSubmitting
+                !contextsDirty)
             }
           >
             {form.formState.isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
