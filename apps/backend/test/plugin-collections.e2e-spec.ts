@@ -183,6 +183,7 @@ describe('Plugin collections (e2e)', () => {
       .expect(400);
 
     expect(response.body).toMatchObject({
+      statusCode: 400,
       code: 'PLUGIN_COLLECTION_NOT_ENTITY_BOUND',
       message:
         'Collection "settings" has no entityBinding in plugin.json of the current version 1.0.0, so put does not accept parentId',
@@ -194,6 +195,33 @@ describe('Plugin collections (e2e)', () => {
     await expect(audits.findOneBy({ documentId: 'unbound' })).resolves.toMatchObject({
       outcome: 'VALIDATION_FAILED',
     });
+
+    await request()
+      .put(path)
+      .send({ document: { title: 'Saved' } })
+      .expect(200);
+    const update = await request()
+      .put(path)
+      .send({ document: { title: 'Changed' }, parentId: 'mart-1' })
+      .expect(400);
+    expect(update.body).toMatchObject({ code: 'PLUGIN_COLLECTION_NOT_ENTITY_BOUND' });
+    await expect(request().get(path)).resolves.toMatchObject({
+      status: 200,
+      body: { document: { title: 'Saved' } },
+    });
+  });
+
+  it('asks for parentId when a put to an entity-bound collection omits it', async () => {
+    const path = '/api/plugins/runtime/collections/dashboards/documents/no-parent';
+    const response = await request().put(path).send({ document: {} }).expect(400);
+
+    expect(response.body).toMatchObject({
+      statusCode: 400,
+      code: 'PLUGIN_COLLECTION_PARENT_ID_REQUIRED',
+      message:
+        'Collection "dashboards" has an entityBinding to data-mart in plugin.json of the current version 1.0.0, so put requires parentId',
+    });
+    await request().get(path).expect(404);
   });
 
   it('treats document ids as byte-exact values independent of database collation', async () => {

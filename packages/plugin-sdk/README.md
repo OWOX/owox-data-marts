@@ -210,10 +210,13 @@ await dashboards.delete('executive-summary');
 ```
 
 For an entity-bound collection, pass `parentId` on every `put`. It cannot be changed by a later
-update. A collection without `entityBinding` takes no `parentId`: the API rejects such a `put` with
-400 `PLUGIN_COLLECTION_NOT_ENTITY_BOUND` and a message naming the collection and the current
-version. OWOX reads `entityBinding` from the current version's `plugin.json`, not from your working
-copy. `get` returns `null` when the document is absent or inaccessible, and `list` returns only
+update. A collection without `entityBinding` takes no `parentId`. OWOX reads `entityBinding` from
+the current version's `plugin.json`, not from your working copy; a `put` that does not match it
+rejects with `payload.code` `HTTP_ERROR`, `status` 400, and a message naming the collection and the
+current version (API codes `PLUGIN_COLLECTION_PARENT_ID_REQUIRED` and
+`PLUGIN_COLLECTION_NOT_ENTITY_BOUND`). Adding `entityBinding` to an existing collection is a
+breaking change and leaves its saved documents unreachable; to bind existing data, declare a new
+collection and copy the documents into it. `get` returns `null` when the document is absent or inaccessible, and `list` returns only
 documents whose parents the current member may read. To bound authorization work, each list request
 for an entity-bound collection inspects at most 10 stored documents. Its `items` may therefore be
 shorter than the requested limit, or empty, while `nextCursor` is still non-null. Continue paging

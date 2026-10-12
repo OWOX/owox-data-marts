@@ -473,11 +473,17 @@ documents remain private, while project-scoped documents remain shared with elig
 members. OWOX checks the mapped existing action on every request. For a bound collection,
 `parentId` is required on create and cannot change later.
 
-A collection without `entityBinding` takes no `parentId`. Such a `put` fails with `HTTP_ERROR`,
-status 400, and a message naming the collection and the current version; the API's code is
-`PLUGIN_COLLECTION_NOT_ENTITY_BOUND`. OWOX reads `entityBinding` from the current version's
-`plugin.json`, not from your working copy, so a binding you add applies once a release with it
-becomes current.
+A collection without `entityBinding` takes no `parentId`. OWOX reads `entityBinding` from the
+current version's `plugin.json`, not from your working copy. A `put` that omits `parentId` on a
+bound collection, or sends it to an unbound one, fails with `HTTP_ERROR`, status 400, and a message
+naming the collection and the current version. The API's codes are
+`PLUGIN_COLLECTION_PARENT_ID_REQUIRED` and `PLUGIN_COLLECTION_NOT_ENTITY_BOUND`.
+
+Adding, removing, or changing `entityBinding` on an existing collection is a breaking change that
+needs a new line. Documents saved before it keep their old `parentId`, which the new declaration
+cannot authorize, so they become unreachable. To bind existing data, declare a new collection with
+`entityBinding` instead, which a release within the line may do, and copy the documents into it
+with their `parentId`.
 
 Each operation mapping must use an action supported by the bound entity type:
 
