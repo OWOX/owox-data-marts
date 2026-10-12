@@ -6,6 +6,7 @@ import { glob } from 'glob';
 import yaml from 'js-yaml';
 import Papa from 'papaparse';
 import { getConfig } from './env-config.js';
+import { PUBLIC_REPO_DIR, rewriteHtmlImageLinks } from './html-image-links.mjs';
 import {
   normalizePathSeparators,
   normalizePathToKebabCase,
@@ -47,6 +48,7 @@ const ASSETS_DEST_PATH = path.join(APP_LOCATION, 'src/assets');
 const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
 // Served verbatim, so an AI assistant can be handed the URL of a plain-text guide.
 const PUBLIC_DOCS_DEST_PATH = path.join(APP_LOCATION, 'public/docs');
+const PUBLIC_REPO_DEST_PATH = path.join(APP_LOCATION, 'public', PUBLIC_REPO_DIR);
 const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
 const CHANGELOG_PATH = path.join(MONOREPO_ROOT, 'apps/owox/CHANGELOG.md');
 
@@ -78,6 +80,7 @@ function prepareFileSystem() {
   fs.rmSync(CONTENT_DEST_PATH, { recursive: true, force: true });
   fs.rmSync(ASSETS_DEST_PATH, { recursive: true, force: true });
   fs.rmSync(PUBLIC_DOCS_DEST_PATH, { recursive: true, force: true });
+  fs.rmSync(PUBLIC_REPO_DEST_PATH, { recursive: true, force: true });
   fs.mkdirSync(CONTENT_DEST_PATH, { recursive: true });
   fs.mkdirSync(ASSETS_DEST_PATH, { recursive: true });
 }
@@ -123,6 +126,9 @@ async function processMarkdownFiles() {
 
     // 2. Find, copy, and replace image paths
     fileContent = processImageLinks(fileContent, filePaths);
+
+    // 2b. Copy files referenced by HTML <img>/<source> tags and point the tags at public/
+    fileContent = processHtmlImageLinks(fileContent, filePaths);
 
     // 3. Find and replace paths to other file links
     fileContent = processDocumentLinks(fileContent, filePaths);
@@ -292,6 +298,30 @@ function processImageLinks(fileContent, filePaths) {
   }
 
   return fileContent;
+}
+
+/**
+ * Rewrites relative HTML image references (`<img src>`, `<img|source srcset>`) to URLs served
+ * from `public/`, copying each referenced repo file there
+ * @param {string} fileContent - Markdown content
+ * @param {Object} filePaths - Object containing source, relative, and destination paths
+ * @returns {string} - Updated markdown content with processed HTML image references
+ */
+function processHtmlImageLinks(fileContent, filePaths) {
+  const { content, copies } = rewriteHtmlImageLinks(fileContent, {
+    sourceDir: path.dirname(filePaths.sourcePath),
+    monorepoRoot: MONOREPO_ROOT,
+    base: getConfig().base,
+    fileExists: absPath => fs.existsSync(absPath) && fs.statSync(absPath).isFile(),
+  });
+
+  for (const { from, publicPath } of copies) {
+    const destination = path.join(APP_LOCATION, 'public', publicPath);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(from, destination);
+  }
+
+  return content;
 }
 
 /**

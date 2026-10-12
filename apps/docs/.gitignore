@@ -24,3 +24,4 @@ pnpm-debug.log*
 /src/content/docs
 /src/assets
 /public/docs
+/public/_repo
