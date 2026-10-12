@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD033 -- <img> and <picture> give the icons and the light/dark diagram -->
+
 # OWOX Data Marts
 
 ## Free connectors and ontology-backed self-service analytics without hallucinations
@@ -18,29 +20,27 @@ Plug your sources into ready-to-prompt ontology models and get hallucination-fre
 
    > Dear coding agent, set up [owox-data-marts](https://github.com/OWOX/owox-data-marts) and connect the sources I need.
 
-<!-- markdownlint-disable MD033 -- <picture> is how GitHub serves a light and a dark image -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/res/architecture/architecture-dark.svg">
   <img alt="OWOX Data Marts: six layers from Sources through Storages, Data Marts, Destinations and Reports to Plugins. Facebook Ads and Google Ads land in Google BigQuery, become the Unified AdSpend Data Mart, join with Orders, and reach Data Studio, ChatGPT and Google Sheets, where a scheduled Campaigns Performance report refreshes itself" src="./docs/res/architecture/architecture-light.svg">
 </picture>
-<!-- markdownlint-enable MD033 -->
 
 ## How it works
 
-1. **Connect** [sources](#data-sources) to your warehouse.
+1. **Connect** [sources](#-data-sources) to your warehouse.
 2. **Define** [Data Marts](./docs/data-marts/index.md#data-mart-types) from SQL, a table, a view or a connector, and declare joins.
 3. **Publish** to [destinations](./docs/destinations/index.md), or to Claude and ChatGPT through [MCP](./docs/getting-started/setup-guide/mcp.md).
 4. **Schedule** [report refreshes](./docs/getting-started/setup-guide/report-triggers.md) and [data quality checks](./docs/getting-started/setup-guide/data-quality-checks.md).
 
-### Data sources
+### [<img src="./docs/res/icons/data-sources.svg" width="24" height="24" align="texttop" alt="">](https://docs.owox.com/docs/connectors/) Data sources
 
 [Shopify](https://docs.owox.com/packages/connectors/src/sources/shopify/getting-started/), [Facebook Ads](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/), [Google Ads](https://docs.owox.com/packages/connectors/src/sources/google-ads/getting-started/), [TikTok Ads](https://docs.owox.com/packages/connectors/src/sources/tik-tok-ads/getting-started/), [LinkedIn Ads](https://docs.owox.com/packages/connectors/src/sources/linked-in-ads/getting-started/), [X Ads](https://docs.owox.com/packages/connectors/src/sources/xads/getting-started/), [Microsoft Ads](https://docs.owox.com/packages/connectors/src/sources/microsoft-ads/getting-started/), [see all](https://docs.owox.com/docs/connectors/)
 
-### Data warehouses
+### [<img src="./docs/res/icons/data-storages.svg" width="24" height="24" align="texttop" alt="">](https://docs.owox.com/docs/storages/) Data storages
 
 [Google BigQuery](https://docs.owox.com/docs/storages/supported-storages/google-bigquery/), [Snowflake](https://docs.owox.com/docs/storages/supported-storages/snowflake/), [AWS Redshift](https://docs.owox.com/docs/storages/supported-storages/aws-redshift/), [AWS Athena](https://docs.owox.com/docs/storages/supported-storages/aws-athena/), [Databricks](https://docs.owox.com/docs/storages/supported-storages/databricks/)
 
-### Destinations
+### [<img src="./docs/res/icons/data-destinations.svg" width="24" height="24" align="texttop" alt="">](https://docs.owox.com/docs/destinations/) Data destinations
 
 [Google Sheets](https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/), [Microsoft Excel](https://docs.owox.com/docs/destinations/supported-destinations/microsoft-excel/), [Data Studio](https://docs.owox.com/docs/destinations/supported-destinations/data-studio/), [Claude](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#claude-desktop-recommended), [ChatGPT](https://docs.owox.com/docs/getting-started/setup-guide/mcp/#chatgpt), [Slack](https://docs.owox.com/docs/destinations/supported-destinations/slack/), [Microsoft Teams](https://docs.owox.com/docs/destinations/supported-destinations/microsoft-teams/), [Email](https://docs.owox.com/docs/destinations/supported-destinations/email/), [Google Chat](https://docs.owox.com/docs/destinations/supported-destinations/google-chat/), [see all](https://docs.owox.com/docs/destinations/)
 
@@ -54,7 +54,7 @@ Missing an integration? Request it in [Discussions](https://github.com/OWOX/owox
 
 New connectors, docs fixes and bug reports are all welcome, and we spotlight contributors.
 
-## 🛠 Quick start
+## 🛠 Quick Start
 
 (1) **Install Node.js** 22.22.0+ [download](https://nodejs.org)
 
