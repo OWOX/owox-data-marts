@@ -282,9 +282,9 @@ export function OverviewTab() {
         <CollapsibleCardContent>
           <div className='flex flex-col gap-2'>
             <p className='text-muted-foreground text-xs'>
-              Context gives your AI assistants essential business content to make their answers
-              meaningful. Describe your business goals, terminology, and conventions. Do not include
-              secrets.
+              Describe your business goals, terminology, and conventions to help your AI assistants
+              give meaningful answers. This project description is shared with connected AI
+              assistants through MCP. Do not include secrets.
             </p>
             {isProjectSettingsLoading ? (
               <Skeleton className='h-64 w-full' />

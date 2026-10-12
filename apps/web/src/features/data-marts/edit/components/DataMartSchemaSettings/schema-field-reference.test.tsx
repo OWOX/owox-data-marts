@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Props as SortableContextProps } from '@dnd-kit/sortable/dist/components/SortableContext';
 import { verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Columns3 } from 'lucide-react';
@@ -68,19 +68,28 @@ function NestedTable({
   schemaFields: BigQuerySchemaField[];
   flat?: boolean;
 }) {
-  const { flattenedFields } = useRecordExpansion(schemaFields);
+  const { flattenedFields, toggleRecordExpansion } = useRecordExpansion(schemaFields);
   return (
-    <SchemaTable
-      fields={flat ? schemaFields : flattenedFields}
-      columns={[
-        { id: 'name', accessorKey: 'name', header: 'Name', cell: ({ row }) => row.original.name },
-        { id: 'alias', header: 'Alias', cell: ({ row }) => row.original.alias },
-      ]}
-      onAddRow={() => undefined}
-      dragContext={({ children }: SortableContextProps) => <>{children}</>}
-      dragContextProps={{ items: [], strategy: verticalListSortingStrategy }}
-      schemaToolbar={toolbar}
-    />
+    <>
+      <button
+        onClick={() => {
+          toggleRecordExpansion('2');
+        }}
+      >
+        Toggle customer
+      </button>
+      <SchemaTable
+        fields={flat ? schemaFields : flattenedFields}
+        columns={[
+          { id: 'name', accessorKey: 'name', header: 'Name', cell: ({ row }) => row.original.name },
+          { id: 'alias', header: 'Alias', cell: ({ row }) => row.original.alias },
+        ]}
+        onAddRow={() => undefined}
+        dragContext={({ children }: SortableContextProps) => <>{children}</>}
+        dragContextProps={{ items: [], strategy: verticalListSortingStrategy }}
+        schemaToolbar={toolbar}
+      />
+    </>
   );
 }
 
@@ -138,23 +147,33 @@ describe('output-schema field links', () => {
       name
     );
   });
-  it('opens a persisted collapsed card, reveals a hidden name column, and scrolls to a calculated field', async () => {
+  it('temporarily opens the card and reveals the name without overwriting the saved layout', async () => {
     localStorage.setItem('collapsed-card-output-schema', 'true');
     localStorage.setItem(
       'data-mart-schema-column-visibility-mart',
       JSON.stringify({ name: false })
     );
-    const { container } = render(<Navigation name='net_revenue' />);
+    const { container, rerender } = render(<Navigation name='net_revenue' />);
     await waitFor(() => {
       expect(scroll).toHaveBeenCalledTimes(1);
     });
-    expect(localStorage.getItem('collapsed-card-output-schema')).toBe('false');
+    expect(localStorage.getItem('collapsed-card-output-schema')).toBe('true');
     const cell = container.querySelector('[data-referenced-field="net_revenue"]');
     expect(cell).toHaveTextContent('net_revenue');
-    expect(cell?.closest('tr')?.className).toContain('bg-primary/10');
+    expect(cell?.className).toContain('bg-background');
+    expect(cell?.className).toContain('from-primary/10');
+    expect(cell?.closest('tr')?.className).not.toContain('[&>td]:bg-primary');
+    expect(JSON.parse(localStorage.getItem('data-mart-schema-column-visibility-mart')!)).toEqual({
+      name: false,
+    });
     expect(scroll.mock.instances[0]).toBe(cell?.closest('tr'));
-    fireEvent.click(screen.getByText('Output Schema'));
+    rerender(<Navigation />);
+    expect(container.querySelector('[data-referenced-field]')).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Name' })).not.toBeInTheDocument();
     expect(localStorage.getItem('collapsed-card-output-schema')).toBe('true');
+    // Explicitly opening the card still saves the user's choice.
+    fireEvent.click(screen.getByText('Output Schema'));
+    expect(localStorage.getItem('collapsed-card-output-schema')).toBe('false');
   });
 
   it('expands only the parents of the exact nested field with a repeated leaf name', async () => {
@@ -191,6 +210,20 @@ describe('output-schema field links', () => {
       expect(scroll).toHaveBeenCalledTimes(1);
     });
     rerender(<Navigation name='net_revenue' schemaFields={[...fields]} />);
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+    });
+    expect(scroll).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'gross' } });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+    });
+    rerender(<Navigation name='net_revenue' schemaFields={[...fields]} />);
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+    });
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('textbox')).toHaveValue('gross');
     rerender(<Navigation name='gross_revenue' navigationKey='second' />);
     await waitFor(() => {
       expect(scroll).toHaveBeenCalledTimes(2);
@@ -203,6 +236,25 @@ describe('output-schema field links', () => {
       <Navigation name='gross_revenue' navigationKey='second' schemaFields={fields.slice(1)} />
     );
     expect(container.querySelector('[data-referenced-field]')).toBeNull();
+  });
+
+  it('keeps a manually collapsed record closed during schema edits until another navigation', async () => {
+    const { container, rerender } = render(<Navigation name='customer.address.street' />);
+    await waitFor(() => {
+      expect(scroll).toHaveBeenCalledOnce();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle customer' }));
+    expect(container.querySelector('[data-referenced-field]')).toBeNull();
+    rerender(<Navigation name='customer.address.street' schemaFields={[...fields]} />);
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+    });
+    expect(container.querySelector('[data-referenced-field]')).toBeNull();
+    expect(scroll).toHaveBeenCalledOnce();
+    rerender(<Navigation name='customer.address.street' navigationKey='second' />);
+    await waitFor(() => {
+      expect(scroll).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('resolves present hidden or disconnected fields without changing their reporting status', () => {

@@ -33,7 +33,6 @@ vi.mock('../../../../../shared/components/DescriptionEditor/useDescriptionPrevie
   useDescriptionPreview: () => ({ html: '', loading: true, error: null }),
 }));
 vi.mock('../../../../../shared/components/MarkdownEditor', () => ({
-  useMarkdownPreview: () => ({ html: '', loading: true, error: null }),
   MarkdownEditorPreview: () => <div>preview</div>,
 }));
 

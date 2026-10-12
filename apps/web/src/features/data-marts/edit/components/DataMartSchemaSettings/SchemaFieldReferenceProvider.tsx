@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { CollapsibleCardContext } from '../../../../../shared/components/CollapsibleCard/CollapsibleCardContext';
 import { findSchemaFieldReference, SchemaFieldReferenceContext } from './schema-field-reference';
@@ -19,14 +19,13 @@ export function SchemaFieldReferenceProvider({
     const match = fieldName ? findSchemaFieldReference(fields, fieldName) : null;
     return match ? { ...match, navigationKey: navigationKey ?? fieldName ?? '' } : null;
   }, [fields, fieldName, navigationKey]);
-  const { isCollapsed, handleCollapse } = useContext(CollapsibleCardContext);
-  const openedNavigation = useRef<string | null>(null);
+  const { revealTemporarily } = useContext(CollapsibleCardContext);
+  const key = reference?.navigationKey;
 
   useEffect(() => {
-    if (!reference || openedNavigation.current === reference.navigationKey) return;
-    openedNavigation.current = reference.navigationKey;
-    if (isCollapsed) handleCollapse();
-  }, [reference, isCollapsed, handleCollapse]);
+    if (key === undefined) return;
+    return revealTemporarily?.();
+  }, [key, revealTemporarily]);
 
   return (
     <SchemaFieldReferenceContext.Provider value={reference}>

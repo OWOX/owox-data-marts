@@ -1,5 +1,6 @@
-import { createElement, useCallback } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { getDataMartIcon } from '../../../features/data-marts/shared/components/DataMartIcon/data-mart-icons';
 import { isLucideIconValue } from '../../../features/data-marts/shared/components/DataMartIcon/lucide-icon-name';
 import { loadLucideIconCatalog } from '../../../features/data-marts/shared/components/DataMartIcon/use-lucide-icon-catalog';
@@ -18,8 +19,8 @@ export async function addDataMartLinkIcons(
   load: () => Promise<DataMartReference[]>
 ): Promise<string> {
   // Keep the backend's preserved Markdown theme styles in the fragment.
-  const document = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-  const links = [...document.querySelectorAll<HTMLAnchorElement>('a[href]')].flatMap(link => {
+  const fragment = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  const links = [...fragment.querySelectorAll<HTMLAnchorElement>('a[href]')].flatMap(link => {
     try {
       const url = new URL(link.getAttribute('href') ?? '', origin);
       const prefix = `/ui/${encodeURIComponent(projectId)}/data-marts/`;
@@ -54,17 +55,23 @@ export async function addDataMartLinkIcons(
       ? (catalog?.getLucideIcon(reference.icon) ?? getDataMartIcon(null))
       : getDataMartIcon(reference.icon);
     // Only trusted library SVG is added to already sanitized Markdown HTML.
-    const svg = renderToStaticMarkup(
-      createElement(Icon, {
-        width: 16,
-        height: 16,
-        'aria-hidden': true,
-        style: { display: 'inline-block', verticalAlign: 'text-bottom', marginRight: 4 },
-      })
-    );
-    link.insertAdjacentHTML('afterbegin', svg);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    flushSync(() => {
+      root.render(
+        createElement(Icon, {
+          width: 16,
+          height: 16,
+          'aria-hidden': true,
+          style: { display: 'inline-block', verticalAlign: 'text-bottom', marginRight: 4 },
+        })
+      );
+    });
+    const svg = host.querySelector('svg')?.cloneNode(true);
+    root.unmount();
+    if (svg) link.prepend(svg);
   }
-  return document.body.innerHTML;
+  return fragment.body.innerHTML;
 }
 
 export function useDescriptionPreview({
@@ -72,15 +79,34 @@ export function useDescriptionPreview({
   ...props
 }: Omit<UseMarkdownPreviewProps, 'toHtml'> & { projectId: string }) {
   const load = useDataMartReferences(projectId);
-  const toHtml = useCallback(
-    async (markdown: string, signal?: AbortSignal) => {
-      const html = await parseMarkdownToHtml(markdown, signal);
-      if (signal?.aborted) return html;
-      const decorated = await addDataMartLinkIcons(html, projectId, window.location.origin, load);
-      if (signal?.aborted) return html;
-      return decorated;
-    },
-    [projectId, load]
-  );
-  return useMarkdownPreviewInternal({ ...props, toHtml });
+  const preview = useMarkdownPreviewInternal({ ...props, toHtml: parseMarkdownToHtml });
+  const [decorated, setDecorated] = useState<{
+    source: string;
+    projectId: string;
+    html: string;
+  } | null>(null);
+  useEffect(() => {
+    if (props.enabled === false || !preview.html) return;
+    let active = true;
+    const source = preview.html;
+    // Render sanitized Markdown immediately; icons are an optional enhancement.
+    void addDataMartLinkIcons(source, projectId, window.location.origin, load).then(
+      html => {
+        if (active) setDecorated({ source, projectId, html });
+      },
+      () => {
+        /* Keep the backend HTML if optional icon decoration fails. */
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [preview.html, projectId, load, props.enabled]);
+  return {
+    ...preview,
+    html:
+      decorated?.source === preview.html && decorated.projectId === projectId
+        ? decorated.html
+        : preview.html,
+  };
 }

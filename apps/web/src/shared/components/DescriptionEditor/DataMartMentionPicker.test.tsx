@@ -11,9 +11,11 @@ vi.mock('./useDataMartReferences', () => ({
   useDataMartFieldReferences: () => loaders.fields,
 }));
 
-function harness(text = 'Use @orders') {
-  let change = () => {};
+function harness(text = 'Use @') {
+  let change: (event: Monaco.editor.IModelContentChangedEvent) => void = vi.fn();
+  let cursorChange = () => {};
   let value = text;
+  let caret = text.length;
   const node = document.createElement('div');
   document.body.append(node);
   const model = {
@@ -31,18 +33,21 @@ function harness(text = 'Use @orders') {
   });
   const editor = {
     getModel: () => model,
-    getPosition: () => ({ lineNumber: 1, column: value.length + 1 }),
-    hasTextFocus: () => true,
+    getPosition: () => ({ lineNumber: 1, column: caret + 1 }),
+    hasTextFocus: () => !document.activeElement?.closest('[data-description-mention-picker]'),
     addContentWidget: (widget: Monaco.editor.IContentWidget) => {
       node.append(widget.getDomNode());
     },
     removeContentWidget: remove,
     layoutContentWidget: vi.fn(),
-    onDidChangeModelContent: (callback: () => void) => {
+    onDidChangeModelContent: (callback: typeof change) => {
       change = callback;
       return { dispose: vi.fn() };
     },
-    onDidChangeCursorPosition: () => ({ dispose: vi.fn() }),
+    onDidChangeCursorPosition: (callback: () => void) => {
+      cursorChange = callback;
+      return { dispose: vi.fn() };
+    },
     executeEdits: edits,
     pushUndoStop: vi.fn(),
     setPosition: vi.fn(),
@@ -54,10 +59,29 @@ function harness(text = 'Use @orders') {
     node,
     remove,
     open: () => {
-      act(change);
+      act(() => {
+        change({
+          changes: [{ text: '@', rangeOffset: caret - 1, rangeLength: 0 }],
+        } as Monaco.editor.IModelContentChangedEvent);
+      });
     },
     setValue: (next: string) => {
       value = next;
+      caret = next.length;
+    },
+    type: (text: string) => {
+      const offset = caret;
+      value = value.slice(0, caret) + text + value.slice(caret);
+      caret += text.length;
+      act(() => {
+        change({
+          changes: [{ text, rangeOffset: offset, rangeLength: 0 }],
+        } as Monaco.editor.IModelContentChangedEvent);
+      });
+    },
+    moveCaret: (offset: number) => {
+      caret = offset;
+      act(cursorChange);
     },
   };
 }
@@ -80,10 +104,14 @@ describe('DataMartMentionPicker', () => {
       <DataMartMentionPicker editor={h.editor} projectId='project' disabled={false} />
     );
     h.open();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'orders' } });
     expect(await screen.findByText('Store Orders')).toBeInTheDocument();
     expect(screen.queryByText('Users')).not.toBeInTheDocument();
     expect(
-      screen.getByText('Store Orders').closest('[role=option]')?.querySelector('svg')
+      screen
+        .getByText('Store Orders')
+        .closest('[role=option]')
+        ?.querySelector('.lucide-shopping-cart')
     ).not.toBeNull();
     fireEvent.click(screen.getByText('Store Orders'));
     expect(await screen.findByText('Order total')).toBeInTheDocument();
@@ -95,7 +123,7 @@ describe('DataMartMentionPicker', () => {
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
     expect(h.edits).toHaveBeenCalledWith('description-mention', [
       {
-        range: { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 12 },
+        range: { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 6 },
         text: expect.stringMatching(
           /\[Store Orders · Average \\\[order\\\]\].*\?field=revenue_per_order/
         ),
@@ -209,13 +237,13 @@ describe('DataMartMentionPicker', () => {
   });
 
   it('reports errors, ignores code mentions and closes when disabled while loading', async () => {
-    const h = harness('` @orders');
+    const h = harness('` @');
     const view = render(
       <DataMartMentionPicker editor={h.editor} projectId='project' disabled={false} />
     );
     h.open();
     expect(loaders.marts).not.toHaveBeenCalled();
-    h.setValue('@orders');
+    h.setValue('@');
     loaders.marts.mockRejectedValueOnce(new Error('offline'));
     h.open();
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load Data Marts');
@@ -223,6 +251,52 @@ describe('DataMartMentionPicker', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('data-mart-mention-picker')).not.toBeInTheDocument();
     });
+    view.unmount();
+    h.node.remove();
+  });
+
+  it('keeps literal @ text editable after Escape and never opens from existing text or caret motion', async () => {
+    const h = harness('Price @');
+    const view = render(
+      <DataMartMentionPicker editor={h.editor} projectId='project' disabled={false} />
+    );
+    h.open();
+    await screen.findByText('Store Orders');
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' });
+    h.type(' list rate');
+    for (let offset = 6; offset <= 17; offset++) h.moveCaret(offset);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(loaders.marts).toHaveBeenCalledOnce();
+    h.setValue('Owner: @ops team');
+    h.moveCaret(15);
+    h.type(' tomorrow');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    h.type(' @'); // Pasting text containing @ does not open a picker.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    h.type(' ');
+    h.type('@'); // A fresh trigger still works after dismissal.
+    await screen.findByRole('combobox');
+    expect(loaders.marts).toHaveBeenCalledTimes(2);
+    view.unmount();
+    h.node.remove();
+  });
+
+  it('closes when Tab leaves the picker without taking focus back from the next control', async () => {
+    const h = harness();
+    const view = render(
+      <>
+        <DataMartMentionPicker editor={h.editor} projectId='project' disabled={false} />
+        <button>Next control</button>
+      </>
+    );
+    h.open();
+    const input = await screen.findByRole('combobox');
+    const next = screen.getByRole('button', { name: 'Next control' });
+    fireEvent.blur(input, { relatedTarget: next });
+    next.focus();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(next).toHaveFocus();
+    expect(h.editor.focus).not.toHaveBeenCalled();
     view.unmount();
     h.node.remove();
   });

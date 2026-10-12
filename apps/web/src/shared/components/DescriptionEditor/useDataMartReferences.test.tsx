@@ -96,6 +96,12 @@ describe('useDataMartReferences', () => {
           },
           { name: 'no_alias', type: 'STRING', status: 'CONNECTED' },
           { name: 'hidden', type: 'STRING', isHiddenForReporting: true },
+          {
+            name: 'hidden_calculated',
+            type: 'NUMERIC',
+            isHiddenForReporting: true,
+            calculated: { formula: '1' },
+          },
           { name: 'old', type: 'STRING', status: 'DISCONNECTED' },
           {
             name: 'address',
@@ -122,5 +128,29 @@ describe('useDataMartReferences', () => {
     hook.rerender();
     expect(await hook.result.current('alpha')).toEqual([]);
     expect(dataMartService.getDataMartById).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes fields and aliases when a Data Mart is selected again', async () => {
+    const mart = (alias: string) =>
+      ({
+        status: DataMartStatus.PUBLISHED,
+        schema: {
+          type: 'bigquery-data-mart-schema',
+          fields: [{ name: 'revenue', alias, type: 'NUMERIC', status: 'CONNECTED' }],
+        },
+      }) as Awaited<ReturnType<typeof dataMartService.getDataMartById>>;
+    vi.mocked(dataMartService.getDataMartById)
+      .mockResolvedValueOnce(mart('Revenue'))
+      .mockResolvedValueOnce(mart('Net revenue'));
+    const hook = renderHook(() => useDataMartFieldReferences('project'), {
+      wrapper: createWrapper(),
+    });
+    expect(await hook.result.current('alpha')).toEqual([
+      { name: 'revenue', alias: 'Revenue', calculated: false },
+    ]);
+    expect(await hook.result.current('alpha')).toEqual([
+      { name: 'revenue', alias: 'Net revenue', calculated: false },
+    ]);
+    expect(dataMartService.getDataMartById).toHaveBeenCalledTimes(2);
   });
 });

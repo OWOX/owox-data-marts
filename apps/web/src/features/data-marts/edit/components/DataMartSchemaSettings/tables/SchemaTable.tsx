@@ -16,7 +16,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { FunctionSquare, Plus } from 'lucide-react';
-import { useContext, useEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useOutletContext } from 'react-router';
 import type { BaseSchemaField } from '../../../../shared/types/data-mart-schema.types.ts';
@@ -130,6 +130,12 @@ export function SchemaTable<T extends BaseSchemaField>({
     columns,
     columnVisibilityStorageKey
   );
+  const reference = useContext(SchemaFieldReferenceContext);
+  const [revealNameFor, setRevealNameFor] = useState<string | null>(null);
+  const visibleColumns =
+    revealNameFor === reference?.navigationKey
+      ? { ...columnVisibility, name: true }
+      : columnVisibility;
 
   // Create table instance
   const table = useReactTable<T>({
@@ -140,9 +146,12 @@ export function SchemaTable<T extends BaseSchemaField>({
     columnResizeMode: 'onChange',
     enableColumnResizing: true,
     state: {
-      columnVisibility,
+      columnVisibility: visibleColumns,
     },
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: updater => {
+      setRevealNameFor(null);
+      setColumnVisibility(updater);
+    },
     enableGlobalFilter: true,
     globalFilterFn: schemaFieldFilter, // Use custom filter function that only searches in name, alias, and description
     defaultColumn: {
@@ -154,7 +163,6 @@ export function SchemaTable<T extends BaseSchemaField>({
 
   // Table filter hook
   const { value: filterValue, onChange: handleFilterChange, searchValue } = useTableFilter(table);
-  const reference = useContext(SchemaFieldReferenceContext);
   const { isCollapsed } = useContext(CollapsibleCardContext);
   const referencedCell = useRef<HTMLTableCellElement | null>(null);
   const preparedNavigation = useRef<string | null>(null);
@@ -165,8 +173,8 @@ export function SchemaTable<T extends BaseSchemaField>({
     if (!reference || preparedNavigation.current === reference.navigationKey) return;
     preparedNavigation.current = reference.navigationKey;
     handleFilterChange('');
-    setColumnVisibility(previous => ({ ...previous, name: true }));
-  }, [reference, handleFilterChange, setColumnVisibility]);
+    setRevealNameFor(reference.navigationKey);
+  }, [reference, handleFilterChange]);
 
   // Wait for the card's expansion transition and any nested record rows to finish mounting.
   useEffect(() => {
@@ -300,8 +308,7 @@ export function SchemaTable<T extends BaseSchemaField>({
                         // `border` colour is invisible in the dark theme — see `--border-on-muted`.
                         'border-border-on-muted',
                         row.original.isHiddenForReporting && 'opacity-70',
-                        isReferenced &&
-                          '[&>td]:bg-primary/10 dark:[&>td]:bg-primary/15 scroll-mt-16'
+                        isReferenced && 'scroll-mt-16'
                       )}
                     >
                       {cells.map((cell, index) => {
@@ -320,7 +327,12 @@ export function SchemaTable<T extends BaseSchemaField>({
                               isReferenced && cell.column.id === 'name' ? reference.name : undefined
                             }
                             colSpan={colSpan > 1 ? colSpan : undefined}
-                            className='bg-background dark:bg-muted'
+                            className={cn(
+                              'bg-background dark:bg-muted',
+                              // Keep sticky cells opaque, with the tint layered above the base.
+                              isReferenced &&
+                                'from-primary/10 to-primary/10 dark:from-primary/15 dark:to-primary/15 bg-linear-to-r'
+                            )}
                             style={getStickyColumnStyle(cell.column.id, {
                               width: size !== 0 ? size : undefined,
                               // `pre` keeps a name or a formula on one line; a column that

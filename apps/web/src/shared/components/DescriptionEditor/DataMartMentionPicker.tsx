@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type * as Monaco from 'monaco-editor';
 import { ArrowLeft, Calculator, ChevronRight, Columns3, Loader2 } from 'lucide-react';
@@ -49,11 +49,26 @@ export function DataMartMentionPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeMention = useRef<Mention | null>(null);
+  const dismissedMention = useRef<{ model: Monaco.editor.ITextModel; start: number } | null>(null);
   const widgetRef = useRef<Monaco.editor.IContentWidget | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const dismiss = useCallback(() => {
+    const active = activeMention.current;
+    if (active) {
+      dismissedMention.current = {
+        model: active.model,
+        start: active.model.getOffsetAt(active.position),
+      };
+    }
+    activeMention.current = null;
+    setMention(null);
+    if (editor && widgetRef.current) editor.layoutContentWidget(widgetRef.current);
+  }, [editor]);
+
   useEffect(() => {
     activeMention.current = null;
+    dismissedMention.current = null;
     setMention(null);
     if (!editor || disabled) return;
     const node = document.createElement('div');
@@ -74,18 +89,12 @@ export function DataMartMentionPicker({
     editor.addContentWidget(widget);
     widgetRef.current = widget;
     setContainer(node);
-    const close = () => {
-      if (!activeMention.current) return;
-      activeMention.current = null;
-      setMention(null);
-      editor.layoutContentWidget(widget);
-    };
-    const update = () => {
+    const update = (event?: Monaco.editor.IModelContentChangedEvent) => {
       if (!editor.hasTextFocus()) return;
       const model = editor.getModel();
       const position = editor.getPosition();
       if (!model || !position) {
-        close();
+        dismiss();
         return;
       }
       const prefix = model.getValueInRange({
@@ -95,10 +104,37 @@ export function DataMartMentionPicker({
         endColumn: position.column,
       });
       const match = mentionAtCursor(prefix);
+      const dismissed = dismissedMention.current;
+      if (
+        dismissed &&
+        (dismissed.model !== model ||
+          match?.start !== dismissed.start ||
+          event?.changes.some(
+            change =>
+              change.rangeLength > 0 &&
+              change.rangeOffset <= dismissed.start &&
+              change.rangeOffset + change.rangeLength > dismissed.start
+          ))
+      ) {
+        dismissedMention.current = null;
+      }
       if (!match) {
-        close();
+        dismiss();
         return;
       }
+      // Cursor motion, ordinary typing, undo and paste must never summon the picker.
+      // Only a newly typed @ at the caret starts a reference.
+      const insertedTrigger =
+        !event?.isUndoing &&
+        !event?.isRedoing &&
+        !event?.isFlush &&
+        event?.changes.some(
+          change =>
+            change.text === '@' &&
+            change.rangeOffset === match.start &&
+            change.rangeOffset + 1 === model.getOffsetAt(position)
+        );
+      if (!activeMention.current && (!insertedTrigger || dismissedMention.current)) return;
       const start = model.getPositionAt(match.start);
       const next: Mention = {
         model,
@@ -112,18 +148,30 @@ export function DataMartMentionPicker({
         query: match.query,
         source: prefix.slice(match.start),
       };
+      const previous = activeMention.current;
+      if (
+        previous &&
+        (previous.model !== model || model.getOffsetAt(previous.position) !== match.start)
+      ) {
+        dismiss();
+        return;
+      }
       activeMention.current = next;
       setMention(next);
-      setMart(null);
-      setSearch(match.query);
+      if (!previous) {
+        setMart(null);
+        setSearch(match.query);
+      }
       editor.layoutContentWidget(widget);
     };
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !node.contains(event.target)) close();
+      if (event.target instanceof Node && !node.contains(event.target)) dismiss();
     };
     const subscriptions = [
       editor.onDidChangeModelContent(update),
-      editor.onDidChangeCursorPosition(update),
+      editor.onDidChangeCursorPosition(() => {
+        update();
+      }),
     ];
     document.addEventListener('pointerdown', outside, true);
     return () => {
@@ -135,7 +183,7 @@ export function DataMartMentionPicker({
       widgetRef.current = null;
       activeMention.current = null;
     };
-  }, [editor, disabled, loadMarts]);
+  }, [editor, disabled, dismiss]);
 
   // Re-measure after React renders the list, so Monaco can place it above the
   // caret when the viewport does not have enough room below.
@@ -143,8 +191,10 @@ export function DataMartMentionPicker({
     if (editor && widgetRef.current) editor.layoutContentWidget(widgetRef.current);
   }, [editor, container, mention, mart, fields, marts, loading, error, search]);
 
+  const mentionModel = mention?.model;
+  const mentionStart = mention ? `${mention.position.lineNumber}:${mention.position.column}` : null;
   useEffect(() => {
-    if (!mention) return;
+    if (!mentionModel) return;
     let active = true;
     setLoading(true);
     setError(null);
@@ -171,11 +221,11 @@ export function DataMartMentionPicker({
       active = false;
       cancelAnimationFrame(focusFrame);
     };
-  }, [mention, loadMarts]);
+  }, [mentionModel, mentionStart, loadMarts]);
 
   useEffect(() => {
     setFields([]);
-    if (!mart || !mention) return;
+    if (!mart || !mentionModel) return;
     let active = true;
     setLoading(true);
     setError(null);
@@ -195,12 +245,7 @@ export function DataMartMentionPicker({
     return () => {
       active = false;
     };
-  }, [mart, mention, loadFields]);
-
-  const dismiss = () => {
-    activeMention.current = null;
-    setMention(null);
-  };
+  }, [mart, mentionModel, mentionStart, loadFields]);
   const insert = (reference: DataMartReference, field?: DataMartFieldReference) => {
     const model = editor?.getModel();
     // Never replace unrelated text if the model was edited while the picker was open.
@@ -246,6 +291,14 @@ export function DataMartMentionPicker({
       className='border shadow-md'
       data-description-mention-picker=''
       data-testid='data-mart-mention-picker'
+      onBlurCapture={event => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          dismiss();
+        }
+      }}
       onKeyDown={event => {
         event.stopPropagation();
         if (event.key === 'Escape') {
@@ -280,23 +333,27 @@ export function DataMartMentionPicker({
         aria-label={mart ? 'Search fields' : 'Search Data Marts'}
         placeholder={mart ? 'Search fields by alias or name…' : 'Search Data Marts…'}
       />
+      {loading && (
+        <div role='status' className='text-muted-foreground flex items-center gap-2 p-3 text-sm'>
+          <Loader2 className='size-4 animate-spin' />
+          {mart ? 'Loading fields…' : 'Loading Data Marts…'}
+        </div>
+      )}
+      {error && (
+        <p role='alert' className='text-destructive p-3 text-sm'>
+          {error}
+        </p>
+      )}
+      {!loading && !error && !(mart ? filteredFields.length : filteredMarts.length) && (
+        <p className='text-muted-foreground p-3 text-sm'>
+          {mart
+            ? query
+              ? 'No matching fields.'
+              : 'No available output-schema fields.'
+            : 'No matching published Data Marts.'}
+        </p>
+      )}
       <CommandList>
-        {loading && (
-          <div role='status' className='text-muted-foreground flex items-center gap-2 p-3 text-sm'>
-            <Loader2 className='size-4 animate-spin' />
-            {mart ? 'Loading fields…' : 'Loading Data Marts…'}
-          </div>
-        )}
-        {error && (
-          <p role='alert' className='text-destructive p-3 text-sm'>
-            {error}
-          </p>
-        )}
-        {!loading && !error && !(mart ? filteredFields.length : filteredMarts.length) && (
-          <p className='text-muted-foreground p-3 text-sm'>
-            {mart ? 'No matching fields.' : 'No matching published Data Marts.'}
-          </p>
-        )}
         {mart ? (
           <>
             {!query && (

@@ -15,13 +15,11 @@ import {
 import { DescriptionEditor } from './DescriptionEditor';
 
 vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
-vi.mock('./useDataMartReferences', () => ({ useDataMartReferences: () => vi.fn() }));
 vi.mock('./DataMartMentionPicker', () => ({ DataMartMentionPicker: () => null }));
 vi.mock('./useDescriptionPreview', () => ({
   useDescriptionPreview: () => ({ html: '', loading: false, error: null }),
 }));
 vi.mock('../MarkdownEditor', () => ({
-  useMarkdownPreview: () => ({ html: '', loading: false, error: null }),
   MarkdownEditorPreview: () => <div>Preview content</div>,
   MarkdownEditorTabs: ({ onChange }: { onChange: (tab: 'markdown' | 'preview') => void }) => (
     <>

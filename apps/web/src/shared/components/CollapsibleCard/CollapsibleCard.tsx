@@ -1,4 +1,4 @@
-import { useState, useEffect, Children, isValidElement } from 'react';
+import { useState, useEffect, useCallback, Children, isValidElement } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { storageService } from '../../../services/localstorage.service';
 import { Card } from '@owox/ui/components/card';
@@ -33,17 +33,26 @@ export function CollapsibleCard({
     ? (storageService.get(`${STORAGE_KEY_PREFIX}${name}`, 'boolean') ?? defaultCollapsed)
     : defaultCollapsed;
 
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+  const [savedCollapsed, setSavedCollapsed] = useState(initialCollapsed);
+  const [temporarilyExpanded, setTemporarilyExpanded] = useState(false);
+  const isCollapsed = savedCollapsed && !temporarilyExpanded;
+  const revealTemporarily = useCallback(() => {
+    setTemporarilyExpanded(true);
+    return () => {
+      setTemporarilyExpanded(false);
+    };
+  }, []);
 
   useEffect(() => {
     if (name) {
-      storageService.set(`${STORAGE_KEY_PREFIX}${name}`, isCollapsed);
+      storageService.set(`${STORAGE_KEY_PREFIX}${name}`, savedCollapsed);
     }
-  }, [isCollapsed, name]);
+  }, [savedCollapsed, name]);
 
   const handleCollapse = () => {
     const newValue = !isCollapsed;
-    setIsCollapsed(newValue);
+    setTemporarilyExpanded(false);
+    setSavedCollapsed(newValue);
     onCollapsedChange?.(newValue);
   };
 
@@ -74,7 +83,9 @@ export function CollapsibleCard({
   };
 
   return (
-    <CollapsibleCardContext.Provider value={{ isCollapsed, collapsible, handleCollapse }}>
+    <CollapsibleCardContext.Provider
+      value={{ isCollapsed, collapsible, handleCollapse, revealTemporarily }}
+    >
       <Card className={cn(cardVariants[variant], className)}>
         {header}
         <div

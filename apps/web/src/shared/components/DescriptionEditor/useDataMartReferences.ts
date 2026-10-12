@@ -53,7 +53,8 @@ export function useDataMartFieldReferences(projectId: string) {
             calculated: Boolean(field.calculated),
           }));
         },
-        staleTime: 30_000,
+        // Reopening the picker should reflect aliases and fields just edited in the schema.
+        staleTime: 0,
       });
     },
     [projectId, user?.projectId, user?.id, queryClient, loadReferences]
