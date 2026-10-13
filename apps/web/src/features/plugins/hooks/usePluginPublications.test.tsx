@@ -115,7 +115,7 @@ describe('usePluginPublishing', () => {
     );
   });
 
-  // Installation history keeps uninstalled rows; those are not "already installed".
+  // Plugin history keeps uninstalled rows; those are not "already installed".
   it('does not count an uninstalled plugin as installed', async () => {
     getInstallations.mockResolvedValue([
       { pluginId: 'p1', displayName: 'Run History', uninstalledAt: '2026-10-01T00:00:00.000Z' },

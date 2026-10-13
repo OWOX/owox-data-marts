@@ -744,10 +744,24 @@ collapsed. The same action is in the **⋮** menu of the plugin's page, which **
 sidebar menu opens. Uninstalling stops the plugin only for you: who can find it does not change,
 other members keep their installations, and any Credential access you granted ends.
 
-To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Installation history**,
-and select **Restore**. The **Plugins** section stays in the sidebar while you have a plugin to
-restore, and restoring works even when nothing lists the plugin. If the plugin needs Credentials,
-restoring asks for that access again.
+To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Plugin history**, and
+select **Restore** next to the plugin's latest removal. The **Plugins** section stays in the
+sidebar while you have a plugin to restore, and restoring works even when nothing lists the
+plugin. If the plugin needs Credentials, restoring asks for that access again.
+
+### Plugin history
+
+**Plugins** → **⋮** → **Plugin history** lists, newest first, what happened to the plugins you
+can reach in this project:
+
+- your own installs, removals, and restores, which other members do not see;
+- publications for this project, with the member who published or unpublished, and your own
+  publications for yourself;
+- changes to a plugin's Verified listing, version updates, and suspensions.
+
+**Installations** and **Publications** narrow the list. A Verified listing change shows for every
+project that is or was in that listing's audience, so it does not always mean the plugin
+appeared in, or left, this project.
 
 ## Test the installed plugin
 

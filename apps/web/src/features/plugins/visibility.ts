@@ -70,7 +70,7 @@ export function describeVisibility(
     };
   }
 
-  // Not "by direct link" either: a member who uninstalled it reaches it from Installation history.
+  // Not "by direct link" either: a member who uninstalled it reaches it from Plugin history.
   // No promise to restore: a suspension or a missing version refuses it.
   if (installationState === 'uninstalled') {
     return {

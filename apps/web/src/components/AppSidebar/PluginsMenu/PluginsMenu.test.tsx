@@ -103,7 +103,7 @@ describe('PluginsMenu', () => {
     );
   });
 
-  // §10: uninstalling the last plugin nothing lists must not take Installation history with it.
+  // §10: uninstalling the last plugin nothing lists must not take Plugin history with it.
   it('stays for a removed installation the member can restore, even with an empty gallery', () => {
     gallery.mockReturnValue({ plugins: [], isLoading: false });
     installations.mockReturnValue({

@@ -63,8 +63,8 @@ export function UninstallPluginDialog({
             </DialogFact>
             <DialogFact icon={History}>
               {isRestorable
-                ? 'You can restore it later from Installation history.'
-                : 'It stays in Installation history, where you can restore it once the plugin is available again.'}
+                ? 'You can restore it later from Plugin history.'
+                : 'It stays in Plugin history, where you can restore it once the plugin is available again.'}
             </DialogFact>
             {/* "Any": an optional requirement may have been answered "Do not grant". */}
             {hasCredentialRequirements && (

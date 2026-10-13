@@ -30,7 +30,7 @@ describe('UninstallPluginDialog', () => {
     expect(screen.getByText('Example Plugin')).toBeInTheDocument();
     // Members confuse uninstalling with unpublishing, in both directions.
     expect(screen.getByText(/Who can find it does not change/)).toBeInTheDocument();
-    expect(screen.getByText(/restore it later from Installation history/)).toBeInTheDocument();
+    expect(screen.getByText(/restore it later from Plugin history/)).toBeInTheDocument();
   });
 
   it('warns about Credential access only for a plugin that asked for it', () => {

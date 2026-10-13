@@ -39,7 +39,7 @@ import { getActiveMenuItemClassName, isSameOrNestedPath } from '../menu-item-act
  * §10: shown while the member has an active installation, a removed one they can restore,
  * or a Gallery plugin to install (or install again after an uninstall). Until then the entry
  * would only advertise an empty page, so it stays out of the way; first publications arrive
- * via the control plane (owox-ctl). The restorable case keeps Installation history in reach
+ * via the control plane (owox-ctl). The restorable case keeps Plugin history in reach
  * after a member uninstalls the last plugin nothing lists any more.
  *
  * Each installed plugin carries its own menu with Settings and Uninstall. The submenu lists

@@ -64,7 +64,7 @@ describe('describeVisibility', () => {
     expect(describeVisibility([], 'not_installed')?.detail).toContain('direct link');
   });
 
-  // They came from Installation history, not a link. No restore promise either: a suspension
+  // They came from Plugin history, not a link. No restore promise either: a suspension
   // or a missing version refuses it.
   it('tells a member who uninstalled it why it is unlisted, without promising a restore', () => {
     const visibility = describeVisibility([], 'uninstalled');

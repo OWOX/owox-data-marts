@@ -82,17 +82,17 @@ describe('PluginsGalleryPage', () => {
 
     expect(screen.getByRole('button', { name: 'Publish Plugin' })).toBeTruthy();
     // History is a recovery path, so it must not compete with publishing.
-    expect(screen.queryByRole('link', { name: 'Installation history' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Plugin history' })).toBeNull();
   });
 
-  it('reaches installation history through the overflow menu', () => {
+  it('reaches Plugin history through the overflow menu', () => {
     renderPage();
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More plugin actions' }), {
       key: 'Enter',
     });
 
-    expect(screen.getByRole('menuitem', { name: 'Installation history' })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: 'Plugin history' })).toHaveAttribute(
       'href',
       '/ui/project-1/plugins/history'
     );
@@ -182,17 +182,17 @@ describe('PluginsGalleryPage', () => {
     renderPage();
 
     expect(screen.getByText('Add your first plugin')).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Installation history' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Plugin history' })).toBeNull();
   });
 
   // The sidebar keeps Plugins for a plugin the member can restore; this is where it leads.
-  it('points to Installation history when the member has uninstalled plugins', () => {
+  it('points to Plugin history when the member has uninstalled plugins', () => {
     plugins = [];
     installations = [kept({ uninstalledAt: '2026-07-03T00:00:00.000Z' })];
     renderPage();
 
     expect(screen.getByText('Add your first plugin')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Installation history' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Plugin history' })).toHaveAttribute(
       'href',
       '/ui/project-1/plugins/history'
     );
@@ -238,7 +238,7 @@ describe('PluginsGalleryPage', () => {
       expect(screen.getAllByText('Alpha Plugin')).toHaveLength(1);
     });
 
-    // Restoring one is Installation history's job, not the Gallery's.
+    // Restoring one is Plugin history's job, not the Gallery's.
     it('leaves out plugins the member has uninstalled', () => {
       installations = [kept({ uninstalledAt: '2026-07-03T00:00:00.000Z' })];
       renderPage();
