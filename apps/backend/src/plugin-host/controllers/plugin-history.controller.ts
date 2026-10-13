@@ -24,7 +24,7 @@ export class PluginHistoryController {
   @ApiOperation({
     summary: "The caller's plugin history in this project",
     description:
-      "Newest first: the caller's own installations, publications for this project and the caller's own, Verified listing changes, and updates and suspensions of those plugins. A Verified listing change shows for every project the listing covers now or has ever named.",
+      "Newest first: the caller's own installations, publications for this project and the caller's own, Verified listing changes, and updates and suspensions of those plugins. A Verified listing change shows for every project the listing is set to reach or has ever named. Events within the same second may come in either order.",
   })
   @ApiOkResponse({ type: PluginHistoryPageApiDto })
   async list(

@@ -93,7 +93,7 @@ export class PluginPublicationService {
     return this.visibleTo(projectId, userId, true).getMany();
   }
 
-  /** findVisibleTo including withdrawn publications and audience rows: whatever has ever listed a plugin here. */
+  /** findVisibleTo without its isActive filters: the current allProjects flag or any audience row, active or not. */
   findEverVisibleTo(projectId: string, userId: string): Promise<PluginPublication[]> {
     return this.visibleTo(projectId, userId, false).getMany();
   }

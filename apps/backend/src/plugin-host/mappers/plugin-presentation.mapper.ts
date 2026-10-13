@@ -8,7 +8,10 @@ import type {
   PluginHistoryPageDto,
   PluginHistoryPluginDto,
 } from '../dto/domain/plugin-history.dto';
-import { ListPluginHistoryCommand } from '../dto/domain/list-plugin-history.command';
+import {
+  ListPluginHistoryCommand,
+  PLUGIN_HISTORY_DEFAULT_LIMIT,
+} from '../dto/domain/list-plugin-history.command';
 import {
   ListPluginHistoryQueryApiDto,
   PluginHistoryPageApiDto,
@@ -133,7 +136,7 @@ export class PluginPresentationMapper {
     return new ListPluginHistoryCommand(
       context,
       query.type ?? 'all',
-      query.limit ?? 50,
+      query.limit ?? PLUGIN_HISTORY_DEFAULT_LIMIT,
       query.cursor ?? null
     );
   }

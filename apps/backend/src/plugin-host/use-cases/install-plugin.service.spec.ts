@@ -210,6 +210,47 @@ describe('InstallPluginService', () => {
     );
   });
 
+  describe('beforeState of a restore', () => {
+    const recorded = (s: ReturnType<typeof setup>) =>
+      (s.audit.record as jest.Mock).mock.calls[0][0];
+
+    it('says the row was removed when a revive restores it', async () => {
+      const s = setup({
+        installation: { id: 'i1', createdAt: new Date(), uninstalledAt: new Date() },
+      });
+      await install(s);
+      expect(recorded(s)).toMatchObject({
+        action: PluginAuditAction.RESTORE,
+        beforeState: { uninstalled: true },
+      });
+    });
+
+    it('says the row was active on a no-op re-install', async () => {
+      const s = setup({ installation: { id: 'i1', createdAt: new Date(), uninstalledAt: null } });
+      await install(s);
+      expect(recorded(s)).toMatchObject({
+        action: PluginAuditAction.RESTORE,
+        beforeState: { uninstalled: false },
+      });
+    });
+
+    it('says the row was active for the loser of the insert race', async () => {
+      const s = setup();
+      (s.installations.installOrFind as jest.Mock).mockResolvedValue({
+        installation: { id: 'i-winner', pluginId: 'p1', uninstalledAt: null },
+        wonRace: false,
+      });
+      await install(s);
+      expect(recorded(s).beforeState).toEqual({ uninstalled: false });
+    });
+
+    it('leaves a first install without one', async () => {
+      const s = setup();
+      await install(s);
+      expect(recorded(s).beforeState).toBeUndefined();
+    });
+  });
+
   describe('confirmation freshness', () => {
     // Any installed member can move the plugin forward at any moment, so what a member
     // read about can change between rendering and confirming.

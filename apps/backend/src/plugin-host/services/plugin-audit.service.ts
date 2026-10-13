@@ -98,7 +98,7 @@ export class PluginAuditService {
     return this.repository.existsBy({ id });
   }
 
-  // ponytail: no (projectId, createdAt) index; add one when the audit outgrows a scan (about one update_check per plugin per day).
+  // ponytail: no index bounds this scan; when plugin_audit_event passes ~100k rows add (projectId, createdAt) and (pluginId, action, createdAt) and confirm with EXPLAIN on MySQL.
   findHistory(query: PluginHistoryQuery): Promise<PluginAuditEvent[]> {
     const builder = this.repository
       .createQueryBuilder('event')
@@ -120,9 +120,7 @@ export class PluginAuditService {
             visible.orWhere(
               new Brackets(project =>
                 project
-                  .where('event.action IN (:...publicationActions)', {
-                    publicationActions: PUBLICATION_ACTIONS,
-                  })
+                  .where('event.action IN (:...publicationActions)')
                   .andWhere('event.authorityScope = :projectScope', {
                     projectScope: PluginPublicationScope.PROJECT,
                   })
@@ -168,10 +166,14 @@ export class PluginAuditService {
           }
         })
       )
-      .setParameters({ projectId: query.projectId, userId: query.userId });
+      .setParameters({
+        projectId: query.projectId,
+        userId: query.userId,
+        publicationActions: PUBLICATION_ACTIONS,
+      });
 
     if (query.afterId) {
-      // Compared against the stored row, not a bound Date: SQLite keeps CURRENT_TIMESTAMP without milliseconds.
+      // Compared against the stored row, not a bound Date: SQLite CURRENT_TIMESTAMP and MySQL datetime keep whole seconds only.
       const anchor =
         '(SELECT anchor.createdAt FROM plugin_audit_event anchor WHERE anchor.id = :afterId)';
       builder.andWhere(

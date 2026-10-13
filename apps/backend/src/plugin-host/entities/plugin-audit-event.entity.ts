@@ -24,7 +24,7 @@ export class PluginAuditEvent {
   @Column({ type: 'varchar', length: 64 })
   action: PluginAuditAction;
 
-  /** The authority the actor used. */
+  /** The authority the actor used; for publish and unpublish it is the publication's scope, which Plugin history relies on. */
   @Column({ type: 'varchar', length: 16 })
   authorityScope: PluginPublicationScope;
 

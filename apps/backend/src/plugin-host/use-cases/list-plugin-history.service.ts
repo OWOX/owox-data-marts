@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ListPluginHistoryCommand } from '../dto/domain/list-plugin-history.command';
 import {
@@ -90,14 +89,11 @@ export class ListPluginHistoryService {
     const namedIds = unique(
       page.filter(row => this.isNameable(row, projectId, userId)).map(row => row.userId as string)
     );
-    const names =
-      namedIds.length > 0
-        ? await this.idpProjections.getUserProjectionList(namedIds)
-        : new UserProjectionsListDto([]);
+    const names = await this.idpProjections.getUserProjectionList(namedIds);
 
     return page.flatMap(row => {
       const plugin = pluginById.get(row.pluginId);
-      if (!plugin) {
+      if (!plugin || this.isNoOp(row)) {
         return [];
       }
       const versionId = this.versionIdAfter(row);
@@ -125,7 +121,7 @@ export class ListPluginHistoryService {
     row: PluginAuditEvent,
     projectId: string,
     userId: string,
-    names: UserProjectionsListDto
+    names: Awaited<ReturnType<IdpProjectionsFacade['getUserProjectionList']>>
   ): PluginHistoryActorDto | null {
     if (
       row.action === PluginAuditAction.SUSPEND ||
@@ -154,6 +150,15 @@ export class ListPluginHistoryService {
       row.authorityScope !== PluginPublicationScope.DEPLOYMENT &&
       row.action !== PluginAuditAction.SUSPEND &&
       row.action !== PluginAuditAction.RESUME
+    );
+  }
+
+  /** A restore of an active row or an uninstall of a removed one changed nothing. */
+  private isNoOp(row: PluginAuditEvent): boolean {
+    const uninstalled = row.beforeState?.uninstalled;
+    return (
+      (row.action === PluginAuditAction.RESTORE && uninstalled === false) ||
+      (row.action === PluginAuditAction.UNINSTALL && uninstalled === true)
     );
   }
 

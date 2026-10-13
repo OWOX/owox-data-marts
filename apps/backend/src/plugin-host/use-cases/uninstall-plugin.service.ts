@@ -41,7 +41,8 @@ export class UninstallPluginService {
       throw new NotFoundException('You do not have this plugin installed');
     }
 
-    if (installation.uninstalledAt === null) {
+    const wasUninstalled = installation.uninstalledAt !== null;
+    if (!wasUninstalled) {
       await this.installations.uninstall(installation.id);
     }
 
@@ -57,6 +58,8 @@ export class UninstallPluginService {
       authorityScope: PluginPublicationScope.MEMBER,
       projectId: command.context.projectId,
       userId: command.context.userId,
+      // Lets Plugin history hide a repeat uninstall, which removes nothing.
+      beforeState: { uninstalled: wasUninstalled },
     });
   }
 }

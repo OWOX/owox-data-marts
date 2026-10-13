@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import type { PluginHistoryType } from '../../dto/domain/list-plugin-history.command';
+import {
+  PLUGIN_HISTORY_DEFAULT_LIMIT,
+  type PluginHistoryType,
+} from '../../dto/domain/list-plugin-history.command';
 import { PluginAuditAction } from '../../enums/plugin-audit-action.enum';
 import { PluginPublicationScope } from '../../enums/plugin-publication-scope.enum';
 
@@ -16,7 +19,12 @@ export class ListPluginHistoryQueryApiDto {
   @IsIn(HISTORY_TYPES)
   type?: PluginHistoryType;
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 100, default: 50 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 100,
+    default: PLUGIN_HISTORY_DEFAULT_LIMIT,
+  })
   @IsOptional()
   @Transform(({ value }) => {
     if (value === undefined || typeof value === 'number') {

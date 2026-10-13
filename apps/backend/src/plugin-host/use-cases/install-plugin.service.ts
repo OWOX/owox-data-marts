@@ -88,8 +88,10 @@ export class InstallPluginService {
     // as a repeat install: restore() no-ops on an active row, so a double-click answers
     // the same as the sequential second request would have.
     let firstInstall = false;
+    let wasUninstalled = false;
     let installation: PluginInstallation;
     if (existing) {
+      wasUninstalled = existing.uninstalledAt !== null;
       installation = await this.restore(existing);
     } else {
       const claimed = await this.installations.installOrFind(
@@ -98,6 +100,7 @@ export class InstallPluginService {
         command.context.userId
       );
       firstInstall = claimed.wonRace;
+      wasUninstalled = claimed.installation.uninstalledAt !== null;
       installation = claimed.wonRace
         ? claimed.installation
         : await this.restore(claimed.installation);
@@ -125,6 +128,8 @@ export class InstallPluginService {
       authorityScope: PluginPublicationScope.MEMBER,
       projectId: command.context.projectId,
       userId: command.context.userId,
+      // Lets Plugin history hide a repeat install of an active row, which restores nothing.
+      ...(firstInstall ? {} : { beforeState: { uninstalled: wasUninstalled } }),
       afterState: { versionId: plugin.currentVersionId },
     });
 

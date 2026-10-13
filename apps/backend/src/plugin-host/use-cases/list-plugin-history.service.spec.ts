@@ -171,6 +171,31 @@ describe('ListPluginHistoryService', () => {
     expect(page.nextCursor).toBe(rows[1].id);
   });
 
+  it('hides a no-op restore and a repeat uninstall but keeps the cursor on the raw page', async () => {
+    const rows = [
+      event({ action: PluginAuditAction.RESTORE, beforeState: { uninstalled: false } }),
+      event({ action: PluginAuditAction.UNINSTALL, beforeState: { uninstalled: true } }),
+      event({ action: PluginAuditAction.RESTORE, beforeState: { uninstalled: true } }),
+    ];
+    const s = setup(rows);
+
+    const page = await run(s, 'all', 2);
+
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBe(rows[1].id);
+  });
+
+  it('shows rows written before beforeState existed', async () => {
+    const s = setup([
+      event({ action: PluginAuditAction.RESTORE }),
+      event({ action: PluginAuditAction.UNINSTALL, beforeState: { uninstalled: false } }),
+    ]);
+
+    const page = await run(s);
+
+    expect(page.items.map(item => item.action)).toEqual(['restore', 'uninstall']);
+  });
+
   it('calls the viewer "you" and names a member of this project', async () => {
     const own = event({ action: PluginAuditAction.UNINSTALL });
     const published = event({
@@ -242,7 +267,7 @@ describe('ListPluginHistoryService', () => {
     const page = await run(s);
 
     expect(page.items[0]).toMatchObject({ action: 'update', actor: null, version: '1.1.0' });
-    expect(s.idp.getUserProjectionList).not.toHaveBeenCalled();
+    expect(s.idp.getUserProjectionList).toHaveBeenCalledWith([]);
   });
 
   it('marks deployment publications and suspensions as the deployment', async () => {

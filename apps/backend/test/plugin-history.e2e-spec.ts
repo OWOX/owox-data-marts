@@ -209,6 +209,22 @@ describe('Plugin history (e2e)', () => {
       projectId: 'admin-project',
       userId: 'admin',
     });
+    expected.updateByViewer = await event('A', {
+      action: PluginAuditAction.UPDATE,
+      authorityScope: PluginPublicationScope.MEMBER,
+      afterState: { currentVersionId: null },
+    });
+    expected.resumeA = await event('A', {
+      action: PluginAuditAction.RESUME,
+      authorityScope: PluginPublicationScope.DEPLOYMENT,
+      projectId: 'admin-project',
+      userId: 'admin',
+    });
+    expected.unpublishA = await event('A', {
+      action: PluginAuditAction.UNPUBLISH,
+      authorityScope: PluginPublicationScope.PROJECT,
+      userId: 'max',
+    });
     await event('A', {
       action: PluginAuditAction.UPDATE_CHECK,
       authorityScope: PluginPublicationScope.DEPLOYMENT,
@@ -277,6 +293,20 @@ describe('Plugin history (e2e)', () => {
       userId: 'admin',
     });
 
+    // G: deployment publication to all projects, with no audience rows.
+    await seedPlugin('G');
+    await publication('G', {
+      scope: PluginPublicationScope.DEPLOYMENT,
+      projectId: null,
+      allProjects: true,
+    });
+    expected.publishG = await event('G', {
+      action: PluginAuditAction.PUBLISH,
+      authorityScope: PluginPublicationScope.DEPLOYMENT,
+      projectId: 'admin-project',
+      userId: 'admin',
+    });
+
     // F: three installation events of the same second.
     await seedPlugin('F');
     await installation('F', P1, 'viewer');
@@ -301,8 +331,12 @@ describe('Plugin history (e2e)', () => {
         expected.updateByOutsider,
         expected.updateAutomatic,
         expected.suspendA,
+        expected.updateByViewer,
+        expected.resumeA,
+        expected.unpublishA,
         expected.publishC,
         expected.publishD,
+        expected.publishG,
         expected.tie1,
         expected.tie2,
         expected.tie3,
@@ -326,6 +360,8 @@ describe('Plugin history (e2e)', () => {
       actor: { kind: 'deployment' },
     });
     expect(byId.get(expected.publishC)?.actor).toEqual({ kind: 'you' });
+    expect(byId.get(expected.updateByViewer)?.actor).toEqual({ kind: 'you' });
+    expect(byId.get(expected.resumeA)?.actor).toEqual({ kind: 'deployment' });
   });
 
   it('filters installations and publications', async () => {
@@ -336,7 +372,13 @@ describe('Plugin history (e2e)', () => {
       new Set([expected.installA, expected.tie1, expected.tie2, expected.tie3])
     );
     expect(new Set(publications.items.map(item => item.id))).toEqual(
-      new Set([expected.publishA, expected.publishC, expected.publishD])
+      new Set([
+        expected.publishA,
+        expected.publishC,
+        expected.publishD,
+        expected.publishG,
+        expected.unpublishA,
+      ])
     );
   });
 
@@ -349,15 +391,16 @@ describe('Plugin history (e2e)', () => {
       cursor = page.nextCursor;
     } while (cursor);
 
+    const unpaged = await history('viewer', P1, 'installations');
     expect(seen).toHaveLength(4);
-    expect(new Set(seen).size).toBe(4);
+    expect(seen).toEqual(unpaged.items.map(item => item.id));
   });
 
-  it('answers an empty viewer with an empty page', async () => {
-    await expect(history('fresh', 'history-project-3')).resolves.toEqual({
-      items: [],
-      nextCursor: null,
-    });
+  it('shows a viewer with no history only the all-projects listing', async () => {
+    const page = await history('fresh', 'history-project-3');
+
+    expect(page.items.map(item => item.id)).toEqual([expected.publishG]);
+    expect(page.nextCursor).toBeNull();
   });
 
   const get = (token: string, query = '') =>
@@ -367,7 +410,7 @@ describe('Plugin history (e2e)', () => {
     const response = await get('viewer', '?type=publications').expect(200);
 
     expect(response.body.nextCursor).toBeNull();
-    expect(response.body.items).toHaveLength(3);
+    expect(response.body.items).toHaveLength(5);
     expect(
       response.body.items.find((item: { id: string }) => item.id === expected.publishA)
     ).toMatchObject({
