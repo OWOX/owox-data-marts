@@ -479,11 +479,11 @@ bound collection, or sends it to an unbound one, fails with `HTTP_ERROR`, status
 naming the collection and the current version. The API's codes are
 `PLUGIN_COLLECTION_PARENT_ID_REQUIRED` and `PLUGIN_COLLECTION_NOT_ENTITY_BOUND`.
 
-Adding, removing, or changing `entityBinding` on an existing collection is a breaking change that
-needs a new line. Documents saved before it keep their old `parentId`, which the new declaration
-cannot authorize, so they become unreachable. To bind existing data, declare a new collection with
-`entityBinding` instead, which a release within the line may do, and copy the documents into it
-with their `parentId`.
+Adding or removing `entityBinding` on an existing collection, or changing its `type`, is a breaking
+change that needs a new line; changing its `actions` is not. Documents saved before that change
+keep their old `parentId`, which the new declaration cannot authorize, so they become unreachable.
+To bind existing data, declare a new collection with `entityBinding` instead, which a release
+within the line may do, and copy the documents into it with their `parentId`.
 
 Each operation mapping must use an action supported by the bound entity type:
 
