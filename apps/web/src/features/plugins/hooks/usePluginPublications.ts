@@ -5,7 +5,13 @@ import { useIsAdmin } from '../../idp/hooks/useRole';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
 import type { InstalledPlugin, PluginPublication, PluginPublicationScope } from '../types';
-import { GALLERY_KEY, INSTALLATIONS_KEY, PUBLICATIONS_KEY, installationsKey } from './usePlugins';
+import {
+  GALLERY_KEY,
+  HISTORY_KEY,
+  INSTALLATIONS_KEY,
+  PUBLICATIONS_KEY,
+  installationsKey,
+} from './usePlugins';
 
 const EMPTY: PluginPublication[] = [];
 
@@ -80,6 +86,7 @@ export function usePluginPublishing() {
       // Installation rows say why each plugin is visible as well, and the Plugins page draws
       // a plugin nothing lists any more from them.
       queryClient.invalidateQueries({ queryKey: [INSTALLATIONS_KEY, projectId] }),
+      queryClient.invalidateQueries({ queryKey: [HISTORY_KEY, projectId] }),
     ]);
   }, [queryClient, projectId]);
 

@@ -144,3 +144,36 @@ export interface PublishPluginRequest {
   repository: string;
   scope: PluginPublicationScope;
 }
+
+export type PluginHistoryType = 'all' | 'installations' | 'publications';
+
+export type PluginHistoryAction =
+  | 'install'
+  | 'restore'
+  | 'uninstall'
+  | 'publish'
+  | 'unpublish'
+  | 'update'
+  | 'suspend'
+  | 'resume';
+
+export type PluginHistoryActor =
+  | { kind: 'you' }
+  | { kind: 'member'; name: string }
+  | { kind: 'deployment' };
+
+export interface PluginHistoryEvent {
+  id: string;
+  occurredAt: string;
+  action: PluginHistoryAction;
+  /** Set for publish and unpublish only. */
+  scope: PluginPublicationScope | null;
+  plugin: { pluginId: string; displayName: string; ownerName: string };
+  actor: PluginHistoryActor | null;
+  version: string | null;
+}
+
+export interface PluginHistoryPage {
+  items: PluginHistoryEvent[];
+  nextCursor: string | null;
+}

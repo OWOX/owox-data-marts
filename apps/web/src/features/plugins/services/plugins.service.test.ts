@@ -53,3 +53,26 @@ describe('PluginsService.lookupByRepository', () => {
     });
   });
 });
+
+describe('PluginsService.getHistory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { items: [], nextCursor: null } });
+  });
+
+  it('asks for the first page of one filter', async () => {
+    await pluginsService.getHistory('publications');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/plugins/history', {
+      params: { type: 'publications' },
+    });
+  });
+
+  it('passes the cursor for a later page', async () => {
+    await pluginsService.getHistory('all', 'event-9');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/plugins/history', {
+      params: { type: 'all', cursor: 'event-9' },
+    });
+  });
+});

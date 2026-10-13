@@ -36,6 +36,7 @@ export {
   usePublishableScopes,
   type PublishFailure,
 } from './hooks/usePluginPublications';
+export { usePluginHistory } from './hooks/usePluginHistory';
 export {
   usePlugin,
   usePluginActions,
@@ -46,6 +47,11 @@ export type {
   InstalledPlugin,
   PluginEntryPoint,
   PluginGalleryEntry,
+  PluginHistoryAction,
+  PluginHistoryActor,
+  PluginHistoryEvent,
+  PluginHistoryPage,
+  PluginHistoryType,
   PluginInstallationState,
   PluginPublication,
   PluginPublicationScope,

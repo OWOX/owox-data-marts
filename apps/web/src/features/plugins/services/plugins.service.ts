@@ -4,6 +4,8 @@ import type {
   InstalledPlugin,
   PluginEntryPoint,
   PluginGalleryEntry,
+  PluginHistoryPage,
+  PluginHistoryType,
   PluginInstallation,
   PluginPublication,
   PluginPublicationScope,
@@ -32,6 +34,11 @@ class PluginsService extends ApiService {
       '/installations',
       includeUninstalled ? { includeUninstalled: 'true' } : undefined
     );
+  }
+
+  /** One page of the member's plugin history in this project, newest first. */
+  async getHistory(type: PluginHistoryType, cursor?: string): Promise<PluginHistoryPage> {
+    return this.get<PluginHistoryPage>('/history', cursor ? { type, cursor } : { type });
   }
 
   /**
