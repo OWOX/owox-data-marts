@@ -4,6 +4,7 @@ import {
   CheckPluginReleaseCommand,
   PluginReleaseCheckResultDto,
 } from '../dto/domain/check-plugin-release.command';
+import type { PluginHistoryPluginDto } from '../dto/domain/plugin-history.dto';
 import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repository.command';
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
@@ -183,11 +184,7 @@ export class PluginPresentationMapper {
   ): PluginGalleryEntryDto {
     return {
       pluginId: plugin.id,
-      // Falling back keeps a plugin with no eligible release recognisable rather than
-      // blank, but the repository name is exactly what `toSource` withholds for a private
-      // repository -- so that case falls back to the owner, which `toSource` discloses anyway.
-      displayName:
-        version?.displayName ?? (plugin.isPrivateRepo ? plugin.repoOwner : plugin.repoName),
+      displayName: this.displayNameOf(plugin, version),
       description: version?.description ?? '',
       currentSemver: version?.semver ?? null,
       currentVersionId: version?.id ?? null,
@@ -198,6 +195,14 @@ export class PluginPresentationMapper {
       addedAt: plugin.createdAt.toISOString(),
       nextCheckAt: plugin.nextUpdateCheckAt?.toISOString() ?? null,
       credentialRequirements: version?.credentialRequirements ?? [],
+    };
+  }
+
+  toHistoryPlugin(plugin: Plugin, version: PluginVersion | null): PluginHistoryPluginDto {
+    return {
+      pluginId: plugin.id,
+      displayName: this.displayNameOf(plugin, version),
+      ownerName: plugin.repoOwner,
     };
   }
 
@@ -328,6 +333,15 @@ export class PluginPresentationMapper {
       suspended: dto.suspended,
       note: dto.note,
     };
+  }
+
+  /**
+   * Falling back keeps a plugin with no eligible release recognisable rather than blank, but
+   * the repository name is exactly what `toSource` withholds for a private repository -- so
+   * that case falls back to the owner, which `toSource` discloses anyway.
+   */
+  private displayNameOf(plugin: Plugin, version: PluginVersion | null): string {
+    return version?.displayName ?? (plugin.isPrivateRepo ? plugin.repoOwner : plugin.repoName);
   }
 
   /**

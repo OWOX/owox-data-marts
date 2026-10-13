@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, In, Repository } from 'typeorm';
+import { Brackets, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { PluginPublicationProject } from '../entities/plugin-publication-project.entity';
 import { PluginPublication } from '../entities/plugin-publication.entity';
 import { Plugin } from '../entities/plugin.entity';
@@ -90,36 +90,48 @@ export class PluginPublicationService {
    * never hides another.
    */
   findVisibleTo(projectId: string, userId: string): Promise<PluginPublication[]> {
-    return this.publications
-      .createQueryBuilder('publication')
-      .where('publication.isActive = :isActive', { isActive: true })
-      .andWhere(
-        new Brackets(scopes => {
-          scopes
-            .where(this.deploymentVisibleToProject(projectId))
-            .orWhere(
-              new Brackets(project => {
-                project
-                  .where('publication.scope = :projectScope', {
-                    projectScope: PluginPublicationScope.PROJECT,
-                  })
-                  .andWhere('publication.projectId = :projectId');
-              })
-            )
-            .orWhere(
-              new Brackets(member => {
-                member
-                  .where('publication.scope = :memberScope', {
-                    memberScope: PluginPublicationScope.MEMBER,
-                  })
-                  .andWhere('publication.projectId = :projectId')
-                  .andWhere('publication.userId = :userId');
-              })
-            );
-        })
-      )
-      .setParameters({ projectId, userId })
-      .getMany();
+    return this.visibleTo(projectId, userId, true).getMany();
+  }
+
+  /** findVisibleTo including withdrawn publications and audience rows: whatever has ever listed a plugin here. */
+  findEverVisibleTo(projectId: string, userId: string): Promise<PluginPublication[]> {
+    return this.visibleTo(projectId, userId, false).getMany();
+  }
+
+  private visibleTo(
+    projectId: string,
+    userId: string,
+    activeOnly: boolean
+  ): SelectQueryBuilder<PluginPublication> {
+    const query = this.publications.createQueryBuilder('publication').where(
+      new Brackets(scopes => {
+        scopes
+          .where(this.deploymentVisibleToProject(projectId, activeOnly))
+          .orWhere(
+            new Brackets(project => {
+              project
+                .where('publication.scope = :projectScope', {
+                  projectScope: PluginPublicationScope.PROJECT,
+                })
+                .andWhere('publication.projectId = :projectId');
+            })
+          )
+          .orWhere(
+            new Brackets(member => {
+              member
+                .where('publication.scope = :memberScope', {
+                  memberScope: PluginPublicationScope.MEMBER,
+                })
+                .andWhere('publication.projectId = :projectId')
+                .andWhere('publication.userId = :userId');
+            })
+          );
+      })
+    );
+    if (activeOnly) {
+      query.andWhere('publication.isActive = :isActive', { isActive: true });
+    }
+    return query.setParameters({ projectId, userId });
   }
 
   async findDeploymentPluginIdByRepo(
@@ -153,8 +165,11 @@ export class PluginPublicationService {
     });
   }
 
-  /** findVisibleTo's deployment branch. Binds its own parameters; the caller still requires isActive. */
-  private deploymentVisibleToProject(projectId: string): Brackets {
+  /** findVisibleTo's deployment branch. Binds its own parameters; the caller decides on isActive. */
+  private deploymentVisibleToProject(projectId: string, activeAudienceOnly = true): Brackets {
+    const activeAudience = activeAudienceOnly
+      ? 'AND audience_row.isActive = :deploymentAudienceActive'
+      : '';
     return new Brackets(deployment => {
       deployment
         .where('publication.scope = :deploymentScope', {
@@ -171,7 +186,7 @@ export class PluginPublicationService {
                 SELECT 1 FROM plugin_publication_project audience_row
                 WHERE audience_row.publicationId = publication.id
                   AND audience_row.projectId = :deploymentProjectId
-                  AND audience_row.isActive = :deploymentAudienceActive
+                  ${activeAudience}
               )`,
                 { deploymentProjectId: projectId, deploymentAudienceActive: true }
               );

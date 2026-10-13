@@ -1,11 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { PluginAuditEvent } from '../entities/plugin-audit-event.entity';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
 import { PluginLifecycleEvent } from '../events/plugin-lifecycle.event';
+
+export interface PluginHistoryQuery {
+  readonly projectId: string;
+  readonly userId: string;
+  readonly installations: boolean;
+  readonly publications: boolean;
+  readonly changes: boolean;
+  readonly deploymentPluginIds: readonly string[];
+  readonly relevantPluginIds: readonly string[];
+  readonly afterId: string | null;
+  readonly take: number;
+}
+
+const INSTALLATION_ACTIONS = [
+  PluginAuditAction.INSTALL,
+  PluginAuditAction.RESTORE,
+  PluginAuditAction.UNINSTALL,
+];
+const PUBLICATION_ACTIONS = [PluginAuditAction.PUBLISH, PluginAuditAction.UNPUBLISH];
+const CHANGE_ACTIONS = [
+  PluginAuditAction.UPDATE,
+  PluginAuditAction.SUSPEND,
+  PluginAuditAction.RESUME,
+];
 
 export interface PluginAuditRecord {
   readonly pluginId: string;
@@ -68,5 +92,106 @@ export class PluginAuditService {
         `Audit event for plugin ${entry.pluginId} was not published: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  exists(id: string): Promise<boolean> {
+    return this.repository.existsBy({ id });
+  }
+
+  // ponytail: no (projectId, createdAt) index; add one when the audit outgrows a scan (about one update_check per plugin per day).
+  findHistory(query: PluginHistoryQuery): Promise<PluginAuditEvent[]> {
+    const builder = this.repository
+      .createQueryBuilder('event')
+      .where(
+        new Brackets(visible => {
+          if (query.installations) {
+            visible.orWhere(
+              new Brackets(own =>
+                own
+                  .where('event.action IN (:...installationActions)', {
+                    installationActions: INSTALLATION_ACTIONS,
+                  })
+                  .andWhere('event.projectId = :projectId')
+                  .andWhere('event.userId = :userId')
+              )
+            );
+          }
+          if (query.publications) {
+            visible.orWhere(
+              new Brackets(project =>
+                project
+                  .where('event.action IN (:...publicationActions)', {
+                    publicationActions: PUBLICATION_ACTIONS,
+                  })
+                  .andWhere('event.authorityScope = :projectScope', {
+                    projectScope: PluginPublicationScope.PROJECT,
+                  })
+                  .andWhere('event.projectId = :projectId')
+              )
+            );
+            visible.orWhere(
+              new Brackets(member =>
+                member
+                  .where('event.action IN (:...publicationActions)')
+                  .andWhere('event.authorityScope = :memberScope', {
+                    memberScope: PluginPublicationScope.MEMBER,
+                  })
+                  .andWhere('event.projectId = :projectId')
+                  .andWhere('event.userId = :userId')
+              )
+            );
+            if (query.deploymentPluginIds.length > 0) {
+              visible.orWhere(
+                new Brackets(deployment =>
+                  deployment
+                    .where('event.action IN (:...publicationActions)')
+                    .andWhere('event.authorityScope = :deploymentScope', {
+                      deploymentScope: PluginPublicationScope.DEPLOYMENT,
+                    })
+                    .andWhere('event.pluginId IN (:...deploymentPluginIds)', {
+                      deploymentPluginIds: query.deploymentPluginIds,
+                    })
+                )
+              );
+            }
+          }
+          if (query.changes && query.relevantPluginIds.length > 0) {
+            visible.orWhere(
+              new Brackets(change =>
+                change
+                  .where('event.action IN (:...changeActions)', { changeActions: CHANGE_ACTIONS })
+                  .andWhere('event.pluginId IN (:...relevantPluginIds)', {
+                    relevantPluginIds: query.relevantPluginIds,
+                  })
+              )
+            );
+          }
+        })
+      )
+      .setParameters({ projectId: query.projectId, userId: query.userId });
+
+    if (query.afterId) {
+      // Compared against the stored row, not a bound Date: SQLite keeps CURRENT_TIMESTAMP without milliseconds.
+      const anchor =
+        '(SELECT anchor.createdAt FROM plugin_audit_event anchor WHERE anchor.id = :afterId)';
+      builder.andWhere(
+        new Brackets(after =>
+          after
+            .where(`event.createdAt < ${anchor}`)
+            .orWhere(
+              new Brackets(tie =>
+                tie.where(`event.createdAt = ${anchor}`).andWhere('event.id < :afterId')
+              )
+            )
+        ),
+        { afterId: query.afterId }
+      );
+    }
+
+    return builder
+      .orderBy('event.createdAt', 'DESC')
+      .addOrderBy('event.id', 'DESC')
+      .limit(query.take)
+      .getMany();
   }
 }
