@@ -102,6 +102,34 @@ describe('usePluginPublishing', () => {
     expect(reset).toHaveBeenCalledWith({ queryKey: ['plugin-history', 'project-1'] });
   });
 
+  // Publish & Install opens the plugin next, and that page decides once on what is cached.
+  it('refreshes the cached plugin and installations before reporting success', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const getPlugin = vi.fn().mockResolvedValue({ id: 'p1', visibleViaScopes: [] });
+    const listInstallations = vi.fn().mockResolvedValue([]);
+    await client.query({
+      queryKey: ['plugin-gallery', 'project-1', 'p1'],
+      queryFn: getPlugin,
+    });
+    await client.query({
+      queryKey: ['plugin-installations', 'project-1', false],
+      queryFn: listInstallations,
+    });
+    const { result } = renderHook(() => usePluginPublishing(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const calls: number[] = [];
+    await act(async () => {
+      await result.current.publish('OWOX/example', 'member');
+      calls.push(getPlugin.mock.calls.length, listInstallations.mock.calls.length);
+    });
+
+    expect(calls).toEqual([2, 2]);
+  });
+
   it('confirms a first publish plainly', async () => {
     getInstallations.mockResolvedValue([
       { pluginId: 'other', displayName: 'Other', uninstalledAt: null },
@@ -290,7 +318,13 @@ describe('usePluginPublishing', () => {
       await result.current.unpublish('OWOX/example', 'member');
     });
 
-    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-installations', 'project-1'] });
-    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-gallery', 'project-1'] });
+    expect(invalidated).toHaveBeenCalledWith({
+      queryKey: ['plugin-installations', 'project-1'],
+      refetchType: 'all',
+    });
+    expect(invalidated).toHaveBeenCalledWith({
+      queryKey: ['plugin-gallery', 'project-1'],
+      refetchType: 'all',
+    });
   });
 });

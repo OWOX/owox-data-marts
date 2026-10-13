@@ -59,8 +59,7 @@ describe('PublishPluginSheet', () => {
     expect(document.querySelectorAll('form')).toHaveLength(1);
   });
 
-  // A published plugin nobody installed is missing from the menu, which is why publishing
-  // installs by default: the open route offers the install, then runs the plugin.
+  // Installing is the default: a published plugin nobody installed is missing from the menu.
   it('publishes the typed repository and opens it for installing', async () => {
     const onClose = vi.fn();
     render(<PublishPluginSheet isOpen onClose={onClose} />);
@@ -98,6 +97,16 @@ describe('PublishPluginSheet', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it('checks the repository before publishing from Publish only', async () => {
+    render(<PublishPluginSheet isOpen onClose={vi.fn()} />);
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More publish options' }));
+    fireEvent.click(await within(document.body).findByText('Publish only'));
+
+    expect(await screen.findByText('A GitHub repository is required')).toBeTruthy();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('stays on the sheet with the reason when publishing fails', async () => {
     publish.mockResolvedValue({ failure: { message: 'OWOX cannot read OWOX/import-model' } });
     const onClose = vi.fn();
@@ -115,7 +124,7 @@ describe('PublishPluginSheet', () => {
 
   // The request settles before publish does -- it still looks up whether the member already
   // has the plugin -- so the button must stay disabled until the sheet closes.
-  it('keeps Publish disabled until publishing has fully finished', async () => {
+  it('keeps Publish & Install disabled until publishing has fully finished', async () => {
     let finish: (value: unknown) => void = () => undefined;
     publish.mockReturnValue(new Promise(resolve => (finish = resolve)));
     const onClose = vi.fn();
@@ -128,6 +137,10 @@ describe('PublishPluginSheet', () => {
 
     const pending = await screen.findByRole('button', { name: 'Publishing…' });
     expect((pending as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'More publish options' })).toHaveProperty(
+      'disabled',
+      true
+    );
     fireEvent.click(pending);
     expect(publish).toHaveBeenCalledTimes(1);
 
@@ -135,5 +148,27 @@ describe('PublishPluginSheet', () => {
       finish({ failure: null, pluginId: 'p1' });
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // Publish & Install navigates once it finishes, so the sheet must not close under it.
+  it('stays open on Escape until publishing has finished', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    publish.mockReturnValue(new Promise(resolve => (finish = resolve)));
+    const onClose = vi.fn();
+    render(<PublishPluginSheet isOpen onClose={onClose} />);
+
+    fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
+      target: { value: 'OWOX/import-model' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish & Install' }));
+    await screen.findByRole('button', { name: 'Publishing…' });
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finish({ failure: null, pluginId: 'p1' });
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1/open');
   });
 });

@@ -688,8 +688,8 @@ pin an older version.
 
 ## Publish and install
 
-Publishing makes a plugin findable. **Publish & Install** also installs it for you; every other
-member decides whether to install it, and unpublishing later does not uninstall existing
+Publishing makes a plugin findable. **Publish & Install** also offers to install it for you; every
+other member decides whether to install it, and unpublishing later does not uninstall existing
 installations.
 
 ### Publish in OWOX Data Marts

@@ -125,7 +125,8 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
     <Sheet
       open={isOpen}
       onOpenChange={open => {
-        if (!open) {
+        // A publish finishing after the sheet closed would still navigate the member away.
+        if (!open && !isSubmitting) {
           setFailure(null);
           onClose();
         }
@@ -135,8 +136,8 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
         <SheetHeader>
           <SheetTitle>Publish a plugin</SheetTitle>
           <SheetDescription>
-            Publishing lists a plugin so people can find it. Publish &amp; Install then installs it
-            for you, and only for you.
+            Publishing lists a plugin so people can find it. Publish &amp; Install then offers to
+            install it for you, and only for you.
           </SheetDescription>
         </SheetHeader>
 
@@ -227,9 +228,9 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
                         </p>
                         <p>
                           Whichever you pick, publishing only makes the plugin{' '}
-                          <strong>findable</strong>. Publish &amp; Install adds it to your menu
-                          alone: every other member still installs it themselves, and unpublishing
-                          later removes the listing without uninstalling anyone.
+                          <strong>findable</strong>. Publish &amp; Install offers to add it to your
+                          menu alone: every other member still installs it themselves, and
+                          unpublishing later removes the listing without uninstalling anyone.
                         </p>
                         <p>
                           The levels are independent, so the same plugin can be listed at both and
@@ -271,7 +272,7 @@ export function PublishPluginSheet({ isOpen, onClose }: PublishPluginSheetProps)
               <Button type='button' variant='secondary' onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <ButtonGroup className='w-full'>
+              <ButtonGroup aria-label='Publish' className='w-full'>
                 <Button type='submit' disabled={isSubmitting} className='flex-1'>
                   {isSubmitting ? <Loader2 className='size-4 animate-spin' aria-hidden /> : null}
                   {isSubmitting ? 'Publishing…' : 'Publish & Install'}
