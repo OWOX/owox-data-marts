@@ -30,8 +30,10 @@ import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
 import {
+  LARGE_BACKFILL_DAYS,
   MAX_MANUAL_BACKFILL_DAYS,
   countBackfillDays,
+  countBackfillSegments,
   toUtcDayMs,
 } from '../../../shared/constants/manual-backfill';
 
@@ -45,7 +47,6 @@ type BackfillPeriod =
   | { status: 'incomplete' }
   | { status: 'reversed' }
   | { status: 'startInFuture' }
-  | { status: 'tooLong'; days: number }
   | { status: 'ok'; days: number };
 
 /** Single source of truth for the period: the notice and the field validators both read it. */
@@ -56,21 +57,26 @@ function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string)
   if ((startDate as string) > today) return { status: 'startInFuture' };
   const days = countBackfillDays(startDate, endDate);
   if (days === 0) return { status: 'reversed' };
-  return days > MAX_MANUAL_BACKFILL_DAYS ? { status: 'tooLong', days } : { status: 'ok', days };
+  return { status: 'ok', days };
 }
 
 function getBackfillSummary(period: BackfillPeriod): string {
   switch (period.status) {
     case 'incomplete':
-      return `A backfill run can cover at most ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days your period covers.`;
+      return `A long period runs automatically in segments of up to ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days and runs it takes.`;
     case 'startInFuture':
       return 'The start date cannot be in the future. Pick a date up to today.';
     case 'reversed':
       return 'The end date must be on or after the start date.';
-    case 'tooLong':
-      return `This period covers ${period.days} days, which exceeds the ${MAX_MANUAL_BACKFILL_DAYS}-day limit. Shorten it and load the rest with another backfill.`;
-    case 'ok':
-      return `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}.`;
+    case 'ok': {
+      const covers = `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}`;
+      if (period.days <= MAX_MANUAL_BACKFILL_DAYS) return `${covers}.`;
+      const segments = countBackfillSegments(period.days);
+      const summary = `${covers} and runs in ${segments} segments of up to ${MAX_MANUAL_BACKFILL_DAYS} days. It counts as ${segments} runs.`;
+      return period.days > LARGE_BACKFILL_DAYS
+        ? `${summary} Large backfills can take hours, hold one of the project's concurrent run slots and use source API quota.`
+        : summary;
+    }
   }
 }
 
@@ -93,9 +99,6 @@ function getBackfillDateValidation(
       period: (value, formValues) => {
         const period = readBackfillPeriod(formValues.data.StartDate, value, today);
         if (period.status === 'reversed') return 'End date must be on or after the start date';
-        if (period.status === 'tooLong') {
-          return `The period cannot exceed ${MAX_MANUAL_BACKFILL_DAYS} days`;
-        }
         return true;
       },
     };

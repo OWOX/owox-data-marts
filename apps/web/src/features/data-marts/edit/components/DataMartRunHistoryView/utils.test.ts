@@ -238,6 +238,43 @@ describe('parseLogEntry — category', () => {
   });
 });
 
+describe('parseLogEntry — backfill segment markers', () => {
+  it('lifts the segment tags into metadata and keeps the message as the text', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({
+        type: 'LOG',
+        at: '2026-05-02T12:00:00.000Z',
+        metric: 'backfill_segment',
+        value: 3,
+        tags: {
+          phase: 'completed',
+          segmentStart: '2024-03-03',
+          segmentEnd: '2024-04-02',
+          backfillStart: '2024-01-01',
+          backfillEnd: '2025-06-30',
+          segmentsTotal: 18,
+          loadedThrough: '2024-04-02',
+        },
+        message: 'Segment 3 of 18 completed',
+      }),
+      0
+    );
+
+    expect(entry.metadata).toMatchObject({
+      metric: 'backfill_segment',
+      value: 3,
+      phase: 'completed',
+      segmentStart: '2024-03-03',
+      segmentEnd: '2024-04-02',
+      backfillStart: '2024-01-01',
+      backfillEnd: '2025-06-30',
+      segmentsTotal: 18,
+      loadedThrough: '2024-04-02',
+    });
+    expect(entry.message).toBe('Segment 3 of 18 completed');
+  });
+});
+
 describe('parseLogEntry — analytics fields', () => {
   const at = '2026-05-02T12:00:00.000Z';
 

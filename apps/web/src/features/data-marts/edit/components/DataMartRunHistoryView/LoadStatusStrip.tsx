@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Database } from 'lucide-react';
 import type { LogEntry } from './types';
-import { aggregateLoadStatus } from './load-status';
+import { aggregateLoadStatus, describeBackfillStatus } from './load-status';
 import { formatDuration } from '../../../../../utils/date-formatters';
 
 interface LoadStatusStripProps {
@@ -69,6 +69,14 @@ export function LoadStatusStrip({
         <>
           <span aria-hidden='true'>·</span>
           <span>{duration}</span>
+        </>
+      )}
+      {status.backfill && (
+        <>
+          <span aria-hidden='true'>·</span>
+          <span data-testid='backfill-progress'>
+            {describeBackfillStatus(status.backfill, isLive && !finishedAt)}
+          </span>
         </>
       )}
     </div>

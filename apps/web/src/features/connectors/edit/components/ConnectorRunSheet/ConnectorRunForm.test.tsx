@@ -62,11 +62,11 @@ function setPeriod(startDate: string, endDate: string) {
 const notice = () => screen.getByTestId('backfill-limit-notice');
 const runButton = () => screen.getByRole('button', { name: 'Run' });
 
-describe('ConnectorRunForm backfill limit', () => {
-  it('explains the per-run limit before any dates are chosen, without flagging an error', async () => {
+describe('ConnectorRunForm backfill period', () => {
+  it('explains segmentation before any dates are chosen, without flagging an error', async () => {
     await openBackfill();
 
-    expect(notice()).toHaveTextContent('A backfill run can cover at most 31 days');
+    expect(notice()).toHaveTextContent('runs automatically in segments of up to 31 days');
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
     expect(runButton()).toBeDisabled();
@@ -92,16 +92,31 @@ describe('ConnectorRunForm backfill limit', () => {
     });
   });
 
-  it('explains and blocks a period longer than 31 days', async () => {
+  it('allows a period longer than 31 days and says how many runs it counts as', async () => {
     await openBackfill();
 
-    setPeriod('2026-01-01', '2026-03-16');
+    setPeriod('2026-01-01', '2026-03-31');
 
     await waitFor(() => {
-      expect(notice()).toHaveTextContent('covers 75 days, which exceeds the 31-day limit');
-      expect(runButton()).toBeDisabled();
+      expect(notice()).toHaveTextContent(
+        'This backfill covers 90 days and runs in 3 segments of up to 31 days. It counts as 3 runs.'
+      );
+      expect(runButton()).toBeEnabled();
     });
-    expect(notice().className).toContain('destructive');
+    expect(notice().className).not.toContain('destructive');
+    expect(notice()).not.toHaveTextContent('Large backfills');
+  });
+
+  it('warns that a period over a year can take hours, without blocking it', async () => {
+    await openBackfill();
+
+    setPeriod('2024-01-01', '2025-06-30');
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('runs in 18 segments');
+      expect(notice()).toHaveTextContent('Large backfills can take hours');
+      expect(runButton()).toBeEnabled();
+    });
   });
 
   it('explains and blocks an end date before the start date', async () => {

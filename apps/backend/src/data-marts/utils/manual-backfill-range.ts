@@ -6,7 +6,7 @@ import { Core } from '@owox/connectors';
 // Literal, not Core.RUN_CONFIG_TYPE: some specs stub @owox/connectors with a minimal Core.
 export const MANUAL_BACKFILL_RUN_TYPE = 'MANUAL_BACKFILL';
 
-/** Inclusive days one backfill run may cover. Read lazily so Core stubs load; throws on a stale build. */
+/** Inclusive days one backfill segment may cover. Read lazily so Core stubs load; throws on a stale build. */
 export function getMaxManualBackfillDays(): number {
   const limit = Number(Core.MAX_MANUAL_BACKFILL_DAYS);
   if (!Number.isInteger(limit) || limit < 1) {
@@ -60,8 +60,9 @@ export function countBackfillDays(range: BackfillDateRange): number {
 
 /**
  * Validates the user-supplied StartDate/EndDate the same way AbstractConnector does
- * (EndDate defaults to today and is clamped to today) and enforces the per-run day limit,
- * before a run is created so the caller gets a 4xx instead of a failed run.
+ * (EndDate defaults to today and is clamped to today), before a run is created so the caller
+ * gets a 4xx instead of a failed run. The period has no length limit: the executor runs a long
+ * one as consecutive segments of at most `getMaxManualBackfillDays()` days.
  */
 export function parseManualBackfillRange(data: unknown, today: Date): BackfillDateRange {
   const parsed = manualBackfillDatesSchema.safeParse(data);
@@ -85,15 +86,31 @@ export function parseManualBackfillRange(data: unknown, today: Date): BackfillDa
     throw new BusinessViolationException('EndDate cannot be earlier than StartDate');
   }
 
-  const range = { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
-  const days = countBackfillDays(range);
-  const maxDays = getMaxManualBackfillDays();
-  if (days > maxDays) {
-    throw new BusinessViolationException(
-      `Manual backfill is limited to ${maxDays} days per run (requested ${days} days)`
-    );
-  }
-  return range;
+  return { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
+}
+
+/** The first `maxDays` inclusive days of `range`; the range itself when it is not longer. */
+export function clampBackfillWindow(range: BackfillDateRange, maxDays: number): BackfillDateRange {
+  const lastDay = toUtcDay(range.startDate) + (maxDays - 1) * DAY_MS;
+  return {
+    startDate: range.startDate,
+    endDate: formatUtcDay(Math.min(toUtcDay(range.endDate), lastDay)),
+  };
+}
+
+/** How many segments of at most `maxDays` days cover `range`. */
+export function countBackfillSegments(range: BackfillDateRange, maxDays: number): number {
+  return Math.ceil(countBackfillDays(range) / maxDays);
+}
+
+/** 1-based position of the segment that starts on `segmentStart` within `requested`. */
+export function getBackfillSegmentIndex(
+  requested: BackfillDateRange,
+  segmentStart: string,
+  maxDays: number
+): number {
+  const elapsedDays = Math.round((toUtcDay(segmentStart) - toUtcDay(requested.startDate)) / DAY_MS);
+  return Math.floor(Math.max(elapsedDays, 0) / maxDays) + 1;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -141,6 +158,25 @@ export function isManualBackfillPayload(body: Record<string, unknown>): boolean 
 }
 
 /**
+ * The period of a normalized manual backfill body, or undefined for any other body: a
+ * non-backfill run, a connector without date fields, or an EndDate that was never filled in.
+ */
+export function readBackfillRange(body: Record<string, unknown>): BackfillDateRange | undefined {
+  if (!isManualBackfillPayload(body) || !isRecord(body.data)) return undefined;
+  const dates = manualBackfillDatesSchema.safeParse(body.data);
+  if (!dates.success || !dates.data.EndDate) return undefined;
+  return { startDate: dates.data.StartDate, endDate: dates.data.EndDate };
+}
+
+/** The body with its EndDate replaced, leaving the caller's body untouched. */
+export function withBackfillEndDate(
+  body: Record<string, unknown>,
+  endDate: string
+): Record<string, unknown> {
+  return { ...body, data: { ...(body.data as Record<string, unknown>), EndDate: endDate } };
+}
+
+/**
  * Normalizes a connector-reported date to a UTC calendar day, or undefined when it is
  * unusable. Connectors pass a `Date`, which serializes as a full ISO timestamp, so the day
  * part is taken rather than required.
@@ -184,8 +220,8 @@ export interface BackfillResume {
  * The body is returned untouched when there is nothing to resume: a non-backfill run, a
  * connector that declares no date fields, a payload whose EndDate was never normalized, or a
  * checkpoint that is unusable. A checkpoint earlier than StartDate is also ignored — it
- * belongs to a different period, and honouring it would widen the run past the day limit the
- * caller already validated.
+ * belongs to a different period, and honouring it would widen the run to days the caller never
+ * asked for.
  */
 export function resumeManualBackfillPayload(
   body: Record<string, unknown>,

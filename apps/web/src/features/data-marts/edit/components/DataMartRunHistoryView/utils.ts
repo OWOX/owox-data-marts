@@ -153,6 +153,17 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   });
 };
 
+/** Tags of a `backfill_segment` marker that the load status strip reads. */
+const BACKFILL_SEGMENT_TAG_KEYS = [
+  'phase',
+  'segmentStart',
+  'segmentEnd',
+  'backfillStart',
+  'backfillEnd',
+  'segmentsTotal',
+  'loadedThrough',
+] as const;
+
 export const processJSONMessage = (
   message: string
 ): { message: string; metadata?: Record<string, string | number | boolean | null> } => {
@@ -193,6 +204,12 @@ export const processJSONMessage = (
         const tags = processedObj.tags as unknown;
         if (tags && typeof tags === 'object' && 'node' in tags) {
           metadata.node = (tags as Record<string, unknown>).node as string;
+        }
+        if (tags && typeof tags === 'object') {
+          for (const key of BACKFILL_SEGMENT_TAG_KEYS) {
+            const value = (tags as Record<string, unknown>)[key];
+            if (typeof value === 'string' || typeof value === 'number') metadata[key] = value;
+          }
         }
         delete processedObj.tags;
       }

@@ -208,8 +208,9 @@ export class RunDataMartRequestApiDto {
     description: `Payload for the manual run. Omit it or select INCREMENTAL for an incremental run.
     MANUAL_BACKFILL can include connector-specific fields in data; connectors without backfill
     fields can omit data. StartDate and EndDate accept YYYY-MM-DD (or the date part of an
-    ISO-8601 timestamp). A missing or future EndDate counts as today, and the resulting range
-    may cover at most 31 days.`,
+    ISO-8601 timestamp). A missing or future EndDate counts as today. The range has no length
+    limit: a range longer than 31 days runs as consecutive segments of up to 31 days within one
+    run, and each completed segment counts as one connector run.`,
   })
   payload?: Record<string, unknown> | undefined;
 }

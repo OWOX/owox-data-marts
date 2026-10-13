@@ -137,15 +137,30 @@ Also you can check the **Run History** tab for logs and results
 
 Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date range from the source.
 
-One backfill run covers at most 31 days, so a full calendar month fits in one run.
-The form shows how many days your period covers and rejects longer periods before the run starts.
-To reload a longer history, run several backfills with consecutive periods, one after another.
+Pick any past period. The form shows how many days it covers.
+OWOX splits a period longer than 31 days into consecutive segments of up to 31 days.
+The segments run one after another, and **Run History** shows them as one run.
+The run shows the period, the day it loaded through, and the segment it is loading.
+
+Each completed segment counts as one run for your consumption.
+The form states the number of runs before you start.
+A segment that fails does not count.
+The failed segment shows the last day the backfill loaded.
+Start a new backfill from the next day to load the rest.
+
+You can cancel a backfill at any time.
+The segments that already finished stay loaded.
+
+A long backfill can take hours.
+It uses source API quota and keeps one of the project's concurrent run slots.
+OWOX does not start other runs of the same Data Mart, including scheduled runs, until the backfill finishes.
+
+Connectors that load catalog data without dates, such as campaign lists, load it again with each segment.
 
 If a deploy or restart interrupts a backfill, the automatic retry resumes it.
 That retry starts from the day after the last one it fully loaded.
 It does not reload the days it already imported.
 Starting a backfill yourself always loads the whole period you choose.
-Shopify and TikTok Ads always reload the whole period.
 
 ## Step 6: Set Triggers (Optional but Recommended)
 

@@ -1,12 +1,17 @@
 import {
+  clampBackfillWindow,
   countBackfillDays,
+  countBackfillSegments,
+  getBackfillSegmentIndex,
   getMaxManualBackfillDays,
   isManualBackfillPayload,
   parseManualBackfillRange,
   prepareManualBackfillPayload,
   readBackfillProgress,
+  readBackfillRange,
   resumeManualBackfillPayload,
   unwrapRunPayload,
+  withBackfillEndDate,
 } from './manual-backfill-range';
 
 const TODAY = new Date('2026-09-17T15:30:00.000Z');
@@ -42,12 +47,6 @@ describe('manual-backfill-range', () => {
       [{ StartDate: '2026-09-01', EndDate: '2026-02-30' }, 'EndDate must be'],
       [{ StartDate: 20260901 }, 'StartDate is required'],
       [{ StartDate: '2026-09-10', EndDate: '2026-09-01' }, 'EndDate cannot be earlier'],
-      [
-        { StartDate: '2026-07-01', EndDate: '2026-08-01' },
-        'Manual backfill is limited to 31 days per run (requested 32 days)',
-      ],
-      // No EndDate means "until today", which is also subject to the limit.
-      [{ StartDate: '2026-06-01' }, 'Manual backfill is limited to 31 days per run'],
     ])('rejects %j', (data, message) => {
       expect(() => parseManualBackfillRange(data, TODAY)).toThrow(message);
     });
@@ -100,13 +99,110 @@ describe('manual-backfill-range', () => {
       });
     });
 
-    it('rejects a range longer than the limit', () => {
-      expect(() =>
-        prepareManualBackfillPayload(
-          { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-06-01', EndDate: '2026-09-15' } },
-          TODAY
-        )
-      ).toThrow('Manual backfill is limited to 31 days per run (requested 107 days)');
+    it.each([32, 365, 3650])('accepts a %i-day range, which runs as several segments', days => {
+      const start = Date.parse('2026-09-17T00:00:00.000Z') - (days - 1) * 86_400_000;
+      const startDate = new Date(start).toISOString().slice(0, 10);
+
+      expect(parseManualBackfillRange({ StartDate: startDate }, TODAY)).toEqual({
+        startDate,
+        endDate: '2026-09-17',
+      });
+    });
+  });
+
+  describe('segments', () => {
+    const range = (startDate: string, endDate: string) => ({ startDate, endDate });
+
+    it.each([
+      [1, 1],
+      [31, 1],
+      [32, 2],
+      [62, 2],
+      [63, 3],
+      [547, 18],
+    ])('covers %i days with %i segments', (days, segments) => {
+      const start = Date.parse('2024-01-01T00:00:00.000Z');
+      const end = new Date(start + (days - 1) * 86_400_000).toISOString().slice(0, 10);
+
+      expect(countBackfillSegments(range('2024-01-01', end), 31)).toBe(segments);
+    });
+
+    it.each([
+      ['one day', range('2026-09-01', '2026-09-01'), '2026-09-01'],
+      ['exactly the limit', range('2026-08-01', '2026-08-31'), '2026-08-31'],
+      ['one day over', range('2026-08-01', '2026-09-01'), '2026-08-31'],
+      ['a leap day inside', range('2024-02-15', '2024-04-30'), '2024-03-16'],
+      ['a year boundary', range('2024-12-15', '2025-01-20'), '2025-01-14'],
+    ])('clamps %s to a window of at most 31 days', (_name, requested, windowEnd) => {
+      expect(clampBackfillWindow(requested, 31)).toEqual({
+        startDate: requested.startDate,
+        endDate: windowEnd,
+      });
+    });
+
+    it('walks the requested range with no gap and no overlap', () => {
+      const requested = range('2024-01-01', '2025-06-30');
+      const windows: Array<{ startDate: string; endDate: string }> = [];
+      let loadedThrough: string | undefined;
+
+      for (let attempt = 0; attempt < 100 && loadedThrough !== requested.endDate; attempt++) {
+        const body = {
+          runType: 'MANUAL_BACKFILL',
+          data: { StartDate: requested.startDate, EndDate: requested.endDate },
+        };
+        const resumed = resumeManualBackfillPayload(body, loadedThrough).body;
+        const window = clampBackfillWindow(readBackfillRange(resumed)!, 31);
+        windows.push(window);
+        loadedThrough = window.endDate;
+      }
+
+      expect(windows).toHaveLength(countBackfillSegments(requested, 31));
+      expect(windows[0].startDate).toBe(requested.startDate);
+      expect(windows.at(-1)?.endDate).toBe(requested.endDate);
+      expect(windows.reduce((days, w) => days + countBackfillDays(w), 0)).toBe(
+        countBackfillDays(requested)
+      );
+      windows.slice(1).forEach((window, index) => {
+        const previous = windows[index];
+        expect(countBackfillDays(range(previous.endDate, window.startDate))).toBe(2);
+      });
+      expect(windows.every(w => countBackfillDays(w) <= 31)).toBe(true);
+    });
+
+    it('numbers a segment by where its first day falls in the requested range', () => {
+      const requested = range('2024-01-01', '2025-06-30');
+
+      expect(getBackfillSegmentIndex(requested, '2024-01-01', 31)).toBe(1);
+      expect(getBackfillSegmentIndex(requested, '2024-01-31', 31)).toBe(1);
+      expect(getBackfillSegmentIndex(requested, '2024-02-01', 31)).toBe(2);
+      expect(getBackfillSegmentIndex(requested, '2025-06-30', 31)).toBe(18);
+    });
+  });
+
+  describe('readBackfillRange and withBackfillEndDate', () => {
+    const body = {
+      runType: 'MANUAL_BACKFILL',
+      data: { StartDate: '2026-08-01', EndDate: '2026-09-10', Other: 'x' },
+    };
+
+    it('reads the period of a normalized backfill body', () => {
+      expect(readBackfillRange(body)).toEqual({ startDate: '2026-08-01', endDate: '2026-09-10' });
+    });
+
+    it.each([
+      ['an incremental run', { runType: 'INCREMENTAL', data: body.data }],
+      ['a body without dates', { runType: 'MANUAL_BACKFILL', data: {} }],
+      ['a body without EndDate', { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-01' } }],
+    ])('returns undefined for %s', (_name, input) => {
+      expect(readBackfillRange(input)).toBeUndefined();
+    });
+
+    it('replaces EndDate without touching the original body', () => {
+      expect(withBackfillEndDate(body, '2026-08-31')).toEqual({
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-08-01', EndDate: '2026-08-31', Other: 'x' },
+      });
+      expect(body.data.EndDate).toBe('2026-09-10');
     });
   });
 
@@ -208,7 +304,7 @@ describe('manual-backfill-range', () => {
     });
 
     it('ignores progress that predates the requested period', () => {
-      // It belongs to a different period; honouring it would widen the run past the day limit.
+      // It belongs to a different period; honouring it would widen the run past the period.
       const body = backfill({ StartDate: '2026-08-10', EndDate: '2026-08-20' });
 
       expect(resumeManualBackfillPayload(body, '2026-07-01')).toEqual({ body });

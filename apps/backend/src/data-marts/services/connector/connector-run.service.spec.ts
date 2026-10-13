@@ -118,17 +118,21 @@ describe('ConnectorRunService', () => {
       );
     });
 
-    it('rejects a backfill longer than the per-run limit before creating a run', async () => {
-      const { service, dataMartRunRepository } = createService();
+    it('accepts a backfill longer than one segment as a single run and trigger', async () => {
+      const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+      const payload = {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
+      };
 
-      await expect(
-        service.run(publishedConnectorDataMart, 'user-1', RunType.manual, {
-          runType: 'MANUAL_BACKFILL',
-          data: { StartDate: '2026-06-01', EndDate: '2026-09-15' },
-        })
-      ).rejects.toThrow('Manual backfill is limited to 31 days per run');
-      expect(dataMartRunRepository.save).not.toHaveBeenCalled();
+      await service.run(publishedConnectorDataMart, 'user-1', RunType.manual, payload);
+
+      expect(dataMartRunRepository.save).toHaveBeenCalledTimes(1);
+      expect(dataMartRunRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ additionalParams: { payload } })
+      );
+      expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
     });
 
     it('rejects an invalid backfill range before creating a run', async () => {
