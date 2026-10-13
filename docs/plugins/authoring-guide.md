@@ -701,24 +701,33 @@ A valid higher release applies to every installation. There is no member-level v
 To roll back, restore the last working source, deploy it, and create a new higher patch release
 that explains the restoration; do not try to move or recreate an older tag.
 
-Before you create a release, check that it would be accepted. The check runs the release rules
-against a branch, tag, or commit: manifest, collection compatibility with the highest recorded
-version in that compatibility line, delivery URL, and Credential definitions. It lists every failed
-rule it can evaluate, with release sync's rejection codes. It records nothing, and it does not delay
-**Check and Update** or the daily check. Without `--version`, the candidate is the next version
-after the current one: the next patch below `1.0.0`, the next minor from `1.0.0`; pass
-`--version MAJOR.MINOR.PATCH` to check another version. A version that is already recorded, or that
-is lower than the current version and not recorded, is reported as `VERSION_CONFLICT`. Without
-`--version`, a plugin with no current version gets no collection compatibility check. Only
-deployment publishers and members who manage a publication of the plugin can run it, and they see
-GitHub errors in full, including the GitHub App installation URL when the repository is not
-accessible. Checks are rate-limited per plugin and caller by `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`
-(default 30 seconds with GitHub App or token access, 300 seconds without). The command prints JSON,
-prints a summary to stderr, and exits with code 1 when there are issues:
+Check a release before you create it:
 
 ```bash
 owox-ctl plugins check OWNER/PLUGIN_NAME --ref main
 ```
+
+The check runs the release rules against a branch, tag, or commit:
+
+- the manifest;
+- collection compatibility with the highest recorded version in the candidate's compatibility line;
+- the delivery URL;
+- Credential definitions.
+
+It lists every failed rule it can evaluate, with release sync's rejection codes. It records
+nothing and does not delay **Check and Update** or the daily check. The command prints JSON to
+stdout and a summary to stderr. It exits with code 1 when it finds issues.
+
+Without `--version`, the check takes the next version after the current one. Below `1.0.0` that
+is the next patch; from `1.0.0` it is the next minor. A plugin with no current version then gets
+no collection compatibility check. Pass `--version MAJOR.MINOR.PATCH` to check another version.
+The check reports `VERSION_CONFLICT` for a recorded version and for an unrecorded version below
+the current one.
+
+Deployment publishers and members who manage a publication of the plugin can run the check. They
+see GitHub errors in full. When OWOX Data Marts cannot read the repository, the error includes the
+GitHub App installation URL. `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC` limits checks per plugin and
+caller: 30 seconds by default with GitHub App or token access, 300 seconds without.
 
 OWOX Data Marts records the exact commit referenced by each eligible release, but the delivery URL
 does not pin the files served there. Once an eligible release version is recorded, moving,
