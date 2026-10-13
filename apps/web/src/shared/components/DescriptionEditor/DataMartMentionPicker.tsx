@@ -288,9 +288,17 @@ export function DataMartMentionPicker({
     <Command
       label={mart ? 'Search fields' : 'Search Data Marts'}
       shouldFilter={false}
-      className='border shadow-md'
+      // Monaco's unlayered focus CSS overrides the app's controls inside content widgets.
+      className='border shadow-md focus:outline-hidden! [&_:focus]:outline-hidden!'
       data-description-mention-picker=''
       data-testid='data-mart-mention-picker'
+      // Keep native list scrolling from reaching Monaco's wheel/touch handlers.
+      onWheel={event => {
+        event.stopPropagation();
+      }}
+      onTouchMove={event => {
+        event.stopPropagation();
+      }}
       onBlurCapture={event => {
         if (
           !(event.relatedTarget instanceof Node) ||
@@ -353,7 +361,7 @@ export function DataMartMentionPicker({
             : 'No matching published Data Marts.'}
         </p>
       )}
-      <CommandList>
+      <CommandList className='overscroll-contain'>
         {mart ? (
           <>
             {!query && (

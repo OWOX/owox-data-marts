@@ -300,4 +300,31 @@ describe('DataMartMentionPicker', () => {
     view.unmount();
     h.node.remove();
   });
+
+  it('leaves wheel and touch scrolling to the list without reaching Monaco or blocking native scrolling', async () => {
+    const h = harness();
+    const consumeScroll = vi.fn((event: Event) => {
+      event.preventDefault();
+    });
+    h.node.addEventListener('wheel', consumeScroll);
+    h.node.addEventListener('touchmove', consumeScroll);
+    const view = render(
+      <DataMartMentionPicker editor={h.editor} projectId='project' disabled={false} />
+    );
+    h.open();
+    await screen.findByText('Store Orders');
+    const list = screen.getByRole('listbox');
+    const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 200 });
+    const touch = new Event('touchmove', { bubbles: true, cancelable: true });
+    fireEvent(list, wheel);
+    fireEvent(list, touch);
+    expect(consumeScroll).not.toHaveBeenCalled();
+    expect(wheel.defaultPrevented).toBe(false);
+    expect(touch.defaultPrevented).toBe(false);
+    // Scrolling elsewhere in the editor still reaches its own handler.
+    fireEvent(h.node, new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 200 }));
+    expect(consumeScroll).toHaveBeenCalledOnce();
+    view.unmount();
+    h.node.remove();
+  });
 });
