@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { createTestApp } from '@owox/test-utils';
 import { UserProjectionsListDto } from 'src/idp/dto/domain/user-projections-list.dto';
 import { IdpProjectionsFacade } from 'src/idp/facades/idp-projections.facade';
+import { PLUGIN_RUNTIME_AUTHORIZER } from 'src/idp/ports/plugin-runtime-authorizer.port';
 import { IdpProviderService } from 'src/idp/services/idp-provider.service';
 import { AuthorizationContext } from 'src/idp/types/auth.types';
 import { ListPluginHistoryCommand } from 'src/plugin-host/dto/domain/list-plugin-history.command';
@@ -35,6 +36,14 @@ describe('Plugin history (e2e)', () => {
       projectId: 'history-project-3',
       roles: ['viewer'],
       authFlow: 'app_owox',
+    },
+    plugin: {
+      userId: 'viewer',
+      projectId: P1,
+      roles: ['viewer'],
+      authFlow: 'plugin',
+      pluginId: 'any',
+      installationId: 'any',
     },
   };
 
@@ -152,6 +161,7 @@ describe('Plugin history (e2e)', () => {
         provide: IdpProviderService,
         useValue: { getProvider: () => ({ parseToken: async (token: string) => payloads[token] }) },
       },
+      { provide: PLUGIN_RUNTIME_AUTHORIZER, useValue: { assertActiveInstallation: jest.fn() } },
     ]);
     app = testApp.app;
     agent = testApp.agent;
@@ -277,7 +287,6 @@ describe('Plugin history (e2e)', () => {
   }, 60_000);
 
   afterAll(async () => {
-    void agent;
     await app?.close();
   });
 
@@ -349,5 +358,38 @@ describe('Plugin history (e2e)', () => {
       items: [],
       nextCursor: null,
     });
+  });
+
+  const get = (token: string, query = '') =>
+    agent.get(`/api/plugins/history${query}`).set('x-owox-authorization', token);
+
+  it('serves the feed over HTTP', async () => {
+    const response = await get('viewer', '?type=publications').expect(200);
+
+    expect(response.body.nextCursor).toBeNull();
+    expect(response.body.items).toHaveLength(3);
+    expect(
+      response.body.items.find((item: { id: string }) => item.id === expected.publishA)
+    ).toMatchObject({
+      action: 'publish',
+      scope: 'project',
+      plugin: { pluginId: ids.A, displayName: 'Plugin A', ownerName: 'acme' },
+      actor: { kind: 'member', name: 'Name of max' },
+      version: null,
+      occurredAt: expect.any(String),
+    });
+  });
+
+  it('refuses a plugin runtime token', async () => {
+    await get('plugin').expect(403);
+  });
+
+  it.each([
+    ['an unknown type', '?type=everything'],
+    ['a zero limit', '?limit=0'],
+    ['a cursor that is not a UUID', '?cursor=abc'],
+    ['a cursor that matches no entry', '?cursor=1b4e28ba-2fa1-11d2-883f-0016d3cca427'],
+  ])('answers 400 for %s', async (_case, query) => {
+    await get('viewer', query).expect(400);
   });
 });

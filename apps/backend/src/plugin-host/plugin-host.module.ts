@@ -14,6 +14,7 @@ import { PluginVersion } from './entities/plugin-version.entity';
 import { Plugin } from './entities/plugin.entity';
 import { PluginAdminController } from './controllers/plugin-admin.controller';
 import { PluginGalleryController } from './controllers/plugin-gallery.controller';
+import { PluginHistoryController } from './controllers/plugin-history.controller';
 import { PluginInstallationsController } from './controllers/plugin-installations.controller';
 import { PluginReleaseCheckController } from './controllers/plugin-release-check.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
@@ -111,6 +112,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginAdminController,
     PluginReleaseCheckController,
     PluginInstallationsController,
+    PluginHistoryController,
     PluginGalleryController,
   ],
   providers: [

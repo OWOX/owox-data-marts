@@ -4,7 +4,15 @@ import {
   CheckPluginReleaseCommand,
   PluginReleaseCheckResultDto,
 } from '../dto/domain/check-plugin-release.command';
-import type { PluginHistoryPluginDto } from '../dto/domain/plugin-history.dto';
+import type {
+  PluginHistoryPageDto,
+  PluginHistoryPluginDto,
+} from '../dto/domain/plugin-history.dto';
+import { ListPluginHistoryCommand } from '../dto/domain/list-plugin-history.command';
+import {
+  ListPluginHistoryQueryApiDto,
+  PluginHistoryPageApiDto,
+} from '../dto/presentation/plugin-history-api.dto';
 import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repository.command';
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
@@ -116,6 +124,33 @@ export class PluginPresentationMapper {
     includeUninstalled: boolean
   ): ListInstallationsCommand {
     return new ListInstallationsCommand(context, includeUninstalled);
+  }
+
+  toListPluginHistoryCommand(
+    context: AuthorizationContext,
+    query: ListPluginHistoryQueryApiDto
+  ): ListPluginHistoryCommand {
+    return new ListPluginHistoryCommand(
+      context,
+      query.type ?? 'all',
+      query.limit ?? 50,
+      query.cursor ?? null
+    );
+  }
+
+  toPluginHistoryResponse(page: PluginHistoryPageDto): PluginHistoryPageApiDto {
+    return {
+      items: page.items.map(item => ({
+        id: item.id,
+        occurredAt: item.occurredAt.toISOString(),
+        action: item.action,
+        scope: item.scope,
+        plugin: { ...item.plugin },
+        actor: item.actor ? { ...item.actor } : null,
+        version: item.version,
+      })),
+      nextCursor: page.nextCursor,
+    };
   }
 
   toFindPluginByRepositoryCommand(
