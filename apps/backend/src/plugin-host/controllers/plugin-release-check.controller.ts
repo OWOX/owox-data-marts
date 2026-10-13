@@ -9,7 +9,7 @@ import {
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
 import { CheckPluginReleaseService } from '../use-cases/check-plugin-release.service';
 
-// No PluginHostExceptionFilter: only publishers reach GitHub, so errors keep their detail.
+// No PluginHostExceptionFilter: only callers who may manage the plugin reach GitHub, so errors keep their detail.
 @ApiTags('Plugins')
 @Controller('plugins')
 @RejectPluginAuth()
@@ -25,7 +25,7 @@ export class PluginReleaseCheckController {
   @ApiOperation({
     summary: 'Check a release before publishing it',
     description:
-      'Dry run: reports whether a release from this ref would be accepted, using the same rules as release sync, and records nothing. For deployment publishers and members who manage a publication of the plugin. Uses cached repository identity. Rate-limited per plugin and caller, separately from Check now.',
+      'Dry run: reports whether a release from this ref would be accepted, using the same rules as release sync, and records nothing. For deployment publishers and members who manage a publication of the plugin. Verifies that the repository is still the one the plugin was published from. Rate-limited per plugin and caller, separately from Check now.',
   })
   @ApiOkResponse({ type: PluginReleaseCheckResultApiDto })
   async check(

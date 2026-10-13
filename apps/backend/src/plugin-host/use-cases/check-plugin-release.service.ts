@@ -17,7 +17,7 @@ import { PublicationAuthorizationService } from '../services/publication-authori
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
-import { managesPublicationOf, visibleRepository } from './plugin-publisher-access';
+import { managesPublicationOf } from './plugin-publisher-access';
 
 /** Whether a release from one ref would be accepted, judged by release sync's rules and recorded nowhere. */
 @Injectable()
@@ -50,7 +50,7 @@ export class CheckPluginReleaseService {
     ) {
       throw notFound();
     }
-    this.claimSlot(`${plugin.id}:${command.context.userId}`);
+    this.claimSlot(`${plugin.id}:${command.context.userId || command.context.apiKeyId}`);
 
     const ref = { owner: plugin.repoOwner, name: plugin.repoName };
     if ((await this.githubApi.getRepo(ref)).githubRepoId !== plugin.githubRepoId) {
@@ -63,7 +63,7 @@ export class CheckPluginReleaseService {
     const semver = namedSemver ?? (current ? nextVersionOf(current.semver) : null);
     const identity = {
       pluginId: plugin.id,
-      repository: visibleRepository(plugin, `${ref.owner}/${ref.name}`, isPublisher),
+      repository: `${ref.owner}/${ref.name}`,
       candidateVersion: semver,
     };
 

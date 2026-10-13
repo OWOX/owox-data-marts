@@ -140,10 +140,7 @@ export class PluginReleaseCheckIssueApiDto {
 export class PluginReleaseCheckResultApiDto {
   @ApiProperty() pluginId: string;
 
-  @ApiProperty({
-    description:
-      'Canonical owner/name. For a private repository the name is withheld from anyone but a deployment publisher, as `owner/***`.',
-  })
+  @ApiProperty({ description: 'Canonical owner/name.' })
   repository: string;
 
   @ApiProperty({

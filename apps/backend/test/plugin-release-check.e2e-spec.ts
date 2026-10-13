@@ -190,14 +190,7 @@ describe('Plugin release check (e2e)', () => {
 
   it('lets a member who manages a publication of the plugin check it', async () => {
     const plugin = await seedPlugin();
-    await publications.create({
-      pluginId: plugin.id,
-      scope: PluginPublicationScope.MEMBER,
-      uniquenessKey: `member:${plugin.id}:project-1:manager-1`,
-      projectId: 'project-1',
-      userId: 'manager-1',
-      allProjects: false,
-    });
+    await publishForManager(plugin);
 
     const response = await check(plugin, 'manager').expect(200);
 
@@ -214,20 +207,35 @@ describe('Plugin release check (e2e)', () => {
     expect(second.body).toMatchObject({ code: 'PLUGIN_CHECK_RATE_LIMITED' });
   });
 
-  it('tells the checker how to grant the GitHub App access when the repository is unreadable', async () => {
-    const plugin = await seedPlugin();
-    const installationUrl = 'https://github.com/apps/owox/installations/new';
-    (app.get(GithubApiService).getRepo as jest.Mock).mockRejectedValueOnce(
-      new GithubRepoNotAccessibleError(plugin.repoOwner, plugin.repoName, installationUrl)
-    );
+  it.each(['publisher', 'manager'])(
+    'tells the %s how to grant the GitHub App access when the repository is unreadable',
+    async caller => {
+      const plugin = await seedPlugin();
+      await publishForManager(plugin);
+      const installationUrl = 'https://github.com/apps/owox/installations/new';
+      (app.get(GithubApiService).getRepo as jest.Mock).mockRejectedValueOnce(
+        new GithubRepoNotAccessibleError(plugin.repoOwner, plugin.repoName, installationUrl)
+      );
 
-    const response = await check(plugin, 'publisher').expect(400);
+      const response = await check(plugin, caller).expect(400);
 
-    expect(response.body).toMatchObject({
-      code: 'GITHUB_REPO_NOT_ACCESSIBLE',
-      errorDetails: { installationUrl },
+      expect(response.body).toMatchObject({
+        code: 'GITHUB_REPO_NOT_ACCESSIBLE',
+        errorDetails: { owner: plugin.repoOwner, name: plugin.repoName, installationUrl },
+      });
+    }
+  );
+
+  async function publishForManager(plugin: Plugin): Promise<void> {
+    await publications.create({
+      pluginId: plugin.id,
+      scope: PluginPublicationScope.MEMBER,
+      uniquenessKey: `member:${plugin.id}:project-1:manager-1`,
+      projectId: 'project-1',
+      userId: 'manager-1',
+      allProjects: false,
     });
-  });
+  }
 
   function manifestReadFor(repo: string): boolean {
     const github = app.get(GithubApiService);

@@ -274,13 +274,13 @@ describe('CheckPluginReleaseService', () => {
       });
     });
 
-    it('answers a member who manages a publication, withholding a private name', async () => {
+    it('answers a member who manages a publication with the private name', async () => {
       const s = setup({ plugin: { isPrivateRepo: true } });
       s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
 
       await expect(check(s, { context: MEMBER })).resolves.toMatchObject({
         pluginId: 'p1',
-        repository: 'OWOX/***',
+        repository: 'OWOX/example-plugin',
         commitSha: 'sha-new',
       });
     });
@@ -593,6 +593,18 @@ describe('CheckPluginReleaseService', () => {
 
       await expect(
         check(s, { context: { ...MEMBER, userId: 'u2' } as AuthorizationContext })
+      ).resolves.toMatchObject({ pluginId: 'p1' });
+    });
+
+    it('keys a caller without a member identity by its API key', async () => {
+      const s = setup();
+      s.publications.listManageable.mockResolvedValue([{ pluginId: 'p1' }] as never);
+      await check(s, { context: { projectId: 'j1', apiKeyId: 'key-1' } as AuthorizationContext });
+
+      await expect(
+        check(s, {
+          context: { projectId: 'j1', roles: ['admin'], apiKeyId: 'key-2' } as AuthorizationContext,
+        })
       ).resolves.toMatchObject({ pluginId: 'p1' });
     });
 
