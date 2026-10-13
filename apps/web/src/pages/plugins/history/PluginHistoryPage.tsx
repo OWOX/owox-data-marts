@@ -41,7 +41,7 @@ const EMPTY_STATES: Record<PluginHistoryType, { title: string; subtitle: string 
 /** The member's plugin feed; Restore stays on the latest removal of a plugin still removed. */
 export default function PluginHistoryPage() {
   const [type, setType] = useState<PluginHistoryType>('all');
-  const { events, isLoading, hasMore, isLoadingMore, loadMore } = usePluginHistory(type);
+  const { events, isLoading, isError, hasMore, isLoadingMore, loadMore } = usePluginHistory(type);
   const { installations } = usePluginInstallations(true);
   const { install, isInstalling } = usePluginActions();
   const { scope } = useProjectRoute();
@@ -61,6 +61,12 @@ export default function PluginHistoryPage() {
     }
   }
 
+  // A removal past the loaded pages has no row to carry Restore, so it is listed above the feed.
+  const unlisted =
+    type === 'publications'
+      ? []
+      : [...removed.values()].filter(item => !restoreOn.has(item.pluginId));
+
   /** The server refuses a stale version; the dialog then reopens with the current one. */
   const restore = async (
     target: PluginGalleryEntry,
@@ -76,6 +82,19 @@ export default function PluginHistoryPage() {
   };
 
   const empty = EMPTY_STATES[type];
+
+  const restoreButton = (target: PluginGalleryEntry) => (
+    <Button
+      variant='outline'
+      aria-label={`Restore ${target.displayName}`}
+      disabled={isInstalling || target.suspended || !target.currentVersionId}
+      onClick={() => {
+        setConfirming(target);
+      }}
+    >
+      Restore
+    </Button>
+  );
 
   return (
     <div className='dm-page'>
@@ -117,7 +136,31 @@ export default function PluginHistoryPage() {
 
           {isLoading && <CardSkeleton />}
 
-          {!isLoading && events.length === 0 && !hasMore && (
+          {!isLoading && unlisted.length > 0 && (
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-muted-foreground text-sm font-medium'>
+                Restore a removed plugin
+              </h2>
+              <ul aria-label='Removed plugins' className='divide-y'>
+                {unlisted.map(item => (
+                  <li key={item.pluginId} className='flex items-center gap-3 py-3'>
+                    <Link
+                      to={scope(`/plugins/${item.pluginId}`)}
+                      className='font-medium hover:underline'
+                    >
+                      {item.displayName}
+                    </Link>
+                    <span className='text-muted-foreground min-w-0 flex-1 text-sm'>
+                      Removed {formatDateOnly(item.uninstalledAt)}
+                    </span>
+                    {restoreButton(item)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!isLoading && !isError && events.length === 0 && !hasMore && (
             <div className='dm-empty-state'>
               <History className='dm-empty-state-ico' strokeWidth={1} aria-hidden />
               <h2 className='dm-empty-state-title'>{empty.title}</h2>
@@ -138,17 +181,9 @@ export default function PluginHistoryPage() {
                     event={event}
                     href={scope(`/plugins/${event.plugin.pluginId}`)}
                     action={
-                      target && restoreOn.get(event.plugin.pluginId) === event.id ? (
-                        <Button
-                          variant='outline'
-                          disabled={isInstalling || target.suspended || !target.currentVersionId}
-                          onClick={() => {
-                            setConfirming(target);
-                          }}
-                        >
-                          Restore
-                        </Button>
-                      ) : undefined
+                      target && restoreOn.get(event.plugin.pluginId) === event.id
+                        ? restoreButton(target)
+                        : undefined
                     }
                   />
                 );

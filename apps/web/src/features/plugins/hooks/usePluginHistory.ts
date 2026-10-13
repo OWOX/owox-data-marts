@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../../app/api/apiClient';
 import { apiErrorMessage } from '../../../app/api/extract-api-error.util';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
@@ -24,7 +25,8 @@ export function usePluginHistory(type: PluginHistoryType) {
     });
 
   useEffect(() => {
-    if (isError) {
+    // The API client already toasts most failures; this covers the ones it stays silent on.
+    if (isError && !wasErrorToastShown(error)) {
       toast.error(apiErrorMessage(error, 'Plugin history could not be loaded.'));
     }
   }, [isError, error]);
@@ -34,6 +36,7 @@ export function usePluginHistory(type: PluginHistoryType) {
   return {
     events,
     isLoading,
+    isError,
     hasMore: hasNextPage,
     isLoadingMore: isFetchingNextPage,
     loadMore: () => void fetchNextPage(),

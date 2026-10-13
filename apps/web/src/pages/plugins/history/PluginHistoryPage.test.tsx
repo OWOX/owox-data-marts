@@ -6,6 +6,7 @@ import type { InstalledPlugin, PluginHistoryEvent } from '../../../features/plug
 let installations: InstalledPlugin[] = [];
 let events: PluginHistoryEvent[] = [];
 let hasMore = false;
+let isError = false;
 const loadMore = vi.fn();
 const install = vi.fn();
 const usePluginHistory = vi.fn();
@@ -13,7 +14,7 @@ const usePluginHistory = vi.fn();
 vi.mock('../../../features/plugins', async () => ({
   usePluginHistory: (type: string) => {
     usePluginHistory(type);
-    return { events, isLoading: false, hasMore, isLoadingMore: false, loadMore };
+    return { events, isLoading: false, isError, hasMore, isLoadingMore: false, loadMore };
   },
   usePluginInstallations: () => ({ installations, isLoading: false }),
   usePluginActions: () => ({ install, isInstalling: false }),
@@ -79,6 +80,7 @@ describe('PluginHistoryPage', () => {
     installations = [];
     events = [];
     hasMore = false;
+    isError = false;
   });
 
   it('explains publishing versus installing', () => {
@@ -179,7 +181,7 @@ describe('PluginHistoryPage', () => {
     ];
     renderPage();
 
-    const restores = screen.getAllByRole('button', { name: 'Restore' });
+    const restores = screen.getAllByRole('button', { name: 'Restore Dashboards' });
     expect(restores).toHaveLength(1);
     expect(screen.getAllByRole('listitem')[0]).toContainElement(restores[0]);
   });
@@ -189,7 +191,7 @@ describe('PluginHistoryPage', () => {
     events = [event({ action: 'uninstall' })];
     renderPage();
 
-    expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Restore Dashboards' })).toBeNull();
   });
 
   it('blocks restoring a suspended plugin', () => {
@@ -197,7 +199,7 @@ describe('PluginHistoryPage', () => {
     events = [event({ action: 'uninstall' })];
     renderPage();
 
-    expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Restore Dashboards' })).toBeDisabled();
   });
 
   it('asks before restoring', async () => {
@@ -205,10 +207,50 @@ describe('PluginHistoryPage', () => {
     events = [event({ action: 'uninstall' })];
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Dashboards' }));
 
     expect(await screen.findByText('Install this plugin?')).toBeTruthy();
     expect(install).not.toHaveBeenCalled();
+  });
+
+  it('lists a removal that is not loaded above the feed', async () => {
+    installations = [installation({})];
+    events = [event({ plugin: { pluginId: 'p2', displayName: 'Other', ownerName: 'acme' } })];
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Restore a removed plugin' })).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Removed plugins' }).textContent).toContain(
+      'Dashboards'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Dashboards' }));
+
+    expect(await screen.findByText('Install this plugin?')).toBeTruthy();
+  });
+
+  it('lists no removed plugins under the Publications filter', () => {
+    installations = [installation({})];
+    renderPage();
+    expect(screen.getByRole('list', { name: 'Removed plugins' })).toBeTruthy();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Publications' }));
+
+    expect(screen.queryByRole('list', { name: 'Removed plugins' })).toBeNull();
+  });
+
+  it('keeps a plugin out of the block when its removal is loaded inline', () => {
+    installations = [installation({})];
+    events = [event({ action: 'uninstall' })];
+    renderPage();
+
+    expect(screen.queryByRole('heading', { name: 'Restore a removed plugin' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Restore Dashboards' })).toHaveLength(1);
+  });
+
+  it('shows no empty state when the history failed to load', () => {
+    isError = true;
+    renderPage();
+
+    expect(screen.queryByText('No plugin history yet')).toBeNull();
   });
 
   it('loads more on request', () => {

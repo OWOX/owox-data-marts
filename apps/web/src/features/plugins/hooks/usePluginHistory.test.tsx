@@ -8,11 +8,13 @@ vi.mock('react-hot-toast', () => {
   const toast = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
   return { default: toast };
 });
+vi.mock('../../../app/api/apiClient', () => ({ wasErrorToastShown: vi.fn(() => false) }));
 vi.mock('../services/plugins.service', () => ({
   pluginsService: { getHistory: vi.fn() },
 }));
 
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../../app/api/apiClient';
 import { pluginsService } from '../services/plugins.service';
 import type { PluginHistoryEvent } from '../types';
 import { usePluginHistory } from './usePluginHistory';
@@ -64,10 +66,23 @@ describe('usePluginHistory', () => {
       response: { data: { message: 'History is unavailable' } },
     });
 
-    renderHook(() => usePluginHistory('installations'), { wrapper });
+    const { result } = renderHook(() => usePluginHistory('installations'), { wrapper });
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('History is unavailable');
     });
+    expect(result.current.isError).toBe(true);
+  });
+
+  it('does not toast again when the API client already did', async () => {
+    vi.mocked(wasErrorToastShown).mockReturnValueOnce(true);
+    vi.mocked(pluginsService.getHistory).mockRejectedValue(new Error('boom'));
+
+    const { result } = renderHook(() => usePluginHistory('all'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });
