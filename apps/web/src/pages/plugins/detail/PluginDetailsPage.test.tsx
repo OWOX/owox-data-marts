@@ -142,7 +142,7 @@ describe('PluginDetailsPage', () => {
     publications = [];
     installations = [];
     publishableScopes = ['member'];
-    publish.mockResolvedValue(null);
+    publish.mockResolvedValue({ failure: null, pluginId: 'p1' });
     install.mockResolvedValue(null);
     uninstall.mockResolvedValue(undefined);
     unpublish.mockResolvedValue(undefined);
@@ -412,7 +412,7 @@ describe('PluginDetailsPage', () => {
   it('keeps the personal listing when sharing fails', async () => {
     publishableScopes = ['project', 'member'];
     publications = [publication({ scope: 'member' })];
-    publish.mockResolvedValue({ message: 'Nope' });
+    publish.mockResolvedValue({ failure: { message: 'Nope' } });
     renderPage();
     openMenu();
 

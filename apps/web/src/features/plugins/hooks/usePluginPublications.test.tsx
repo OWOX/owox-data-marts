@@ -23,6 +23,7 @@ import {
   usePluginPublishing,
   usePublishableScopes,
   type PublishFailure,
+  type PublishOutcome,
 } from './usePluginPublications';
 
 const publish = vi.mocked(pluginsService.publish);
@@ -72,15 +73,16 @@ describe('usePluginPublishing', () => {
     getInstallations.mockResolvedValue([]);
   });
 
-  it('reports success as no failure at all', async () => {
+  // Publish & Install opens the plugin it just published, so success carries its id.
+  it('reports success with the published plugin and no failure', async () => {
     const { result } = renderHook(() => usePluginPublishing(), { wrapper });
 
-    const captured: { failure?: PublishFailure | null } = {};
+    const captured: { outcome?: PublishOutcome } = {};
     await act(async () => {
-      captured.failure = await result.current.publish('OWOX/example', 'member');
+      captured.outcome = await result.current.publish('OWOX/example', 'member');
     });
 
-    expect(captured.failure).toBeNull();
+    expect(captured.outcome).toEqual({ failure: null, pluginId: 'p1' });
     expect(publish).toHaveBeenCalledWith({ repository: 'OWOX/example', scope: 'member' });
   });
 
@@ -194,9 +196,9 @@ describe('usePluginPublishing', () => {
 
     const captured: { failure?: PublishFailure | null } = {};
     await act(async () => {
-      captured.failure = await result.current.publish('OWOX/example', 'member', {
-        mentionInstalled: true,
-      });
+      captured.failure = (
+        await result.current.publish('OWOX/example', 'member', { mentionInstalled: true })
+      ).failure;
     });
 
     expect(captured.failure).toBeNull();
@@ -219,7 +221,7 @@ describe('usePluginPublishing', () => {
 
     const captured: { failure?: PublishFailure | null } = {};
     await act(async () => {
-      captured.failure = await result.current.publish('OWOX/example', 'member');
+      captured.failure = (await result.current.publish('OWOX/example', 'member')).failure;
     });
 
     expect(captured.failure?.installationUrl).toBe(
@@ -235,7 +237,7 @@ describe('usePluginPublishing', () => {
 
     const captured: { failure?: PublishFailure | null } = {};
     await act(async () => {
-      captured.failure = await result.current.publish('OWOX/example', 'project');
+      captured.failure = (await result.current.publish('OWOX/example', 'project')).failure;
     });
 
     expect(captured.failure?.installationUrl).toBeUndefined();

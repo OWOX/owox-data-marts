@@ -180,7 +180,7 @@ export default function PluginDetailsPage({
       return;
     }
 
-    const failure = await publish(memberPublication.repository, 'project');
+    const { failure } = await publish(memberPublication.repository, 'project');
     if (failure) {
       return;
     }

@@ -1,11 +1,19 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const publish = vi.fn();
+const navigate = vi.fn();
 
 vi.mock('../hooks/usePluginPublications', () => ({
   usePublishableScopes: () => ['project', 'member'],
   usePluginPublishing: () => ({ publish, isPublishing: false }),
+}));
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<typeof import('react-router')>('react-router');
+  return { ...actual, useNavigate: () => navigate };
+});
+vi.mock('../../../shared/hooks/useProjectRoute', () => ({
+  useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
 
 import { PublishPluginSheet } from './PublishPluginSheet';
@@ -13,7 +21,8 @@ import { PublishPluginSheet } from './PublishPluginSheet';
 describe('PublishPluginSheet', () => {
   beforeEach(() => {
     publish.mockReset();
-    publish.mockResolvedValue(null);
+    navigate.mockReset();
+    publish.mockResolvedValue({ failure: null, pluginId: 'p1' });
   });
 
   /**
@@ -50,14 +59,16 @@ describe('PublishPluginSheet', () => {
     expect(document.querySelectorAll('form')).toHaveLength(1);
   });
 
-  it('publishes the typed repository instead of submitting natively', async () => {
+  // A published plugin nobody installed is missing from the menu, which is why publishing
+  // installs by default: the open route offers the install, then runs the plugin.
+  it('publishes the typed repository and opens it for installing', async () => {
     const onClose = vi.fn();
     render(<PublishPluginSheet isOpen onClose={onClose} />);
 
     fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
       target: { value: 'romandubovyi/owox-plugin-example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish & Install' }));
 
     await waitFor(() => {
       expect(publish).toHaveBeenCalledWith('romandubovyi/owox-plugin-example', 'project', {
@@ -65,12 +76,47 @@ describe('PublishPluginSheet', () => {
       });
     });
     expect(onClose).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1/open');
+  });
+
+  it('publishes without installing from Publish only', async () => {
+    const onClose = vi.fn();
+    render(<PublishPluginSheet isOpen onClose={onClose} />);
+
+    fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
+      target: { value: 'OWOX/import-model' },
+    });
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More publish options' }));
+    fireEvent.click(await within(document.body).findByText('Publish only'));
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+    expect(publish).toHaveBeenCalledWith('OWOX/import-model', 'project', {
+      mentionInstalled: true,
+    });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('stays on the sheet with the reason when publishing fails', async () => {
+    publish.mockResolvedValue({ failure: { message: 'OWOX cannot read OWOX/import-model' } });
+    const onClose = vi.fn();
+    render(<PublishPluginSheet isOpen onClose={onClose} />);
+
+    fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
+      target: { value: 'OWOX/import-model' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish & Install' }));
+
+    expect(await screen.findByText('OWOX cannot read OWOX/import-model')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   // The request settles before publish does -- it still looks up whether the member already
   // has the plugin -- so the button must stay disabled until the sheet closes.
   it('keeps Publish disabled until publishing has fully finished', async () => {
-    let finish: (value: null) => void = () => undefined;
+    let finish: (value: unknown) => void = () => undefined;
     publish.mockReturnValue(new Promise(resolve => (finish = resolve)));
     const onClose = vi.fn();
     render(<PublishPluginSheet isOpen onClose={onClose} />);
@@ -78,7 +124,7 @@ describe('PublishPluginSheet', () => {
     fireEvent.change(screen.getByPlaceholderText('OWOX/example-plugin'), {
       target: { value: 'OWOX/import-model' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish & Install' }));
 
     const pending = await screen.findByRole('button', { name: 'Publishing…' });
     expect((pending as HTMLButtonElement).disabled).toBe(true);
@@ -86,7 +132,7 @@ describe('PublishPluginSheet', () => {
     expect(publish).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      finish(null);
+      finish({ failure: null, pluginId: 'p1' });
     });
     expect(onClose).toHaveBeenCalled();
   });

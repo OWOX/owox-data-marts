@@ -73,6 +73,8 @@ export interface PublishFailure {
   installationUrl?: string;
 }
 
+export type PublishOutcome = { failure: null; pluginId: string } | { failure: PublishFailure };
+
 export function usePluginPublishing() {
   const queryClient = useQueryClient();
   const projectId = useProjectId();
@@ -147,7 +149,7 @@ export function usePluginPublishing() {
       repository: string,
       scope: PluginPublicationScope,
       { mentionInstalled = false }: { mentionInstalled?: boolean } = {}
-    ): Promise<PublishFailure | null> => {
+    ): Promise<PublishOutcome> => {
       try {
         const publication = await publishMutation.mutateAsync({ repository, scope });
         const installed = mentionInstalled
@@ -160,9 +162,9 @@ export function usePluginPublishing() {
             ? `Plugin published. You already have ${installed.displayName} installed.`
             : 'Plugin published'
         );
-        return null;
+        return { failure: null, pluginId: publication.pluginId };
       } catch (caught) {
-        return readPublishFailure(caught);
+        return { failure: readPublishFailure(caught) };
       }
     },
     [publishMutation, findActiveInstallation]

@@ -688,8 +688,9 @@ pin an older version.
 
 ## Publish and install
 
-Publishing makes a plugin findable but installs it for nobody. Every member decides whether to
-install it, and unpublishing later does not uninstall existing installations.
+Publishing makes a plugin findable. **Publish & Install** also installs it for you; every other
+member decides whether to install it, and unpublishing later does not uninstall existing
+installations.
 
 ### Publish in OWOX Data Marts
 
@@ -698,10 +699,12 @@ install it, and unpublishing later does not uninstall existing installations.
 3. Enter `OWNER/PLUGIN_NAME` in **GitHub repository**.
 4. Under **Who can find it**, choose **Only me** for testing. A Project Admin can choose
    **Everyone in this project** after the plugin is ready.
-5. Publish the plugin, find it in the Gallery, select it, and confirm installation.
+5. Select **Publish & Install** and confirm installation. The plugin opens and appears in your
+   menu. To publish without installing, select **Publish only** from the button's menu.
 
 Publishing a plugin you have already installed changes only who can find it. The confirmation says
-that you already have it installed, and your installation stays as it is.
+that you already have it installed, your installation stays as it is, and **Publish & Install**
+opens the plugin.
 
 For an agent or script, use the already configured [`owox-ctl`](../api/owox-ctl.md):
 
