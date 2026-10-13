@@ -7,6 +7,8 @@ let installations: InstalledPlugin[] = [];
 let events: PluginHistoryEvent[] = [];
 let hasMore = false;
 let isError = false;
+let installationsError = false;
+const retry = vi.fn();
 const loadMore = vi.fn();
 const install = vi.fn();
 const usePluginHistory = vi.fn();
@@ -14,9 +16,13 @@ const usePluginHistory = vi.fn();
 vi.mock('../../../features/plugins', async () => ({
   usePluginHistory: (type: string) => {
     usePluginHistory(type);
-    return { events, isLoading: false, isError, hasMore, isLoadingMore: false, loadMore };
+    return { events, isLoading: false, isError, hasMore, isLoadingMore: false, loadMore, retry };
   },
-  usePluginInstallations: () => ({ installations, isLoading: false }),
+  usePluginInstallations: () => ({
+    installations,
+    isLoading: false,
+    isError: installationsError,
+  }),
   usePluginActions: () => ({ install, isInstalling: false }),
   InstallPluginDialog: (
     await vi.importActual<
@@ -81,6 +87,7 @@ describe('PluginHistoryPage', () => {
     events = [];
     hasMore = false;
     isError = false;
+    installationsError = false;
   });
 
   it('explains publishing versus installing', () => {
@@ -91,10 +98,11 @@ describe('PluginHistoryPage', () => {
   });
 
   it.each([
-    [event({ action: 'install' }), 'You installed Dashboards'],
-    [event({ action: 'restore' }), 'You restored Dashboards'],
-    [event({ action: 'uninstall' }), 'You removed Dashboards'],
+    ['install', event({ action: 'install' }), 'You installed Dashboards'],
+    ['restore', event({ action: 'restore' }), 'You restored Dashboards'],
+    ['uninstall', event({ action: 'uninstall' }), 'You removed Dashboards'],
     [
+      'project publish by a member',
       event({
         action: 'publish',
         scope: 'project',
@@ -103,18 +111,22 @@ describe('PluginHistoryPage', () => {
       'Max Voloshyn published Dashboards for the project',
     ],
     [
+      'project unpublish by you',
       event({ action: 'unpublish', scope: 'project', actor: { kind: 'you' } }),
       'You unpublished Dashboards for the project',
     ],
     [
+      'member publish',
       event({ action: 'publish', scope: 'member', actor: { kind: 'you' } }),
       'You published Dashboards for yourself',
     ],
     [
+      'deployment unpublish',
       event({ action: 'unpublish', scope: 'deployment', actor: { kind: 'deployment' } }),
       'Dashboards: Verified listing changed',
     ],
     [
+      'update by a member',
       event({
         action: 'update',
         actor: { kind: 'member', name: 'Max Voloshyn' },
@@ -122,16 +134,27 @@ describe('PluginHistoryPage', () => {
       }),
       'Dashboards updated to v1.2.0 by Max Voloshyn',
     ],
-    [event({ action: 'update', actor: null, version: '1.2.0' }), 'Dashboards updated to v1.2.0'],
     [
+      'update by you',
+      event({ action: 'update', actor: { kind: 'you' }, version: '1.2.0' }),
+      'Dashboards updated to v1.2.0 by you',
+    ],
+    [
+      'update by an unknown actor',
+      event({ action: 'update', actor: null, version: '1.2.0' }),
+      'Dashboards updated to v1.2.0',
+    ],
+    [
+      'suspend',
       event({ action: 'suspend', actor: { kind: 'deployment' } }),
       'Dashboards was suspended by the deployment administrator',
     ],
     [
+      'resume',
       event({ action: 'resume', actor: { kind: 'deployment' } }),
       'Dashboards was resumed by the deployment administrator',
     ],
-  ])('describes %#', (item, sentence) => {
+  ])('describes $0', (_label, item, sentence) => {
     events = [item];
     renderPage();
 
@@ -202,6 +225,24 @@ describe('PluginHistoryPage', () => {
     expect(screen.getByRole('button', { name: 'Restore Dashboards' })).toBeDisabled();
   });
 
+  it('badges a suspended plugin as unavailable next to its disabled Restore', () => {
+    installations = [installation({ suspended: true })];
+    events = [event({ action: 'uninstall' })];
+    renderPage();
+
+    const restore = screen.getByRole('button', { name: 'Restore Dashboards' });
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(restore).toBeDisabled();
+  });
+
+  it('disables Restore for a removed plugin with no current version', () => {
+    installations = [installation({ currentVersionId: null })];
+    events = [event({ action: 'uninstall' })];
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Restore Dashboards' })).toBeDisabled();
+  });
+
   it('asks before restoring', async () => {
     installations = [installation({})];
     events = [event({ action: 'uninstall' })];
@@ -251,6 +292,46 @@ describe('PluginHistoryPage', () => {
     renderPage();
 
     expect(screen.queryByText('No plugin history yet')).toBeNull();
+  });
+
+  it('offers a retry when the first load failed', () => {
+    isError = true;
+    renderPage();
+
+    expect(screen.getByText('Plugin history could not be loaded.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(retry).toHaveBeenCalled();
+  });
+
+  it('says why Restore is missing when installations failed to load', () => {
+    installationsError = true;
+    const note = 'Restore is unavailable because your installations could not be loaded.';
+    renderPage();
+    expect(screen.getByText(note)).toBeTruthy();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Publications' }));
+
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('shows the removed-plugin block under the Installations filter', () => {
+    installations = [installation({})];
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Installations' }));
+
+    expect(screen.getByRole('heading', { name: 'Restore a removed plugin' })).toBeTruthy();
+  });
+
+  it('shows the Installations and Publications empty states', () => {
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Installations' }));
+    expect(screen.getByText('Nothing installed yet')).toBeTruthy();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Publications' }));
+    expect(screen.getByText('Nothing published yet')).toBeTruthy();
   });
 
   it('loads more on request', () => {

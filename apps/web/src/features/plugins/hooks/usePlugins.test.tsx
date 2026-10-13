@@ -251,6 +251,22 @@ describe('usePluginActions', () => {
     expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-publications', 'project-1'] });
   });
 
+  it('resets the history after an uninstall instead of refetching every loaded page', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const reset = vi.spyOn(client, 'resetQueries');
+    const { result } = renderHook(() => usePluginActions(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.uninstall('p1');
+    });
+
+    expect(reset).toHaveBeenCalledWith({ queryKey: ['plugin-history', 'project-1'] });
+  });
+
   // A publisher whose fresh check rejected a release must not read "you're up to date":
   // that is the original silence this feature removes. The response carries diagnostics
   // only for publishers, so ordinary members keep the plain message.

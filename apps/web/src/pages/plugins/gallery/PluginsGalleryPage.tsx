@@ -154,8 +154,7 @@ export default function PluginsGalleryPage() {
             <Plus className='size-4' aria-hidden /> Publish Plugin
           </Button>
 
-          {/* History is a recovery path, not a routine one, so it sits behind the menu
-              rather than competing with the only action that adds a plugin. */}
+          {/* History sits behind the menu so it does not compete with the only action that adds a plugin. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='icon' aria-label='More plugin actions'>

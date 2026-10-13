@@ -1,6 +1,6 @@
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
-import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { ArrowLeft, History } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -34,15 +34,17 @@ const EMPTY_STATES: Record<PluginHistoryType, { title: string; subtitle: string 
   },
   publications: {
     title: 'Nothing published yet',
-    subtitle: 'When someone publishes a plugin for this project or for you, it appears here.',
+    subtitle:
+      'Publications for this project, your own publications, and Verified listing changes appear here.',
   },
 };
 
 /** The member's plugin feed; Restore stays on the latest removal of a plugin still removed. */
 export default function PluginHistoryPage() {
   const [type, setType] = useState<PluginHistoryType>('all');
-  const { events, isLoading, isError, hasMore, isLoadingMore, loadMore } = usePluginHistory(type);
-  const { installations } = usePluginInstallations(true);
+  const { events, isLoading, isError, hasMore, isLoadingMore, loadMore, retry } =
+    usePluginHistory(type);
+  const { installations, isError: installationsFailed } = usePluginInstallations(true);
   const { install, isInstalling } = usePluginActions();
   const { scope } = useProjectRoute();
   const navigate = useNavigate();
@@ -84,16 +86,19 @@ export default function PluginHistoryPage() {
   const empty = EMPTY_STATES[type];
 
   const restoreButton = (target: PluginGalleryEntry) => (
-    <Button
-      variant='outline'
-      aria-label={`Restore ${target.displayName}`}
-      disabled={isInstalling || target.suspended || !target.currentVersionId}
-      onClick={() => {
-        setConfirming(target);
-      }}
-    >
-      Restore
-    </Button>
+    <>
+      {target.suspended && <Badge variant='destructive'>Unavailable</Badge>}
+      <Button
+        variant='outline'
+        aria-label={`Restore ${target.displayName}`}
+        disabled={isInstalling || target.suspended || !target.currentVersionId}
+        onClick={() => {
+          setConfirming(target);
+        }}
+      >
+        Restore
+      </Button>
+    </>
   );
 
   return (
@@ -132,75 +137,94 @@ export default function PluginHistoryPage() {
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            <TabsContent value={type} className='flex flex-col gap-4'>
+              {installationsFailed && type !== 'publications' && (
+                <p className='text-muted-foreground text-sm'>
+                  Restore is unavailable because your installations could not be loaded.
+                </p>
+              )}
+
+              {isLoading && <CardSkeleton />}
+
+              {!isLoading && unlisted.length > 0 && (
+                <div className='flex flex-col gap-2'>
+                  <h2 className='text-muted-foreground text-sm font-medium'>
+                    Restore a removed plugin
+                  </h2>
+                  <ul aria-label='Removed plugins' className='divide-y'>
+                    {unlisted.map(item => (
+                      <li key={item.pluginId} className='flex items-center gap-3 py-3'>
+                        <Link
+                          to={scope(`/plugins/${item.pluginId}`)}
+                          className='font-medium hover:underline'
+                        >
+                          {item.displayName}
+                        </Link>
+                        <span className='text-muted-foreground min-w-0 flex-1 text-sm'>
+                          Removed {formatDateOnly(item.uninstalledAt)}
+                        </span>
+                        {restoreButton(item)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {isError && events.length === 0 && (
+                <div className='flex flex-col items-start gap-2'>
+                  <p className='text-muted-foreground text-sm'>
+                    Plugin history could not be loaded.
+                  </p>
+                  <Button variant='outline' onClick={retry}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+
+              {!isLoading && !isError && events.length === 0 && !hasMore && (
+                <div className='dm-empty-state'>
+                  <History className='dm-empty-state-ico' strokeWidth={1} aria-hidden />
+                  <h2 className='dm-empty-state-title'>{empty.title}</h2>
+                  <p className='dm-empty-state-subtitle'>{empty.subtitle}</p>
+                  <Button asChild variant='outline'>
+                    <Link to={scope('/plugins')}>Browse plugins</Link>
+                  </Button>
+                </div>
+              )}
+
+              {!isLoading && events.length > 0 && (
+                <ul className='divide-y' aria-label='Plugin history'>
+                  {events.map(event => {
+                    const target = removed.get(event.plugin.pluginId);
+                    return (
+                      <HistoryRow
+                        key={event.id}
+                        event={event}
+                        href={scope(`/plugins/${event.plugin.pluginId}`)}
+                        action={
+                          target && restoreOn.get(event.plugin.pluginId) === event.id
+                            ? restoreButton(target)
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+                </ul>
+              )}
+
+              {hasMore && (
+                <Button
+                  variant='outline'
+                  className='self-center'
+                  disabled={isLoadingMore}
+                  onClick={loadMore}
+                >
+                  Show more
+                </Button>
+              )}
+            </TabsContent>
           </Tabs>
-
-          {isLoading && <CardSkeleton />}
-
-          {!isLoading && unlisted.length > 0 && (
-            <div className='flex flex-col gap-2'>
-              <h2 className='text-muted-foreground text-sm font-medium'>
-                Restore a removed plugin
-              </h2>
-              <ul aria-label='Removed plugins' className='divide-y'>
-                {unlisted.map(item => (
-                  <li key={item.pluginId} className='flex items-center gap-3 py-3'>
-                    <Link
-                      to={scope(`/plugins/${item.pluginId}`)}
-                      className='font-medium hover:underline'
-                    >
-                      {item.displayName}
-                    </Link>
-                    <span className='text-muted-foreground min-w-0 flex-1 text-sm'>
-                      Removed {formatDateOnly(item.uninstalledAt)}
-                    </span>
-                    {restoreButton(item)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {!isLoading && !isError && events.length === 0 && !hasMore && (
-            <div className='dm-empty-state'>
-              <History className='dm-empty-state-ico' strokeWidth={1} aria-hidden />
-              <h2 className='dm-empty-state-title'>{empty.title}</h2>
-              <p className='dm-empty-state-subtitle'>{empty.subtitle}</p>
-              <Button asChild variant='outline'>
-                <Link to={scope('/plugins')}>Browse plugins</Link>
-              </Button>
-            </div>
-          )}
-
-          {!isLoading && events.length > 0 && (
-            <ul className='divide-y' aria-label='Plugin history'>
-              {events.map(event => {
-                const target = removed.get(event.plugin.pluginId);
-                return (
-                  <HistoryRow
-                    key={event.id}
-                    event={event}
-                    href={scope(`/plugins/${event.plugin.pluginId}`)}
-                    action={
-                      target && restoreOn.get(event.plugin.pluginId) === event.id
-                        ? restoreButton(target)
-                        : undefined
-                    }
-                  />
-                );
-              })}
-            </ul>
-          )}
-
-          {hasMore && (
-            <Button
-              variant='outline'
-              className='self-center'
-              disabled={isLoadingMore}
-              onClick={loadMore}
-            >
-              Show more
-            </Button>
-          )}
         </div>
       </div>
 
@@ -213,7 +237,10 @@ export default function PluginHistoryPage() {
               setConfirming(null);
             }
           }}
-          onConfirm={credentialSelections => void restore(confirming, credentialSelections)}
+          onConfirm={credentialSelections => {
+            // install has already shown the failure.
+            void restore(confirming, credentialSelections).catch(() => undefined);
+          }}
           isInstalling={isInstalling}
         />
       )}

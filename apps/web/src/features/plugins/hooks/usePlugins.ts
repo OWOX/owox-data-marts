@@ -99,7 +99,8 @@ export function usePluginActions() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [GALLERY_KEY, projectId] }),
       queryClient.invalidateQueries({ queryKey: [INSTALLATIONS_KEY, projectId] }),
-      queryClient.invalidateQueries({ queryKey: [HISTORY_KEY, projectId] }),
+      // Reset, not invalidate: a refetch would reload every loaded page, each an audit scan.
+      queryClient.resetQueries({ queryKey: [HISTORY_KEY, projectId] }),
     ]);
   }, [queryClient, projectId]);
 

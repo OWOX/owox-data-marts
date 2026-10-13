@@ -13,16 +13,24 @@ const EMPTY: PluginHistoryEvent[] = [];
 export function usePluginHistory(type: PluginHistoryType) {
   const projectId = useProjectId();
 
-  const { data, isLoading, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteQuery({
-      queryKey: [HISTORY_KEY, projectId, type],
-      queryFn: ({ pageParam }) => pluginsService.getHistory(type, pageParam),
-      initialPageParam: undefined as string | undefined,
-      getNextPageParam: last => last.nextCursor ?? undefined,
-      enabled: Boolean(projectId),
-      retry: false,
-      refetchOnWindowFocus: false,
-    });
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: [HISTORY_KEY, projectId, type],
+    queryFn: ({ pageParam }) => pluginsService.getHistory(type, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: last => last.nextCursor ?? undefined,
+    enabled: Boolean(projectId),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     // The API client already toasts most failures; this covers the ones it stays silent on.
@@ -40,5 +48,6 @@ export function usePluginHistory(type: PluginHistoryType) {
     hasMore: hasNextPage,
     isLoadingMore: isFetchingNextPage,
     loadMore: () => void fetchNextPage(),
+    retry: () => void refetch(),
   };
 }

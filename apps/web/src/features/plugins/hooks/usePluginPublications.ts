@@ -86,7 +86,7 @@ export function usePluginPublishing() {
       // Installation rows say why each plugin is visible as well, and the Plugins page draws
       // a plugin nothing lists any more from them.
       queryClient.invalidateQueries({ queryKey: [INSTALLATIONS_KEY, projectId] }),
-      queryClient.invalidateQueries({ queryKey: [HISTORY_KEY, projectId] }),
+      queryClient.resetQueries({ queryKey: [HISTORY_KEY, projectId] }),
     ]);
   }, [queryClient, projectId]);
 
