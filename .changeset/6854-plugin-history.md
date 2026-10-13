@@ -11,6 +11,10 @@ Installation history is now **Plugin history**, one list, newest first, of what 
 - Installations stay personal: other members do not see yours.
 - Open it from **Plugins** → **⋮** → **Plugin history**. The API is `GET /api/plugins/history`.
 
+The video opens Plugin history from **Plugins**, filters the list, and restores a removed plugin:
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/8a183ccd6832e4ec4344934667e7a10a/iframe>
+
 See [Plugin history](../../docs/plugins/authoring-guide.md#plugin-history).
 
 <!-- markdownlint-disable-file MD041 MD036 -->
