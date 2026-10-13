@@ -225,6 +225,20 @@ describeIfAvailable('Plugin history (integration, MySQL)', () => {
     expect(ids).toEqual(expect.arrayContaining([projectPublish, deploymentPublish]));
   });
 
+  it('answers a viewer with no relevant plugins without an empty IN ()', async () => {
+    await seed();
+
+    const rows = await audit.findHistory({
+      ...(await query({})),
+      userId: 'nobody',
+      projectId: 'P9',
+      deploymentPluginIds: [],
+      relevantPluginIds: [],
+    });
+
+    expect(rows).toEqual([]);
+  });
+
   it('finds both publications through findEverVisibleTo', async () => {
     const { project, deployment } = await seed();
 

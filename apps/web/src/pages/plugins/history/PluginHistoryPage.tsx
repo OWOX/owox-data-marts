@@ -125,6 +125,7 @@ export default function PluginHistoryPage() {
       <div className='dm-page-content'>
         <div className='dm-card flex flex-col gap-4'>
           <Tabs
+            className='gap-4'
             value={type}
             onValueChange={value => {
               setType(value as PluginHistoryType);
