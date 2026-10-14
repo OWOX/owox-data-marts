@@ -3,6 +3,25 @@ th > img {
   display: inline-block;
 }
 
+/* Keep heading images inline, shrinking raster images without enlarging them. */
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) img {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  max-height: 1.2em;
+  vertical-align: middle;
+}
+
+/* SVGs stay sharp at any size; preserve the GitHub icon-to-heading proportions. */
+.sl-markdown-content
+  :is(h1, h2, h3, h4, h5, h6)
+  img:is([src$='.svg' i], [src*='.svg?' i], [src*='.svg#' i], [src^='data:image/svg+xml' i]):not(
+    [srcset]
+  ):not(picture img) {
+  height: 1.2em;
+  vertical-align: text-top;
+}
+
 /* Changelog entry anchors, added by scripts/rehype-changelog-entry-anchors.js */
 .sl-markdown-content .changelog-entry-anchor {
   --sl-anchor-icon-size: 0.8275em;
