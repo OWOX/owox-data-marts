@@ -30,13 +30,13 @@ test('rewrites img src and reports the copy', () => {
   ]);
 });
 
-test('rewrites picture source srcset and img src', () => {
+test('rewrites source srcset and img src of a non-theme picture', () => {
   const r = run(
-    '<picture><source media="(prefers-color-scheme: dark)" srcset="./docs/res/dark.svg"><img alt="x" src="./docs/res/light.svg"></picture>'
+    '<picture><source media="(min-width: 1px)" srcset="./docs/res/dark.svg"><img alt="x" src="./docs/res/light.svg"></picture>'
   );
   assert.equal(
     r.content,
-    '<picture><source media="(prefers-color-scheme: dark)" srcset="/docs/res/dark.svg"><img alt="x" src="/docs/res/light.svg"></picture>'
+    '<picture><source media="(min-width: 1px)" srcset="/docs/res/dark.svg"><img alt="x" src="/docs/res/light.svg"></picture>'
   );
   assert.equal(r.copies.length, 2);
 });
@@ -119,4 +119,95 @@ test('publishes files outside docs/ under _repo/', () => {
   assert.deepEqual(r.copies, [
     { from: '/repo/packages/x/pic.png', publicPath: '_repo/packages/x/pic.png' },
   ]);
+});
+
+const README_PICTURE = [
+  '<p align="center">',
+  '  <picture>',
+  '    <source media="(prefers-color-scheme: dark)" srcset="./docs/res/dark.svg">',
+  '    <img alt="Arch" width="100" src="./docs/res/light.svg">',
+  '  </picture>',
+  '</p>',
+].join('\n');
+
+test('splits a theme picture into two classed imgs with public URLs', () => {
+  const r = run(README_PICTURE);
+  assert.equal(
+    r.content,
+    [
+      '<p align="center">',
+      '  <img class="dark:sl-hidden" alt="Arch" width="100" src="/docs/res/light.svg">',
+      '  <img class="light:sl-hidden" alt="Arch" width="100" src="/docs/res/dark.svg">',
+      '</p>',
+    ].join('\n')
+  );
+  assert.deepEqual(r.copies.map(c => c.publicPath).sort(), [
+    'docs/res/dark.svg',
+    'docs/res/light.svg',
+  ]);
+});
+
+test('appends to an existing class and keeps its quote style', () => {
+  const r = run(
+    "<picture><source media='(prefers-color-scheme: dark)' srcset='./docs/res/dark.svg'><img class='x' src='./docs/res/light.svg'></picture>"
+  );
+  assert.equal(
+    r.content,
+    "<img class='x dark:sl-hidden' src='/docs/res/light.svg'>\n<img class='x light:sl-hidden' src='/docs/res/dark.svg'>"
+  );
+});
+
+test('accepts the media query without a space and keeps img srcset on the original only', () => {
+  const r = run(
+    "<picture><source media='(prefers-color-scheme:dark)' srcset='./docs/res/dark.svg 1x, ./docs/res/light@2x.svg 2x'><img src='./docs/res/light.svg' srcset='./docs/res/light@2x.svg 2x'></picture>"
+  );
+  assert.equal(
+    r.content,
+    "<img class=\"dark:sl-hidden\" src='/docs/res/light.svg' srcset='/docs/res/light@2x.svg 2x'>\n<img class=\"light:sl-hidden\" src='/docs/res/dark.svg'>"
+  );
+});
+
+test('leaves a picture with a non-theme media query as a picture', () => {
+  const r = run(
+    '<picture><source media="(min-width: 600px)" srcset="./docs/res/dark.svg"><img src="./docs/res/light.svg"></picture>'
+  );
+  assert.equal(
+    r.content,
+    '<picture><source media="(min-width: 600px)" srcset="/docs/res/dark.svg"><img src="/docs/res/light.svg"></picture>'
+  );
+});
+
+test('does not split a theme picture inside a fenced block or inline code', () => {
+  const html = [
+    '```html',
+    README_PICTURE,
+    '```',
+    'Use `<picture><source media="(prefers-color-scheme: dark)" srcset="./a.svg"><img src="./b.svg"></picture>` here',
+  ].join('\n');
+  assert.equal(run(html).content, html);
+});
+
+test('does not take a comment that names <picture> for the start of one', () => {
+  const content = [
+    '<!-- markdownlint-disable MD033 -- <img> and <picture> give the icons -->',
+    '',
+    'Intro text that must survive.',
+    '',
+    '<picture>',
+    '  <source media="(prefers-color-scheme: dark)" srcset="./docs/res/dark.svg">',
+    '  <img alt="x" src="./docs/res/light.svg">',
+    '</picture>',
+  ].join('\n');
+  const r = run(content);
+  assert.equal(
+    r.content,
+    [
+      '<!-- markdownlint-disable MD033 -- <img> and <picture> give the icons -->',
+      '',
+      'Intro text that must survive.',
+      '',
+      '<img class="dark:sl-hidden" alt="x" src="/docs/res/light.svg">',
+      '<img class="light:sl-hidden" alt="x" src="/docs/res/dark.svg">',
+    ].join('\n')
+  );
 });
