@@ -1,96 +1,70 @@
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
-import {
-  BackfillDateRange,
-  countBackfillSegments,
-  getBackfillSegmentIndex,
-} from '../../utils/manual-backfill-range';
+import { BackfillChainMeta, BackfillDateRange } from '../../utils/manual-backfill-range';
 
-/** Run-log metric the web UI reads to show segment progress of a long manual backfill. */
+/** Run-log metric the web UI reads to show which backfill segment a run is. */
 export const BACKFILL_SEGMENT_METRIC = 'backfill_segment';
 
-/** What one configuration contributed to a backfill attempt. */
-export interface BackfillConfigOutcome {
-  /** The window the connector was asked for; absent when the configuration was not spawned. */
-  readonly window?: BackfillDateRange;
-  /** The last day loaded for the configuration across all attempts; absent when none was. */
-  readonly loadedThrough?: string;
-  /** The configuration succeeded and still has days of the requested period to load. */
-  readonly hasRemainingWork: boolean;
-}
+export type SegmentMarkerPhase = 'started' | 'completed' | 'failed';
 
-export interface BackfillSegmentSummary {
-  readonly requested: BackfillDateRange;
-  readonly segmentStart: string;
-  readonly segmentEnd: string;
-  readonly segmentIndex: number;
-  readonly segmentsTotal: number;
-  /** The last day loaded by every configuration; absent when any of them has loaded none. */
+export interface SegmentMarkerOutcome {
+  /** The last day every configuration of this run loaded; absent when any loaded none. */
   readonly loadedThrough?: string;
-  readonly hasRemainingWork: boolean;
+  /** Whether the next segment was queued; absent on the `started` marker. */
+  readonly chainContinues?: boolean;
+  /** Why the chain deliberately ended on this run; set only when it did. */
+  readonly chainEnd?: 'finished' | 'stopped';
 }
 
 /**
- * Folds the per-configuration outcomes of one attempt into the segment it covered, or
- * undefined when no configuration was spawned (every one had already loaded the whole period).
- */
-export function summarizeBackfillSegment(
-  outcomes: readonly BackfillConfigOutcome[],
-  requested: BackfillDateRange,
-  maxDays: number
-): BackfillSegmentSummary | undefined {
-  const windows = outcomes.flatMap(outcome => (outcome.window ? [outcome.window] : []));
-  if (windows.length === 0) return undefined;
-
-  const segmentStart = windows.map(w => w.startDate).reduce((a, b) => (a < b ? a : b));
-  const segmentEnd = windows.map(w => w.endDate).reduce((a, b) => (a > b ? a : b));
-  // One configuration with nothing loaded leaves the whole backfill without a known frontier.
-  const loaded = outcomes.map(outcome => outcome.loadedThrough);
-  const loadedThrough = loaded.every(day => day !== undefined)
-    ? (loaded as string[]).reduce((a, b) => (a < b ? a : b))
-    : undefined;
-
-  return {
-    requested,
-    segmentStart,
-    segmentEnd,
-    segmentIndex: getBackfillSegmentIndex(requested, segmentStart, maxDays),
-    segmentsTotal: countBackfillSegments(requested, maxDays),
-    loadedThrough,
-    hasRemainingWork: outcomes.some(outcome => outcome.hasRemainingWork),
-  };
-}
-
-/**
- * The run-log entry recording how a segment ended. Failed segments are never billed, so the
- * message says what was loaded instead.
+ * The run-log entry identifying this run as one segment of a backfill chain. Emitted when the
+ * segment starts and again when it ends, so a running segment names itself and a finished one
+ * says what it loaded and whether the chain goes on. Failed segments are never billed, so the
+ * completed message is the one that mentions consumption.
  */
 export function buildSegmentMarker(
-  summary: BackfillSegmentSummary,
-  phase: 'completed' | 'failed',
-  at: string
+  meta: BackfillChainMeta,
+  window: BackfillDateRange,
+  phase: SegmentMarkerPhase,
+  at: string,
+  outcome: SegmentMarkerOutcome = {}
 ): Extract<ConnectorMessage, { type: ConnectorMessageType.LOG }> {
-  const position = `Segment ${summary.segmentIndex} of ${summary.segmentsTotal} (${summary.segmentStart} – ${summary.segmentEnd})`;
-  const message =
-    phase === 'completed'
-      ? `${position} completed — counted as 1 run`
-      : summary.loadedThrough
-        ? `${position} failed; days through ${summary.loadedThrough} were loaded`
-        : `${position} failed; no days of the backfill were loaded`;
+  const period = `${meta.requestedStart} – ${meta.requestedEnd}`;
+  const position = `segment ${meta.segmentIndex} of ${meta.segmentsTotal} (${window.startDate} – ${window.endDate})`;
+
+  let message: string;
+  switch (phase) {
+    case 'started':
+      message = `Backfill ${period}: loading ${position}`;
+      break;
+    case 'completed':
+      message = `Backfill ${period}: ${position} completed — counted as 1 run`;
+      break;
+    case 'failed':
+      message = outcome.loadedThrough
+        ? `Backfill ${period}: ${position} failed; days through ${outcome.loadedThrough} were loaded`
+        : `Backfill ${period}: ${position} failed; no days of this segment were loaded`;
+      break;
+  }
+  if (outcome.chainEnd === 'stopped') {
+    message = `${message}. The backfill stopped after ${meta.consecutiveFailures + 1} consecutive failed segments`;
+  }
 
   return {
     type: ConnectorMessageType.LOG,
     at,
     metric: BACKFILL_SEGMENT_METRIC,
-    value: summary.segmentIndex,
+    value: meta.segmentIndex,
     tags: {
       phase,
-      segmentStart: summary.segmentStart,
-      segmentEnd: summary.segmentEnd,
-      backfillStart: summary.requested.startDate,
-      backfillEnd: summary.requested.endDate,
-      segmentsTotal: summary.segmentsTotal,
-      ...(summary.loadedThrough ? { loadedThrough: summary.loadedThrough } : {}),
+      segmentStart: window.startDate,
+      segmentEnd: window.endDate,
+      backfillStart: meta.requestedStart,
+      backfillEnd: meta.requestedEnd,
+      segmentsTotal: meta.segmentsTotal,
+      ...(outcome.loadedThrough ? { loadedThrough: outcome.loadedThrough } : {}),
+      ...(outcome.chainContinues === undefined ? {} : { chainContinues: outcome.chainContinues }),
+      ...(outcome.chainEnd ? { chainEnd: outcome.chainEnd } : {}),
     },
     message,
     toFormattedString: () => `[LOG] ${message}`,

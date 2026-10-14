@@ -1,12 +1,17 @@
 import {
+  BackfillChainMeta,
+  MAX_CONSECUTIVE_BACKFILL_FAILURES,
+  backfillSegmentWindow,
   clampBackfillWindow,
   countBackfillDays,
   countBackfillSegments,
-  getBackfillSegmentIndex,
   getMaxManualBackfillDays,
   isManualBackfillPayload,
+  nextBackfillChainStep,
   parseManualBackfillRange,
+  planBackfillChain,
   prepareManualBackfillPayload,
+  readBackfillChainMeta,
   readBackfillProgress,
   readBackfillRange,
   resumeManualBackfillPayload,
@@ -140,23 +145,13 @@ describe('manual-backfill-range', () => {
       });
     });
 
-    it('walks the requested range with no gap and no overlap', () => {
+    it('tiles the requested range with consecutive windows, no gap and no overlap', () => {
       const requested = range('2024-01-01', '2025-06-30');
-      const windows: Array<{ startDate: string; endDate: string }> = [];
-      let loadedThrough: string | undefined;
+      const total = countBackfillSegments(requested, 31);
+      const windows = Array.from({ length: total }, (_, i) =>
+        backfillSegmentWindow(requested, i + 1, 31)
+      );
 
-      for (let attempt = 0; attempt < 100 && loadedThrough !== requested.endDate; attempt++) {
-        const body = {
-          runType: 'MANUAL_BACKFILL',
-          data: { StartDate: requested.startDate, EndDate: requested.endDate },
-        };
-        const resumed = resumeManualBackfillPayload(body, loadedThrough).body;
-        const window = clampBackfillWindow(readBackfillRange(resumed)!, 31);
-        windows.push(window);
-        loadedThrough = window.endDate;
-      }
-
-      expect(windows).toHaveLength(countBackfillSegments(requested, 31));
       expect(windows[0].startDate).toBe(requested.startDate);
       expect(windows.at(-1)?.endDate).toBe(requested.endDate);
       expect(windows.reduce((days, w) => days + countBackfillDays(w), 0)).toBe(
@@ -168,14 +163,113 @@ describe('manual-backfill-range', () => {
       });
       expect(windows.every(w => countBackfillDays(w) <= 31)).toBe(true);
     });
+  });
 
-    it('numbers a segment by where its first day falls in the requested range', () => {
-      const requested = range('2024-01-01', '2025-06-30');
+  describe('backfill chain', () => {
+    const payload = {
+      runType: 'MANUAL_BACKFILL',
+      data: { StartDate: '2024-01-01', EndDate: '2025-06-30', AccountId: '42' },
+    };
 
-      expect(getBackfillSegmentIndex(requested, '2024-01-01', 31)).toBe(1);
-      expect(getBackfillSegmentIndex(requested, '2024-01-31', 31)).toBe(1);
-      expect(getBackfillSegmentIndex(requested, '2024-02-01', 31)).toBe(2);
-      expect(getBackfillSegmentIndex(requested, '2025-06-30', 31)).toBe(18);
+    it('plans a long backfill as segment 1 of a chain, keeping other fields', () => {
+      const plan = planBackfillChain(payload, 'chain-1')!;
+
+      expect(plan.payload).toEqual({
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2024-01-01', EndDate: '2024-01-31', AccountId: '42' },
+      });
+      expect(plan.meta).toEqual({
+        id: 'chain-1',
+        requestedStart: '2024-01-01',
+        requestedEnd: '2025-06-30',
+        segmentIndex: 1,
+        segmentsTotal: 18,
+        consecutiveFailures: 0,
+      });
+    });
+
+    it.each([
+      ['undefined', undefined],
+      ['an incremental run', { runType: 'INCREMENTAL' }],
+      ['a backfill without date fields', { runType: 'MANUAL_BACKFILL', data: { SheetId: 'x' } }],
+      [
+        'a period that fits one segment',
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-01', EndDate: '2026-08-31' } },
+      ],
+    ])('does not plan a chain for %s', (_label, body) => {
+      expect(planBackfillChain(body, 'chain-1')).toBeUndefined();
+    });
+
+    it('reads the chain metadata back from additionalParams and tolerates junk', () => {
+      const meta = planBackfillChain(payload, 'chain-1')!.meta;
+
+      expect(readBackfillChainMeta({ payload, backfill: meta })).toEqual(meta);
+      expect(readBackfillChainMeta({ payload })).toBeUndefined();
+      expect(readBackfillChainMeta({ backfill: { id: '' } })).toBeUndefined();
+      expect(readBackfillChainMeta(null)).toBeUndefined();
+    });
+
+    describe('nextBackfillChainStep', () => {
+      const meta: BackfillChainMeta = planBackfillChain(payload, 'chain-1')!.meta;
+
+      it('continues a completed segment with the next window and resets the failure streak', () => {
+        const step = nextBackfillChainStep(
+          { ...meta, segmentIndex: 2, consecutiveFailures: 2 },
+          { segmentSucceeded: true, anyProgressAdvanced: true },
+          31
+        );
+
+        expect(step).toEqual({
+          action: 'continue',
+          meta: { ...meta, segmentIndex: 3, consecutiveFailures: 0 },
+          window: { startDate: '2024-03-03', endDate: '2024-04-02' },
+        });
+      });
+
+      it('continues past a failed segment (failure isolation)', () => {
+        const step = nextBackfillChainStep(
+          meta,
+          { segmentSucceeded: false, anyProgressAdvanced: true },
+          31
+        );
+
+        expect(step).toMatchObject({
+          action: 'continue',
+          meta: { segmentIndex: 2, consecutiveFailures: 1 },
+        });
+      });
+
+      it(`stops after ${MAX_CONSECUTIVE_BACKFILL_FAILURES} consecutive failed segments`, () => {
+        const step = nextBackfillChainStep(
+          { ...meta, segmentIndex: 3, consecutiveFailures: MAX_CONSECUTIVE_BACKFILL_FAILURES - 1 },
+          { segmentSucceeded: false, anyProgressAdvanced: true },
+          31
+        );
+
+        expect(step).toEqual({ action: 'end', chainEnd: 'stopped' });
+      });
+
+      it('finishes on the last segment', () => {
+        expect(
+          nextBackfillChainStep(
+            { ...meta, segmentIndex: 18 },
+            { segmentSucceeded: true, anyProgressAdvanced: true },
+            31
+          )
+        ).toEqual({ action: 'end', chainEnd: 'finished' });
+      });
+
+      it('finishes when a completed segment recorded no date checkpoint (dateless connector)', () => {
+        expect(
+          nextBackfillChainStep(meta, { segmentSucceeded: true, anyProgressAdvanced: false }, 31)
+        ).toEqual({ action: 'end', chainEnd: 'finished' });
+      });
+
+      it('does not treat a failed segment without progress as a dateless connector', () => {
+        expect(
+          nextBackfillChainStep(meta, { segmentSucceeded: false, anyProgressAdvanced: false }, 31)
+        ).toMatchObject({ action: 'continue' });
+      });
     });
   });
 

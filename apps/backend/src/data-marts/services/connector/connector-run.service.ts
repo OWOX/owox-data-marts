@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
+import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
@@ -14,7 +16,21 @@ import { RunType } from '../../../common/scheduler/shared/types';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
-import { prepareManualBackfillPayload } from '../../utils/manual-backfill-range';
+import {
+  BACKFILL_CHAIN_KEY,
+  BackfillChainMeta,
+  BackfillDateRange,
+  getMaxManualBackfillDays,
+  nextBackfillChainStep,
+  nextSegmentAdditionalParams,
+  planBackfillChain,
+  prepareManualBackfillPayload,
+  readBackfillChainMeta,
+  readBackfillProgress,
+} from '../../utils/manual-backfill-range';
+
+/** How far back the chain repair sweep looks for a backfill whose next segment never started. */
+const CHAIN_REPAIR_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class ConnectorRunService {
@@ -43,14 +59,22 @@ export class ConnectorRunService {
       );
     }
 
-    // Validates the backfill period (format, order, per-run day limit) before any row is
-    // written, so the caller gets a clear error instead of a failed run.
+    // Validates the backfill period (format, order) before any row is written, so the caller
+    // gets a clear error instead of a failed run.
     const preparedPayload = prepareManualBackfillPayload(payload, this.systemTimeService.now());
+
+    // A backfill longer than one segment runs as a chain of independent runs, one per segment.
+    // This run is segment 1: its payload covers only the first window, and the chain metadata
+    // carries the requested period so each finished segment can queue the next one.
+    const chainPlan = planBackfillChain(preparedPayload, randomUUID());
+    const runPayload = chainPlan?.payload ?? preparedPayload;
+
     const dataMartRun = await this.createDataMartRun(
       dataMart,
       createdById,
       runType,
-      preparedPayload
+      runPayload,
+      chainPlan?.meta
     );
 
     await this.connectorRunTriggerService.createTrigger({
@@ -59,7 +83,7 @@ export class ConnectorRunService {
       createdById,
       dataMartRunId: dataMartRun.id,
       runType,
-      payload: preparedPayload,
+      payload: dataMartRun.additionalParams ?? undefined,
     });
 
     return dataMartRun.id;
@@ -132,6 +156,106 @@ export class ConnectorRunService {
     }
   }
 
+  /**
+   * Queues the next segment of any backfill chain that stalled: its latest segment run ended
+   * on its own (SUCCESS or FAILED), the chain rule says it should continue, yet no successor
+   * run exists. That happens when the executor's queueing transaction failed, or when an
+   * older application version executed the segment and knows nothing about chains. Without
+   * this sweep such a backfill would stop silently.
+   */
+  async repairBackfillChains(): Promise<void> {
+    const cutoff = new Date(this.systemTimeService.now().getTime() - CHAIN_REPAIR_LOOKBACK_MS);
+    const recent = await this.dataMartRunRepository.find({
+      where: { type: DataMartRunType.CONNECTOR, createdAt: MoreThanOrEqual(cutoff) },
+      select: ['id', 'dataMartId', 'status', 'runType', 'createdById', 'additionalParams'],
+    });
+
+    // The latest segment decides each chain's state; every earlier one already has a successor.
+    const latestByChain = new Map<string, { run: DataMartRun; meta: BackfillChainMeta }>();
+    for (const run of recent) {
+      const meta = readBackfillChainMeta(run.additionalParams);
+      if (!meta) continue;
+      const current = latestByChain.get(meta.id);
+      if (!current || meta.segmentIndex > current.meta.segmentIndex) {
+        latestByChain.set(meta.id, { run, meta });
+      }
+    }
+
+    for (const { run, meta } of latestByChain.values()) {
+      try {
+        // PENDING/RUNNING are alive, INTERRUPTED is resumed by its own sweep, and
+        // CANCELLED/RESTRICTED stopped the chain on purpose.
+        if (run.status !== DataMartRunStatus.SUCCESS && run.status !== DataMartRunStatus.FAILED) {
+          continue;
+        }
+
+        const step = nextBackfillChainStep(
+          meta,
+          {
+            segmentSucceeded: run.status === DataMartRunStatus.SUCCESS,
+            anyProgressAdvanced: Object.keys(readBackfillProgress(run.additionalParams)).length > 0,
+          },
+          getMaxManualBackfillDays()
+        );
+        if (step.action !== 'continue') continue;
+
+        // Another run of the data mart is active — possibly a successor this sweep's
+        // snapshot predates. Never create a second active run.
+        const withDataMart = await this.dataMartRunRepository.findOne({
+          where: { id: run.id },
+          relations: ['dataMart'],
+        });
+        if (!withDataMart?.dataMart || (await this.checkDataMartIsRunning(withDataMart.dataMart))) {
+          continue;
+        }
+
+        const nextRunId = await this.queueChainSegment(withDataMart, step.meta, step.window);
+        this.logger.log(
+          `Repaired backfill chain ${meta.id}: queued segment ${step.meta.segmentIndex} of ${step.meta.segmentsTotal} as run ${nextRunId}`,
+          { dataMartId: run.dataMartId, runId: run.id, nextRunId }
+        );
+      } catch (error) {
+        const failure = castError(error);
+        this.logger.error(
+          `Failed to repair backfill chain ${meta.id}: ${failure.message}`,
+          failure.stack,
+          { dataMartId: run.dataMartId, runId: run.id }
+        );
+      }
+    }
+  }
+
+  @Transactional()
+  private async queueChainSegment(
+    run: DataMartRun,
+    meta: BackfillChainMeta,
+    window: BackfillDateRange
+  ): Promise<string> {
+    const additionalParams = nextSegmentAdditionalParams(run.additionalParams, meta, window);
+    const nextRun = await this.dataMartRunRepository.save(
+      this.dataMartRunRepository.create({
+        dataMartId: run.dataMartId,
+        type: DataMartRunType.CONNECTOR,
+        definitionRun: run.dataMart.definition,
+        status: DataMartRunStatus.PENDING,
+        createdById: run.createdById ?? undefined,
+        runType: run.runType,
+        logs: [],
+        errors: [],
+        additionalParams,
+      })
+    );
+    await this.connectorRunTriggerService.createTrigger({
+      dataMartId: run.dataMartId,
+      projectId: run.dataMart.projectId,
+      createdById: run.createdById ?? 'system',
+      dataMartRunId: nextRun.id,
+      runType: run.runType,
+      payload: additionalParams,
+    });
+    return nextRun.id;
+  }
+
   private validateDataMartForConnector(dataMart: DataMart): void {
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new ConnectorExecutionError('DataMart is not a connector type', undefined, {
@@ -162,7 +286,8 @@ export class ConnectorRunService {
     dataMart: DataMart,
     createdById: string,
     runType: RunType,
-    payload?: Record<string, unknown>
+    payload?: Record<string, unknown>,
+    chainMeta?: BackfillChainMeta
   ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
@@ -173,7 +298,9 @@ export class ConnectorRunService {
       runType,
       logs: [],
       errors: [],
-      additionalParams: payload ? { payload } : undefined,
+      additionalParams: payload
+        ? { payload, ...(chainMeta ? { [BACKFILL_CHAIN_KEY]: chainMeta } : {}) }
+        : undefined,
     });
     return this.dataMartRunRepository.save(dataMartRun);
   }

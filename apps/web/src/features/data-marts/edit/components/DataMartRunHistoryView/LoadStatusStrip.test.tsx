@@ -29,7 +29,7 @@ const dateEntry = (date: string): LogEntry => ({
 
 const segmentMarker = (
   index: number,
-  phase: 'completed' | 'failed',
+  phase: 'started' | 'completed' | 'failed',
   loadedThrough?: string
 ): LogEntry => ({
   id: `seg-${String(index)}-${phase}`,
@@ -95,23 +95,20 @@ describe('LoadStatusStrip', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('shows the backfill period, loaded-through day and failed segment', () => {
+  it('shows the backfill period, the failed segment and its loaded-through day', () => {
     render(
       <LoadStatusStrip
-        entries={[
-          segmentMarker(1, 'completed', '2024-01-31'),
-          segmentMarker(2, 'failed', '2024-02-20'),
-        ]}
+        entries={[segmentMarker(2, 'started'), segmentMarker(2, 'failed', '2024-02-20')]}
       />
     );
 
     expect(screen.getByTestId('backfill-progress')).toHaveTextContent(
-      'Backfill 2024-01-01 – 2025-06-30 · loaded through 2024-02-20 · segment 2 of 18 failed'
+      'Backfill 2024-01-01 – 2025-06-30 · segment 2 of 18 failed · loaded through 2024-02-20'
     );
   });
 
   it('shows the segment being loaded while the run is live', () => {
-    render(<LoadStatusStrip entries={[segmentMarker(1, 'completed', '2024-01-31')]} isLive />);
+    render(<LoadStatusStrip entries={[segmentMarker(2, 'started')]} isLive />);
 
     expect(screen.getByTestId('backfill-progress')).toHaveTextContent('loading segment 2 of 18');
   });

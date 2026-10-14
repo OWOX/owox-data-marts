@@ -264,6 +264,7 @@ import { UpdateInsightTemplateSourceService } from './use-cases/update-insight-t
 import { DeleteInsightTemplateSourceService } from './use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
+import { RepairBackfillChainsProcessor } from './system-triggers/processors/repair-backfill-chains-processor';
 import { SqlRunService } from './use-cases/sql-run.service';
 import { CreateViewService } from './use-cases/create-view.service';
 import { aiInsightsProviders } from './ai-insights/ai-insights-providers';
@@ -816,6 +817,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     AiHelperTriggerService,
     AiHelperTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
+    RepairBackfillChainsProcessor,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
     CreateScheduledTriggerService,

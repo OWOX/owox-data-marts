@@ -64,12 +64,16 @@ const runButton = () => screen.getByRole('button', { name: 'Run' });
 
 describe('ConnectorRunForm backfill period', () => {
   it('explains segmentation before any dates are chosen, without flagging an error', async () => {
-    await openBackfill();
+    const onSubmit = await openBackfill();
 
     expect(notice()).toHaveTextContent('runs automatically in segments of up to 31 days');
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
-    expect(runButton()).toBeDisabled();
+    // Validation runs on submit, so the empty required dates block the run there.
+    await act(async () => {
+      fireEvent.click(runButton());
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('shows no period notice for a connector that declares no backfill date fields', async () => {

@@ -81,6 +81,12 @@ describe('ConnectorExecutorService', () => {
     const dataMartRunRepository = {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
       findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockImplementation((data: Record<string, unknown>) => data),
+      save: jest
+        .fn()
+        .mockImplementation((entity: Record<string, unknown>) =>
+          Promise.resolve({ ...entity, id: 'run-2' })
+        ),
     } as unknown as Repository<DataMartRun>;
 
     // Capture the onMessage callback so spawnConnector can emit connector status messages.
@@ -2168,12 +2174,38 @@ describe('ConnectorExecutorService', () => {
     });
   });
 
-  describe('segmented manual backfill', () => {
-    // 62 days: two segments, 2026-01-01..2026-01-31 and 2026-02-01..2026-03-03.
-    const LONG = {
+  describe('backfill chain segments', () => {
+    // 62 days requested: two segments, 2026-01-01..2026-01-31 and 2026-02-01..2026-03-03.
+    const SEGMENT_1 = { startDate: '2026-01-01', endDate: '2026-01-31' };
+    const SEGMENT_2 = { startDate: '2026-02-01', endDate: '2026-03-03' };
+
+    const segmentPayload = (window: { startDate: string; endDate: string }) => ({
       runType: 'MANUAL_BACKFILL',
-      data: { StartDate: '2026-01-01', EndDate: '2026-03-03' },
-    };
+      data: { StartDate: window.startDate, EndDate: window.endDate },
+    });
+
+    const chainMeta = (overrides: Record<string, unknown> = {}) => ({
+      id: 'chain-1',
+      requestedStart: '2026-01-01',
+      requestedEnd: '2026-03-03',
+      segmentIndex: 1,
+      segmentsTotal: 2,
+      consecutiveFailures: 0,
+      ...overrides,
+    });
+
+    const chainRun = (
+      meta: Record<string, unknown> | null = chainMeta(),
+      window = SEGMENT_1,
+      progress?: string
+    ) =>
+      createRun({
+        additionalParams: {
+          payload: segmentPayload(window),
+          ...(meta ? { backfill: meta } : {}),
+          ...(progress ? { backfillProgress: { 'cfg-1': progress } } : {}),
+        },
+      });
 
     const emitDays = (emitMessage: (message: unknown) => void, days: string[]) =>
       days.forEach(date =>
@@ -2184,14 +2216,6 @@ describe('ConnectorExecutorService', () => {
           toFormattedString: () => `[REQUESTED_DATE] ${date}`,
         })
       );
-
-    const runFor = (progress?: string) =>
-      createRun({
-        additionalParams: {
-          payload: LONG,
-          ...(progress ? { backfillProgress: { 'cfg-1': progress } } : {}),
-        },
-      });
 
     const execute = (
       ctx: ReturnType<typeof createService>,
@@ -2221,51 +2245,79 @@ describe('ConnectorExecutorService', () => {
         .flatMap(([, update]) => update.logs ?? [])
         .map((entry: string) => JSON.parse(entry));
 
-    it('asks the connector for the first 31 days and queues the next segment', async () => {
+    const savedRuns = (ctx: ReturnType<typeof createService>) =>
+      (ctx.dataMartRunRepository.save as jest.Mock).mock.calls.map(([entity]) => entity);
+
+    it('finishes the segment run and queues the next segment as its own run', async () => {
       const ctx = createService();
 
-      await execute(ctx, runFor(), ['2026-01-30', '2026-01-31']);
+      await execute(ctx, chainRun(), ['2026-01-30', '2026-01-31']);
 
       expect(ctx.sourceConfigService.buildRunConfig).toHaveBeenCalledWith(
         expect.objectContaining({ data: { StartDate: '2026-01-01', EndDate: '2026-01-31' } }),
         null
       );
-      expect(ctx.dataMartRunRepository.update).toHaveBeenCalledWith(
-        { id: 'run-1', status: DataMartRunStatus.RUNNING },
-        expect.objectContaining({ status: DataMartRunStatus.PENDING, finishedAt: null })
-      );
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+
+      expect(savedRuns(ctx)).toEqual([
+        expect.objectContaining({
+          dataMartId: 'dm-1',
+          type: DataMartRunType.CONNECTOR,
+          status: DataMartRunStatus.PENDING,
+          createdById: 'user-1',
+          runType: 'MANUAL',
+          additionalParams: {
+            payload: segmentPayload(SEGMENT_2),
+            backfill: chainMeta({ segmentIndex: 2 }),
+          },
+        }),
+      ]);
       expect(ctx.connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
       expect(ctx.connectorRunTriggerService.createTrigger).toHaveBeenCalledWith({
         dataMartId: 'dm-1',
         projectId: 'proj-1',
         createdById: 'user-1',
-        dataMartRunId: 'run-1',
+        dataMartRunId: 'run-2',
         runType: 'MANUAL',
-        payload: { payload: LONG },
+        payload: {
+          payload: segmentPayload(SEGMENT_2),
+          backfill: chainMeta({ segmentIndex: 2 }),
+        },
       });
-      expect(writtenStatuses(ctx)).not.toContain(DataMartRunStatus.SUCCESS);
     });
 
-    it('bills the completed segment, but publishes no outcome event and no schema refresh', async () => {
+    it('bills each completed segment by its own run id and publishes its outcome event', async () => {
       const ctx = createService();
 
-      await execute(ctx, runFor(), ['2026-01-31']);
+      await execute(ctx, chainRun(), ['2026-01-31']);
 
       expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledTimes(1);
       expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
         expect.anything(),
-        'run-1:2026-01-01'
+        'run-1'
       );
-      expect(ctx.eventDispatcher.publishExternal).not.toHaveBeenCalled();
+      expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ status: 'successfully' }) })
+      );
+      // The schema refresh belongs to the chain's end, not to every segment.
       expect(ctx.dataMartService.actualizeSchema).not.toHaveBeenCalled();
     });
 
-    it('records how the segment ended in run history', async () => {
+    it('records segment markers in run history', async () => {
       const ctx = createService();
 
-      await execute(ctx, runFor(), ['2026-01-31']);
+      await execute(ctx, chainRun(), ['2026-01-31']);
 
-      expect(persistedLogs(ctx)).toContainEqual(
+      const logs = persistedLogs(ctx);
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          metric: 'backfill_segment',
+          tags: expect.objectContaining({ phase: 'started' }),
+          message:
+            'Backfill 2026-01-01 – 2026-03-03: loading segment 1 of 2 (2026-01-01 – 2026-01-31)',
+        })
+      );
+      expect(logs).toContainEqual(
         expect.objectContaining({
           metric: 'backfill_segment',
           value: 1,
@@ -2277,79 +2329,122 @@ describe('ConnectorExecutorService', () => {
             backfillEnd: '2026-03-03',
             segmentsTotal: 2,
             loadedThrough: '2026-01-31',
+            chainContinues: true,
           },
-          message: 'Segment 1 of 2 (2026-01-01 – 2026-01-31) completed — counted as 1 run',
+          message:
+            'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) completed — counted as 1 run',
         })
       );
     });
 
-    it('finishes the run on the last segment', async () => {
+    it('finishes the chain on the last segment', async () => {
       const ctx = createService();
 
-      await execute(ctx, runFor('2026-01-31'), ['2026-03-03']);
+      await execute(ctx, chainRun(chainMeta({ segmentIndex: 2 }), SEGMENT_2), ['2026-03-03']);
 
-      expect(ctx.sourceConfigService.buildRunConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { StartDate: '2026-02-01', EndDate: '2026-03-03' } }),
-        null
-      );
       expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
       expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-      expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
-        expect.anything(),
-        'run-1:2026-02-01'
-      );
-      expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledTimes(1);
-      expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledWith(
-        expect.objectContaining({ payload: expect.objectContaining({ status: 'successfully' }) })
-      );
       expect(ctx.dataMartService.actualizeSchema).toHaveBeenCalledTimes(1);
-    });
-
-    it('runs a connector without dated nodes once, for the whole period', async () => {
-      // A catalog node ignores the window and never reports a day, so nothing advances.
-      const ctx = createService();
-
-      await execute(ctx, runFor(), []);
-
-      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
-      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-    });
-
-    it('stops when a segment did not advance the checkpoint', async () => {
-      const ctx = createService();
-
-      await execute(ctx, runFor('2026-01-31'), []);
-
-      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
-      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-    });
-
-    it('does not spawn a configuration that already loaded the whole period', async () => {
-      const ctx = createService();
-
-      await execute(ctx, runFor('2026-03-03'), []);
-
-      expect(ctx.processSpawner.spawnConnector).not.toHaveBeenCalled();
-      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
-    });
-
-    it('fails the run without billing or queueing when a segment fails', async () => {
-      const ctx = createService();
-
-      await execute(ctx, runFor('2026-01-31'), ['2026-02-10', '2026-02-20'], { succeed: false });
-
-      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
-      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
       expect(persistedLogs(ctx)).toContainEqual(
         expect.objectContaining({
-          message:
-            'Segment 2 of 2 (2026-02-01 – 2026-03-03) failed; days through 2026-02-20 were loaded',
+          tags: expect.objectContaining({ phase: 'completed', chainEnd: 'finished' }),
         })
       );
     });
 
-    it('cancels instead of continuing when the run is stopped after a segment succeeded', async () => {
+    it('continues the chain past a failed segment', async () => {
+      const ctx = createService();
+
+      await execute(ctx, chainRun(), ['2026-01-10'], { succeed: false });
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
+      expect(savedRuns(ctx)).toEqual([
+        expect.objectContaining({
+          additionalParams: expect.objectContaining({
+            backfill: chainMeta({ segmentIndex: 2, consecutiveFailures: 1 }),
+          }),
+        }),
+      ]);
+      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ status: 'unsuccessfully' }) })
+      );
+      expect(persistedLogs(ctx)).toContainEqual(
+        expect.objectContaining({
+          tags: expect.objectContaining({
+            phase: 'failed',
+            loadedThrough: '2026-01-10',
+            chainContinues: true,
+          }),
+          message:
+            'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-10 were loaded',
+        })
+      );
+    });
+
+    it('stops the chain after three consecutive failed segments', async () => {
+      const ctx = createService();
+      const meta = chainMeta({ segmentsTotal: 5, consecutiveFailures: 2 });
+
+      await execute(ctx, chainRun(meta), [], { succeed: false });
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
+      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
+      expect(persistedLogs(ctx)).toContainEqual(
+        expect.objectContaining({
+          tags: expect.objectContaining({ chainEnd: 'stopped', chainContinues: false }),
+          message: expect.stringContaining('stopped after 3 consecutive failed segments'),
+        })
+      );
+    });
+
+    it('ends the chain after one run for a connector without dated nodes', async () => {
+      // A catalog node ignores the window and never reports a day; the one run it got
+      // already loaded the whole source.
+      const ctx = createService();
+
+      await execute(ctx, chainRun(), []);
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
+      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
+      expect(persistedLogs(ctx)).toContainEqual(
+        expect.objectContaining({ tags: expect.objectContaining({ chainEnd: 'finished' }) })
+      );
+    });
+
+    it('does not mistake a resumed segment that only re-checks its last day for a dateless one', async () => {
+      // The first attempt loaded the whole window before an interruption; the resumed
+      // attempt re-checks one day and reports no new date. The recorded checkpoint still
+      // proves the connector is dated, so the chain must continue.
+      const ctx = createService();
+
+      await execute(ctx, chainRun(chainMeta(), SEGMENT_1, '2026-01-31'), []);
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+      expect(ctx.dataMartRunRepository.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('queues nothing and bills nothing when a cancel wins the status write', async () => {
+      const ctx = createService();
+      (ctx.dataMartRunRepository.update as jest.Mock).mockImplementation(
+        (criteria: Record<string, unknown>, update: Record<string, unknown>) =>
+          Promise.resolve({
+            affected: update.status && update.status !== DataMartRunStatus.RUNNING ? 0 : 1,
+          })
+      );
+
+      await execute(ctx, chainRun(), ['2026-01-31']);
+
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
+      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
+      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      expect(ctx.eventDispatcher.publishExternal).not.toHaveBeenCalled();
+    });
+
+    it('stops the chain when the run is aborted after its segment succeeded', async () => {
       const ctx = createService();
       const controller = new AbortController();
       (ctx.processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
@@ -2358,86 +2453,73 @@ describe('ConnectorExecutorService', () => {
         controller.abort();
         return Promise.resolve();
       });
+      const run = chainRun();
 
       await ctx.service.executeInBackground(
         createDataMart(),
-        runFor(),
-        { payload: LONG },
+        run,
+        run.additionalParams as Record<string, unknown>,
         controller.signal
       );
 
-      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.CANCELLED);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
       expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
     });
 
-    it('queues nothing and bills nothing when a cancel wins the status write', async () => {
+    it('keeps the honest outcome and defers the next segment when queueing it fails', async () => {
       const ctx = createService();
-      (ctx.dataMartRunRepository.update as jest.Mock).mockImplementation((criteria, update) =>
-        Promise.resolve({
-          affected:
-            criteria.status === DataMartRunStatus.RUNNING && update.finishedAt === null ? 0 : 1,
-        })
-      );
-
-      await execute(ctx, runFor(), ['2026-01-31']);
-
-      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
-      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
-      expect(ctx.eventDispatcher.publishExternal).not.toHaveBeenCalled();
-    });
-
-    it('fails the run, with the reason, when the next segment cannot be queued', async () => {
-      const ctx = createService();
-      (ctx.connectorRunTriggerService.createTrigger as jest.Mock).mockRejectedValue(
+      (ctx.dataMartRunRepository.save as jest.Mock).mockRejectedValue(
         new Error('database is gone')
       );
 
-      await execute(ctx, runFor(), ['2026-01-31']);
+      await execute(ctx, chainRun(), ['2026-01-31']);
 
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
       const lastWrite = (ctx.dataMartRunRepository.update as jest.Mock).mock.calls.at(-1)![1];
-      expect(lastWrite.status).toBe(DataMartRunStatus.FAILED);
-      expect(lastWrite.errors.join()).toContain(
+      expect(lastWrite.logs.join()).toContain(
         'Could not queue the next backfill segment: database is gone'
       );
+      expect(lastWrite.logs.join()).toContain('continues automatically within 15 minutes');
+      // The segment itself completed: it is billed and reported as any finished run.
+      expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
+        expect.anything(),
+        'run-1'
+      );
       expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledWith(
-        expect.objectContaining({ payload: expect.objectContaining({ status: 'unsuccessfully' }) })
+        expect.objectContaining({ payload: expect.objectContaining({ status: 'successfully' }) })
       );
     });
 
-    it('interrupts without billing or queueing when shutdown cuts a segment short', async () => {
+    it('interrupts without billing or chaining when shutdown cuts a segment short', async () => {
       const ctx = createService();
       (ctx.gracefulShutdownService.isInShutdownMode as jest.Mock)
         .mockReturnValueOnce(false)
         .mockReturnValue(true);
 
-      await execute(ctx, runFor(), ['2026-01-10'], { succeed: false });
+      await execute(ctx, chainRun(), ['2026-01-10'], { succeed: false });
 
       expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.INTERRUPTED);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
       expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
       expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
-      expect(persistedLogs(ctx).map(entry => entry.metric)).not.toContain('backfill_segment');
+      expect(persistedLogs(ctx).map(entry => entry.tags?.phase)).not.toContain('completed');
+      expect(persistedLogs(ctx).map(entry => entry.tags?.phase)).not.toContain('failed');
     });
 
-    it('leaves a backfill of up to 31 days a single attempt that bills the run id', async () => {
+    it('leaves a backfill of up to 31 days a single run without chain metadata', async () => {
       const ctx = createService();
-      const run = createRun({
-        additionalParams: {
-          payload: {
-            runType: 'MANUAL_BACKFILL',
-            data: { StartDate: '2026-08-01', EndDate: '2026-08-31' },
-          },
-        },
-      });
+      const run = chainRun(null, { startDate: '2026-08-01', endDate: '2026-08-31' });
 
       await execute(ctx, run, ['2026-08-31']);
 
       expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
       expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
       expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
         expect.anything(),
         'run-1'
       );
+      expect(persistedLogs(ctx).map(entry => entry.metric)).not.toContain('backfill_segment');
     });
   });
 

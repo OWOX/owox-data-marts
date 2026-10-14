@@ -103,14 +103,15 @@ export function countBackfillSegments(range: BackfillDateRange, maxDays: number)
   return Math.ceil(countBackfillDays(range) / maxDays);
 }
 
-/** 1-based position of the segment that starts on `segmentStart` within `requested`. */
-export function getBackfillSegmentIndex(
+/** The window of the 1-based `segmentIndex`-th segment of `requested`. */
+export function backfillSegmentWindow(
   requested: BackfillDateRange,
-  segmentStart: string,
+  segmentIndex: number,
   maxDays: number
-): number {
-  const elapsedDays = Math.round((toUtcDay(segmentStart) - toUtcDay(requested.startDate)) / DAY_MS);
-  return Math.floor(Math.max(elapsedDays, 0) / maxDays) + 1;
+): BackfillDateRange {
+  const start = toUtcDay(requested.startDate) + (segmentIndex - 1) * maxDays * DAY_MS;
+  const end = Math.min(start + (maxDays - 1) * DAY_MS, toUtcDay(requested.endDate));
+  return { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,6 +175,144 @@ export function withBackfillEndDate(
   endDate: string
 ): Record<string, unknown> {
   return { ...body, data: { ...(body.data as Record<string, unknown>), EndDate: endDate } };
+}
+
+/** The body with its StartDate and EndDate set to `window`, leaving the caller's body untouched. */
+export function withBackfillWindow(
+  body: Record<string, unknown>,
+  window: BackfillDateRange
+): Record<string, unknown> {
+  return {
+    ...body,
+    data: {
+      ...(body.data as Record<string, unknown>),
+      StartDate: window.startDate,
+      EndDate: window.endDate,
+    },
+  };
+}
+
+/** Key under `DataMartRun.additionalParams` identifying one segment run of a backfill chain. */
+export const BACKFILL_CHAIN_KEY = 'backfill';
+
+/** Consecutive failed segments after which a backfill chain stops instead of continuing. */
+export const MAX_CONSECUTIVE_BACKFILL_FAILURES = 3;
+
+const backfillChainMetaSchema = z.object({
+  /** Groups every segment run of one user-requested backfill. */
+  id: z.string().min(1),
+  requestedStart: isoDaySchema,
+  requestedEnd: isoDaySchema,
+  /** 1-based position of this run's segment within the requested period. */
+  segmentIndex: z.number().int().min(1),
+  segmentsTotal: z.number().int().min(1),
+  /** Failed segments immediately before this one; resets on every completed segment. */
+  consecutiveFailures: z.number().int().min(0),
+  /** Set when the chain deliberately ended on this run, so the repair sweep leaves it alone. */
+  chainEnd: z.enum(['finished', 'stopped']).optional(),
+});
+
+export type BackfillChainMeta = z.infer<typeof backfillChainMetaSchema>;
+
+/** The chain metadata of a segment run, or undefined for a run that is not part of a chain. */
+export function readBackfillChainMeta(additionalParams: unknown): BackfillChainMeta | undefined {
+  if (!isRecord(additionalParams)) return undefined;
+  const parsed = backfillChainMetaSchema.safeParse(additionalParams[BACKFILL_CHAIN_KEY]);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export interface BackfillChainPlan {
+  /** The first segment's body: the normalized payload with EndDate cut to one segment. */
+  readonly payload: Record<string, unknown>;
+  readonly meta: BackfillChainMeta;
+}
+
+/**
+ * Plans a backfill that needs more than one segment, or returns undefined for anything else:
+ * a non-backfill run, a connector without date fields, or a period that fits one segment —
+ * those execute in a single run exactly as before.
+ */
+export function planBackfillChain(
+  payload: Record<string, unknown> | undefined,
+  chainId: string
+): BackfillChainPlan | undefined {
+  if (!payload) return undefined;
+  const requested = readBackfillRange(payload);
+  if (!requested) return undefined;
+
+  const maxDays = getMaxManualBackfillDays();
+  const segmentsTotal = countBackfillSegments(requested, maxDays);
+  if (segmentsTotal <= 1) return undefined;
+
+  return {
+    payload: withBackfillEndDate(payload, clampBackfillWindow(requested, maxDays).endDate),
+    meta: {
+      id: chainId,
+      requestedStart: requested.startDate,
+      requestedEnd: requested.endDate,
+      segmentIndex: 1,
+      segmentsTotal,
+      consecutiveFailures: 0,
+    },
+  };
+}
+
+/**
+ * The `additionalParams` of the next segment run: the previous segment's body re-windowed,
+ * plus the advanced chain metadata. Shared by the executor (queues the next segment with the
+ * terminal write) and the repair sweep (queues it when that transaction never happened).
+ */
+export function nextSegmentAdditionalParams(
+  currentAdditionalParams: unknown,
+  meta: BackfillChainMeta,
+  window: BackfillDateRange
+): Record<string, unknown> {
+  return {
+    payload: withBackfillWindow(unwrapRunPayload(currentAdditionalParams), window),
+    [BACKFILL_CHAIN_KEY]: meta,
+  };
+}
+
+export type BackfillChainStep =
+  | {
+      readonly action: 'continue';
+      readonly meta: BackfillChainMeta;
+      readonly window: BackfillDateRange;
+    }
+  | { readonly action: 'end'; readonly chainEnd: 'finished' | 'stopped' };
+
+/**
+ * What the chain does after one segment run ended on its own (not cancelled, restricted,
+ * interrupted, or shut down — those stop or suspend the chain outside this rule).
+ *
+ * A completed segment that advanced no checkpoint ends the chain as finished: the connector
+ * ignored the window (a catalog or full-refresh node loads the whole source regardless of
+ * dates), or every remaining day lies beyond the node's end lag — either way later segments
+ * would load nothing more. A failed segment keeps the chain going (failure isolation) until
+ * `MAX_CONSECUTIVE_BACKFILL_FAILURES` segments fail in a row.
+ */
+export function nextBackfillChainStep(
+  meta: BackfillChainMeta,
+  outcome: { segmentSucceeded: boolean; anyProgressAdvanced: boolean },
+  maxDays: number
+): BackfillChainStep {
+  if (meta.segmentIndex >= meta.segmentsTotal) return { action: 'end', chainEnd: 'finished' };
+  if (outcome.segmentSucceeded && !outcome.anyProgressAdvanced) {
+    return { action: 'end', chainEnd: 'finished' };
+  }
+
+  const consecutiveFailures = outcome.segmentSucceeded ? 0 : meta.consecutiveFailures + 1;
+  if (consecutiveFailures >= MAX_CONSECUTIVE_BACKFILL_FAILURES) {
+    return { action: 'end', chainEnd: 'stopped' };
+  }
+
+  const nextIndex = meta.segmentIndex + 1;
+  const requested = { startDate: meta.requestedStart, endDate: meta.requestedEnd };
+  return {
+    action: 'continue',
+    meta: { ...meta, segmentIndex: nextIndex, consecutiveFailures },
+    window: backfillSegmentWindow(requested, nextIndex, maxDays),
+  };
 }
 
 /**

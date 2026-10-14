@@ -54,23 +54,25 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
 import {
   BACKFILL_PROGRESS_KEY,
+  BackfillChainMeta,
   BackfillDateRange,
-  clampBackfillWindow,
-  countBackfillDays,
   getMaxManualBackfillDays,
   isManualBackfillPayload,
+  nextBackfillChainStep,
+  nextSegmentAdditionalParams,
   parseBackfillDay,
+  readBackfillChainMeta,
   readBackfillProgress,
   readBackfillRange,
   resumeManualBackfillPayload,
   unwrapRunPayload,
-  withBackfillEndDate,
 } from '../../utils/manual-backfill-range';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from '../data-mart.service';
@@ -83,12 +85,7 @@ import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
 import { ConnectorDefinitionService } from './connector-definition.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
-import {
-  BackfillConfigOutcome,
-  BackfillSegmentSummary,
-  buildSegmentMarker,
-  summarizeBackfillSegment,
-} from './backfill-segment';
+import { buildSegmentMarker } from './backfill-segment';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -118,20 +115,16 @@ interface ConfigurationExecutionResult {
   fieldsUpdate?: {
     fields: string[];
   };
-  /** Set only for a manual backfill longer than one segment. */
-  backfill?: BackfillConfigOutcome;
+  /** The last day this configuration loaded, across every attempt of this segment run. */
+  backfillLoadedThrough?: string;
 }
 
-/** What queueing the next segment of a backfill needs. */
-interface BackfillRequeue {
+/** What creating the next segment run of a backfill chain needs. */
+interface NextSegmentRun {
   run: DataMartRun;
-  projectId: string;
-}
-
-/** A manual backfill longer than one segment, which runs as consecutive attempts. */
-interface SegmentedBackfill {
-  requested: BackfillDateRange;
-  maxDays: number;
+  dataMart: DataMart;
+  meta: BackfillChainMeta;
+  window: BackfillDateRange;
 }
 
 @Injectable()
@@ -194,8 +187,10 @@ export class ConnectorExecutorService {
     let hasAnySuccessfulConfiguration = false;
     let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
-    let segmentedBackfill: SegmentedBackfill | undefined;
-    let backfillSummary: BackfillSegmentSummary | undefined;
+    // One segment of a multi-run backfill chain. The run's payload already covers only this
+    // segment's window; what remains here is to report the segment and queue the next one.
+    const chainMeta = readBackfillChainMeta(run.additionalParams);
+    const segmentWindow = chainMeta ? readBackfillRange(unwrapRunPayload(payload)) : undefined;
 
     try {
       if (this.gracefulShutdownService.isInShutdownMode()) {
@@ -246,7 +241,19 @@ export class ConnectorExecutorService {
       );
       logFlusher?.start();
 
-      segmentedBackfill = this.readSegmentedBackfill(payload);
+      // A running segment names itself in the live logs, so Run History identifies the row
+      // before the segment ends. Resumed attempts repeat it; the merge keeps both.
+      if (chainMeta && segmentWindow) {
+        const startedMarker = buildSegmentMarker(
+          chainMeta,
+          segmentWindow,
+          'started',
+          this.systemTimeService.now().toISOString()
+        );
+        addBoundedMessage(capturedLogs, startedMarker);
+        addBoundedMessage(liveLogs, startedMarker);
+      }
+
       configurationResults = await this.runConnectorConfigurations(
         run,
         processId,
@@ -255,7 +262,7 @@ export class ConnectorExecutorService {
         signal,
         liveLogs,
         liveErrors,
-        segmentedBackfill
+        chainMeta !== undefined
       );
 
       configurationResults.forEach(result => {
@@ -285,35 +292,9 @@ export class ConnectorExecutorService {
       // on the full-success flag, but that flag now means "all", so a cancel that
       // lands mid-run is CANCELLED even when earlier configurations completed —
       // only a run that had already finished everything is left SUCCESS, because
-      // then the abort cancelled nothing.
-      backfillSummary = segmentedBackfill
-        ? summarizeBackfillSegment(
-            configurationResults.map(result => result.backfill ?? { hasRemainingWork: false }),
-            segmentedBackfill.requested,
-            segmentedBackfill.maxDays
-          )
-        : undefined;
-      // A backfill with days still to load has not finished everything, so a stop that lands
-      // after its segment succeeded cancels the rest instead of leaving the run SUCCESS.
-      wasCancelled =
-        signal?.aborted === true &&
-        (!allConfigurationsSucceeded || backfillSummary?.hasRemainingWork === true);
-      // An interrupted segment is resumed by the sweep and a cancelled one was stopped on
-      // purpose; only a segment that ended on its own says how far it got.
-      if (
-        backfillSummary &&
-        !wasCancelled &&
-        (allConfigurationsSucceeded || !this.gracefulShutdownService.isInShutdownMode())
-      ) {
-        addBoundedMessage(
-          capturedLogs,
-          buildSegmentMarker(
-            backfillSummary,
-            allConfigurationsSucceeded ? 'completed' : 'failed',
-            this.systemTimeService.now().toISOString()
-          )
-        );
-      }
+      // then the abort cancelled nothing. A segment run that finished everything is a
+      // finished run; whether the chain continues is decided separately below.
+      wasCancelled = signal?.aborted === true && !allConfigurationsSucceeded;
       this.logger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
         { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, successCount, totalCount }
@@ -350,13 +331,62 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
-      // The next segment is queued instead of finishing the run. A cancelled or shut-down
-      // attempt never continues: the user stopped it, or the sweep resumes it.
-      const shouldContinueBackfill =
-        allConfigurationsSucceeded &&
-        backfillSummary?.hasRemainingWork === true &&
+      // Where the chain goes after this segment. Decided only for a segment that ended on
+      // its own: a cancelled run was stopped on purpose, a shut-down one is resumed by the
+      // sweep as the same run, and a restricted project cannot start the next segment.
+      // A failed segment keeps the chain going (failure isolation) until the consecutive-
+      // failure limit; whether this run recorded any date checkpoint tells a dateless
+      // (catalog or full-refresh) connector apart, which loads the whole source in one run.
+      const anyDateProgress = configurationResults.some(
+        result => result.backfillLoadedThrough !== undefined
+      );
+      const chainStep =
+        chainMeta &&
         !wasCancelled &&
-        !this.gracefulShutdownService.isInShutdownMode();
+        signal?.aborted !== true &&
+        !operationBlockedException &&
+        !this.gracefulShutdownService.isInShutdownMode()
+          ? nextBackfillChainStep(
+              chainMeta,
+              {
+                segmentSucceeded: allConfigurationsSucceeded,
+                anyProgressAdvanced: anyDateProgress,
+              },
+              getMaxManualBackfillDays()
+            )
+          : undefined;
+      const chainContinues = chainStep?.action === 'continue';
+
+      // The terminal marker says how the segment ended and whether the chain goes on. An
+      // interrupted segment is resumed by the sweep and a cancelled one was stopped on
+      // purpose, so neither gets one.
+      if (
+        chainMeta &&
+        segmentWindow &&
+        !wasCancelled &&
+        !this.gracefulShutdownService.isInShutdownMode()
+      ) {
+        const loaded = configurationResults.map(result => result.backfillLoadedThrough);
+        // One configuration with nothing loaded leaves the segment without a known frontier.
+        const loadedThrough =
+          loaded.length > 0 && loaded.every(day => day !== undefined)
+            ? (loaded as string[]).reduce((a, b) => (a < b ? a : b))
+            : undefined;
+        addBoundedMessage(
+          capturedLogs,
+          buildSegmentMarker(
+            chainMeta,
+            segmentWindow,
+            allConfigurationsSucceeded ? 'completed' : 'failed',
+            this.systemTimeService.now().toISOString(),
+            {
+              loadedThrough,
+              chainContinues,
+              ...(chainStep?.action === 'end' ? { chainEnd: chainStep.chainEnd } : {}),
+            }
+          )
+        );
+      }
 
       const hasSuccessfulFieldsUpdate = configurationResults.some(
         result => result.success && result.fieldsUpdate
@@ -386,7 +416,9 @@ export class ConnectorExecutorService {
         );
       }
 
-      if (hasSuccessfulFieldsUpdate && !shouldContinueBackfill) {
+      // Schema actualization belongs to the chain's end: running it after every segment
+      // would fetch the storage schema dozens of times for one backfill.
+      if (hasSuccessfulFieldsUpdate && !chainContinues) {
         await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
@@ -408,9 +440,10 @@ export class ConnectorExecutorService {
         operationBlockedException,
         wasCancelled,
         flushedSnapshot,
-        shouldContinueBackfill ? { run, projectId: dataMart.projectId } : undefined
+        chainStep?.action === 'continue'
+          ? { run, dataMart, meta: chainStep.meta, window: chainStep.window }
+          : undefined
       );
-      const wasRequeued = persistedStatus === DataMartRunStatus.PENDING;
 
       // Consumption is registered on ANY successful configuration, deliberately split from
       // the success webhook below: the customer received those rows whether or not a
@@ -422,17 +455,12 @@ export class ConnectorExecutorService {
       // for one import. This state did not exist before this branch — INTERRUPTED used to
       // require that NOTHING had succeeded, so it could never overlap with a billable run.
       //
-      // A segmented backfill is billed once per COMPLETED segment instead: a segment that
-      // failed part-way is not charged, since the user starts over from its first unloaded
-      // day. The id carries the segment's first day, so the billing consumer, which may
-      // deduplicate on it, sees each segment as its own consumption.
-      if (segmentedBackfill) {
-        if (allConfigurationsSucceeded && !wasCancelled && persistedStatus !== null) {
-          const segmentKey = backfillSummary?.segmentStart ?? segmentedBackfill.requested.endDate;
-          await this.projectBillingService.registerConnectorRunConsumption(
-            dataMart,
-            `${runId}:${segmentKey}`
-          );
+      // A backfill segment run is billed only when it is fully successful: a segment that
+      // failed part-way is not charged, since its unloaded days must be requested again.
+      // Each segment is its own run, so the plain run id is the consumption id.
+      if (chainMeta) {
+        if (persistedStatus === DataMartRunStatus.SUCCESS) {
+          await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
         }
       } else if (
         hasAnySuccessfulConfiguration &&
@@ -442,8 +470,6 @@ export class ConnectorExecutorService {
         await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
       }
 
-      // A requeued run has not finished: its outcome event and schema refresh belong to the
-      // last segment.
       if (persistedStatus === DataMartRunStatus.SUCCESS) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -457,7 +483,6 @@ export class ConnectorExecutorService {
         );
       } else if (
         persistedStatus !== null &&
-        !wasRequeued &&
         !wasCancelled &&
         !this.gracefulShutdownService.isInShutdownMode()
       ) {
@@ -473,7 +498,7 @@ export class ConnectorExecutorService {
         );
       }
 
-      if (!hasSuccessfulFieldsUpdate && !wasRequeued) {
+      if (!hasSuccessfulFieldsUpdate && !chainContinues) {
         await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
@@ -522,7 +547,7 @@ export class ConnectorExecutorService {
     signal?: AbortSignal,
     liveLogs: ConnectorMessage[] = [],
     liveErrors: ConnectorMessage[] = [],
-    segmented?: SegmentedBackfill
+    isChainSegment: boolean = false
   ): Promise<ConfigurationExecutionResult[]> {
     const runId = run.id;
     const definition = dataMart.definition as DataMartConnectorDefinition;
@@ -602,42 +627,9 @@ export class ConnectorExecutorService {
             })
         );
       };
+      // A chain segment's payload already covers only this segment's window, so the resume
+      // (after an interruption of this run) is the only date adjustment needed here.
       const resume = resumeManualBackfillPayload(runBody, backfillProgress[configId]);
-      const progressBefore = backfillProgress[configId];
-
-      // The connector already confirmed this configuration on an earlier segment, so spawning
-      // it again for every remaining segment would only repeat its one-day re-check.
-      if (
-        segmented &&
-        progressBefore !== undefined &&
-        progressBefore >= segmented.requested.endDate
-      ) {
-        const skipMessage = `Skipping configuration ${configIndex + 1}: it already loaded this manual backfill through ${progressBefore}`;
-        addMessageToArray(configLogs, {
-          type: ConnectorMessageType.LOG,
-          at: this.systemTimeService.now().toISOString(),
-          message: skipMessage,
-          toFormattedString: () => `[LOG] ${skipMessage}`,
-        });
-        configurationResults.push({
-          configIndex,
-          success: true,
-          logs: configLogs,
-          errors: configErrors,
-          backfill: { loadedThrough: progressBefore, hasRemainingWork: false },
-        });
-        continue;
-      }
-
-      // Each attempt asks the connector for one segment only; the next one is queued by
-      // executeInBackground. The row keeps the whole requested period, so every attempt
-      // derives its window from it.
-      const attemptRange = segmented ? readBackfillRange(resume.body) : undefined;
-      const window =
-        attemptRange && segmented
-          ? clampBackfillWindow(attemptRange, segmented.maxDays)
-          : undefined;
-      const attemptBody = window ? withBackfillEndDate(resume.body, window.endDate) : resume.body;
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
       let fieldsUpdate: ConfigurationExecutionResult['fieldsUpdate'];
@@ -847,7 +839,7 @@ export class ConnectorExecutorService {
           });
         }
 
-        const runConfig = this.sourceConfigService.buildRunConfig(attemptBody, configState);
+        const runConfig = this.sourceConfigService.buildRunConfig(resume.body, configState);
 
         await this.processSpawner.spawnConnector(
           dataMart.id,
@@ -1000,45 +992,23 @@ export class ConnectorExecutorService {
             });
           }
         }
-        // More to load only when this segment advanced the checkpoint and stopped short of the
-        // period's end. A node without dates never advances it, so a catalog-only connector
-        // ends after one attempt, as does one whose window was cut back by an end lag.
-        const loadedThrough = backfillProgress[configId];
-        const hasAdvanced =
-          loadedThrough !== undefined &&
-          (progressBefore === undefined || loadedThrough > progressBefore);
         configurationResults.push({
           configIndex,
           success,
           logs: configLogs,
           errors: configErrors,
           fieldsUpdate,
-          backfill: segmented
-            ? {
-                window,
-                loadedThrough,
-                hasRemainingWork:
-                  success && hasAdvanced && loadedThrough < segmented.requested.endDate,
-              }
-            : undefined,
+          // A date checkpoint recorded for this run, by this or an earlier attempt of it.
+          // A dateless (catalog or full-refresh) node never records one, which is how the
+          // chain decision tells those connectors apart.
+          ...(isChainSegment && backfillProgress[configId] !== undefined
+            ? { backfillLoadedThrough: backfillProgress[configId] }
+            : {}),
         });
       }
     }
 
     return configurationResults;
-  }
-
-  /**
-   * The requested period of a manual backfill that needs more than one segment, or undefined
-   * for any other run, which executes in a single attempt exactly as before.
-   */
-  private readSegmentedBackfill(
-    payload?: Record<string, unknown> | null
-  ): SegmentedBackfill | undefined {
-    const requested = readBackfillRange(unwrapRunPayload(payload));
-    if (!requested) return undefined;
-    const maxDays = getMaxManualBackfillDays();
-    return countBackfillDays(requested) > maxDays ? { requested, maxDays } : undefined;
   }
 
   private async persistSuccessfulFieldsUpdate(
@@ -1369,8 +1339,8 @@ export class ConnectorExecutorService {
     operationBlockedException?: ProjectOperationBlockedException,
     wasCancelled: boolean = false,
     flushedSnapshot: RunLogSnapshot | null = null,
-    // Set to queue the next segment of a backfill instead of finishing the run.
-    requeue?: BackfillRequeue
+    // Set to also create the next segment run of a backfill chain, in the same transaction.
+    nextSegment?: NextSegmentRun
     // Returns the status actually persisted, or null when a concurrently committed
     // terminal status won. Callers need the status itself, not just "did it write":
     // billing must skip an INTERRUPTED run because the recovery sweep will run it
@@ -1412,21 +1382,21 @@ export class ConnectorExecutorService {
       newErrorStrings,
       flushedSnapshot
     );
-    const logsToSave = merged.logs;
-    let errorsToSave = merged.errors;
+    let logsToSave = merged.logs;
+    const errorsToSave = merged.errors;
 
     // Only claim the run if it has not already reached a terminal status: a
     // concurrent cancel must win over an orphaned execution that is still
     // finishing up, otherwise the cancelled run silently reverts to
     // SUCCESS/FAILED and the retry sweep can resurrect it.
-    let landedStatus = requeue ? DataMartRunStatus.PENDING : status;
     let landed: boolean;
     try {
-      landed = await this.writeRunOutcome(runId, landedStatus, logsToSave, errorsToSave, requeue);
+      landed = await this.writeRunOutcome(runId, status, logsToSave, errorsToSave, nextSegment);
     } catch (error) {
-      if (!requeue) throw error;
-      // The requeue rolled back as a whole, so nothing of this attempt was stored and the
-      // run would stay RUNNING with no trigger. End it FAILED and say why instead.
+      if (!nextSegment) throw error;
+      // The whole transaction rolled back: neither this run's terminal status nor the next
+      // segment was stored. Write the honest terminal status without the next segment; the
+      // chain repair sweep queues the missing segment on its next pass.
       const failure = castError(error);
       this.logger.error(
         `Failed to queue the next backfill segment: ${failure.message}`,
@@ -1435,21 +1405,20 @@ export class ConnectorExecutorService {
           runId,
         }
       );
-      const queueError = `Could not queue the next backfill segment: ${failure.message}`;
-      errorsToSave = this.capMergedEntries([
-        ...(errorsToSave ?? []),
+      const queueWarning = `Could not queue the next backfill segment: ${failure.message}. The backfill continues automatically within 15 minutes.`;
+      logsToSave = this.capMergedEntries([
+        ...(logsToSave ?? []),
         JSON.stringify({
-          type: ConnectorMessageType.ERROR,
+          type: ConnectorMessageType.WARNING,
           at: this.systemTimeService.now().toISOString(),
-          error: queueError,
+          warning: queueWarning,
         }),
       ]);
-      landedStatus = DataMartRunStatus.FAILED;
-      landed = await this.writeRunOutcome(runId, landedStatus, logsToSave, errorsToSave);
+      landed = await this.writeRunOutcome(runId, status, logsToSave, errorsToSave);
     }
 
     if (landed) {
-      return landedStatus;
+      return status;
     }
 
     // Routine on every user cancellation (the cancel endpoint commits CANCELLED
@@ -1472,10 +1441,10 @@ export class ConnectorExecutorService {
   }
 
   /**
-   * Writes the attempt's outcome and, when `requeue` is given, the trigger that runs the
-   * next segment, in one transaction: a cancel (also transactional) either lands first, so
-   * the guarded update matches nothing and no trigger is created, or sees the requeued run
-   * and cancels its new trigger.
+   * Writes this run's terminal outcome and, when `nextSegment` is given, the next segment
+   * run and its trigger, in one transaction: a cancel (also transactional) either lands
+   * first, so the guarded update matches nothing and no next run is created, or finds the
+   * next PENDING run as the chain's one active run and stops the chain by cancelling it.
    *
    * @returns false when the guarded update matched no row.
    */
@@ -1485,31 +1454,44 @@ export class ConnectorExecutorService {
     status: DataMartRunStatus,
     logs: string[] | null,
     errors: string[] | null,
-    requeue?: BackfillRequeue
+    nextSegment?: NextSegmentRun
   ): Promise<boolean> {
-    if (!requeue) {
-      const result = await this.dataMartRunRepository.update(
-        { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
-        { status, finishedAt: this.systemTimeService.now(), logs, errors }
-      );
-      return !!result.affected;
-    }
-
     const result = await this.dataMartRunRepository.update(
-      { id: runId, status: DataMartRunStatus.RUNNING },
-      { status, finishedAt: null, logs, errors }
+      { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
+      { status, finishedAt: this.systemTimeService.now(), logs, errors }
     );
     if (!result.affected) return false;
+    if (!nextSegment) return true;
 
-    const { run, projectId } = requeue;
+    const { run, dataMart, meta, window } = nextSegment;
+    const nextAdditionalParams = nextSegmentAdditionalParams(run.additionalParams, meta, window);
+
+    const nextRun = await this.dataMartRunRepository.save(
+      this.dataMartRunRepository.create({
+        dataMartId: run.dataMartId,
+        type: DataMartRunType.CONNECTOR,
+        definitionRun: dataMart.definition,
+        status: DataMartRunStatus.PENDING,
+        createdById: run.createdById ?? undefined,
+        runType: run.runType,
+        logs: [],
+        errors: [],
+        additionalParams: nextAdditionalParams,
+      })
+    );
     await this.connectorRunTriggerService.createTrigger({
       dataMartId: run.dataMartId,
-      projectId,
+      projectId: dataMart.projectId,
       createdById: run.createdById ?? 'system',
-      dataMartRunId: runId,
+      dataMartRunId: nextRun.id,
       runType: run.runType,
-      payload: run.additionalParams ?? undefined,
+      payload: nextAdditionalParams,
     });
+
+    this.logger.log(
+      `Queued backfill segment ${meta.segmentIndex} of ${meta.segmentsTotal} as run ${nextRun.id}`,
+      { dataMartId: run.dataMartId, projectId: dataMart.projectId, runId, nextRunId: nextRun.id }
+    );
     return true;
   }
 

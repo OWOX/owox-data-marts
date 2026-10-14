@@ -139,17 +139,20 @@ Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date
 
 Pick any past period. The form shows how many days it covers.
 OWOX splits a period longer than 31 days into consecutive segments of up to 31 days.
-The segments run one after another, and **Run History** shows them as one run.
-The run shows the period, the day it loaded through, and the segment it is loading.
+Each segment runs as its own entry in **Run History**, one after another.
+Every entry names its backfill period and segment, for example "segment 3 of 18".
 
 Each completed segment counts as one run for your consumption.
 The form states the number of runs before you start.
-A segment that fails does not count.
-The failed segment shows the last day the backfill loaded.
-Start a new backfill from the next day to load the rest.
+A segment that fails, is cancelled, or is interrupted does not count.
 
-You can cancel a backfill at any time.
-The segments that already finished stay loaded.
+A failed segment does not stop the backfill; the next segment still runs.
+The failed entry shows the last day it loaded, so you can backfill the gap later.
+After three failed segments in a row, the backfill stops.
+If a restart delays a segment, OWOX queues it again within 15 minutes.
+
+You can cancel a backfill at any time by cancelling its active run.
+No further segments start, and the segments that already finished stay loaded.
 
 A long backfill can take hours.
 It uses source API quota and keeps one of the project's concurrent run slots.

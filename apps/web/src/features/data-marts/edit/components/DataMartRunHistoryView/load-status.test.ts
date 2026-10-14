@@ -26,8 +26,8 @@ const dateEntry = (date: string): LogEntry => ({
 
 const segmentMarker = (
   index: number,
-  phase: 'completed' | 'failed',
-  loadedThrough?: string
+  phase: 'started' | 'completed' | 'failed',
+  extra: Record<string, string | number | boolean> = {}
 ): LogEntry => ({
   id: `seg-${String(index)}-${phase}`,
   level: LogLevel.INFO,
@@ -44,7 +44,7 @@ const segmentMarker = (
     backfillStart: '2024-01-01',
     backfillEnd: '2025-06-30',
     segmentsTotal: 18,
-    ...(loadedThrough ? { loadedThrough } : {}),
+    ...extra,
   },
 });
 
@@ -109,32 +109,35 @@ describe('aggregateLoadStatus', () => {
 });
 
 describe('backfill segments', () => {
-  it('counts completed segments and tracks how far the backfill loaded', () => {
+  it('identifies the run as one segment and lets the latest marker win', () => {
     const status = aggregateLoadStatus([
-      segmentMarker(1, 'completed', '2024-01-31'),
-      segmentMarker(2, 'completed', '2024-03-02'),
+      segmentMarker(3, 'started'),
+      segmentMarker(3, 'completed', { loadedThrough: '2024-04-02', chainContinues: true }),
     ]);
 
     expect(status?.backfill).toEqual({
       backfillStart: '2024-01-01',
       backfillEnd: '2025-06-30',
+      segmentIndex: 3,
       segmentsTotal: 18,
-      segmentsCompleted: 2,
-      loadedThrough: '2024-03-02',
-      failedSegment: null,
+      segmentStart: '2024-03-03',
+      segmentEnd: '2024-04-02',
+      phase: 'completed',
+      loadedThrough: '2024-04-02',
+      chainEnd: null,
     });
   });
 
-  it('reports the failed segment and what loaded before it', () => {
+  it('reports a failed segment with what it loaded', () => {
     const status = aggregateLoadStatus([
-      segmentMarker(1, 'completed', '2024-01-31'),
-      segmentMarker(2, 'failed', '2024-02-20'),
+      segmentMarker(2, 'started'),
+      segmentMarker(2, 'failed', { loadedThrough: '2024-02-20', chainContinues: true }),
     ]);
 
     expect(status?.backfill).toMatchObject({
-      segmentsCompleted: 1,
+      segmentIndex: 2,
+      phase: 'failed',
       loadedThrough: '2024-02-20',
-      failedSegment: { index: 2, start: '2024-03-03', end: '2024-04-02' },
     });
   });
 
@@ -144,22 +147,40 @@ describe('backfill segments', () => {
   });
 
   it('describes each state in one line', () => {
-    const base = aggregateLoadStatus([segmentMarker(1, 'completed', '2024-01-31')])!.backfill!;
+    const running = aggregateLoadStatus([segmentMarker(3, 'started')])!.backfill!;
+    expect(describeBackfillStatus(running, true)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · loading segment 3 of 18'
+    );
+    expect(describeBackfillStatus(running, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 3 of 18'
+    );
 
-    expect(describeBackfillStatus(base, true)).toBe(
-      'Backfill 2024-01-01 – 2025-06-30 · loaded through 2024-01-31 · loading segment 2 of 18'
+    const completed = aggregateLoadStatus([
+      segmentMarker(3, 'completed', { chainContinues: true }),
+    ])!.backfill!;
+    expect(describeBackfillStatus(completed, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 3 of 18 completed'
     );
-    expect(describeBackfillStatus(base, false)).toBe(
-      'Backfill 2024-01-01 – 2025-06-30 · loaded through 2024-01-31 · 1 of 18 segments completed'
+
+    const failed = aggregateLoadStatus([
+      segmentMarker(3, 'failed', { loadedThrough: '2024-03-20', chainContinues: true }),
+    ])!.backfill!;
+    expect(describeBackfillStatus(failed, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 3 of 18 failed · loaded through 2024-03-20'
     );
-    expect(describeBackfillStatus({ ...base, segmentsCompleted: 18 }, false)).toContain(
-      'all 18 segments completed'
+
+    const finished = aggregateLoadStatus([
+      segmentMarker(18, 'completed', { chainContinues: false, chainEnd: 'finished' }),
+    ])!.backfill!;
+    expect(describeBackfillStatus(finished, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 18 of 18 completed · backfill complete'
     );
-    expect(
-      describeBackfillStatus(
-        { ...base, failedSegment: { index: 2, start: '2024-02-01', end: '2024-03-02' } },
-        false
-      )
-    ).toContain('segment 2 of 18 failed');
+
+    const stopped = aggregateLoadStatus([
+      segmentMarker(5, 'failed', { chainContinues: false, chainEnd: 'stopped' }),
+    ])!.backfill!;
+    expect(describeBackfillStatus(stopped, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 5 of 18 failed · backfill stopped'
+    );
   });
 });

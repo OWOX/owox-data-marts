@@ -1,13 +1,20 @@
 import type { LogEntry } from './types';
 
-/** Progress of a manual backfill that runs as several segments, read from its run-log markers. */
+/**
+ * Which segment of a multi-run backfill this run is, read from its run-log markers. Each
+ * segment is its own run: a `started` marker names it, and a terminal marker says how it
+ * ended and whether the backfill goes on.
+ */
 export interface BackfillStatus {
   backfillStart: string;
   backfillEnd: string;
+  segmentIndex: number;
   segmentsTotal: number;
-  segmentsCompleted: number;
+  segmentStart: string;
+  segmentEnd: string;
+  phase: 'started' | 'completed' | 'failed';
   loadedThrough: string | null;
-  failedSegment: { index: number; start: string; end: string } | null;
+  chainEnd: 'finished' | 'stopped' | null;
 }
 
 export interface LoadStatus {
@@ -18,21 +25,26 @@ export interface LoadStatus {
   backfill?: BackfillStatus;
 }
 
-/** One line for the strip: the period, how far it loaded and which segment is (or failed) now. */
+/** One line for the strip: the period, which segment this run is, and how it went. */
 export function describeBackfillStatus(backfill: BackfillStatus, isRunning: boolean): string {
-  const { segmentsTotal: total, segmentsCompleted: completed, failedSegment } = backfill;
-  const progress = failedSegment
-    ? `segment ${String(failedSegment.index)} of ${String(total)} failed`
-    : completed >= total
-      ? `all ${String(total)} segments completed`
-      : isRunning
-        ? `loading segment ${String(completed + 1)} of ${String(total)}`
-        : `${String(completed)} of ${String(total)} segments completed`;
+  const segment = `segment ${String(backfill.segmentIndex)} of ${String(backfill.segmentsTotal)}`;
+  const progress =
+    backfill.phase === 'completed'
+      ? `${segment} completed`
+      : backfill.phase === 'failed'
+        ? `${segment} failed`
+        : isRunning
+          ? `loading ${segment}`
+          : segment;
 
   return [
     `Backfill ${backfill.backfillStart} – ${backfill.backfillEnd}`,
-    ...(backfill.loadedThrough ? [`loaded through ${backfill.loadedThrough}`] : []),
     progress,
+    ...(backfill.phase === 'failed' && backfill.loadedThrough
+      ? [`loaded through ${backfill.loadedThrough}`]
+      : []),
+    ...(backfill.chainEnd === 'finished' ? ['backfill complete'] : []),
+    ...(backfill.chainEnd === 'stopped' ? ['backfill stopped'] : []),
   ].join(' · ');
 }
 
@@ -44,6 +56,7 @@ const asText = (value: unknown): string | null =>
 function readBackfillStatus(entries: LogEntry[]): BackfillStatus | undefined {
   let status: BackfillStatus | undefined;
 
+  // The latest marker wins: `started` first, then the terminal `completed`/`failed` one.
   for (const entry of entries) {
     const meta = entry.metadata;
     if (meta?.metric !== BACKFILL_SEGMENT_METRIC) continue;
@@ -51,40 +64,28 @@ function readBackfillStatus(entries: LogEntry[]): BackfillStatus | undefined {
     const backfillStart = asText(meta.backfillStart);
     const backfillEnd = asText(meta.backfillEnd);
     const segmentsTotal = Number(meta.segmentsTotal);
-    if (!backfillStart || !backfillEnd || !Number.isFinite(segmentsTotal)) continue;
+    const phase = meta.phase;
+    if (
+      !backfillStart ||
+      !backfillEnd ||
+      !Number.isFinite(segmentsTotal) ||
+      (phase !== 'started' && phase !== 'completed' && phase !== 'failed')
+    ) {
+      continue;
+    }
 
-    const loadedThrough = asText(meta.loadedThrough);
-    const previous: BackfillStatus = status ?? {
+    const chainEnd = meta.chainEnd;
+    status = {
       backfillStart,
       backfillEnd,
+      segmentIndex: Number(meta.value),
       segmentsTotal,
-      segmentsCompleted: 0,
-      loadedThrough: null,
-      failedSegment: null,
+      segmentStart: asText(meta.segmentStart) ?? '',
+      segmentEnd: asText(meta.segmentEnd) ?? '',
+      phase,
+      loadedThrough: asText(meta.loadedThrough),
+      chainEnd: chainEnd === 'finished' || chainEnd === 'stopped' ? chainEnd : null,
     };
-    const frontier =
-      loadedThrough && (!previous.loadedThrough || loadedThrough > previous.loadedThrough)
-        ? loadedThrough
-        : previous.loadedThrough;
-
-    status =
-      meta.phase === 'failed'
-        ? {
-            ...previous,
-            segmentsTotal,
-            loadedThrough: frontier,
-            failedSegment: {
-              index: Number(meta.value),
-              start: asText(meta.segmentStart) ?? '',
-              end: asText(meta.segmentEnd) ?? '',
-            },
-          }
-        : {
-            ...previous,
-            segmentsTotal,
-            segmentsCompleted: previous.segmentsCompleted + 1,
-            loadedThrough: frontier,
-          };
   }
 
   return status;

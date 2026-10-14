@@ -20,6 +20,15 @@ import {
   isCancellableDataMartRunStatus,
   isStandardReportRunType,
 } from '../utils/data-mart-run-cancellation';
+import { readBackfillChainMeta } from '../utils/manual-backfill-range';
+
+/**
+ * How many times the cancel follows a backfill chain that advances underneath it. A finished
+ * segment atomically queues the next run, so the row the user cancelled may be terminal by the
+ * time the cancel lands; the fresh active run is then the one to stop. Segments run for
+ * minutes, so one hand-over per attempt is already unlikely.
+ */
+const MAX_CHAIN_CANCEL_ATTEMPTS = 3;
 
 @Injectable()
 export class CancelDataMartRunService {
@@ -77,8 +86,7 @@ export class CancelDataMartRunService {
     }
 
     if (run.type === DataMartRunType.CONNECTOR) {
-      await this.markActiveRunAsCancelled(run);
-      await this.connectorRunTriggerService.stopTriggersForRun(run.id);
+      await this.cancelConnectorRun(run);
       return;
     }
 
@@ -105,6 +113,40 @@ export class CancelDataMartRunService {
     if (!wasCancelled) {
       throw new ConflictException('Cannot cancel data mart run because it is no longer active');
     }
+  }
+
+  /**
+   * Cancels a connector run. For a segment of a backfill chain, cancelling any segment stops
+   * the whole backfill: at most one chain run is active at a time, and a cancelled segment
+   * never queues the next one — so stopping the active run stops everything that remains.
+   * Completed segments keep their data, history, and consumption.
+   */
+  private async cancelConnectorRun(run: DataMartRun): Promise<void> {
+    const chainMeta = readBackfillChainMeta(run.additionalParams);
+    if (!chainMeta) {
+      await this.markActiveRunAsCancelled(run);
+      await this.connectorRunTriggerService.stopTriggersForRun(run.id);
+      return;
+    }
+
+    let target = run;
+    for (let attempt = 0; attempt < MAX_CHAIN_CANCEL_ATTEMPTS; attempt++) {
+      if (await this.dataMartRunService.markAsCancelled(target)) {
+        await this.connectorRunTriggerService.stopTriggersForRun(target.id);
+        return;
+      }
+
+      // The targeted segment already reached a terminal status. If its chain queued another
+      // segment, that run is the data mart's one active connector run — cancel it instead.
+      const active = await this.dataMartRunService.findActiveConnectorRun(run.dataMartId);
+      const activeMeta = active ? readBackfillChainMeta(active.additionalParams) : undefined;
+      if (!active || activeMeta?.id !== chainMeta.id) {
+        break;
+      }
+      target = active;
+    }
+
+    throw new ConflictException('Cannot cancel data mart run because it is no longer active');
   }
 
   private getStandardReportRunReportId(run: { reportId?: string | null }): string {

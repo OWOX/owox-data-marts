@@ -162,6 +162,8 @@ const BACKFILL_SEGMENT_TAG_KEYS = [
   'backfillEnd',
   'segmentsTotal',
   'loadedThrough',
+  'chainContinues',
+  'chainEnd',
 ] as const;
 
 export const processJSONMessage = (
@@ -208,7 +210,13 @@ export const processJSONMessage = (
         if (tags && typeof tags === 'object') {
           for (const key of BACKFILL_SEGMENT_TAG_KEYS) {
             const value = (tags as Record<string, unknown>)[key];
-            if (typeof value === 'string' || typeof value === 'number') metadata[key] = value;
+            if (
+              typeof value === 'string' ||
+              typeof value === 'number' ||
+              typeof value === 'boolean'
+            ) {
+              metadata[key] = value;
+            }
           }
         }
         delete processedObj.tags;
