@@ -96,7 +96,7 @@ describe('_fetchPaginatedData with onBatch', () => {
       context: { log: () => {} },
       _mapResultToColumns: record => record,
       castRecordFields: (_nodeName, record) => record,
-      urlFetchWithRetry: vi.fn(async () => ({ json: async () => pages.shift() })),
+      urlFetchJsonWithRetry: vi.fn(async () => pages.shift()),
     });
     const batches = [];
 
@@ -111,5 +111,38 @@ describe('_fetchPaginatedData with onBatch', () => {
 
     expect(result).toEqual([]);
     expect(batches).toEqual([['1'], ['2']]);
+  });
+
+  // The failure this guards: a mid-import page arrived as valid JSON plus trailing bytes,
+  // the parse threw outside the retry budget, and an import that had already written 88
+  // pages failed outright. Parsing now happens inside urlFetchJsonWithRetry's retry loop,
+  // so a transient body costs one extra request instead of the whole run.
+  it('survives a page body that is valid JSON plus trailing bytes', async () => {
+    const attempts = [];
+    const source = Object.assign(Object.create(proto), {
+      context: {
+        getParameter: name => (name === 'MaxFetchRetries' ? { value: 3 } : undefined),
+        log: () => {},
+        emit: () => {},
+      },
+      _mapResultToColumns: record => record,
+      castRecordFields: (_nodeName, record) => record,
+      _delay: () => Promise.resolve(),
+    });
+    // One corrupted body, then the real page — the production sequence.
+    const bodies = ['{"data":[{"id":"1"}]}garbage', '{"data":[{"id":"1"}]}'];
+    globalThis.fetch = async url => {
+      attempts.push(url);
+      return { ok: true, status: 200, statusText: 'OK', text: async () => bodies.shift() };
+    };
+
+    const result = await source._fetchPaginatedData(
+      'https://graph.facebook.com/page-1',
+      'ad-account/ads',
+      ['id']
+    );
+
+    expect(result).toEqual([{ id: '1' }]);
+    expect(attempts).toHaveLength(2);
   });
 });

@@ -65,3 +65,104 @@ describe('urlFetchWithRetry warning classification', () => {
     expect(thrown.isWarning).toBe(false);
   });
 });
+
+// A provider can answer 200 with a body that is not parseable JSON — valid JSON plus
+// trailing bytes, or a stream that dies mid-read. Parsing used to happen in the caller,
+// after the retry budget was out of scope, so one corrupted page failed an entire import
+// that the next request would have completed. These cover the parse living inside the loop.
+describe('urlFetchJsonWithRetry', () => {
+  // Stands in for a source like FacebookMarketing, whose isValidToRetry() retries any
+  // error without a statusCode. The base class retries nothing, so a retry policy is
+  // what makes the loop observable at all.
+  const makeSource = (bodies, { retry = true } = {}) => {
+    const calls = [];
+    globalThis.fetch = async url => {
+      const body = bodies[calls.length];
+      calls.push(url);
+      if (typeof body === 'function') return body();
+      return { ok: true, status: 200, statusText: 'OK', text: async () => body };
+    };
+
+    const logs = [];
+    const self = Object.assign(Object.create(proto), {
+      context: {
+        getParameter: name => (name === 'MaxFetchRetries' ? { value: 3 } : undefined),
+        log: (level, message) => logs.push({ level, message }),
+        emit: () => {},
+      },
+      isValidToRetry: error => retry && !error.statusCode,
+      // Real backoff starts at 5s; the policy under test is which errors retry, not how long.
+      _delay: () => Promise.resolve(),
+    });
+
+    return { self, calls, logs };
+  };
+
+  const fetchJson = (source, url = 'https://graph.example.test/v26.0/act_1/ads') =>
+    proto.urlFetchJsonWithRetry.call(source.self, url);
+
+  it('retries a body with trailing bytes and returns the next clean page', async () => {
+    const source = makeSource(['{"data":[{"id":"1"}]}garbage', '{"data":[{"id":"2"}]}']);
+
+    const parsed = await fetchJson(source);
+
+    expect(parsed).toEqual({ data: [{ id: '2' }] });
+    expect(source.calls).toHaveLength(2);
+    expect(source.logs.some(entry => /Malformed JSON response/.test(entry.message))).toBe(true);
+  });
+
+  it('retries a body read that dies mid-stream', async () => {
+    const source = makeSource([
+      () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => {
+          throw new TypeError('terminated');
+        },
+      }),
+      '{"data":[]}',
+    ]);
+
+    await expect(fetchJson(source)).resolves.toEqual({ data: [] });
+    expect(source.calls).toHaveLength(2);
+  });
+
+  it('gives up after the attempt budget and names the endpoint', async () => {
+    const source = makeSource(['{}x', '{}x', '{}x']);
+
+    const thrown = await fetchJson(source).catch(e => e);
+
+    expect(thrown).toBeInstanceOf(SyntaxError);
+    expect(thrown.message).toContain('Malformed JSON response from');
+    expect(thrown.message).toContain('/v26.0/act_1/ads');
+    expect(source.calls).toHaveLength(3);
+  });
+
+  it('does not retry when the source policy declines', async () => {
+    const source = makeSource(['{}x', '{"data":[]}'], { retry: false });
+
+    await expect(fetchJson(source)).rejects.toThrow('Malformed JSON response from');
+    expect(source.calls).toHaveLength(1);
+  });
+
+  it('redacts credentials from the endpoint it names', async () => {
+    const source = makeSource(['{}x'], { retry: false });
+
+    const thrown = await fetchJson(
+      source,
+      'https://graph.example.test/v26.0/act_1/ads?access_token=SECRET'
+    ).catch(e => e);
+
+    expect(thrown.message).not.toContain('SECRET');
+  });
+
+  it('leaves urlFetchWithRetry returning an unread response', async () => {
+    const source = makeSource(['{"data":[]}']);
+
+    const response = await proto.urlFetchWithRetry.call(source.self, 'https://example.test');
+
+    expect(response.ok).toBe(true);
+    await expect(response.text()).resolves.toBe('{"data":[]}');
+  });
+});

@@ -273,6 +273,39 @@ export class AbstractSource {
    *   redirects use undici's default transparent follow.
    */
   async urlFetchWithRetry(url, options = {}, validate) {
+    return this._urlFetchWithRetry(url, options, validate, false);
+  }
+
+  /**
+   * Same request and retry policy as `urlFetchWithRetry`, but the body is READ AND
+   * PARSED INSIDE the retry loop, and the parsed JSON is what you get back.
+   *
+   * Why this exists: `urlFetchWithRetry` returns the Response unread, so callers
+   * parsed it AFTER the retry budget was out of scope. A provider that answers 200
+   * with a corrupted body (valid JSON plus trailing bytes, a truncated stream) threw
+   * straight past `MaxFetchRetries` and failed the whole run on a blip the very next
+   * request would have fixed. Here a body-read or parse failure is thrown inside the
+   * loop with no `.statusCode`, so it travels the same path as a network error:
+   * `isValidToRetry()` decides, and backoff applies.
+   *
+   * Only for JSON endpoints — the body is consumed, so there is no Response left to
+   * read again. Non-JSON responses (CSV, binary) must keep using `urlFetchWithRetry`.
+   *
+   * @param {string} url
+   * @param {object} [options] - fetch options; `redirect` is set per the rule above.
+   * @param {(nextUrl: string) => (void | Promise<void>)} [validate] - per-hop SSRF validator.
+   * @returns {Promise<*>} the parsed JSON body
+   */
+  async urlFetchJsonWithRetry(url, options = {}, validate) {
+    return this._urlFetchWithRetry(url, options, validate, true);
+  }
+
+  /**
+   * Shared implementation behind `urlFetchWithRetry` (parseJson=false) and
+   * `urlFetchJsonWithRetry` (parseJson=true). See those for the contract.
+   * @private
+   */
+  async _urlFetchWithRetry(url, options = {}, validate, parseJson = false) {
     let maxRetries = this._getRetryParam('MaxFetchRetries', 3);
     let initialDelay = this._getRetryParam('InitialRetryDelay', 5000);
 
@@ -421,7 +454,23 @@ export class AbstractSource {
           throw error;
         }
 
-        return response;
+        if (!parseJson) return response;
+
+        // Read and parse WHILE STILL INSIDE the retry loop. A rejected body read
+        // (undici's "terminated" on a cut stream) or a corrupted body therefore
+        // falls into the catch below and is retried like any other transport
+        // failure, instead of throwing past the caller's retry budget.
+        const bodyText = await response.text();
+        try {
+          return JSON.parse(bodyText);
+        } catch (parseError) {
+          // Name the endpoint and keep a short tail of the body: "position 88743"
+          // alone says nothing about which request or what arrived.
+          parseError.message =
+            `Malformed JSON response from ${this._redactUrl(currentUrl)}: ${parseError.message}` +
+            ` — body ended with ${JSON.stringify(bodyText.slice(-100))}`;
+          throw parseError;
+        }
       } catch (error) {
         // Redirect-control errors (too-many-redirects, a per-hop validate
         // rejection) are deterministic security/limit decisions — never retry or

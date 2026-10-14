@@ -655,8 +655,9 @@ export class FacebookMarketingSource extends AbstractSource {
     let nextPageURL = initialUrl;
 
     while (nextPageURL) {
-      const response = await this.urlFetchWithRetry(nextPageURL);
-      const jsonData = await response.json();
+      // Parses inside the retry loop: a corrupted page body is retried instead of
+      // failing the whole import after the pages before it were already written.
+      const jsonData = await this.urlFetchJsonWithRetry(nextPageURL);
 
       if ('data' in jsonData) {
         nextPageURL = jsonData.paging ? jsonData.paging.next : null;
