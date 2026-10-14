@@ -39,6 +39,14 @@ export function usePluginHistory(type: PluginHistoryType) {
     }
   }, [isError, error]);
 
+  const lastPage = data?.pages.at(-1);
+  useEffect(() => {
+    // The server cuts a page before hiding no-op rows, so a page can hold nothing to show.
+    if (lastPage?.items.length === 0 && hasNextPage && !isFetchingNextPage && !isError) {
+      void fetchNextPage();
+    }
+  }, [lastPage, hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
+
   const events = useMemo(() => data?.pages.flatMap(page => page.items) ?? EMPTY, [data]);
 
   return {

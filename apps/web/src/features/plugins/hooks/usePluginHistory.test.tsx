@@ -61,6 +61,34 @@ describe('usePluginHistory', () => {
     expect(pluginsService.getHistory).toHaveBeenLastCalledWith('all', 'e2');
   });
 
+  // A page of hidden rows alone, such as repeated Credentials saves, would leave a lone Show more.
+  it('loads past a page that holds nothing to show', async () => {
+    vi.mocked(pluginsService.getHistory)
+      .mockResolvedValueOnce({ items: [], nextCursor: 'c1' })
+      .mockResolvedValueOnce({ items: [item('e1')], nextCursor: null });
+
+    const { result } = renderHook(() => usePluginHistory('all'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.events.map(event => event.id)).toEqual(['e1']);
+    });
+    expect(pluginsService.getHistory).toHaveBeenLastCalledWith('all', 'c1');
+  });
+
+  it('stops loading past empty pages once one fails', async () => {
+    vi.mocked(pluginsService.getHistory)
+      .mockResolvedValueOnce({ items: [], nextCursor: 'c1' })
+      .mockRejectedValue(new Error('boom'));
+
+    const { result } = renderHook(() => usePluginHistory('all'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(pluginsService.getHistory).toHaveBeenCalledTimes(2);
+  });
+
   it('says what failed when the history does not load', async () => {
     vi.mocked(pluginsService.getHistory).mockRejectedValue({
       response: { data: { message: 'History is unavailable' } },
