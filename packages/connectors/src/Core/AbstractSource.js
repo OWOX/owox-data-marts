@@ -464,11 +464,17 @@ export class AbstractSource {
         try {
           return JSON.parse(bodyText);
         } catch (parseError) {
-          // Name the endpoint and keep a short tail of the body: "position 88743"
-          // alone says nothing about which request or what arrived.
+          // Name the endpoint and the body's size. "position 88743" alone says nothing
+          // about which request failed; against the total it says whether a complete
+          // document had bytes appended (88743 of 88761) or arrived cut short.
+          //
+          // The body itself stays OUT of the message deliberately. A page's tail holds
+          // `paging.next`, which carries the access token, and AbstractContext's
+          // redactSecrets() only replaces a secret it matches IN FULL -- so a tail
+          // clipped mid-token would put the fragment into persisted run logs.
           parseError.message =
-            `Malformed JSON response from ${this._redactUrl(currentUrl)}: ${parseError.message}` +
-            ` — body ended with ${JSON.stringify(bodyText.slice(-100))}`;
+            `Malformed JSON response from ${this._redactUrl(currentUrl)} ` +
+            `(${bodyText.length} bytes): ${parseError.message}`;
           throw parseError;
         }
       } catch (error) {

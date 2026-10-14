@@ -157,6 +157,22 @@ describe('urlFetchJsonWithRetry', () => {
     expect(thrown.message).not.toContain('SECRET');
   });
 
+  // The message reports the body's SIZE, never its content. A page's tail is
+  // `paging.next`, which carries the access token, and redactSecrets() only
+  // replaces a secret matched in full -- so a quoted tail clipped mid-token
+  // would leak the fragment into run logs that viewers can read.
+  it('reports the body size without quoting the body', async () => {
+    const body =
+      '{"data":[],"paging":{"next":"https://graph.example.test/n?access_token=TOKENVALUE"}}x';
+    const source = makeSource([body], { retry: false });
+
+    const thrown = await fetchJson(source).catch(e => e);
+
+    expect(thrown.message).toContain(`(${body.length} bytes)`);
+    expect(thrown.message).not.toContain('TOKENVALUE');
+    expect(thrown.message).not.toContain('paging');
+  });
+
   it('leaves urlFetchWithRetry returning an unread response', async () => {
     const source = makeSource(['{"data":[]}']);
 
