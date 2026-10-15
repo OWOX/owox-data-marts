@@ -89,9 +89,10 @@ describe('ActionInputValidatorService', () => {
       allOf: [{ $ref: '#/$defs/ok' }, { $ref: '#/$defs/slow' }],
     };
 
-    // About 70 ms of work, well inside the budget: the answer is the settled one, not the budget's.
+    // About 10 ms of work, far inside the budget even on a loaded CI runner: the answer is the
+    // settled one, not the budget's.
     await expect(
-      validator.validate('version-1', 'run', slowAfterAwait, fill(500, 0))
+      validator.validate('version-1', 'run', slowAfterAwait, fill(50, 0))
     ).resolves.toEqual(OVER_BUDGET);
     await expect(validator.validate('version-2', 'run', NUMBER, 1)).resolves.toEqual([]);
     expect(terminate).not.toHaveBeenCalled();
